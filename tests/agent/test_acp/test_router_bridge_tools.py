@@ -409,6 +409,90 @@ def test_bridge_start_without_view_falls_back_to_title() -> None:
         _transcript.reset(token)
 
 
+def _write_call(
+    tool_id: str = "tc1",
+    *,
+    content: str = "hello world",
+    view_content: str = "```text\n{{content}}\n```\n",
+) -> ToolCall:
+    """A bridged Write call whose viewer emits a ``{{content}}`` placeholder."""
+    return ToolCall(
+        id=tool_id,
+        function="Write",
+        arguments={"file_path": "/tmp/x.txt", "content": content},
+        view=ToolCallContent(title="Write", format="markdown", content=view_content),
+    )
+
+
+def test_bridge_tool_view_substitutes_param_placeholders() -> None:
+    """Viewer ``{{param}}`` placeholders are filled from the call args.
+
+    inspect_swe's Write/Edit viewers emit ``{{content}}`` placeholders that the
+    web viewer fills via ``substituteToolCallContent`` (tool.ts). The ACP path
+    must do the same or editors/TUI render the literal ``{{content}}``.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(_tool_call_event(_write_call(content="hello world")))
+        starts = _starts(published)
+        assert len(starts) == 1
+        text = _content_text(starts[0])
+        assert "hello world" in text
+        assert "{{content}}" not in text
+    finally:
+        _transcript.reset(token)
+
+
+def test_bridge_tool_view_leaves_unknown_placeholder_literal() -> None:
+    """A ``{{param}}`` with no matching arg is left as-is (not blanked)."""
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(
+                _tool_call_event(_write_call(view_content="{{content}} {{missing}}"))
+            )
+        starts = _starts(published)
+        assert len(starts) == 1
+        text = _content_text(starts[0])
+        assert "hello world" in text  # known key substituted
+        assert "{{missing}}" in text  # unknown key preserved
+    finally:
+        _transcript.reset(token)
+
+
+def test_bridge_tool_view_substitution_preserved_on_completion() -> None:
+    """The settled (completed) card also has placeholders substituted.
+
+    The update path runs through the same ``_content_from_view``, so the result
+    card must show the file body, not the literal ``{{content}}``.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(_tool_call_event(_write_call(content="hello world")))
+            tr._event(
+                _result_event(
+                    ChatMessageTool(
+                        tool_call_id="tc1", function="Write", content="wrote 1 file"
+                    )
+                )
+            )
+        progress = _progress(published)
+        assert len(progress) == 1
+        text = _content_text(progress[0])
+        assert "hello world" in text  # view preserved + substituted
+        assert "{{content}}" not in text
+    finally:
+        _transcript.reset(token)
+
+
 # ---------------------------------------------------------------------------
 # Replay (late-attach) — structural detection, no bridge context
 # ---------------------------------------------------------------------------

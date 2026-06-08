@@ -1260,22 +1260,32 @@ async def task_run_sample(
                                                 error, raise_error = handle_error(ex)
 
                                     elif active.limit_exceeded_error:
-                                        # record event
-                                        transcript()._event(
-                                            SampleLimitEvent(
-                                                type="working",
-                                                message=active.limit_exceeded_error.message,
-                                                limit=active.limit_exceeded_error.limit,
+                                        err = active.limit_exceeded_error
+                                        # Record a SampleLimitEvent ONLY for a working-time
+                                        # limit. `sample.limit_exceeded()` (which set
+                                        # `limit_exceeded_error` and cancelled us) has two
+                                        # callers: monitor_working_limit(), which records no
+                                        # event of its own — so here we are its sole recorder
+                                        # — and the sandbox service, which surfaces a bridged
+                                        # message/token/cost limit that ALREADY recorded its
+                                        # own event at its detection point (e.g.
+                                        # check_message_limit). Recording the latter here would
+                                        # both duplicate that event and mislabel it "working".
+                                        if err.type == "working":
+                                            transcript()._event(
+                                                SampleLimitEvent(
+                                                    type=err.type,
+                                                    message=err.message,
+                                                    limit=err.limit,
+                                                )
                                             )
-                                        )
 
                                         # capture most recent state for scoring
                                         state = sample_state() or state
                                         limit = EvalSampleLimit(
-                                            type=active.limit_exceeded_error.type,
-                                            limit=active.limit_exceeded_error.limit
-                                            if active.limit_exceeded_error.limit
-                                            is not None
+                                            type=err.type,
+                                            limit=err.limit
+                                            if err.limit is not None
                                             else -1,
                                         )
 
