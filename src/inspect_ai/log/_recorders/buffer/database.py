@@ -771,7 +771,13 @@ class SampleBufferDatabase(SampleBuffer):
                 # as the prior delete+OFF mode (corruption only on OS/power
                 # loss, not on a clean process crash) while avoiding the
                 # per-commit fsync cost that dominates inference-light evals.
-                journal_mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+                try:
+                    journal_mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+                except sqlite3.OperationalError as ex:
+                    if "locked" in str(ex):
+                        raise
+                    journal_mode = f"unavailable: {ex}"
+
                 if not self._wal_checked:
                     self._wal_checked = True
                     if str(journal_mode).lower() != "wal":
