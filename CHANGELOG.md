@@ -1,7 +1,10 @@
+## Unreleased
+
+- Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set without parsing logs: `ls` (running evals), `samples` (per-sample status, with an idle indicator to spot stalled samples), `sample` / `errors` (per-sample error history), and `release`. Add `--keep-alive` to keep a process and its control surface alive after the eval finishes — until `inspect ctl release` — so results can be read without racing process teardown.
+
 ## 0.3.238 (08 June 2026)
 
 - Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled.
-- Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set without parsing logs: `ls` (running evals), `samples` (per-sample status, with an idle indicator to spot stalled samples), `sample` / `errors` (per-sample error history), and `release`. Add `--keep-alive` to keep a process and its control surface alive after the eval finishes — until `inspect ctl release` — so results can be read without racing process teardown.
 - ACP: Render tool calls for agent-bridge agents (e.g. `claude_code`, `codex_cli`). 
 - ACP: Substitute `{{param}}` placeholders in tool-call views.
 - ACP: Keep the optimistic `user · queued` chip visible when agents are idle mid-turn.
