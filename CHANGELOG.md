@@ -2,6 +2,7 @@
 
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - S3: Retry when requests have stale signatures.
+- Eval Logs: Add `read_eval_log_samples_by_id()` and `read_eval_log_samples_by_id_async()` to concurrently read a specific subset of samples by `(id, epoch)` (#2873).
 
 ## 0.3.238 (08 June 2026)
 
