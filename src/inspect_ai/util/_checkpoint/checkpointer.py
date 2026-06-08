@@ -23,33 +23,9 @@ from __future__ import annotations
 import contextlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from enum import Enum
-from typing import Callable, Protocol, TypeVar
+from typing import Callable, Literal, Protocol, TypeVar
 
 T = TypeVar("T")
-
-
-class Attempt(str, Enum):
-    """Why this checkpointed session is running.
-
-    Replaces the prior boolean ``is_resuming`` with a richer signal so
-    agents can take the scoring-phase resume fast-path. Subclasses
-    ``str`` for ergonomic comparisons and direct JSON serialization.
-    """
-
-    INITIAL = "initial"
-    """First attempt for this sample — no prior checkpoint."""
-
-    RESUME = "resume"
-    """Retry of a sample whose prior attempt crashed mid-agent. Agent
-    should resume its loop from the rehydrated state."""
-
-    RESUME_FOR_SCORING = "resume_for_scoring"
-    """Retry of a sample whose prior attempt completed the agent loop
-    but crashed during (or before) scoring. The latest parseable
-    checkpoint file has ``trigger == "agent_complete"``. Agents that
-    support this fast-path should restore their tracked state and
-    return immediately — no further agent work."""
 
 
 @dataclass
@@ -62,7 +38,7 @@ class ResumeCheckpoint:
     """
 
     sample_checkpoints_dir: str
-    attempt: Attempt
+    attempt: Literal["initial", "resume", "resume_for_scoring"]
 
 
 class Checkpointer(Protocol):
@@ -74,19 +50,18 @@ class Checkpointer(Protocol):
     """
 
     @property
-    def attempt(self) -> Attempt:
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
         """Why this session is running.
 
         Stable across the lifetime of the session. Agents typically
         branch as follows:
 
-        - :attr:`Attempt.INITIAL` — fresh start; perform one-time setup.
-        - :attr:`Attempt.RESUME` — prior agent loop crashed; framework
-          state has been rehydrated, agent continues from where it
-          left off.
-        - :attr:`Attempt.RESUME_FOR_SCORING` — prior agent loop
-          finished cleanly but scoring crashed; agent should restore
-          tracked state and return immediately so scoring can re-run.
+        - ``"initial"`` — fresh start; perform one-time setup.
+        - ``"resume"`` — prior agent loop crashed; framework state has
+          been rehydrated, agent continues from where it left off.
+        - ``"resume_for_scoring"`` — prior agent loop finished cleanly
+          but scoring crashed; agent should restore tracked state and
+          return immediately so scoring can re-run.
         """
         ...
 

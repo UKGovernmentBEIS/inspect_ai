@@ -26,7 +26,7 @@ from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
-from inspect_ai.util._checkpoint import Attempt, Checkpointer, checkpointer
+from inspect_ai.util._checkpoint import Checkpointer, checkpointer
 
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._channel import (
@@ -209,7 +209,7 @@ def react(
             # to clean exit and the harness will run scoring next. State
             # is fully restored above; return immediately so scoring can
             # re-run without re-doing the agent's work.
-            if cp.attempt == Attempt.RESUME_FOR_SCORING:
+            if cp.attempt == "resume_for_scoring":
                 return state
 
             async with (
@@ -436,7 +436,7 @@ def react_no_submit(
             # to clean exit and the harness will run scoring next. State
             # is fully restored above; return immediately so scoring can
             # re-run without re-doing the agent's work.
-            if cp.attempt == Attempt.RESUME_FOR_SCORING:
+            if cp.attempt == "resume_for_scoring":
                 return state
 
             async with (

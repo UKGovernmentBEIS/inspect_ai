@@ -1,7 +1,7 @@
 import contextlib
-from typing import Callable, TypeVar
+from typing import Callable, Literal, TypeVar
 
-from inspect_ai.util._checkpoint.checkpointer import Attempt, Checkpointer
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
 T = TypeVar("T")
 
@@ -14,8 +14,8 @@ class _NoopCheckpointer(contextlib.AbstractAsyncContextManager[Checkpointer]):
     """
 
     @property
-    def attempt(self) -> Attempt:
-        return Attempt.INITIAL
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
+        return "initial"
 
     async def __aenter__(self) -> Checkpointer:
         return self

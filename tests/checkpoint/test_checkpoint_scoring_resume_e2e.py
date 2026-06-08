@@ -8,7 +8,7 @@ loop runs to a clean ``submit`` — so the checkpointer fires a final
 ``agent_complete`` checkpoint — and then the scorer ``SIGKILL``s its own
 process *before* scoring commits. On retry, inspect reads the latest
 ``agent_complete`` checkpoint, tags the sample
-``Attempt.RESUME_FOR_SCORING``, and the ``react`` agent fast-path-returns its
+``"resume_for_scoring"``, and the ``react`` agent fast-path-returns its
 restored state with **zero** model calls; the scorer then re-runs to success.
 
 Like the mid-agent sibling (``test_checkpoint_e2e.py``), a real ``SIGKILL``

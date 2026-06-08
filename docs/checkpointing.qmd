@@ -235,7 +235,7 @@ The key checkpointing mechanism for agents is the `cp.track` method, which gives
 On a fresh run, `track` returns the `initial_value` the agent passes in. On a retry of the same sample, `track` returns whatever the registered callback captured at the most recent checkpoint of the prior run, so the agent's important state comes back automatically and can pick up where it left off.
 
 ``` python
-from inspect_ai.util import Attempt, checkpointer
+from inspect_ai.util import checkpointer
 
 async def my_agent(state):
     async with checkpointer() as cp:
@@ -258,7 +258,7 @@ async def my_agent(state):
         # scoring-phase resume: agent already finished in
         # the prior attempt — tracked state is restored
         # above, return so scoring can re-run.
-        if cp.attempt == Attempt.RESUME_FOR_SCORING:
+        if cp.attempt == "resume_for_scoring":
             return state
 
         # agent loop
@@ -278,7 +278,7 @@ The `Checkpointer` context has the following members:
 | `await cp.tick()` | Turn-boundary signal; may fire a checkpoint depending on the trigger. |
 | `await cp.checkpoint()` | Force a checkpoint regardless of trigger. |
 | `cp.track(key, callback, initial_value, *, value_type=None)` | Declare a piece of persisted agent state. `callback` is invoked at every checkpoint fire to capture the current value; the method returns the value captured at the most recent prior checkpoint on a retry, or `initial_value` on a fresh run. |
-| `cp.attempt` | `Attempt.INITIAL` (fresh), `Attempt.RESUME` (mid-agent resume), or `Attempt.RESUME_FOR_SCORING` (agent completed in the prior attempt — restore tracked state and return). |
+| `cp.attempt` | `"initial"` (fresh), `"resume"` (mid-agent resume), or `"resume_for_scoring"` (agent completed in the prior attempt — restore tracked state and return). |
 
 `cp.track()` is generic over the value type. Pydantic models and JSON primitive values are handled automatically; for other shapes (collections, generics, dataclasses, lists of models) pass `value_type=...`.
 

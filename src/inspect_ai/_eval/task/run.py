@@ -128,7 +128,7 @@ from inspect_ai.util._checkpoint._layout import (
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     scan_latest_committed_checkpoint,
 )
-from inspect_ai.util._checkpoint.checkpointer import Attempt, ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.config import (
     CheckpointConfig,
     merge_checkpoint_configs,
@@ -1663,12 +1663,12 @@ def eval_log_sample_source(
         prior_sample_dir = sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
         # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
         # agent finished cleanly, scoring is the next thing → retry can
-        # skip the agent loop (see ``Attempt.RESUME_FOR_SCORING``).
+        # skip the agent loop (the ``"resume_for_scoring"`` attempt).
         checkpoint = await scan_latest_committed_checkpoint(prior_sample_dir)
-        attempt = (
-            Attempt.RESUME_FOR_SCORING
+        attempt: Literal["initial", "resume", "resume_for_scoring"] = (
+            "resume_for_scoring"
             if checkpoint is not None and checkpoint.trigger == "agent_complete"
-            else Attempt.RESUME
+            else "resume"
         )
         return ResumeCheckpoint(
             sample_checkpoints_dir=prior_sample_dir,

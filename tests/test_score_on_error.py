@@ -10,7 +10,7 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
-from inspect_ai.util._checkpoint.checkpointer import Attempt, ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -225,7 +225,7 @@ def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) ->
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
     assert result.sample_checkpoints_dir == str(sample_dir)
-    assert result.attempt is Attempt.RESUME
+    assert result.attempt == "resume"
 
 
 def test_eval_log_sample_source_scoring_resume_for_agent_complete_checkpoint(
@@ -251,7 +251,7 @@ def test_eval_log_sample_source_scoring_resume_for_agent_complete_checkpoint(
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
     assert result.sample_checkpoints_dir == str(sample_dir)
-    assert result.attempt is Attempt.RESUME_FOR_SCORING
+    assert result.attempt == "resume_for_scoring"
 
 
 def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) -> None:

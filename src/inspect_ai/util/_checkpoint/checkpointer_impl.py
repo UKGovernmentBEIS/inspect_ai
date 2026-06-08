@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -65,7 +65,6 @@ from ._layout.staging_dir import sandbox_repo_dir
 from ._sandbox_restic import egress_sandbox, run_sandbox_backup
 from ._triggers import CheckpointTriggerKind, create_trigger
 from .checkpointer import (
-    Attempt,
     Checkpointer,
     ResumeCheckpoint,
 )
@@ -172,7 +171,7 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         if (
             self._cached is None
             or exc_type is not None
-            or self._cached.attempt == Attempt.RESUME_FOR_SCORING
+            or self._cached.attempt == "resume_for_scoring"
             or self._finalized
         ):
             return
@@ -266,9 +265,9 @@ class _EnteredCheckpointer:
         self._closed = True
 
     @property
-    def attempt(self) -> Attempt:
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
         if self._resume_checkpoint is None:
-            return Attempt.INITIAL
+            return "initial"
         return self._resume_checkpoint.attempt
 
     async def tick(self) -> None:

@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
+from typing import Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -46,7 +47,7 @@ from inspect_ai.util._checkpoint import (
     checkpointer,
 )
 from inspect_ai.util._checkpoint._triggers import CheckpointTriggerKind
-from inspect_ai.util._checkpoint.checkpointer import Attempt, ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_impl import (
     CheckpointFailureLimitExceeded,
     _CheckpointerSetup,
@@ -1015,30 +1016,28 @@ def test_track_noop_session() -> None:
 
 
 def test_attempt_noop_initial() -> None:
-    from inspect_ai.util._checkpoint.checkpointer import Attempt
-
-    assert _NoopCheckpointer().attempt is Attempt.INITIAL
+    assert _NoopCheckpointer().attempt == "initial"
 
 
 def test_attempt_reflects_resume_checkpoint() -> None:
-    from inspect_ai.util._checkpoint.checkpointer import Attempt, ResumeCheckpoint
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 
-    assert _make_cp().attempt is Attempt.INITIAL
+    assert _make_cp().attempt == "initial"
     assert (
         _make_cp(
             resume_checkpoint=ResumeCheckpoint(
-                sample_checkpoints_dir="/x", attempt=Attempt.RESUME
+                sample_checkpoints_dir="/x", attempt="resume"
             ),
         ).attempt
-        is Attempt.RESUME
+        == "resume"
     )
     assert (
         _make_cp(
             resume_checkpoint=ResumeCheckpoint(
-                sample_checkpoints_dir="/x", attempt=Attempt.RESUME_FOR_SCORING
+                sample_checkpoints_dir="/x", attempt="resume_for_scoring"
             ),
         ).attempt
-        is Attempt.RESUME_FOR_SCORING
+        == "resume_for_scoring"
     )
 
 
@@ -1483,7 +1482,7 @@ async def test_checkpointer_setup_reconstruct_preserves_transcript_store(
 # === __aexit__ finalize: scoring-phase-resume handoff ========================
 #
 # On a clean agent exit the setup fires a final "agent_complete" checkpoint and
-# a later scoring crash can resume into `Attempt.RESUME_FOR_SCORING` and skip
+# a later scoring crash can resume into `"resume_for_scoring"` and skip
 # the agent loop. These tests pin the gating: finalize fires iff the cm was
 # entered, exited cleanly, isn't already a scoring-phase resume, and hasn't
 # already finalized.
@@ -1491,7 +1490,9 @@ async def test_checkpointer_setup_reconstruct_preserves_transcript_store(
 
 @contextmanager
 def _finalize_setup(
-    tmp_path: Path, *, attempt: Attempt | None = None
+    tmp_path: Path,
+    *,
+    attempt: Literal["initial", "resume", "resume_for_scoring"] | None = None,
 ) -> Iterator[_CheckpointerSetup]:
     """Yield a patched `_CheckpointerSetup`.
 
@@ -1554,13 +1555,13 @@ async def test_finalize_skipped_when_exception_propagates(tmp_path: Path) -> Non
 
 
 async def test_finalize_skipped_for_scoring_phase_resume(tmp_path: Path) -> None:
-    with _finalize_setup(tmp_path, attempt=Attempt.RESUME_FOR_SCORING) as setup:
+    with _finalize_setup(tmp_path, attempt="resume_for_scoring") as setup:
         fire = AsyncMock()
         with patch.object(_EnteredCheckpointer, "_fire", fire):
             async with setup as cp:
                 assert isinstance(cp, _EnteredCheckpointer)
         # latest checkpoint is already agent_complete — don't re-fire
-        assert cp.attempt is Attempt.RESUME_FOR_SCORING
+        assert cp.attempt == "resume_for_scoring"
         fire.assert_not_awaited()
 
 
@@ -1615,7 +1616,7 @@ async def test_resume_resets_restored_transcript_store_before_seeding(
         epoch=0,
         resume_checkpoint=ResumeCheckpoint(
             sample_checkpoints_dir=str(tmp_path / "prior-ckpts"),
-            attempt=Attempt.RESUME,
+            attempt="resume",
         ),
     )
 
@@ -1659,7 +1660,7 @@ def test_resume_seed_skips_restored_resident_events(
         hydration=hydration,
         resume_checkpoint=ResumeCheckpoint(
             sample_checkpoints_dir=str(tmp_path / "old"),
-            attempt=Attempt.RESUME,
+            attempt="resume",
         ),
         reset_transcript_store=True,
     )
@@ -1893,7 +1894,7 @@ async def test_resume_materializes_pooled_model_event_and_seeds_transcript(
         hydration=hydration,
         resume_checkpoint=ResumeCheckpoint(
             sample_checkpoints_dir=str(tmp_path / "prior"),
-            attempt=Attempt.RESUME,
+            attempt="resume",
         ),
         reset_transcript_store=True,
     )

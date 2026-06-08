@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 
 import inspect_ai.agent._react as react_module
 from inspect_ai.agent import Agent, AgentState
 from inspect_ai.model import ChatMessageUser, ModelOutput
-from inspect_ai.util._checkpoint import Attempt
 
 
 class _ResumeForScoringCheckpointer:
@@ -18,8 +17,8 @@ class _ResumeForScoringCheckpointer:
         self.ticks = 0
 
     @property
-    def attempt(self) -> Attempt:
-        return Attempt.RESUME_FOR_SCORING
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
+        return "resume_for_scoring"
 
     async def __aenter__(self) -> "_ResumeForScoringCheckpointer":
         return self
@@ -44,8 +43,8 @@ class _ResumeForScoringCheckpointer:
 
 class _InitialCheckpointer(_ResumeForScoringCheckpointer):
     @property
-    def attempt(self) -> Attempt:
-        return Attempt.INITIAL
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
+        return "initial"
 
 
 class _ProbeContext:

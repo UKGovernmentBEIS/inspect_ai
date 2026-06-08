@@ -7,7 +7,7 @@ its own process on its first attempt — an abrupt death *after* the solver
 finished but *before* scoring committed.
 
 On retry, inspect reads the latest ``agent_complete`` checkpoint, tags the sample
-``Attempt.RESUME_FOR_SCORING``, and the ``react`` agent fast-path-returns its
+``"resume_for_scoring"``, and the ``react`` agent fast-path-returns its
 restored state without a single model call; scoring then re-runs to success.
 
 Two roles, like the sibling harness:
