@@ -39,7 +39,14 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+    StopCategory,
+    StopDetails,
+    collect_stop_details,
+)
 from .util import (
     model_base_url,
 )
@@ -735,6 +742,9 @@ def model_output_from_response(
             content=content, tool_calls=tool_calls, model=model, source="generate"
         ),
         stop_reason=message_stop_reason(response.stopReason),
+        stop_details=collect_stop_details(
+            "bedrock", logger, lambda: bedrock_stop_details(response)
+        ),
     )
 
     # Compute usage
@@ -782,6 +792,67 @@ def message_stop_reason(
             return "unknown"
         case _:
             return "unknown"
+
+
+def _bedrock_guardrail_assessments(trace: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten guardrail input/output assessments from a Converse `trace`."""
+    guardrail = trace.get("guardrail")
+    if not isinstance(guardrail, dict):
+        return []
+    assessments: list[dict[str, Any]] = []
+    # inputAssessment: {guardrailId: assessment}
+    input_assessment = guardrail.get("inputAssessment")
+    if isinstance(input_assessment, dict):
+        assessments.extend(v for v in input_assessment.values() if isinstance(v, dict))
+    # outputAssessments: {guardrailId: [assessment, ...]}
+    output_assessments = guardrail.get("outputAssessments")
+    if isinstance(output_assessments, dict):
+        for value in output_assessments.values():
+            if isinstance(value, list):
+                assessments.extend(a for a in value if isinstance(a, dict))
+            elif isinstance(value, dict):
+                assessments.append(value)
+    return assessments
+
+
+def bedrock_stop_details(response: ConverseResponse) -> StopDetails | None:
+    """Extract guardrail/content-filter detail from a Converse response.
+
+    The guardrail `trace` is only populated when a guardrail was configured with
+    tracing enabled; otherwise there is no per-category detail to report.
+    """
+    if response.stopReason not in ("guardrail_intervened", "content_filtered"):
+        return None
+    trace = response.trace or {}
+    categories: list[StopCategory] = []
+    for assessment in _bedrock_guardrail_assessments(trace):
+        # content policy: harm categories with a confidence level
+        content_policy = assessment.get("contentPolicy")
+        if isinstance(content_policy, dict):
+            for f in content_policy.get("filters", []) or []:
+                if isinstance(f, dict) and (
+                    f.get("action") == "BLOCKED" or f.get("detected")
+                ):
+                    confidence = f.get("confidence")
+                    categories.append(
+                        StopCategory(
+                            category=str(f.get("type", "unknown")),
+                            level=str(confidence) if confidence else None,
+                        )
+                    )
+        # topic policy: named denied topics
+        topic_policy = assessment.get("topicPolicy")
+        if isinstance(topic_policy, dict):
+            for t in topic_policy.get("topics", []) or []:
+                if isinstance(t, dict) and (
+                    t.get("action") == "BLOCKED" or t.get("detected")
+                ):
+                    name = t.get("name")
+                    if name:
+                        categories.append(StopCategory(category=str(name)))
+    if not categories:
+        return None
+    return StopDetails(type=response.stopReason, categories=categories)
 
 
 def as_converse_system_messages(

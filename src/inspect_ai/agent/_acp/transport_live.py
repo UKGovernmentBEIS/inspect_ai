@@ -265,8 +265,33 @@ class _TranscriptCapture:
     def snapshot(self) -> Sequence[Any]:
         if self._captured is None:
             return []
-        # Slice the transcript view directly so bounded/provider-backed
-        # transcripts can read only the suffix since attach.
+        # Read the full logical history from the router's attach index
+        # forward via the `events` view (provider-backed on a bounded,
+        # already-evicted transcript). This MUST NOT be a resident-only
+        # window, for two reasons:
+        #
+        #   * Span context. The sub-agent depth filter
+        #     (`_filter_subagent_events` / `ReplayTranscriptor`) classifies
+        #     each event by walking the AGENT_SPAN begin/end markers from
+        #     attach forward. A truncated resident window can elide the
+        #     outer/sub-agent SpanBegin events, which makes in-progress
+        #     sub-agent model events replay as top-level conversation (and
+        #     misfires the "first-is-outer" rule onto a nested span).
+        #     Starting at `attach_index` mirrors exactly what the live
+        #     router observed, so replay and live classify identically.
+        #
+        #   * Cap semantics. `_run_replay` caps each stream to the last
+        #     `REPLAY_MAX_EVENTS` of its OWN universe (filtered semantic /
+        #     full raw). The "last N semantic events" guarantee only holds
+        #     when the filter runs over the full since-attach history; over
+        #     a raw-bounded window, score/info/span noise can crowd the
+        #     conversation out.
+        #
+        # Reading through the provider is safe for content because the
+        # buffer history provider now resolves `attachment://` refs back to
+        # their underlying values (see `_materialize_events`), matching the
+        # un-condensed resident events. Slicing returns a fresh list, so a
+        # concurrent `_event` append can't change size mid-iteration.
         return self._captured.events[self._attach_index :]
 
 

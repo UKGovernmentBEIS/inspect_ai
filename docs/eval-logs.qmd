@@ -669,7 +669,7 @@ $ inspect eval --run-config run.yaml
 
 This closes the round-trip: `eval → log → export-config → eval`. By default output goes to stdout; use `--output` to write to a file, and `--format json` for JSON instead of YAML.
 
-See [Run Config File](task-configuration.qmd#run-config) for the full schema that `--run-config` accepts.
+See [Run Config File](tasks.qmd#run-config) for the full schema that `--run-config` accepts.
 
 ### Log Schema
 

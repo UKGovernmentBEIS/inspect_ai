@@ -54,13 +54,13 @@ Below are sections for the various categories of options supported by `inspect e
 
 : {tbl-colwidths=\[33,33,33\]}
 
-For more detail on the different methods of configuration, see [Task Configuration](task-configuration.qmd).
+For more detail on the different methods of configuration, see [Configuration](tasks.qmd#configuration).
 
 ## Run Configuration
 
 |  |  |
 |--|--|
-| `--run-config` | YAML or JSON file with the complete run configuration — task, model, model roles, generate config, solver, and eval config — in one place. Explicit CLI flags override values from this file. Cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. See [Run Config File](task-configuration.qmd#run-config). |
+| `--run-config` | YAML or JSON file with the complete run configuration — task, model, model roles, generate config, solver, and eval config — in one place. Explicit CLI flags override values from this file. Cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. See [Run Config File](tasks.qmd#run-config). |
 
 ## Model Provider
 
@@ -76,7 +76,7 @@ For more detail on the different methods of configuration, see [Task Configurati
 
 |  |  |
 |-------------------------|-----------------------------------------------|
-| `--generate-config` | YAML or JSON config file with `GenerateConfig` fields (alternatively, use the individual options below). See [Generation Config](task-configuration.qmd#generate-config). |
+| `--generate-config` | YAML or JSON config file with `GenerateConfig` fields (alternatively, use the individual options below). See [Generation Config](tasks.qmd#generate-config). |
 | `--max-tokens` | The maximum number of tokens that can be generated in the completion (default is model specific) |
 | `--system-message` | Override the default system message. |
 | `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
@@ -115,7 +115,7 @@ For more detail on the different methods of configuration, see [Task Configurati
 | `--solver-config` | Solver arguments (JSON or YAML file)              |
 | `-S`              | Solver arguments (`key=value`)                    |
 
-For a complete matrix of which task, solver, and runtime settings can be configured on `Task()`, with `task_with()`, via `eval()`, or on the CLI, see the [override reference](task-configuration.qmd#override-reference).
+For a complete matrix of which task, solver, and runtime settings can be configured on `Task()`, with `task_with()`, via `eval()`, or on the CLI, see the [override reference](tasks.qmd#override-reference).
 
 ## Sample Selection
 

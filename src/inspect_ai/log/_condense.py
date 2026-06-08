@@ -1,5 +1,5 @@
 import json
-from collections.abc import MutableMapping
+from collections.abc import Mapping, MutableMapping
 from logging import getLogger
 from typing import (
     Callable,
@@ -312,6 +312,50 @@ def resolve_sample_attachments(
             "events_data": None,
         }
     )
+
+
+def resolve_events_attachments(
+    events: list[Event],
+    attachments: Mapping[str, str],
+    resolve_attachments: bool | Literal["full", "core"] = "core",
+) -> list[Event]:
+    """Resolve ``attachment://`` references in a list of events.
+
+    The events must already have their message / call *pools* resolved
+    (the buffer history provider does this via
+    ``materialize_pooled_events``); this only swaps ``attachment://<hash>``
+    content references back to their underlying values from
+    ``attachments``.
+
+    Args:
+       events: Events (pool-resolved) that may carry ``attachment://`` refs.
+       attachments: Mapping of attachment hash -> underlying content.
+       resolve_attachments: Which fields to resolve. ``"core"`` (default)
+           leaves ``ModelEvent.call`` condensed — matching resident
+           in-memory events, whose model-call payloads stay condensed
+           after ``Transcript._process_event``. ``"full"`` / ``True``
+           also resolves the model call. ``False`` is a no-op.
+
+    Returns:
+       Events with attachment content resolved (a new list; inputs are
+       not mutated). Returns ``events`` unchanged when
+       ``resolve_attachments`` is ``False``.
+    """
+    if resolve_attachments is False:
+        return events
+
+    def content_fn(text: str) -> str:
+        # migrate previous flavor of content reference
+        CONTENT_PROTOCOL = "tc://"
+        if text.startswith(CONTENT_PROTOCOL):
+            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            return attachments.get(text.replace(ATTACHMENT_PROTOCOL, "", 1), text)
+        else:
+            return text
+
+    context = WalkContext(message_cache={}, only_core=resolve_attachments == "core")
+    return walk_events(events, content_fn, context)
 
 
 def attachments_content_fn(

@@ -7,6 +7,8 @@ from inspect_ai.model import (
     ResponseSchema,
     get_model,
 )
+from inspect_ai.model._providers.groq import chat_tool_choice
+from inspect_ai.tool import ToolFunction
 from inspect_ai.util import json_schema
 
 
@@ -23,6 +25,22 @@ async def test_core_groq_api() -> None:
     message = ChatMessageUser(content="This is a test string. What are you?")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+def test_chat_tool_choice_any_maps_to_required() -> None:
+    # Inspect's tool_choice "any" means "use at least one tool" (force a tool call). Groq is
+    # OpenAI-compatible, where the value that forces a call is "required" ("auto" lets the
+    # model skip the tool), matching the openai/azureai/bedrock/mistral providers.
+    assert chat_tool_choice("any") == "required"
+
+
+def test_chat_tool_choice_other_values_pass_through() -> None:
+    assert chat_tool_choice("auto") == "auto"
+    assert chat_tool_choice("none") == "none"
+    assert chat_tool_choice(ToolFunction(name="my_tool")) == {
+        "type": "function",
+        "function": {"name": "my_tool"},
+    }
 
 
 class NounPhrase(BaseModel):
