@@ -148,8 +148,15 @@ def test_checkpoint_resume_rehydrated_event_layout(
     # sandbox repo).
     monkeypatch.setenv("INSPECT_CHECKPOINT_LIST_FILES", "1")
     # Crash count (host file) + target are inherited by the child processes.
-    monkeypatch.setenv(CANCEL_FILE_ENV, str(tmp_path / "cancels.txt"))
+    cancel_file = tmp_path / "cancels.txt"
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
     monkeypatch.setenv(TARGET_ENV, "2")
+    # The crash count is stateful on disk. Under flaky-retry (this test is
+    # `_needs_flaky_retry` via `skip_if_no_docker`) the body re-runs with the
+    # same `tmp_path`, so reset it — otherwise a retry would inherit a
+    # count >= target, no attempt would crash, and the retry would
+    # spuriously fail.
+    cancel_file.unlink(missing_ok=True)
 
     log_dir = str(tmp_path / "logs")
     tests_dir = Path(__file__).parent.parent
@@ -242,14 +249,16 @@ def test_checkpoint_resume_rehydrated_event_layout(
     }
     assert {"bash", "remember"} <= restored_tools
 
-    # the checkpoint committed *during* the final resume is live — outside any
-    # wrap — and continues the numbering past the restored ones.
-    new_checkpoint_ids = {
-        e.checkpoint_id
+    # the checkpoints committed *during* the final resume are live — outside
+    # any wrap — and continue the numbering past the restored ones: ckpt-4 is
+    # the post-resume turn fire, ckpt-5 is the `agent_complete` finalize fired
+    # when the agent loop exits cleanly (the scoring-phase resume marker).
+    new_checkpoints = {
+        (e.checkpoint_id, e.trigger)
         for i, e in enumerate(events)
         if isinstance(e, CheckpointEvent) and not _in_wrap(i)
     }
-    assert new_checkpoint_ids == {4}
+    assert new_checkpoints == {(4, "turn"), (5, "agent_complete")}
 
     # File listing (opt-in) records each sandbox snapshot's added/changed
     # files (diff vs parent), not the whole tree.

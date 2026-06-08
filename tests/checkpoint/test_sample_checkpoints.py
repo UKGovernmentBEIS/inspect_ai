@@ -1,4 +1,4 @@
-"""Tests for the sample checkpoints dir, restic-config.json, and checkpoint file writes."""
+"""Tests for sample checkpoint dirs, restic config, and checkpoint file writes."""
 
 from __future__ import annotations
 
@@ -7,10 +7,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
-    _read_restic_config,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
+    read_restic_config,
     sample_checkpoints_dir,
+    scan_latest_committed_checkpoint,
     write_checkpoint_file,
 )
 from inspect_ai.util._checkpoint._layout.schemas import (
@@ -91,8 +92,8 @@ async def test_ensure_restic_config_mints_password_on_first_call(
 ) -> None:
     eval_dir = str(tmp_path / "foo.checkpoints")
     sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
-    sample = await ensure_restic_config(sample_dir)
-    assert sample.restic_password
+    config = await ensure_restic_config(sample_dir)
+    assert config.restic_password
     assert (Path(sample_dir) / "restic" / "restic-config.json").is_file()
 
 
@@ -121,7 +122,7 @@ async def test_read_restic_config_returns_written_value(tmp_path: Path) -> None:
     eval_dir = str(tmp_path / "foo.checkpoints")
     sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
     written = await ensure_restic_config(sample_dir)
-    read = await _read_restic_config(sample_dir)
+    read = await read_restic_config(sample_dir)
     assert read.restic_password == written.restic_password
 
 
@@ -221,3 +222,36 @@ async def test_checkpoint_file_is_pretty_printed_json(tmp_path: Path) -> None:
     raw = Path(path).read_text()
     assert json.loads(raw)["checkpoint_id"] == 1
     assert "\n" in raw
+
+
+async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
+    tmp_path: Path,
+) -> None:
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1,
+            trigger="turn",
+            turn=1,
+            host=_info("snap-1"),
+        ),
+    )
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=2,
+            trigger="agent_complete",
+            turn=2,
+            host=_info("snap-2"),
+        ),
+    )
+    (Path(sample_dir) / "ckpt-00003.json").write_text("{")
+
+    checkpoint = await scan_latest_committed_checkpoint(sample_dir)
+
+    assert checkpoint is not None
+    assert checkpoint.checkpoint_id == 2
+    assert checkpoint.trigger == "agent_complete"

@@ -23,16 +23,46 @@ from __future__ import annotations
 import contextlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from enum import Enum
 from typing import Callable, Protocol, TypeVar
 
 T = TypeVar("T")
 
 
+class Attempt(str, Enum):
+    """Why this checkpointed session is running.
+
+    Replaces the prior boolean ``is_resuming`` with a richer signal so
+    agents can take the scoring-phase resume fast-path. Subclasses
+    ``str`` for ergonomic comparisons and direct JSON serialization.
+    """
+
+    INITIAL = "initial"
+    """First attempt for this sample — no prior checkpoint."""
+
+    RESUME = "resume"
+    """Retry of a sample whose prior attempt crashed mid-agent. Agent
+    should resume its loop from the rehydrated state."""
+
+    RESUME_FOR_SCORING = "resume_for_scoring"
+    """Retry of a sample whose prior attempt completed the agent loop
+    but crashed during (or before) scoring. The latest parseable
+    checkpoint file has ``trigger == "agent_complete"``. Agents that
+    support this fast-path should restore their tracked state and
+    return immediately — no further agent work."""
+
+
 @dataclass
 class ResumeCheckpoint:
-    """Per-sample resume info: where the on-disk checkpoint lives."""
+    """Per-sample resume info: where the on-disk checkpoint lives.
+
+    ``attempt`` distinguishes mid-agent resume from scoring-phase
+    resume; the sample source reads the latest parseable checkpoint
+    file to decide which.
+    """
 
     sample_checkpoints_dir: str
+    attempt: Attempt
 
 
 class Checkpointer(Protocol):
@@ -44,12 +74,19 @@ class Checkpointer(Protocol):
     """
 
     @property
-    def is_resuming(self) -> bool:
-        """True iff this sample is being resumed from a prior checkpoint.
+    def attempt(self) -> Attempt:
+        """Why this session is running.
 
-        Agents can branch on this to skip one-time setup that was
-        already performed on the original run, or to log/handle resume
-        specially. Stable across the lifetime of the session.
+        Stable across the lifetime of the session. Agents typically
+        branch as follows:
+
+        - :attr:`Attempt.INITIAL` — fresh start; perform one-time setup.
+        - :attr:`Attempt.RESUME` — prior agent loop crashed; framework
+          state has been rehydrated, agent continues from where it
+          left off.
+        - :attr:`Attempt.RESUME_FOR_SCORING` — prior agent loop
+          finished cleanly but scoring crashed; agent should restore
+          tracked state and return immediately so scoring can re-run.
         """
         ...
 

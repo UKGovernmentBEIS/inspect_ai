@@ -24,8 +24,8 @@ Sample-root selection:
 Structure (see ``design/plans/checkpointing-hydration.md`` §3):
 
 - ``_hydrate`` (orchestrator): Phase 1 prologue (paths / dirs /
-  ``sample.json`` / restic binary), then Phase 2 with ``_hydrate_host``
-  and ``_hydrate_sandboxes`` in parallel.
+  ``restic/restic-config.json`` / restic binary), then Phase 2 with
+  ``_hydrate_host`` and ``_hydrate_sandboxes`` in parallel.
 - ``_hydrate_host``: host repo init or restore.
 - ``_hydrate_sandboxes``: dispatches ``_hydrate_sandbox`` per sandbox in
   parallel.
@@ -79,6 +79,7 @@ from ._layout.staging_dir import (
     ensure_sample_staging_dir,
     host_repo_dir,
     is_remote_destination,
+    restic_config_path,
     sandbox_repo_dir,
 )
 from ._sandbox_restic import ingress_sandbox, init_sandbox_repo, inject_restic
@@ -179,8 +180,8 @@ async def hydrate(
     )
 
     # Phase 1: synchronous prologue. After this completes, every Phase 2
-    # function can read the password from <sample_root>/sample.json
-    # and reach restic on the host.
+    # function can read the password from
+    # <sample_root>/restic/restic-config.json and reach restic on the host.
     new_eval_checkpoints_dir = eval_checkpoints_dir(
         log_location, config.checkpoints_location
     )
@@ -459,6 +460,7 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     ``old_sample_dir`` may be local or remote (e.g. ``s3://``); the new
     sample dir is always local. Returns the list of paths written,
     relative to ``new_sample_dir``.
+
     """
     async_fs = get_async_filesystem()
     new = Path(new_sample_dir)
@@ -467,8 +469,8 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     with trace_action(logger, "Checkpoint Hydrate", "fs-copy cross-cutting"):
         src_restic_config = f"{old_sample_dir}/restic/restic-config.json"
         if await async_fs.exists(src_restic_config):
-            (new / "restic").mkdir(parents=True, exist_ok=True)
-            dst = new / "restic" / "restic-config.json"
+            dst = Path(restic_config_path(new_sample_dir))
+            dst.parent.mkdir(parents=True, exist_ok=True)
             await async_fs.get_file(src_restic_config, str(dst))
             written.append("restic/restic-config.json")
 

@@ -14,7 +14,10 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, ResticConfig
+from inspect_ai.util._checkpoint._layout.schemas import (
+    Checkpoint,
+    ResticConfig,
+)
 
 
 def _info(
@@ -67,7 +70,7 @@ def test_checkpoint_basic_round_trip() -> None:
     assert rehydrated == checkpoint
 
 
-@pytest.mark.parametrize("trigger", ["time", "turn", "manual"])
+@pytest.mark.parametrize("trigger", ["time", "turn", "manual", "agent_complete"])
 def test_checkpoint_accepts_all_documented_triggers(trigger: str) -> None:
     payload = {**_BASE_CHECKPOINT, "trigger": trigger}
     checkpoint = Checkpoint.model_validate(payload)
@@ -149,21 +152,21 @@ def test_snapshot_additional_files_omitted_when_not_truncated() -> None:
 # --- ResticConfig -----------------------------------------------------
 
 
-def test_sample_basic_round_trip() -> None:
-    sample = ResticConfig.model_validate(_BASE_SAMPLE)
-    assert sample.restic_password == "s3cr3t"
+def test_restic_config_basic_round_trip() -> None:
+    config = ResticConfig.model_validate(_BASE_SAMPLE)
+    assert config.restic_password == "s3cr3t"
 
-    rehydrated = ResticConfig.model_validate_json(sample.model_dump_json())
-    assert rehydrated == sample
+    rehydrated = ResticConfig.model_validate_json(config.model_dump_json())
+    assert rehydrated == config
 
 
-def test_sample_requires_password() -> None:
+def test_restic_config_requires_password() -> None:
     with pytest.raises(ValidationError):
         ResticConfig.model_validate({})
 
 
-def test_sample_extra_fields_preserved_round_trip() -> None:
+def test_restic_config_extra_fields_preserved_round_trip() -> None:
     payload = {**_BASE_SAMPLE, "future_field": "later"}
-    sample = ResticConfig.model_validate(payload)
-    dumped = json.loads(sample.model_dump_json())
+    config = ResticConfig.model_validate(payload)
+    dumped = json.loads(config.model_dump_json())
     assert dumped["future_field"] == "later"

@@ -3,8 +3,8 @@
 The sample staging dir is the host-local twin of the **sample
 checkpoints dir** that exists only when the resolved **sample
 checkpoints dir** is remote. Its layout mirrors a local sample
-checkpoints dir (``restic/host/``, ``restic/sandboxes/<name>/``,
-``restic/restic-config.json``, ``context/``, ``ckpt-*.json``), plus
+checkpoints dir (``restic/host/``,
+``restic/sandboxes/<name>/``, ``context/``, ``ckpt-*.json``), plus
 `.egress-manifest.txt` for host egress bookkeeping. When the
 destination is local, no staging dir is created and restic writes
 directly into the sample checkpoints dir.
@@ -51,8 +51,8 @@ async def ensure_sample_staging_dir(
 def restic_dir(sample_root: str) -> str:
     """Path to the per-sample restic subdir.
 
-    Contains ``host/`` and ``sandboxes/<name>/`` restic repos plus
-    ``restic-config.json`` (the per-sample restic password file).
+    Contains ``restic-config.json`` plus the ``host/`` and
+    ``sandboxes/<name>/`` restic repos.
     """
     return f"{sample_root}/restic"
 
