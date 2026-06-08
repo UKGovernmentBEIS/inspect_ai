@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled, warning once and falling back to the current journal mode.
+- ACP: Render tool calls for agent-bridge agents (e.g. `claude_code`, `codex_cli`). 
+- Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled.
 
 ## 0.3.237 (07 June 2026)
 
