@@ -68,7 +68,7 @@ from inspect_ai.util._display import (
 from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME, span
 from inspect_ai.util._store import init_subtask_store
 
-from .task.log import record_scorer_value_schemas, resolve_eval_scorers
+from .task.log import resolve_eval_scorers
 from .task.results import ScorerInfo, eval_results
 
 ScoreAction = Literal["append", "overwrite"]
@@ -308,10 +308,9 @@ async def score_async(
             epochs_reducer = reducers_from_log_header(log)
 
         # compute metrics
-        completed_scores = list(filter(None, scores))
         results, reductions = eval_results(
             total_samples,
-            completed_scores,
+            list(filter(None, scores)),
             epochs_reducer,
             resolved_scorers,
             log_metrics,
@@ -321,13 +320,10 @@ async def score_async(
         )
 
         # Update log.eval.scorers to reflect the scorers actually applied so
-        # that subsequent recompute_metrics() (which derives ScorerInfo and
-        # value_schema from this header list) operates on the right entries.
+        # that subsequent recompute_metrics() (which derives ScorerInfo from
+        # this header list) operates on the right entries.
         applied_eval_scorers = (
             resolve_eval_scorers([as_scorer_spec(s) for s in resolved_scorers]) or []
-        )
-        record_scorer_value_schemas(
-            applied_eval_scorers, scorer_names or [], completed_scores
         )
 
         # Since the metrics calculation above is only be done using the scorers

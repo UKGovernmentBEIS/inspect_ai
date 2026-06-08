@@ -19,7 +19,7 @@ def test_str_is_value() -> None:
 
 
 def test_value_semantics() -> None:
-    assert Color.RED == "red"
+    assert Color.RED == "red"  # type: ignore[comparison-overlap]
     assert isinstance(Color.RED, str)
     assert json.dumps(Color.RED) == '"red"'
     assert json.dumps({Color.RED: 1}) == '{"red": 1}'
@@ -33,9 +33,7 @@ def test_rejects_non_str_value() -> None:
     import pytest
 
     with pytest.raises(TypeError, match="not a string"):
-
-        class Bad(StrEnum):
-            X = 1  # type: ignore[assignment]
+        StrEnum("Bad", {"X": 1})
 
 
 def test_is_stdlib_on_311() -> None:

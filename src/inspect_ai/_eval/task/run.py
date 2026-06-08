@@ -148,12 +148,7 @@ from .images import (
     state_without_base64_content,
     states_with_base64_content,
 )
-from .log import (
-    TaskLogger,
-    collect_eval_data,
-    log_start,
-    record_scorer_value_schemas,
-)
+from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .sandbox import sandboxenv_context
 from .scan import (
@@ -606,9 +601,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 )
 
             if len(completed_scores) > 0:
-                record_scorer_value_schemas(
-                    logger.eval.scorers, scorer_names, completed_scores
-                )
                 results, reductions = eval_results(
                     samples=profile.samples,
                     scores=completed_scores,

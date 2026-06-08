@@ -14,19 +14,17 @@ from inspect_ai.scorer import (
     StrEnum,
     Target,
     Value,
+    accuracy,
     categorical,
     frequency,
     scorer,
 )
 from inspect_ai.scorer._metric import (
-    CategoricalSchema,
     MetricProtocol,
     SampleScore,
-)
-from inspect_ai.scorer._rehydrate import (
-    _categorical_enum,
-    detect_value_schema,
-    rehydrate_value,
+    metric,
+    metric_create,
+    metric_scores,
 )
 from inspect_ai.solver import TaskState
 
@@ -56,11 +54,6 @@ def call(metric: Metric, scores: list[SampleScore]) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 
 
-def test_frequency_infers_strenum_categories() -> None:
-    result = call(frequency(), [ss(Verdict.YES)] * 3 + [ss(Verdict.NO)])
-    assert result == {"yes": 0.75, "no": 0.25, "unsure": 0.0}
-
-
 def test_frequency_explicit_categories() -> None:
     result = call(frequency(categories=Verdict), [ss("yes"), ss("yes"), ss("no")])
     assert result == {
@@ -70,25 +63,40 @@ def test_frequency_explicit_categories() -> None:
     }
 
 
-def test_frequency_relaxed_inference_with_stray_string() -> None:
-    result = call(frequency(), [ss(Verdict.YES), ss(Verdict.NO), ss("weird")])
+def test_frequency_no_categories_reports_observed_only() -> None:
+    result = call(frequency(), [ss("yes"), ss("yes"), ss("no")])
+    assert result == {"yes": pytest.approx(2 / 3), "no": pytest.approx(1 / 3)}
+
+
+def test_frequency_declared_plus_unexpected_value() -> None:
+    # values outside the declared domain are appended after declared categories
+    result = call(frequency(categories=Verdict), [ss("yes"), ss("no"), ss("weird")])
+    assert list(result) == ["yes", "no", "unsure", "weird"]
     assert result["unsure"] == 0.0
     assert result["weird"] == pytest.approx(1 / 3)
 
 
 def test_frequency_normalize_false() -> None:
-    result = call(frequency(normalize=False), [ss(Verdict.YES)] * 3 + [ss(Verdict.NO)])
+    result = call(
+        frequency(categories=Verdict, normalize=False),
+        [ss("yes")] * 3 + [ss("no")],
+    )
     assert result == {"yes": 3.0, "no": 1.0, "unsure": 0.0}
 
 
 def test_frequency_rejects_dict_scores() -> None:
     with pytest.raises(TypeError, match="dict-valued"):
-        call(frequency(), [ss({"k": Verdict.YES})])
+        call(frequency(), [ss({"k": "yes"})])
 
 
 def test_frequency_rejects_list_scores() -> None:
     with pytest.raises(TypeError, match="list-valued"):
-        call(frequency(), [ss([Verdict.YES, Verdict.NO])])
+        call(frequency(), [ss(["yes", "no"])])
+
+
+def test_frequency_rejects_string_categories() -> None:
+    with pytest.raises(TypeError, match="single string"):
+        frequency(categories="yes")
 
 
 def test_categorical_resolves_enum_to_list() -> None:
@@ -99,89 +107,77 @@ def test_categorical_resolves_enum_to_list() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Score.value StrEnum preservation
+# @metric(scores=...) declaration
 # ---------------------------------------------------------------------------
 
 
-def test_score_preserves_strenum_instance() -> None:
-    s = Score(value=Verdict.YES)
-    assert isinstance(s.value, Verdict)
-    assert s.model_dump()["value"] == "yes"
+def test_frequency_declares_unreduced() -> None:
+    assert metric_scores(frequency()) == "unreduced"
 
 
-def test_score_preserves_strenum_in_dict() -> None:
-    s = Score(value={"k": Verdict.NO})
-    assert isinstance(s.value, dict)
-    assert isinstance(s.value["k"], Verdict)
+def test_metric_scores_default_reduced() -> None:
+    assert metric_scores(accuracy()) == "reduced"
 
 
-# ---------------------------------------------------------------------------
-# Rehydration helpers
-# ---------------------------------------------------------------------------
+def test_metric_scores_survives_metric_create() -> None:
+    # the recompute path rebuilds metrics via metric_create()
+    m = metric_create("frequency", categories=["yes", "no"])
+    assert metric_scores(m) == "unreduced"
+    m2 = metric_create("accuracy")
+    assert metric_scores(m2) == "reduced"
 
 
-def test_detect_value_schema_scalar() -> None:
-    schema = detect_value_schema([Score(value=Verdict.YES)])
-    assert isinstance(schema, CategoricalSchema)
-    assert schema.categories == ["yes", "no", "unsure"]
+def test_metric_decorator_kwarg_only_scores() -> None:
+    @metric(scores="unreduced")
+    def my_metric() -> Metric:
+        def compute(scores: list[SampleScore]) -> float:
+            return float(len(scores))
+
+        return compute
+
+    assert metric_scores(my_metric()) == "unreduced"
 
 
-def test_detect_value_schema_dict() -> None:
-    schema = detect_value_schema([Score(value={"sab": Sabotage.NONE, "loss": 0.5})])
-    assert isinstance(schema, dict)
-    assert set(schema) == {"sab"}
-    assert schema["sab"].categories == ["none", "subtle", "overt"]
+def test_resolve_reducer_skips_for_unreduced_metric() -> None:
+    from inspect_ai._eval.task.results import ScorerInfo, resolve_reducer
+
+    info = ScorerInfo(name="x", metrics=[*categorical(Verdict)])
+    reducers, named = resolve_reducer(None, info)
+    assert reducers == []
+    assert named is False
 
 
-def test_detect_value_schema_none_for_numeric() -> None:
-    assert detect_value_schema([Score(value=0.5)]) is None
-    assert detect_value_schema([Score(value={"k": 1})]) is None
+def test_resolve_reducer_defaults_mean_for_reduced_metric() -> None:
+    from inspect_ai._eval.task.results import ScorerInfo, resolve_reducer
+
+    info = ScorerInfo(name="x", metrics=[accuracy()])
+    reducers, named = resolve_reducer(None, info)
+    assert len(reducers) == 1
+    assert named is False
 
 
-def test_detect_value_schema_scans_past_first_sample() -> None:
-    # first sample is plain str (e.g. parse fallback); later samples are enum
-    schema = detect_value_schema([Score(value="oops"), Score(value=Verdict.YES)])
-    assert isinstance(schema, CategoricalSchema)
-    assert schema.categories == ["yes", "no", "unsure"]
-    # dict where first sample is missing a key
-    schema = detect_value_schema(
-        [
-            Score(value={"sab": Sabotage.NONE}),
-            Score(value={"sab": Sabotage.SUBTLE, "aware": Verdict.YES}),
-        ]
-    )
-    assert isinstance(schema, dict)
-    assert set(schema) == {"sab", "aware"}
+def test_resolve_reducer_explicit_reducer_honoured() -> None:
+    from inspect_ai._eval.task.results import ScorerInfo, resolve_reducer
+    from inspect_ai.scorer import mode_score
+
+    info = ScorerInfo(name="x", metrics=[*categorical(Verdict)])
+    reducers, named = resolve_reducer([mode_score()], info)
+    assert len(reducers) == 1
+    assert named is True
 
 
-def test_categorical_enum_cached() -> None:
-    e1 = _categorical_enum(("a", "b"))
-    e2 = _categorical_enum(("a", "b"))
-    assert e1 is e2
-    assert isinstance(e1("a"), StrEnum)
+def test_resolve_reducer_mixed_modes_warns_and_uses_unreduced(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import logging
 
+    from inspect_ai._eval.task.results import ScorerInfo, resolve_reducer
 
-def test_rehydrate_scalar() -> None:
-    schema = CategoricalSchema(categories=["yes", "no", "unsure"])
-    v = rehydrate_value("yes", schema)
-    assert isinstance(v, StrEnum)
-    assert v == "yes"
-    assert [str(m.value) for m in type(v)] == ["yes", "no", "unsure"]
-
-
-def test_rehydrate_value_not_in_domain() -> None:
-    schema = CategoricalSchema(categories=["yes", "no"])
-    v = rehydrate_value("maybe", schema)
-    assert v == "maybe"
-    assert not isinstance(v, StrEnum)
-
-
-def test_rehydrate_dict() -> None:
-    schema = {"sab": CategoricalSchema(categories=["none", "subtle", "overt"])}
-    v = rehydrate_value({"sab": "subtle", "loss": 0.5}, schema)
-    assert isinstance(v, dict)
-    assert isinstance(v["sab"], StrEnum)
-    assert v["loss"] == 0.5
+    info = ScorerInfo(name="x", metrics=[accuracy(), frequency(categories=Verdict)])
+    with caplog.at_level(logging.WARNING):
+        reducers, _ = resolve_reducer(None, info)
+    assert reducers == []
+    assert any("mixed" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +194,7 @@ def _verdict_scorer() -> Scorer:
     return score
 
 
-@scorer(metrics={"*": categorical()})
+@scorer(metrics={"sab": categorical(Sabotage), "aware": categorical(Verdict)})
 def _behaviour_scorer() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         idx = (hash((state.sample_id, state.epoch))) % 3
@@ -226,17 +222,9 @@ def test_categorical_recompute_round_trip() -> None:
         log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
         assert log.status == "success"
 
-        # value_schema was recorded for both scorers
-        assert log.eval.scorers is not None
-        schemas = {s.name: s.value_schema for s in log.eval.scorers}
-        assert isinstance(schemas["_verdict_scorer"], CategoricalSchema)
-        assert schemas["_verdict_scorer"].categories == ["yes", "no", "unsure"]
-        assert isinstance(schemas["_behaviour_scorer"], dict)
-        assert set(schemas["_behaviour_scorer"]) == {"sab", "aware"}
-
         before = _metrics_snapshot(log)
 
-        # all enum members reported (including any zero-counts)
+        # all declared categories reported (including any zero-counts)
         assert log.results is not None
         verdict_score = next(
             s for s in log.results.scores if s.name == "_verdict_scorer"
@@ -251,17 +239,15 @@ def test_categorical_recompute_round_trip() -> None:
         }
         assert all(m.group == "frequency" for m in sab_score.metrics.values())
 
+        # epochs were not reduced: 60 observations across 20 samples × 3 epochs
+        assert log.reductions is None or all(
+            r.reducer is None for r in log.reductions if r.scorer == "_verdict_scorer"
+        )
+
         # round-trip through disk
         path = os.path.join(log_dir, "roundtrip.eval")
         write_eval_log(log, path)
         reloaded = read_eval_log(path)
-
-        # values are plain strings on disk; rehydration must restore semantics
-        assert reloaded.samples is not None
-        assert reloaded.samples[0].scores is not None
-        loaded_value = reloaded.samples[0].scores["_verdict_scorer"].value
-        assert isinstance(loaded_value, str)
-        assert not isinstance(loaded_value, StrEnum)
 
         recompute_metrics(reloaded)
         after = _metrics_snapshot(reloaded)
@@ -282,13 +268,11 @@ def test_score_rebuilds_eval_scorers_overwrite() -> None:
         log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
         assert log.eval.scorers is not None
         assert [s.name for s in log.eval.scorers] == ["match"]
-        assert log.eval.scorers[0].value_schema is None
 
         # re-score with a different (categorical) scorer, overwriting
         rescored = score(log, _verdict_scorer(), action="overwrite")
         assert rescored.eval.scorers is not None
         assert [s.name for s in rescored.eval.scorers] == ["_verdict_scorer"]
-        assert isinstance(rescored.eval.scorers[0].value_schema, CategoricalSchema)
 
         before = _metrics_snapshot(rescored)
         assert set(before["_verdict_scorer"]) == {"yes", "no", "unsure"}
@@ -313,14 +297,12 @@ def test_score_rebuilds_eval_scorers_append() -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
         assert log.eval.scorers is not None
-        assert isinstance(log.eval.scorers[0].value_schema, CategoricalSchema)
+        assert [s.name for s in log.eval.scorers] == ["_verdict_scorer"]
 
-        # append a numeric scorer; original schema must survive
+        # append a numeric scorer; original categorical scorer must survive
         rescored = score(log, match(), action="append")
         assert rescored.eval.scorers is not None
         assert [s.name for s in rescored.eval.scorers] == ["_verdict_scorer", "match"]
-        assert isinstance(rescored.eval.scorers[0].value_schema, CategoricalSchema)
-        assert rescored.eval.scorers[1].value_schema is None
 
         before = _metrics_snapshot(rescored)
         path = os.path.join(log_dir, "rescored.eval")
