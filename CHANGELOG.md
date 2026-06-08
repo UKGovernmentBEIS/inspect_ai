@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - S3: Retry when requests have stale signatures.
 
 ## 0.3.238 (08 June 2026)
