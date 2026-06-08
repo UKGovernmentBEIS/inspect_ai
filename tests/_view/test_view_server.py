@@ -323,6 +323,17 @@ def test_api_log(view_client: ViewTestClient) -> None:
     assert resp.json()["eval"]["task"] == "task"
 
 
+def test_api_app_config(view_client: ViewTestClient) -> None:
+    resp = view_client.request("GET", "/app-config")
+    resp.raise_for_status()
+    config = resp.json()
+    assert config["inspect_version"] == inspect_ai.__version__
+    # scout is an optional dependency: present as a string when installed,
+    # otherwise null.
+    assert "scout_version" in config
+    assert config["scout_version"] is None or isinstance(config["scout_version"], str)
+
+
 def test_api_log_info(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     write_eval_log(view_client.log_dir, fname)
