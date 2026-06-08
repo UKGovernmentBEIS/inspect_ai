@@ -74,7 +74,7 @@ async def test_fs_copy_cross_cutting_noop_when_source_missing(
         written = await _fs_copy_cross_cutting(src, str(new))
 
     assert written == []
-    assert not (new / "restic" / "restic-config.json").exists()
+    assert not (new / "restic").exists()
 
 
 async def test_fs_copy_repo_downloads_tree_from_s3(

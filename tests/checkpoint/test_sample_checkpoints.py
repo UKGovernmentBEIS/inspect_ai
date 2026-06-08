@@ -1,4 +1,4 @@
-"""Tests for sample checkpoint dirs, restic config, and checkpoint file writes."""
+"""Tests for the sample checkpoints dir, restic-config.json, and checkpoint file writes."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
+    _read_restic_config,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
-    read_restic_config,
     sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
@@ -92,8 +92,8 @@ async def test_ensure_restic_config_mints_password_on_first_call(
 ) -> None:
     eval_dir = str(tmp_path / "foo.checkpoints")
     sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
-    config = await ensure_restic_config(sample_dir)
-    assert config.restic_password
+    sample = await ensure_restic_config(sample_dir)
+    assert sample.restic_password
     assert (Path(sample_dir) / "restic" / "restic-config.json").is_file()
 
 
@@ -122,7 +122,7 @@ async def test_read_restic_config_returns_written_value(tmp_path: Path) -> None:
     eval_dir = str(tmp_path / "foo.checkpoints")
     sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
     written = await ensure_restic_config(sample_dir)
-    read = await read_restic_config(sample_dir)
+    read = await _read_restic_config(sample_dir)
     assert read.restic_password == written.restic_password
 
 

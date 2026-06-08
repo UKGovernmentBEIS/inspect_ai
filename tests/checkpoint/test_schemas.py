@@ -14,10 +14,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from inspect_ai.util._checkpoint._layout.schemas import (
-    Checkpoint,
-    ResticConfig,
-)
+from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, ResticConfig
 
 
 def _info(
@@ -152,21 +149,21 @@ def test_snapshot_additional_files_omitted_when_not_truncated() -> None:
 # --- ResticConfig -----------------------------------------------------
 
 
-def test_restic_config_basic_round_trip() -> None:
-    config = ResticConfig.model_validate(_BASE_SAMPLE)
-    assert config.restic_password == "s3cr3t"
+def test_sample_basic_round_trip() -> None:
+    sample = ResticConfig.model_validate(_BASE_SAMPLE)
+    assert sample.restic_password == "s3cr3t"
 
-    rehydrated = ResticConfig.model_validate_json(config.model_dump_json())
-    assert rehydrated == config
+    rehydrated = ResticConfig.model_validate_json(sample.model_dump_json())
+    assert rehydrated == sample
 
 
-def test_restic_config_requires_password() -> None:
+def test_sample_requires_password() -> None:
     with pytest.raises(ValidationError):
         ResticConfig.model_validate({})
 
 
-def test_restic_config_extra_fields_preserved_round_trip() -> None:
+def test_sample_extra_fields_preserved_round_trip() -> None:
     payload = {**_BASE_SAMPLE, "future_field": "later"}
-    config = ResticConfig.model_validate(payload)
-    dumped = json.loads(config.model_dump_json())
+    sample = ResticConfig.model_validate(payload)
+    dumped = json.loads(sample.model_dump_json())
     assert dumped["future_field"] == "later"

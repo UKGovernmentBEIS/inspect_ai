@@ -136,12 +136,9 @@ def test_safe_order_ships_checkpoint_file_last() -> None:
         "restic/restic-config.json",
     ]
     ordered = _safe_order(files)
-    # config + keys → data → index → snapshots → checkpoint file
+    # config + keys → data → index → snapshots → restic-config.json → checkpoint file
     assert ordered.index("restic/host/config") < ordered.index("restic/host/data/ab/cd")
     assert ordered.index("restic/host/keys/key1") < ordered.index(
-        "restic/host/data/ab/cd"
-    )
-    assert ordered.index("restic/restic-config.json") < ordered.index(
         "restic/host/data/ab/cd"
     )
     assert ordered.index("restic/host/data/ab/cd") < ordered.index(
@@ -150,7 +147,10 @@ def test_safe_order_ships_checkpoint_file_last() -> None:
     assert ordered.index("restic/host/index/ef") < ordered.index(
         "restic/host/snapshots/abc"
     )
-    assert ordered.index("restic/host/snapshots/abc") < ordered.index("ckpt-00001.json")
+    assert ordered.index("restic/host/snapshots/abc") < ordered.index(
+        "restic/restic-config.json"
+    )
+    assert ordered.index("restic/restic-config.json") < ordered.index("ckpt-00001.json")
 
 
 def test_safe_order_checkpoint_file_last_across_multiple() -> None:

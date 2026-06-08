@@ -5,9 +5,10 @@ checkpoints dir under the eval checkpoints dir. The dir holds:
 
 - ``ckpt-NNNNN.json`` — one plaintext checkpoint file per fired
   checkpoint; the index into the host + sandbox restic repos.
-- ``restic/`` — restic state subdir, containing ``host/`` (host restic
-  repo), ``sandboxes/<name>/`` (per-sandbox restic repos), and
-  ``restic-config.json`` (per-sample restic password).
+- ``restic/`` — restic state subdir, containing
+  ``restic-config.json`` (per-sample restic password),
+  ``host/`` (host restic repo), and
+  ``sandboxes/<name>/`` (per-sandbox restic repos).
 - ``context/`` — restic backup source (host context JSON files).
 
 See ``design/plans/checkpointing-working.md`` §1 and
@@ -69,9 +70,9 @@ async def ensure_sample_checkpoints_dir(
 
 
 async def ensure_restic_config(sample_root: str) -> ResticConfig:
-    """Ensure ``<sample_root>/restic/restic-config.json`` exists; return contents.
+    """Ensure ``<sample_root>/restic/restic-config.json`` exists; return its contents.
 
-    Mints a fresh restic password and writes the config on first call.
+    Mints a fresh restic password and writes the file on first call.
     Subsequent calls read and return the existing file. Idempotent
     across concurrent samples (different sample roots) — there is no
     cross-sample race.
@@ -88,8 +89,8 @@ async def ensure_restic_config(sample_root: str) -> ResticConfig:
     return config
 
 
-async def read_restic_config(sample_root: str) -> ResticConfig:
-    """Read ``<sample_root>/restic/restic-config.json``."""
+async def _read_restic_config(sample_root: str) -> ResticConfig:
+    """Read ``<sample_root>/restic/restic-config.json``. Caller must have ensured it exists."""
     return await _load_model_json(restic_config_path(sample_root), ResticConfig)
 
 

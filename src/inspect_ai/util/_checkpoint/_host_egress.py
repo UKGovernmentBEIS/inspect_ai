@@ -13,14 +13,14 @@ the same relative path.
 
 Safe upload order — destination is valid at every intermediate state:
 
-1. ``restic/restic-config.json`` (password file),
-   ``restic/host/config``, ``restic/sandboxes/<name>/config``
+1. ``restic/host/config``, ``restic/sandboxes/<name>/config``
    (first cycle for each repo)
 2. ``restic/**/keys/*`` (first cycle for each repo)
 3. ``restic/**/data/**`` (immutable, content-addressed)
 4. ``restic/**/index/**`` (immutable; occasional consolidation)
 5. ``restic/**/snapshots/**`` (references indexes / data)
-6. ``ckpt-NNNNN.json`` last (commit point at the destination)
+6. ``restic/restic-config.json`` (first cycle; password file)
+7. ``ckpt-NNNNN.json`` last (commit point at the destination)
 
 Within each tier, files are shipped in lexicographic order. The
 manifest write at the end is the commit point for the local "I've
@@ -141,12 +141,13 @@ def _safe_order(files: list[str]) -> list[str]:
     data: list[str] = []
     index: list[str] = []
     snapshots: list[str] = []
+    restic_config: list[str] = []
     checkpoint_files: list[str] = []
     other: list[str] = []
     for f in files:
         parts = f.split("/")
         if f == _RESTIC_CONFIG:
-            config_keys.append(f)
+            restic_config.append(f)
         elif _CHECKPOINT_FILE_RE.match(parts[-1]):
             checkpoint_files.append(f)
         elif "data" in parts:
@@ -165,6 +166,7 @@ def _safe_order(files: list[str]) -> list[str]:
         + sorted(index)
         + sorted(snapshots)
         + sorted(other)
+        + sorted(restic_config)
         + sorted(checkpoint_files)
     )
 

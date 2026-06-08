@@ -1,7 +1,7 @@
 """Pydantic models for the on-disk checkpoint layout.
 
-Defines the shape of the per-sample ``restic/restic-config.json`` and the
-per-checkpoint ``ckpt-NNNNN.json`` checkpoint files. See
+Defines the shape of the per-sample ``restic/restic-config.json`` and
+the per-checkpoint ``ckpt-NNNNN.json`` checkpoint files. See
 ``design/plans/checkpointing-working.md`` §1 for the full layout
 description. These are pure data types — read/write helpers live with
 the Phase 3 write code.
