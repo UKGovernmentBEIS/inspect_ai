@@ -163,7 +163,15 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_call import ModelCall, as_error_response
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+    StopCategory,
+    StopDetails,
+    StopReason,
+    collect_stop_details,
+)
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
     to_inspect_citation,
@@ -2434,6 +2442,9 @@ async def model_output_from_message(
             metadata=asst_metadata or None,
         ),
         stop_reason=stop_reason,
+        stop_details=collect_stop_details(
+            "anthropic", logger, lambda: message_stop_details(message)
+        ),
     )
 
     # return ModelOutput
@@ -3013,6 +3024,24 @@ def message_stop_reason(message: Message) -> tuple[StopReason, bool]:
             return "content_filter", False
         case _:
             return "unknown", message.stop_reason == "pause_turn"
+
+
+def message_stop_details(message: Message) -> StopDetails | None:
+    """Extract refusal detail from an Anthropic `Message.stop_details` (Opus 4.7+).
+
+    Anthropic reports a single named category (`cyber`/`bio`); it is mirrored into
+    `categories` so callers can read the list uniformly across providers.
+    """
+    details = getattr(message, "stop_details", None)
+    if details is None:
+        return None
+    category = getattr(details, "category", None)
+    return StopDetails(
+        type=getattr(details, "type", None),
+        category=category,
+        explanation=getattr(details, "explanation", None),
+        categories=[StopCategory(category=category)] if category else [],
+    )
 
 
 web_search_result_block_param_adapter = TypeAdapter[

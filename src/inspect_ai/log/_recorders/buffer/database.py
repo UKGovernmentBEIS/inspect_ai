@@ -153,6 +153,9 @@ class SampleBufferDatabase(SampleBuffer):
         self.log_shared = log_shared
         self.update_interval = update_interval
 
+        # warn at most once per database if WAL journal mode can't be enabled
+        self._wal_checked = False
+
         # location subdir and file
         dir, file = location_dir_and_file(self.location)
 
@@ -758,7 +761,39 @@ class SampleBufferDatabase(SampleBuffer):
 
                 # concurrency setup
                 conn.execute("PRAGMA busy_timeout=30000")
+
+                # Use WAL journal mode so concurrent readers (the realtime
+                # viewer, the filestore sync thread, and buffer-backed
+                # transcript history) don't block the writer and vice-versa.
+                # Rollback-journal modes serialize readers and writers, which
+                # is the principal cause of "database is locked" errors here.
+                # Keep synchronous=OFF: WAL+OFF has the same durability profile
+                # as the prior delete+OFF mode (corruption only on OS/power
+                # loss, not on a clean process crash) while avoiding the
+                # per-commit fsync cost that dominates inference-light evals.
+                try:
+                    journal_mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+                except sqlite3.OperationalError as ex:
+                    if "locked" in str(ex):
+                        raise
+                    journal_mode = f"unavailable: {ex}"
+
+                if not self._wal_checked:
+                    self._wal_checked = True
+                    if str(journal_mode).lower() != "wal":
+                        logger.warning(
+                            "Sample buffer database at %s could not enable WAL "
+                            "journal mode (using '%s'); this may lead to "
+                            "'database is locked' errors under concurrent "
+                            "access. This typically happens when the inspect "
+                            "data directory is on a network filesystem.",
+                            self.db_path,
+                            journal_mode,
+                        )
                 conn.execute("PRAGMA synchronous=OFF")
+                # cap WAL growth: truncate the -wal file back down after
+                # checkpoints rather than letting it grow without bound
+                conn.execute("PRAGMA journal_size_limit=134217728")
                 conn.execute("PRAGMA cache_size=-64000")
                 conn.execute("PRAGMA temp_store=MEMORY")
 
@@ -1462,6 +1497,9 @@ def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
 def cleanup_sample_buffer_db(path: Path) -> None:
     try:
         path.unlink(missing_ok=True)
+        # remove WAL sidecar files (present when journal_mode=WAL)
+        path.with_name(f"{path.name}-wal").unlink(missing_ok=True)
+        path.with_name(f"{path.name}-shm").unlink(missing_ok=True)
         try:
             # Remove the directory if it's empty
             path.parent.rmdir()

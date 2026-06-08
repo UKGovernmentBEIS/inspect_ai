@@ -1,6 +1,8 @@
 import inspect
 import warnings
-from typing import Sequence, cast
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Iterator, Sequence, cast
 
 from typing_extensions import TypeIs
 
@@ -61,6 +63,47 @@ def clear_generation_params(config: GenerateConfig) -> None:
     """
     for field in _GENERATION_PARAM_FIELDS:
         setattr(config, field, None)
+
+
+_bridge_model_generate: ContextVar[bool] = ContextVar(
+    "_bridge_model_generate", default=False
+)
+
+
+@contextmanager
+def bridge_model_generate() -> Iterator[None]:
+    """Mark the enclosed block as a bridged model generation.
+
+    Installed by `bridge_generate` around its `model.generate()` call so that
+    consumers can recognise `ModelEvent`s originating from a bridged agent.
+    """
+    token = _bridge_model_generate.set(True)
+    try:
+        yield
+    finally:
+        _bridge_model_generate.reset(token)
+
+
+def in_bridge_model_generate() -> bool:
+    """Is the current model generation routed through the agent bridge?
+
+    `True` while inside `bridge_generate`'s call to `model.generate()`. Because
+    transcript subscriber callbacks fire synchronously in the emitting task's
+    context, this is reliably `True` when a bridged `ModelEvent` is observed by
+    a subscriber (e.g. the ACP live router) and `False` for ordinary
+    react-style generation.
+
+    Bridged scaffolds run their own tool calls, so no `ToolEvent` is ever
+    emitted for them — tool calls live only on
+    `ModelEvent.output.message.tool_calls`. Consumers that render tool calls use
+    this to decide whether they must synthesize tool-call cards from the
+    `ModelEvent` (rather than wait for a `ToolEvent` that will never arrive).
+
+    Covers every bridge configuration: in-process `agent_bridge()` and
+    `sandbox_agent_bridge()`, with or without a `ModelEventSink`, since all
+    route through `bridge_generate`.
+    """
+    return _bridge_model_generate.get()
 
 
 _filter_type_cache: dict[int, bool] = {}
@@ -157,7 +200,7 @@ async def bridge_generate(
         # (instead of going straight to the transcript) so the caller can
         # control when / under which span events appear.
         if output is None:
-            with use_model_event_sink(bridge.model_event_sink):
+            with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
                 output = await model.generate(
                     input=input_messages,
                     tool_choice=tool_choice,
