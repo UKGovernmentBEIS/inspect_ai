@@ -125,6 +125,9 @@ from inspect_ai.util._checkpoint._layout import (
     has_sample_checkpoint,
     sample_checkpoints_dir,
 )
+from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
+    scan_latest_committed_checkpoint,
+)
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.config import (
     CheckpointConfig,
@@ -538,7 +541,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             return sample_scores
                         elif isinstance(previous_sample, ResumeCheckpoint):
                             # signal intent — agent code can branch on
-                            # `cp.is_resuming`. No state hydration yet.
+                            # `cp.attempt`. Hydration runs inside
+                            # `_CheckpointerSetup.__aenter__`.
                             resume_checkpoint = previous_sample
 
                     # factory to create sample+state lazily (after semaphore)
@@ -1656,10 +1660,19 @@ def eval_log_sample_source(
             return None
         if not await has_sample_checkpoint(eval_checkpoints_dir, id, epoch):
             return None
+        prior_sample_dir = sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
+        # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
+        # agent finished cleanly, scoring is the next thing → retry can
+        # skip the agent loop (the ``"resume_for_scoring"`` attempt).
+        checkpoint = await scan_latest_committed_checkpoint(prior_sample_dir)
+        attempt: Literal["initial", "resume", "resume_for_scoring"] = (
+            "resume_for_scoring"
+            if checkpoint is not None and checkpoint.trigger == "agent_complete"
+            else "resume"
+        )
         return ResumeCheckpoint(
-            sample_checkpoints_dir=sample_checkpoints_dir(
-                eval_checkpoints_dir, id, epoch
-            )
+            sample_checkpoints_dir=prior_sample_dir,
+            attempt=attempt,
         )
 
     # take care of no log or no samples in log. Note we still proceed when

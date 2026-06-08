@@ -2,7 +2,7 @@
 
 import contextlib
 from collections.abc import AsyncIterator, Callable
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 T = TypeVar("T")
 
@@ -27,8 +27,8 @@ class RecordingCheckpointer:
         self.callbacks: dict[str, Callable[[], object]] = {}
 
     @property
-    def is_resuming(self) -> bool:
-        return bool(self._restored)
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
+        return "resume" if self._restored else "initial"
 
     async def tick(self) -> None:
         return None
