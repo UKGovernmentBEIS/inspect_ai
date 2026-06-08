@@ -1,9 +1,14 @@
 ## Unreleased
 
 - SageMaker: Fix streaming handler dropping reasoning tokens from thinking models (e.g. Qwen3 with vLLM reasoning parser, models using `reasoning_effort`). The handler now captures `delta.reasoning` and `delta.reasoning_content` fields and includes them in the reconstructed response for downstream parsing. Also adds proper SSE line-buffered parsing, incremental UTF-8 decoding, streamed tool-call accumulation, and `stream_options.include_usage` for accurate token counts.
-- Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled, warning once and falling back to the current journal mode.
+
+## 0.3.238 (08 June 2026)
+
 - Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled.
 - ACP: Render tool calls for agent-bridge agents (e.g. `claude_code`, `codex_cli`). 
+- ACP: Substitute `{{param}}` placeholders in tool-call views.
+- ACP: Keep the optimistic `user · queued` chip visible when agents are idle mid-turn.
+- Limits: Fix a spurious, mislabeled `working` limit event recorded alongside the real one when a message/token/cost limit is hit inside a sandboxed agent bridge (e.g. `claude_code`).
 - Inspect View: Improve model event rendering - add INFO tab (usage + stop reason) and a Stop Reason display
 - Inspect View: Fix: stop VirtualList from fighting deep-link scroll in WebKit
 - Inspect View: Fix: collapse the timeline by default when only main + scoring lanes exist

@@ -23,16 +23,22 @@ from __future__ import annotations
 import contextlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Callable, Protocol, TypeVar
+from typing import Callable, Literal, Protocol, TypeVar
 
 T = TypeVar("T")
 
 
 @dataclass
 class ResumeCheckpoint:
-    """Per-sample resume info: where the on-disk checkpoint lives."""
+    """Per-sample resume info: where the on-disk checkpoint lives.
+
+    ``attempt`` distinguishes mid-agent resume from scoring-phase
+    resume; the sample source reads the latest parseable checkpoint
+    file to decide which.
+    """
 
     sample_checkpoints_dir: str
+    attempt: Literal["initial", "resume", "resume_for_scoring"]
 
 
 class Checkpointer(Protocol):
@@ -44,12 +50,18 @@ class Checkpointer(Protocol):
     """
 
     @property
-    def is_resuming(self) -> bool:
-        """True iff this sample is being resumed from a prior checkpoint.
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
+        """Why this session is running.
 
-        Agents can branch on this to skip one-time setup that was
-        already performed on the original run, or to log/handle resume
-        specially. Stable across the lifetime of the session.
+        Stable across the lifetime of the session. Agents typically
+        branch as follows:
+
+        - ``"initial"`` — fresh start; perform one-time setup.
+        - ``"resume"`` — prior agent loop crashed; framework state has
+          been rehydrated, agent continues from where it left off.
+        - ``"resume_for_scoring"`` — prior agent loop finished cleanly
+          but scoring crashed; agent should restore tracked state and
+          return immediately so scoring can re-run.
         """
         ...
 
