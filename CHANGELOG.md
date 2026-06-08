@@ -1,5 +1,6 @@
 ## Unreleased
 
+- SageMaker: Fix streaming handler dropping reasoning tokens from thinking models (e.g. Qwen3 with vLLM reasoning parser, models using `reasoning_effort`). The handler now captures `delta.reasoning` and `delta.reasoning_content` fields and includes them in the reconstructed response for downstream parsing. Also adds proper SSE line-buffered parsing, incremental UTF-8 decoding, streamed tool-call accumulation, and `stream_options.include_usage` for accurate token counts.
 - Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled, warning once and falling back to the current journal mode.
 - Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled.
 - ACP: Render tool calls for agent-bridge agents (e.g. `claude_code`, `codex_cli`). 
