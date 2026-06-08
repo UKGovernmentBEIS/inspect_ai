@@ -5,6 +5,7 @@
 - ACP: Substitute `{{param}}` placeholders in tool-call views.
 - ACP: Keep the optimistic `user · queued` chip visible when agents are idle mid-turn.
 - Limits: Fix a spurious, mislabeled `working` limit event recorded alongside the real one when a message/token/cost limit is hit inside a sandboxed agent bridge (e.g. `claude_code`).
+- S3: Retry when requests have stale signatures
 - Inspect View: Improve model event rendering - add INFO tab (usage + stop reason) and a Stop Reason display
 - Inspect View: Fix: stop VirtualList from fighting deep-link scroll in WebKit
 - Inspect View: Fix: collapse the timeline by default when only main + scoring lanes exist
