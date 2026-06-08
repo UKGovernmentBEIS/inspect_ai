@@ -54,6 +54,7 @@
 - Inspect View: Fix stuck completed streaming samples
 - Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects.
 - Bugfix: Fix a rare `OperationalError: unable to open database file` when concurrent evals share a log directory.
+- Eval Logs: Add `read_eval_log_samples_by_id()` and `read_eval_log_samples_by_id_async()` to concurrently read a specific subset of samples by `(id, epoch)` (#2873).
 
 ## 0.3.239 (09 June 2026)
 
