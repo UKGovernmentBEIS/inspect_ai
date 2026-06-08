@@ -1,6 +1,5 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import StrEnum
 from logging import getLogger
 from typing import (
     Any,
@@ -29,6 +28,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_tag,
 )
+from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.text import is_finite_number
 from inspect_ai.log._edit import ProvenanceData
 

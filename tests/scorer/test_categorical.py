@@ -1,6 +1,5 @@
 import os
 import tempfile
-from enum import StrEnum
 from typing import cast
 
 import pytest
@@ -12,6 +11,7 @@ from inspect_ai.scorer import (
     Metric,
     Score,
     Scorer,
+    StrEnum,
     Target,
     Value,
     categorical,

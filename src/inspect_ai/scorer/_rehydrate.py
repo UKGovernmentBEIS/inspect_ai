@@ -11,11 +11,11 @@ in ``EvalScorer.value_schema`` and used here to reconstruct synthetic
 import functools
 import math
 from collections.abc import Mapping, Sequence
-from enum import StrEnum
 from logging import getLogger
 from typing import TYPE_CHECKING, overload
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.strenum import StrEnum
 
 from ._metric import CategoricalSchema, Score, Value, ValueSchema
 from ._scorer import unique_scorer_name

@@ -11,13 +11,13 @@ Then open the viewer to compare how each scorer renders:
 """
 
 import random
-from enum import StrEnum
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
     Score,
     Scorer,
+    StrEnum,
     Target,
     accuracy,
     categorical,
