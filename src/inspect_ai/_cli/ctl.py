@@ -1,12 +1,15 @@
 """`inspect ctl` — control-channel CLI subcommands.
 
-The ``ctl`` group hosts every command that operates on a *running*
-Inspect eval (list, status, cancel, drain, requeue, events, ...). See
+The ``ctl`` group hosts the commands that operate on a *running* Inspect
+eval via the per-process control server's HTTP endpoints. See
 ``design/control-channel.md`` for the design.
 
-Current scope: ``ls`` (enumerate live evals), ``samples`` (list a
-task's samples), and ``release`` (let a ``--keep-alive`` process
-exit). Each talks to the per-process control server's HTTP endpoints.
+Implemented (read surface + keep-alive): ``ls`` (enumerate live evals),
+``samples`` (a task's samples), ``sample`` (one sample's error detail),
+``errors`` (errored / retried samples), ``events`` (a sample's transcript
+events), and ``release`` (let a ``--keep-alive`` process exit). The
+state-mutating directives (cancel / drain / requeue / modify-limits) are
+planned but not yet available.
 """
 
 from __future__ import annotations
@@ -28,7 +31,13 @@ from inspect_ai._control.discovery import (
 
 @click.group("ctl")
 def ctl_command() -> None:
-    """Manage running evals (list, cancel, drain, modify limits, ...).
+    """Read the state of running evals and release kept-alive processes.
+
+    Commands: ``ls`` (running evals), ``samples`` / ``sample`` / ``errors``
+    (an eval's samples), ``events`` (a sample's transcript), ``release``
+    (let a ``--keep-alive`` process exit). All are read-only except
+    ``release`` — state-mutating directives (cancel, drain, modify limits)
+    are planned but not yet available.
 
     Each command operates on a live Inspect eval via the control
     channel — the HTTP server every running ``inspect eval`` process
