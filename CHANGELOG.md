@@ -1,7 +1,19 @@
 ## Unreleased
 
+- Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled, warning once and falling back to the current journal mode.
+
+## 0.3.237 (07 June 2026)
+
+- Model API: `ChatCompletionChoice.stop_details` (`StopDetails`/`StopCategory`) surfaces a model's refusal/safety category and explanation when available.
+- Transcript: `transcript().events` now resolves content attachments (large text, images) instead of returning bare `attachment://` references when reads are served from the bounded-history provider.
+- Transcript: Use WAL journal mode for the realtime sample buffer database so concurrent reads and writes no longer raise `OperationalError: database is locked`.
+- Remove ACP patch for connection initialization order issue (resolved in ACP 0.10.1).
+
+## 0.3.236 (06 June 2026)
+
 - Model API: Add `ModelInfo.family` and `ModelAPI.model_family()`. Provider capability and request-shape checks now consult a registered `ModelInfo.family` before falling back to model-name matching, while preserving the configured model name for provider requests.
 - Together: Support the `stream` model arg (e.g. `-M stream=true`) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to `stop_reason="max_tokens"` instead of raising.
+- Groq: Map tool_choice="any" to "required" for forced tool calls.
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
 - Deep Agent: Subagent `submit()` calls are retained in the subagent transcript (previously stripped) and rendered as markdown, so a submit is distinguishable from a normal assistant message. The parent's result is unchanged.
 - Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox to share `/var/tmp/sandbox-services`.
@@ -13,10 +25,14 @@
 - Transcript: Bound resident memory for long-running samples by evicting older events to a history provider (opt-in via the `INSPECT_TRANSCRIPT_BOUNDED` environment variable). `transcript().events` remains a full, compatible view; use `transcript().history` for memory-aware access.
 - Inspect View: New `ViewerConfig` (passed via `Task(viewer=...)`) lets eval authors customize how a task's sample list, score panel, and scanner results render in the log viewer — including sample-list columns, default sort, score labels, and color scales. See [Custom Views](https://inspect.aisi.org.uk/task-views.html).
 - Transcript: Revert disabling of buffer history database when running tests.
-- Inspect View: Dark mode, event and message color support
+- Inspect View: Dark mode, event and message color support.
 - Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.
-- Inspect View: Collapse same-name nested solver/agent spans in transcripts
-- Inspect View: Fix truncation of long transcript outlines when scrolling
+- Inspect View: Collapse same-name nested solver/agent spans in transcripts.
+- Inspect View: Fix truncation of long transcript outlines when scrolling.
+- Inspect View: Switch to dev dependencies for scout and inspect apps.
+- Inspect View: Fixes to live sample following behavior.
+- Inspect View: Properly clear log/sample before paint when viewing log (#284).
+- Inspect View: don't render primitive solvers as sub-agents (#287).
 - Bugfix: Inspect View sample-list columns now expand to fill the available width.
 - Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.
 - Bugfix: Preserve OpenAI Responses API encrypted reasoning through agent bridge round-trips and replay reasoning input items with empty `content` to avoid server validation errors.

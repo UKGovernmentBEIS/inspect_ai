@@ -67,6 +67,7 @@ from .._model_output import (
     Logprob,
     Logprobs,
     ModelUsage,
+    StopDetails,
     StopReason,
     TopLogprob,
 )
@@ -370,7 +371,11 @@ class GrokAPI(ModelAPI):
         details = ex.details() or ""
         if "safety_check" in details.lower():
             return ModelOutput.from_content(
-                model=self.model_name, content=details, stop_reason="content_filter"
+                model=self.model_name,
+                content=details,
+                stop_reason="content_filter",
+                # xAI has no structured category; surface the error text as explanation
+                stop_details=StopDetails(type="refusal", explanation=details),
             )
         else:
             return None

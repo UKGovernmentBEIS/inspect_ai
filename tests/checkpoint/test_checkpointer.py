@@ -453,6 +453,109 @@ def test_synthesize_trailing_checkpoint_event(tmp_path: Path) -> None:
     assert event.timestamp == checkpoint.created_at
 
 
+def _assert_spans_balanced(events: list[Event]) -> None:
+    """Assert span_begin/span_end nest LIFO with nothing left open."""
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+
+    stack: list[str] = []
+    for e in events:
+        if isinstance(e, SpanBeginEvent):
+            stack.append(e.id)
+        elif isinstance(e, SpanEndEvent):
+            assert stack and stack[-1] == e.id, f"unbalanced span_end {e.id}"
+            stack.pop()
+    assert not stack, f"unclosed spans: {stack}"
+
+
+def test_wrap_prior_run_reparents_existing_wraps_across_resumes() -> None:
+    """A second resume keeps prior wraps as clean siblings under the current span.
+
+    Models the cumulative buffer a second resume hydrates. Insertion
+    order puts the seeded earlier ``prior_run`` wrap *first*, then the
+    resumed session's own (still-open) structural ancestry, then a fresh
+    unwrapped checkpoint span nested under that ancestry's ``agent``
+    span. Both layers of scaffolding — leading (before the first wrap)
+    and trailing (between the wrap and the new checkpoint) — must be
+    sliced away: the surviving wrap is re-parented onto the current
+    span, and the new checkpoint span becomes a second sibling wrap with
+    nothing else inside it.
+    """
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.util._checkpoint.hydrate import _wrap_prior_run
+
+    restored_events: list[Event] = [
+        # leading scaffolding before the first wrap — dropped by the slice
+        SpanBeginEvent(id="agent0", name="react", type="agent"),
+        InfoEvent(data="leading-setup"),
+        # the wrap hydrated during the prior resume (seeded first in the
+        # buffer), parented to that resume's now-gone agent span
+        SpanBeginEvent(
+            id="restore-1",
+            name="checkpoint restore 1",
+            type="prior_run",
+            parent_id="agent0",
+        ),
+        SpanBeginEvent(
+            id="checkpoint-1",
+            name="checkpoint 1",
+            type="checkpoint",
+            parent_id="restore-1",
+        ),
+        SpanEndEvent(id="checkpoint-1"),
+        SpanEndEvent(id="restore-1"),
+        # the resumed session's OWN structural ancestry, recorded after the
+        # seeded wrap and still open at fire time — trailing scaffolding
+        SpanBeginEvent(id="init1", name="init", type="init"),
+        SpanEndEvent(id="init1"),
+        SpanBeginEvent(id="solvers1", name="solvers"),
+        SpanBeginEvent(id="solver1", name="react", type="solver", parent_id="solvers1"),
+        SpanBeginEvent(id="agent1", name="react", type="agent", parent_id="solver1"),
+        InfoEvent(data="trailing-setup"),
+        # the new, still-unwrapped checkpoint span nested under that agent
+        SpanBeginEvent(
+            id="checkpoint-2",
+            name="checkpoint 2",
+            type="checkpoint",
+            parent_id="agent1",
+        ),
+        SpanEndEvent(id="checkpoint-2"),
+    ]
+
+    wrapped = _wrap_prior_run(restored_events, parent_span_id="current")
+
+    # all structural ancestry (leading and trailing) is gone
+    span_ids = {
+        event.id
+        for event in wrapped
+        if isinstance(event, (SpanBeginEvent, SpanEndEvent))
+    }
+    assert {"agent0", "init1", "solvers1", "solver1", "agent1"}.isdisjoint(span_ids)
+
+    wrap_begins = [
+        event
+        for event in wrapped
+        if isinstance(event, SpanBeginEvent) and event.type == "prior_run"
+    ]
+    assert [w.name for w in wrap_begins] == [
+        "checkpoint restore 1",
+        "checkpoint restore 2",
+    ]
+    # both wraps sit under the current session's span as siblings
+    assert wrap_begins[0].id == "restore-1"
+    assert wrap_begins[0].parent_id == "current"
+    assert wrap_begins[1].parent_id == "current"
+
+    # the new wrap's first child is checkpoint-2, re-parented onto it — the
+    # wrap contains the checkpoint span and nothing else
+    new_wrap = wrap_begins[1]
+    new_wrap_idx = next(i for i, e in enumerate(wrapped) if e is new_wrap)
+    first_child = wrapped[new_wrap_idx + 1]
+    assert isinstance(first_child, SpanBeginEvent)
+    assert first_child.id == "checkpoint-2"
+    assert first_child.parent_id == new_wrap.id
+    _assert_spans_balanced(wrapped)
+
+
 # --- tracing (inspect trace anomalies / dump --filter checkpoint) ---------
 
 

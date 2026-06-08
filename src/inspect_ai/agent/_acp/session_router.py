@@ -51,7 +51,12 @@ _SESSION_UPDATE_METHOD = CLIENT_METHODS["session_update"]
 
 # ``REPLAY_MAX_EVENTS`` caps replay payload size on late attach so a
 # very long-running sample doesn't dump thousands of events on every
-# new connection.
+# new connection. Applied per-stream to the respective universe (last N
+# filtered semantic events, last N raw events) — see
+# ``_run_replay``. The snapshot itself reads the full since-attach
+# history from the buffer history provider (which resolves attachment
+# content), so this cap is purely a wire-payload bound, independent of
+# the transcript's resident window.
 REPLAY_MAX_EVENTS = 100
 
 # How long :meth:`Forwarders.stop` waits for the semantic task to
