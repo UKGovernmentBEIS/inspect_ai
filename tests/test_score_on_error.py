@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import anyio
@@ -5,6 +6,7 @@ from test_helpers.utils import failing_solver_deterministic
 
 from inspect_ai import Task, eval
 from inspect_ai._eval.task.run import eval_log_sample_source
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
@@ -37,6 +39,25 @@ def _make_task(
         scorer=constant_scorer(),
         score_on_error=score_on_error,
         fail_on_error=fail_on_error,
+    )
+
+
+def _checkpoint_json(checkpoint_id: int, trigger: str) -> str:
+    return json.dumps(
+        {
+            "checkpoint_id": checkpoint_id,
+            "trigger": trigger,
+            "turn": checkpoint_id,
+            "created_at": "2026-04-26T14:23:11Z",
+            "duration_ms": 0,
+            "size_bytes": 0,
+            "host": {
+                "snapshot_id": f"snap-{checkpoint_id}",
+                "size_bytes": 0,
+                "duration_ms": 0,
+            },
+            "sandboxes": {},
+        }
     )
 
 
@@ -184,7 +205,7 @@ def test_score_on_error_sample_source_skips_errored():
 
 
 def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) -> None:
-    # errored sample + sidecar on disk → factory returns ResumeCheckpoint
+    # errored sample + checkpoint file on disk → factory returns ResumeCheckpoint
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
     assert log.samples is not None
     errored_sample = log.samples[0]
@@ -192,17 +213,45 @@ def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) ->
     eval_ckpt_dir = tmp_path / "eval.checkpoints"
     sample_dir = eval_ckpt_dir / f"{errored_sample.id}__{errored_sample.epoch}"
     sample_dir.mkdir(parents=True)
-    (sample_dir / "ckpt-00001.json").write_text("{}")
+    (sample_dir / "ckpt-00001.json").write_text(_checkpoint_json(1, "turn"))
 
     dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
     source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
 
     async def call() -> object:
-        return await source(errored_sample.id, errored_sample.epoch)
+        async with AsyncFilesystem():
+            return await source(errored_sample.id, errored_sample.epoch)
 
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
     assert result.sample_checkpoints_dir == str(sample_dir)
+    assert result.attempt == "resume"
+
+
+def test_eval_log_sample_source_scoring_resume_for_agent_complete_checkpoint(
+    tmp_path: Path,
+) -> None:
+    log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
+    assert log.samples is not None
+    errored_sample = log.samples[0]
+
+    eval_ckpt_dir = tmp_path / "eval.checkpoints"
+    sample_dir = eval_ckpt_dir / f"{errored_sample.id}__{errored_sample.epoch}"
+    sample_dir.mkdir(parents=True)
+    (sample_dir / "ckpt-00001.json").write_text(_checkpoint_json(1, "turn"))
+    (sample_dir / "ckpt-00002.json").write_text(_checkpoint_json(2, "agent_complete"))
+
+    dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
+    source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
+
+    async def call() -> object:
+        async with AsyncFilesystem():
+            return await source(errored_sample.id, errored_sample.epoch)
+
+    result = anyio.run(call)
+    assert isinstance(result, ResumeCheckpoint)
+    assert result.sample_checkpoints_dir == str(sample_dir)
+    assert result.attempt == "resume_for_scoring"
 
 
 def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) -> None:
@@ -218,6 +267,7 @@ def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) ->
     source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
 
     async def call() -> object:
-        return await source(errored_sample.id, errored_sample.epoch)
+        async with AsyncFilesystem():
+            return await source(errored_sample.id, errored_sample.epoch)
 
     assert anyio.run(call) is None

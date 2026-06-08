@@ -23,7 +23,7 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._util._async import tg_collect
+from inspect_ai._util._async import aexit_shielded_when, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import (
@@ -39,6 +39,7 @@ from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
     has_registry_params,
     is_registry_object,
+    registry_info,
     registry_log_name,
     registry_params,
     registry_unqualified_name,
@@ -75,13 +76,23 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     eval_error,
 )
+from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+    BufferTranscriptHistoryProvider,
+)
+from inspect_ai.log._recorders.streaming import (
+    eval_retry_error_from_history,
+    materialize_streaming_sample,
+)
 from inspect_ai.log._samples import (
     active_sample,
 )
 from inspect_ai.log._transcript import (
+    DEFAULT_RESIDENT_TAIL,
     Transcript,
+    TranscriptHistoryProvider,
     init_transcript,
     transcript,
+    transcript_bounded_enabled,
 )
 from inspect_ai.model import (
     GenerateConfig,
@@ -113,6 +124,9 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint._layout import (
     has_sample_checkpoint,
     sample_checkpoints_dir,
+)
+from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
+    scan_latest_committed_checkpoint,
 )
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.config import (
@@ -173,6 +187,18 @@ EvalSampleSource = Callable[
 SAMPLE_TOTAL_PROGRESS_UNITS = 1
 
 
+def _sample_transcript_config(
+    logger: TaskLogger | None, sample_id: str | int, epoch: int
+) -> tuple[bool, TranscriptHistoryProvider | None]:
+    if logger is not None and logger.buffer_db is not None:
+        return (
+            transcript_bounded_enabled(),
+            BufferTranscriptHistoryProvider(logger.buffer_db, sample_id, epoch),
+        )
+    else:
+        return False, None
+
+
 @dataclass
 class TaskRunOptions:
     task: Task
@@ -212,9 +238,24 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
 
     # add setup solver(s) if specified
     if task.setup:
+        # avoid mutating a caller-supplied Plan: resolve_plan may run more than
+        # once for the same task (e.g. task-identity hashing in evalset, then the
+        # run itself), and prepending in place would stack setup steps each time.
+        # A shallow copy preserves finish/cleanup/name and registry identity.
+        if plan is solver:
+            plan = copy(plan)
         plan.steps = unroll(task.setup) + plan.steps
 
     return plan
+
+
+def plan_agent_name(plan: Plan) -> str | None:
+    """Unqualified name of the plan's terminal step (agent or solver)."""
+    if plan.steps:
+        last_step = plan.steps[-1]
+        if is_registry_object(last_step):
+            return registry_unqualified_name(registry_info(last_step).name)
+    return None
 
 
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
@@ -331,6 +372,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         name=options.display_name or task.name,
         file=logger.eval.task_file,
         model=model_name,
+        agent=plan_agent_name(plan),
         dataset=task.dataset.name or "(samples)",
         scorer=", ".join(scorer_profiles),
         samples=total_samples,
@@ -499,7 +541,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             return sample_scores
                         elif isinstance(previous_sample, ResumeCheckpoint):
                             # signal intent — agent code can branch on
-                            # `cp.is_resuming`. No state hydration yet.
+                            # `cp.attempt`. Hydration runs inside
+                            # `_CheckpointerSetup.__aenter__`.
                             resume_checkpoint = previous_sample
 
                     # factory to create sample+state lazily (after semaphore)
@@ -880,7 +923,15 @@ async def task_run_sample(
         init_sample_model_usage()
         init_sample_role_usage()
         set_sample_state(state)
-        sample_transcript = Transcript(log_model_api=log_model_api)
+        sample_transcript_bounded, history_provider = _sample_transcript_config(
+            logger, sample_id, state.epoch
+        )
+        sample_transcript = Transcript(
+            log_model_api=log_model_api,
+            bounded=sample_transcript_bounded,
+            resident_tail=DEFAULT_RESIDENT_TAIL,
+            history_provider=history_provider,
+        )
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
         sample_transcript._subscribe(on_sample_event)
@@ -889,9 +940,19 @@ async def task_run_sample(
         init_sample_assistant_internal()
 
         # use sandbox if provided
+        #
+        # The sandbox CM's `__aexit__` is wrapped so its teardown runs shielded
+        # whenever the sample's own cancel was caught upstream (`cancelled_error`
+        # set). Otherwise, the eval-level scope's still-cancelled state would
+        # re-cancel the first await inside `cleanup_sandbox_environments_sample`,
+        # propagating a fresh CancelledError out past the (already shielded)
+        # logging block and dropping the in-flight sample from the eval log.
         sandboxenv_cm = (
-            sandboxenv_context(
-                task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
+            aexit_shielded_when(
+                sandboxenv_context(
+                    task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
+                ),
+                lambda: cancelled_error is not None,
             )
             if sandbox or sample.sandbox is not None
             else contextlib.nullcontext()
@@ -935,14 +996,8 @@ async def task_run_sample(
                 transcript()._event(ErrorEvent(error=err[0]))
                 return err
 
-        # Derive agent name for the ACP picker / TUI meta row. Mirrors
-        # inspect_scout's `_agent(log)` heuristic: prefer the configured
-        # eval-level solver string, fall back to the last plan step.
-        agent_name: str | None = None
-        if logger is not None and logger.eval.solver is not None:
-            agent_name = logger.eval.solver
-        elif plan.steps:
-            agent_name = registry_log_name(plan.steps[-1])
+        # Derive agent name for the ACP picker / TUI meta row.
+        agent_name = plan_agent_name(plan)
 
         async with active_sample(
             task=task_name,
@@ -1103,22 +1158,32 @@ async def task_run_sample(
                                                 error, raise_error = handle_error(ex)
 
                                     elif active.limit_exceeded_error:
-                                        # record event
-                                        transcript()._event(
-                                            SampleLimitEvent(
-                                                type="working",
-                                                message=active.limit_exceeded_error.message,
-                                                limit=active.limit_exceeded_error.limit,
+                                        err = active.limit_exceeded_error
+                                        # Record a SampleLimitEvent ONLY for a working-time
+                                        # limit. `sample.limit_exceeded()` (which set
+                                        # `limit_exceeded_error` and cancelled us) has two
+                                        # callers: monitor_working_limit(), which records no
+                                        # event of its own — so here we are its sole recorder
+                                        # — and the sandbox service, which surfaces a bridged
+                                        # message/token/cost limit that ALREADY recorded its
+                                        # own event at its detection point (e.g.
+                                        # check_message_limit). Recording the latter here would
+                                        # both duplicate that event and mislabel it "working".
+                                        if err.type == "working":
+                                            transcript()._event(
+                                                SampleLimitEvent(
+                                                    type=err.type,
+                                                    message=err.message,
+                                                    limit=err.limit,
+                                                )
                                             )
-                                        )
 
                                         # capture most recent state for scoring
                                         state = sample_state() or state
                                         limit = EvalSampleLimit(
-                                            type=active.limit_exceeded_error.type,
-                                            limit=active.limit_exceeded_error.limit
-                                            if active.limit_exceeded_error.limit
-                                            is not None
+                                            type=err.type,
+                                            limit=err.limit
+                                            if err.limit is not None
                                             else -1,
                                         )
 
@@ -1381,22 +1446,29 @@ async def task_run_sample(
                         state = state_without_base64_content(state)
 
                     # emit/log sample end
-                    eval_sample = create_eval_sample(
-                        start_time=start_time,
-                        sample=sample,
-                        state=state,
-                        scores=results,
-                        error=error,
-                        limit=limit,
-                        error_retries=error_retries,
-                        started_at=sample_start_datetime(),
-                    )
+                    def make_eval_sample(include_events: bool = True) -> EvalSample:
+                        return create_eval_sample(
+                            start_time=start_time,
+                            sample=sample,
+                            state=state,
+                            scores=results,
+                            error=error,
+                            limit=limit,
+                            error_retries=error_retries,
+                            started_at=sample_start_datetime(),
+                            include_events=include_events,
+                        )
+
                     if logger:
-                        await log_sample(
-                            eval_sample=eval_sample,
+                        eval_sample = await log_sample(
+                            eval_sample=make_eval_sample(
+                                include_events=logger.buffer_db is None
+                            ),
                             logger=logger,
                             log_images=log_images,
                         )
+                    else:
+                        eval_sample = make_eval_sample()
                     await scan_eval_sample(
                         eval_sample,
                         scanner,
@@ -1421,6 +1493,8 @@ async def task_run_sample(
         and active.interrupt_action is None
     ):
         await emit_attempt_end(will_retry=True)
+
+        retry_error = _eval_retry_error(error, logger, state.sample_id, state.epoch)
 
         # remove any buffered sample events
         if logger is not None:
@@ -1455,7 +1529,7 @@ async def task_run_sample(
             retry_on_error=retry_on_error - 1,
             score_on_error=score_on_error,
             # forward on error that caused retry
-            error_retries=copy(error_retries) + [_eval_retry_error(error)],
+            error_retries=copy(error_retries) + [retry_error],
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
@@ -1495,6 +1569,7 @@ def create_eval_sample(
     limit: EvalSampleLimit | None,
     error_retries: list[EvalRetryError],
     started_at: datetime | None = None,
+    include_events: bool = True,
 ) -> EvalSample:
     # sample must have id to be logged
     id = sample.id
@@ -1523,7 +1598,7 @@ def create_eval_sample(
         scores={k: v.score for k, v in scores.items()},
         store=dict(state.store.items()),
         uuid=state.uuid,
-        events=list(transcript().events),
+        events=list(transcript().events) if include_events else [],
         timelines=list(transcript().timelines) or None,
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
@@ -1541,9 +1616,28 @@ def create_eval_sample(
 
 
 async def log_sample(
-    eval_sample: EvalSample, logger: TaskLogger, log_images: bool
-) -> None:
-    await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
+    eval_sample: EvalSample,
+    logger: TaskLogger,
+    log_images: bool,
+) -> EvalSample:
+    if logger.buffer_db is None:
+        await logger.complete_sample(
+            condense_sample(eval_sample, log_images), flush=True
+        )
+        return eval_sample
+
+    logging_sample = condense_sample(
+        eval_sample.model_copy(update={"events": [], "events_data": None}),
+        log_images,
+    )
+    with logger.buffer_db.open_sample_history(
+        eval_sample.id, eval_sample.epoch
+    ) as sample_history:
+        materialized_sample = materialize_streaming_sample(eval_sample, sample_history)
+        await logger.complete_sample_streaming(
+            logging_sample, sample_history, flush=True
+        )
+    return materialized_sample
 
 
 # we can reuse samples from a previous eval_log if and only if:
@@ -1566,17 +1660,26 @@ def eval_log_sample_source(
             return None
         if not await has_sample_checkpoint(eval_checkpoints_dir, id, epoch):
             return None
+        prior_sample_dir = sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
+        # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
+        # agent finished cleanly, scoring is the next thing → retry can
+        # skip the agent loop (the ``"resume_for_scoring"`` attempt).
+        checkpoint = await scan_latest_committed_checkpoint(prior_sample_dir)
+        attempt: Literal["initial", "resume", "resume_for_scoring"] = (
+            "resume_for_scoring"
+            if checkpoint is not None and checkpoint.trigger == "agent_complete"
+            else "resume"
+        )
         return ResumeCheckpoint(
-            sample_checkpoints_dir=sample_checkpoints_dir(
-                eval_checkpoints_dir, id, epoch
-            )
+            sample_checkpoints_dir=prior_sample_dir,
+            attempt=attempt,
         )
 
     # take care of no log or no samples in log. Note we still proceed when
     # in-memory samples and `eval_log_info` are both absent if a
     # `eval_checkpoints_dir` is available — the prior eval may have been
-    # killed before writing any sample, and on-disk sidecars can still
-    # drive resume detection in `read_from_memory` below.
+    # killed before writing any sample, and on-disk checkpoint files
+    # can still drive resume detection in `read_from_memory` below.
     if not eval_log:
         return no_sample_source
     elif not eval_log.samples and not eval_log_info and not eval_checkpoints_dir:
@@ -1719,16 +1822,30 @@ def init_sample_assistant_internal() -> None:
             pass
 
 
-def _eval_retry_error(error: EvalError) -> EvalRetryError:
+def _eval_retry_error(
+    error: EvalError,
+    logger: TaskLogger | None = None,
+    sample_id: str | int | None = None,
+    epoch: int | None = None,
+) -> EvalRetryError:
     """Create retry error with events from the most recent ModelEvent onward."""
     from inspect_ai.event._model import ModelEvent
 
-    events = transcript().events
-    recent_events = list(events)
-    for i in range(len(events) - 1, -1, -1):
-        if isinstance(events[i], ModelEvent):
-            recent_events = list(events[i:])
-            break
+    if logger is not None and logger.buffer_db is not None and sample_id is not None:
+        if epoch is None:
+            raise ValueError(
+                "epoch is required when reading retry events from buffer DB"
+            )
+        with logger.buffer_db.open_sample_history(sample_id, epoch) as sample_history:
+            return eval_retry_error_from_history(error, sample_history)
+
+    sample_transcript = transcript()
+    transcript_history = sample_transcript.history
+    recent_events = (
+        transcript_history.events_since_last(ModelEvent)
+        if transcript_history.full_history_available
+        else []
+    )
     return EvalRetryError(
         message=error.message,
         traceback=error.traceback,

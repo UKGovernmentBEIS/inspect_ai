@@ -79,6 +79,15 @@ RAW_EVENTS_GLOB: Final = "*"
 # numbered-list text body.
 PICKER_META_KEY = "inspect.picker.targets"
 
+# Whether a bound / listed session is interactive (the client can drive
+# the agent turn loop via ``session/prompt`` / ``session/cancel``).
+# False means observe-only: the sample has no bound agent channel (custom
+# solver, pre-bind, or scoring window) — the client can watch the event
+# stream and still issue lifecycle controls (``inspect/cancel_sample`` /
+# ``inspect/cancel_tool_call``), but turn-loop input is rejected. Carried
+# on ``inspect/list_samples`` entries and the binding-confirmation _meta.
+INTERACTIVE_META_KEY = "inspect.interactive"
+
 # Per-chunk attribution on user/system ``user_message_chunk`` and
 # assistant ``agent_message_chunk`` notifications. Lets clients
 # cross-reference back to the originating transcript event, render
@@ -112,6 +121,15 @@ REPLAY_META_KEY = "inspect.replay"
 # off the outer notification to drive the header's ``messages`` chip on
 # the same tick as ``tokens``.
 TOTAL_MESSAGES_META_KEY = "inspect.total_messages"
+
+# Stamped on a ``ToolCallStart.field_meta`` when the tool call CANNOT be
+# cancelled via ``inspect/cancel_tool_call``. Set for bridged agents
+# (claude_code, codex, …): their tools are run by the bridged scaffold, not by
+# Inspect, so there's no pending ``ToolEvent`` for the connection handler to
+# cancel — the request would silently no-op. The Inspect TUI reads this off the
+# tool card to suppress the per-tool "cancel tool" affordance (the operator can
+# still interrupt the whole turn). Absent ⇒ cancelable (the react default).
+TOOL_CALL_CANCELABLE_META_KEY = "inspect.tool_call_cancelable"
 
 
 # ---------------------------------------------------------------------------
@@ -777,13 +795,15 @@ def picker_target_meta_dict(target: PickerTarget) -> dict[str, Any]:
 def sample_listing_meta_dict(listing: SampleListing) -> dict[str, Any]:
     """Canonical camelCase wire shape for an :data:`INSPECT_LIST_SAMPLES_METHOD` entry.
 
-    ``sessionId`` is set only when the sample's agent has claimed an
-    ACP session (called ``before_turn`` at least once). Non-ACP samples
-    emit ``sessionId: null`` — the discriminator the Inspect TUI uses
-    to render those rows as dimmed + unselectable-on-attach.
+    ``sessionId`` is set for every attachable sample (any running sample
+    whose transport hasn't finalized) so clients can observe it; it is
+    ``null`` only when there is nothing to attach to (no transport / noop
+    sentinel / finalized). ``interactive`` distinguishes drivable sessions
+    (bound agent turn loop) from observe-only ones.
     """
     return {
         "sessionId": listing.session_id,
+        "interactive": listing.interactive,
         "task": listing.task,
         "sampleId": listing.sample_id,
         "epoch": listing.epoch,
@@ -792,6 +812,7 @@ def sample_listing_meta_dict(listing: SampleListing) -> dict[str, Any]:
         "totalMessages": listing.total_messages,
         "totalTokens": listing.total_tokens,
         "failsOnError": listing.fails_on_error,
+        "pending": listing.pending,
     }
 
 

@@ -133,6 +133,31 @@
         "title": "AnchorEvent",
         "type": "object"
       },
+      "AppConfig": {
+        "description": "Application configuration returned by GET /app-config.",
+        "properties": {
+          "inspect_version": {
+            "title": "Inspect Version",
+            "type": "string"
+          },
+          "scout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scout Version"
+          }
+        },
+        "required": [
+          "inspect_version"
+        ],
+        "title": "AppConfig",
+        "type": "object"
+      },
       "ApprovalEvent": {
         "description": "Tool approval.",
         "properties": {
@@ -609,6 +634,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Logprobs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopDetails"
               },
               {
                 "type": "null"
@@ -1106,7 +1141,7 @@
       },
       "CheckpointEvent": {
         "additionalProperties": true,
-        "description": "A successful checkpoint commit.\n\nEmitted by the checkpointer immediately after the per-checkpoint\nsidecar JSON is written \u2014 see working.md \u00a78a. Carries the full\nsidecar payload flattened into top-level fields (via multiple\ninheritance from :class:`CheckpointDetails`), so a consumer of\n``transcript().events`` (or the ``.eval`` log) reads\n``event.checkpoint_id`` / ``event.trigger`` / ``event.host`` etc.\ndirectly \u2014 same data as someone reading\n``<sample>/ckpt-NNNNN.json`` from disk.",
+        "description": "A successful checkpoint commit.\n\nEmitted by the checkpointer immediately after the per-checkpoint\nfile JSON is written \u2014 see working.md \u00a78a. Carries the full\ncheckpoint payload flattened into top-level fields (via multiple\ninheritance from :class:`Checkpoint`), so a consumer of\n``transcript().events`` (or the ``.eval`` log) reads\n``event.checkpoint_id`` / ``event.trigger`` / ``event.host`` etc.\ndirectly \u2014 same data as someone reading\n``<sample>/ckpt-NNNNN.json`` from disk.",
         "properties": {
           "checkpoint_id": {
             "title": "Checkpoint Id",
@@ -1186,7 +1221,8 @@
               "manual",
               "token",
               "cost",
-              "budget"
+              "budget",
+              "agent_complete"
             ],
             "title": "Trigger",
             "type": "string"
@@ -2478,6 +2514,20 @@
               }
             ],
             "title": "Message Limit"
+          },
+          "notification": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification"
           },
           "retry_on_error": {
             "anyOf": [
@@ -5484,11 +5534,37 @@
       "InputEvent": {
         "description": "Input screen interaction.",
         "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
           "event": {
             "const": "input",
             "default": "input",
             "title": "Event",
             "type": "string"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InputField"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields"
           },
           "input": {
             "title": "Input",
@@ -5497,6 +5573,17 @@
           "input_ansi": {
             "title": "Input Ansi",
             "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
           },
           "metadata": {
             "anyOf": [
@@ -5509,6 +5596,22 @@
               }
             ],
             "title": "Metadata"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "accepted",
+                  "declined",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
           },
           "pending": {
             "anyOf": [
@@ -5560,6 +5663,43 @@
           "input_ansi"
         ],
         "title": "InputEvent",
+        "type": "object"
+      },
+      "InputField": {
+        "description": "One field of an `ask_user` request.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean",
+              "array"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "InputField",
         "type": "object"
       },
       "InterruptEvent": {
@@ -6179,6 +6319,17 @@
             ],
             "title": "Direct Url"
           },
+          "etag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
           "size": {
             "title": "Size",
             "type": "integer"
@@ -6518,7 +6669,7 @@
         "type": "object"
       },
       "MetadataField": {
-        "description": "A metadata key promoted out of metadata into a top level value.",
+        "description": "Identifies a field in metadata.",
         "properties": {
           "collapsed": {
             "default": false,
@@ -7705,17 +7856,7 @@
       "SampleScoreView": {
         "description": "How the sample-header score panel should render when there are 3 or more scores.",
         "properties": {
-          "sort": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SampleScoreViewSort"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "view": {
+          "default": {
             "anyOf": [
               {
                 "enum": [
@@ -7728,7 +7869,17 @@
                 "type": "null"
               }
             ],
-            "title": "View"
+            "title": "Default"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleScoreViewSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "SampleScoreView",
@@ -7800,190 +7951,6 @@
           "etag"
         ],
         "title": "Samples",
-        "type": "object"
-      },
-      "SamplesColumn": {
-        "description": "A column entry in the task's Sample List view.",
-        "properties": {
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "visible": {
-            "default": true,
-            "title": "Visible",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "visible"
-        ],
-        "title": "SamplesColumn",
-        "type": "object"
-      },
-      "SamplesSort": {
-        "description": "A single sort entry for the task's Sample List grid.",
-        "properties": {
-          "column": {
-            "title": "Column",
-            "type": "string"
-          },
-          "dir": {
-            "default": "asc",
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "title": "Dir",
-            "type": "string"
-          }
-        },
-        "required": [
-          "column",
-          "dir"
-        ],
-        "title": "SamplesSort",
-        "type": "object"
-      },
-      "SamplesView": {
-        "description": "Default configuration for the task's Sample List grid.\n\nConfigures the list of samples shown in a task's eval-log view \u2014\ndistinct from `sample_score_view`, which configures the score panel\nwithin an individual sample's detail view.\n\nThe viewer applies `SamplesView` only when the user has not\nexplicitly overridden the view in their browser. User overrides\nshadow the eval-author default; the resolution priority is\n`user > eval default > built-in`.",
-        "properties": {
-          "color_scales_enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Color Scales Enabled"
-          },
-          "columns": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/SamplesColumn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Columns"
-          },
-          "compact_scores": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Compact Scores"
-          },
-          "filter": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Filter"
-          },
-          "multiline": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Multiline"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "score_color_scales": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "enum": [
-                        "good-high",
-                        "good-low",
-                        "neutral",
-                        "diverging"
-                      ],
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ScoreColorScale"
-                    },
-                    {
-                      "additionalProperties": {
-                        "enum": [
-                          "good",
-                          "bad",
-                          "warn",
-                          "info",
-                          "muted"
-                        ],
-                        "type": "string"
-                      },
-                      "type": "object"
-                    }
-                  ]
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score Color Scales"
-          },
-          "score_labels": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score Labels"
-          },
-          "sort": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/SamplesSort"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sort"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "SamplesView",
         "type": "object"
       },
       "SandboxEnvironmentSpec": {
@@ -8212,7 +8179,7 @@
         "type": "object"
       },
       "ScannerResultView": {
-        "description": "Customizes the rendering of scanner results.",
+        "description": "Customizes the rendering of the sample scanner results.",
         "properties": {
           "exclude_fields": {
             "items": {
@@ -8856,11 +8823,36 @@
       },
       "SnapshotDetails": {
         "additionalProperties": true,
-        "description": "Per-backup stats captured in the sidecar.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
+        "description": "Per-backup stats captured in the checkpoint file.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
         "properties": {
+          "additional_files": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Files"
+          },
           "duration_ms": {
             "title": "Duration Ms",
             "type": "integer"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files"
           },
           "size_bytes": {
             "title": "Size Bytes",
@@ -9233,6 +9225,81 @@
         "title": "StepEvent",
         "type": "object"
       },
+      "StopCategory": {
+        "description": "A single refusal/safety category reported by (or derived for) a model stop.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          }
+        },
+        "required": [
+          "category"
+        ],
+        "title": "StopCategory",
+        "type": "object"
+      },
+      "StopDetails": {
+        "description": "Additional detail about why a model stopped generating (e.g. a content refusal).\n\n`categories` is the canonical list (always iterable; a single-category provider\nappears as one entry). `category` and `explanation` are a convenience high-level\nsummary derived from the same data \u2014 `category` is the primary category and\n`explanation` is human-readable (synthesized from `categories` when the provider\nsupplies no text). Read either way; both describe the same stop.",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/StopCategory"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "StopDetails",
+        "type": "object"
+      },
       "StoreEvent": {
         "description": "Change to data within the current `Store`.",
         "properties": {
@@ -9522,6 +9589,221 @@
           "name"
         ],
         "title": "TaskDisplayMetric",
+        "type": "object"
+      },
+      "TaskSamplesColumn": {
+        "description": "A column entry in the task's Sample List view.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sampleStatus",
+                  "sampleId",
+                  "sampleUuid",
+                  "epoch",
+                  "input",
+                  "target",
+                  "answer",
+                  "tokens",
+                  "duration",
+                  "retries",
+                  "error",
+                  "limit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Id"
+          },
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "visible"
+        ],
+        "title": "TaskSamplesColumn",
+        "type": "object"
+      },
+      "TaskSamplesSort": {
+        "description": "A single sort entry for the task's Sample List grid.",
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sampleStatus",
+                  "sampleId",
+                  "sampleUuid",
+                  "epoch",
+                  "input",
+                  "target",
+                  "answer",
+                  "tokens",
+                  "duration",
+                  "retries",
+                  "error",
+                  "limit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Column"
+          },
+          "dir": {
+            "default": "asc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column",
+          "dir"
+        ],
+        "title": "TaskSamplesSort",
+        "type": "object"
+      },
+      "TaskSamplesView": {
+        "description": "Default configuration for the task's Sample List grid.\n\nConfigures the list of samples shown in a task's eval-log view.\n\nThe viewer applies `TaskSamplesView` only when the user has not\nexplicitly overridden the view in their browser. User overrides\nshadow the eval-author default; the resolution priority is\n`user > eval default > built-in`.",
+        "properties": {
+          "color_scales_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Scales Enabled"
+          },
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskSamplesColumn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
+          "compact_scores": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compact Scores"
+          },
+          "multiline": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiline"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "score_color_scales": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "good-high",
+                        "good-low",
+                        "neutral",
+                        "diverging"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ScoreColorScale"
+                    },
+                    {
+                      "additionalProperties": {
+                        "enum": [
+                          "good",
+                          "bad",
+                          "warn",
+                          "info",
+                          "muted"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Color Scales"
+          },
+          "score_labels": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Labels"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskSamplesSort"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TaskSamplesView",
         "type": "object"
       },
       "TimeInterval": {
@@ -10348,6 +10630,35 @@
         "title": "UrlCitation",
         "type": "object"
       },
+      "UserInfo": {
+        "description": "Best-effort identity for the user running the view server.",
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "UserInfo",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -10389,7 +10700,7 @@
         "type": "object"
       },
       "ViewerConfig": {
-        "description": "Top-level viewer configuration.\n\n`scanner_result_view` keys are fnmatch-style glob patterns (`\"*\"`,\n``\"audit_*\"``, exact names). Pass a ScannerResultView to apply a single\nconfiguration to every scanner.",
+        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list and each sample's score and scanner result display.",
         "properties": {
           "sample_score_view": {
             "anyOf": [
@@ -10418,11 +10729,11 @@
           "task_samples_view": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SamplesView"
+                "$ref": "#/components/schemas/TaskSamplesView"
               },
               {
                 "items": {
-                  "$ref": "#/components/schemas/SamplesView"
+                  "$ref": "#/components/schemas/TaskSamplesView"
                 },
                 "type": "array"
               },
@@ -10447,6 +10758,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/app-config": {
+      "get": {
+        "operationId": "api_app_config_app_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api App Config"
+      }
+    },
     "/chat-message": {
       "get": {
         "operationId": "_chat_message_chat_message_get",
@@ -10777,6 +11106,45 @@
           }
         },
         "summary": "Api Log Download"
+      }
+    },
+    "/log-edit/{log}": {
+      "post": {
+        "operationId": "api_log_edit_log_edit__log__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalLog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Edit"
       }
     },
     "/log-files": {
@@ -11538,6 +11906,24 @@
           }
         },
         "summary": " Tool Choice"
+      }
+    },
+    "/user-info": {
+      "get": {
+        "operationId": "api_user_info_user_info_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api User Info"
       }
     }
   }

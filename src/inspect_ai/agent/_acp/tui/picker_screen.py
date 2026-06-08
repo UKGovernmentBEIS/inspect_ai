@@ -53,14 +53,15 @@ class _NavDataTable(DataTable[str | Text]):
 # Column keys — module constants so add_column, update_cell, and per-tick
 # refreshes all reference the same string. A typo at one site silently
 # breaks update_cell (CellDoesNotExist) without a column-set assertion.
-# Keys stay stable (``"agent"``) even though the visible header is
-# ``"acp agent"`` — letting the header drift from the key would mean
-# every update_cell site needs auditing.
+# Key and visible header are both ``"agent"`` — now that every sample is
+# attachable (observe-only when no turn loop is bound), the "acp"
+# qualifier no longer distinguishes a subset of rows, so it's dropped.
 _COL_SAMPLE = "sample"
 _COL_TASK = "task"
 _COL_EPOCH = "epoch"
 _COL_AGENT = "agent"
-_COL_AGENT_HEADER = "acp agent"
+_COL_AGENT_HEADER = "agent"
+_COL_PENDING = "pending"
 _COL_MESSAGES = "messages"
 _COL_MESSAGES_HEADER = "msgs"
 _COL_TOKENS = "tokens"
@@ -90,9 +91,11 @@ def _display_task(task: str) -> str:
 
 
 def _sort_rows(rows: list[SessionRow]) -> list[SessionRow]:
-    """Order: ACP-attachable first; within each group, longest running first.
+    """Order: pending interactions first, ACP-attachable next, then longest running.
 
-    Primary key: ``session_id is None`` (False sorts first, so ACP rows
+    Primary key: ``r.pending is None`` (False sorts first, so samples
+    parked on a human approval/question float to the top of the table).
+    Secondary: ``session_id is None`` (False sorts first, so ACP rows
     precede non-ACP rows). Within each group: ``None`` ``started_at``
     (no claim yet) sorts after every timestamped row; ties break on
     ``(eval_id, sample_id, epoch)`` so the order is fully
@@ -103,6 +106,7 @@ def _sort_rows(rows: list[SessionRow]) -> list[SessionRow]:
     return sorted(
         rows,
         key=lambda r: (
+            r.pending is None,
             r.session_id is None,
             r.started_at is None,
             r.started_at if r.started_at is not None else 0.0,
@@ -176,6 +180,25 @@ def _running_cell(
     """
     style = "dim" if dim else ""
     return Text(format_running(started_at, now), justify="right", style=style)
+
+
+def _pending_cell(pending: str | None, *, dim: bool = False) -> Text:
+    """Cell value for the ``pending`` column.
+
+    ``"approval"`` → green; ``"question"`` → blue; ``None`` → empty.
+    Non-ACP rows always render empty (the ACP routing shims are the
+    only producers of the pending flag), so ``dim`` is unused — kept
+    for shape parity with the other cell helpers.
+    """
+    del dim  # non-ACP rows have pending=None; nothing to dim
+    # Literal hexes (not ``green`` / ``blue``) so colors don't depend
+    # on the terminal's ANSI palette — defaults can make ``green``
+    # read as lime and ``blue`` lean purple.
+    if pending == "approval":
+        return Text("approval", style="#2ea043")
+    if pending == "question":
+        return Text("question", style="#3a8eff")
+    return Text("")
 
 
 def _sample_cell(sample_id: str, *, is_cursor: bool, dim: bool = False) -> Text:
@@ -424,6 +447,13 @@ class PickerScreen(Screen[None]):
         # Track which row currently shows the "▸" gutter glyph so
         # cursor moves can clear the old one before setting the new.
         self._gutter_row_key: str | None = None
+        # The pending column appears only when at least one row in
+        # ``_rows`` has a pending interaction set. Hiding it when
+        # nothing is pending avoids a permanently-empty column in the
+        # common case. Toggling presence requires a recompose because
+        # DataTable's column set is fixed at compose time; ``_do_rescan``
+        # treats a flip in this flag as a recompose trigger.
+        self._pending_column_shown = any(r.pending is not None for r in self._rows)
 
     def compose(self) -> ComposeResult:
         # Local import to break the import cycle — ``_widgets._header``
@@ -530,11 +560,22 @@ class PickerScreen(Screen[None]):
         # returns the object's repr, which doesn't match anything on
         # lookup). update_cell calls in _tick_column reference the
         # same constants.
-        # Visible header reads ``acp agent`` so operators glance at
-        # the column and immediately understand that the ``—`` cells
-        # below are non-ACP samples (no attachable agent). Key stays
-        # ``"agent"`` so update_cell sites need no audit.
+        # Visible header is ``agent`` — every sample is attachable now
+        # (observe-only when no turn loop is bound), so the old ``acp``
+        # qualifier no longer marks a subset; the ``—`` cells are simply
+        # samples with nothing to attach to. Key stays ``"agent"`` so
+        # update_cell sites need no audit.
         table.add_column(_COL_AGENT_HEADER, key=_COL_AGENT)
+        # ``pending`` sits next to ``agent`` so the operator's eye
+        # picks up "this sample is waiting on me" alongside which agent
+        # owns it. Green ``approval`` / blue ``question`` for samples
+        # parked on a human request. Only added when at least one row
+        # has a pending interaction — the column is hidden in the
+        # common case where no sample is parked, avoiding a
+        # permanently-empty column. ``_do_rescan`` recomposes when
+        # this presence flips.
+        if self._pending_column_shown:
+            table.add_column(_COL_PENDING, key=_COL_PENDING)
         # Messages, tokens, and running headers are right-justified to
         # match their cell values (cells get the same Text wrap via the
         # ``_messages_cell`` / ``_tokens_cell`` / ``_running_cell``
@@ -628,7 +669,7 @@ class PickerScreen(Screen[None]):
             task_text = _display_task(row.task)
             task_cell = Text(task_text, style="dim")
             epoch_cell = Text(str(row.epoch), style="dim" if not is_acp else "")
-            table.add_row(
+            cells: list[str | Text] = [
                 _sample_cell(row.sample_id, is_cursor=(idx == 0), dim=not is_acp),
                 epoch_cell,
                 # Task column is already dim for every row (the mockup
@@ -637,11 +678,17 @@ class PickerScreen(Screen[None]):
                 # no extra branch needed here.
                 task_cell,
                 agent_cell,
-                _messages_cell(row.total_messages, dim=not is_acp),
-                _tokens_cell(row.total_tokens, dim=not is_acp),
-                _running_cell(row.started_at, now, dim=not is_acp),
-                key=_row_key(row),
+            ]
+            if self._pending_column_shown:
+                cells.append(_pending_cell(row.pending))
+            cells.extend(
+                [
+                    _messages_cell(row.total_messages, dim=not is_acp),
+                    _tokens_cell(row.total_tokens, dim=not is_acp),
+                    _running_cell(row.started_at, now, dim=not is_acp),
+                ]
             )
+            table.add_row(*cells, key=_row_key(row))
         # Restore cursor: prefer the previously-highlighted row key
         # if it's still visible, else clamp to row 0. The ▸ glyph is
         # on row 0 (from add_row's ``is_cursor=(idx == 0)``) so seed
@@ -775,18 +822,31 @@ class PickerScreen(Screen[None]):
         # Sort up front so both the steady-state and the diff branches
         # observe the canonical order.
         new_rows = _sort_rows(new_rows)
-        if not self._row_ids_changed(new_rows):
+        # Track whether the pending column needs to toggle visibility
+        # this cycle. Either direction (none→any or any→none) forces a
+        # recompose because DataTable's column set is fixed at compose
+        # time.
+        needs_pending_column = any(r.pending is not None for r in new_rows)
+        pending_column_toggled = needs_pending_column != self._pending_column_shown
+        if not self._row_ids_changed(new_rows) and not pending_column_toggled:
             # Steady state for the *set* of sessions, but per-row
-            # fields (notably ``total_tokens``) may have advanced.
+            # fields (notably ``total_tokens`` and ``pending``) may
+            # have advanced. Note: an order change driven by a pending
+            # flip is caught by ``_row_ids_changed`` (which compares
+            # ordered lists), so a sample newly waiting on a human
+            # request rises to the top via the rebuild path below
+            # rather than this in-place tick.
             self._rows = new_rows
             self._visible_rows = [
                 r for r in self._rows if _row_matches(r, self._filter_text)
             ]
             self._tick_tokens()
             self._tick_messages()
+            self._tick_pending()
             return
         self._rows = new_rows
-        if self._needs_recompose(new_rows):
+        self._pending_column_shown = needs_pending_column
+        if pending_column_toggled or self._needs_recompose(new_rows):
             self._visible_rows = [
                 r for r in self._rows if _row_matches(r, self._filter_text)
             ]
@@ -857,6 +917,25 @@ class PickerScreen(Screen[None]):
         self._tick_column(
             _COL_MESSAGES,
             lambda row: _messages_cell(row.total_messages, dim=not _is_acp(row)),
+        )
+
+    def _tick_pending(self) -> None:
+        """Refresh the ``pending`` column after a rescan pulls fresh data.
+
+        Covers the steady-state case where the row-id set is unchanged
+        (so ``_do_rescan`` skips the rebuild path) but a sample's
+        pending flag flipped between polls — e.g. an approval just
+        fired or just resolved. Without this tick, the column would
+        only update on the next row-set change.
+
+        No-op when the column is hidden — toggling presence is handled
+        by ``_do_rescan`` via recompose, not in-place tick.
+        """
+        if not self._pending_column_shown:
+            return
+        self._tick_column(
+            _COL_PENDING,
+            lambda row: _pending_cell(row.pending),
         )
 
     def _tick_column(

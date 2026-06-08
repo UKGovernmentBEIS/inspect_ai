@@ -2244,3 +2244,54 @@ def test_has_other_active_tools_excludes_cancel_requested() -> None:
     assert state.mark_cancel_requested("tc-2") is True
     # tc-1 completes; tc-2 cancel-requested → don't hold tc-1.
     assert state.has_other_active_tools("tc-1") is False
+
+
+def test_bridged_tool_call_excluded_from_cancel_eligibility() -> None:
+    """A non-cancelable (bridged) in-progress tool isn't offered for cancel.
+
+    Bridged scaffolds run their own tools, so there's no pending ``ToolEvent``
+    for ``inspect/cancel_tool_call`` to act on. The synth card carries
+    ``TOOL_CALL_CANCELABLE_META_KEY=False`` and must be filtered out of the
+    per-tool cancel affordance — the card still renders, but ``^L`` skips it.
+    """
+    from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
+
+    state = SessionState()
+    # a normal react-style in-progress tool is cancelable
+    state.consume(_tool_start("tc-react", title="bash ls"))
+    assert state.cancel_tool_call_id == "tc-react"
+
+    # a bridged in-progress tool carries the non-cancelable marker
+    bridged = ToolCallStart(
+        session_update="tool_call",
+        tool_call_id="tc-bridge",
+        title="Read foo.py",
+        status="in_progress",
+        field_meta={TOOL_CALL_CANCELABLE_META_KEY: False},
+    )
+    state.consume(SessionNotification(session_id="sid", update=bridged))
+
+    # the bridged card still renders in-progress...
+    bridge_card = next(
+        i
+        for i in state.items
+        if isinstance(i, ToolCallState) and i.tool_call_id == "tc-bridge"
+    )
+    assert bridge_card.status == "in_progress"
+    assert bridge_card.cancelable is False
+    # ...but it is excluded from the cancel affordance (only the react tool)
+    assert "tc-bridge" not in state.cancel_tool_call_ids
+    assert state.cancel_tool_call_ids == ["tc-react"]
+
+
+def test_default_tool_call_is_cancelable() -> None:
+    """A tool start without the marker is cancelable (the react default)."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    card = next(
+        i
+        for i in state.items
+        if isinstance(i, ToolCallState) and i.tool_call_id == "tc-1"
+    )
+    assert card.cancelable is True
+    assert state.cancel_tool_call_id == "tc-1"

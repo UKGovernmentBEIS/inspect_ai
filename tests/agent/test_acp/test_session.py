@@ -319,7 +319,7 @@ async def test_broken_subscriber_does_not_block_others() -> None:
     """One subscriber raising must not prevent siblings from firing.
 
     Mirrors the resilience contract on
-    ``Transcript._add_subscriber`` — the producer's task continues
+    ``Transcript._subscribe`` — the producer's task continues
     even if a downstream listener is broken.
     """
 
@@ -537,13 +537,13 @@ async def test_mark_active_promotes_client_to_head_of_chain() -> None:
             acp.attach_approver_client(client)
             acp.notify_approver_attach(client)
         # Reset driver to test the explicit mark_active calls below.
-        acp.mark_active_approver_client(_StubApproverClient())  # unknown → no-op
+        acp.mark_active_session_client(_StubApproverClient())  # unknown → no-op
         # Mark middle client active — it moves to head; others keep
         # attach order (a, c).
-        acp.mark_active_approver_client(b)
+        acp.mark_active_session_client(b)
         assert acp.approver_driver_chain() == [b, a, c]
         # Mark another active — it moves to head; b drops to attach order.
-        acp.mark_active_approver_client(c)
+        acp.mark_active_session_client(c)
         assert acp.approver_driver_chain() == [c, a, b]
 
 
@@ -557,7 +557,7 @@ async def test_mark_active_ignores_unknown_client() -> None:
         a = _StubApproverClient()
         rogue = _StubApproverClient()
         _bind_approver(acp, a)
-        acp.mark_active_approver_client(rogue)  # no-op
+        acp.mark_active_session_client(rogue)  # no-op
         # Driver chain unchanged.
         assert acp.approver_driver_chain() == [a]
 
@@ -569,7 +569,7 @@ async def test_unsubscribing_the_active_driver_resets_to_first_attached() -> Non
         b = _StubApproverClient()
         _bind_approver(acp, a)
         unsub_b = _bind_approver(acp, b)
-        acp.mark_active_approver_client(b)
+        acp.mark_active_session_client(b)
         assert acp.approver_driver_chain() == [b, a]
         unsub_b()
         # b is gone — fall back to first-attached.
@@ -610,7 +610,7 @@ async def test_noop_session_approver_client_is_no_op() -> None:
     assert noop.has_approver_clients() is False
     assert noop.has_ever_had_approver_client() is False
     # mark_active and notify_approver_attach on no-op are also safe.
-    noop.mark_active_approver_client(client)
+    noop.mark_active_session_client(client)
     noop.notify_approver_attach(client)
     unsub()  # no-op, no raise
     # subscribe_approver_attach on no-op returns a no-op unsubscribe.
@@ -788,3 +788,53 @@ async def test_subscribe_approver_attach_unsubscribe_is_idempotent() -> None:
         unsub = acp.subscribe_approver_attach(lambda: None)
         unsub()
         unsub()  # no raise
+
+
+# ---------------------------------------------------------------------------
+# AgentChannel.is_live wiring — only flipped when an ACP server is accepting
+# ---------------------------------------------------------------------------
+
+
+async def test_maybe_bind_marks_channel_live_when_server_accepting(
+    monkeypatch,
+) -> None:
+    """Channel flips live when the server is accepting at bind time.
+
+    Unbind then clears the marker.
+    """
+    from inspect_ai.agent._acp import server as server_module
+    from inspect_ai.agent._channel import agent_channel
+
+    monkeypatch.setattr(server_module, "acp_server_accepting_clients", lambda: True)
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            ref = ch._ref()
+            assert acp.maybe_bind(ch, ref) is True
+            assert ch.is_live is True
+            acp.unbind(ref)
+            assert ch.is_live is False
+
+
+async def test_maybe_bind_leaves_channel_inert_when_server_not_accepting(
+    monkeypatch,
+) -> None:
+    """Channel stays inert when no server is accepting at bind time.
+
+    LiveAcpTransport is installed per-sample regardless of ``--acp-server``
+    (for in-proc / sub-agent reachability), but ``is_live`` must stay
+    False so consumers don't accidentally enable interactive plumbing
+    on non-server-enabled evals.
+    """
+    from inspect_ai.agent._acp import server as server_module
+    from inspect_ai.agent._channel import agent_channel
+
+    monkeypatch.setattr(server_module, "acp_server_accepting_clients", lambda: False)
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            ref = ch._ref()
+            assert acp.maybe_bind(ch, ref) is True
+            assert ch.is_live is False
+            # subscribe_drained still happened — the bind succeeded —
+            # only mark_live was gated.
+            acp.unbind(ref)
+            assert ch.is_live is False  # idempotent on the unset case

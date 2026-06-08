@@ -93,8 +93,17 @@ class BudgetPercent:
     percent: float
 
 
-CheckpointTriggerKind = Literal["time", "turn", "manual", "token", "cost", "budget"]
-"""Identifier of which trigger fired, as recorded on the sidecar."""
+CheckpointTriggerKind = Literal[
+    "time", "turn", "manual", "token", "cost", "budget", "agent_complete"
+]
+"""Identifier of which trigger fired, as recorded on the checkpoint file.
+
+``"agent_complete"`` is an internal label emitted only by the
+harness-driven final fire on clean solver exit (see
+:meth:`_CheckpointerSetup.__aexit__`). It is never returned from a
+public :class:`Trigger` spec's ``tick()``; users cannot configure it
+from :class:`CheckpointConfig`.
+"""
 
 CheckpointTrigger = (
     Manual | TurnInterval | TimeInterval | TokenInterval | CostInterval | BudgetPercent

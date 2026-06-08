@@ -36,6 +36,7 @@ class Progress(Protocol):
 class TaskSpec:
     name: str
     model: ModelName
+    agent: str | None
 
 
 CancelType = Literal["abort", "retry"] | None
@@ -53,6 +54,7 @@ class TaskProfile:
     name: str
     file: str | None
     model: ModelName
+    agent: str | None
     dataset: str
     scorer: str
     samples: int
@@ -111,6 +113,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         yield rich.get_console()
 

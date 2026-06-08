@@ -1,5 +1,5 @@
 import contextlib
-from typing import Callable, TypeVar
+from typing import Callable, Literal, TypeVar
 
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
@@ -14,8 +14,8 @@ class _NoopCheckpointer(contextlib.AbstractAsyncContextManager[Checkpointer]):
     """
 
     @property
-    def is_resuming(self) -> bool:
-        return False
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
+        return "initial"
 
     async def __aenter__(self) -> Checkpointer:
         return self
@@ -31,6 +31,9 @@ class _NoopCheckpointer(contextlib.AbstractAsyncContextManager[Checkpointer]):
 
     def span_session(self) -> contextlib.AbstractAsyncContextManager[None]:
         return contextlib.nullcontext()
+
+    def close(self) -> None:
+        return None
 
     def track(
         self,

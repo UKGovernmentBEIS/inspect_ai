@@ -25,7 +25,11 @@ from inspect_ai.agent._acp.transport import _NOOP_SESSION_ID, AcpUpdate
 from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp.transport import AcpTransport, ApproverClient
+    from inspect_ai.agent._acp.transport import (
+        AcpTransport,
+        ApproverClient,
+        ElicitationClient,
+    )
     from inspect_ai.agent._channel import AgentChannel, AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
@@ -179,10 +183,45 @@ class NoOpAcpTransport:
     def notify_approver_attach(self, client: ApproverClient) -> None:
         """No-op: no subscribers can be registered on the no-op session."""
 
-    def mark_active_approver_client(self, client: ApproverClient) -> None:
+    def mark_active_session_client(self, client: object) -> None:
         """No-op: nothing to promote in the no-op session."""
 
     def approver_driver_chain(self) -> list[ApproverClient]:
+        """No-op session returns an empty driver chain."""
+        return []
+
+    def attach_elicitation_client(
+        self, client: ElicitationClient
+    ) -> Callable[[], None]:
+        """No-op attach — no elicitation clients can attach to the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
+    def has_elicitation_clients(self) -> bool:
+        """No-op session never has attached elicitation clients."""
+        return False
+
+    def has_ever_had_elicitation_client(self) -> bool:
+        """No-op session never had elicitation clients."""
+        return False
+
+    def subscribe_elicitation_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """No-op subscribe — no attaches can fire on the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
+    def notify_elicitation_attach(self, client: ElicitationClient) -> None:
+        """No-op: no subscribers can be registered on the no-op session."""
+
+    def elicitation_driver_chain(self) -> list[ElicitationClient]:
         """No-op session returns an empty driver chain."""
         return []
 
@@ -198,6 +237,11 @@ class NoOpAcpTransport:
     def ref(self) -> AgentRef | None:
         """No-op session has no producer target."""
         return None
+
+    @property
+    def is_interactive(self) -> bool:
+        """No-op sessions are never interactive (no turn loop to drive)."""
+        return False
 
     @property
     def is_attachable(self) -> bool:

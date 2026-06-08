@@ -69,7 +69,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
-from inspect_ai.util._checkpoint import CheckpointConfig
+from inspect_ai.util._checkpoint import CheckpointConfig, normalize_checkpoint
 from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._display import (
     DisplayType,
@@ -77,6 +77,7 @@ from inspect_ai.util._display import (
     display_type_initialized,
     init_display_type,
 )
+from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
 from .loader import resolve_tasks
@@ -97,7 +98,7 @@ def eval(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
@@ -106,6 +107,7 @@ def eval(
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -165,8 +167,10 @@ def eval(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
-        checkpoint: Checkpoint configuration for this eval. Overrides
-            any task- or sample-level `checkpoint` when set.
+        checkpoint: Checkpoint configuration for this eval, or `True` to
+            enable checkpointing with the default trigger (every 500k
+            tokens) — equivalent to the bare `--checkpoint` CLI flag.
+            Overrides any task- or sample-level `checkpoint` when set.
         acp_server: Expose this eval over an Agent Client Protocol server.
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
@@ -182,6 +186,14 @@ def eval(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        notification: Enable out-of-band notifications when a human-in-the-loop
+            interaction (`ask_user`, human approval) is posted. Pass `True` to
+            send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
+            variable (single URL, comma-separated list, or path to an Apprise
+            config file). Alternatively pass a path to an Apprise YAML/text
+            config file. URLs are not accepted directly so secrets never end up
+            in source code, shell history, process listings, or eval logs.
+            Requires the `apprise` package.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -280,6 +292,7 @@ def eval(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
@@ -357,13 +370,14 @@ async def eval_async(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -418,7 +432,7 @@ async def eval_async(
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
-        checkpoint: Checkpoint configuration for this eval. Overrides any task- or sample-level `checkpoint` when set.
+        checkpoint: Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens), equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` when set.
         acp_server: Expose this eval over an Agent Client Protocol server.
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
@@ -430,6 +444,14 @@ async def eval_async(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        notification: Enable out-of-band notifications when a human-in-the-loop
+            interaction (`ask_user`, human approval) is posted. Pass `True` to
+            send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
+            variable (single URL, comma-separated list, or path to an Apprise
+            config file). Alternatively pass a path to an Apprise YAML/text
+            config file. URLs are not accepted directly so secrets never end up
+            in source code, shell history, process listings, or eval logs.
+            Requires the `apprise` package.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -490,6 +512,11 @@ async def eval_async(
     Returns:
         List of EvalLog (one for each task)
     """
+    # normalize `checkpoint=True` (enable, defer trigger) to a config;
+    # this is the single choke point for the eval layer — `eval`,
+    # `eval_set`, `eval_retry`, and `eval_retry_async` all funnel here.
+    checkpoint = normalize_checkpoint(checkpoint)
+
     result: list[EvalLog] | None = None
 
     async def run(tg: TaskGroup) -> None:
@@ -511,6 +538,7 @@ async def eval_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
@@ -587,6 +615,7 @@ async def _eval_async_inner(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -684,6 +713,7 @@ async def _eval_async_inner(
             sandbox,
             sample_shuffle,
             checkpoint,
+            notification,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -773,6 +803,7 @@ async def _eval_async_inner(
             if epochs_reducer is not None
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
+            notification=notification,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
@@ -957,7 +988,7 @@ def eval_retry(
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1036,10 +1067,11 @@ def eval_retry(
             scale_up_percent). An explicit `max_connections` or `batch=True`
             takes precedence and uses static concurrency.
         checkpoint:
-            Checkpoint configuration for this retry. Must match the config
-            used on the original eval for resume detection to find the
-            sidecars (the original `--checkpoint` is not recorded in the
-            log file).
+            Checkpoint configuration for this retry, or `True` to enable
+            checkpointing with the default trigger (every 500k tokens).
+            Must match the config used on the original eval for resume
+            detection to find the checkpoint files (the original
+            `--checkpoint` is not recorded in the log file).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1134,7 +1166,7 @@ async def eval_retry_async(
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1193,7 +1225,7 @@ async def eval_retry_async(
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
-        checkpoint: Checkpoint configuration for this retry. Must match the config used on the original eval for resume detection to find the sidecars (the original `--checkpoint` is not recorded in the log file).
+        checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1313,6 +1345,7 @@ async def eval_retry_async(
             else None
         )
         approval = eval_log.eval.config.approval
+        notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
         time_limit = eval_log.eval.config.time_limit
@@ -1436,6 +1469,7 @@ async def eval_retry_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
@@ -1530,6 +1564,7 @@ def eval_resolve_tasks(
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
+    notification: bool | str | None = None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
@@ -1559,6 +1594,9 @@ def eval_resolve_tasks(
     if isinstance(approval, str | ApprovalPolicyConfig):
         approval = approval_policies_from_config(approval)
     init_tool_approval(approval)
+
+    # install Apprise notification target for the eval scope
+    init_apprise(build_apprise(notification))
 
     # return tasks and approval
     return resolved_tasks, approval

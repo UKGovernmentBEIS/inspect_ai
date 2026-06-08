@@ -1,9 +1,9 @@
+from .agent_tool import agent_tool
 from .deepagent import deepagent
 from .general import general
 from .plan import plan
 from .research import research
 from .subagent import Subagent, subagent
-from .task_tool import task_tool
 
 __all__ = [
     "deepagent",
@@ -12,5 +12,5 @@ __all__ = [
     "general",
     "plan",
     "research",
-    "task_tool",
+    "agent_tool",
 ]

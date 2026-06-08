@@ -124,7 +124,7 @@ class MistralAPI(ModelAPI):
         # track use of conversation api
         if conversation_api is not None:
             self.conversation_api = conversation_api
-        elif "voxtral" in model_name:  # no audio in conversation api
+        elif "voxtral" in self.model_family().lower():  # no audio in conversation api
             self.conversation_api = False
         else:
             self.conversation_api = True
@@ -608,6 +608,8 @@ def completion_choices_from_response(
         ]
 
 
+# Note: Mistral chat completions carry no response-level refusal category or
+# explanation, so there is no ChatCompletionChoice.stop_details to populate here.
 def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
     match choice.finish_reason:
         case "stop":

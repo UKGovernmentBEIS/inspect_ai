@@ -3,11 +3,11 @@
 from inspect_ai import Task, eval
 from inspect_ai.viewer import (
     MetadataField,
-    SamplesColumn,
-    SamplesSort,
-    SamplesView,
     ScannerResultField,
     ScannerResultView,
+    TaskSamplesColumn,
+    TaskSamplesSort,
+    TaskSamplesView,
     ViewerConfig,
 )
 
@@ -50,16 +50,15 @@ def test_bare_scanner_result_view_shorthand_roundtrips() -> None:
 def test_samples_view_roundtrips_through_eval_log() -> None:
     """`Task(viewer=ViewerConfig(task_samples_view=...))` persists end-to-end."""
     cfg = ViewerConfig(
-        task_samples_view=SamplesView(
+        task_samples_view=TaskSamplesView(
             name="Triage",
             columns=[
-                SamplesColumn(id="status"),
-                SamplesColumn(id="input"),
-                SamplesColumn(id="target", visible=False),
-                SamplesColumn(id="tokens"),
+                TaskSamplesColumn(id="status"),
+                TaskSamplesColumn(id="input"),
+                TaskSamplesColumn(id="target", visible=False),
+                TaskSamplesColumn(id="tokens"),
             ],
-            sort=[SamplesSort(column="tokens", dir="desc")],
-            filter="has_error or score < 0.5",
+            sort=[TaskSamplesSort(column="tokens", dir="desc")],
             multiline=False,
         )
     )
@@ -74,8 +73,8 @@ def test_samples_view_list_form_roundtrips() -> None:
     """
     cfg = ViewerConfig(
         task_samples_view=[
-            SamplesView(name="All"),
-            SamplesView(name="Errors", filter="has_error"),
+            TaskSamplesView(name="All"),
+            TaskSamplesView(name="Errors"),
         ]
     )
     log = eval(Task(viewer=cfg), model="mockllm/model")[0]

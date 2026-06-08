@@ -310,3 +310,26 @@ def test_compaction_event_emitted() -> None:
     assert event.metadata is not None
     assert "strategy" in event.metadata
     assert event.metadata["strategy"] == "CompactionEdit"
+
+
+def test_react_threads_checkpointer_into_compaction() -> None:
+    """React wires the session checkpointer into the compaction handler.
+
+    The handler registers its state under the 'compaction' track key when a
+    strategy is configured, and registers nothing when compaction is off.
+    Guards the one-line threading that the round-trip tests can't see.
+    """
+    from test_helpers.checkpoint import RecordingCheckpointer
+
+    from inspect_ai.agent._react import _agent_compact
+
+    model = get_model("mockllm/model")
+
+    cp = RecordingCheckpointer()
+    compact = _agent_compact(CompactionEdit(threshold=500), [], None, model, cp)
+    assert compact is not None
+    assert "compaction" in cp.callbacks
+
+    cp_off = RecordingCheckpointer()
+    assert _agent_compact(None, [], None, model, cp_off) is None
+    assert "compaction" not in cp_off.callbacks
