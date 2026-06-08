@@ -32,6 +32,7 @@ from inspect_ai.agent._bridge.util import (
 )
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import ChatMessageSystem, ChatMessageUser, get_model
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 
@@ -231,7 +232,10 @@ async def test_bridge_generate_restores_operator_source() -> None:
         )
         bridge = AgentBridge(AgentState(messages=[]))
         redirect = ChatMessageUser(content="\nlet's continue working")
-        input_messages = [ChatMessageUser(content="solve the task"), redirect]
+        input_messages: list[ChatMessage] = [
+            ChatMessageUser(content="solve the task"),
+            redirect,
+        ]
         await bridge_generate(bridge, model, input_messages, [], None, GenerateConfig())
         assert redirect.source == "operator"
         assert input_messages[0].source is None
