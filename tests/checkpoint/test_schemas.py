@@ -67,7 +67,7 @@ def test_checkpoint_basic_round_trip() -> None:
     assert rehydrated == checkpoint
 
 
-@pytest.mark.parametrize("trigger", ["time", "turn", "manual"])
+@pytest.mark.parametrize("trigger", ["time", "turn", "manual", "agent_complete"])
 def test_checkpoint_accepts_all_documented_triggers(trigger: str) -> None:
     payload = {**_BASE_CHECKPOINT, "trigger": trigger}
     checkpoint = Checkpoint.model_validate(payload)
