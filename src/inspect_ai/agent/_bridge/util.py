@@ -136,10 +136,8 @@ def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
     return result
 
 
-def _restore_operator_message_source(
-    bridge: AgentBridge, input: list[ChatMessage]
-) -> None:
-    """Restore ``source="operator"`` on operator messages re-entering via a bridge.
+def _restore_operator_message_source(input: list[ChatMessage]) -> None:
+    """Restore ``source="operator"`` on an operator message re-entering via a bridge.
 
     A bridged scaffold (claude_code, codex, …) round-trips operator
     interventions through its own conversation store (e.g. Claude Code's
@@ -148,45 +146,51 @@ def _restore_operator_message_source(
     transport stamped at submit time. Re-stamp it here, at the single bridge
     generate chokepoint shared by every bridged agent. ``input`` is the same
     list the caller records as the ``ModelEvent`` input and tracks into
-    ``state.messages``, and messages are mutated in place, so the restored
-    source persists in both the events and the final messages (and the ACP
-    TUI's operator-keyed rendering + queued-echo reconciliation then work
-    without further special-casing).
+    ``state.messages``, and the message is mutated in place, so the restored
+    source persists in both the event and the final messages.
 
-    Scoped recognition (no global ledger): a message is recognized ONCE, the
-    first time it re-enters — matched against the transport's small set of
-    submitted-but-not-yet-seen operator messages, which is consumed on match.
-    Thereafter the source is carried forward from the bridge's own tracked
-    conversation (``bridge.state.messages``), bounded by the live conversation
-    and pruned with compaction. No match leaves the message untouched.
+    Recognition is positional, gated on transport ground truth:
+
+    - The transport's pending-operator count is the ONE thing we know for
+      certain — operator messages enter via the ACP channel, so a positive
+      count means an operator was actually submitted (and, by the time the
+      scaffold calls back into ``bridge_generate``, has been resumed into this
+      ``input``). When the count is 0 nothing is stamped, so the task and a
+      history-taking bridge's ordinary multi-message input are never touched.
+    - The operator turn is the LATEST user message: any queued operator submits
+      coalesce into one newline-joined message, and the scaffold never emits a
+      user-role message after it (the task sits at the head behind an assistant
+      turn; a compaction summary likewise sits at the head). So we stamp the
+      last ``ChatMessageUser`` and consume all pending.
+
+    We do NOT re-stamp on later turns: the ACP TUI latches a message's operator
+    provenance on first sight (stable content-hash message id + per-id input
+    dedup + first-chunk-wins), so stamping once is sufficient and per-turn
+    carry-forward would be redundant. Timing-independent — no dependency on
+    ``CompactionEvent``.
     """
     # Local import to avoid a load-order cycle (_acp imports from _bridge).
     from inspect_ai.agent._acp.transport import current_acp_transport
+    from inspect_ai.agent._acp.transport_noop import NoOpAcpTransport
 
-    # Operator messages already established in the tracked conversation, keyed by
-    # whole-text. Carry-forward deliberately matches the FULL ``.text`` (not the
-    # per-block candidates ``consume_operator_message`` uses): Claude Code keeps
-    # a user turn's representation stable once it is history (reminder / skills
-    # blocks included), so the same operator message re-enters every later turn
-    # with an identical, distinctive whole text. Matching per-block here instead
-    # would risk a false positive — the shared reminder / skills blocks also
-    # appear on the dataset task message, which must NOT be stamped operator.
-    known_operator_text = {
-        message.text.strip()
-        for message in bridge.state.messages
-        if isinstance(message, ChatMessageUser) and message.source == "operator"
-    }
     transport = current_acp_transport()
-    for message in input:
-        if not isinstance(message, ChatMessageUser) or message.source == "operator":
-            continue
-        # ``consume_operator_message`` first so a still-pending entry is always
-        # cleared; fall back to carry-forward for messages already in state.
-        if (
-            transport.consume_operator_message(message)
-            or message.text.strip() in known_operator_text
-        ):
+    if isinstance(transport, NoOpAcpTransport):
+        # operator injections only exist within a live ACP session
+        return
+    if transport.pending_operator_count == 0:
+        # no operator was submitted: leave the task / ordinary input untouched
+        return
+
+    # The just-arrived operator turn (queued submits coalesce into one message)
+    # is the latest user message; stamp it and consume all pending. Stamp
+    # unconditionally — re-stamping an already-operator message is a no-op,
+    # whereas skipping one (e.g. an in-process bridge that preserved the source)
+    # would wrongly fall through to the earlier task.
+    for message in reversed(input):
+        if isinstance(message, ChatMessageUser):
             message.source = "operator"
+            break
+    transport.clear_pending_operators()
 
 
 async def bridge_generate(
@@ -209,7 +213,7 @@ async def bridge_generate(
     # (e.g. claude_code --resume re-emits an operator message as a plain
     # user message). Done before compaction/recording so the restored
     # source persists in both the ModelEvent input and state.messages.
-    _restore_operator_message_source(bridge, input)
+    _restore_operator_message_source(input)
 
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)

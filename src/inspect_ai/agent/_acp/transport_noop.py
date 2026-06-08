@@ -84,9 +84,14 @@ class NoOpAcpTransport:
         """No-op submit — message is discarded."""
         return None
 
-    def consume_operator_message(self, message: ChatMessageUser) -> bool:
-        """No-op session never has pending operator messages — always False."""
-        return False
+    @property
+    def pending_operator_count(self) -> int:
+        """No-op session never has pending operator messages — always 0."""
+        return 0
+
+    def clear_pending_operators(self) -> None:
+        """No-op session has no pending operator count to clear."""
+        return None
 
     def cancel_current_turn(
         self,

@@ -41,7 +41,6 @@ from inspect_ai.agent._acp.transport import (
     AcpUpdate,
     ApproverClient,
     ElicitationClient,
-    operator_text_candidates,
 )
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
@@ -594,18 +593,18 @@ class LiveAcpTransport:
         # (drivable). Named ``_attachable_override`` for historical
         # reasons; it governs the interactivity axis.
         self._attachable_override: bool | None = None
-        # Normalized text of operator-submitted user messages awaiting first
-        # recognition by the bridge. A bridged scaffold (claude_code, codex,
-        # …) round-trips operator interventions through its own conversation
-        # store (e.g. Claude Code's ``--resume``), so the message re-enters
-        # the bridge as a plain ``ChatMessageUser`` (``source=None``),
-        # losing the provenance stamped at submit time. ``bridge_generate``
-        # re-stamps it the FIRST time it re-enters (via
-        # :meth:`consume_operator_message`, which pops the match) and
-        # thereafter carries the source forward from the bridge's tracked
-        # conversation — so this set holds only in-flight, not-yet-seen
-        # submissions, never a permanent, ever-growing ledger.
-        self._pending_operator_texts: set[str] = set()
+        # Count of operator-submitted user messages awaiting first recognition
+        # by the bridge. A bridged scaffold (claude_code, codex, …) round-trips
+        # operator interventions through its own conversation store (e.g. Claude
+        # Code's ``--resume``), so the message re-enters the bridge as a plain
+        # ``ChatMessageUser`` (``source=None``), losing the provenance stamped
+        # at submit time. ``bridge_generate`` reads this count to gate stamping
+        # the just-arrived user turn as operator, then clears it (one coalesced
+        # turn represents every queued submission); thereafter it carries the
+        # source forward from the bridge's tracked conversation. A bare count
+        # (not a text ledger) means recognition is structural, not content-
+        # matched — robust to the scaffold reformatting / coalescing the turn.
+        self._pending_operator_count: int = 0
 
     @property
     def session_id(self) -> str:
@@ -694,6 +693,13 @@ class LiveAcpTransport:
         """
         if self._ref is ref:
             self._ref = None
+            # Reset pending-operator recognition state on consumer handoff: the
+            # count is only meaningful to the consumer that received the
+            # submissions. A react consumer never calls ``bridge_generate`` to
+            # consume it, so without this a stale count could survive into a
+            # successor (e.g. bridged) consumer bound in the same sample and
+            # mis-stamp an unrelated new user message as operator.
+            self._pending_operator_count = 0
             if self._unsubscribe_drained is not None:
                 self._unsubscribe_drained()
                 self._unsubscribe_drained = None
@@ -837,6 +843,10 @@ class LiveAcpTransport:
         if bound:
             # Split-phase: park the session for the scoring window.
             self._agent_completed = True
+            # No more generations will run, so any operator submission still
+            # pending recognition is stale — drop it so it can't outlive the
+            # agent loop.
+            self._pending_operator_count = 0
             # The interrupt coordinator and approver-client registry only
             # make sense while the agent loop is running; drop their
             # subscribers / clients so a late listener can't fire into a
@@ -1030,39 +1040,34 @@ class LiveAcpTransport:
         with acp_guard("ACP submit_user_message raised; message dropped"):
             if msg.source != "operator":
                 msg = msg.model_copy(update={"source": "operator"})
-            # Mark the text pending recognition so a bridged scaffold's
-            # round-tripped copy (which loses ``source``) can be re-stamped
-            # operator the first time it re-enters ``bridge_generate``.
-            # Normalized (stripped) to tolerate cosmetic whitespace the
-            # scaffold may add on re-emit.
-            op_text = msg.text.strip()
-            if op_text:
-                self._pending_operator_texts.add(op_text)
             self._interrupt.resolve_if_pending()
             if self._ref is not None:
+                # Count this submission pending recognition — but only once it
+                # is actually posted to a bound channel. A message dropped for
+                # lack of a channel never round-trips through a bridge, so it
+                # must not leave a phantom pending count that could later
+                # mis-stamp an unrelated turn. A count (not the text) suffices:
+                # the bridge identifies the operator turn structurally (a newly
+                # arrived user message), tolerating the scaffold reformatting /
+                # coalescing the turn on re-emit.
+                self._pending_operator_count += 1
                 from inspect_ai.agent._channel import UserMessage as _ChannelUserMessage
 
                 self._ref.post(_ChannelUserMessage(message=msg))
 
-    def consume_operator_message(self, message: ChatMessageUser) -> bool:
-        """Pop ``message`` from the pending operator-submission set.
+    @property
+    def pending_operator_count(self) -> int:
+        """Operator submissions awaiting first recognition by the bridge.
 
-        Returns True (and removes the entry) iff ``message`` matches an
-        operator message submitted via :meth:`submit_user_message` that the
-        bridge hasn't recognized yet. One-shot by design: after first
-        recognition the bridge carries operator provenance forward from its
-        own tracked conversation, so this set stays bounded by in-flight
-        submissions rather than growing without bound. Matches on
-        whitespace-normalized text, per ``ContentText`` block (Claude Code
-        re-emits the operator turn as its own block alongside reminder /
-        skills blocks, so the concatenated ``.text`` would never match) —
-        see :func:`operator_text_candidates`.
+        Incremented by :meth:`submit_user_message`; read by
+        ``bridge_generate`` to gate stamping the just-arrived user turn as
+        operator, then zeroed via :meth:`clear_pending_operators`.
         """
-        for candidate in operator_text_candidates(message):
-            if candidate in self._pending_operator_texts:
-                self._pending_operator_texts.discard(candidate)
-                return True
-        return False
+        return self._pending_operator_count
+
+    def clear_pending_operators(self) -> None:
+        """Reset :attr:`pending_operator_count` to 0 (consume all pending)."""
+        self._pending_operator_count = 0
 
     @property
     def interrupt_pending(self) -> bool:
