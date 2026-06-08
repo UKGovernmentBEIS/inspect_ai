@@ -266,6 +266,7 @@ def read_eval_log(
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -279,6 +280,8 @@ def read_eval_log(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension).
+       exclude_fields (set[str] | None): Set of top-level sample field names to
+          exclude when reading samples.
 
     Returns:
        EvalLog object read from file.
@@ -297,6 +300,7 @@ def read_eval_log(
             header_only,
             resolve_attachments,
             format,
+            exclude_fields,
         )
     )
 
@@ -306,6 +310,7 @@ async def read_eval_log_async(
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -319,6 +324,8 @@ async def read_eval_log_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension).
+       exclude_fields (set[str] | None): Set of top-level sample field names to
+          exclude when reading samples.
 
     Returns:
        EvalLog object read from file.
@@ -332,7 +339,9 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_format(format)
 
         logger.debug("Reading eval log from stream")
-        log = await recorder_type.read_log_bytes(log_bytes, header_only)
+        log = await recorder_type.read_log_bytes(
+            log_bytes, header_only, exclude_fields
+        )
     else:
         # resolve to file path
         log_file = (
@@ -349,7 +358,7 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_location(log_file)
         else:
             recorder_type = recorder_type_for_format(format)
-        log = await recorder_type.read_log(log_file, header_only)
+        log = await recorder_type.read_log(log_file, header_only, exclude_fields)
 
     if log.samples:
         log.samples = [

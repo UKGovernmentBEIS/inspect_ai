@@ -161,6 +161,7 @@ class JSONRecorder(FileRecorder):
         cls,
         location: str,
         header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog:
         fs = filesystem(location)
 
@@ -193,7 +194,7 @@ class JSONRecorder(FileRecorder):
                 raw_data = from_json(f.read())
             etag = None
 
-        log = _parse_json_log(raw_data, header_only)
+        log = _parse_json_log(raw_data, header_only, exclude_fields)
         log.location = location
         if etag:
             log.etag = etag
@@ -203,9 +204,12 @@ class JSONRecorder(FileRecorder):
     @override
     @classmethod
     async def read_log_bytes(
-        cls, log_bytes: IO[bytes], header_only: bool = False
+        cls,
+        log_bytes: IO[bytes],
+        header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog:
-        return _parse_json_log(from_json(log_bytes.read()), header_only)
+        return _parse_json_log(from_json(log_bytes.read()), header_only, exclude_fields)
 
     @override
     @classmethod
@@ -296,8 +300,18 @@ def _validate_version(ver: int) -> None:
         raise ValueError(f"Unable to read version {ver} of log format.")
 
 
-def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
+def _parse_json_log(
+    raw_data: Any, header_only: bool, exclude_fields: set[str] | None = None
+) -> EvalLog:
     """Parse raw JSON data into an EvalLog, validating version and pruning if header_only."""
+    if exclude_fields and not header_only and isinstance(raw_data, dict):
+        samples = raw_data.get("samples")
+        if isinstance(samples, list):
+            for sample in samples:
+                if isinstance(sample, dict):
+                    for field in exclude_fields:
+                        sample.pop(field, None)
+
     log = EvalLog.model_validate(raw_data, context=get_deserializing_context())
 
     # fail for unknown version

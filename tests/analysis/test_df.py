@@ -19,7 +19,7 @@ from inspect_ai.analysis import (
     samples_df,
 )
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
-from inspect_ai.analysis._dataframe.samples.columns import SampleScores
+from inspect_ai.analysis._dataframe.samples.columns import SampleColumn, SampleScores
 from inspect_ai.log import (
     EvalLog,
     MetadataEdit,
@@ -174,6 +174,14 @@ def test_samples_df_columns():
     assert "eval_id" in df.columns
     assert "sample_id" in df.columns
     assert "log" in df.columns
+
+
+def test_samples_df_exclude_fields_with_full_sample_read():
+    log_file = Path("tests/log/test_eval_log/log_read_sample.eval")
+    column = SampleColumn("events", path="events", full=True)
+    df = samples_df(log_file, columns=[column], exclude_fields={"events"})
+    assert len(df) == 1
+    assert df["events"].iloc[0] == "[]"
 
 
 def test_messages_df():

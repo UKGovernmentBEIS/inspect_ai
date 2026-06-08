@@ -238,6 +238,7 @@ class EvalRecorder(FileRecorder):
         cls,
         location: str,
         header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog:
         async with AsyncFilesystem() as async_fs:
             # if the log is not stored in the local filesystem then download it
@@ -263,7 +264,9 @@ class EvalRecorder(FileRecorder):
                 read_location = temp_log or location
                 reader = AsyncZipReader(async_fs, read_location)
                 cd = await reader.entries()
-                log = await _read_log(reader, cd.entries, location, header_only)
+                log = await _read_log(
+                    reader, cd.entries, location, header_only, exclude_fields
+                )
 
                 if etag is not None:
                     log.etag = etag
@@ -280,9 +283,17 @@ class EvalRecorder(FileRecorder):
     @override
     @classmethod
     async def read_log_bytes(
-        cls, log_bytes: IO[bytes], header_only: bool = False
+        cls,
+        log_bytes: IO[bytes],
+        header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog:
-        return _read_log_from_bytes(log_bytes, location="", header_only=header_only)
+        return _read_log_from_bytes(
+            log_bytes,
+            location="",
+            header_only=header_only,
+            exclude_fields=exclude_fields,
+        )
 
     @override
     @classmethod
@@ -331,66 +342,9 @@ class EvalRecorder(FileRecorder):
                 epoch = sample.epoch
 
             if exclude_fields:
-                # Stream the sample JSON using low-level parse events.
-                # An ObjectBuilder accumulates events only for included fields;
-                # excluded fields are read as raw events and never allocated
-                # as Python objects, keeping peak memory proportional to the
-                # data we actually keep.
-                import ijson  # type: ignore
-                from ijson import IncompleteJSONError, ObjectBuilder
-                from ijson.backends.python import (  # type: ignore[import-untyped]
-                    UnexpectedSymbol,
+                data = await _read_sample_json(
+                    reader, _sample_filename(id, epoch), exclude_fields
                 )
-
-                try:
-                    data: dict[str, Any] = {}
-                    async with await reader.open_member(
-                        _sample_filename(id, epoch)
-                    ) as f:
-                        depth = 0
-                        current_key: str = ""
-                        builder: ObjectBuilder | None = None
-                        async for prefix, event, value in ijson.parse_async(
-                            adapt_to_reader(f), use_float=True
-                        ):
-                            # Depth must be updated before the completion check
-                            # so that a closing bracket that returns depth to 1
-                            # is recognised as completing the current value.
-                            if event in ("start_map", "start_array"):
-                                depth += 1
-                            elif event in ("end_map", "end_array"):
-                                depth -= 1
-
-                            if depth == 1 and event == "map_key":
-                                current_key = value
-                                builder = (
-                                    None
-                                    if current_key in exclude_fields
-                                    else ObjectBuilder()
-                                )
-                            elif builder is not None:
-                                builder.event(event, value)
-                                # Depth 1 means we have returned to the top-level
-                                # object, so the current field's value is complete.
-                                if depth == 1:
-                                    data[current_key] = builder.value
-                                    builder = None
-                except (
-                    ValueError,
-                    IncompleteJSONError,
-                    UnexpectedSymbol,
-                ) as ex:
-                    # ijson doesn't support NaN/Inf which are valid in
-                    # Python's JSON. Fall back to standard json.load
-                    # and manually remove excluded fields.
-                    if is_ijson_nan_inf_error(ex):
-                        data = json.loads(
-                            await reader.read_member_fully(_sample_filename(id, epoch))
-                        )
-                        for field in exclude_fields:
-                            data.pop(field, None)
-                    else:
-                        raise
             else:
                 data = json.loads(
                     await reader.read_member_fully(_sample_filename(id, epoch))
@@ -894,6 +848,7 @@ async def _read_log(
     entries: list[ZipEntry],
     location: str,
     header_only: bool = False,
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     entry_names = {e.filename for e in entries}
 
@@ -916,7 +871,7 @@ async def _read_log(
             if entry.filename.startswith(f"{SAMPLES_DIR}/") and entry.filename.endswith(
                 ".json"
             ):
-                data = await _read_member_json(reader, entry.filename)
+                data = await _read_sample_json(reader, entry.filename, exclude_fields)
                 samples.append(
                     EvalSample.model_validate(
                         data, context=get_deserializing_context()
@@ -929,7 +884,10 @@ async def _read_log(
 
 
 def _read_log_from_bytes(
-    log: IO[bytes], location: str, header_only: bool = False
+    log: IO[bytes],
+    location: str,
+    header_only: bool = False,
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     with ZipFile(log, mode="r") as zip:
         eval_log = _read_header(zip, location)
@@ -950,9 +908,13 @@ def _read_log_from_bytes(
             for name in zip.namelist():
                 if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
                     with zip.open(name, "r") as f:
+                        data = json.load(f)
+                        if exclude_fields:
+                            for field in exclude_fields:
+                                data.pop(field, None)
                         samples_list.append(
                             EvalSample.model_validate(
-                                json.load(f), context=get_deserializing_context()
+                                data, context=get_deserializing_context()
                             ),
                         )
             sort_samples(samples_list)
@@ -965,6 +927,60 @@ def _read_log_from_bytes(
 
 async def _read_member_json(reader: AsyncZipReader, member: str) -> Any:
     return json.loads(await reader.read_member_fully(member))
+
+
+async def _read_sample_json(
+    reader: AsyncZipReader,
+    member: str,
+    exclude_fields: set[str] | None = None,
+) -> dict[str, Any]:
+    if not exclude_fields:
+        return json.loads(await reader.read_member_fully(member))
+
+    # Stream the sample JSON using low-level parse events. An ObjectBuilder
+    # accumulates included fields only; excluded fields are read as raw events
+    # and never allocated as Python objects.
+    import ijson  # type: ignore
+    from ijson import IncompleteJSONError, ObjectBuilder
+    from ijson.backends.python import UnexpectedSymbol  # type: ignore[import-untyped]
+
+    try:
+        data: dict[str, Any] = {}
+        async with await reader.open_member(member) as f:
+            depth = 0
+            current_key: str = ""
+            builder: ObjectBuilder | None = None
+            async for _prefix, event, value in ijson.parse_async(
+                adapt_to_reader(f), use_float=True
+            ):
+                # Depth must be updated before the completion check so that a
+                # closing bracket that returns depth to 1 completes the field.
+                if event in ("start_map", "start_array"):
+                    depth += 1
+                elif event in ("end_map", "end_array"):
+                    depth -= 1
+
+                if depth == 1 and event == "map_key":
+                    current_key = value
+                    builder = (
+                        None if current_key in exclude_fields else ObjectBuilder()
+                    )
+                elif builder is not None:
+                    builder.event(event, value)
+                    if depth == 1:
+                        data[current_key] = builder.value
+                        builder = None
+        return data
+    except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
+        # ijson doesn't support NaN/Inf which are valid in Python's JSON.
+        # Fall back to standard json.load and manually remove excluded fields.
+        if is_ijson_nan_inf_error(ex):
+            data = json.loads(await reader.read_member_fully(member))
+            for field in exclude_fields:
+                data.pop(field, None)
+            return data
+        else:
+            raise
 
 
 async def _read_header_async(
