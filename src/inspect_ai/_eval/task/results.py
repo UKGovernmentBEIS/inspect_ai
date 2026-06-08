@@ -4,7 +4,7 @@ import logging
 import math
 import re
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Tuple, TypeGuard, cast, get_args, get_origin, get_type_hints
@@ -29,11 +29,11 @@ from inspect_ai.scorer._metric import (
     MetricProtocol,
     SampleScore,
     Value,
+    metric_scores,
 )
 from inspect_ai.scorer._metrics.accuracy import accuracy
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
-from inspect_ai.scorer._rehydrate import detect_value_schema
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
     ScorerSpec,
@@ -150,9 +150,7 @@ def eval_results(
             ]
 
             # Group the scores by sample_id
-            resolved_reducers, use_reducer_name = resolve_reducer(
-                reducers, resolved_scores
-            )
+            resolved_reducers, use_reducer_name = resolve_reducer(reducers, scorer_info)
             if len(resolved_reducers) == 0:
                 # Compute metrics without reduction since no reducers were
                 # explicitly specified
@@ -263,16 +261,40 @@ def compute_eval_scores(
     return result_scores
 
 
+def _flatten_metrics(
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+) -> Iterator[Metric]:
+    if isinstance(metrics, dict):
+        for ms in metrics.values():
+            yield from ms
+    else:
+        for m in metrics:
+            if isinstance(m, dict):
+                for ms in m.values():
+                    yield from ms
+            else:
+                yield m
+
+
 def resolve_reducer(
     reducers: ScoreReducer | list[ScoreReducer] | None,
-    scores: list[SampleScore],
+    scorer_info: ScorerInfo,
 ) -> tuple[list[ScoreReducer], bool]:
     if reducers is None:
-        # No reducer explicitly configured: categorical (StrEnum-valued)
-        # scorers skip reduction so each epoch's score is fed to metrics
-        # (e.g. ``frequency()``) as an independent observation; numeric
-        # scorers default to ``mean``.
-        if detect_value_schema([ss.score for ss in scores]) is not None:
+        # No reducer explicitly configured. If any metric on this scorer
+        # declares ``@metric(scores="unreduced")`` (e.g. ``frequency()``),
+        # skip reduction so each epoch's score is an independent
+        # observation; otherwise default to ``mean``.
+        modes = {metric_scores(m) for m in _flatten_metrics(scorer_info.metrics)}
+        if "unreduced" in modes:
+            if "reduced" in modes:
+                warn_once(
+                    logger,
+                    f"Scorer '{scorer_info.name}' has metrics with mixed "
+                    f'@metric(scores=...) modes; using "unreduced" for all '
+                    f"of them. Configure an explicit epochs reducer to "
+                    f"override.",
+                )
             return ([], False)
         return ([mean_score()], False)
     elif isinstance(reducers, list) and len(reducers) == 0:
@@ -410,7 +432,7 @@ def scorers_from_metric_dict(
 
     for metric_key, metric_list in resolved_metrics.items():
         # filter scores to a list of scalars with the value of the metric name
-        metric_scores: list[SampleScore] = []
+        key_scores: list[SampleScore] = []
 
         ## filter the sample_scores to exclude Nan values, which will not be scored
         ## unscored_samples to note the number of samples that were not scored
@@ -435,7 +457,7 @@ def scorers_from_metric_dict(
                         unscored_samples += 1
                     else:
                         scored_samples += 1
-                        metric_scores.append(metric_score)
+                        key_scores.append(metric_score)
                 else:
                     raise TypeError(
                         f"key '{metric_key}' isn't present in the score value dictionary"
@@ -450,8 +472,8 @@ def scorers_from_metric_dict(
             # compute the metric value
             metric_name = registry_log_name(target_metric)
             metric_params = registry_params(target_metric)
-            if len(metric_scores) > 0:
-                value = call_metric(target_metric, metric_scores)
+            if len(key_scores) > 0:
+                value = call_metric(target_metric, key_scores)
             else:
                 value = float("Nan")
 

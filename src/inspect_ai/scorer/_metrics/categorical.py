@@ -1,13 +1,9 @@
 from collections import Counter
-from logging import getLogger
 from typing import Mapping, Sequence
 
 from inspect_ai._util.strenum import StrEnum
 
 from .._metric import Metric, SampleScore, Value, metric
-
-logger = getLogger(__name__)
-
 
 Categories = type[StrEnum] | Sequence[str] | None
 
@@ -38,24 +34,11 @@ def _require_scalar(values: Sequence[Value], metric_name: str) -> None:
             )
 
 
-def _infer_categories(values: Sequence[Value]) -> list[str] | None:
-    enum_type: type[StrEnum] | None = None
-    for v in values:
-        if isinstance(v, StrEnum):
-            if enum_type is None:
-                enum_type = type(v)
-            elif type(v) is not enum_type:
-                return None
-    return _category_names(enum_type)
-
-
 def _frequencies(
     values: Sequence[Value],
     categories: list[str] | None,
     normalize: bool,
 ) -> dict[str, float]:
-    if categories is None:
-        categories = _infer_categories(values)
     counts: Counter[str] = Counter(str(v) for v in values)
     keys = list(dict.fromkeys((*(categories or ()), *counts)))
     total = sum(counts.values())
@@ -63,7 +46,7 @@ def _frequencies(
     return {k: counts.get(k, 0) / denom for k in keys}
 
 
-@metric
+@metric(scores="unreduced")
 def frequency(
     categories: Categories = None,
     normalize: bool = True,
@@ -81,10 +64,10 @@ def frequency(
         def my_scorer() -> Scorer: ...
 
     Args:
-       categories: The full set of possible categories. Provide this (e.g. as a
-          ``StrEnum``) so that categories with zero observations are still
-          reported as ``0.0``. If ``None``, the category set is inferred from
-          the score values when they are ``StrEnum`` members; otherwise only
+       categories: The full set of possible categories, as a ``StrEnum`` type
+          or a sequence of labels. Declare this so that categories with zero
+          observations are still reported as ``0.0`` and the metric round-trips
+          identically through ``recompute_metrics()``. If ``None``, only
           observed categories are reported.
        normalize: If ``True`` (default) report proportions in ``[0, 1]``;
           if ``False`` report raw counts.
@@ -119,20 +102,19 @@ def categorical(categories: Categories = None) -> list[Metric]:
 
     For dict-valued scores, use the per-key form::
 
-        @scorer(metrics={"*": categorical()})
+        @scorer(metrics={"*": categorical(Verdict)})
         def my_grader() -> Scorer: ...
 
-    When a scorer returns ``StrEnum`` values and no epoch reducer is
-    explicitly configured, epochs are not reduced for that scorer: each
-    epoch's score is treated as an independent observation by ``frequency()``.
-    An explicitly configured reducer (e.g. ``Epochs(n, "mode")``) is honoured.
+    When no epoch reducer is explicitly configured, epochs are not reduced
+    for a scorer with ``frequency()`` metrics: each epoch's score is treated
+    as an independent observation. An explicitly configured reducer
+    (e.g. ``Epochs(n, "mode")``) is honoured.
 
     Args:
        categories: The full set of possible categories (typically a
-          ``StrEnum``). When a ``StrEnum`` type is given it is resolved to its
-          member values so the category list is recorded in the metric params.
-          If ``None``, categories are inferred at runtime from the score
-          values when they are ``StrEnum`` members.
+          ``StrEnum``). Resolved to its member values so the category list is
+          recorded in the metric params and survives ``recompute_metrics()``.
+          If ``None``, only observed categories are reported.
 
     Returns:
        List of metrics suitable for ``@scorer(metrics=...)``.

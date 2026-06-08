@@ -614,30 +614,6 @@
         "title": "CallPoolData",
         "type": "object"
       },
-      "CategoricalSchema": {
-        "description": "Value schema for categorical (StrEnum-valued) scores.",
-        "properties": {
-          "categories": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Categories",
-            "type": "array"
-          },
-          "type": {
-            "const": "categorical",
-            "default": "categorical",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "categories"
-        ],
-        "title": "CategoricalSchema",
-        "type": "object"
-      },
       "ChatCompletionChoice": {
         "description": "Choice generated for completion.",
         "properties": {
@@ -4258,23 +4234,6 @@
               }
             ],
             "title": "Options"
-          },
-          "value_schema": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CategoricalSchema"
-              },
-              {
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/CategoricalSchema"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value Schema"
           }
         },
         "required": [

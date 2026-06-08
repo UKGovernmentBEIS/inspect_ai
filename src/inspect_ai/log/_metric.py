@@ -21,15 +21,9 @@ def recompute_metrics(log: EvalLog) -> None:
         reducers_from_log_header,
         resolve_scorers_info,
     )
-    from inspect_ai.scorer._rehydrate import (
-        rehydrate_value,
-        value_schemas_by_score_key,
-    )
 
     if log.samples is None:
         raise ValueError("Log contains no samples")
-
-    schemas = value_schemas_by_score_key(log.eval.scorers or [])
 
     # Extract scores from all samples
     scores = []
@@ -37,12 +31,6 @@ def recompute_metrics(log: EvalLog) -> None:
         if sample.scores:
             sample_scores = {}
             for score_name, score in sample.scores.items():
-                if score_name in schemas:
-                    score = score.model_copy(
-                        update={
-                            "value": rehydrate_value(score.value, schemas[score_name])
-                        }
-                    )
                 sample_scores[score_name] = SampleScore(
                     score=score, sample_id=sample.id, sample_metadata=sample.metadata
                 )

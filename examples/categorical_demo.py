@@ -72,7 +72,12 @@ def verdict() -> Scorer:
     return score
 
 
-@scorer(metrics={"*": categorical()})
+@scorer(
+    metrics={
+        "sabotage_type": categorical(SabotageType),
+        "eval_aware": categorical(Verdict),
+    }
+)
 def behaviour() -> Scorer:
     """Two independent categorical dimensions in a single dict-valued score."""
 

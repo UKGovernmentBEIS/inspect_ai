@@ -9,12 +9,12 @@ from typing import (
     Protocol,
     Type,
     Union,
+    cast,
     overload,
     runtime_checkable,
 )
 
 from pydantic import BaseModel, Field
-from pydantic.json_schema import SkipJsonSchema
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
@@ -28,7 +28,6 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_tag,
 )
-from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.text import is_finite_number
 from inspect_ai.log._edit import ProvenanceData
 
@@ -47,40 +46,16 @@ NOANSWER = "N"
 """Value to assign for no answer or refusal to answer."""
 
 
-_Scalar = SkipJsonSchema[StrEnum] | str | int | float | bool
-
 Value = Union[
-    _Scalar,
-    Sequence[_Scalar],
-    Mapping[str, _Scalar | None],
+    str | int | float | bool,
+    Sequence[str | int | float | bool],
+    Mapping[str, str | int | float | bool | None],
 ]
 """Value provided by a score.
 
 Use the methods of `Score` to easily treat
 the `Value` as a simple scalar of various types.
-
-``StrEnum`` is accepted so that categorical scorers can return enum members
-directly; the enum class is preserved in-process (enabling metrics like
-``frequency()`` to infer the full category set) but serialises as a plain
-string and is excluded from the JSON schema.
 """
-
-
-class CategoricalSchema(BaseModel):
-    """Value schema for categorical (StrEnum-valued) scores."""
-
-    type: Literal["categorical"] = "categorical"
-
-    categories: list[str]
-    """Full set of category labels this scorer may emit."""
-
-
-ValueSchema = CategoricalSchema
-"""Describes the shape/domain of a scorer's ``Score.value``.
-
-Currently only ``CategoricalSchema`` is defined; this is a discriminated union
-intended to grow further variants (ordinal, numeric range, multi-label, ...)."""
-
 
 UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
 """Sentinel value to indicate an unchanged field in score edits."""
@@ -327,7 +302,11 @@ class MetricSpec:
     """Metric arguments."""
 
 
-def metric_register(metric: Callable[P, Metric], name: str = "") -> Callable[P, Metric]:
+def metric_register(
+    metric: Callable[P, Metric],
+    name: str = "",
+    metadata: dict[str, Any] | None = None,
+) -> Callable[P, Metric]:
     r"""Register a function or class as a metric.
 
     Args:
@@ -335,12 +314,20 @@ def metric_register(metric: Callable[P, Metric], name: str = "") -> Callable[P, 
             Function that returns a Metric or class
             deriving fromMetric
         name (str): Name of metric (Optional, defaults to object name)
+        metadata (dict[str,Any]): Additional values to serialize in metadata.
 
     Returns:
         Metric type with registry attributes.
     """
     metric_name = name if name else getattr(metric, "__name__")
-    registry_add(metric, RegistryInfo(type="metric", name=metric_name))
+    registry_add(
+        metric,
+        RegistryInfo(
+            type="metric",
+            name=metric_name,
+            metadata=metadata if metadata is not None else {},
+        ),
+    )
     return metric
 
 
@@ -393,8 +380,21 @@ def as_metric_spec(metric: Metric) -> MetricSpec:
     return MetricSpec(metric=registry_info(metric).name, args=registry_params(metric))
 
 
-@overload
-def metric(name: str) -> Callable[[Callable[P, Metric]], Callable[P, Metric]]: ...
+MetricScores = Literal["reduced", "unreduced"]
+"""Epoch-reduction contract for a metric's ``scores`` input.
+
+``"reduced"`` (default): one score per sample after applying the configured
+``ScoreReducer``. ``"unreduced"``: one score per sample per epoch (each
+epoch is an independent observation).
+"""
+
+METRIC_SCORES = "scores"
+
+
+def metric_scores(metric: Metric) -> MetricScores:
+    """Read the declared ``scores`` mode for a metric instance."""
+    mode = registry_info(metric).metadata.get(METRIC_SCORES, "reduced")
+    return cast(MetricScores, mode)
 
 
 @overload
@@ -402,8 +402,16 @@ def metric(name: str) -> Callable[[Callable[P, Metric]], Callable[P, Metric]]: .
 def metric(name: Callable[P, Metric]) -> Callable[P, Metric]: ...
 
 
+@overload
 def metric(
-    name: str | Callable[P, Metric],
+    name: str | None = None, *, scores: MetricScores = "reduced"
+) -> Callable[[Callable[P, Metric]], Callable[P, Metric]]: ...
+
+
+def metric(
+    name: str | Callable[P, Metric] | None = None,
+    *,
+    scores: MetricScores = "reduced",
 ) -> Callable[[Callable[P, Metric]], Callable[P, Metric]] | Callable[P, Metric]:
     r"""Decorator for registering metrics.
 
@@ -411,6 +419,13 @@ def metric(
       name: Optional name for metric. If the decorator has no name
         argument then the name of the underlying MetricType
         will be used to automatically assign a name.
+      scores: Epoch-reduction contract for the metric's ``scores`` input.
+        ``"reduced"`` (default) receives one score per sample after the
+        configured ``ScoreReducer`` runs. ``"unreduced"`` receives one
+        score per sample per epoch — use this for metrics that treat each
+        epoch as an independent observation (e.g. ``frequency()``). When
+        no reducer is explicitly configured and any metric on a scorer
+        declares ``"unreduced"``, reduction is skipped for that scorer.
 
     Examples:
       ```python
@@ -421,6 +436,7 @@ def metric(
           return metric
     ```
     """
+    metadata = {METRIC_SCORES: scores}
 
     # create_metric_wrapper:
     #  (a) Add the MetricType to the registry using the appropriately
@@ -439,23 +455,20 @@ def metric(
             registry_tag(
                 metric_type,
                 metric,
-                RegistryInfo(type="metric", name=metric_name),
+                RegistryInfo(type="metric", name=metric_name, metadata=metadata),
                 *args,
                 **kwargs,
             )
             return metric
 
-        return metric_register(metric_wrapper, metric_name)
+        return metric_register(metric_wrapper, metric_name, metadata=metadata)
 
-    # for decorators with an explicit name, one more wrapper for the name
-    if isinstance(name, str):
+    # bare @metric: name is the metric_type
+    if callable(name):
+        return create_metric_wrapper(name)
 
-        def wrapper(metric_type: Callable[P, Metric]) -> Callable[P, Metric]:
-            return create_metric_wrapper(metric_type, name)
+    # @metric(...) with optional name and/or scores
+    def wrapper(metric_type: Callable[P, Metric]) -> Callable[P, Metric]:
+        return create_metric_wrapper(metric_type, name)
 
-        return wrapper
-
-    # create a metric wrapper for the passed metric_type
-    else:
-        metric_type = name
-        return create_metric_wrapper(metric_type)
+    return wrapper
