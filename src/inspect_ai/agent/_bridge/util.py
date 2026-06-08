@@ -136,6 +136,52 @@ def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
     return result
 
 
+def _restore_operator_message_source(
+    bridge: AgentBridge, input: list[ChatMessage]
+) -> None:
+    """Restore ``source="operator"`` on operator messages re-entering via a bridge.
+
+    A bridged scaffold (claude_code, codex, …) round-trips operator
+    interventions through its own conversation store (e.g. Claude Code's
+    ``--resume``), so an operator message comes back as a plain
+    ``ChatMessageUser`` (``source=None``) — losing the provenance the ACP
+    transport stamped at submit time. Re-stamp it here, at the single bridge
+    generate chokepoint shared by every bridged agent. ``input`` is the same
+    list the caller records as the ``ModelEvent`` input and tracks into
+    ``state.messages``, and messages are mutated in place, so the restored
+    source persists in both the events and the final messages (and the ACP
+    TUI's operator-keyed rendering + queued-echo reconciliation then work
+    without further special-casing).
+
+    Scoped recognition (no global ledger): a message is recognized ONCE, the
+    first time it re-enters — matched against the transport's small set of
+    submitted-but-not-yet-seen operator messages, which is consumed on match.
+    Thereafter the source is carried forward from the bridge's own tracked
+    conversation (``bridge.state.messages``), bounded by the live conversation
+    and pruned with compaction. No match leaves the message untouched.
+    """
+    # Local import to avoid a load-order cycle (_acp imports from _bridge).
+    from inspect_ai.agent._acp.transport import current_acp_transport
+
+    # operator messages already established in the tracked conversation
+    known_operator_text = {
+        message.text.strip()
+        for message in bridge.state.messages
+        if isinstance(message, ChatMessageUser) and message.source == "operator"
+    }
+    transport = current_acp_transport()
+    for message in input:
+        if not isinstance(message, ChatMessageUser) or message.source == "operator":
+            continue
+        # ``consume_operator_message`` first so a still-pending entry is always
+        # cleared; fall back to carry-forward for messages already in state.
+        if (
+            transport.consume_operator_message(message)
+            or message.text.strip() in known_operator_text
+        ):
+            message.source = "operator"
+
+
 async def bridge_generate(
     bridge: AgentBridge,
     model: Model,
@@ -152,6 +198,12 @@ async def bridge_generate(
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
     """
+    # restore operator provenance lost to a bridged scaffold's round-trip
+    # (e.g. claude_code --resume re-emits an operator message as a plain
+    # user message). Done before compaction/recording so the restored
+    # source persists in both the ModelEvent input and state.messages.
+    _restore_operator_message_source(bridge, input)
+
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:

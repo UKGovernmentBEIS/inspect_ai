@@ -278,6 +278,21 @@ class AcpTransport(Protocol):
         """
         ...
 
+    def consume_operator_message(self, message: ChatMessageUser) -> bool:
+        """Pop ``message`` from the set of operator messages awaiting recognition.
+
+        Lets the agent bridge restore ``source="operator"`` the first time a
+        bridged scaffold's round-tripped copy of an operator intervention
+        re-enters — the scaffold (claude_code, codex, …) re-emits the message
+        through its own conversation store (e.g. Claude Code's ``--resume``)
+        as a plain ``ChatMessageUser`` with no source. Implementations match
+        (and remove, one-shot) against the messages seen by
+        :meth:`submit_user_message`; the bridge carries provenance forward on
+        later turns from its own tracked conversation, so this stays bounded
+        by in-flight submissions. The no-op session always returns False.
+        """
+        ...
+
     def cancel_current_turn(
         self,
         cause: Literal["user_cancel", "limit", "system"] = "user_cancel",

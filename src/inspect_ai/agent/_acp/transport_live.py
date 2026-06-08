@@ -593,6 +593,18 @@ class LiveAcpTransport:
         # (drivable). Named ``_attachable_override`` for historical
         # reasons; it governs the interactivity axis.
         self._attachable_override: bool | None = None
+        # Normalized text of operator-submitted user messages awaiting first
+        # recognition by the bridge. A bridged scaffold (claude_code, codex,
+        # …) round-trips operator interventions through its own conversation
+        # store (e.g. Claude Code's ``--resume``), so the message re-enters
+        # the bridge as a plain ``ChatMessageUser`` (``source=None``),
+        # losing the provenance stamped at submit time. ``bridge_generate``
+        # re-stamps it the FIRST time it re-enters (via
+        # :meth:`consume_operator_message`, which pops the match) and
+        # thereafter carries the source forward from the bridge's tracked
+        # conversation — so this set holds only in-flight, not-yet-seen
+        # submissions, never a permanent, ever-growing ledger.
+        self._pending_operator_texts: set[str] = set()
 
     @property
     def session_id(self) -> str:
@@ -1017,11 +1029,36 @@ class LiveAcpTransport:
         with acp_guard("ACP submit_user_message raised; message dropped"):
             if msg.source != "operator":
                 msg = msg.model_copy(update={"source": "operator"})
+            # Mark the text pending recognition so a bridged scaffold's
+            # round-tripped copy (which loses ``source``) can be re-stamped
+            # operator the first time it re-enters ``bridge_generate``.
+            # Normalized (stripped) to tolerate cosmetic whitespace the
+            # scaffold may add on re-emit.
+            op_text = msg.text.strip()
+            if op_text:
+                self._pending_operator_texts.add(op_text)
             self._interrupt.resolve_if_pending()
             if self._ref is not None:
                 from inspect_ai.agent._channel import UserMessage as _ChannelUserMessage
 
                 self._ref.post(_ChannelUserMessage(message=msg))
+
+    def consume_operator_message(self, message: ChatMessageUser) -> bool:
+        """Pop ``message`` from the pending operator-submission set.
+
+        Returns True (and removes the entry) iff ``message`` matches an
+        operator message submitted via :meth:`submit_user_message` that the
+        bridge hasn't recognized yet. One-shot by design: after first
+        recognition the bridge carries operator provenance forward from its
+        own tracked conversation, so this set stays bounded by in-flight
+        submissions rather than growing without bound. Matches on
+        whitespace-normalized text.
+        """
+        text = message.text.strip()
+        if text in self._pending_operator_texts:
+            self._pending_operator_texts.discard(text)
+            return True
+        return False
 
     @property
     def interrupt_pending(self) -> bool:

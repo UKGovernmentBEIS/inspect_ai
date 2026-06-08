@@ -520,14 +520,19 @@ def _user_message_text(msg: ChatMessageUser | ChatMessageSystem) -> str:
     is a follow-on alongside the message widget's image content-block
     handling.
     """
+    # Strip outer whitespace: a bridged scaffold may re-emit an operator
+    # message with cosmetic leading/trailing whitespace (e.g. Claude Code
+    # prepends a newline on ``--resume``), which would otherwise render as a
+    # blank line above the message body. Display-only — the stored
+    # ChatMessageUser content is left untouched.
     content = msg.content
     if isinstance(content, str):
-        return content
+        return content.strip()
     parts: list[str] = []
     for block in content:
         if isinstance(block, ContentText) and block.text:
             parts.append(block.text)
-    return "\n".join(parts)
+    return "\n".join(parts).strip()
 
 
 def _map_model_event(
