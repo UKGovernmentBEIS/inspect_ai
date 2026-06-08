@@ -122,6 +122,15 @@ REPLAY_META_KEY = "inspect.replay"
 # the same tick as ``tokens``.
 TOTAL_MESSAGES_META_KEY = "inspect.total_messages"
 
+# Stamped on a ``ToolCallStart.field_meta`` when the tool call CANNOT be
+# cancelled via ``inspect/cancel_tool_call``. Set for bridged agents
+# (claude_code, codex, …): their tools are run by the bridged scaffold, not by
+# Inspect, so there's no pending ``ToolEvent`` for the connection handler to
+# cancel — the request would silently no-op. The Inspect TUI reads this off the
+# tool card to suppress the per-tool "cancel tool" affordance (the operator can
+# still interrupt the whole turn). Absent ⇒ cancelable (the react default).
+TOOL_CALL_CANCELABLE_META_KEY = "inspect.tool_call_cancelable"
+
 
 # ---------------------------------------------------------------------------
 # inspect/* JSON-RPC methods (non-standard)

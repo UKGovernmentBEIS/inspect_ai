@@ -658,7 +658,9 @@ class Forwarders:
         # same notifications and same per-event ordering. Passing
         # ``filter_subagents=False`` is safe because we already
         # filtered above.
-        transcriptor = ReplayTranscriptor(self._wire_session_id, filter_subagents=False)
+        transcriptor = ReplayTranscriptor(
+            self._wire_session_id, filter_subagents=False, snapshot=snapshot
+        )
 
         # Interleaved dispatch in transcript order.
         for event in snapshot:

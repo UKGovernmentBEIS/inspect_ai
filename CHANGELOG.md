@@ -1,6 +1,15 @@
 ## Unreleased
 
 - Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled, warning once and falling back to the current journal mode.
+- Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled.
+- ACP: Render tool calls for agent-bridge agents (e.g. `claude_code`, `codex_cli`). 
+- Inspect View: Improve model event rendering - add INFO tab (usage + stop reason) and a Stop Reason display
+- Inspect View: Fix: stop VirtualList from fighting deep-link scroll in WebKit
+- Inspect View: Fix: collapse the timeline by default when only main + scoring lanes exist
+- Inspect View: Fix: make collapse-all include model events (symmetry with expand-all)
+- Inspect View: Improved sample message/transcript placeholders + steady streaming
+- Inspect View: Color tool calls in model-event views like the messages tab
+- Inspect View: Improve log list responsiveness during bulk sync
 
 ## 0.3.237 (07 June 2026)
 
