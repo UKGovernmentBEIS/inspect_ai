@@ -26,7 +26,7 @@ from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
-from inspect_ai.util._checkpoint import checkpointer
+from inspect_ai.util._checkpoint import Checkpointer, checkpointer
 
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._channel import (
@@ -212,7 +212,7 @@ def react(
             overflow = _resolve_overflow(truncation)
 
             # create compact function
-            compact = _agent_compact(compaction, state.messages, tools, model)
+            compact = _agent_compact(compaction, state.messages, tools, model, cp)
 
             # track attempts (recovered from checkpoint state on resume)
             attempt_count = cp.track("attempt_count", lambda: attempt_count, 0)
@@ -414,7 +414,7 @@ def react_no_submit(
             overflow = _resolve_overflow(truncation)
 
             # create compact function
-            compact = _agent_compact(compaction, state.messages, tools, model)
+            compact = _agent_compact(compaction, state.messages, tools, model, cp)
 
             # track consecutive content_filter responses
             consecutive_content_filter = 0
@@ -596,6 +596,7 @@ def _agent_compact(
     prefix: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | None,
     model: str | Model | Agent | None,
+    checkpointer: Checkpointer,
 ) -> Compact | None:
     # create compact function
     if compaction is not None:
@@ -604,6 +605,7 @@ def _agent_compact(
             prefix=prefix,
             tools=tools,
             model=model if isinstance(model, str | Model | None) else None,
+            checkpointer=checkpointer,
         )
     else:
         return None
