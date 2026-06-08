@@ -36,6 +36,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from inspect_ai._util.error import is_cancellation_message
+from inspect_ai._util.file import local_path
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
@@ -59,9 +60,10 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
 
     Returns:
         One dict per (run_id, task_id) group, sorted by start time
-        (oldest first). Each entry includes a nested ``samples``
-        block: ``{total, completed, errored, in_flight, queued}`` and
-        an ``attempts`` count (1 for tasks without retries, >1 when
+        (oldest first). Each entry includes ``log_location`` (where this
+        attempt's results are written), a nested ``samples`` block:
+        ``{total, completed, errored, in_flight, queued}``, and an
+        ``attempts`` count (1 for tasks without retries, >1 when
         retries occurred).
     """
     # Lazy imports to avoid pulling the full log/event/scorer chain at
@@ -133,6 +135,7 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 "task": first.task,
                 "task_id": "",
                 "model": first.model,
+                "log_location": local_path(first.log_location),
                 "status": "running",
                 "started_at": min(
                     (s.started for s in samples if s.started is not None),
@@ -617,6 +620,11 @@ def _build_summary(
         "task": task_name,
         "task_id": latest.task_id,
         "model": model,
+        # Where this attempt's results are written — lets an agent monitoring a
+        # run it didn't launch find the log without knowing the launch args.
+        # `local_path` drops the `file://` prefix for local logs (leaving
+        # `s3://` and plain paths as-is) so the value is directly usable.
+        "log_location": local_path(latest.log_location),
         "status": status,
         "started_at": eval_started_at,
         "completed_at": completed_at,

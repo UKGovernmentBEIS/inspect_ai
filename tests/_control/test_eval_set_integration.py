@@ -164,6 +164,12 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
         assert samples["queued"] == 0
         assert entry["status"] == "running"
         assert entry["completed_at"] is None
+        # log_location points at this eval's log file, so an agent monitoring a
+        # run it didn't launch can find where results are written — as a plain
+        # local path (no `file://` prefix), directly usable.
+        assert not entry["log_location"].startswith("file://")
+        assert entry["log_location"].startswith(log_dir)
+        assert entry["log_location"].endswith(".eval")
 
 
 def test_ctl_ls_survives_fast_task_finishing_first(short_data_dir: Path) -> None:
