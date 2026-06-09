@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - S3: Retry when requests have stale signatures.
 
