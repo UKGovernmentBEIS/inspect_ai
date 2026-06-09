@@ -554,6 +554,15 @@ def read_eval_log_samples_by_id(
     entire log) and reads them in parallel. This is substantially faster than
     looping over `read_eval_log_sample` when you need a subset of a large log.
 
+    Concurrency model: all reads share a single ``AsyncZipReader``. The zip
+    central directory is parsed once and cached (lock-guarded); each requested
+    sample is then fetched via an independent byte-range read, so no single
+    zipfile handle or cursor is shared across the concurrent reads. ``concurrency``
+    bounds the number of in-flight reads (each read is a range fetch plus JSON
+    parse plus Pydantic validation); actual speedup depends on the backing
+    filesystem I/O and per-sample parse cost and does not necessarily scale
+    linearly with ``concurrency``.
+
     Args:
        log_file (str | FileInfo): Log file to read.
        samples (Iterable[tuple[str | int, int]]): Iterable of ``(id, epoch)``
@@ -622,6 +631,15 @@ async def read_eval_log_samples_by_id_async(
     entire log) and reads them in parallel. This is substantially faster than
     looping over `read_eval_log_sample_async` when you need a subset of a large
     log.
+
+    Concurrency model: all reads share a single ``AsyncZipReader``. The zip
+    central directory is parsed once and cached (lock-guarded); each requested
+    sample is then fetched via an independent byte-range read, so no single
+    zipfile handle or cursor is shared across the concurrent reads. ``concurrency``
+    bounds the number of in-flight reads (each read is a range fetch plus JSON
+    parse plus Pydantic validation); actual speedup depends on the backing
+    filesystem I/O and per-sample parse cost and does not necessarily scale
+    linearly with ``concurrency``.
 
     Args:
        log_file (str | FileInfo): Log file to read.
