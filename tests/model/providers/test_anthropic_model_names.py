@@ -330,7 +330,7 @@ _CLAUDE_FUTURE_4_MINOR_OPUS = {
     "is_claude_4_opus": True,
 }
 
-# Claude 5 (fable/mythos) is a known frontier version, not "latest"/unknown.
+# Claude 5 (any claude-*-5) is a known frontier version, not "latest"/unknown.
 _CLAUDE_5 = {
     **_CLAUDE_FUTURE,
     "is_claude_5": True,
@@ -540,7 +540,11 @@ def test_claude_4_6_opus(model_name: str) -> None:
 # ── Future models (is_claude_latest) ─────────────────────────────────────────
 
 
-# ── Claude 5 (fable/mythos + hypothetical tier-named variants) ────────────────
+# ── Claude 5 (any claude-*-5) ─────────────────────────────────────────────────
+# Detection matches any claude-<name>-5, so it covers the GA/limited Fable and
+# Mythos names AND forward-compat variants: point releases (claude-fable-5-1),
+# tier-named (claude-opus-5-0), and new codenames (claude-saga-5). All are
+# treated as known Claude 5 (is_claude_5 True, is_claude_latest False).
 
 
 @pytest.mark.parametrize(
@@ -551,9 +555,13 @@ def test_claude_4_6_opus(model_name: str) -> None:
         "claude-mythos-5",
         # Bedrock
         "anthropic.claude-fable-5",
-        # Tier-named Claude 5 variants (hypothetical / forward-compat)
-        "claude-sonnet-5-20260101",
+        # Point releases (hyphen + dot forms)
+        "claude-fable-5-1",
+        "claude-mythos-5-1",
+        # Tier-named / codename variants (forward-compat)
         "claude-opus-5-0",
+        "claude-sonnet-5-20260101",
+        "claude-saga-5",
     ],
 )
 def test_claude_5(model_name: str) -> None:

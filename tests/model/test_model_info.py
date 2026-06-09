@@ -260,6 +260,24 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
+    def test_unregistered_claude_5_defaults_to_1m(self):
+        """Unregistered Claude 5 variants assume the 1M frontier.
+
+        Claude 5 detection matches any ``claude-*-5``, so a tier-named
+        ``claude-opus-5-0`` or a new codename ``claude-saga-5`` is classified as
+        Claude 5 (is_claude_5) even though it is not in the database. The
+        input_tokens_name() fallback must still resolve such names to 1M rather
+        than missing the database lookup entirely.
+        """
+        for model_name in (
+            "anthropic/claude-opus-5-0",
+            "anthropic/claude-sonnet-5-0",
+            "anthropic/claude-saga-5",
+        ):
+            model = get_model(model_name)
+            tokens = get_model_input_tokens(model)
+            assert tokens == 1_000_000, model_name
+
     def test_claude_latest_with_1m_beta(self):
         """Test that a future Claude model with 1M beta maps to opus-4-6 (1MM)."""
         model = get_model(

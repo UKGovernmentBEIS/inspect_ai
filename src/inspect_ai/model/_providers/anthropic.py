@@ -120,7 +120,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.http import (
     is_retryable_http_status,
@@ -1145,10 +1145,22 @@ class AnthropicAPI(ModelAPI):
 
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens."""
+        from inspect_ai.model._model_info import _get_model_info_direct
+
         if "context-1m-2025-08-07" in self.betas:
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
-            # Unknown future version: assume the current 1M frontier
+            # Unknown future version: assume the current 1M frontier.
+            return "anthropic/claude-opus-4-8"  # 1MM
+        elif (
+            self.is_claude_5()
+            and _get_model_info_direct(self.canonical_name()) is None
+        ):
+            # A Claude 5 variant not yet registered in the model-info database
+            # (e.g. a tier-named claude-*-5 or a new codename): assume the 1M
+            # Claude 5 frontier rather than missing the lookup. Registered
+            # Claude 5 models (Fable/Mythos and their point releases, which
+            # fuzzy-match their base entry) fall through to the database below.
             return "anthropic/claude-opus-4-8"  # 1MM
         else:
             return super().input_tokens_name()
@@ -1442,6 +1454,16 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
+            # Claude 5 (Fable/Mythos) does not support native computer use: the
+            # computer-use tool versions target Claude 4.x only (per Anthropic's
+            # computer-use docs and the Claude 5 launch feature list). Error
+            # rather than degrade to a non-native fallback tool.
+            if self.is_claude_5():
+                raise PrerequisiteError(
+                    f"Computer use is not supported by the model '{self.service_model_name()}'. "
+                    "Anthropic's native computer use requires a Claude 4.x model "
+                    "(e.g. claude-opus-4-8 or claude-sonnet-4-6)."
+                )
             # Note: The dimensions passed here for display_width_px and display_height_px
             # should match the dimensions of screenshots returned by the tool. Those
             # dimensions will always be one of the values in MAX_SCALING_TARGETS
@@ -1632,7 +1654,11 @@ def _is_claude_5(model_name: str) -> bool:
     """Check if a model name is a Claude 5 model.
 
     Claude 5 model names carry no tier word (e.g. claude-fable-5,
-    claude-mythos-5); match any claude-<name>-5.
+    claude-mythos-5); match any claude-<name>-5. This deliberately also matches
+    point-release, tier-named, and new-codename variants (claude-fable-5-1,
+    claude-opus-5, claude-saga-5) so they are treated as known Claude 5 models
+    without requiring a package update. Existing names with a digit before the
+    trailing -5 (claude-haiku-4-5, claude-3-5-*) do not match.
     """
     return re.search(r"claude-[a-zA-Z]+-5", model_name) is not None
 
