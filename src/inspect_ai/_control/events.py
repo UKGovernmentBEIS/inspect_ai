@@ -24,10 +24,18 @@ from __future__ import annotations
 
 import base64
 import json
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
+
+# Page reader for one source: ``fetch(start, limit)`` returns up to ``limit``
+# events from absolute offset ``start``. The running source reads through
+# ``TranscriptHistory.events_from`` (resident fast path, history-provider
+# materialization below the resident window); the terminal source slices its
+# in-memory list.
+EventsFetch = Callable[[int, int], "Sequence[Event]"]
 
 # Default event-type filter: the "high-signal" tier a monitor cares about,
 # excluding the structural / high-volume tier (state / store / span / step / …)
@@ -92,8 +100,8 @@ async def sample_events(
 ) -> dict[str, Any] | None:
     """A page of one sample's transcript events.
 
-    Returns an envelope ``{events, next, done, missed}`` (see module docstring),
-    or ``None`` when the eval/sample isn't found in this process — the endpoint
+    Returns an envelope ``{events, next, done}`` (see module docstring), or
+    ``None`` when the eval/sample isn't found in this process — the endpoint
     turns that into a 404.
 
     Args:
@@ -116,13 +124,13 @@ async def sample_events(
     if source is None:
         return None
 
-    nonce, resident, first_resident, total, done = source
+    nonce, fetch, total, done = source
 
     # Resolve the start offset: resume from the cursor (reset to 0 if the nonce
     # is from a different source), else a tail window, else the beginning.
     cursor_nonce, cursor_offset = decode_cursor(since)
     if since is not None and cursor_nonce == nonce:
-        offset = cursor_offset
+        offset = max(0, cursor_offset)
     elif since is not None:
         offset = 0  # stale/foreign cursor → restart
     elif tail is not None:
@@ -130,20 +138,23 @@ async def sample_events(
     else:
         offset = 0
 
-    # Events below the resident window were evicted (bounded transcripts):
-    # report the gap and start from the oldest resident event.
-    missed = max(0, first_resident - offset)
-    start = max(offset, first_resident)
-    rel = start - first_resident
-    scanned = list(resident[rel : rel + limit])
-    next_offset = start + len(scanned)
+    # The page is always contiguous from `offset`: a bounded transcript's
+    # evicted events are re-materialized from its history provider (the
+    # realtime sample buffer). The fetch raises if `offset` falls below the
+    # resident window with no provider to recover it — not a production
+    # configuration (bounded mode is only enabled together with the buffer,
+    # which is the provider), and a hard error beats serving a silently-gapped
+    # stream. `next` advances by what was actually served, so a fetch that
+    # returns short (eg. a buffer that lags the in-memory tail) never skips
+    # events — the next poll picks them up.
+    scanned = list(fetch(offset, limit))
+    next_offset = offset + len(scanned)
 
     matched = _filter(scanned, types, since_time, until)
     return {
         "events": [_project(e, full) for e in matched],
         "next": encode_cursor(nonce, next_offset),
         "done": done and next_offset >= total,
-        "missed": missed,
     }
 
 
@@ -177,23 +188,28 @@ def _attempt_nonce(
 
 def _running_source(
     eval_id: str, sample_id: str, epoch: int
-) -> tuple[str, list["Event"], int, int, bool] | None:
+) -> tuple[str, EventsFetch, int, bool] | None:
     """The live source for a sample, or ``None`` if it isn't running here.
 
-    Returns ``(nonce, resident_events, first_resident_index, total, done)``.
+    Returns ``(nonce, fetch, total, done)``. The fetch reads through
+    ``TranscriptHistory.events_from``, which serves resident events from
+    memory and materializes evicted ones from the history provider (the
+    realtime sample buffer) — so a cursor below the resident window of a
+    bounded transcript still pages gap-free, page-sized reads only (the
+    ``limit`` rides down to the buffer query). It raises ``RuntimeError``
+    when the requested range was evicted with no provider to recover it (a
+    bounded transcript without realtime logging — not a production
+    configuration).
     """
     from inspect_ai.log._samples import active_samples
 
     for s in active_samples():
         if s.eval_id == eval_id and str(s.sample.id) == sample_id and s.epoch == epoch:
             history = s.transcript.history
-            total = history.event_count
-            resident = list(history.resident_events)
             return (
                 _attempt_nonce(s.sample_uuid, s.sample.id, epoch, len(s.error_retries)),
-                resident,
-                total - len(resident),
-                total,
+                history.events_from,
+                history.event_count,
                 s.completed is not None,
             )
     return None
@@ -201,10 +217,10 @@ def _running_source(
 
 async def _logged_source(
     eval_id: str, sample_id: str, epoch: int
-) -> tuple[str, list["Event"], int, int, bool] | None:
+) -> tuple[str, EventsFetch, int, bool] | None:
     """The terminal source for a sample (recorder buffer, then on-disk log).
 
-    Returns ``(nonce, events, 0, total, True)``; ``None`` when the eval/sample
+    Returns ``(nonce, fetch, total, True)``; ``None`` when the eval/sample
     isn't available here (not in this process, or not yet readable). Reads via
     :func:`inspect_ai._control.state._full_sample` so a just-completed (or
     reused-on-retry) sample's events are visible the moment the samples listing
@@ -233,7 +249,11 @@ async def _logged_source(
     nonce = _attempt_nonce(
         sample.uuid, sample.id, epoch, len(sample.error_retries or [])
     )
-    return nonce, events, 0, len(events), True
+
+    def fetch(start: int, limit: int) -> list["Event"]:
+        return events[start : start + limit]
+
+    return nonce, fetch, len(events), True
 
 
 def _buffer_events(

@@ -695,12 +695,16 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         start: int,
+        limit: int | None = None,
     ) -> Iterator[SampleHistory]:
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
                 conn.execute("BEGIN")
                 history = self._sample_history(
-                    conn, id, epoch, self._get_events_from(conn, id, epoch, start)
+                    conn,
+                    id,
+                    epoch,
+                    self._get_events_from(conn, id, epoch, start, limit),
                 )
                 conn.commit()
             yield history
@@ -1145,7 +1149,10 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         start: int,
+        limit: int | None = None,
     ) -> Iterator[EventData]:
+        # LIMIT -1 is SQLite's "no limit", so the cap can ride the query
+        # unconditionally.
         query = """
             WITH first_rows AS (
                 SELECT
@@ -1164,8 +1171,11 @@ class SampleBufferDatabase(SampleBuffer):
             JOIN events e ON e.id = ordered_rows.latest_id
             WHERE ordered_rows.row_num > ?
             ORDER BY ordered_rows.row_num
+            LIMIT ?
         """
-        cursor = conn.execute(query, [str(id), epoch, start])
+        cursor = conn.execute(
+            query, [str(id), epoch, start, -1 if limit is None else limit]
+        )
 
         for row in cursor:
             event = json.loads(row["data"])

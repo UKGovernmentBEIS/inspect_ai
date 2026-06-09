@@ -794,3 +794,60 @@ def test_bounded_transcript_allows_duplicate_uuid_after_eviction() -> None:
     transcript._event(duplicate)
 
     assert _data(transcript.history.resident_events) == ["duplicate"]
+
+
+class _LimitCapturingProvider(FakeTranscriptHistoryProvider):
+    """Records `events_from` calls so tests can assert the limit rides down."""
+
+    def __init__(self, events: Sequence[Event]) -> None:
+        super().__init__(events)
+        self.events_from_calls: list[tuple[int, int | None]] = []
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        self.events_from_calls.append((start, limit))
+        return super().events_from(start, limit)
+
+
+def test_history_events_from_serves_resident_window_without_provider() -> None:
+    transcript = Transcript(bounded=True, resident_tail=3)
+    for data in range(5):
+        transcript._event(InfoEvent(data=data))
+
+    # resident window is [2, 3, 4]; start inside it slices memory
+    assert _data(transcript.history.events_from(3)) == [3, 4]
+    assert _data(transcript.history.events_from(3, limit=1)) == [3]
+    assert transcript.history.events_from(5) == []  # at/past the end
+
+
+def test_history_events_from_uses_provider_below_resident_window() -> None:
+    full_history: list[Event] = [InfoEvent(data=data) for data in range(5)]
+    provider = _LimitCapturingProvider(full_history)
+    transcript = Transcript(bounded=True, resident_tail=2, history_provider=provider)
+    for event in full_history:
+        transcript._event(event)
+
+    assert _data(transcript.history.events_from(0)) == [0, 1, 2, 3, 4]
+    assert _data(transcript.history.events_from(1, limit=2)) == [1, 2]
+    # the limit reaches the provider (page-sized reads, not python-side
+    # truncation of a full materialization)
+    assert provider.events_from_calls == [(0, None), (1, 2)]
+
+
+def test_history_events_from_raises_when_history_unavailable() -> None:
+    transcript = Transcript(bounded=True, resident_tail=2)
+    for data in range(5):
+        transcript._event(InfoEvent(data=data))
+
+    with pytest.raises(RuntimeError, match="Full transcript history is not available"):
+        transcript.history.events_from(0)
+    # ...but reads within the resident window still work
+    assert _data(transcript.history.events_from(3)) == [3, 4]
+
+
+def test_history_events_from_unbounded_transcript() -> None:
+    transcript = Transcript()
+    for data in range(3):
+        transcript._event(InfoEvent(data=data))
+
+    assert _data(transcript.history.events_from(0)) == [0, 1, 2]
+    assert _data(transcript.history.events_from(-5, limit=2)) == [0, 1]  # clamps

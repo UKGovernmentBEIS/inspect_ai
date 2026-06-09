@@ -397,3 +397,30 @@ def test_sample_history_read_methods_use_deferred_transactions(
         if statement.strip().upper().startswith("BEGIN")
     ]
     assert begin_statements == ["BEGIN", "BEGIN", "BEGIN", "BEGIN", "BEGIN"]
+
+
+def test_open_sample_history_from_honors_limit(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=InfoEvent(uuid=f"event-{i}", data=i)
+            )
+            for i in range(5)
+        ]
+    )
+
+    # limit caps the page read from `start` (page-sized cursor reads)
+    with db.open_sample_history_from("sample", 1, 1, limit=2) as history:
+        rows = history.raw_event_rows
+    assert [row.event["data"] for row in rows] == [1, 2]
+
+    # limit=None reads through the end (the prior behavior)
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        rows = history.raw_event_rows
+    assert [row.event["data"] for row in rows] == [1, 2, 3, 4]
+
+    # a limit past the end is harmless
+    with db.open_sample_history_from("sample", 1, 4, limit=10) as history:
+        rows = history.raw_event_rows
+    assert [row.event["data"] for row in rows] == [4]

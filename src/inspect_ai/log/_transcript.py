@@ -80,7 +80,7 @@ class TranscriptHistoryProvider(Protocol):
 
     def recent_events(self, n: int | None = None) -> Sequence[Event]: ...
 
-    def events_from(self, start: int) -> Sequence[Event]: ...
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]: ...
 
     def events_since_last(self, event_type: type[Event]) -> list[Event]: ...
 
@@ -278,6 +278,42 @@ class TranscriptHistory:
         ):
             return transcript._events[-n:]
         return transcript._history_provider.recent_events(n)
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        """Return events from logical index ``start`` onward.
+
+        Serves from resident memory when ``start`` falls inside the resident
+        window, falling back to the history provider to materialize evicted
+        events. Prefer this over slicing ``resident_events`` when the caller's
+        position is a *logical* history index (eg. a resume cursor) that may
+        point below the resident window.
+
+        Args:
+            start: Logical index (0-based) of the first event to return.
+                Negative values are treated as 0.
+            limit: Maximum number of events to return. ``None`` returns
+                everything through the end of the history.
+
+        Returns:
+            Events from ``start`` (inclusive), in insertion order. Empty when
+            ``start`` is at or past the end of the history.
+
+        Raises:
+            RuntimeError: If ``start`` falls below the resident window, events
+                have been truncated, and no history provider is available to
+                materialize them.
+        """
+        transcript = self._transcript
+        start = max(0, start)
+        first_resident = transcript._event_count - len(transcript._events)
+        if start >= first_resident:
+            events: Sequence[Event] = transcript._events[start - first_resident :]
+            return events[:limit] if limit is not None else events
+        if transcript._history_provider is None:
+            raise RuntimeError(
+                "Full transcript history is not available from this Transcript"
+            )
+        return transcript._history_provider.events_from(start, limit)
 
     def events_since_last(self, event_type: type[Event]) -> list[Event]:
         """Return events from the last occurrence of a given event type onward.

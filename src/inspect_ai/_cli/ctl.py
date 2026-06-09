@@ -286,7 +286,7 @@ def sample_command(
     "as_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (the `{events, next, done, missed}` envelope).",
+    help="Output as JSON (the `{events, next, done}` envelope).",
 )
 def events_command(
     task: str,
@@ -312,7 +312,7 @@ def events_command(
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
         if as_json:
-            click.echo('{"events": [], "next": null, "done": true, "missed": 0}')
+            click.echo('{"events": [], "next": null, "done": true}')
             return
         _echo_no_running_evals()
         return
@@ -612,8 +612,6 @@ def _print_events(page: dict[str, Any]) -> None:
         _render_table(("time", "event", "summary"), rows)
 
     parts = [f"{len(events)} event" + ("" if len(events) == 1 else "s")]
-    if page.get("missed"):
-        parts.append(f"missed {page['missed']}")
     parts.append("done" if page.get("done") else "more")
     click.echo()
     click.echo("  ·  ".join(parts))

@@ -304,16 +304,14 @@ def test_print_events_table_and_footer(
         ],
         "next": "CURSORX",
         "done": False,
-        "missed": 3,
     }
     _print_events(page)
     out = capsys.readouterr().out
     assert "event" in out.splitlines()[0]  # table header
     # per-type summaries
     assert "openai/gpt" in out and "bash" in out and "boom" in out
-    # footer: count, missed gap, "more" (not done), and the resume cursor
+    # footer: count, "more" (not done), and the resume cursor
     assert "3 events" in out
-    assert "missed 3" in out
     assert "more" in out
     assert "next: CURSORX" in out
 
@@ -321,7 +319,7 @@ def test_print_events_table_and_footer(
 def test_print_events_empty_and_done(capsys: pytest.CaptureFixture[str]) -> None:
     from inspect_ai._cli.ctl import _print_events
 
-    _print_events({"events": [], "next": "X", "done": True, "missed": 0})
+    _print_events({"events": [], "next": "X", "done": True})
     out = capsys.readouterr().out
     assert "(no events)" in out
     assert "done" in out

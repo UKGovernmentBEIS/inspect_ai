@@ -1635,9 +1635,8 @@ def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> N
     assert res is not None, "sample never reached in-flight after generate()"
 
     page = res["page"]
-    assert set(page) >= {"events", "next", "done", "missed"}
+    assert set(page) >= {"events", "next", "done"}
     assert page["done"] is False  # still running (parked)
-    assert page["missed"] == 0  # non-bounded transcript
     assert len(page["events"]) >= 1
 
     # type filter: model-only page is non-empty and exclusively model events

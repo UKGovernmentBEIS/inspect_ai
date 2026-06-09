@@ -24,7 +24,7 @@ from inspect_ai._control.events import (
 from inspect_ai.event._error import ErrorEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
-from inspect_ai.log import EvalError
+from inspect_ai.log import EvalError, Transcript
 
 
 def _error_event(message: str) -> ErrorEvent:
@@ -83,20 +83,26 @@ def test_attempt_nonce_fallback_is_stable_and_attempt_distinct() -> None:
 
 
 def _fake_running_sample(
-    *, sample_uuid: str, events: list[Event], error_retries: list[Any]
+    *,
+    sample_uuid: str,
+    events: list[Event],
+    error_retries: list[Any],
+    transcript: Transcript | None = None,
 ) -> Any:
     """A minimal stand-in for an in-flight ``ActiveSample``.
 
     Carries just what :func:`inspect_ai._control.events._running_source` reads:
-    the ids, the transcript event window, the durable ``sample_uuid``, and the
-    ``error_retries`` whose length is the attempt count.
+    the ids, a real ``Transcript`` (so its ``history`` accessor — resident
+    window, provider fallback — behaves exactly as in production), the durable
+    ``sample_uuid``, and the ``error_retries`` whose length is the attempt
+    count. Pass ``transcript`` to use a pre-built (eg. bounded) transcript
+    instead of an unbounded one seeded with ``events``.
     """
-    history = SimpleNamespace(event_count=len(events), resident_events=events)
     return SimpleNamespace(
         eval_id="e1",
         epoch=1,
         sample=SimpleNamespace(id=1),
-        transcript=SimpleNamespace(history=history),
+        transcript=transcript if transcript is not None else Transcript(events),
         sample_uuid=sample_uuid,
         error_retries=error_retries,
         completed=None,
@@ -192,3 +198,95 @@ def test_project_full_is_raw_dump() -> None:
     # raw form keeps the nested EvalError object, not the flattened message
     assert isinstance(out["error"], dict)
     assert out["error"]["message"] == "boom"
+
+
+# --- bounded transcripts (evicted events) -----------------------------------
+
+
+def _bounded_running_sample(events: list[Event], *, with_provider: bool) -> Any:
+    """A running sample on a bounded transcript (resident tail of 3).
+
+    With ``with_provider`` the full history is recoverable (the production
+    shape — the provider is the realtime sample buffer); without it, evicted
+    events are gone for good.
+    """
+    from test_helpers.transcript import FakeTranscriptHistoryProvider
+
+    provider = FakeTranscriptHistoryProvider(events) if with_provider else None
+    transcript = Transcript(bounded=True, resident_tail=3, history_provider=provider)
+    for event in events:
+        transcript._event(event)
+    assert transcript.history.resident_events_truncated  # sanity: head evicted
+    return _fake_running_sample(
+        sample_uuid="u1", events=[], error_retries=[], transcript=transcript
+    )
+
+
+async def test_cursor_below_resident_window_pages_via_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Evicted events are served from the history provider, gap-free.
+
+    A bounded transcript keeps only a resident tail in memory; a read from
+    the beginning (or a cursor below the resident window) must page through
+    the evicted span via the provider — not skip it.
+    """
+    import inspect_ai.log._samples as samples_mod
+
+    events: list[Event] = [_info_at(f"e{i}", _now()) for i in range(10)]
+    sample = _bounded_running_sample(events, with_provider=True)
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [sample])
+
+    # page from the beginning in pages smaller than the evicted span
+    page1 = await sample_events("e1", "1", 1, limit=4)
+    assert page1 is not None
+    assert [e["source"] for e in page1["events"]] == ["e0", "e1", "e2", "e3"]
+
+    page2 = await sample_events("e1", "1", 1, since=page1["next"], limit=4)
+    assert page2 is not None
+    assert [e["source"] for e in page2["events"]] == ["e4", "e5", "e6", "e7"]
+
+    page3 = await sample_events("e1", "1", 1, since=page2["next"], limit=4)
+    assert page3 is not None
+    assert [e["source"] for e in page3["events"]] == ["e8", "e9"]
+
+
+async def test_tail_beyond_resident_window_served_via_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--tail N` larger than the resident window reads back through the provider."""
+    import inspect_ai.log._samples as samples_mod
+
+    events: list[Event] = [_info_at(f"e{i}", _now()) for i in range(10)]
+    sample = _bounded_running_sample(events, with_provider=True)
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [sample])
+
+    page = await sample_events("e1", "1", 1, tail=8)
+    assert page is not None
+    assert [e["source"] for e in page["events"]] == [f"e{i}" for i in range(2, 10)]
+
+
+async def test_evicted_events_without_provider_is_a_hard_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reading an evicted range with no provider errors rather than gapping.
+
+    Bounded-without-provider doesn't occur in production (`_sample_transcript_
+    config` only enables bounded mode when the buffer DB exists), so there's no
+    soft "missed N" signal — a hard error (the endpoint surfaces it as a
+    structured 500) beats serving a silently-gapped stream. Reads within the
+    resident window still work.
+    """
+    import inspect_ai.log._samples as samples_mod
+
+    events: list[Event] = [_info_at(f"e{i}", _now()) for i in range(10)]
+    sample = _bounded_running_sample(events, with_provider=False)
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [sample])
+
+    with pytest.raises(RuntimeError, match="not available"):
+        await sample_events("e1", "1", 1)
+
+    # the resident window itself remains readable
+    page = await sample_events("e1", "1", 1, tail=3)
+    assert page is not None
+    assert [e["source"] for e in page["events"]] == ["e7", "e8", "e9"]

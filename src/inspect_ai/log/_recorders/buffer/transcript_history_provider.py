@@ -45,7 +45,7 @@ class TranscriptHistoryBuffer(Protocol):
     ) -> AbstractContextManager[SampleHistoryLike]: ...
 
     def open_sample_history_from(
-        self, id: str | int, epoch: int, start: int
+        self, id: str | int, epoch: int, start: int, limit: int | None = None
     ) -> AbstractContextManager[SampleHistoryLike]: ...
 
     def open_sample_history(
@@ -84,11 +84,11 @@ class BufferTranscriptHistoryProvider:
         ) as history:
             return _materialize_events(history)
 
-    def events_from(self, start: int) -> Sequence[Event]:
-        if start <= 0:
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        if start <= 0 and limit is None:
             return self._events()
         with self._buffer_db.open_sample_history_from(
-            self._sample_id, self._epoch, start
+            self._sample_id, self._epoch, max(0, start), limit
         ) as history:
             return _materialize_events(history)
 

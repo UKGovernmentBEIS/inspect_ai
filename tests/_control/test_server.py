@@ -312,7 +312,7 @@ async def test_sample_events_endpoint_parses_type_and_404(
         seen["full"] = full
         if sample_id == "missing":
             return None
-        return {"events": [], "next": "c", "done": True, "missed": 0}
+        return {"events": [], "next": "c", "done": True}
 
     monkeypatch.setattr(server_mod, "sample_events", _fake)
 
