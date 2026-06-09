@@ -54,6 +54,7 @@ from ._tools._list_files import list_files
 from ._tools._memory import memory
 from ._tools._notify_user import notify_user
 from ._tools._read_file import read_file
+from ._tools._run_code import run_code
 from ._tools._skill import Skill, SkillInfo, install_skills, read_skills, skill
 from ._tools._text_editor import text_editor
 from ._tools._think import think
@@ -61,7 +62,6 @@ from ._tools._todo_write import todo_write
 from ._tools._update_plan import update_plan
 from ._tools._web_browser import web_browser
 from ._tools._web_search import WebSearchProviders, web_search
-from ._tools._run_code import run_code
 
 __all__ = [
     "ask_user",

@@ -19,6 +19,7 @@ from inspect_ai.tool._tools._run_code._run_code import (
 )
 from inspect_ai.tool._tools._run_code._run_code_executor import RunCodeResult
 
+
 @pytest.fixture
 def anyio_backend():
     return "asyncio"

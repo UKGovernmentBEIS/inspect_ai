@@ -1,7 +1,15 @@
-from inspect_ai.tool import Tool, ToolDef, tool
-from collections.abc import Sequence
-from ._run_code_executor import RunCodeExecutor, RunCodeResult, StubRunCodeExecutor, MontyRunCodeExecutor
 import asyncio
+from collections.abc import Sequence
+
+from inspect_ai.tool import Tool, ToolDef, tool
+
+from ._run_code_executor import (
+    MontyRunCodeExecutor,
+    RunCodeExecutor,
+    RunCodeResult,
+    StubRunCodeExecutor,
+)
+
 
 def _tool_defs(tools: Sequence[Tool] | None) -> list[ToolDef]:
     """Convert allowed tools into ToolDef objects."""
@@ -140,13 +148,18 @@ def run_code(
     include_tool_call_trace: bool = False,
     max_output_chars: int | None = 20_000,
 ) -> Tool:
-    """Run Python code that can orchestrate selected tools.
+    """"
+    Run Python code that can orchestrate selected tools.
 
     Args:
-        tools: Tools that code executed by run_code may eventually call.
+        tools: Tools that code executed by run_code may call.
         timeout: Maximum execution time in seconds.
+        executor: Executor used to run code. Intended for tests and alternative backends.
+        execute_code: Whether to execute code using the Monty-backed executor.
+        max_inner_tool_calls: Maximum number of allowlisted tool calls from inside run_code.
+        include_tool_call_trace: Whether to include a compact trace of inner tool calls in the result.
+        max_output_chars: Maximum number of characters returned by run_code.
     """
-
     tool_defs = _tool_defs(tools)
     tool_def_by_name = _tool_def_by_name(tool_defs)
     tool_defs = list(tool_def_by_name.values())

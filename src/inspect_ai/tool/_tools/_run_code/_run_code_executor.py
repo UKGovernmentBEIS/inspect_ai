@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from inspect_ai.tool import ToolDef
+
 from ._bridge import RunCodeInnerToolCall, RunCodeToolBridge
 
 
