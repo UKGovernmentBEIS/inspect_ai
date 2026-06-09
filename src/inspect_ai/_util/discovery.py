@@ -92,7 +92,7 @@ def write_discovery_file(dir_path: Path, pid: int, payload: dict[str, Any]) -> P
       file can only ever be *less* permissive, never more.
     - **Atomic publish.** Written to a same-PID temp in ``dir_path`` (so the
       ``replace`` is a same-filesystem rename) and renamed over the final
-      path, so a concurrent enumerator (``inspect ctl ls``) sees the complete
+      path, so a concurrent enumerator (``inspect ctl tasks``) sees the complete
       file or no file — never a torn / partial-JSON read.
 
     Caller is responsible for the payload schema. Returns the path written.

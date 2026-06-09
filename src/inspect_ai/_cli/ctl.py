@@ -4,8 +4,8 @@ The ``ctl`` group hosts the commands that operate on a *running* Inspect
 eval via the per-process control server's HTTP endpoints. See
 ``design/control-channel.md`` for the design.
 
-Implemented (read surface + keep-alive): ``ls`` (enumerate live evals),
-``samples`` (a task's samples), ``sample`` (one sample's error detail),
+Implemented (read surface + keep-alive): ``tasks`` (enumerate running
+tasks), ``samples`` (a task's samples), ``sample`` (one sample's error detail),
 ``errors`` (errored / retried samples), ``events`` (a sample's transcript
 events), and ``release`` (let a ``--keep-alive`` process exit). The
 state-mutating directives (cancel / drain / requeue / modify-limits) are
@@ -33,7 +33,7 @@ from inspect_ai._control.discovery import (
 def ctl_command() -> None:
     """Read the state of running evals and release kept-alive processes.
 
-    Commands: ``ls`` (running evals), ``samples`` / ``sample`` / ``errors``
+    Commands: ``tasks`` (running tasks), ``samples`` / ``sample`` / ``errors``
     (an eval's samples), ``events`` (a sample's transcript), ``release``
     (let a ``--keep-alive`` process exit). All are read-only except
     ``release`` — state-mutating directives (cancel, drain, modify limits)
@@ -64,16 +64,16 @@ def _echo_no_running_evals() -> None:
     )
 
 
-@ctl_command.command("ls")
+@ctl_command.command("tasks")
 @click.option(
     "--json",
     "as_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (one array of eval summaries).",
+    help="Output as JSON (one array of task summaries).",
 )
-def ls_command(as_json: bool) -> None:
-    """List running evals across all live Inspect processes."""
+def tasks_command(as_json: bool) -> None:
+    """List running tasks across all live Inspect processes."""
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers)
 
@@ -111,7 +111,7 @@ def samples_command(
 ) -> None:
     """List the samples (running and completed) of a running eval.
 
-    TASK selects the task (as shown by `inspect ctl ls`): a task id (or
+    TASK selects the task (as shown by `inspect ctl tasks`): a task id (or
     unique prefix), or a task name. A task id is stable across retries —
     unlike a per-attempt eval id, it still resolves after a task errors
     and is retried. A name matches at the start of the task name or after
@@ -427,7 +427,7 @@ def _resolve_target_eval(
 ) -> dict[str, Any]:
     """Pick the task a per-eval command targets, or exit with an error.
 
-    ``query`` matches a task id first (full, then unique prefix — ``ls``
+    ``query`` matches a task id first (full, then unique prefix — ``tasks``
     shows truncated ids; ids are stable across retries), then falls back
     to the task name (see :func:`_match_by_task_name`). Without a query,
     default to the sole running task.

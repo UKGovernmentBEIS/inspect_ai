@@ -14,7 +14,7 @@ channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
 MVP scope: a single ``GET /evals`` read-only endpoint sufficient for
-``inspect ctl ls`` plus a ``POST /release`` route for keep-alive
+``inspect ctl tasks`` plus a ``POST /release`` route for keep-alive
 release. Directives, sample-level endpoints, and event subscription
 land in subsequent phases.
 """

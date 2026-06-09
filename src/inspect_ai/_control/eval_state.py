@@ -11,7 +11,7 @@ total sample count is known), plus :func:`record_sample_completed` /
 are not unregistered per-eval — the registry is cleared in one shot at
 the outermost run boundary (``eval`` / ``eval_set``) via
 :func:`clear_all_eval_states`, which keeps completed evals visible in
-``inspect ctl ls`` through the run (and any keep-alive park).
+``inspect ctl tasks`` through the run (and any keep-alive park).
 
 Lives under ``_control/`` because the control channel is currently
 the only consumer; if other surfaces (TUI, view server) ever need
@@ -88,7 +88,7 @@ class EvalState:
     render as a failure."""
 
     task: str = ""
-    """Task name. Carried here so consumers (control channel `ls`) can label
+    """Task name. Carried here so consumers (control channel `tasks`) can label
     the eval even after all its samples have exited ``active_samples``
     (typically: under keep-alive, after the eval body completes)."""
 

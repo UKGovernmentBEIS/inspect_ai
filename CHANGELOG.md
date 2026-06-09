@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set without parsing logs: `ls` (running evals), `samples` (per-sample status, with an idle indicator to spot stalled samples), `sample` / `errors` (per-sample error history), and `release`. Add `--keep-alive` to keep a process and its control surface alive after the eval finishes — until `inspect ctl release` — so results can be read without racing process teardown.
+- Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - S3: Retry when requests have stale signatures.

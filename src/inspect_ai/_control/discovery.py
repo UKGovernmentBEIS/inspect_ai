@@ -2,7 +2,7 @@
 
 Each running eval process writes a per-PID discovery JSON at
 ``<inspect_data_dir>/control/<pid>.json`` describing its AF_UNIX
-socket. CLI clients (``inspect ctl ls``, etc.) read this directory to
+socket. CLI clients (``inspect ctl tasks``, etc.) read this directory to
 enumerate live evals.
 
 The filesystem mechanics (PID-based JSON write with 0600, stale-PID

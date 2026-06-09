@@ -655,7 +655,7 @@ def eval_set(
 
     # EvalStates accumulate as tasks run (task_run registers but never
     # unregisters); clear the registry at this run boundary — in `finally`,
-    # after any keep-alive park — so they stay visible in `inspect ctl ls`
+    # after any keep-alive park — so they stay visible in `inspect ctl tasks`
     # through the run + park, but don't leak past it.
     try:
         with (
@@ -747,7 +747,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
     Reused tasks bypass ``task_run.py`` (their results are read from
     disk rather than re-computed), so the per-task ``register_eval``
     that normally publishes state never fires for them. Without an
-    explicit registration here, ``inspect ctl ls`` would show zero
+    explicit registration here, ``inspect ctl tasks`` would show zero
     entries for an eval-set whose tasks all came from prior logs —
     confusing for an agent driving an eval-set under ``--keep-alive``
     that expects to see what the eval-set returned.

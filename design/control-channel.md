@@ -8,7 +8,7 @@ This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though 
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
-> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl ls` / `samples` / `sample` / `errors` / `events` / `release` commands, and `--keep-alive`. **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits); **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
+> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl tasks` / `samples` / `sample` / `errors` / `events` / `release` commands, and `--keep-alive`. **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits); **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
 
 ## Goals
 
@@ -35,7 +35,7 @@ User: "Run my new task against gpt-5 and claude-opus. Cancel anything stalled
 Agent (via Bash):
   inspect eval my_task --model gpt-5  --log-dir ./logs/gpt5  --detach --keep-alive --json
   inspect eval my_task --model claude --log-dir ./logs/opus  --detach --keep-alive --json
-  inspect ctl ls --json                                                      # watch progress
+  inspect ctl tasks --json                                                      # watch progress
   inspect ctl samples <id> --active-since <ts> --json                        # poll for what changed / stalls
   inspect ctl cancel-sample <eval-id> <sample-id> --action error --dry-run   # check before acting
   inspect ctl cancel-sample <eval-id> <sample-id> --action error
@@ -46,7 +46,7 @@ Agent (via Bash):
 
 The `--keep-alive` flag is load-bearing for this workflow: without it, each eval process exits the instant the eval body returns, taking its discovery file and control endpoint with it. The agent's later "inspect results" / "compare" / "decide" steps would race the process teardown and intermittently find no control surface to query. With `--keep-alive` the process parks after the eval body completes, the control endpoint stays bound, and `inspect ctl release` is the explicit teardown signal the agent issues when it's done.
 
-The control channel provides the **middle four** of those commands (the live-eval surfaces — `ls`, `events`, `cancel-sample`); the surrounding commands come from the broader agent-enablement work (see Related work). For this scenario to work, every surface must be:
+The control channel provides the **middle four** of those commands (the live-eval surfaces — `tasks`, `events`, `cancel-sample`); the surrounding commands come from the broader agent-enablement work (see Related work). For this scenario to work, every surface must be:
 
 - JSON-output capable (`--json` everywhere).
 - Summary-shaped by default — agents have limited context; full dumps don't fit.
@@ -72,7 +72,7 @@ Single-purpose human-driven CLI commands, all under the `inspect ctl` subcommand
 
 ```
 # phase 1 (shipped)
-inspect ctl ls                              # list running evals
+inspect ctl tasks                              # list running tasks
 inspect ctl samples [TASK] [--active-since TS]  # per-sample table (status / retries / score / timing / idle)
 inspect ctl sample TASK SID [EPOCH] [-t]    # one sample's error history (--traceback for full)
 inspect ctl errors [TASK]                   # triage: samples that errored or were retried
@@ -97,7 +97,7 @@ Each is a thin wrapper — autocomplete-friendly, scriptable, composable with sh
 
 #### CLI grouping: `inspect ctl`
 
-All live-eval management commands live under a single `inspect ctl` subcommand rather than as flat top-level verbs (`inspect ls`, `inspect cancel`, ...). The choice is deliberate:
+All live-eval management commands live under a single `inspect ctl` subcommand rather than as flat top-level verbs (`inspect tasks`, `inspect cancel`, ...). The choice is deliberate:
 
 - **Conceptual coherence.** Every command in the group operates on a running Inspect process via the control endpoint; they share infrastructure (discovery, auth, lifecycle) and a mental model. That's a real subsystem, not an arbitrary bag of verbs.
 - **Namespace pressure.** Inspect's top-level CLI is already crowded (`eval`, `eval-set`, `eval-retry`, `view`, `log`, `score`, `cache`, `sandbox`, `acp`). Adding 7–8 new verbs there crowds discovery for everyone; grouping under `ctl` keeps the top level uncluttered.
@@ -136,7 +136,7 @@ Concentrated in `src/inspect_ai/agent/_acp/` and detailed in [`agent-acp.md`](ac
 | `inspect/event` (opt-in) | Raw transcript event firehose, per sample |
 | `session/prompt`, `session/cancel`, `session/request_permission` | Per-sample ACP interaction — message the agent, interrupt it, answer approval requests |
 
-**What was missing (the gap this work fills).** Everything ACP provides is *per-sample*; before the control channel there was nothing at the eval or eval-set layer. Operations like "cancel the eval", "list eval-set state", "modify the eval's per-sample limit" didn't exist. Discovery was per-eval. The TUI ran in-process. CLI surface was limited to `inspect acp [--stdio]` (the editor bridge). Phases 1–2 (shipped) now provide the eval-level **read** layer (`inspect ctl ls` / `samples` / `sample` / `errors` / `events`, the `control/` discovery dir, eval-level `EvalState`, and the cursored per-sample transcript `events` pull); the eval-level **direct** operations and eval-set-level surface remain future work (phases 3 / later).
+**What was missing (the gap this work fills).** Everything ACP provides is *per-sample*; before the control channel there was nothing at the eval or eval-set layer. Operations like "cancel the eval", "list eval-set state", "modify the eval's per-sample limit" didn't exist. Discovery was per-eval. The TUI ran in-process. CLI surface was limited to `inspect acp [--stdio]` (the editor bridge). Phases 1–2 (shipped) now provide the eval-level **read** layer (`inspect ctl tasks` / `samples` / `sample` / `errors` / `events`, the `control/` discovery dir, eval-level `EvalState`, and the cursored per-sample transcript `events` pull); the eval-level **direct** operations and eval-set-level surface remain future work (phases 3 / later).
 
 **What's reusable.** Even though ACP isn't the right shape for the control channel, the *plumbing* developed for it is:
 
@@ -171,14 +171,14 @@ The conceptual surface, independent of wire protocol. Each operation becomes eit
 
 **Subscribe**
 - Per-sample transcript **events**: the fine-grained `model` / `tool` / `error` / `score` / … firehose for one running sample (sourced from its `Transcript`). The one genuine stream.
-- Eval-level lifecycle (sample queued / started / finished / errored, eval finished) is **not** a stream — current state is served by the reads (`ls` / `samples`), with a recency delta on `samples`. An *ordered* lifecycle transition log is a later audit/TUI item.
+- Eval-level lifecycle (sample queued / started / finished / errored, eval finished) is **not** a stream — current state is served by the reads (`tasks` / `samples`), with a recency delta on `samples`. An *ordered* lifecycle transition log is a later audit/TUI item.
 - Eval-set-level lifecycle (child eval starting / finished, eval-set finished): same — served by eval-set reads (later), not a dedicated stream.
 
 ### Shape constraints from agent consumers
 
 Four constraints fall out of supporting LLM-driven agents (see "Programmatic / agent consumers" below) that don't apply to TUIs / human CLI:
 
-1. **Every read operation needs a structured (JSON) output form.** Agents parse JSON reliably; agents parse human-formatted tables poorly. CLI commands ship `--json` as a first-class output mode, not an afterthought. The JSON schema is the canonical shape — human-formatted output is a rendering of it. Same shape serves shell-pipeline users (`inspect ctl ls --json | jq ...`) and LLM agents.
+1. **Every read operation needs a structured (JSON) output form.** Agents parse JSON reliably; agents parse human-formatted tables poorly. CLI commands ship `--json` as a first-class output mode, not an afterthought. The JSON schema is the canonical shape — human-formatted output is a rendering of it. Same shape serves shell-pipeline users (`inspect ctl tasks --json | jq ...`) and LLM agents.
 2. **Read operations should return summaries by default, with drill-down for detail.** Returning a 200-sample status dump as JSON eats LLM context. The `list samples` shape should default to a summary (status histogram + the N most-recent / longest-running) with a separate `get_sample(id)` for the full picture. Humans paginate / `jq`; agents need the shape to be agent-shaped at the source.
 3. **Events need both push and pull access.** TUIs want push (SSE notification, immediate render). LLM agents want pull (cursored read: "events for eval X since cursor Y") — their runtimes are request/response loops, not subscription loops. The control channel should expose both shapes regardless of which the underlying transport favours; the push shape is the natural one for the wire protocol, the pull shape is a thin server-side buffer + cursor on top.
 4. **Directives should be idempotent and support dry-run.** Agents retry, get confused, and operate on stale state. `requeue_sample` called twice must not double-queue. `cancel_eval` on an already-cancelled eval must return cleanly. Destructive directives should accept a `dry_run` flag that returns "would do X" without doing it, so agents can reason before acting.
@@ -189,7 +189,7 @@ The control channel runs as an **HTTP server embedded directly in the eval proce
 
 ### Why HTTP
 
-- **Excellent CLI ergonomics.** `inspect ctl cancel <id>` is one `httpx` call; shell users can hit endpoints directly with `curl`. Pipe composition works (`inspect ctl ls --json | jq ... | xargs inspect ctl cancel`). Easy to write small monitoring scripts in any language.
+- **Excellent CLI ergonomics.** `inspect ctl cancel <id>` is one `httpx` call; shell users can hit endpoints directly with `curl`. Pipe composition works (`inspect ctl tasks --json | jq ... | xargs inspect ctl cancel`). Easy to write small monitoring scripts in any language.
 - **No new dependencies.** FastAPI, uvicorn, and starlette are already hard dependencies in `requirements.txt` (used by the `inspect view` server). Picking HTTP costs zero framework footprint.
 - **Already a pattern in the codebase.** `src/inspect_ai/_view/fastapi_server.py` shows the FastAPI-server-in-Inspect template — including the bits we need: streaming responses, live in-progress reads (`api_pending_samples`, `api_sample_events`), and an OpenAPI generation pipeline (`_view/_openapi.py`). The control channel reuses the same shape.
 - **Universal tooling.** Browsers, Postman, generated OpenAPI clients, HTTP-level proxies / logging / debugging — all off the shelf.
@@ -288,7 +288,7 @@ The one true *stream* is **per-sample transcript events** — fine-grained, samp
 - **Pull (cursored) for agent clients** — *phase 2 (shipped)*: `GET /evals/<id>/sample/events?sample_id=<sid>&since=<cursor>`, returning a page plus a `next` cursor. Agent runtimes are request/response loops; SSE is awkward from a Bash tool call.
 - **Push (SSE) for TUIs and long-lived clients** — *phase 4*: the same URL with `Accept: text/event-stream`, reusing the phase-2 cursor (stamped per event) for resumable reconnect.
 
-**Eval-*level* monitoring does not need its own event stream.** Current state — which samples are running / done / errored, what's stalled (`last_activity_at`), retry history, whether the eval finished — is already a poll of the phase-1 reads (`ls`, `samples`, `errors` / `sample`). The only thing a poll lacks is a cheap *delta*, which a recency filter on `samples` supplies (`?active_since=<ts>` — "samples started or updated since T"; see Phase 2). An *ordered* eval-level transition log (every intermediate state, in order) is an audit / replay / TUI need, not an agent-monitoring one — deferred to [later](#later-beyond-phase-4).
+**Eval-*level* monitoring does not need its own event stream.** Current state — which samples are running / done / errored, what's stalled (`last_activity_at`), retry history, whether the eval finished — is already a poll of the phase-1 reads (`tasks`, `samples`, `errors` / `sample`). The only thing a poll lacks is a cheap *delta*, which a recency filter on `samples` supplies (`?active_since=<ts>` — "samples started or updated since T"; see Phase 2). An *ordered* eval-level transition log (every intermediate state, in order) is an audit / replay / TUI need, not an agent-monitoring one — deferred to [later](#later-beyond-phase-4).
 
 Both coexist with the per-sample ACP subscriptions — a TUI might use ACP for conversational interaction with one sample AND the control channel for eval-level lifecycle; a watchdog agent might use only cursored lifecycle pull and never touch ACP.
 
@@ -296,12 +296,12 @@ Both coexist with the per-sample ACP subscriptions — a TUI might use ACP for c
 
 Three exposure paths an external agent (Claude Code, scripted watchdog, custom agent runtime) might use. **Path A is the primary integration story; Path C is a deliberate "only if needed" follow-on.**
 
-**Path A: CLI subprocess with `--json` output (primary).** Any agent that can run shell commands uses `inspect ctl ls --json`, `inspect ctl samples <id> --json`, `inspect ctl cancel <id>`, `inspect ctl events <id> <sid> --since <cursor> --json` directly. Works with Claude Code's Bash tool, with shell scripts, with any subprocess-capable runtime.
+**Path A: CLI subprocess with `--json` output (primary).** Any agent that can run shell commands uses `inspect ctl tasks --json`, `inspect ctl samples <id> --json`, `inspect ctl cancel <id>`, `inspect ctl events <id> <sid> --since <cursor> --json` directly. Works with Claude Code's Bash tool, with shell scripts, with any subprocess-capable runtime.
 
 Modern LLMs are demonstrably excellent at:
 - Reading `inspect ctl --help` and discovering subcommands.
 - Parsing JSON output and composing follow-up calls.
-- Pipe composition (`inspect ctl ls --json | jq '.[] | select(.status=="stuck")' | xargs -I{} inspect ctl cancel {}`).
+- Pipe composition (`inspect ctl tasks --json | jq '.[] | select(.status=="stuck")' | xargs -I{} inspect ctl cancel {}`).
 
 Concrete benefits over a wrapping layer:
 - **Single source of truth** — no drift between CLI behaviour and a parallel tool surface.
@@ -326,10 +326,10 @@ Most claimed MCP benefits erode under scrutiny against a good CLI:
 | Structured returns | `--json` solves this. |
 | LLM-friendly descriptions | Well-written `--help` and command docstrings work fine. |
 | Server-side cursor state | `--since <cursor>` from the last event the agent saw, or a `~/.config/inspect/cursors/` file. |
-| Per-tool permissions | Claude Code's Bash allowlist (`inspect ctl cancel*` vs `inspect ctl ls`) covers most of the granularity gap. |
+| Per-tool permissions | Claude Code's Bash allowlist (`inspect ctl cancel*` vs `inspect ctl tasks`) covers most of the granularity gap. |
 | Tool discovery | `inspect ctl --help` is enumerable; agents read it natively. |
 
-Costs of building / maintaining an MCP wrapper, on the other hand, are real: extra process to spawn / configure / debug, second surface to keep in lockstep with the CLI, two vocabularies (`inspect_list_evals` vs `inspect ctl ls`) for the same operations, failure modes invisible to the user.
+Costs of building / maintaining an MCP wrapper, on the other hand, are real: extra process to spawn / configure / debug, second surface to keep in lockstep with the CLI, two vocabularies (`inspect_list_evals` vs `inspect ctl tasks`) for the same operations, failure modes invisible to the user.
 
 If we ever build it, the JSON output schemas already in place make the MCP wrapper incremental rather than a parallel surface — the schemas are the same artifact.
 
@@ -384,7 +384,7 @@ The control endpoint is default-on and unauthenticated. That's a deliberate trad
 | `<pid>.sock` (AF_UNIX socket) | 0600 | Defence-in-depth — closes the gap if the directory ever gets loosened. |
 | `<pid>.json` (discovery file) | 0600 | Same — prevents the socket path / run_id leaking via a world-readable JSON. |
 
-The directory and socket modes are applied via `chmod` on every server start (idempotent), so a directory created before the hardening landed gets locked down on the next bind. The discovery JSON is handled differently: it's created owner-only at `open()` time (the mode is passed to `os.open`, capped by the umask) and published with an atomic temp-write-then-rename, so it is never *momentarily* more permissive than 0600 (no post-write `chmod` window) and a concurrent `inspect ctl ls` reader never observes a torn / partial-JSON file. Some filesystems ignore Unix permissions (FUSE, certain network mounts); the fallback is benign — everything still lives under `inspect_data_dir`, which is user-scoped, so the loss of defence-in-depth is bounded.
+The directory and socket modes are applied via `chmod` on every server start (idempotent), so a directory created before the hardening landed gets locked down on the next bind. The discovery JSON is handled differently: it's created owner-only at `open()` time (the mode is passed to `os.open`, capped by the umask) and published with an atomic temp-write-then-rename, so it is never *momentarily* more permissive than 0600 (no post-write `chmod` window) and a concurrent `inspect ctl tasks` reader never observes a torn / partial-JSON file. Some filesystems ignore Unix permissions (FUSE, certain network mounts); the fallback is benign — everything still lives under `inspect_data_dir`, which is user-scoped, so the loss of defence-in-depth is bounded.
 
 **What this buys us.** With the directory at 0700, an attempted connection from another user's process fails at the directory-traversal step (`EACCES`) before the socket file's own permissions are even consulted. The socket and JSON 0600 modes are belt-and-suspenders: they protect against a misconfigured umask, a future code path that lowers the directory perms, or a user running Inspect under different identities (sudo etc.) that accidentally widen perms.
 
@@ -424,13 +424,13 @@ Cross-cutting details that apply across all phases.
 
 ### Process keep-alive: `--keep-alive` on `inspect eval` / `inspect eval-set`
 
-Without help from the process lifecycle, LLM-agent workflows have a race condition: the eval process exits the instant the eval body returns, taking its control endpoint and discovery file with it. The agent's next step — read results, compare, decide what to do next — runs against a vanished surface. With many agents this manifests intermittently (sometimes the agent gets to `ctl ls` before teardown, sometimes not) and degrades trust in the surface.
+Without help from the process lifecycle, LLM-agent workflows have a race condition: the eval process exits the instant the eval body returns, taking its control endpoint and discovery file with it. The agent's next step — read results, compare, decide what to do next — runs against a vanished surface. With many agents this manifests intermittently (sometimes the agent gets to `ctl tasks` before teardown, sometimes not) and degrades trust in the surface.
 
 The fix is an explicit handoff: `--keep-alive` parks the process after the eval body completes, and `inspect ctl release` is the signal the agent issues when it's done.
 
 **What the flag does.**
 
-- `inspect eval <task> --keep-alive` — after the eval body returns (including scoring + log write), the process blocks on the control endpoint's shutdown event. The control server stays bound. `inspect ctl ls` continues to show the eval (with `samples.completed == total` and a final status), and the log files are present at their final paths. `POST /release` (issued by `inspect ctl release` or any HTTP client) releases the block; the process tears down its server and exits.
+- `inspect eval <task> --keep-alive` — after the eval body returns (including scoring + log write), the process blocks on the control endpoint's shutdown event. The control server stays bound. `inspect ctl tasks` continues to show the eval (with `samples.completed == total` and a final status), and the log files are present at their final paths. `POST /release` (issued by `inspect ctl release` or any HTTP client) releases the block; the process tears down its server and exits.
 - `inspect eval-set <tasks> --keep-alive` — same. With `retry_immediate=True` (the default), eval-set makes exactly one `eval()` call; per-task retries happen inside that one call, so the control server and the keep-alive park both live in the same single async context.
 
 **Why this isn't always-on.** Most invocations don't need it; the cost is "process doesn't exit on its own." For batch / CI workflows that explicitly want the process to die when done, no keep-alive is correct. The flag is opt-in.
@@ -442,14 +442,14 @@ The control server runs on the eval's own anyio loop — same as the existing `t
 This works because in the common case `eval_set` is *also* a single `eval()` call:
 
 - **`retry_immediate=True` (the default).** Eval-set invokes `eval()` exactly once. Per-task retries happen *inside* that single `eval()` call (via `task_retry_attempts` and the failed-sample-reuse path), so one control server bound for the duration of that `eval()` wraps the entire eval-set's actual work. Keep-alive then parks in a separate, sequential step *after* the display closes (a fresh control server over the same registry — see the Implementation sketch), rather than inside the run's server. Identical effective behaviour to a "threaded eval-set-scoped server" but without any threads.
-- **`retry_immediate=False` (legacy batch-retry mode).** Eval-set invokes `eval()` repeatedly via tenacity. Each attempt is its own `eval()` call → its own `anyio.run` → its own control server. Between attempts the server is briefly torn down (`inspect ctl ls` returns "no running evals" for that window). This is a documented limitation of the legacy mode.
+- **`retry_immediate=False` (legacy batch-retry mode).** Eval-set invokes `eval()` repeatedly via tenacity. Each attempt is its own `eval()` call → its own `anyio.run` → its own control server. Between attempts the server is briefly torn down (`inspect ctl tasks` returns "no running evals" for that window). This is a documented limitation of the legacy mode.
 
 **`--keep-alive` is incompatible with `retry_immediate=False`.** The post-retry-loop park would need its own async context outside any single `eval()`, which is exactly the multi-loop bridging problem the alignment chooses to avoid. Eval-set raises `PrerequisiteError` at startup if both are set, with a message pointing at `--retry-immediate` (or dropping `--keep-alive`).
 
 **Implementation sketch.**
 
 - **Loop-native shutdown event.** `ControlServer` holds a `shutdown_event: anyio.Event` (not a `threading.Event`). The `POST /release` route sets it; `wait_for_shutdown_async(server)` is just `await server.shutdown_event.wait()`. Both the route and the waiter run on the same eval loop, so no thread or cross-loop bridge is needed. (An earlier design parked on a `threading.Event` via `anyio.to_thread.run_sync`; that left an abandoned non-daemon worker thread blocked on `Event.wait()` after a Ctrl-C, which is why the loop-native event replaced it.)
-- **Registry lifecycle: register on start, clear at the run boundary.** `task_run.py` *always* `register_eval`s a task and never unregisters it per-task — so a completed eval stays visible to `ctl ls` for the rest of the run (including any keep-alive park) without a special "keep-alive active" flag. `clear_all_eval_states()` is called once at the outermost run boundary: `_eval_async_inner`'s `finally` when `eval_set_id is None` (standalone eval), or `eval_set`'s `finally` (eval-set). This replaced the earlier `keep_alive_active()` flag + per-task `unregister_eval` + `keep_alive_session` helper, which were removed.
+- **Registry lifecycle: register on start, clear at the run boundary.** `task_run.py` *always* `register_eval`s a task and never unregisters it per-task — so a completed eval stays visible to `ctl tasks` for the rest of the run (including any keep-alive park) without a special "keep-alive active" flag. `clear_all_eval_states()` is called once at the outermost run boundary: `_eval_async_inner`'s `finally` when `eval_set_id is None` (standalone eval), or `eval_set`'s `finally` (eval-set). This replaced the earlier `keep_alive_active()` flag + per-task `unregister_eval` + `keep_alive_session` helper, which were removed.
 - **Standalone eval parks inline.** `_eval_async_inner` opens `control_server(...)` + `acp_server(...)`, runs the eval body, then — still inside those contexts — prints the keep-alive notice and `await wait_for_shutdown_async(server)` when `keep_alive` is set. One control server, parked while it's still bound.
 - **Eval-set parks *after* the task display closes.** Eval-set runs its single inner `eval()` (which binds its own control server for the duration of the run, with `eval_set_id` set so that `eval()` does **not** park or clear). After the display tears down and the console summary prints, `eval_set` calls `run_coroutine(_keep_alive_park(eval_set_id))`: a fresh `control_server` is bound on a new loop and parked on its shutdown event. Two sequential server bindings (one during the run, one during the park), both serving the **same** process-global `EvalState` registry — so the surface is continuous across the brief gap while the summary prints. (Doing the park *after* the display closes is deliberate: otherwise the "keeping alive" notice lands inside the live task-display pane instead of the console.) The all-reused short-circuit — every task satisfied by a prior successful log, so `eval()` is never called — reaches the same `_keep_alive_park` with the reused logs already in the registry, so the parked surface looks identical.
 
@@ -532,7 +532,7 @@ The always-on read surface plus the process-lifecycle plumbing agents need. Give
   - `GET /evals/<id>/samples` — all of an eval's samples (running + completed + pending), merged from `active_samples` + the recorder's live summaries (falling back to the on-disk log) + the planned `(sample_id, epoch)` set. Running samples carry `last_activity_at` (unix ts of the sample's most recent transcript event) and `events` (a live event count) so a consumer can tell "stalled" from "working" — `now - last_activity_at` is the sample's idle time — without diffing successive polls. (Caveat: a single in-flight model generation emits no event until it returns, so neither field advances *within* one long call — the per-sample `events` stream has the same blind spot; closing it needs streaming token deltas or a "current operation" indicator via the `execution_observer`, out of scope here.)
   - `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` — one sample's error detail: current error + prior-attempt `error_retries` (running samples sourced from `active_samples`, terminal ones from the log). `sample_id` is a query param so string ids with reserved chars (`/`, `?`, `#`) address correctly.
 - **`POST /release`** — releases a `--keep-alive` park. The only write endpoint in phase 1, and it acts on the process, not on eval state.
-- **CLI (`inspect ctl`, `--json` throughout):** `ls` (running evals), `samples [TASK]` (per-sample table: status / retries / score / timing / idle / tokens), `sample TASK SAMPLE_ID [EPOCH] [--traceback]` (one sample's error history), `errors [TASK]` (triage list of errored / retried samples), `release [--pid]`. `TASK` resolves by task-id prefix, then task-name (anchored at the name start or after a `/`); a sole running task is the default.
+- **CLI (`inspect ctl`, `--json` throughout):** `tasks` (running tasks), `samples [TASK]` (per-sample table: status / retries / score / timing / idle / tokens), `sample TASK SAMPLE_ID [EPOCH] [--traceback]` (one sample's error history), `errors [TASK]` (triage list of errored / retried samples), `release [--pid]`. `TASK` resolves by task-id prefix, then task-name (anchored at the name start or after a `/`); a sole running task is the default.
 - **Retry + cancellation surfacing.** Sample retry counts — both sample-level `retry_on_error` and task-level retries (the latter seeded onto the re-run via the sample source, and carried across attempts that tear a sample down before it re-runs) — appear in `samples`; prior-attempt errors in `sample` / `errors`. A cancellation (a sibling failure tore the attempt down) is **not** a genuine error: it renders as `pending` when a retry will re-run the sample, `cancelled` when terminal — never `error`. This avoids the misleading "all samples error" snapshot during a retry teardown.
 - **`--keep-alive`** on `inspect eval` / `inspect eval-set` (see Implementation notes).
 
@@ -543,13 +543,13 @@ Two additions, both **cursored-pull** (push / `--follow` is deferred to [phase 4
 - **Per-sample transcript `events`** — `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>` (`sample_id` a query param, as in `sample`, so ids with reserved chars address correctly). The firehose of `model` / `tool` / `error` / `score` / … events for one running sample. This is the genuine stream — the one thing polling the reads can't reconstruct.
 - **A recency delta on `samples`** — `GET /evals/<id>/samples?active_since=<ts>`. "Samples started or updated since T," so a monitoring agent gets *what changed* in one read without diffing snapshots client-side. This subsumes what a separate eval-level "lifecycle updates" stream would have provided (see below).
 
-There is deliberately **no** eval-level lifecycle event stream. Eval-level current state is already a poll of the phase-1 reads (`ls` counts + status, `samples` status + `last_activity_at`, `errors` / `sample` retry history); the `samples` recency delta covers the "what changed" gap. An *ordered* eval-level transition log is an audit / replay / TUI concern, deferred to [later](#later-beyond-phase-4) — see "Why no lifecycle stream" below.
+There is deliberately **no** eval-level lifecycle event stream. Eval-level current state is already a poll of the phase-1 reads (`tasks` counts + status, `samples` status + `last_activity_at`, `errors` / `sample` retry history); the `samples` recency delta covers the "what changed" gap. An *ordered* eval-level transition log is an audit / replay / TUI concern, deferred to [later](#later-beyond-phase-4) — see "Why no lifecycle stream" below.
 
 CLI: `inspect ctl events TASK SAMPLE_ID [EPOCH]` (transcript stream) and `inspect ctl samples TASK --active-since T` (the delta). Event-stream flags: `--since <cursor>`, `--tail N`, `--type`, `--full`, `--since-time/--until`, `--json`. (`-f/--follow` arrives with phase-4 push.)
 
 #### Why no lifecycle stream
 
-Building a dedicated eval-lifecycle event stream would mean a control-owned, hook-fed, ordered buffer per task (with its own cursor) — and for the agent monitoring loop it's largely redundant. An agent acts on *current state* ("sample 5 errored", "this one's idle 8m"), which is a poll away: status and counts from `ls` / `samples`, stalls from `last_activity_at`, retry history from `retries` + `errors` / `sample`, "eval finished" from `ls` `completed_at`. The only thing a poll lacks is a cheap delta — supplied by the `samples` recency filter. The sole thing a transition *log* uniquely adds is the *ordered intermediate history* (every flip, in order), which is an audit/replay/TUI need; deferring it avoids building (and cursoring) a second buffer until a real consumer wants it.
+Building a dedicated eval-lifecycle event stream would mean a control-owned, hook-fed, ordered buffer per task (with its own cursor) — and for the agent monitoring loop it's largely redundant. An agent acts on *current state* ("sample 5 errored", "this one's idle 8m"), which is a poll away: status and counts from `tasks` / `samples`, stalls from `last_activity_at`, retry history from `retries` + `errors` / `sample`, "eval finished" from `tasks` `completed_at`. The only thing a poll lacks is a cheap delta — supplied by the `samples` recency filter. The sole thing a transition *log* uniquely adds is the *ordered intermediate history* (every flip, in order), which is an audit/replay/TUI need; deferring it avoids building (and cursoring) a second buffer until a real consumer wants it.
 
 #### Event source
 
@@ -674,4 +674,4 @@ The control channel is one slice of a broader effort to make Inspect a first-cla
 - **Self-targeting guard hardening.** Open question #8 in this doc — an LLM agent running *inside* an eval shouldn't be able to control its own parent eval. The guard logically belongs in the control channel's bind / authorisation layer, but the broader story (sandbox network egress, capability gating, eval-time vs scaffold-time boundaries) is part of the larger agent-enablement effort.
 - **"Using Inspect from an LLM agent" documentation.** A guide that walks through the full workflow (launch, monitor, manage, inspect, compare, iterate) and points at every relevant CLI command. Lives in `docs/`, not `design/`.
 
-Where this doc's design touches one of those surfaces (eg. the `EvalState` model that powers `inspect ctl ls`), we describe what the control channel does and reference the broader work for the surrounding context.
+Where this doc's design touches one of those surfaces (eg. the `EvalState` model that powers `inspect ctl tasks`), we describe what the control channel does and reference the broader work for the surrounding context.
