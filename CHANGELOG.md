@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
+- Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.
+- Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - S3: Retry when requests have stale signatures.
 
