@@ -32,12 +32,31 @@ def build_log(tmp_dir: str, n_samples: int = 4, epochs: int = 2) -> str:
     return eval(task, model="mockllm/model", epochs=epochs, log_dir=tmp_dir)[0].location
 
 
+def build_string_id_log(tmp_dir: str) -> str:
+    """Build a small .eval log whose samples have custom string ids."""
+    task = Task(
+        dataset=[
+            Sample(id="q-alpha", input="Question alpha", target="Answer alpha"),
+            Sample(id="q-beta", input="Question beta", target="Answer beta"),
+            Sample(id="q-gamma", input="Question gamma", target="Answer gamma"),
+        ],
+        solver=generate(),
+    )
+    return eval(task, model="mockllm/model", epochs=1, log_dir=tmp_dir)[0].location
+
+
 @pytest.fixture(scope="module")
 def log_file() -> Iterator[str]:
     # Build the log eagerly (outside any event loop) so async tests can read it
     # without nesting eval()'s own asyncio.run inside a running loop.
     with tempfile.TemporaryDirectory() as tmp_dir:
         yield build_log(tmp_dir)
+
+
+@pytest.fixture(scope="module")
+def string_id_log_file() -> Iterator[str]:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        yield build_string_id_log(tmp_dir)
 
 
 def test_read_samples_by_id_preserves_request_order(log_file: str):
@@ -51,6 +70,15 @@ def test_read_samples_by_id_matches_read_eval_log_sample(log_file: str):
     samples = read_eval_log_samples_by_id(log_file, requested)
     for (id, epoch), sample in zip(requested, samples):
         expected = read_eval_log_sample(log_file, id=id, epoch=epoch)
+        assert sample.model_dump() == expected.model_dump()
+
+
+def test_read_samples_by_id_string_ids(string_id_log_file: str):
+    requested = [("q-gamma", 1), ("q-alpha", 1), ("q-beta", 1)]
+    samples = read_eval_log_samples_by_id(string_id_log_file, requested)
+    assert [(s.id, s.epoch) for s in samples] == requested
+    for (id, epoch), sample in zip(requested, samples):
+        expected = read_eval_log_sample(string_id_log_file, id=id, epoch=epoch)
         assert sample.model_dump() == expected.model_dump()
 
 
