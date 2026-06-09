@@ -10,7 +10,11 @@ import anyio
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import clear_all_eval_states
-from inspect_ai._control.server import control_server, wait_for_shutdown_async
+from inspect_ai._control.server import (
+    control_server,
+    resolve_ctl_server,
+    wait_for_shutdown_async,
+)
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
@@ -102,7 +106,7 @@ def eval(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
-    keep_alive: bool = False,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -178,10 +182,12 @@ def eval(
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
-        keep_alive: Keep the process running after the eval finishes so
-            external clients can still query the control endpoint. Exit
-            via `inspect ctl release` (or `POST /release`). Defaults
-            to `False`.
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl release`
+            (or `POST /release`).
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -336,7 +342,7 @@ def eval(
                 score=score,
                 score_display=score_display,
                 acp_server=acp_server,
-                keep_alive=keep_alive,
+                ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -380,7 +386,7 @@ async def eval_async(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
-    keep_alive: bool = False,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -446,10 +452,12 @@ async def eval_async(
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
-        keep_alive: Keep the process running after the eval finishes so
-            external clients can still query the control endpoint. Exit
-            via `inspect ctl release` (or `POST /release`). Defaults
-            to `False`.
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl release`
+            (or `POST /release`).
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
         tags: Tags to associate with this evaluation run.
@@ -588,7 +596,7 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 acp_server=acp_server,
-                keep_alive=keep_alive,
+                ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -624,7 +632,7 @@ async def _eval_async_inner(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
-    keep_alive: bool = False,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -888,14 +896,16 @@ async def _eval_async_inner(
         # context manager and Python disallows mixing in the comma form.
         #
         # The control channel HTTP server is default-on (unlike ACP,
-        # which is opt-in). It exposes live-eval read / direct /
-        # event-subscription operations to `inspect ctl` CLI clients,
-        # TUIs, and agents. Bind failures are logged and swallowed —
-        # eval correctness never depends on the control channel coming
-        # up. See design/control-channel.md "Implementation notes".
+        # which is opt-in; disable with ctl_server=False). It exposes
+        # live-eval read / direct / event-subscription operations to
+        # `inspect ctl` CLI clients, TUIs, and agents. Bind failures are
+        # logged and swallowed — eval correctness never depends on the
+        # control channel coming up. See design/control-channel.md
+        # "Implementation notes".
         #
+        ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
         async with (
-            control_server(run_id=run_id) as _ctl_server,
+            control_server(run_id=run_id, enabled=ctl_enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
         ):
             with scan_cm:
@@ -967,7 +977,7 @@ async def _eval_async_inner(
             # request shutdown. (Standalone eval parks here, inside the
             # task display; eval-set instead parks after the display has
             # closed.) EvalStates are cleared at the run boundary below.
-            if keep_alive and _ctl_server is not None:
+            if ctl_keep_alive and _ctl_server is not None:
                 import rich
 
                 rich.get_console().print(
@@ -1032,7 +1042,7 @@ def eval_retry(
     score: bool = True,
     score_display: bool | None = None,
     acp_server: bool | int | str | None = None,
-    keep_alive: bool = False,
+    ctl_server: bool | str | None = None,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -1091,10 +1101,12 @@ def eval_retry(
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
-        keep_alive: Keep the process running after the eval finishes so
-            external clients can still query the control endpoint. Exit
-            via `inspect ctl release` (or `POST /release`). Defaults
-            to `False`.
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl release`
+            (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;
@@ -1164,7 +1176,7 @@ def eval_retry(
             score=score,
             score_display=score_display,
             acp_server=acp_server,
-            keep_alive=keep_alive,
+            ctl_server=ctl_server,
             scanner=scanner,
             max_retries=max_retries,
             timeout=timeout,
@@ -1216,7 +1228,7 @@ async def eval_retry_async(
     score: bool = True,
     score_display: bool | None = None,
     acp_server: bool | int | str | None = None,
-    keep_alive: bool = False,
+    ctl_server: bool | str | None = None,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -1267,10 +1279,12 @@ async def eval_retry_async(
             additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
-        keep_alive: Keep the process running after the eval finishes so
-            external clients can still query the control endpoint. Exit
-            via `inspect ctl release` (or `POST /release`). Defaults
-            to `False`.
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl release`
+            (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;
@@ -1563,7 +1577,7 @@ async def eval_retry_async(
                 score_display=score_display,
                 checkpoint=checkpoint,
                 acp_server=acp_server,
-                keep_alive=keep_alive,
+                ctl_server=ctl_server,
                 **dict(config),
             )
         )[0]

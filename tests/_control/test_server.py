@@ -126,8 +126,8 @@ def test_start_does_not_publish_discovery_when_bind_fails(
     The socket is bound synchronously in ``start()`` (then handed to uvicorn
     pre-bound), so a bind failure raises before the discovery file is
     written. Regression guard: a live ``<pid>.json`` pointing at a dead
-    socket would strand ``inspect ctl`` clients — and under ``--keep-alive``
-    the shutdown path can't connect, leaving the process parked forever.
+    socket would strand ``inspect ctl`` clients — and under a keep-alive
+    park the shutdown path can't connect, leaving the process parked forever.
     ``start()`` must raise and write no discovery file; ``control_server``
     must degrade to ``None``.
     """
@@ -334,3 +334,51 @@ async def test_sample_events_endpoint_parses_type_and_404(
             "/evals/e1/sample/events", params={"sample_id": "missing"}
         )
         assert missing.status_code == 404
+
+
+def test_resolve_ctl_server_values() -> None:
+    """The ``ctl_server`` param resolves to ``(enabled, keep_alive)``.
+
+    ``None`` and ``True`` are the default-on shape, ``False`` disables,
+    ``"keep-alive"`` enables + parks. Any other string is rejected rather
+    than silently treated as ``True`` — it's more likely a typo of
+    ``keep-alive``, and dropping the requested park would strand the user.
+    """
+    from inspect_ai._control.server import resolve_ctl_server
+    from inspect_ai._util.error import PrerequisiteError
+
+    assert resolve_ctl_server(None) == (True, False)
+    assert resolve_ctl_server(True) == (True, False)
+    assert resolve_ctl_server(False) == (False, False)
+    assert resolve_ctl_server("keep-alive") == (True, True)
+
+    with pytest.raises(PrerequisiteError, match="keepalive"):
+        resolve_ctl_server("keepalive")
+
+
+def test_control_server_disabled_binds_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """``enabled=False`` (the ``--ctl-server=false`` path) skips the bind.
+
+    Yields ``None`` and publishes no discovery file — nothing for
+    ``inspect ctl`` to find.
+    """
+    import inspect_ai._control.discovery as discovery
+    from inspect_ai._control.discovery import list_discovered_servers
+    from inspect_ai._control.server import control_server
+
+    def _stub_data_dir(subdir: str | None = None):
+        path = (tmp_path / (subdir or "")).resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    monkeypatch.setattr(discovery, "inspect_data_dir", _stub_data_dir)
+
+    async def run() -> None:
+        async with control_server(run_id="run-off", enabled=False) as srv:
+            assert srv is None
+            assert list_discovered_servers() == []
+            assert list(discovery.discovery_dir().glob("*")) == []
+
+    asyncio.run(run())

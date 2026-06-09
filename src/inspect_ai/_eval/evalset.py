@@ -24,7 +24,11 @@ from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     register_completed_eval,
 )
-from inspect_ai._control.server import control_server, wait_for_shutdown_async
+from inspect_ai._control.server import (
+    control_server,
+    resolve_ctl_server,
+    wait_for_shutdown_async,
+)
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
@@ -122,7 +126,7 @@ def eval_set(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
-    keep_alive: bool = False,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -212,10 +216,14 @@ def eval_set(
             loopback port; a string is taken as a custom UNIX socket path;
             `None` (default) replays whatever transport (or no transport) was
             persisted in the original log's `EvalConfig.acp_server`.
-        keep_alive: Keep the process running after the eval-set finishes
-            so external clients (the `inspect ctl` CLI, scripted agents,
-            TUIs) can still query state and read results. Exit via
-            `inspect ctl release` (or `POST /release`). Defaults to `False`.
+        ctl_server: Control-channel server for this eval-set process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval-set finishes so external
+            clients (the `inspect ctl` CLI, scripted agents, TUIs) can still
+            query state and read results — exit via `inspect ctl release`
+            (or `POST /release`). Requires `retry_immediate=True` (the
+            default) for the `"keep-alive"` value.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -320,6 +328,24 @@ def eval_set(
             "no task-level retries will be performed."
         )
 
+    # --ctl-server=keep-alive requires retry_immediate=True (the default).
+    # In retry_immediate=False mode eval-set makes multiple eval() calls
+    # via tenacity, each with its own short-lived control server —
+    # the keep-alive park would need to live OUTSIDE any single
+    # eval() call, which is exactly the multi-loop bridging problem
+    # we deliberately avoid (see design/control-channel.md "Server
+    # lifecycle aligned with eval()"). Refuse the combination
+    # explicitly rather than silently giving a broken keep-alive
+    # experience.
+    ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+    if ctl_keep_alive and retry_immediate is False:
+        raise PrerequisiteError(
+            "--ctl-server=keep-alive is incompatible with retry_immediate=False "
+            "(the legacy batch-retry mode tears down the control "
+            "surface between attempts). Use --retry-immediate (the "
+            "default) or drop the keep-alive value."
+        )
+
     # helper function to run a set of evals
     def run_eval(
         eval_set_id: str,
@@ -383,9 +409,10 @@ def eval_set(
             eval_set_id=eval_set_id,
             task_retry_attempts=task_retry_attempts,
             acp_server=acp_server,
-            # Not keep_alive: eval-set owns the keep-alive flag + park
-            # itself (around the whole run), so the inner eval() doesn't
-            # park inside the task display. See the park below.
+            # Demoted to a plain on/off: eval-set owns the keep-alive park
+            # itself (after the display closes), so the inner eval() must
+            # not park inside the task display. See the park below.
+            ctl_server=ctl_enabled,
             **kwargs,
         )
 
@@ -401,23 +428,6 @@ def eval_set(
         display = init_display_type(display)
     if display == "conversation":
         raise RuntimeError("eval_set cannot be used with conversation display.")
-
-    # --keep-alive requires retry_immediate=True (the default). In
-    # retry_immediate=False mode eval-set makes multiple eval() calls
-    # via tenacity, each with its own short-lived control server —
-    # the keep-alive park would need to live OUTSIDE any single
-    # eval() call, which is exactly the multi-loop bridging problem
-    # we deliberately avoid (see design/control-channel.md "Server
-    # lifecycle aligned with eval()"). Refuse the combination
-    # explicitly rather than silently giving a broken keep-alive
-    # experience.
-    if keep_alive and retry_immediate is False:
-        raise PrerequisiteError(
-            "--keep-alive is incompatible with retry_immediate=False "
-            "(the legacy batch-retry mode tears down the control "
-            "surface between attempts). Use --retry-immediate (the "
-            "default) or drop --keep-alive."
-        )
 
     # initialize eval
     models = eval_init(
@@ -705,7 +715,7 @@ def eval_set(
 
         # park last of all — display closed and summary printed, so the
         # keep-alive notice lands in the console (not the live display pane)
-        if keep_alive:
+        if ctl_keep_alive:
             run_coroutine(_keep_alive_park(eval_set_id))
 
         # return status + results
@@ -749,7 +759,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
     that normally publishes state never fires for them. Without an
     explicit registration here, ``inspect ctl tasks`` would show zero
     entries for an eval-set whose tasks all came from prior logs —
-    confusing for an agent driving an eval-set under ``--keep-alive``
+    confusing for an agent driving an eval-set under ``--ctl-server=keep-alive``
     that expects to see what the eval-set returned.
 
     Only the ISO timestamp parse is fallible; everything else is

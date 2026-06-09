@@ -8,7 +8,7 @@ This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though 
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
-> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl tasks` / `samples` / `sample` / `errors` / `events` / `release` commands, and `--keep-alive`. **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits); **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
+> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl tasks` / `samples` / `sample` / `errors` / `events` / `release` commands, and the `--ctl-server` flag (on by default; `false` disables, `keep-alive` parks the process after the eval). **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits); **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
 
 ## Goals
 
@@ -33,8 +33,8 @@ User: "Run my new task against gpt-5 and claude-opus. Cancel anything stalled
        which model did better."
 
 Agent (via Bash):
-  inspect eval my_task --model gpt-5  --log-dir ./logs/gpt5  --detach --keep-alive --json
-  inspect eval my_task --model claude --log-dir ./logs/opus  --detach --keep-alive --json
+  inspect eval my_task --model gpt-5  --log-dir ./logs/gpt5  --detach --ctl-server=keep-alive --json
+  inspect eval my_task --model claude --log-dir ./logs/opus  --detach --ctl-server=keep-alive --json
   inspect ctl tasks --json                                                      # watch progress
   inspect ctl samples <id> --active-since <ts> --json                        # poll for what changed / stalls
   inspect ctl cancel-sample <eval-id> <sample-id> --action error --dry-run   # check before acting
@@ -44,7 +44,7 @@ Agent (via Bash):
   (log summary and analysis TBD)
 ```
 
-The `--keep-alive` flag is load-bearing for this workflow: without it, each eval process exits the instant the eval body returns, taking its discovery file and control endpoint with it. The agent's later "inspect results" / "compare" / "decide" steps would race the process teardown and intermittently find no control surface to query. With `--keep-alive` the process parks after the eval body completes, the control endpoint stays bound, and `inspect ctl release` is the explicit teardown signal the agent issues when it's done.
+The `--ctl-server=keep-alive` value is load-bearing for this workflow: without it, each eval process exits the instant the eval body returns, taking its discovery file and control endpoint with it. The agent's later "inspect results" / "compare" / "decide" steps would race the process teardown and intermittently find no control surface to query. With keep-alive the process parks after the eval body completes, the control endpoint stays bound, and `inspect ctl release` is the explicit teardown signal the agent issues when it's done.
 
 The control channel provides the **middle four** of those commands (the live-eval surfaces — `tasks`, `events`, `cancel-sample`); the surrounding commands come from the broader agent-enablement work (see Related work). For this scenario to work, every surface must be:
 
@@ -76,7 +76,7 @@ inspect ctl tasks                              # list running tasks
 inspect ctl samples [TASK] [--active-since TS]  # per-sample table (status / retries / score / timing / idle)
 inspect ctl sample TASK SID [EPOCH] [-t]    # one sample's error history (--traceback for full)
 inspect ctl errors [TASK]                   # triage: samples that errored or were retried
-inspect ctl release [--pid PID]            # release a lingering --keep-alive process
+inspect ctl release [--pid PID]            # release a lingering keep-alive process
 
 # phase 2 (shipped)
 inspect ctl events TASK SID [EPOCH]         # one sample's transcript events (cursored pull)
@@ -224,7 +224,7 @@ Phase annotations reflect the [Implementation](#implementation) plan; phases 1�
 | List evals (folded per task) | `GET /evals` | 1 ✅ |
 | List samples (running + completed + pending) | `GET /evals/<id>/samples` | 1 ✅ |
 | Sample error detail | `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` | 1 ✅ |
-| Release a `--keep-alive` park | `POST /release` | 1 ✅ |
+| Release a `--ctl-server=keep-alive` park | `POST /release` | 1 ✅ |
 | Samples changed since (recency delta) | `GET /evals/<id>/samples?active_since=<ts>` | 2 ✅ |
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | `GET /evals/<id>/samples/<sid>/events` (SSE) | 4 |
@@ -411,7 +411,7 @@ The directory and socket modes are applied via `chmod` on every server start (id
 
 1. ~~**Eval-set lifecycle.**~~ **Resolved (phase 1).** The server runs on the eval's loop (not hoisted to a long-lived parent process). For eval-set with `retry_immediate=True` one server covers the whole run, and keep-alive parks afterward via a fresh sequential binding over the same registry — see "Server lifecycle aligned with `eval()`". `retry_immediate=False` is the documented exception (per-attempt servers; incompatible with keep-alive).
 2. **Which directable knobs land in phase 3?** Cancel + drain + requeue is the minimum; modify-limits and modify-concurrency are bigger eval-runner changes.
-3. **Auth.** Loopback today is fine for one-machine TUIs and CLI; agents that run on the same machine inherit the trust model. Anything remote needs explicit design. HTTP makes the "didn't I bind to loopback?" mistake easier — codify "loopback-only default; explicit opt-in + auth for remote" in the bind logic. (Phase 1 binds AF_UNIX only, so there's no remote surface yet; the explicit-opt-in TCP path arrives with the `--ctl-port` flag.)
+3. **Auth.** Loopback today is fine for one-machine TUIs and CLI; agents that run on the same machine inherit the trust model. Anything remote needs explicit design. HTTP makes the "didn't I bind to loopback?" mistake easier — codify "loopback-only default; explicit opt-in + auth for remote" in the bind logic. (Phase 1 binds AF_UNIX only, so there's no remote surface yet; the explicit-opt-in TCP path arrives with the planned `--ctl-server=<port>` value.)
 4. **Subscription replay.** A TUI that attaches to an in-progress eval needs to catch up on history — same problem as ACP's replay-on-attach, but at eval scope (event counts could be much larger). What's the bound and elision policy? (Framed by the phase-2 cursor — `--tail` + the `missed` eviction signal; replay-on-attach over push is phase 4.)
 5. **Discovery for multi-process eval-sets.** Eval-sets that spawn worker processes (if/when) need a story for which process the discovery file points at.
 6. **Risky operations.** Some directives are dangerous (`cancel --force`, `set-limit` to a higher value). Worth thinking about a confirmation / dry-run layer even on the loopback case. Doubly relevant for LLM-driven agents that retry on confusion — dry-run + idempotence aren't optional once agents are first-class consumers. (Phase 3.)
@@ -422,18 +422,18 @@ The directory and socket modes are applied via `chmod` on every server start (id
 
 Cross-cutting details that apply across all phases.
 
-### Process keep-alive: `--keep-alive` on `inspect eval` / `inspect eval-set`
+### Process keep-alive: `--ctl-server=keep-alive` on `inspect eval` / `inspect eval-set`
 
 Without help from the process lifecycle, LLM-agent workflows have a race condition: the eval process exits the instant the eval body returns, taking its control endpoint and discovery file with it. The agent's next step — read results, compare, decide what to do next — runs against a vanished surface. With many agents this manifests intermittently (sometimes the agent gets to `ctl tasks` before teardown, sometimes not) and degrades trust in the surface.
 
-The fix is an explicit handoff: `--keep-alive` parks the process after the eval body completes, and `inspect ctl release` is the signal the agent issues when it's done.
+The fix is an explicit handoff: `--ctl-server=keep-alive` parks the process after the eval body completes, and `inspect ctl release` is the signal the agent issues when it's done. (Keep-alive is a *value* of the `--ctl-server` flag rather than a flag of its own because it presupposes the server — a parked process with no control endpoint could never be released. See "Flags" below.)
 
-**What the flag does.**
+**What the value does.**
 
-- `inspect eval <task> --keep-alive` — after the eval body returns (including scoring + log write), the process blocks on the control endpoint's shutdown event. The control server stays bound. `inspect ctl tasks` continues to show the eval (with `samples.completed == total` and a final status), and the log files are present at their final paths. `POST /release` (issued by `inspect ctl release` or any HTTP client) releases the block; the process tears down its server and exits.
-- `inspect eval-set <tasks> --keep-alive` — same. With `retry_immediate=True` (the default), eval-set makes exactly one `eval()` call; per-task retries happen inside that one call, so the control server and the keep-alive park both live in the same single async context.
+- `inspect eval <task> --ctl-server=keep-alive` — after the eval body returns (including scoring + log write), the process blocks on the control endpoint's shutdown event. The control server stays bound. `inspect ctl tasks` continues to show the eval (with `samples.completed == total` and a final status), and the log files are present at their final paths. `POST /release` (issued by `inspect ctl release` or any HTTP client) releases the block; the process tears down its server and exits.
+- `inspect eval-set <tasks> --ctl-server=keep-alive` — same. With `retry_immediate=True` (the default), eval-set makes exactly one `eval()` call; per-task retries happen inside that one call, so the control server and the keep-alive park both live in the same single async context.
 
-**Why this isn't always-on.** Most invocations don't need it; the cost is "process doesn't exit on its own." For batch / CI workflows that explicitly want the process to die when done, no keep-alive is correct. The flag is opt-in.
+**Why this isn't always-on.** Most invocations don't need it; the cost is "process doesn't exit on its own." For batch / CI workflows that explicitly want the process to die when done, no keep-alive is correct. The park is opt-in (the *server* is on by default; only the park needs asking for).
 
 ### Server lifecycle aligned with `eval()` (and why no threads)
 
@@ -444,18 +444,18 @@ This works because in the common case `eval_set` is *also* a single `eval()` cal
 - **`retry_immediate=True` (the default).** Eval-set invokes `eval()` exactly once. Per-task retries happen *inside* that single `eval()` call (via `task_retry_attempts` and the failed-sample-reuse path), so one control server bound for the duration of that `eval()` wraps the entire eval-set's actual work. Keep-alive then parks in a separate, sequential step *after* the display closes (a fresh control server over the same registry — see the Implementation sketch), rather than inside the run's server. Identical effective behaviour to a "threaded eval-set-scoped server" but without any threads.
 - **`retry_immediate=False` (legacy batch-retry mode).** Eval-set invokes `eval()` repeatedly via tenacity. Each attempt is its own `eval()` call → its own `anyio.run` → its own control server. Between attempts the server is briefly torn down (`inspect ctl tasks` returns "no running evals" for that window). This is a documented limitation of the legacy mode.
 
-**`--keep-alive` is incompatible with `retry_immediate=False`.** The post-retry-loop park would need its own async context outside any single `eval()`, which is exactly the multi-loop bridging problem the alignment chooses to avoid. Eval-set raises `PrerequisiteError` at startup if both are set, with a message pointing at `--retry-immediate` (or dropping `--keep-alive`).
+**`--ctl-server=keep-alive` is incompatible with `retry_immediate=False`.** The post-retry-loop park would need its own async context outside any single `eval()`, which is exactly the multi-loop bridging problem the alignment chooses to avoid. Eval-set raises `PrerequisiteError` at startup if both are set, with a message pointing at `--retry-immediate` (or dropping the `keep-alive` value).
 
 **Implementation sketch.**
 
 - **Loop-native shutdown event.** `ControlServer` holds a `shutdown_event: anyio.Event` (not a `threading.Event`). The `POST /release` route sets it; `wait_for_shutdown_async(server)` is just `await server.shutdown_event.wait()`. Both the route and the waiter run on the same eval loop, so no thread or cross-loop bridge is needed. (An earlier design parked on a `threading.Event` via `anyio.to_thread.run_sync`; that left an abandoned non-daemon worker thread blocked on `Event.wait()` after a Ctrl-C, which is why the loop-native event replaced it.)
 - **Registry lifecycle: register on start, clear at the run boundary.** `task_run.py` *always* `register_eval`s a task and never unregisters it per-task — so a completed eval stays visible to `ctl tasks` for the rest of the run (including any keep-alive park) without a special "keep-alive active" flag. `clear_all_eval_states()` is called once at the outermost run boundary: `_eval_async_inner`'s `finally` when `eval_set_id is None` (standalone eval), or `eval_set`'s `finally` (eval-set). This replaced the earlier `keep_alive_active()` flag + per-task `unregister_eval` + `keep_alive_session` helper, which were removed.
-- **Standalone eval parks inline.** `_eval_async_inner` opens `control_server(...)` + `acp_server(...)`, runs the eval body, then — still inside those contexts — prints the keep-alive notice and `await wait_for_shutdown_async(server)` when `keep_alive` is set. One control server, parked while it's still bound.
+- **Standalone eval parks inline.** `_eval_async_inner` opens `control_server(...)` + `acp_server(...)`, runs the eval body, then — still inside those contexts — prints the keep-alive notice and `await wait_for_shutdown_async(server)` when `ctl_server="keep-alive"`. One control server, parked while it's still bound.
 - **Eval-set parks *after* the task display closes.** Eval-set runs its single inner `eval()` (which binds its own control server for the duration of the run, with `eval_set_id` set so that `eval()` does **not** park or clear). After the display tears down and the console summary prints, `eval_set` calls `run_coroutine(_keep_alive_park(eval_set_id))`: a fresh `control_server` is bound on a new loop and parked on its shutdown event. Two sequential server bindings (one during the run, one during the park), both serving the **same** process-global `EvalState` registry — so the surface is continuous across the brief gap while the summary prints. (Doing the park *after* the display closes is deliberate: otherwise the "keeping alive" notice lands inside the live task-display pane instead of the console.) The all-reused short-circuit — every task satisfied by a prior successful log, so `eval()` is never called — reaches the same `_keep_alive_park` with the reused logs already in the registry, so the parked surface looks identical.
 
 **Failure modes worth naming.**
 
-- **Forgotten release.** Agent crashes / loses track of the pid. The process lingers indefinitely. Mitigation: a future `--keep-alive-timeout` could auto-shutdown after N minutes of idle time. Not in v1.
+- **Forgotten release.** Agent crashes / loses track of the pid. The process lingers indefinitely. Mitigation: a future idle timeout on the park could auto-shutdown after N minutes. Not in v1.
 - **Multiple lingering processes.** Several agents each run their own keep-alive eval. `inspect ctl release` with no args errors and lists pids; the agent disambiguates with `--pid`.
 - **External kill.** Operator kills the process while keep-alive is active. The discovery file is left behind; the next `prepare_discovery_dir` sweep picks it up and removes it (pid-liveness check fails).
 - **`retry_immediate=False` + keep-alive.** Rejected at startup with a clear error rather than silently giving a broken keep-alive experience.
@@ -470,34 +470,22 @@ This also covers *partial* startup failures. `start()` binds the socket and laun
 
 ### Flags
 
-> **Status:** Phase 1 ships `--keep-alive` only. The control server is currently **unconditionally on** (AF_UNIX, default path); the enable/where flags and env vars below are designed but **not yet wired** (`control_server(enabled=...)` already takes the parameter, so the CLI/env plumbing is the only remaining piece). They're documented here as the intended phase-1 finish.
-
-Three flags, each doing one thing:
+One flag, `--ctl-server`, mirroring `--acp-server`'s overloaded-value shape (`ctl_server: bool | str | None` on `eval()` / `eval_set()` / `eval_retry()`):
 
 ```
 (omitted)                       # control on, default AF_UNIX at <inspect_data_dir>/control/<pid>.sock
---no-ctl                        # control off                                    [planned]
---ctl-port N                    # control on, force TCP on port N (implies enabled)   [planned]
---ctl-socket /path/to.sock      # control on, custom AF_UNIX path (implies enabled)   [planned]
+--ctl-server / --ctl-server=true   # control on (the explicit form of the default)
+--ctl-server=false              # control off
+--ctl-server=keep-alive         # control on + park the process after the eval finishes
 ```
 
-`--no-ctl` + `--ctl-port` (or `--ctl-socket`) is a configuration error — the flags conflict.
+An earlier draft split "whether" from "where" into separate flags (`--no-ctl` / `--ctl-port` / `--ctl-socket`) and kept keep-alive as its own orthogonal `--keep-alive` flag. Review feedback reversed that: one discoverable knob that matches the established `--acp-server` shape beats a family of flags, and folding keep-alive in as a value makes its dependency on the server *structural* — a parked process with no control endpoint could never be released, and `--ctl-server=false --keep-alive` is now unrepresentable rather than a configuration error to detect.
 
-Splitting "whether" from "where" into separate flags (rather than overloading one flag with `bool | int | str` values, as `--acp-server` does) is deliberate: it makes flag intent obvious at a glance and avoids "false" reading as a magic value.
+The transport "where" values (`--ctl-server=4444` for a TCP loopback port, `--ctl-server=/path/to.sock` for a custom AF_UNIX path) are **planned** — the same value space `--acp-server` already accepts. Until they land, any string other than `keep-alive` is rejected (more likely a typo of `keep-alive` than an intentional choice).
 
-`--keep-alive` (the one shipped flag) is orthogonal to these — it controls whether the process *parks* after the eval body completes, not whether the control server binds.
+### Environment-variable mirror
 
-### Environment-variable mirrors
-
-For CI / test isolation, every enable/where flag will have an env-var equivalent (**planned**, alongside the flags above):
-
-```
-INSPECT_CTL=false               # disable globally
-INSPECT_CTL_PORT=N              # force TCP
-INSPECT_CTL_SOCKET=PATH         # force AF_UNIX path
-```
-
-This lets a test runner globally suppress the surface without modifying each `inspect eval` invocation.
+`INSPECT_EVAL_CTL_SERVER` mirrors the flag (same values: `false` / `true` / `keep-alive`), following the `INSPECT_EVAL_ACP_SERVER` precedent. This lets a test runner or CI config globally suppress the surface (`INSPECT_EVAL_CTL_SERVER=false`) without modifying each `inspect eval` invocation.
 
 ### Relationship to `--acp-server`
 
@@ -506,13 +494,13 @@ The control channel defaults **on**; the ACP server defaults **off**. The asymme
 - ACP serves a narrow audience (editor-driven per-sample interaction) — most evals don't need it, so opt-in is right.
 - Control serves every running eval — opt-out is right.
 
-Flag shapes also differ (`--acp-server` uses overloaded values; `--no-ctl` / `--ctl-port` / `--ctl-socket` split into separate flags). Retrofitting `--acp` / `--no-acp` / `--acp-port` to match the newer pattern is plausible later but out of scope here.
+The flag shapes match (one overloaded-value flag each: `--acp-server=false|true|<port>|<host:port>|<path>`, `--ctl-server=false|true|keep-alive` with the transport values planned). The remaining difference is just the default (`--ctl-server` omitted means on; `--acp-server` omitted means off), which follows from the audience asymmetry above.
 
 ### Test-suite cost
 
 Pytest runs that spawn many evals will each try to bind. AF_UNIX is cheap and discovery files self-clean via PID-liveness, but per-eval bind overhead is worth measuring in phase 1. Mitigations if it matters:
 
-- Set `INSPECT_CTL=false` globally for the test session.
+- Set `INSPECT_EVAL_CTL_SERVER=false` globally for the test session.
 - Make the bind lazy (allocate only when something asks via discovery).
 
 The graceful-fallback policy means worst-case is "test logs have warning lines"; eval correctness is unaffected.
@@ -531,10 +519,10 @@ The always-on read surface plus the process-lifecycle plumbing agents need. Give
   - `GET /evals` — folded per-task summaries (subsumes the originally-planned `GET /evals/<id>` status detail; the CLI reads the whole list and resolves a task client-side).
   - `GET /evals/<id>/samples` — all of an eval's samples (running + completed + pending), merged from `active_samples` + the recorder's live summaries (falling back to the on-disk log) + the planned `(sample_id, epoch)` set. Running samples carry `last_activity_at` (unix ts of the sample's most recent transcript event) and `events` (a live event count) so a consumer can tell "stalled" from "working" — `now - last_activity_at` is the sample's idle time — without diffing successive polls. (Caveat: a single in-flight model generation emits no event until it returns, so neither field advances *within* one long call — the per-sample `events` stream has the same blind spot; closing it needs streaming token deltas or a "current operation" indicator via the `execution_observer`, out of scope here.)
   - `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` — one sample's error detail: current error + prior-attempt `error_retries` (running samples sourced from `active_samples`, terminal ones from the log). `sample_id` is a query param so string ids with reserved chars (`/`, `?`, `#`) address correctly.
-- **`POST /release`** — releases a `--keep-alive` park. The only write endpoint in phase 1, and it acts on the process, not on eval state.
+- **`POST /release`** — releases a `--ctl-server=keep-alive` park. The only write endpoint in phase 1, and it acts on the process, not on eval state.
 - **CLI (`inspect ctl`, `--json` throughout):** `tasks` (running tasks), `samples [TASK]` (per-sample table: status / retries / score / timing / idle / tokens), `sample TASK SAMPLE_ID [EPOCH] [--traceback]` (one sample's error history), `errors [TASK]` (triage list of errored / retried samples), `release [--pid]`. `TASK` resolves by task-id prefix, then task-name (anchored at the name start or after a `/`); a sole running task is the default.
 - **Retry + cancellation surfacing.** Sample retry counts — both sample-level `retry_on_error` and task-level retries (the latter seeded onto the re-run via the sample source, and carried across attempts that tear a sample down before it re-runs) — appear in `samples`; prior-attempt errors in `sample` / `errors`. A cancellation (a sibling failure tore the attempt down) is **not** a genuine error: it renders as `pending` when a retry will re-run the sample, `cancelled` when terminal — never `error`. This avoids the misleading "all samples error" snapshot during a retry teardown.
-- **`--keep-alive`** on `inspect eval` / `inspect eval-set` (see Implementation notes).
+- **`--ctl-server`** on `inspect eval` / `inspect eval-set` — on/off plus the `keep-alive` park value (see Implementation notes).
 
 ### Phase 2 — per-sample events + `samples` deltas (done)
 

@@ -42,9 +42,43 @@ from inspect_ai._util.discovery import (
     prepare_discovery_dir,
     write_discovery_file,
 )
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.sockets import lock_socket_file, prepare_socket_path
 
 logger = getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Parameter resolution
+# ---------------------------------------------------------------------------
+
+
+def resolve_ctl_server(value: bool | str | None) -> tuple[bool, bool]:
+    """Resolve a ``ctl_server`` parameter value to ``(enabled, keep_alive)``.
+
+    The ``ctl_server`` parameter on ``eval()`` / ``eval_set()`` (and the
+    ``--ctl-server`` CLI flag) mirrors the ``--acp-server`` shape — one
+    flag whose value selects the behaviour:
+
+    - ``None`` / ``True`` — control server on (the default).
+    - ``False`` — control server off.
+    - ``"keep-alive"`` — control server on, and the process parks after
+      the eval finishes (until ``inspect ctl release`` / ``POST /release``).
+
+    Raises:
+        PrerequisiteError: For any other value — an unknown string is more
+            likely a typo of ``keep-alive`` than an intentional choice, and
+            silently treating it as ``True`` would drop the requested park.
+    """
+    if value is None or value is True:
+        return True, False
+    if value is False:
+        return False, False
+    if value == "keep-alive":
+        return True, True
+    raise PrerequisiteError(
+        f"Unexpected ctl_server value '{value}' (expected true, false, or keep-alive)."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +211,7 @@ class ControlServer:
                 )
             return page
 
-        # Releases a --keep-alive park (sets the shutdown event the park
+        # Releases a keep-alive park (sets the shutdown event the park
         # awaits); the process then exits. Named "release" rather than
         # "shutdown" because it does NOT cancel a running eval — that's a
         # later-phase directive.
@@ -207,7 +241,7 @@ class ControlServer:
         #      PermissionError) raises *here* — before we publish the
         #      discovery file. We never advertise a `<pid>.json` pointing at
         #      a socket that isn't accepting, which would strand `inspect
-        #      ctl` clients (and, under --keep-alive, the shutdown path that
+        #      ctl` clients (and, under a keep-alive park, the shutdown path that
         #      releases the park). The raise propagates to `control_server`,
         #      which degrades to "no control surface".
         #   2. No readiness poll. A bound, listening socket already accepts
@@ -317,8 +351,8 @@ async def control_server(
 ) -> AsyncIterator[ControlServer | None]:
     """Start (and stop) the control HTTP server for one eval run.
 
-    Default-on: pass ``enabled=False`` to skip the bind entirely (eg.
-    via a future ``--no-ctl`` flag or ``INSPECT_CTL=false`` env var).
+    Default-on: pass ``enabled=False`` to skip the bind entirely (the
+    ``ctl_server=False`` / ``--ctl-server=false`` path).
 
     Bind failures are logged and swallowed — yields ``None`` and the
     eval runs without the control surface. Eval correctness never

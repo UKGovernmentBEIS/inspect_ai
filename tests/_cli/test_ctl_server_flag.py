@@ -1,0 +1,92 @@
+"""Tests for the `--ctl-server` CLI option parsing.
+
+The flag uses :func:`ctl_server_flag_callback` so the parsed value is a
+``bool | str | None`` union that maps cleanly into the ``ctl_server``
+parameter on ``eval()`` / ``eval_set()`` / ``eval_retry()``: ``None``
+(omitted) and ``True`` mean default-on, ``False`` disables the control
+endpoint, ``"keep-alive"`` additionally parks the process after the eval.
+"""
+
+import click
+import pytest
+from click.testing import CliRunner
+
+from inspect_ai._cli.util import ctl_server_flag_callback
+
+
+def _build_cmd() -> click.Command:
+    """Minimal click command that mirrors the real --ctl-server option."""
+
+    @click.command()
+    @click.option(
+        "--ctl-server",
+        is_flag=False,
+        flag_value="true",
+        default=None,
+        callback=ctl_server_flag_callback,
+        envvar="INSPECT_EVAL_CTL_SERVER",
+    )
+    def cmd(ctl_server: bool | str | None) -> None:
+        # echo the parsed value back through stdout so the test can read it
+        click.echo(repr(ctl_server))
+
+    return cmd
+
+
+def _parsed(args: list[str], env: dict[str, str] | None = None) -> object:
+    """Run the test command and eval its echoed repr back to a Python value."""
+    runner = CliRunner()
+    result = runner.invoke(_build_cmd(), args, env=env, standalone_mode=False)
+    assert result.exit_code == 0, result.output
+    return eval(result.output.strip())
+
+
+def test_omitted_returns_none() -> None:
+    """Flag not provided → None (default: control server on, no park)."""
+    assert _parsed([]) is None
+
+
+def test_bare_flag_enables() -> None:
+    """`--ctl-server` with no value → True (explicit form of the default)."""
+    assert _parsed(["--ctl-server"]) is True
+
+
+def test_explicit_true_enables() -> None:
+    """`--ctl-server=true` → True."""
+    assert _parsed(["--ctl-server=true"]) is True
+
+
+def test_explicit_false_disables() -> None:
+    """`--ctl-server=false` → False (no control endpoint)."""
+    assert _parsed(["--ctl-server=false"]) is False
+
+
+def test_keep_alive_value() -> None:
+    """`--ctl-server=keep-alive` → "keep-alive" (on + park after the eval)."""
+    assert _parsed(["--ctl-server=keep-alive"]) == "keep-alive"
+
+
+def test_unknown_value_rejected() -> None:
+    """Any other string is a usage error, not silently treated as `true`."""
+    runner = CliRunner()
+    result = runner.invoke(
+        _build_cmd(), ["--ctl-server=keepalive"], standalone_mode=False
+    )
+    assert isinstance(result.exception, click.BadParameter)
+    assert "keep-alive" in result.exception.message
+
+
+def test_env_var_keep_alive() -> None:
+    """`INSPECT_EVAL_CTL_SERVER=keep-alive` env var → "keep-alive"."""
+    assert _parsed([], env={"INSPECT_EVAL_CTL_SERVER": "keep-alive"}) == "keep-alive"
+
+
+def test_env_var_false() -> None:
+    """`INSPECT_EVAL_CTL_SERVER=false` env var → False (CI-wide suppression)."""
+    assert _parsed([], env={"INSPECT_EVAL_CTL_SERVER": "false"}) is False
+
+
+@pytest.mark.parametrize("value", ["yes", "1"])
+def test_truthy_aliases(value: str) -> None:
+    """Conventional truthy spellings map to True (mirrors --acp-server)."""
+    assert _parsed([f"--ctl-server={value}"]) is True

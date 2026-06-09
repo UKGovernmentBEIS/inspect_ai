@@ -7,7 +7,7 @@ eval via the per-process control server's HTTP endpoints. See
 Implemented (read surface + keep-alive): ``tasks`` (enumerate running
 tasks), ``samples`` (a task's samples), ``sample`` (one sample's error detail),
 ``errors`` (errored / retried samples), ``events`` (a sample's transcript
-events), and ``release`` (let a ``--keep-alive`` process exit). The
+events), and ``release`` (let a ``--ctl-server=keep-alive`` process exit). The
 state-mutating directives (cancel / drain / requeue / modify-limits) are
 planned but not yet available.
 """
@@ -35,7 +35,7 @@ def ctl_command() -> None:
 
     Commands: ``tasks`` (running tasks), ``samples`` / ``sample`` / ``errors``
     (an eval's samples), ``events`` (a sample's transcript), ``release``
-    (let a ``--keep-alive`` process exit). All are read-only except
+    (let a ``--ctl-server=keep-alive`` process exit). All are read-only except
     ``release`` — state-mutating directives (cancel, drain, modify limits)
     are planned but not yet available.
 
@@ -44,8 +44,8 @@ def ctl_command() -> None:
     binds by default.
 
     A process exits when its eval finishes; launch with ``inspect eval
-    --keep-alive`` to keep it inspectable (and its results readable) here
-    until you run ``inspect ctl release``.
+    --ctl-server=keep-alive`` to keep it inspectable (and its results
+    readable) here until you run ``inspect ctl release``.
     """
     return None
 
@@ -53,14 +53,14 @@ def ctl_command() -> None:
 def _echo_no_running_evals() -> None:
     """Print the 'nothing to show' message shared by the read commands.
 
-    Surfaces ``--keep-alive`` here because this fires exactly when a user
-    is confused that a just-finished eval isn't listed — its process has
-    already exited unless it was launched to park.
+    Surfaces ``--ctl-server=keep-alive`` here because this fires exactly
+    when a user is confused that a just-finished eval isn't listed — its
+    process has already exited unless it was launched to park.
     """
     click.echo(
         f"No running evals found in {discovery_dir()}.\n"
-        "Start an eval with `inspect eval <task>` — add `--keep-alive` to keep "
-        "the process inspectable after the eval finishes."
+        "Start an eval with `inspect eval <task>` — add `--ctl-server=keep-alive` "
+        "to keep the process inspectable after the eval finishes."
     )
 
 
@@ -349,7 +349,7 @@ def events_command(
     ),
 )
 def release_command(pid: int | None) -> None:
-    """Release a lingering --keep-alive process so it can exit.
+    """Release a lingering --ctl-server=keep-alive process so it can exit.
 
     Posts to the process's control endpoint /release route. The eval has
     already completed; this just lets the parked process exit. No-op if the

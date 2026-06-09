@@ -537,7 +537,7 @@ def test_ctl_reused_log_eval_reports_usage(short_data_dir: Path) -> None:
 def test_keep_alive_park_entered_with_completed_state(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``keep_alive=True`` enters the park, eval reported completed.
+    """``ctl_server="keep-alive"`` enters the park, eval reported completed.
 
     The park itself (block until ``POST /release``) is unit-tested in
     ``test_server.py`` via ``wait_for_shutdown_async``; here we pin the
@@ -570,7 +570,7 @@ def test_keep_alive_park_entered_with_completed_state(
         log_dir=log_dir,
         model="mockllm/model",
         retry_attempts=0,
-        keep_alive=True,
+        ctl_server="keep-alive",
     )
     assert ok
 
@@ -586,7 +586,7 @@ def test_keep_alive_park_entered_with_completed_state(
 def test_keep_alive_works_when_all_logs_reused(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``keep_alive=True`` parks even when every task is reused.
+    """``ctl_server="keep-alive"`` parks even when every task is reused.
 
     ``try_eval`` used to early-return at "no tasks to run" when every requested
     task had a prior success — skipping the inner ``eval()`` call where the
@@ -630,7 +630,7 @@ def test_keep_alive_works_when_all_logs_reused(
         log_dir=log_dir,
         model="mockllm/model",
         retry_attempts=0,
-        keep_alive=True,
+        ctl_server="keep-alive",
     )
     assert ok
 
@@ -644,7 +644,7 @@ def test_keep_alive_works_when_all_logs_reused(
 def test_keep_alive_with_retry_immediate_false_is_rejected(
     short_data_dir: Path,
 ) -> None:
-    """``keep_alive=True`` + ``retry_immediate=False`` raises PrerequisiteError.
+    """``ctl_server="keep-alive"`` + ``retry_immediate=False`` raises PrerequisiteError.
 
     The control server lives for one ``eval()`` call; ``retry_immediate=False``
     makes multiple short-lived ``eval()`` calls via tenacity, so there's no
@@ -663,14 +663,16 @@ def test_keep_alive_with_retry_immediate_false_is_rejected(
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    with pytest.raises(PrerequisiteError, match="--keep-alive is incompatible"):
+    with pytest.raises(
+        PrerequisiteError, match="--ctl-server=keep-alive is incompatible"
+    ):
         eval_set(
             tasks=[task_quick()],
             log_dir=log_dir,
             model="mockllm/model",
             retry_attempts=0,
             retry_immediate=False,
-            keep_alive=True,
+            ctl_server="keep-alive",
         )
 
 

@@ -54,6 +54,39 @@ def int_or_bool_flag_callback(
     return callback
 
 
+def ctl_server_flag_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> bool | str | None:
+    """Parse the ``--ctl-server`` option (mirrors the ``--acp-server`` shape).
+
+    Desired behavior:
+    - Not specified at all -> None (default: control server on, no park)
+    - Specified with no value, or with "true" -> True (on)
+    - Specified with "false" -> False (off)
+    - Specified with "keep-alive" -> "keep-alive" (on + park after the eval)
+
+    Any other value is a BadParameter — unlike ``--acp-server`` (whose free
+    strings are socket paths), ``--ctl-server`` admits exactly one string
+    value today, so anything else is more likely a typo of ``keep-alive``
+    than an intentional choice.
+    """
+    source = ctx.get_parameter_source(param.name) if param.name else ""
+    if source == click.core.ParameterSource.DEFAULT:
+        return None
+    if value is None:
+        return True
+    lower_val = str(value).lower()
+    if lower_val in ("true", "yes", "1"):
+        return True
+    if lower_val in ("false", "no", "0"):
+        return False
+    if lower_val == "keep-alive":
+        return "keep-alive"
+    raise click.BadParameter(
+        f"Expected 'true', 'false', or 'keep-alive' for --ctl-server. Got: {value}"
+    )
+
+
 def int_bool_or_str_retry_flag_callback(
     true_value: Any = True,
 ) -> Callable[[click.Context, click.Parameter, Any], Any]:
