@@ -5,6 +5,7 @@
 - Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.
 - Agent Bridge: Preserve `source="operator"` provenance on operator-injected messages.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
+- Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle (a gzipped tar extracted in-container) instead of a single StaticX executable, and add a musl-linked variant so `bash_session`, `text_editor`, and MCP tools now work in musl-based sandboxes (e.g. Alpine) in addition to glibc. The matching arch × libc artifact is auto-detected at injection; glibc variants ship in the wheel and musl is fetched from S3 on demand.
 - S3: Retry when requests have stale signatures.
 
 ## 0.3.238 (08 June 2026)
