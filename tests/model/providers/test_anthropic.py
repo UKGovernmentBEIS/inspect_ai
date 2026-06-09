@@ -18,7 +18,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI
-from inspect_ai.tool import ToolCall
+from inspect_ai.tool import ToolCall, ToolInfo, memory
 
 
 @pytest.mark.anyio
@@ -843,7 +843,13 @@ def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
 
 @pytest.mark.parametrize(
     "model_name",
-    ["claude-opus-4-8", "claude-opus-5-0", "claude-sonnet-4-7", "claude-sonnet-5-0"],
+    [
+        "claude-opus-4-8",
+        "claude-fable-5",
+        "claude-opus-5-0",
+        "claude-sonnet-4-7",
+        "claude-sonnet-5-0",
+    ],
 )
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
 def test_anthropic_future_4_7_plus_strips_sampling_params(
@@ -972,7 +978,8 @@ async def test_anthropic_opus_4_7_accepts_temperature_with_reasoning_effort_none
         ("claude-opus-4-7", 128000),
         # Hypothetical future minor opus version: 128k via frontier+opus
         ("claude-opus-4-8", 128000),
-        # Hypothetical future major version: 128k via "claude 5+" branch
+        # Claude 5 (GA fable + hypothetical tier-named): 128k via "claude 5+" branch
+        ("claude-fable-5", 128000),
         ("claude-opus-5-0", 128000),
         ("claude-sonnet-5-0", 128000),
         # Non-opus 4.5 / 4.6+ (incl. 4.7 and future 4.x minor): 64k
@@ -994,6 +1001,91 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
     # Inflate via reasoning_tokens so the cap (not the base) decides the result.
     config = GenerateConfig(reasoning_tokens=200000)
     assert api.max_tokens_for_config(config) == expected_cap
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        # GA / limited-release names
+        "claude-fable-5",
+        "claude-mythos-5",
+        # forward-compat variants: point release, tier-named, new codename
+        "claude-fable-5-1",
+        "claude-opus-5-0",
+        "claude-saga-5",
+    ],
+)
+def test_anthropic_claude_5_is_known_frontier(model_name: str) -> None:
+    """Any claude-*-5 is a known frontier version, not 'latest'/unknown."""
+    from inspect_ai.model._providers.anthropic import _supports_memory
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_5() is True
+    assert api.is_claude_latest() is False
+    assert api.is_claude_frontier() is True
+    assert api.is_claude_4_7_or_later() is True
+    assert api.is_claude_4_8_or_later() is True
+    # native memory tool is enabled for all Claude 5 variants (per the launch docs)
+    assert _supports_memory(api.model_family()) is True
+
+
+# ---------------------------------------------------------------------------
+# Native computer-use tool param routing (incl. Claude 5 not supported)
+# ---------------------------------------------------------------------------
+
+
+def _computer_tool_info() -> ToolInfo:
+    """Build a ToolInfo that satisfies is_computer_tool_info() (our built-in computer())."""
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+    from inspect_ai.tool._tools._computer._computer import _COMPUTER_TOOL_PARAMETERS
+
+    return ToolInfo(
+        name="computer",
+        description="computer",
+        parameters=ToolParams(
+            properties={k: ToolParam(type="string") for k in _COMPUTER_TOOL_PARAMETERS}
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name", ["claude-fable-5", "claude-mythos-5", "claude-opus-5-0"]
+)
+def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
+    """Claude 5 (any claude-*-5) has no native computer-use version; error not degrade."""
+    from inspect_ai._util.error import PrerequisiteError
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    with pytest.raises(PrerequisiteError) as exc_info:
+        api.computer_use_tool_param(_computer_tool_info())
+    # PrerequisiteError stores the message on .message (it doesn't call super().__init__);
+    # .message is a RenderableType, so coerce to str for the substring checks.
+    message = str(exc_info.value.message)
+    assert "Computer use is not supported" in message
+    assert model_name in message
+
+
+@pytest.mark.parametrize(
+    "model_name,expected_type",
+    [
+        # Frontier (4.6/4.7/4.8) + Opus 4.5 → computer_20251124
+        ("claude-opus-4-8", "computer_20251124"),
+        ("claude-opus-4-6", "computer_20251124"),
+        ("claude-opus-4-5", "computer_20251124"),
+        ("claude-sonnet-4-6", "computer_20251124"),
+        # Older 4.x → computer_20250124
+        ("claude-sonnet-4-5", "computer_20250124"),
+        ("claude-haiku-4-5", "computer_20250124"),
+    ],
+)
+def test_anthropic_computer_use_tool_version(
+    model_name: str, expected_type: str
+) -> None:
+    """4.x models map to the correct native computer-use tool version."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    param = api.computer_use_tool_param(_computer_tool_info())
+    assert param is not None
+    assert param["type"] == expected_type
 
 
 # ---------------------------------------------------------------------------
@@ -1029,3 +1121,40 @@ def test_anthropic_max_tokens_xhigh_max_floor(
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     config = GenerateConfig(**config_kwargs)
     assert api.max_tokens_for_config(config) == expected
+
+
+# ---------------------------------------------------------------------------
+# Claude 5 (Fable/Mythos) live e2e
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_claude_5_generate_live() -> None:
+    """Claude 5 (Fable) accepts our request shape (adaptive thinking + effort) and generates."""
+    model = get_model(
+        "anthropic/claude-fable-5",
+        config=GenerateConfig(effort="high", max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_claude_5_memory_tool_live() -> None:
+    """Claude 5 (Fable) accepts and uses the native memory tool (memory_20250818).
+
+    A 400 here would mean the native memory tool param / beta isn't accepted by
+    Claude 5; a missing tool call would mean the model didn't engage it.
+    """
+    model = get_model(
+        "anthropic/claude-fable-5",
+        config=GenerateConfig(max_tokens=1024),
+    )
+    output = await model.generate(
+        input="Use your memory tool to save a note that the release date is Friday.",
+        tools=[memory()],
+        tool_choice="auto",
+    )
+    assert any(tc.function == "memory" for tc in (output.message.tool_calls or []))

@@ -1,3 +1,7 @@
+## 0.3.239 (09 June 2026)
+
+- Anthropic: Explicitly classify Claude 5 (Fable/Mythos) models instead of relying on "latest"
+
 ## 0.3.238 (08 June 2026)
 
 - Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled.
