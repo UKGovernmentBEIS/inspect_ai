@@ -24,7 +24,7 @@ def _tool_signature(tool_def: ToolDef) -> str:
         optional = "" if name in required else " | None"
         args.append(f"{name}: {typ}{optional}")
 
-    return f"{tool_def.name}({', '.join(args)})"
+    return f"await {tool_def.name}({', '.join(args)})"
 
 
 def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
@@ -36,7 +36,7 @@ def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
         )
 
     lines = [
-        "The code may eventually call the following allowlisted Inspect tools:",
+        "The code may call the following allowlisted Inspect tools as async functions. Use `await` when calling them:"
         "",
     ]
 
@@ -63,7 +63,9 @@ def run_code(
 
     tool_defs = _tool_defs(tools)
     inner_tools_description = _tool_interface_description(tool_defs)
-    executor = executor or (MontyRunCodeExecutor() if execute else StubRunCodeExecutor())
+    executor = executor or (
+        MontyRunCodeExecutor(tool_defs=tool_defs) if execute else StubRunCodeExecutor()
+    )
 
     async def execute(code: str) -> str:
         """Run Python code.

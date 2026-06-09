@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from inspect_ai.tool import ToolDef
+from ._bridge import external_functions_for_tool_defs
+
 
 @dataclass
 class RunCodeResult:
@@ -42,11 +45,13 @@ class StubRunCodeExecutor:
         return RunCodeResult(
             output="run_code execution is not implemented yet",
         )
-class MontyRunCodeExecutor:
-    """Run code using Pydantic Monty.
 
-    This executor does not expose inner Inspect tools yet.
-    """
+
+class MontyRunCodeExecutor:
+    """Run code using Pydantic Monty."""
+
+    def __init__(self, tool_defs: list[ToolDef] | None = None) -> None:
+        self.tool_defs = tool_defs or []
 
     async def execute(self, code: str) -> RunCodeResult:
         """Execute code.
@@ -74,7 +79,9 @@ class MontyRunCodeExecutor:
                 script_name="run_code.py",
                 type_check=False,
             )
-            output = await monty.run_async()
+            output = await monty.run_async(
+                external_functions=external_functions_for_tool_defs(self.tool_defs),
+            )
             return RunCodeResult(output=str(output))
         except Exception as exc:
             return RunCodeResult(output="", error=str(exc))
