@@ -90,3 +90,23 @@ def test_env_var_false() -> None:
 def test_truthy_aliases(value: str) -> None:
     """Conventional truthy spellings map to True (mirrors --acp-server)."""
     assert _parsed([f"--ctl-server={value}"]) is True
+
+
+def test_cli_and_python_api_accept_the_same_values() -> None:
+    """The callback delegates to resolve_ctl_server — one grammar, two surfaces.
+
+    Every value the CLI accepts must resolve on the Python API path too (a
+    user forwarding a CLI/env spelling to `eval(ctl_server=...)` must not get
+    a rejection whose message claims the value is expected), and every value
+    the CLI rejects must also be rejected by the resolver.
+    """
+    from typing import cast
+
+    from inspect_ai._control.server import resolve_ctl_server
+
+    for value in ("true", "yes", "1", "false", "no", "0", "keep-alive"):
+        parsed = cast("bool | str | None", _parsed([f"--ctl-server={value}"]))
+        # the CLI's parsed value round-trips through the resolver...
+        enabled, keep_alive = resolve_ctl_server(parsed)
+        # ...and matches resolving the raw spelling directly
+        assert (enabled, keep_alive) == resolve_ctl_server(value)

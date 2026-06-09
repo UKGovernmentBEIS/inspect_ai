@@ -538,6 +538,12 @@ async def eval_async(
     # `eval_set`, `eval_retry`, and `eval_retry_async` all funnel here.
     checkpoint = normalize_checkpoint(checkpoint)
 
+    # validate ctl_server here too (it's resolved where it's consumed, at the
+    # control-server bind inside the run) so a bad value fails fast as an
+    # argument error rather than after models, tasks, and run-start hooks
+    # have already initialized
+    resolve_ctl_server(ctl_server)
+
     result: list[EvalLog] | None = None
 
     async def run(tg: TaskGroup) -> None:

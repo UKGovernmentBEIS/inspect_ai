@@ -65,6 +65,13 @@ def resolve_ctl_server(value: bool | str | None) -> tuple[bool, bool]:
     - ``"keep-alive"`` — control server on, and the process parks after
       the eval finishes (until ``inspect ctl release`` / ``POST /release``).
 
+    The CLI spellings (``"true"`` / ``"yes"`` / ``"1"``, ``"false"`` /
+    ``"no"`` / ``"0"``, case-insensitive) are accepted too, so programmatic
+    callers can forward a flag or ``INSPECT_EVAL_CTL_SERVER`` env value
+    verbatim. This function is the single source of truth for the value
+    grammar — the ``--ctl-server`` click callback delegates here, so the CLI
+    and the Python API cannot drift apart.
+
     Raises:
         PrerequisiteError: For any other value — an unknown string is more
             likely a typo of ``keep-alive`` than an intentional choice, and
@@ -74,8 +81,14 @@ def resolve_ctl_server(value: bool | str | None) -> tuple[bool, bool]:
         return True, False
     if value is False:
         return False, False
-    if value == "keep-alive":
-        return True, True
+    if isinstance(value, str):
+        lower = value.lower()
+        if lower in ("true", "yes", "1"):
+            return True, False
+        if lower in ("false", "no", "0"):
+            return False, False
+        if lower == "keep-alive":
+            return True, True
     raise PrerequisiteError(
         f"Unexpected ctl_server value '{value}' (expected true, false, or keep-alive)."
     )
