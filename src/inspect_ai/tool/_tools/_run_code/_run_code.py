@@ -90,6 +90,39 @@ def _tool_def_by_name(tool_defs: list[ToolDef]) -> dict[str, ToolDef]:
 
     return tool_def_by_name
 
+def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
+    """Return model-facing instructions for using run_code."""
+    lines = [
+        "Write Python code to solve the task.",
+        "The final expression is returned as the run_code result.",
+        "",
+    ]
+
+    if tool_defs:
+        lines.extend(
+            [
+                "You may call the allowlisted Inspect tools below as async functions.",
+                "Use `await` when calling these tools.",
+                "",
+                "Example:",
+                "```python",
+                'result = await tool_name(arg="value")',
+                "result",
+                "```",
+                "",
+                _tool_interface_description(tool_defs),
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "No inner Inspect tools are available.",
+                "The code can only use the Python execution environment.",
+            ]
+        )
+
+    return "\n".join(lines)
+
 @tool
 def run_code(
     tools: Sequence[Tool] | None = None,
@@ -110,6 +143,7 @@ def run_code(
     tool_defs = _tool_defs(tools)
     tool_def_by_name = _tool_def_by_name(tool_defs)
     tool_defs = list(tool_def_by_name.values())
+    usage_description = _run_code_usage_description(tool_defs)
     inner_tools_description = _tool_interface_description(tool_defs)
     executor = executor or (
         MontyRunCodeExecutor(
@@ -149,7 +183,6 @@ def run_code(
         name="run_code",
         description=(
             "Run Python code that can orchestrate selected tools.\n\n"
-            f"{inner_tools_description}\n\n"
-            "This placeholder does not execute code yet."
+            f"{usage_description}"
         ),
     ).as_tool()

@@ -1,11 +1,7 @@
 import pytest
 
 from inspect_ai.tool import Tool, ToolDef, run_code
-from inspect_ai.tool._tools._run_code._run_code import (
-    _tool_defs,
-    _tool_interface_description,
-    _tool_signature,
-)
+
 from inspect_ai.tool._tools._run_code._run_code_executor import RunCodeResult
 
 from inspect_ai.tool._tools._run_code._bridge import (
@@ -19,6 +15,7 @@ import asyncio
 from inspect_ai.tool._tools._run_code._bridge import _preview
 
 from inspect_ai.tool._tools._run_code._run_code import (
+    _run_code_usage_description,
     _tool_def_by_name,
     _tool_defs,
     _tool_interface_description,
@@ -100,6 +97,7 @@ def test_run_code_description_mentions_wrapped_tool():
     tool = run_code(tools=[dummy_tool()])
     tool_def = ToolDef(tool)
 
+    assert "Use `await`" in tool_def.description
     assert "await dummy_tool(value: string)" in tool_def.description
     assert "Echo a value." in tool_def.description
 
@@ -388,3 +386,18 @@ def test_run_code_rejects_duplicate_wrapped_tool_names():
 def test_run_code_rejects_duplicate_wrapped_tool_names_at_construction():
     with pytest.raises(ValueError, match="Duplicate run_code inner tool name"):
         run_code(tools=[dummy_tool(), dummy_tool()])
+
+def test_run_code_usage_description_without_tools():
+    description = _run_code_usage_description([])
+
+    assert "Write Python code" in description
+    assert "No inner Inspect tools are available" in description
+
+def test_run_code_usage_description_with_tools_mentions_await():
+    tool_defs = _tool_defs([dummy_tool()])
+
+    description = _run_code_usage_description(tool_defs)
+
+    assert "Use `await`" in description
+    assert "await dummy_tool(value: string)" in description
+    assert "Echo a value." in description
