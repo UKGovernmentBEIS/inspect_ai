@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
@@ -88,17 +89,9 @@ def _make_realistic_sample(
     )
 
 
-_DEAD_PID = 99999999
-
-
 def _simulate_crashed_buffer(buffer: SampleBufferDatabase) -> None:
-    """Rename the buffer DB to use a dead PID, simulating a crashed process."""
-    old_path = buffer.db_path
-    new_path = old_path.parent / old_path.name.replace(
-        f".{os.getpid()}.", f".{_DEAD_PID}."
-    )
-    old_path.rename(new_path)
-    buffer.db_path = new_path
+    """Snapshot the buffer DB (incl. hot WAL) under a dead PID, simulating a crash."""
+    simulate_crashed_buffer_db(buffer)
 
 
 def _make_model_event(input_msgs: list[ChatMessage], output_content: str) -> ModelEvent:
