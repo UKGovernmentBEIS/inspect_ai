@@ -1,20 +1,36 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from inspect_ai.tool import ToolDef
 
+
+def _preview(value: Any, *, max_chars: int = 500) -> str:
+    """Return a bounded string preview of a value."""
+    try:
+        text = repr(value)
+    except Exception:
+        text = f"<unrepresentable {type(value).__name__}>"
+
+    if len(text) <= max_chars:
+        return text
+
+    suffix = f"... [truncated to {max_chars} chars]"
+    if max_chars <= len(suffix):
+        return text[:max_chars]
+
+    return text[: max_chars - len(suffix)] + suffix
 
 @dataclass
 class RunCodeInnerToolCall:
     """A tool call made from inside run_code."""
 
     name: str
-    args: tuple[Any, ...] = field(default_factory=tuple)
-    kwargs: dict[str, Any] = field(default_factory=dict)
-    result: Any | None = None
+    args_preview: str = ""
+    kwargs_preview: str = ""
+    result_preview: str | None = None
     error: str | None = None
 
 
@@ -58,15 +74,15 @@ class RunCodeToolBridge:
 
         call = RunCodeInnerToolCall(
             name=tool_def.name,
-            args=args,
-            kwargs=kwargs,
+            args_preview=_preview(args),
+            kwargs_preview=_preview(kwargs),
         )
         self.calls.append(call)
 
         try:
             result = await tool_def.tool(*args, **kwargs)
             result = _coerce_external_function_result(result)
-            call.result = result
+            call.result_preview = _preview(result)
             return result
         except Exception as exc:
             call.error = str(exc)

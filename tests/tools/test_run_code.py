@@ -16,6 +16,7 @@ from inspect_ai.tool._tools._run_code._bridge import (
 from inspect_ai.tool._tools._run_code._run_code import _format_run_code_result
 from inspect_ai.tool._tools._run_code._bridge import RunCodeInnerToolCall
 import asyncio
+from inspect_ai.tool._tools._run_code._bridge import _preview
 
 @pytest.fixture
 def anyio_backend():
@@ -179,8 +180,9 @@ async def test_run_code_bridge_records_inner_tool_call():
     assert result == "hello"
     assert len(bridge.calls) == 1
     assert bridge.calls[0].name == "dummy_tool"
-    assert bridge.calls[0].args == ("hello",)
-    assert bridge.calls[0].result == "hello"
+    assert bridge.calls[0].args_preview == "('hello',)"
+    assert bridge.calls[0].kwargs_preview == "{}"
+    assert bridge.calls[0].result_preview == "'hello'"
     assert bridge.calls[0].error is None
 
 @pytest.mark.anyio
@@ -250,7 +252,12 @@ def test_format_run_code_result_without_trace():
     result = RunCodeResult(
         output="hello",
         inner_tool_calls=[
-            RunCodeInnerToolCall(name="dummy_tool", args=("x",), result="x")
+            RunCodeInnerToolCall(
+                name="dummy_tool",
+                args_preview="('x',)",
+                kwargs_preview="{}",
+                result_preview="'x'",
+            )
         ],
     )
 
@@ -266,7 +273,12 @@ def test_format_run_code_result_with_trace():
     result = RunCodeResult(
         output="hello",
         inner_tool_calls=[
-            RunCodeInnerToolCall(name="dummy_tool", args=("x",), result="x")
+            RunCodeInnerToolCall(
+                name="dummy_tool",
+                args_preview="('x',)",
+                kwargs_preview="{}",
+                result_preview="'x'",
+            )
         ],
     )
 
@@ -344,3 +356,18 @@ async def test_run_code_truncates_output():
 
     assert len(result) <= 50
     assert "truncated" in result
+
+def test_run_code_preview_truncates_long_values():
+    preview = _preview("x" * 100, max_chars=30)
+
+    assert len(preview) <= 30
+    assert "truncated" in preview
+
+def test_run_code_preview_handles_bad_repr():
+    class BadRepr:
+        def __repr__(self) -> str:
+            raise RuntimeError("bad repr")
+
+    preview = _preview(BadRepr())
+
+    assert "unrepresentable" in preview
