@@ -3,11 +3,13 @@
 import asyncio
 import json
 import math
+import time
 import urllib.parse
 import zipfile
 from pathlib import Path
 from typing import IO, Any, ContextManager, Generator, TextIO, cast
 
+import anyio
 import fastapi.testclient
 import fsspec  # type: ignore
 import pytest
@@ -21,8 +23,9 @@ import inspect_ai.dataset
 import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
+from inspect_ai._util.event_loop_monitor import event_loop_monitor
 from inspect_ai._view import fastapi_server
-from inspect_ai._view.common import get_direct_url
+from inspect_ai._view.common import get_direct_url, get_log_bytes
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.model._generate_config import GenerateConfig
 
@@ -1750,3 +1753,50 @@ def test_api_pending_sample_data_urls_s3_populates_direct_url(
     assert direct_url is not None
     assert direct_url.startswith("http")
     assert "test-bucket" in direct_url
+
+
+async def test_get_log_bytes_local_does_not_block_event_loop(tmp_path: Path) -> None:
+    """A local byte-range read must not pin the event loop.
+
+    `get_log_bytes` currently performs a synchronous `fs.read_bytes` for
+    local files, so the whole read runs without yielding — the loop is
+    stalled for ~the entire read duration. We prove that by monitoring
+    loop lateness while the read runs: if the read blocks, the largest
+    observed stall is essentially the full read time.
+
+    The assertion is relative (stall vs. read duration) so it is
+    independent of machine speed and file size. It fails today and will
+    pass once the local path streams via asyncfiles.
+    """
+    # Build a file large enough that a single synchronous read takes long
+    # enough to dwarf scheduler jitter (a 1MB buffer reused to keep the
+    # write cheap and the bytes non-sparse so the read isn't elided).
+    log_file = tmp_path / "big.bin"
+    size = 256 * 1024 * 1024
+    chunk = b"\xa5" * (1024 * 1024)
+    with open(log_file, "wb") as f:
+        for _ in range(size // len(chunk)):
+            f.write(chunk)
+
+    path = log_file.as_posix()
+
+    async with event_loop_monitor(interval=0.002) as stats:
+        # let the monitor establish its cadence before the read starts
+        await anyio.sleep(0.02)
+        start = time.monotonic()
+        data = await get_log_bytes(path, 0, size - 1)
+        read_duration = time.monotonic() - start
+        # let the monitor wake and record the post-block tick
+        await anyio.sleep(0.01)
+
+    assert len(data) == size
+    # Sanity: the read must be substantial enough for the signal to mean
+    # something (guards against a no-op fast path elsewhere).
+    assert read_duration > 0.01, f"read too fast to be meaningful: {read_duration:.4f}s"
+
+    stalled_fraction = stats.max_lateness / read_duration
+    assert stats.max_lateness < read_duration * 0.5, (
+        f"event loop stalled {stats.max_lateness_ms:.0f}ms during a "
+        f"{read_duration * 1000:.0f}ms local read "
+        f"({stalled_fraction:.0%} of it) — the read is blocking the loop"
+    )
