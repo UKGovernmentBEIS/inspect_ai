@@ -6,6 +6,7 @@ import math
 import time
 import urllib.parse
 import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import IO, Any, ContextManager, Generator, TextIO, cast
 
@@ -25,7 +26,12 @@ import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._util.event_loop_monitor import event_loop_monitor
 from inspect_ai._view import fastapi_server
-from inspect_ai._view.common import get_direct_url, get_log_bytes
+from inspect_ai._view.common import (
+    get_direct_url,
+    get_log_bytes,
+    list_eval_logs_async,
+    stream_log_bytes,
+)
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.model._generate_config import GenerateConfig
 
@@ -1758,15 +1764,15 @@ def test_api_pending_sample_data_urls_s3_populates_direct_url(
 async def test_get_log_bytes_local_does_not_block_event_loop(tmp_path: Path) -> None:
     """A local byte-range read must not pin the event loop.
 
-    `get_log_bytes` currently performs a synchronous `fs.read_bytes` for
-    local files, so the whole read runs without yielding — the loop is
-    stalled for ~the entire read duration. We prove that by monitoring
-    loop lateness while the read runs: if the read blocks, the largest
-    observed stall is essentially the full read time.
+    `get_log_bytes` reads local files via asyncfiles' anyio-backed reader,
+    so a large read yields to the loop instead of running to completion in
+    one blocking `fs.read_bytes`. We guard that by monitoring loop lateness
+    while the read runs: a blocking read stalls the loop for ~the entire
+    read duration, a non-blocking one barely at all.
 
     The assertion is relative (stall vs. read duration) so it is
-    independent of machine speed and file size. It fails today and will
-    pass once the local path streams via asyncfiles.
+    independent of machine speed and file size. It would fail if the local
+    path regressed to a synchronous read.
     """
     # Build a file large enough that a single synchronous read takes long
     # enough to dwarf scheduler jitter (a 1MB buffer reused to keep the
@@ -1800,3 +1806,79 @@ async def test_get_log_bytes_local_does_not_block_event_loop(tmp_path: Path) -> 
         f"{read_duration * 1000:.0f}ms local read "
         f"({stalled_fraction:.0%} of it) — the read is blocking the loop"
     )
+
+
+async def _consume(stream: Any) -> bytes:
+    chunks = []
+    async for chunk in stream:
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def test_stream_log_bytes_streams_large_local_file(tmp_path: Path) -> None:
+    """Local files over the stream threshold are streamed, not buffered.
+
+    Regression guard: this path previously fell through to the S3-only
+    branch and raised "Expected S3FileSystem" for any local file larger
+    than the threshold (notably `/log-download` of a >50MB local log).
+
+    A low `stream_threshold_bytes` forces the streaming branch with a
+    small file. The result must be an async byte stream (not a buffered
+    `BytesIO`) that yields the exact file contents.
+    """
+    payload = bytes(range(256)) * 4096  # 1MB of non-uniform bytes
+    log_file = tmp_path / "log.bin"
+    log_file.write_bytes(payload)
+    path = log_file.as_posix()
+
+    # full file, threshold below the file size -> streaming branch
+    stream = await stream_log_bytes(path, stream_threshold_bytes=16)
+    assert not isinstance(stream, BytesIO)
+    assert await _consume(stream) == payload
+
+    # ranged read whose size exceeds the threshold also streams, returning
+    # exactly the requested (inclusive) range
+    ranged = await stream_log_bytes(path, 10, 99, stream_threshold_bytes=16)
+    assert not isinstance(ranged, BytesIO)
+    assert await _consume(ranged) == payload[10:100]
+
+
+async def test_list_eval_logs_async_missing_local_dir(tmp_path: Path) -> None:
+    """A missing local log dir lists as empty, not an error."""
+    assert await list_eval_logs_async(str(tmp_path / "nope"), recursive=False) == []
+    assert await list_eval_logs_async(str(tmp_path / "nope"), recursive=True) == []
+
+
+def test_list_eval_logs_async_s3(mock_s3: None) -> None:
+    """The unified listing path returns full metadata for S3 logs."""
+    s3_dir = "s3://test-bucket/list-logs-unified"
+    s3_log = f"{s3_dir}/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    eval_log = inspect_ai.log.EvalLog(
+        eval=inspect_ai.log.EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="task",
+            task_id="task_id",
+            dataset=inspect_ai.log.EvalDataset(),
+            model="model",
+            config=inspect_ai.log.EvalConfig(),
+        )
+    )
+    inspect_ai.log.write_eval_log(eval_log, s3_log, "eval")
+
+    async def run() -> None:
+        logs = await list_eval_logs_async(s3_dir)
+        assert [log.name for log in logs] == [s3_log]
+        assert logs[0].task == "task"
+        # mtime in ms since epoch — the unit incremental polling compares
+        assert logs[0].mtime is not None and logs[0].mtime > 1_000_000_000_000
+
+    asyncio.run(run())
+
+
+def test_list_eval_logs_async_missing_bucket(mock_s3: None) -> None:
+    """A log dir in a nonexistent bucket lists as empty, not an error."""
+
+    async def run() -> None:
+        assert await list_eval_logs_async("s3://no-such-bucket-inspect/logs") == []
+
+    asyncio.run(run())

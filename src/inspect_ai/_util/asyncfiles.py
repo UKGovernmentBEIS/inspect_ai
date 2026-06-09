@@ -253,9 +253,18 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def read_file_bytes_fully(self, filename: str, start: int, end: int) -> bytes:
         """Read a byte range from a file and consume the stream fully into bytes."""
         stream = await self.read_file_bytes(filename, start, end)
-        chunks = []
-        async for chunk in stream:
-            chunks.append(chunk)
+        chunks: list[bytes] = []
+        try:
+            # Pull in large chunks rather than the stream's default
+            # iteration size — one thread/network hop per megabyte instead
+            # of per 64KB matters when reading tens of MB into memory.
+            while True:
+                try:
+                    chunks.append(await stream.receive(_READ_FULLY_CHUNK_SIZE))
+                except EndOfStream:
+                    break
+        finally:
+            await stream.aclose()
         return b"".join(chunks)
 
     async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
@@ -400,43 +409,100 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         if is_s3_filename(base):
             bucket, prefix = s3_bucket_and_key(base)
             prefix = prefix.rstrip("/") + "/" if prefix else ""
-            if current_async_backend() == "asyncio":
-                client = await self.s3_client_async()
-                paginator = client.get_paginator("list_objects_v2")
-                kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
-                if not recursive:
-                    kwargs["Delimiter"] = "/"
-                async for page in paginator.paginate(**kwargs):
-                    for obj in page.get("Contents", []):
-                        key = obj["Key"]
-                        if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
-                            yield f"s3://{bucket}/{key}"
-            else:
-                results = await anyio.to_thread.run_sync(
-                    s3_iter_files,
-                    self.s3_client(),
-                    bucket,
-                    prefix,
-                    pattern,
-                    recursive,
-                )
-                for r in results:
-                    yield r
+            async for obj in self._iter_s3_objects(bucket, prefix, recursive):
+                key = obj["Key"]
+                if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
+                    yield f"s3://{bucket}/{key}"
         else:
             fs = filesystem(base).fs
             if recursive:
-                paths = fs.find(base)
+                paths = await anyio.to_thread.run_sync(fs.find, base)
                 if isinstance(paths, dict):
                     paths = list(paths.keys())
                 for path in paths:
                     if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
                         yield path
             else:
-                for entry in fs.ls(base, detail=True):
+                for entry in await anyio.to_thread.run_sync(
+                    functools.partial(fs.ls, base, detail=True)
+                ):
                     if entry["type"] == "file":
                         name = entry["name"]
                         if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
                             yield name
+
+    async def iter_file_infos(
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        fs_options: dict[str, Any] = {},
+    ) -> AsyncIterator[FileInfo]:
+        """Yield `FileInfo` for files under `base`.
+
+        Matching semantics are the same as `iter_files` (fnmatch on the
+        basename, case-sensitive; non-recursive considers only direct
+        children of `base`). The metadata (size/mtime/etag) comes from
+        the listing itself — no per-file stat round-trips.
+
+        Names follow the `FileSystem` convention (protocol-prefixed,
+        e.g. ``file:///...`` or ``s3://...``). Note this differs from
+        `iter_files`, which yields backend-native paths for non-S3
+        filesystems.
+
+        A missing non-recursive fsspec/local `base` raises
+        `FileNotFoundError`; an S3 prefix with no objects yields
+        nothing.
+
+        Args:
+            base: Directory or URI prefix to list.
+            pattern: fnmatch pattern applied to the basename only
+                (must not contain ``/``).
+            recursive: Include files at any depth under `base`.
+            fs_options: Passed through to fsspec-backed filesystems
+                (non-S3). For anonymous S3 access use the `anonymous`
+                constructor option.
+        """
+        if is_s3_filename(base):
+            bucket, prefix = s3_bucket_and_key(base)
+            prefix = prefix.rstrip("/") + "/" if prefix else ""
+            async for obj in self._iter_s3_objects(bucket, prefix, recursive):
+                key: str = obj["Key"]
+                # keys ending in "/" are zero-byte directory placeholders
+                if key.endswith("/"):
+                    continue
+                if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
+                    yield _s3_object_to_file_info(bucket, obj)
+        else:
+            fs = filesystem(base, fs_options)
+            infos = await anyio.to_thread.run_sync(
+                functools.partial(fs.ls, base, recursive=recursive)
+            )
+            for info in infos:
+                if info.type == "file" and fnmatchcase(
+                    info.name.rsplit("/", 1)[-1], pattern
+                ):
+                    yield info
+
+    async def _iter_s3_objects(
+        self, bucket: str, prefix: str, recursive: bool
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield raw `list_objects_v2` Contents entries under a prefix."""
+        if current_async_backend() == "asyncio":
+            client = await self.s3_client_async()
+            paginator = client.get_paginator("list_objects_v2")
+            kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
+            if not recursive:
+                kwargs["Delimiter"] = "/"
+            async for page in paginator.paginate(**kwargs):
+                for obj in page.get("Contents", []):
+                    yield obj
+        else:
+            for obj in await anyio.to_thread.run_sync(
+                s3_list_objects, self.s3_client(), bucket, prefix, recursive
+            ):
+                yield obj
 
     async def iter_dirs(
         self, base: str, pattern: str = "*", *, recursive: bool = False
@@ -493,14 +559,22 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             fs = filesystem(base).fs
             if not recursive:
-                for entry in fs.ls(base, detail=True):
+                for entry in await anyio.to_thread.run_sync(
+                    functools.partial(fs.ls, base, detail=True)
+                ):
                     if entry["type"] == "directory":
                         name = entry["name"]
                         terminal = name.rstrip("/").rsplit("/", 1)[-1]
                         if fnmatchcase(terminal, pattern):
                             yield name.rstrip("/") + "/"
             else:
-                for dirpath, dirnames, _ in fs.walk(base):
+                walked = await anyio.to_thread.run_sync(
+                    lambda: [
+                        (dirpath, list(dirnames))
+                        for dirpath, dirnames, _ in fs.walk(base)
+                    ]
+                )
+                for dirpath, dirnames in walked:
                     for dirname in dirnames:
                         if fnmatchcase(dirname, pattern):
                             yield f"{dirpath.rstrip('/')}/{dirname}/"
@@ -606,6 +680,22 @@ def s3_info(s3: Any, bucket: str, key: str, filename: str) -> FileInfo:
     return _s3_head_to_file_info(filename, response)
 
 
+def _s3_object_to_file_info(bucket: str, obj: dict[str, Any]) -> FileInfo:
+    """Build a FileInfo from a `list_objects_v2` Contents entry.
+
+    mtime is in milliseconds, matching `FileSystem._file_info`.
+    """
+    last_modified = obj.get("LastModified")
+    etag_raw = obj.get("ETag")
+    return FileInfo(
+        name=f"s3://{bucket}/{obj['Key']}",
+        type="file",
+        size=cast(int, obj.get("Size") or 0),
+        mtime=last_modified.timestamp() * 1000 if last_modified else None,
+        etag=cast(str, etag_raw).strip('"') if etag_raw else None,
+    )
+
+
 def s3_read_file(s3: Any, bucket: str, key: str) -> bytes:
     response = s3.get_object(Bucket=bucket, Key=key)
     return cast(bytes, response["Body"].read())
@@ -690,20 +780,16 @@ def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
     s3.download_file(Bucket=bucket, Key=key, Filename=filename)
 
 
-def s3_iter_files(
-    s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
-) -> list[str]:
+def s3_list_objects(
+    s3: Any, bucket: str, prefix: str, recursive: bool
+) -> list[dict[str, Any]]:
     paginator = s3.get_paginator("list_objects_v2")
     kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
     if not recursive:
         kwargs["Delimiter"] = "/"
-    results: list[str] = []
-    for page in paginator.paginate(**kwargs):
-        for obj in page.get("Contents", []):
-            key = obj["Key"]
-            if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
-                results.append(f"s3://{bucket}/{key}")
-    return results
+    return [
+        obj for page in paginator.paginate(**kwargs) for obj in page.get("Contents", [])
+    ]
 
 
 def s3_iter_dirs(
@@ -821,3 +907,7 @@ _FSSPEC_WRITE_BLOCK_SIZE = 8 * 1024 * 1024  # 8 MB
 # Size of chunks read from the source stream per iteration when
 # copying to local or fsspec-backed files via shutil.copyfileobj.
 _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
+
+# Granularity for `read_file_bytes_fully`: one read hop per chunk while
+# accumulating a range into memory.
+_READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
