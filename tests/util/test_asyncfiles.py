@@ -1,6 +1,7 @@
 import asyncio
 import io
 import tempfile
+from functools import partial
 from pathlib import Path
 from typing import Any, cast
 
@@ -1364,7 +1365,7 @@ def test_iter_file_infos_s3_pagination(mock_s3: None) -> None:
         async with AsyncFilesystem() as fs:
             await tg_collect(
                 [
-                    lambda i=i: fs.write_file(f"{base}/k{i:04d}.txt", b"x")
+                    partial(fs.write_file, f"{base}/k{i:04d}.txt", b"x")
                     for i in range(1050)
                 ]
             )
