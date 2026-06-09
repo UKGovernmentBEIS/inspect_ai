@@ -299,15 +299,32 @@ class TranscriptHistory:
             ``start`` is at or past the end of the history.
 
         Raises:
-            RuntimeError: If ``start`` falls below the resident window, events
-                have been truncated, and no history provider is available to
-                materialize them.
+            RuntimeError: If events have been truncated, the requested range
+                extends beyond the trailing resident window, and no history
+                provider is available to materialize the evicted events.
         """
         transcript = self._transcript
         start = max(0, start)
-        first_resident = transcript._event_count - len(transcript._events)
-        if start >= first_resident:
-            events: Sequence[Event] = transcript._events[start - first_resident :]
+        count = transcript._event_count
+        if start >= count:
+            return []
+        if not transcript._events_truncated:
+            # nothing evicted: resident events ARE the logical history
+            events: Sequence[Event] = transcript._events[start:]
+            return events[:limit] if limit is not None else events
+        # Once events have been evicted, resident events are NOT a contiguous
+        # suffix of the logical history: pinned and pending events survive
+        # eviction at their insertion positions (eg. a SampleInitEvent ahead
+        # of the resident tail), so a logical offset can't be mapped into
+        # ``_events`` by suffix arithmetic. The exception is the trailing
+        # window ``recent_events`` also relies on: the newest
+        # ``resident_tail`` logical events are always resident and always the
+        # last elements of ``_events`` (eviction removes only *older*
+        # evictable events), so a read confined to that window is a memory
+        # slice. Anything earlier must come from the provider.
+        n = count - start
+        if n <= min(transcript._resident_tail, len(transcript._events)):
+            events = transcript._events[-n:]
             return events[:limit] if limit is not None else events
         if transcript._history_provider is None:
             raise RuntimeError(

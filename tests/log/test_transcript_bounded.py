@@ -851,3 +851,51 @@ def test_history_events_from_unbounded_transcript() -> None:
 
     assert _data(transcript.history.events_from(0)) == [0, 1, 2]
     assert _data(transcript.history.events_from(-5, limit=2)) == [0, 1]  # clamps
+
+
+def test_history_events_from_with_pinned_event_does_not_misalign() -> None:
+    """Pinned events break the resident-suffix assumption (regression).
+
+    A pinned SampleInitEvent survives eviction at its insertion position, so
+    resident events are ['init', 7, 8, 9] for a 10-event history — not a
+    contiguous suffix. Suffix arithmetic mapped logical offset 6 onto the
+    pinned event, returning ['init', 7, 8] instead of [6, 7, 8]: a duplicated
+    pin and a silently skipped event. Reads outside the trailing
+    resident-tail window must go to the provider instead.
+    """
+    full_history: list[Event] = [
+        SampleInitEvent(sample=Sample(input="input", id="sample"), state={}),
+        *(InfoEvent(data=data) for data in range(1, 10)),
+    ]
+    provider = _LimitCapturingProvider(full_history)
+    transcript = Transcript(bounded=True, resident_tail=3, history_provider=provider)
+    for event in full_history:
+        transcript._event(event)
+
+    # sanity: the pin sits ahead of the resident tail (non-contiguous resident)
+    resident = transcript.history.resident_events
+    assert isinstance(resident[0], SampleInitEvent)
+    assert _data(resident[1:]) == [7, 8, 9]
+    assert transcript.history.event_count == 10
+
+    # the regression: offset 6 is below the trailing window → provider
+    assert _data(transcript.history.events_from(6, limit=3)) == [6, 7, 8]
+    assert provider.events_from_calls == [(6, 3)]
+
+    # the trailing resident-tail window is still a memory fast path
+    provider.events_from_calls.clear()
+    assert _data(transcript.history.events_from(7)) == [7, 8, 9]
+    assert provider.events_from_calls == []
+
+
+def test_history_events_from_with_pinned_event_and_no_provider_raises() -> None:
+    transcript = Transcript(bounded=True, resident_tail=3)
+    transcript._event(SampleInitEvent(sample=Sample(input="input", id="s"), state={}))
+    for data in range(1, 10):
+        transcript._event(InfoEvent(data=data))
+
+    # below the trailing window: unrecoverable → error, never a misaligned page
+    with pytest.raises(RuntimeError, match="Full transcript history is not available"):
+        transcript.history.events_from(6)
+    # the trailing window itself is fine
+    assert _data(transcript.history.events_from(7)) == [7, 8, 9]

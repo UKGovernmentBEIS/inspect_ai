@@ -263,9 +263,15 @@ def _buffer_events(
 
     The gap-free events source for a streaming-path sample whose recorder copy
     is event-less and which hasn't yet been flushed to disk (the same buffer
-    the view server reads in-progress samples from). ``None`` when there's no
-    buffer (eval finished / no streaming) or it doesn't hold the sample, so the
-    caller keeps whatever the recorder/on-disk sample provided.
+    the view server reads in-progress samples from). Read through
+    ``BufferTranscriptHistoryProvider`` — the same materialization path as
+    live bounded-transcript reads — so pooled message/call refs are
+    re-expanded, attachments are resolved, and superseded pending-event
+    versions are collapsed. Raw ``get_sample_data`` rows would expose
+    unresolved ``input_refs`` / ``call_refs`` (without the pools needed to
+    interpret them) in ``--full`` pages. ``None`` when there's no buffer
+    database (eval finished / no streaming) or it doesn't hold the sample, so
+    the caller keeps whatever the recorder/on-disk sample provided.
     """
     from inspect_ai._control.eval_state import get_eval_state
 
@@ -273,15 +279,18 @@ def _buffer_events(
     if state is None or not state.log_location:
         return None
 
-    from inspect_ai.log._recorders.buffer import sample_buffer
+    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+        BufferTranscriptHistoryProvider,
+    )
 
-    data = sample_buffer(state.log_location).get_sample_data(sample_id, epoch)
-    if data is None:
+    try:
+        buffer_db = SampleBufferDatabase(state.log_location, create=False)
+    except FileNotFoundError:
         return None
 
-    from inspect_ai.event._validate import validate_events
-
-    return validate_events([event_data.event for event_data in data.events])
+    events = list(BufferTranscriptHistoryProvider(buffer_db, sample_id, epoch).events())
+    return events or None
 
 
 # --- filtering + projection ------------------------------------------------

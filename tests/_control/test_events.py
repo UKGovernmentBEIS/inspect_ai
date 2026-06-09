@@ -290,3 +290,73 @@ async def test_evicted_events_without_provider_is_a_hard_error(
     page = await sample_events("e1", "1", 1, tail=3)
     assert page is not None
     assert [e["source"] for e in page["events"]] == ["e7", "e8", "e9"]
+
+
+# --- streaming-buffer events (event-less recorder sample) -------------------
+
+
+async def test_buffer_served_events_are_materialized(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Events served from the buffer database are fully materialized.
+
+    The `.eval` streaming-completion path retains an event-less sample in the
+    recorder (its events live in the buffer database), so the events page is
+    served from the buffer. Reading the raw buffer rows exposed condensed
+    events — `input_refs` / `call_refs` pointing into pools that weren't
+    returned, and unresolved attachments. The buffer read now goes through
+    `BufferTranscriptHistoryProvider` (the same materialization as live
+    transcript and finalized log reads), so pooled refs are re-expanded into
+    real messages.
+    """
+    import inspect_ai._control.state as state_mod
+    import inspect_ai.log._recorders.buffer.database as database_mod
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.types import SampleEvent
+    from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput
+
+    monkeypatch.setattr(
+        database_mod, "resolve_db_dir", lambda db_dir=None: db_dir or tmp_path
+    )
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
+
+    location = str(tmp_path / "logs" / "task.eval")
+    db = SampleBufferDatabase(location)
+    event = ModelEvent(
+        uuid="ev-1",
+        model="mockllm/model",
+        input=[ChatMessageUser(id="m1", content="question")],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", "answer"),
+    )
+    db.log_events([SampleEvent(id="s1", epoch=1, event=event)])
+    try:
+        register_eval("e1", 1, log_location=location)
+
+        # the streaming-path shape: the resolved sample carries no events
+        async def event_less_sample(
+            eval_id: str, sample_id: str, epoch: int, *, exclude_fields: Any = None
+        ) -> Any:
+            return SimpleNamespace(
+                events=[], id="s1", uuid="u1", epoch=1, error_retries=[]
+            )
+
+        monkeypatch.setattr(state_mod, "_full_sample", event_less_sample)
+
+        page = await sample_events("e1", "s1", 1, full=True)
+        assert page is not None
+        [model] = page["events"]
+        assert model["event"] == "model"
+        # pooled input refs are re-expanded into real messages...
+        assert model["input"] and model["input"][0]["content"] == "question"
+        # ...not left as condensed refs into pools the page doesn't carry
+        assert not model.get("input_refs")
+        assert model["output"]["choices"][0]["message"]["content"] == "answer"
+    finally:
+        clear_all_eval_states()
+        db.cleanup()
