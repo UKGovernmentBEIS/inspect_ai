@@ -31,19 +31,19 @@ The `inspect_sandbox_tools` package is part of a split architecture that separat
 
 ### Build Process
 
-Portable Linux executables are built via PyInstaller + StaticX for cross-distribution portability. Build scripts live in `src/inspect_ai/tool/_sandbox_tools_utils/` and output to `src/inspect_ai/binaries/` (amd64/arm64). See [RELEASING.md](design/RELEASING.md) for build, validation, and release commands.
+Linux executables are built via PyInstaller `--onedir` and packaged as a gzipped tar of the bundle tree (the launcher plus its `_internal` directory). At injection the tar is extracted into the container (`tar xzf`, with a host-side fallback to an uncompressed tar for containers whose `tar` lacks gzip support) so the launcher runs against the on-disk tree — nothing self-extracts per `exec`. Because libc is not bundled, the build base image's libc sets the runtime floor, so two variants are built per arch: a **glibc** variant (built on bullseye / glibc 2.31) and a **musl** variant (built on alpine3.16 / musl 1.2.3, for Alpine/musl sandboxes). Injection detects the sandbox's libc and arch (`recon.detect_sandbox_os`) and selects the matching artifact. All four (arch × libc) are uploaded to S3; only the glibc pair is bundled into the wheel — musl is fetched from S3 on demand. Build scripts live in `src/inspect_ai/tool/_sandbox_tools_utils/` and output to `src/inspect_ai/binaries/`. See [RELEASING.md](design/RELEASING.md) for build, validation, and release commands.
 
 ### Container Injection Mechanism
 
 When a tool needs to run in a container, the system automatically injects the appropriate executable:
 
-1. Tool requests a sandbox via `container_tools_sandbox()`
-2. System checks if `/opt/inspect-sandbox-tools` exists in the container
+1. Tool requests a sandbox via `sandbox_with_injected_tools()`
+2. System checks if `/var/tmp/.da7be258e003d428/inspect-sandbox-tools` exists in the container
 3. If missing, the injection process:
-   - Detects container architecture (amd64/arm64)
-   - Selects the appropriate pre-built executable from binaries
-   - Writes executable to `/opt/inspect-sandbox-tools` in container
-   - Sets execute permissions
+   - Detects container architecture (amd64/arm64) and libc (glibc/musl)
+   - Selects the matching pre-built artifact from local binaries, S3, or a local Docker build
+   - Writes the gzipped onedir tar into the container and extracts it into `/var/tmp/.da7be258e003d428`
+   - Restricts the extracted tree to the tools user when root is available
 
 The system includes fallback mechanisms to download executables from S3 or build them locally if needed.
 
@@ -53,14 +53,14 @@ Tools communicate through a two-layer RPC architecture:
 
 **Layer 1 - Host to Container (stateless):**
 1. Tool creates JSON-RPC request on host
-2. `SandboxJSONRPCTransport` executes: `sandbox.exec(["/opt/inspect-sandbox-tools", "exec"], input=json_rpc_request)` 
+2. `SandboxJSONRPCTransport` executes: `sandbox.exec(["/var/tmp/.da7be258e003d428/inspect-sandbox-tools", "exec"], input=json_rpc_request)`
 3. JSON-RPC payload passed via stdin to the injected executable
 4. Response returns via stdout
 
 **Layer 2 - Container Internal (stateful operations):**
 1. When stateful execution is needed, the injected executable acts as a client
 2. It starts a server process if not already running
-3. Sends JSON-RPC requests to the server via HTTP over Unix socket (`~/.cache/container-tools.sock`)
+3. Sends JSON-RPC requests to the server via HTTP over Unix socket (`/tmp/sandbox-tools/sandbox-tools.sock`)
 4. Server maintains state across requests and returns responses
 5. The stateless executable forwards the response back through Layer 1
 
