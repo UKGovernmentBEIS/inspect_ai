@@ -401,3 +401,90 @@ def test_run_code_usage_description_with_tools_mentions_await():
     assert "Use `await`" in description
     assert "await dummy_tool(value: string)" in description
     assert "Echo a value." in description
+
+def second_dummy_tool() -> Tool:
+    async def execute(value: str) -> str:
+        """Echo a second value.
+
+        Args:
+            value: Value to echo.
+        """
+        return f"second:{value}"
+
+    return ToolDef(
+        execute,
+        name="second_dummy_tool",
+        description="Echo a second value.",
+    ).as_tool()
+
+@pytest.mark.anyio
+async def test_run_code_bridge_can_call_multiple_wrapped_tools():
+    bridge = RunCodeToolBridge(
+        _tool_defs([dummy_tool(), second_dummy_tool()])
+    )
+
+    external_functions = bridge.external_functions()
+
+    result_1 = await external_functions["dummy_tool"]("a")
+    result_2 = await external_functions["second_dummy_tool"]("b")
+
+    assert result_1 == "a"
+    assert result_2 == "second:b"
+
+    assert len(bridge.calls) == 2
+    assert bridge.calls[0].name == "dummy_tool"
+    assert bridge.calls[1].name == "second_dummy_tool"
+
+@pytest.mark.anyio
+async def test_run_code_can_call_multiple_wrapped_tools_with_monty():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(
+        tools=[dummy_tool(), second_dummy_tool()],
+        execute=True,
+    )
+
+    result = await tool(
+        code="""
+a = await dummy_tool("x")
+b = await second_dummy_tool("y")
+[a, b]
+"""
+    )
+
+    assert "x" in result
+    assert "second:y" in result
+
+@pytest.mark.anyio
+async def test_run_code_can_call_wrapped_tools_with_asyncio_gather():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(
+        tools=[dummy_tool(), second_dummy_tool()],
+        execute=True,
+        include_tool_call_trace=True,
+    )
+
+    result = await tool(
+        code="""
+import asyncio
+
+results = await asyncio.gather(
+    dummy_tool("x"),
+    second_dummy_tool("y"),
+)
+results
+"""
+    )
+
+    assert "x" in result
+    assert "second:y" in result
+    assert "Inner tool calls:" in result
+    assert "dummy_tool" in result
+    assert "second_dummy_tool" in result
+
+def test_run_code_usage_description_mentions_asyncio_gather():
+    tool_defs = _tool_defs([dummy_tool()])
+    description = _run_code_usage_description(tool_defs)
+
+    assert "asyncio.gather" in description
