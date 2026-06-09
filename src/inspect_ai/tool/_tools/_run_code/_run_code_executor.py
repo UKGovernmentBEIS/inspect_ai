@@ -55,10 +55,10 @@ class MontyRunCodeExecutor:
         self,
         tool_defs: list[ToolDef] | None = None,
         *,
-        max_tool_calls: int | None = None,
+        max_inner_tool_calls: int | None = None,
     ) -> None:
         self.tool_defs = tool_defs or []
-        self.max_tool_calls = max_tool_calls
+        self.max_tool_calls = max_inner_tool_calls
 
     async def execute(self, code: str) -> RunCodeResult:
         """Execute code.

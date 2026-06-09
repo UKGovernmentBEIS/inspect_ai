@@ -154,7 +154,7 @@ def run_code(
     executor = executor or (
         MontyRunCodeExecutor(
             tool_defs=tool_defs,
-            max_tool_calls=max_inner_tool_calls,
+            max_inner_tool_calls=max_inner_tool_calls,
         )
         if execute_code
         else StubRunCodeExecutor()
