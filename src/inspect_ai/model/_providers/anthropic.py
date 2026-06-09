@@ -1153,8 +1153,7 @@ class AnthropicAPI(ModelAPI):
             # Unknown future version: assume the current 1M frontier.
             return "anthropic/claude-opus-4-8"  # 1MM
         elif (
-            self.is_claude_5()
-            and _get_model_info_direct(self.canonical_name()) is None
+            self.is_claude_5() and _get_model_info_direct(self.canonical_name()) is None
         ):
             # A Claude 5 variant not yet registered in the model-info database
             # (e.g. a tier-named claude-*-5 or a new codename): assume the 1M
