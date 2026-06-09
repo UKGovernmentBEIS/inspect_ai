@@ -191,7 +191,7 @@ async def test_run_code_bridge_records_inner_tool_call():
 async def test_run_code_bridge_enforces_max_tool_calls():
     bridge = RunCodeToolBridge(
         _tool_defs([dummy_tool()]),
-        max_tool_calls=1,
+        max_inner_tool_calls=1,
     )
 
     external_functions = bridge.external_functions()

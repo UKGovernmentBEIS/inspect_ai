@@ -41,10 +41,10 @@ class RunCodeToolBridge:
         self,
         tool_defs: list[ToolDef],
         *,
-        max_tool_calls: int | None = None,
+        max_inner_tool_calls: int | None = None,
     ) -> None:
         self.tool_defs = tool_defs
-        self.max_tool_calls = max_tool_calls
+        self.max_tool_calls = max_inner_tool_calls
         self.calls: list[RunCodeInnerToolCall] = []
 
     def external_functions(self) -> dict[str, Callable[..., Any]]:
@@ -92,10 +92,10 @@ class RunCodeToolBridge:
 def external_functions_for_tool_defs(
     tool_defs: list[ToolDef],
     *,
-    max_tool_calls: int | None = None,
+    max_inner_tool_calls: int | None = None,
 ) -> dict[str, Callable[..., Any]]:
     """Create Monty external functions for allowlisted Inspect tools."""
-    bridge = RunCodeToolBridge(tool_defs, max_tool_calls=max_tool_calls)
+    bridge = RunCodeToolBridge(tool_defs, max_inner_tool_calls=max_inner_tool_calls)
     return bridge.external_functions()
 
 

@@ -82,7 +82,7 @@ class MontyRunCodeExecutor:
 
         bridge = RunCodeToolBridge(
             self.tool_defs,
-            max_tool_calls=self.max_tool_calls,
+            max_inner_tool_calls=self.max_tool_calls,
         )
 
         try:
