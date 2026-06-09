@@ -210,7 +210,9 @@ When more than one of the sample / task / eval layers supplies a configuration, 
 
 ### Sandbox Paths
 
-`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed.
+`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g. `sandbox_paths={"tools": []}`) opts that sandbox out of checkpointing entirely.
+
+Cache directories are never backed up: any `.cache` directory at any depth (`**/.cache`, including the user's XDG cache dir) is always excluded from sandbox backups — even when you specify `sandbox_paths` explicitly. Agents should not keep state they need across a resume under a `.cache` directory.
 
 ## Checkpoint Flow
 
@@ -225,6 +227,8 @@ When checkpointing is enabled, each sample proceeds as follows:
 4.  **Emit**: A structured `CheckpointEvent` is emitted into the normal event stream (and into the `.eval` log) carrying the trigger, turn, duration, snapshot ids, and size.
 
 Crashed cycles that didn't reach step 3 leave orphan snapshots with no checkpoint file; resume discards them automatically.
+
+For debugging, you can set `INSPECT_CHECKPOINT_LIST_FILES=1` to additionally record each snapshot's added/changed file paths (capped at 100, with a count of any remainder) in the checkpoint file and the `CheckpointEvent`.
 
 ## Custom Agents {#custom-agents}
 

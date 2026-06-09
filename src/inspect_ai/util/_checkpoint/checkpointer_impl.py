@@ -79,11 +79,10 @@ T = TypeVar("T")
 CHECKPOINT_TRANSCRIPT_STORE = "checkpoint_transcript.sqlite"
 
 _LIST_FILES_ENV_VAR = "INSPECT_CHECKPOINT_LIST_FILES"
-_LIST_FILES_DEFAULT = True
+_LIST_FILES_DEFAULT = False
 """Whether to record each sandbox snapshot's added/changed file list (capped
-at :data:`MAX_LISTED_FILES`) in the checkpoint file. Defaulted **on** during
-development (opt-out via ``INSPECT_CHECKPOINT_LIST_FILES=0``); flip to
-``False`` (opt-in) before going public. No config/CLI surface yet."""
+at :data:`MAX_LISTED_FILES`) in the checkpoint file. Opt-in via
+``INSPECT_CHECKPOINT_LIST_FILES=1``. No config/CLI surface yet."""
 
 
 def _list_files_enabled() -> bool:
