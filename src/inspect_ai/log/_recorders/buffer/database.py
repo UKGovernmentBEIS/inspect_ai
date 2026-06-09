@@ -153,6 +153,28 @@ class SampleBufferDatabase(SampleBuffer):
         self.log_shared = log_shared
         self.update_interval = update_interval
 
+        # warn at most once per database if WAL journal mode can't be enabled
+        self._wal_checked = False
+
+        # Persistent per-thread SQLite connections. Each thread reuses one
+        # connection across operations instead of opening/closing per call
+        # (a large throughput win, especially under WAL). Connections are
+        # tracked so they can all be closed at cleanup. Initialized before the
+        # schema-creation _get_connection() call below.
+        #
+        # Safety rests on two invariants (see _get_connection): (a) all writes
+        # and explicit-transaction reads run on the single anyio event-loop
+        # thread; the only other DB-touching thread is the read-only filestore
+        # sync worker, so no two threads ever touch the same connection
+        # concurrently. (b) _get_connection() bodies are await-free, so no other
+        # task can interleave a statement onto the shared connection mid-txn.
+        # check_same_thread=False is set purely so cleanup can close a (dead)
+        # thread's handle, not to enable concurrent use.
+        self._local = threading.local()
+        self._connections: list[Connection] = []
+        self._connections_lock = threading.Lock()
+        self._closed = False
+
         # location subdir and file
         dir, file = location_dir_and_file(self.location)
 
@@ -404,9 +426,26 @@ class SampleBufferDatabase(SampleBuffer):
         return True
 
     def _cleanup_now(self) -> None:
+        # Close all persistent connections BEFORE unlinking. This is required
+        # for correctness on Windows (unlink fails on an open file) and to allow
+        # removal of the WAL -wal/-shm sidecars, which stay open as long as a
+        # connection is open. The sync worker is already joined by this point
+        # (see cleanup -> _close_sync_worker_for_cleanup), so closing its handle
+        # cross-thread is safe.
+        self._close_all_connections()
         cleanup_sample_buffer_db(self.db_path)
         if self._sync_filestore is not None:
             self._sync_filestore.cleanup()
+
+    def __del__(self) -> None:
+        # Best-effort close in case cleanup() was never called (e.g. tests that
+        # construct a database without tearing it down). Guard against partial
+        # __init__ where connection state may not exist yet.
+        if getattr(self, "_connections", None) is not None:
+            try:
+                self._close_all_connections()
+            except Exception:
+                pass
 
     @classmethod
     @override
@@ -734,14 +773,14 @@ class SampleBufferDatabase(SampleBuffer):
             if cleanup_ready:
                 self._cleanup_now()
 
-    @contextmanager
-    def _get_connection(
-        self,
-        *,
-        write: bool = False,
-        on_rollback: Callable[[], None] | None = None,
-    ) -> Iterator[Connection]:
-        """Get a database connection."""
+    def _open_connection(self) -> Connection:
+        """Open and configure a new SQLite connection (with connect-time retry).
+
+        Opened with check_same_thread=False so the cleanup/finalizer path can
+        close a connection owned by another (by then dead) thread. This does
+        NOT make the connection safe for concurrent use across threads — each
+        connection is only ever used by the thread that opened it.
+        """
         max_retries = 5
         retry_delay = 0.1
 
@@ -750,7 +789,9 @@ class SampleBufferDatabase(SampleBuffer):
 
         for attempt in range(max_retries):
             try:
-                conn = sqlite3.connect(self.db_path, timeout=30)
+                conn = sqlite3.connect(
+                    self.db_path, timeout=30, check_same_thread=False
+                )
                 conn.row_factory = sqlite3.Row  # enable row factory for named columns
 
                 # Enable foreign key constraints
@@ -758,26 +799,137 @@ class SampleBufferDatabase(SampleBuffer):
 
                 # concurrency setup
                 conn.execute("PRAGMA busy_timeout=30000")
+
+                # Use WAL journal mode so concurrent readers (the realtime
+                # viewer, the filestore sync thread, and buffer-backed
+                # transcript history) don't block the writer and vice-versa.
+                # Rollback-journal modes serialize readers and writers, which
+                # is the principal cause of "database is locked" errors here.
+                # Keep synchronous=OFF: WAL+OFF has the same durability profile
+                # as the prior delete+OFF mode (corruption only on OS/power
+                # loss, not on a clean process crash) while avoiding the
+                # per-commit fsync cost that dominates inference-light evals.
+                try:
+                    journal_mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+                except sqlite3.OperationalError as ex:
+                    if "locked" in str(ex):
+                        raise
+                    journal_mode = f"unavailable: {ex}"
+
+                if not self._wal_checked:
+                    self._wal_checked = True
+                    if str(journal_mode).lower() != "wal":
+                        logger.warning(
+                            "Sample buffer database at %s could not enable WAL "
+                            "journal mode (using '%s'); this may lead to "
+                            "'database is locked' errors under concurrent "
+                            "access. This typically happens when the inspect "
+                            "data directory is on a network filesystem.",
+                            self.db_path,
+                            journal_mode,
+                        )
                 conn.execute("PRAGMA synchronous=OFF")
+                # cap WAL growth: truncate the -wal file back down after
+                # checkpoints rather than letting it grow without bound
+                conn.execute("PRAGMA journal_size_limit=134217728")
                 conn.execute("PRAGMA cache_size=-64000")
                 conn.execute("PRAGMA temp_store=MEMORY")
 
-                break
+                return conn
 
             except sqlite3.OperationalError as e:
                 last_error = e
+                if conn is not None:
+                    conn.close()
+                    conn = None
                 if "locked" in str(e) and attempt < max_retries - 1:
-                    if conn:
-                        conn.close()
                     time.sleep(retry_delay * (2**attempt))
                     continue
                 raise
+            except BaseException:
+                # close any half-open connection before propagating a
+                # non-retryable error raised during connect/PRAGMA setup
+                if conn is not None:
+                    conn.close()
+                raise
 
-        # ensure we have a connection
+        raise sqlite3.OperationalError(
+            f"Failed to establish connection after {max_retries} attempts"
+        ) from last_error
+
+    def _thread_connection(self) -> Connection:
+        """Return this thread's persistent connection, opening one if needed."""
+        if self._closed:
+            raise RuntimeError("SampleBufferDatabase used after cleanup")
+        conn: Connection | None = getattr(self._local, "conn", None)
         if conn is None:
-            raise sqlite3.OperationalError(
-                f"Failed to establish connection after {max_retries} attempts"
-            ) from last_error
+            conn = self._open_connection()
+            with self._connections_lock:
+                # re-check under the lock: if cleanup() won the race while we
+                # were opening, discard this connection rather than tracking and
+                # using a handle to an already-unlinked database
+                if self._closed:
+                    conn.close()
+                    raise RuntimeError("SampleBufferDatabase used after cleanup")
+                self._local.conn = conn
+                self._connections.append(conn)
+        return conn
+
+    def _discard_thread_connection(self, conn: Connection) -> None:
+        """Drop a (possibly poisoned) connection so the next op reopens a fresh one."""
+        if getattr(self._local, "conn", None) is conn:
+            self._local.conn = None
+        with self._connections_lock:
+            try:
+                self._connections.remove(conn)
+            except ValueError:
+                pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    def _close_all_connections(self) -> None:
+        """Close every tracked connection (cleanup/finalizer).
+
+        Precondition: no other thread may be mid-operation on a tracked
+        connection when this runs (closing a connection in use from another
+        thread is undefined even with check_same_thread=False). This holds
+        because callers either (a) join the filestore sync worker first
+        (_close_sync_worker_for_cleanup, which aborts cleanup if the join times
+        out) and (b) run on the single event-loop thread that performs all other
+        DB access — so that thread is never mid-op while calling cleanup. The
+        _closed flag (set here, re-checked under the lock in _thread_connection)
+        closes the remaining "open racing with close" window. Offloading a DB
+        operation to another non-joined thread would break this precondition.
+        """
+        with self._connections_lock:
+            self._closed = True
+            conns, self._connections = self._connections, []
+        for conn in conns:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        # clear the calling thread's handle (other threads are no longer running)
+        self._local.conn = None
+
+    @contextmanager
+    def _get_connection(
+        self,
+        *,
+        write: bool = False,
+        on_rollback: Callable[[], None] | None = None,
+    ) -> Iterator[Connection]:
+        """Get this thread's persistent database connection.
+
+        The connection is reused across operations rather than opened/closed per
+        call. IMPORTANT: the body of a `with _get_connection()` block must remain
+        await-free — an `await` between acquiring the connection and committing
+        would let another anyio task run a statement on the same shared
+        connection mid-transaction.
+        """
+        conn = self._thread_connection()
 
         try:
             # do work
@@ -795,18 +947,24 @@ class SampleBufferDatabase(SampleBuffer):
             conn.commit()
 
         except Exception:
-            # rollback on any error
+            # roll back, then self-heal by discarding the connection so the next
+            # op on this thread transparently reopens a fresh one. Buffer-write
+            # errors are swallowed by the caller (Transcript._notify_subscribers),
+            # so a wedged connection would otherwise silently disable realtime
+            # logging for the rest of the run. on_rollback always fires (even if
+            # rollback() raises) and the original exception is re-raised.
             try:
                 conn.rollback()
+            except Exception:
+                pass
             finally:
+                self._discard_thread_connection(conn)
                 if on_rollback is not None:
                     on_rollback()
             raise
         finally:
-            # close the connection
-            conn.close()
-
-            # if this was for write then sync (throttled)
+            # if this was for write then sync (throttled). Note: no conn.close()
+            # here — the connection persists and is closed at cleanup.
             if write:
                 self._sync()
 
@@ -862,13 +1020,6 @@ class SampleBufferDatabase(SampleBuffer):
                     self._sync_pending = False
                     self._sync_thread = None
                 raise
-
-    def _increment_version(self, conn: Connection) -> None:
-        conn.execute("""
-        UPDATE task_database
-        SET version = version + 1,
-            last_updated = CURRENT_TIMESTAMP;
-        """)
 
     def _get_task_data(self, conn: Connection) -> TaskData:
         row = conn.execute("SELECT version, metrics FROM task_database").fetchone()
@@ -1462,6 +1613,9 @@ def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
 def cleanup_sample_buffer_db(path: Path) -> None:
     try:
         path.unlink(missing_ok=True)
+        # remove WAL sidecar files (present when journal_mode=WAL)
+        path.with_name(f"{path.name}-wal").unlink(missing_ok=True)
+        path.with_name(f"{path.name}-shm").unlink(missing_ok=True)
         try:
             # Remove the directory if it's empty
             path.parent.rmdir()

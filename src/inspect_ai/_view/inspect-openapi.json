@@ -133,6 +133,31 @@
         "title": "AnchorEvent",
         "type": "object"
       },
+      "AppConfig": {
+        "description": "Application configuration returned by GET /app-config.",
+        "properties": {
+          "inspect_version": {
+            "title": "Inspect Version",
+            "type": "string"
+          },
+          "scout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scout Version"
+          }
+        },
+        "required": [
+          "inspect_version"
+        ],
+        "title": "AppConfig",
+        "type": "object"
+      },
       "ApprovalEvent": {
         "description": "Tool approval.",
         "properties": {
@@ -609,6 +634,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Logprobs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopDetails"
               },
               {
                 "type": "null"
@@ -1186,7 +1221,8 @@
               "manual",
               "token",
               "cost",
-              "budget"
+              "budget",
+              "agent_complete"
             ],
             "title": "Trigger",
             "type": "string"
@@ -9189,6 +9225,81 @@
         "title": "StepEvent",
         "type": "object"
       },
+      "StopCategory": {
+        "description": "A single refusal/safety category reported by (or derived for) a model stop.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          }
+        },
+        "required": [
+          "category"
+        ],
+        "title": "StopCategory",
+        "type": "object"
+      },
+      "StopDetails": {
+        "description": "Additional detail about why a model stopped generating (e.g. a content refusal).\n\n`categories` is the canonical list (always iterable; a single-category provider\nappears as one entry). `category` and `explanation` are a convenience high-level\nsummary derived from the same data \u2014 `category` is the primary category and\n`explanation` is human-readable (synthesized from `categories` when the provider\nsupplies no text). Read either way; both describe the same stop.",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/StopCategory"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "StopDetails",
+        "type": "object"
+      },
       "StoreEvent": {
         "description": "Change to data within the current `Store`.",
         "properties": {
@@ -10647,6 +10758,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/app-config": {
+      "get": {
+        "operationId": "api_app_config_app_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api App Config"
+      }
+    },
     "/chat-message": {
       "get": {
         "operationId": "_chat_message_chat_message_get",

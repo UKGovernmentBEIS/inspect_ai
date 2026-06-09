@@ -1,6 +1,33 @@
 ## Unreleased
 
+- Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
+- Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.
+- Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.
+- Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle (a gzipped tar extracted in-container) instead of a single StaticX executable, and add a musl-linked variant so `bash_session`, `text_editor`, and MCP tools now work in musl-based sandboxes (e.g. Alpine) in addition to glibc. The matching arch × libc artifact is auto-detected at injection; glibc variants ship in the wheel and musl is fetched from S3 on demand.
+- S3: Retry when requests have stale signatures.
+
+## 0.3.238 (08 June 2026)
+
+- Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled.
+- ACP: Render tool calls for agent-bridge agents (e.g. `claude_code`, `codex_cli`). 
+- ACP: Substitute `{{param}}` placeholders in tool-call views.
+- ACP: Keep the optimistic `user · queued` chip visible when agents are idle mid-turn.
+- Limits: Fix a spurious, mislabeled `working` limit event recorded alongside the real one when a message/token/cost limit is hit inside a sandboxed agent bridge (e.g. `claude_code`).
+- Inspect View: Improve model event rendering - add INFO tab (usage + stop reason) and a Stop Reason display
+- Inspect View: Fix: stop VirtualList from fighting deep-link scroll in WebKit
+- Inspect View: Fix: collapse the timeline by default when only main + scoring lanes exist
+- Inspect View: Fix: make collapse-all include model events (symmetry with expand-all)
+- Inspect View: Improved sample message/transcript placeholders + steady streaming
+- Inspect View: Color tool calls in model-event views like the messages tab
+- Inspect View: Improve log list responsiveness during bulk sync
+
+## 0.3.237 (07 June 2026)
+
+- Model API: `ChatCompletionChoice.stop_details` (`StopDetails`/`StopCategory`) surfaces a model's refusal/safety category and explanation when available.
+- Transcript: `transcript().events` now resolves content attachments (large text, images) instead of returning bare `attachment://` references when reads are served from the bounded-history provider.
+- Transcript: Use WAL journal mode for the realtime sample buffer database so concurrent reads and writes no longer raise `OperationalError: database is locked`.
+- Remove ACP patch for connection initialization order issue (resolved in ACP 0.10.1).
 
 ## 0.3.236 (06 June 2026)
 

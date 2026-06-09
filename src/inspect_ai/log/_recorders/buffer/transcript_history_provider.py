@@ -12,6 +12,7 @@ from inspect_ai.event._pool import (
     resolve_model_event_inputs,
 )
 from inspect_ai.event._validate import validate_events
+from inspect_ai.log._condense import resolve_events_attachments
 from inspect_ai.log._log import EventsData
 from inspect_ai.log._recorders.buffer.types import JsonData
 
@@ -134,16 +135,22 @@ class BufferTranscriptHistoryProvider:
 
 
 def _materialize_events(history: SampleHistoryLike) -> list[Event]:
-    return materialize_pooled_events(
+    events = materialize_pooled_events(
         history.iter_events(),
         history.events_data["messages"],
         history.events_data["calls"],
     )
+    # Resolve content attachments (large text / images) back to their
+    # underlying values so callers get usable events, not bare
+    # `attachment://<hash>` references. "core" leaves ModelEvent.call
+    # condensed, matching resident in-memory events.
+    return resolve_events_attachments(events, history.attachments)
 
 
 def _iter_materialized_events(history: SampleHistoryLike) -> Iterator[Event]:
     message_pool = history.events_data["messages"]
     call_pool = history.events_data["calls"]
+    attachments = history.attachments
     for raw_event in history.iter_events():
         event = (
             raw_event
@@ -151,7 +158,9 @@ def _iter_materialized_events(history: SampleHistoryLike) -> Iterator[Event]:
             else validate_events([raw_event])[0]
         )
         event = resolve_model_event_inputs([event], message_pool)[0]
-        yield resolve_model_event_calls([event], call_pool)[0]
+        event = resolve_model_event_calls([event], call_pool)[0]
+        # Resolve attachments per-event so streaming/index reads stay lazy.
+        yield resolve_events_attachments([event], attachments)[0]
 
 
 if TYPE_CHECKING:

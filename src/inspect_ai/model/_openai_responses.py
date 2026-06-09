@@ -2,6 +2,7 @@ import json
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import reduce
+from logging import getLogger
 from typing import Any, Iterable, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
@@ -31,6 +32,7 @@ from openai.types.responses import (
     ResponseInputTextParam,
     ResponseOutputMessage,
     ResponseOutputMessageParam,
+    ResponseOutputRefusal,
     ResponseOutputRefusalParam,
     ResponseOutputText,
     ResponseOutputTextParam,
@@ -159,8 +161,10 @@ from inspect_ai.model._model_output import (
     Logprob,
     Logprobs,
     ModelUsage,
+    StopDetails,
     StopReason,
     TopLogprob,
+    collect_stop_details,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -175,6 +179,8 @@ from ._providers._openai_computer_use import (
     tool_call_from_openai_computer_tool_call,
 )
 from ._providers._openai_web_search import maybe_web_search_tool
+
+logger = getLogger(__name__)
 
 MESSAGE_ID = "message_id"
 MESSAGE_PHASE = "message_phase"
@@ -511,6 +517,36 @@ def openai_responses_tools(
     return result
 
 
+def responses_stop_details(response: OpenAIResponse) -> StopDetails | None:
+    """Extract refusal detail from a Responses API result.
+
+    The Responses API has no category breakdown; refusal text comes from
+    `ResponseOutputRefusal` parts and the content-filter signal from
+    `incomplete_details.reason`.
+    """
+    refusals: list[str] = []
+    for output in response.output:
+        if isinstance(output, ResponseOutputMessage):
+            for c in output.content:
+                if isinstance(c, ResponseOutputRefusal) and c.refusal:
+                    refusals.append(c.refusal)
+
+    explanation = "\n".join(refusals) if refusals else None
+    incomplete = response.incomplete_details
+    is_content_filter = (
+        incomplete is not None
+        and getattr(incomplete, "reason", None) == "content_filter"
+    )
+
+    if not explanation and not is_content_filter:
+        return None
+
+    return StopDetails(
+        type="content_filter" if is_content_filter else "refusal",
+        explanation=explanation,
+    )
+
+
 def openai_responses_chat_choices(
     model: str | None, response: OpenAIResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
@@ -520,7 +556,12 @@ def openai_responses_chat_choices(
     )
     return [
         ChatCompletionChoice(
-            message=message, stop_reason=stop_reason, logprobs=logprobs
+            message=message,
+            stop_reason=stop_reason,
+            stop_details=collect_stop_details(
+                "openai_responses", logger, lambda: responses_stop_details(response)
+            ),
+            logprobs=logprobs,
         )
     ]
 

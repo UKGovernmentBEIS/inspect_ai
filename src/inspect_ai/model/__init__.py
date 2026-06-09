@@ -79,6 +79,8 @@ from ._model_output import (
     Logprobs,
     ModelOutput,
     ModelUsage,
+    StopCategory,
+    StopDetails,
     StopReason,
     TopLogprob,
 )
@@ -152,6 +154,8 @@ __all__ = [
     "RetryDecision",
     "ModelConfig",
     "ModelUsage",
+    "StopCategory",
+    "StopDetails",
     "StopReason",
     "call_tools",
     "execute_tools",

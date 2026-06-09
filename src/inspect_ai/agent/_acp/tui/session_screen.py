@@ -1031,12 +1031,27 @@ class SessionScreen(Screen[None]):
         # popped when the server echoes the real chunk back. Subsequent
         # sends-while-busy APPEND to the existing ephemeral (single
         # bucket) so the row matches the server-side coalesced merge
-        # — the user sees exactly what the model will see. Skip while
-        # ``idle``: the agent is parked in ``before_turn`` and the
-        # chunk arrives within ms, so an ephemeral would just flash.
+        # — the user sees exactly what the model will see.
+        #
+        # Shown whenever the session is live (idle / running /
+        # interrupted / approval); suppressed only once the agent loop
+        # is done (``scoring`` / ``complete``), where the server rejects
+        # new prompts anyway (and the send-failure rollback below covers
+        # a racing rejection). We deliberately do NOT skip on ``idle``:
+        # for a bridged agent (claude_code / codex) ``idle`` can occur
+        # mid-turn — during scaffold startup / ``--resume`` relaunch or
+        # an inter-model-call gap — where the message is NOT drained
+        # within ms but waits for the next turn boundary, so the chip is
+        # exactly what the operator needs. For a native agent parked in
+        # ``before_turn`` the message does drain within ms, but the
+        # queued→real swap is atomic (the pop and the real group's
+        # append land in the same ``consume()`` tick — see
+        # ``SessionState._consume_chunk``), so the worst case is a
+        # sub-perceptible dim→solid flicker of the same text, not a
+        # vanish/reappear glitch.
         # See :attr:`state.MessageGroup.is_queued` for the lifecycle.
         handle: _QueuedEnqueueHandle | None = None
-        if self._state.lifecycle != "idle":
+        if self._state.lifecycle not in ("complete", "scoring"):
             handle = self._state.enqueue_queued_user_message(text)
         try:
             await connection.send_request(
