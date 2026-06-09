@@ -9,6 +9,7 @@ from zipfile import ZipFile
 
 import pytest
 from pydantic_core import to_jsonable_python
+from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
@@ -101,9 +102,6 @@ def _write_crashed_eval(
     return log_start
 
 
-_DEAD_PID = 99999999  # PID that doesn't exist
-
-
 def _create_buffer_db(
     location: str,
     completed_ids: list[int],
@@ -150,13 +148,8 @@ def _create_buffer_db(
             [SampleEvent(id=id, epoch=1, event=_make_model_event(f"partial {id}"))]
         )
 
-    # Rename DB file to use a dead PID (simulating a crashed process)
-    old_path = buffer.db_path
-    new_path = old_path.parent / old_path.name.replace(
-        f".{os.getpid()}.", f".{_DEAD_PID}."
-    )
-    old_path.rename(new_path)
-    buffer.db_path = new_path
+    # simulate a crashed process: snapshot the DB (incl. hot WAL) under a dead PID
+    simulate_crashed_buffer_db(buffer)
 
     return buffer
 
