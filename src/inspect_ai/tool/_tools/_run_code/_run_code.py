@@ -148,8 +148,7 @@ def run_code(
     include_tool_call_trace: bool = False,
     max_output_chars: int | None = 20_000,
 ) -> Tool:
-    """"
-    Run Python code that can orchestrate selected tools.
+    """Run Python code that can orchestrate selected tools.
 
     Args:
         tools: Tools that code executed by run_code may call.
