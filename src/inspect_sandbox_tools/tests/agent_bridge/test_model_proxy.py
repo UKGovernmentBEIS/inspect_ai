@@ -925,6 +925,54 @@ async def test_model_proxy_responses_non_streaming(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "invalid_body", "valid_body"),
+    [
+        ("/v1/responses", {}, {"model": "gpt-4o", "input": "Hello"}),
+        ("/v1/responses", [], {"model": "gpt-4o", "input": "Hello"}),
+        (
+            "/v1/responses",
+            {"model": []},
+            {"model": "gpt-4o", "input": "Hello"},
+        ),
+        (
+            "/v1/chat/completions",
+            {},
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+        (
+            "/v1/chat/completions",
+            [],
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+        (
+            "/v1/chat/completions",
+            {"model": []},
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+    ],
+)
+async def test_openai_proxy_rejects_missing_model_without_crashing(
+    proxy_server: tuple[AsyncHTTPServer, str],
+    path: str,
+    invalid_body: Any,
+    valid_body: dict[str, Any],
+) -> None:
+    """Reject malformed requests before they reach the bridge service."""
+    _server, base_url = proxy_server
+
+    async with ClientSession() as session:
+        async with session.post(f"{base_url}{path}", json=invalid_body) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["error"]["type"] == "invalid_request_error"
+            assert body["error"]["param"] == "model"
+
+        async with session.post(f"{base_url}{path}", json=valid_body) as response:
+            assert response.status == 200
+
+
+@pytest.mark.asyncio
 async def test_model_proxy_responses_streaming(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1490,7 +1538,7 @@ async def test_anthropic_messages_non_streaming(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request
     response = await client.messages.create(
@@ -1509,6 +1557,30 @@ async def test_anthropic_messages_non_streaming(
 
 
 @pytest.mark.asyncio
+async def test_anthropic_proxy_rejects_missing_model_without_crashing(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Return an Anthropic error while keeping the proxy available."""
+    _server, base_url = proxy_server_anthropic
+
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1/messages",
+            json={"messages": [], "max_tokens": 16},
+        ) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["type"] == "error"
+            assert body["error"]["type"] == "invalid_request_error"
+
+        async with session.post(
+            f"{base_url}/v1/messages",
+            json={"model": "claude-test", "messages": [], "max_tokens": 16},
+        ) as response:
+            assert response.status == 200
+
+
+@pytest.mark.asyncio
 async def test_anthropic_messages_streaming(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1516,7 +1588,7 @@ async def test_anthropic_messages_streaming(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Stream response
     collected_text = ""
@@ -1560,7 +1632,7 @@ async def test_anthropic_messages_with_tool_use(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Define tool
     tools: list[ToolParam] = [
@@ -1612,7 +1684,7 @@ async def test_anthropic_messages_streaming_with_tool_use(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Define tool
     tools: list[ToolParam] = [
@@ -1681,7 +1753,7 @@ async def test_anthropic_messages_with_thinking(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request that triggers thinking
     response = await client.messages.create(
@@ -1714,7 +1786,7 @@ async def test_anthropic_messages_streaming_with_thinking(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Stream response with thinking
     thinking_text = ""
@@ -1767,7 +1839,7 @@ async def test_anthropic_messages_content_array_format(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request with content array format
     response = await client.messages.create(
@@ -1797,7 +1869,7 @@ async def test_anthropic_messages_web_search_tool(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request that triggers web search
     response = await client.messages.create(
@@ -1831,7 +1903,7 @@ async def test_anthropic_messages_mcp_tool(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request that triggers MCP tool
     response = await client.messages.create(
@@ -1862,7 +1934,7 @@ async def test_anthropic_messages_streaming_web_search(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Stream response with web search
     collected_text = ""
@@ -1909,7 +1981,7 @@ async def test_anthropic_messages_streaming_mcp_tool(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Stream response with MCP tool
     collected_text = ""
@@ -2138,6 +2210,29 @@ async def test_google_generate_content_non_streaming(
     # Verify usage metadata
     assert response.usage_metadata is not None
     assert response.usage_metadata.total_token_count == 25
+
+
+@pytest.mark.asyncio
+async def test_google_proxy_rejects_missing_model_without_crashing(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Return a Google-style error when the model path segment is empty."""
+    _server, base_url = proxy_server_google
+
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1beta/models/:generateContent",
+            json={"contents": []},
+        ) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["error"]["status"] == "INVALID_ARGUMENT"
+
+        async with session.post(
+            f"{base_url}/v1beta/models/gemini-test:generateContent",
+            json={"contents": []},
+        ) as response:
+            assert response.status == 200
 
 
 @pytest.mark.asyncio
