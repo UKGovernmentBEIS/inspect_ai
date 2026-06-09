@@ -2,6 +2,7 @@ import abc
 import contextlib
 import dataclasses
 import functools
+import inspect
 import json
 import logging
 import os
@@ -130,6 +131,43 @@ class GenerateInput(NamedTuple):
 
     config: GenerateConfig
     """Model configuration."""
+
+
+@dataclasses.dataclass(frozen=True)
+class StreamTextEvent:
+    """Incremental text delta from a streaming model response."""
+
+    text: str
+    """The text content delta."""
+
+
+@dataclasses.dataclass(frozen=True)
+class StreamReasoningEvent:
+    """Incremental reasoning delta from a streaming model response."""
+
+    text: str
+    """The reasoning text delta."""
+
+
+@dataclasses.dataclass(frozen=True)
+class StreamToolCallEvent:
+    """Incremental tool call delta from a streaming model response."""
+
+    id: str
+    """Tool call identifier."""
+
+    function: str
+    """Function name being called."""
+
+    arguments: str
+    """Partial JSON arguments string accumulated so far."""
+
+
+StreamEvent: TypeAlias = StreamTextEvent | StreamReasoningEvent | StreamToolCallEvent
+"""Streaming event emitted by providers during incremental generation."""
+
+StreamHandler: TypeAlias = Callable[[StreamEvent], Awaitable[None]]
+"""Async callback that receives incremental streaming events during model generation."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -307,6 +345,7 @@ class ModelAPI(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        on_stream: StreamHandler | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         """Generate output from the model.
 
@@ -315,6 +354,11 @@ class ModelAPI(abc.ABC):
           tools: Tools available for the model to call.
           tool_choice: Directives to the model as to which tools to prefer.
           config: Model configuration.
+          on_stream: Optional async callback to receive incremental streaming events.
+            Providers that support streaming call this with `StreamTextEvent`,
+            `StreamReasoningEvent`, or `StreamToolCallEvent` deltas as they arrive.
+            Providers that do not implement streaming ignore this parameter and the
+            final `ModelOutput` is still returned normally.
 
         Returns:
            ModelOutput or tuple[ModelOutput,ModelCall], the latter being
@@ -568,6 +612,12 @@ def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
     }
 
 
+def _provider_supports_streaming(api: ModelAPI) -> bool:
+    """Return True if this provider's generate() accepts the on_stream parameter."""
+    sig = inspect.signature(api.generate)
+    return "on_stream" in sig.parameters
+
+
 class Model:
     """Model interface.
 
@@ -677,6 +727,7 @@ class Model:
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        on_stream: StreamHandler | None = None,
     ) -> ModelOutput:
         """Generate output from the model.
 
@@ -687,6 +738,11 @@ class Model:
           tool_choice: Directives to the model as to which tools to prefer.
           config: Model configuration.
           cache: Caching behavior for generate responses (defaults to no caching).
+          on_stream: Optional async callback to receive incremental streaming events
+            (`StreamTextEvent`, `StreamReasoningEvent`, `StreamToolCallEvent`) as they
+            arrive. Only invoked when the underlying provider supports streaming; the
+            final `ModelOutput` is always returned regardless. Defaults to `None`
+            (no streaming side-channel).
 
         Returns:
            ModelOutput
@@ -744,6 +800,7 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache,
+                on_stream=on_stream,
             )
 
             # update the most recent ModelEvent with the actual start/completed
@@ -951,6 +1008,7 @@ class Model:
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        on_stream: StreamHandler | None = None,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
@@ -1032,6 +1090,11 @@ class Model:
             nonlocal reported_waiting_time
             report_sample_waiting_time(waiting_time)
             reported_waiting_time += waiting_time
+
+        # check once outside the retry loop so introspection isn't repeated per attempt
+        _streaming_supported = on_stream is not None and _provider_supports_streaming(
+            self.api
+        )
 
         @retry(
             **model_retry_config(
@@ -1147,12 +1210,21 @@ class Model:
                         _observer.track_model_event(event),
                     ):
                         with timeout_cm:
-                            result = await self.api.generate(
-                                input=input,
-                                tools=call_tools,
-                                tool_choice=tool_choice,
-                                config=config,
-                            )
+                            if _streaming_supported:
+                                result = await self.api.generate(
+                                    input=input,
+                                    tools=call_tools,
+                                    tool_choice=tool_choice,
+                                    config=config,
+                                    on_stream=on_stream,
+                                )
+                            else:
+                                result = await self.api.generate(
+                                    input=input,
+                                    tools=call_tools,
+                                    tool_choice=tool_choice,
+                                    config=config,
+                                )
                         if (
                             isinstance(timeout_cm, anyio.CancelScope)
                             and timeout_cm.cancel_called
