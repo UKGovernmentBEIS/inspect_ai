@@ -5,12 +5,13 @@
 Datasets, prompt templates, and evaluation logs can be stored using either the local filesystem or a remote filesystem. Inspect uses the [fsspec](https://filesystem-spec.readthedocs.io/en/latest/) package to read and write files, which provides support for a wide variety of filesystems, including:
 
 - [Amazon S3](https://aws.amazon.com/pm/serv-s3)
+- [Hugging Face Storage Buckets](https://huggingface.co/docs/hub/storage-buckets)
 - [Google Cloud Storage](https://gcsfs.readthedocs.io/en/latest/)
 - [Azure Blob Storage](https://github.com/fsspec/adlfs)
 - [Azure Data Lake Storage](https://github.com/fsspec/adlfs)
 - [DVC](https://dvc.org/doc/api-reference/dvcfilesystem)
 
-Support for [Amazon S3](./eval-logs.html.md#sec-amazon-s3) is built in to Inspect via the [s3fs](https://pypi.org/project/s3fs/) package. Other filesystems may require installation of additional packages. See the list of [built in filesystems](https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations) and [other known implementations](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported storage back ends.
+Support for [Amazon S3](./eval-logs.html.md#sec-amazon-s3) is built in to Inspect via the [s3fs](https://pypi.org/project/s3fs/) package. [Hugging Face Storage Buckets](./eval-logs.html.md#sec-hugging-face-storage-buckets) are supported via the optional [huggingface_hub](https://pypi.org/project/huggingface-hub/) filesystem integration. Other filesystems may require installation of additional packages. See the list of [built in filesystems](https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations) and [other known implementations](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported storage back ends.
 
 See [Custom Filesystems](#sec-custom-filesystems) below for details on implementing your own fsspec compatible filesystem as a storage back-end.
 
@@ -35,6 +36,9 @@ csv_dataset("s3://inspect-datasets/ctf-12.csv")
 
 # read eval logs from S3
 list_eval_logs("s3://my-s3-inspect-log-bucket")
+
+# read eval logs from a Hugging Face Storage Bucket
+list_eval_logs("hf://buckets/my-org/inspect-logs")
 ```
 
 ## Custom Filesystems

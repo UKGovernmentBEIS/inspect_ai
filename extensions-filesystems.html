@@ -715,12 +715,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Datasets, prompt templates, and evaluation logs can be stored using either the local filesystem or a remote filesystem. Inspect uses the <a href="https://filesystem-spec.readthedocs.io/en/latest/">fsspec</a> package to read and write files, which provides support for a wide variety of filesystems, including:</p>
 <ul>
 <li><a href="https://aws.amazon.com/pm/serv-s3">Amazon S3</a></li>
+<li><a href="https://huggingface.co/docs/hub/storage-buckets">Hugging Face Storage Buckets</a></li>
 <li><a href="https://gcsfs.readthedocs.io/en/latest/">Google Cloud Storage</a></li>
 <li><a href="https://github.com/fsspec/adlfs">Azure Blob Storage</a></li>
 <li><a href="https://github.com/fsspec/adlfs">Azure Data Lake Storage</a></li>
 <li><a href="https://dvc.org/doc/api-reference/dvcfilesystem">DVC</a></li>
 </ul>
-<p>Support for <a href="./eval-logs.html#sec-amazon-s3">Amazon S3</a> is built in to Inspect via the <a href="https://pypi.org/project/s3fs/">s3fs</a> package. Other filesystems may require installation of additional packages. See the list of <a href="https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations">built in filesystems</a> and <a href="https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations">other known implementations</a> for all supported storage back ends.</p>
+<p>Support for <a href="./eval-logs.html#sec-amazon-s3">Amazon S3</a> is built in to Inspect via the <a href="https://pypi.org/project/s3fs/">s3fs</a> package. <a href="./eval-logs.html#sec-hugging-face-storage-buckets">Hugging Face Storage Buckets</a> are supported via the optional <a href="https://pypi.org/project/huggingface-hub/">huggingface_hub</a> filesystem integration. Other filesystems may require installation of additional packages. See the list of <a href="https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations">built in filesystems</a> and <a href="https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations">other known implementations</a> for all supported storage back ends.</p>
 <p>See <a href="#sec-custom-filesystems">Custom Filesystems</a> below for details on implementing your own fsspec compatible filesystem as a storage back-end.</p>
 </section>
 <section id="filesystem-functions" class="level2">
@@ -739,7 +740,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>csv_dataset(<span class="st">"s3://inspect-datasets/ctf-12.csv"</span>)</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># read eval logs from S3</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>list_eval_logs(<span class="st">"s3://my-s3-inspect-log-bucket"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>list_eval_logs(<span class="st">"s3://my-s3-inspect-log-bucket"</span>)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># read eval logs from a Hugging Face Storage Bucket</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>list_eval_logs(<span class="st">"hf://buckets/my-org/inspect-logs"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="sec-custom-filesystems" class="level2">
 <h2 class="anchored" data-anchor-id="sec-custom-filesystems">Custom Filesystems</h2>

@@ -526,7 +526,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A custom agent participates in checkpointing by entering a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#checkpointer">checkpointer()</a></span> context and calling <code>tick()</code> at each turn boundary.</p>
 <p>The key checkpointing mechanism for agents is the <code>cp.track</code> method, which gives the agent a way to declare “this variable is important state, capture it at each checkpoint and restore it for me on retry.”</p>
 <p>On a fresh run, <code>track</code> returns the <code>initial_value</code> the agent passes in. On a retry of the same sample, <code>track</code> returns whatever the registered callback captured at the most recent checkpoint of the prior run, so the agent’s important state comes back automatically and can pick up where it left off.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> Attempt, checkpointer</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> checkpointer</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> my_agent(state):</span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">with</span> checkpointer() <span class="im">as</span> cp:</span>
@@ -549,7 +549,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># scoring-phase resume: agent already finished in</span></span>
 <span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># the prior attempt — tracked state is restored</span></span>
 <span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>        <span class="co"># above, return so scoring can re-run.</span></span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> cp.attempt <span class="op">==</span> Attempt.RESUME_FOR_SCORING:</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> cp.attempt <span class="op">==</span> <span class="st">"resume_for_scoring"</span>:</span>
 <span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> state</span>
 <span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>        <span class="co"># agent loop</span></span>
@@ -587,7 +587,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>cp.attempt</code></td>
-<td><code>Attempt.INITIAL</code> (fresh), <code>Attempt.RESUME</code> (mid-agent resume), or <code>Attempt.RESUME_FOR_SCORING</code> (agent completed in the prior attempt — restore tracked state and return).</td>
+<td><code>"initial"</code> (fresh), <code>"resume"</code> (mid-agent resume), or <code>"resume_for_scoring"</code> (agent completed in the prior attempt — restore tracked state and return).</td>
 </tr>
 </tbody>
 </table>

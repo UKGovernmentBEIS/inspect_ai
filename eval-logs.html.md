@@ -63,7 +63,7 @@ If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file, then its lo
 >
 > If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a `.env` file. This is because the VS Code Python extension also [reads variables](https://code.visualstudio.com/docs/python/environments#_environment-variables) from `.env` files, and your updated `INSPECT_LOG_DIR` won’t be re-read by VS Code until after a restart.
 
-See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets. See the [Azure](#sec-azure) section below for details on logging evaluations to Azure.
+See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets. See the [Hugging Face Storage Buckets](#sec-hugging-face-storage-buckets) section below for details on logging evaluations to Hugging Face buckets. See the [Azure](#sec-azure) section below for details on logging evaluations to Azure.
 
 ## Log Format
 
@@ -527,6 +527,36 @@ AWS_DEFAULT_REGION=eu-west-2
 ```
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
+
+## Hugging Face Storage Buckets
+
+You can store evaluation logs in [Hugging Face Storage Buckets](https://huggingface.co/docs/hub/storage-buckets) using the `hf://buckets/<owner>/<bucket>/<path>` URI scheme. Storage buckets are useful for durable, shared log storage and are accessed through the `huggingface_hub` filesystem integration.
+
+First install the Hugging Face Hub package, then create a bucket and authenticate with Hugging Face:
+
+``` bash
+pip install "huggingface_hub>=1.6.0"
+hf auth login
+hf buckets create my-org/inspect-logs --private
+```
+
+Then set the log directory to a bucket path:
+
+``` env
+INSPECT_LOG_DIR=hf://buckets/my-org/inspect-logs/runs
+HF_TOKEN=hf_...
+```
+
+You can then run evaluations and view logs directly from the bucket:
+
+``` bash
+inspect eval popularity.py --model openai/gpt-4
+inspect view --log-dir hf://buckets/my-org/inspect-logs/runs
+```
+
+Inspect does not create Hugging Face buckets automatically; create the bucket first and authenticate with an account or token that can write to it. Bucket contents are mutable, so use a unique prefix for shared runs when you want to avoid overwriting prior logs.
+
+Note that `hf://buckets/...` is the URI scheme for Hugging Face Storage Buckets. The `hf/<org>/<name>` output path used by `inspect view bundle` publishes a static viewer to a Hugging Face Space instead.
 
 ### Azure Blob Storage
 
