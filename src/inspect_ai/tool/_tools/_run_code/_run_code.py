@@ -15,6 +15,7 @@ def _tool_defs(tools: Sequence[Tool] | None) -> list[ToolDef]:
     """Convert allowed tools into ToolDef objects."""
     return [ToolDef(tool) for tool in tools or []]
 
+
 def _tool_signature(tool_def: ToolDef) -> str:
     """Return a compact signature for an allowlisted tool."""
     parameters = tool_def.parameters
@@ -30,6 +31,7 @@ def _tool_signature(tool_def: ToolDef) -> str:
         args.append(f"{name}: {typ}{optional}")
 
     return f"await {tool_def.name}({', '.join(args)})"
+
 
 def _format_run_code_result(
     result: RunCodeResult,
@@ -52,6 +54,7 @@ def _format_run_code_result(
 
     return "\n".join(lines)
 
+
 def _truncate_text(text: str, max_chars: int | None) -> str:
     """Truncate text to a maximum number of characters."""
     if max_chars is None or len(text) <= max_chars:
@@ -62,6 +65,7 @@ def _truncate_text(text: str, max_chars: int | None) -> str:
         return text[:max_chars]
 
     return text[: max_chars - len(suffix)] + suffix
+
 
 def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
     """Describe the tools that will eventually be callable from run_code."""
@@ -78,11 +82,10 @@ def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
     ]
 
     for tool_def in tool_defs:
-        lines.append(
-            f"- `{_tool_signature(tool_def)}`: {tool_def.description}"
-        )
+        lines.append(f"- `{_tool_signature(tool_def)}`: {tool_def.description}")
 
     return "\n".join(lines)
+
 
 def _tool_def_by_name(tool_defs: list[ToolDef]) -> dict[str, ToolDef]:
     """Return tool definitions indexed by name.
@@ -98,6 +101,7 @@ def _tool_def_by_name(tool_defs: list[ToolDef]) -> dict[str, ToolDef]:
         tool_def_by_name[tool_def.name] = tool_def
 
     return tool_def_by_name
+
 
 def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
     """Return model-facing instructions for using run_code."""
@@ -137,6 +141,7 @@ def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
         )
 
     return "\n".join(lines)
+
 
 @tool
 def run_code(

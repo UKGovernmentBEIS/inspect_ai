@@ -23,6 +23,7 @@ def _preview(value: Any, *, max_chars: int = 500) -> str:
 
     return text[: max_chars - len(suffix)] + suffix
 
+
 @dataclass
 class RunCodeInnerToolCall:
     """A tool call made from inside run_code."""

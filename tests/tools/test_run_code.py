@@ -24,17 +24,21 @@ from inspect_ai.tool._tools._run_code._run_code_executor import RunCodeResult
 def anyio_backend():
     return "asyncio"
 
+
 def test_run_code_tool_constructs():
     tool = run_code()
     assert callable(tool)
+
 
 def test_run_code_tool_def_has_name():
     tool_def = ToolDef(run_code())
     assert tool_def.name == "run_code"
 
+
 def test_run_code_accepts_empty_tools_list():
     tool = run_code(tools=[])
     assert callable(tool)
+
 
 @pytest.mark.anyio
 async def test_run_code_tool_executes_stub():
@@ -42,6 +46,7 @@ async def test_run_code_tool_executes_stub():
     result = await tool(code="return 1")
     assert isinstance(result, str)
     assert "not implemented" in result.lower()
+
 
 def dummy_tool() -> Tool:
     async def execute(value: str) -> str:
@@ -63,10 +68,12 @@ def test_run_code_accepts_wrapped_tools():
     tool = run_code(tools=[dummy_tool()])
     assert callable(tool)
 
+
 def test_run_code_normalizes_wrapped_tools():
     tool_defs = _tool_defs([dummy_tool()])
     assert len(tool_defs) == 1
     assert tool_defs[0].name == "dummy_tool"
+
 
 def test_tool_signature_includes_parameter_schema():
     tool_defs = _tool_defs([dummy_tool()])
@@ -98,6 +105,7 @@ def test_run_code_description_mentions_wrapped_tool():
     assert "Use `await`" in tool_def.description
     assert "await dummy_tool(value: string)" in tool_def.description
     assert "Echo a value." in tool_def.description
+
 
 class FakeRunCodeExecutor:
     async def execute(self, code: str) -> RunCodeResult:
@@ -136,6 +144,7 @@ async def test_run_code_executes_simple_code_with_monty():
 
     assert result == "2"
 
+
 @pytest.mark.anyio
 async def test_run_code_reports_monty_error():
     pytest.importorskip("pydantic_monty")
@@ -144,6 +153,7 @@ async def test_run_code_reports_monty_error():
     result = await tool(code="raise Exception('boom')")
 
     assert "boom" in result
+
 
 @pytest.mark.anyio
 async def test_external_functions_call_wrapped_tool():
@@ -156,11 +166,13 @@ async def test_external_functions_call_wrapped_tool():
 
     assert result == "hello"
 
+
 def test_external_functions_reject_duplicate_tool_names():
     tool_defs = _tool_defs([dummy_tool(), dummy_tool()])
 
     with pytest.raises(ValueError, match="Duplicate"):
         external_functions_for_tool_defs(tool_defs)
+
 
 @pytest.mark.anyio
 async def test_run_code_can_call_wrapped_tool_with_monty():
@@ -188,6 +200,7 @@ async def test_run_code_bridge_records_inner_tool_call():
     assert bridge.calls[0].result_preview == "'hello'"
     assert bridge.calls[0].error is None
 
+
 @pytest.mark.anyio
 async def test_run_code_bridge_enforces_max_tool_calls():
     bridge = RunCodeToolBridge(
@@ -199,10 +212,13 @@ async def test_run_code_bridge_enforces_max_tool_calls():
 
     assert await external_functions["dummy_tool"]("first") == "first"
 
-    with pytest.raises(RuntimeError, match="Maximum run_code inner tool calls exceeded"):
+    with pytest.raises(
+        RuntimeError, match="Maximum run_code inner tool calls exceeded"
+    ):
         await external_functions["dummy_tool"]("second")
 
     assert len(bridge.calls) == 1
+
 
 def failing_tool() -> Tool:
     async def execute(value: str) -> str:
@@ -219,6 +235,7 @@ def failing_tool() -> Tool:
         description="Always fails.",
     ).as_tool()
 
+
 @pytest.mark.anyio
 async def test_run_code_bridge_records_inner_tool_error():
     bridge = RunCodeToolBridge(_tool_defs([failing_tool()]))
@@ -231,6 +248,7 @@ async def test_run_code_bridge_records_inner_tool_error():
     assert len(bridge.calls) == 1
     assert bridge.calls[0].name == "failing_tool"
     assert bridge.calls[0].error == "inner boom"
+
 
 @pytest.mark.anyio
 async def test_run_code_monty_enforces_max_tool_calls():
@@ -250,6 +268,7 @@ await dummy_tool("second")
     )
 
     assert "Maximum run_code inner tool calls exceeded" in result
+
 
 def test_format_run_code_result_without_trace():
     result = RunCodeResult(
@@ -294,13 +313,12 @@ def test_format_run_code_result_with_trace():
     assert "Inner tool calls:" in formatted
     assert "- dummy_tool: ok" in formatted
 
+
 def test_format_run_code_result_with_error_trace():
     result = RunCodeResult(
         output="",
         error="boom",
-        inner_tool_calls=[
-            RunCodeInnerToolCall(name="dummy_tool", error="inner boom")
-        ],
+        inner_tool_calls=[RunCodeInnerToolCall(name="dummy_tool", error="inner boom")],
     )
 
     formatted = _format_run_code_result(
@@ -311,6 +329,7 @@ def test_format_run_code_result_with_error_trace():
     assert "boom" in formatted
     assert "- dummy_tool: error" in formatted
     assert "inner boom" in formatted
+
 
 @pytest.mark.anyio
 async def test_run_code_can_include_inner_tool_trace_with_monty():
@@ -328,10 +347,12 @@ async def test_run_code_can_include_inner_tool_trace_with_monty():
     assert "Inner tool calls:" in result
     assert "- dummy_tool: ok" in result
 
+
 class SlowRunCodeExecutor:
     async def execute(self, code: str) -> RunCodeResult:
         await asyncio.sleep(1)
         return RunCodeResult(output="finished")
+
 
 @pytest.mark.anyio
 async def test_run_code_enforces_timeout():
@@ -344,9 +365,11 @@ async def test_run_code_enforces_timeout():
 
     assert "timed out" in result
 
+
 class LargeOutputRunCodeExecutor:
     async def execute(self, code: str) -> RunCodeResult:
         return RunCodeResult(output="x" * 100)
+
 
 @pytest.mark.anyio
 async def test_run_code_truncates_output():
@@ -360,11 +383,13 @@ async def test_run_code_truncates_output():
     assert len(result) <= 50
     assert "truncated" in result
 
+
 def test_run_code_preview_truncates_long_values():
     preview = _preview("x" * 100, max_chars=30)
 
     assert len(preview) <= 30
     assert "truncated" in preview
+
 
 def test_run_code_preview_handles_bad_repr():
     class BadRepr:
@@ -375,21 +400,25 @@ def test_run_code_preview_handles_bad_repr():
 
     assert "unrepresentable" in preview
 
+
 def test_run_code_rejects_duplicate_wrapped_tool_names():
     tool_defs = _tool_defs([dummy_tool(), dummy_tool()])
 
     with pytest.raises(ValueError, match="Duplicate run_code inner tool name"):
         _tool_def_by_name(tool_defs)
 
+
 def test_run_code_rejects_duplicate_wrapped_tool_names_at_construction():
     with pytest.raises(ValueError, match="Duplicate run_code inner tool name"):
         run_code(tools=[dummy_tool(), dummy_tool()])
+
 
 def test_run_code_usage_description_without_tools():
     description = _run_code_usage_description([])
 
     assert "Write Python code" in description
     assert "No inner Inspect tools are available" in description
+
 
 def test_run_code_usage_description_with_tools_mentions_await():
     tool_defs = _tool_defs([dummy_tool()])
@@ -399,6 +428,7 @@ def test_run_code_usage_description_with_tools_mentions_await():
     assert "Use `await`" in description
     assert "await dummy_tool(value: string)" in description
     assert "Echo a value." in description
+
 
 def second_dummy_tool() -> Tool:
     async def execute(value: str) -> str:
@@ -415,11 +445,10 @@ def second_dummy_tool() -> Tool:
         description="Echo a second value.",
     ).as_tool()
 
+
 @pytest.mark.anyio
 async def test_run_code_bridge_can_call_multiple_wrapped_tools():
-    bridge = RunCodeToolBridge(
-        _tool_defs([dummy_tool(), second_dummy_tool()])
-    )
+    bridge = RunCodeToolBridge(_tool_defs([dummy_tool(), second_dummy_tool()]))
 
     external_functions = bridge.external_functions()
 
@@ -432,6 +461,7 @@ async def test_run_code_bridge_can_call_multiple_wrapped_tools():
     assert len(bridge.calls) == 2
     assert bridge.calls[0].name == "dummy_tool"
     assert bridge.calls[1].name == "second_dummy_tool"
+
 
 @pytest.mark.anyio
 async def test_run_code_can_call_multiple_wrapped_tools_with_monty():
@@ -452,6 +482,7 @@ b = await second_dummy_tool("y")
 
     assert "x" in result
     assert "second:y" in result
+
 
 @pytest.mark.anyio
 async def test_run_code_can_call_wrapped_tools_with_asyncio_gather():
@@ -480,6 +511,7 @@ results
     assert "Inner tool calls:" in result
     assert "dummy_tool" in result
     assert "second_dummy_tool" in result
+
 
 def test_run_code_usage_description_mentions_asyncio_gather():
     tool_defs = _tool_defs([dummy_tool()])
