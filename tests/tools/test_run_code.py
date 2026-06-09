@@ -15,6 +15,7 @@ from inspect_ai.tool._tools._run_code._bridge import (
 
 from inspect_ai.tool._tools._run_code._run_code import _format_run_code_result
 from inspect_ai.tool._tools._run_code._bridge import RunCodeInnerToolCall
+import asyncio
 
 @pytest.fixture
 def anyio_backend():
@@ -311,3 +312,35 @@ async def test_run_code_can_include_inner_tool_trace_with_monty():
     assert "hello" in result
     assert "Inner tool calls:" in result
     assert "- dummy_tool: ok" in result
+
+class SlowRunCodeExecutor:
+    async def execute(self, code: str) -> RunCodeResult:
+        await asyncio.sleep(1)
+        return RunCodeResult(output="finished")
+
+@pytest.mark.anyio
+async def test_run_code_enforces_timeout():
+    tool = run_code(
+        executor=SlowRunCodeExecutor(),
+        timeout=0.01,
+    )
+
+    result = await tool(code="slow")
+
+    assert "timed out" in result
+
+class LargeOutputRunCodeExecutor:
+    async def execute(self, code: str) -> RunCodeResult:
+        return RunCodeResult(output="x" * 100)
+
+@pytest.mark.anyio
+async def test_run_code_truncates_output():
+    tool = run_code(
+        executor=LargeOutputRunCodeExecutor(),
+        max_output_chars=50,
+    )
+
+    result = await tool(code="large")
+
+    assert len(result) <= 50
+    assert "truncated" in result

@@ -1,6 +1,7 @@
 from inspect_ai.tool import Tool, ToolDef, tool
 from collections.abc import Sequence
 from ._run_code_executor import RunCodeExecutor, RunCodeResult, StubRunCodeExecutor, MontyRunCodeExecutor
+import asyncio
 
 def _tool_defs(tools: Sequence[Tool] | None) -> list[ToolDef]:
     """Convert allowed tools into ToolDef objects."""
@@ -43,6 +44,17 @@ def _format_run_code_result(
 
     return "\n".join(lines)
 
+def _truncate_text(text: str, max_chars: int | None) -> str:
+    """Truncate text to a maximum number of characters."""
+    if max_chars is None or len(text) <= max_chars:
+        return text
+
+    suffix = f"\n\n[run_code output truncated to {max_chars} characters]"
+    if max_chars <= len(suffix):
+        return text[:max_chars]
+
+    return text[: max_chars - len(suffix)] + suffix
+
 def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
     """Describe the tools that will eventually be callable from run_code."""
     if not tool_defs:
@@ -71,6 +83,7 @@ def run_code(
     execute: bool = False,
     max_tool_calls: int | None = None,
     include_tool_call_trace: bool = False,
+    max_output_chars: int | None = 20_000,
 ) -> Tool:
     """Run Python code that can orchestrate selected tools.
 
@@ -96,11 +109,23 @@ def run_code(
         Args:
             code: Python code to execute.
         """
-        result = await executor.execute(code)
-        return _format_run_code_result(
+        try:
+            if timeout is None:
+                result = await executor.execute(code)
+            else:
+                result = await asyncio.wait_for(
+                    executor.execute(code),
+                    timeout=timeout,
+                )
+        except asyncio.TimeoutError:
+            return f"run_code execution timed out after {timeout} seconds."
+
+        formatted = _format_run_code_result(
             result,
             include_tool_call_trace=include_tool_call_trace,
         )
+
+        return _truncate_text(formatted, max_output_chars)
 
     return ToolDef(
         execute,
