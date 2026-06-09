@@ -75,6 +75,21 @@ def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
 
     return "\n".join(lines)
 
+def _tool_def_by_name(tool_defs: list[ToolDef]) -> dict[str, ToolDef]:
+    """Return tool definitions indexed by name.
+
+    Raises:
+        ValueError: If more than one allowlisted tool has the same name.
+    """
+    tool_def_by_name: dict[str, ToolDef] = {}
+
+    for tool_def in tool_defs:
+        if tool_def.name in tool_def_by_name:
+            raise ValueError(f"Duplicate run_code inner tool name: {tool_def.name}")
+        tool_def_by_name[tool_def.name] = tool_def
+
+    return tool_def_by_name
+
 @tool
 def run_code(
     tools: Sequence[Tool] | None = None,
@@ -93,6 +108,8 @@ def run_code(
     """
 
     tool_defs = _tool_defs(tools)
+    tool_def_by_name = _tool_def_by_name(tool_defs)
+    tool_defs = list(tool_def_by_name.values())
     inner_tools_description = _tool_interface_description(tool_defs)
     executor = executor or (
         MontyRunCodeExecutor(

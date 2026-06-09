@@ -18,6 +18,13 @@ from inspect_ai.tool._tools._run_code._bridge import RunCodeInnerToolCall
 import asyncio
 from inspect_ai.tool._tools._run_code._bridge import _preview
 
+from inspect_ai.tool._tools._run_code._run_code import (
+    _tool_def_by_name,
+    _tool_defs,
+    _tool_interface_description,
+    _tool_signature,
+)
+
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
@@ -371,3 +378,13 @@ def test_run_code_preview_handles_bad_repr():
     preview = _preview(BadRepr())
 
     assert "unrepresentable" in preview
+
+def test_run_code_rejects_duplicate_wrapped_tool_names():
+    tool_defs = _tool_defs([dummy_tool(), dummy_tool()])
+
+    with pytest.raises(ValueError, match="Duplicate run_code inner tool name"):
+        _tool_def_by_name(tool_defs)
+
+def test_run_code_rejects_duplicate_wrapped_tool_names_at_construction():
+    with pytest.raises(ValueError, match="Duplicate run_code inner tool name"):
+        run_code(tools=[dummy_tool(), dummy_tool()])
