@@ -447,7 +447,7 @@ class AnthropicAPI(ModelAPI):
 
             # beta param for interleaved thinking
             if self.is_using_thinking(config) and (
-                self.is_claude_4() or self.is_claude_latest()
+                self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
             ):
                 betas.append("interleaved-thinking-2025-05-14")
 
@@ -958,8 +958,8 @@ class AnthropicAPI(ModelAPI):
         if self.is_claude_frontier() and self.is_claude_4_opus():
             # Opus 4.6+ (and future 4.x minor opus versions)
             max_tokens = min(max_tokens, 128000)
-        elif self.is_claude_latest() and not self.is_claude_4():
-            # Future major versions (claude 5+): assume opus-class limits
+        elif self.is_claude_5() or (self.is_claude_latest() and not self.is_claude_4()):
+            # Claude 5+ and future major versions: assume opus-class limits
             max_tokens = min(max_tokens, 128000)
         elif self.is_claude_4_5() or self.is_claude_frontier():
             # All other 4.5 / 4.6+ non-opus models (incl. future 4.x minor versions)
@@ -1037,6 +1037,9 @@ class AnthropicAPI(ModelAPI):
     def is_claude_4_8(self) -> bool:
         return self._is_claude_4_x(8)
 
+    def is_claude_5(self) -> bool:
+        return _is_claude_5(self.model_family())
+
     def is_claude_4_opus(self) -> bool:
         return self.is_claude_4() and "opus" in self.model_family()
 
@@ -1059,12 +1062,13 @@ class AnthropicAPI(ModelAPI):
             or self.is_claude_4_8()
         ):
             return True
-        # future major version
+        # future major version (newer than Claude 5, which is a known version)
         elif (
             not self.is_claude_3()
             and not self.is_claude_3_5()
             and not self.is_claude_3_7()
             and not self.is_claude_4()
+            and not self.is_claude_5()
         ):
             return True
         else:
@@ -1076,15 +1080,21 @@ class AnthropicAPI(ModelAPI):
             self.is_claude_4_6()
             or self.is_claude_4_7()
             or self.is_claude_4_8()
+            or self.is_claude_5()
             or self.is_claude_latest()
         )
 
     # some features (e.g. xhigh effort) require 4.7 or any future minor version
     def is_claude_4_7_or_later(self) -> bool:
-        return self.is_claude_4_7() or self.is_claude_4_8() or self.is_claude_latest()
+        return (
+            self.is_claude_4_7()
+            or self.is_claude_4_8()
+            or self.is_claude_5()
+            or self.is_claude_latest()
+        )
 
     def is_claude_4_8_or_later(self) -> bool:
-        return self.is_claude_4_8() or self.is_claude_latest()
+        return self.is_claude_4_8() or self.is_claude_5() or self.is_claude_latest()
 
     # https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages
     # Claude API and Claude Platform on AWS only; not Bedrock, Vertex, or Foundry.
@@ -1138,9 +1148,10 @@ class AnthropicAPI(ModelAPI):
         if "context-1m-2025-08-07" in self.betas:
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
-            return "anthropic/claude-haiku-4-5"  # 200K
+            # Unknown future version: assume the current 1M frontier
+            return "anthropic/claude-opus-4-8"  # 1MM
         else:
-            return self.canonical_name()
+            return super().input_tokens_name()
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
@@ -1498,7 +1509,7 @@ class AnthropicAPI(ModelAPI):
                 BetaToolTextEditor20250728Param(
                     type="text_editor_20250728", name="str_replace_based_edit_tool"
                 )
-                if self.is_claude_4() or self.is_claude_latest()
+                if self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
                 else BetaToolTextEditor20241022Param(
                     type="text_editor_20241022", name="str_replace_editor"
                 )
@@ -1617,6 +1628,15 @@ def _messages_contain_compaction(messages: list[ChatMessage]) -> bool:
     return False
 
 
+def _is_claude_5(model_name: str) -> bool:
+    """Check if a model name is a Claude 5 model.
+
+    Claude 5 model names carry no tier word (e.g. claude-fable-5,
+    claude-mythos-5); match any claude-<name>-5.
+    """
+    return re.search(r"claude-[a-zA-Z]+-5", model_name) is not None
+
+
 def _supports_web_search(model_name: str) -> bool:
     """Check if the model supports Anthropic's native web search tool."""
     # https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#supported-models
@@ -1642,7 +1662,9 @@ def _supports_code_interpreter(model_name: str) -> bool:
 def _supports_memory(model_name: str) -> bool:
     """Check if the model supports Anthropic's native memory tool."""
     # https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool
-    return model_name.startswith(("claude-sonnet-4", "claude-opus-4", "claude-haiku-4"))
+    return model_name.startswith(
+        ("claude-sonnet-4", "claude-opus-4", "claude-haiku-4")
+    ) or _is_claude_5(model_name)
 
 
 def _web_search_tool_params(
