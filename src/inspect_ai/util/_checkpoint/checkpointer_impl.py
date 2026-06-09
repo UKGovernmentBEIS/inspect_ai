@@ -12,7 +12,6 @@ initial inspect_ai package load — only at sample-run time, via the
 from __future__ import annotations
 
 import contextlib
-import os
 import time
 from collections.abc import (
     AsyncIterator,
@@ -77,24 +76,6 @@ logger = getLogger(__name__)
 T = TypeVar("T")
 
 CHECKPOINT_TRANSCRIPT_STORE = "checkpoint_transcript.sqlite"
-
-_LIST_FILES_ENV_VAR = "INSPECT_CHECKPOINT_LIST_FILES"
-_LIST_FILES_DEFAULT = False
-"""Whether to record each sandbox snapshot's added/changed file list (capped
-at :data:`MAX_LISTED_FILES`) in the checkpoint file. Opt-in via
-``INSPECT_CHECKPOINT_LIST_FILES=1``. No config/CLI surface yet."""
-
-
-def _list_files_enabled() -> bool:
-    """Resolve file-listing from the env var, else ``_LIST_FILES_DEFAULT``.
-
-    ``0``/``false``/``no`` (or empty) disable; any other value enables.
-    """
-    val = os.environ.get(_LIST_FILES_ENV_VAR)
-    if val is None:
-        return _LIST_FILES_DEFAULT
-    return val.strip().lower() not in ("", "0", "false", "no")
-
 
 # JSON-primitive Python types; these round-trip identically through
 # `json.dumps`/`json.loads`, so `track()` can return them on resume
@@ -476,27 +457,23 @@ class _EnteredCheckpointer:
                     for (name, _), summary in zip(sandbox_items, summaries[1:])
                 ]
 
-                # List each sandbox snapshot's added/changed files (default on
-                # in dev; see `_list_files_enabled`). Diffs host-side against
-                # the already-egressed repos in parallel, so the in-sandbox
+                # List each sandbox snapshot's added/changed files (capped at
+                # MAX_LISTED_FILES). Diffs host-side against the
+                # already-egressed repos in parallel, so the in-sandbox
                 # exec-output limit is never hit.
-                file_lists: list[tuple[list[str] | None, int]]
-                if _list_files_enabled():
-                    file_lists = await tg_collect(
-                        [
-                            partial(
-                                list_changed_files,
-                                self._host_restic,
-                                sandbox_repo_dir(self._sample_root, name),
-                                self._restic_password,
-                                summary.snapshot_id,
-                                MAX_LISTED_FILES,
-                            )
-                            for name, summary in sandbox_summaries
-                        ]
-                    )
-                else:
-                    file_lists = [(None, 0)] * len(sandbox_summaries)
+                file_lists: list[tuple[list[str] | None, int]] = await tg_collect(
+                    [
+                        partial(
+                            list_changed_files,
+                            self._host_restic,
+                            sandbox_repo_dir(self._sample_root, name),
+                            self._restic_password,
+                            summary.snapshot_id,
+                            MAX_LISTED_FILES,
+                        )
+                        for name, summary in sandbox_summaries
+                    ]
+                )
 
                 sandbox_infos = {
                     name: _snapshot_info(

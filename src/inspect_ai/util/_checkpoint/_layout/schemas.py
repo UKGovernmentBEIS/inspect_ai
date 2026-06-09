@@ -36,12 +36,11 @@ class SnapshotDetails(BaseModel):
     files: list[str] | None = None
     """Absolute paths of files added or changed in this snapshot (relative
     to its parent; the full file set for the first snapshot), capped at
-    ``MAX_LISTED_FILES``. Opt-in via the ``INSPECT_CHECKPOINT_LIST_FILES``
-    env var; ``None`` when listing is disabled."""
+    ``MAX_LISTED_FILES``."""
 
     additional_files: int | None = None
     """Count of files beyond ``MAX_LISTED_FILES`` not included in
-    ``files``. ``None`` when listing is disabled or nothing was truncated."""
+    ``files``. ``None`` when nothing was truncated."""
 
 
 class Checkpoint(BaseModel):

@@ -228,7 +228,7 @@ When checkpointing is enabled, each sample proceeds as follows:
 
 Crashed cycles that didn't reach step 3 leave orphan snapshots with no checkpoint file; resume discards them automatically.
 
-For debugging, you can set `INSPECT_CHECKPOINT_LIST_FILES=1` to additionally record each snapshot's added/changed file paths (capped at 100, with a count of any remainder) in the checkpoint file and the `CheckpointEvent`.
+Each snapshot's added/changed file paths (capped at 100, with a count of any remainder) are recorded in the checkpoint file and the `CheckpointEvent`.
 
 ## Custom Agents {#custom-agents}
 

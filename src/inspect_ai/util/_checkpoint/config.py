@@ -24,9 +24,8 @@ DEFAULT_CHECKPOINT_TRIGGER = TokenInterval(every=500_000)
 """Trigger used when checkpointing is enabled but no layer set a trigger."""
 
 MAX_LISTED_FILES = 100
-"""Max files recorded per snapshot in a checkpoint file when file listing
-is enabled (``INSPECT_CHECKPOINT_LIST_FILES``); the count beyond this is
-recorded in ``additional_files``."""
+"""Max files recorded per snapshot in a checkpoint file; the count beyond
+this is recorded in ``additional_files``."""
 
 
 @dataclass
