@@ -53,6 +53,7 @@ def run_code(
     timeout: int | None = None,
     executor: RunCodeExecutor | None = None,
     execute: bool = False,
+    max_tool_calls: int | None = None,
 ) -> Tool:
     """Run Python code that can orchestrate selected tools.
 
@@ -64,7 +65,12 @@ def run_code(
     tool_defs = _tool_defs(tools)
     inner_tools_description = _tool_interface_description(tool_defs)
     executor = executor or (
-        MontyRunCodeExecutor(tool_defs=tool_defs) if execute else StubRunCodeExecutor()
+        MontyRunCodeExecutor(
+            tool_defs=tool_defs,
+            max_tool_calls=max_tool_calls,
+        )
+        if execute
+        else StubRunCodeExecutor()
     )
 
     async def execute(code: str) -> str:

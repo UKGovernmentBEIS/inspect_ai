@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from inspect_ai.tool import ToolDef
-from ._bridge import external_functions_for_tool_defs
+from ._bridge import RunCodeInnerToolCall, RunCodeToolBridge
 
 
 @dataclass
@@ -13,6 +13,7 @@ class RunCodeResult:
 
     output: str
     error: str | None = None
+    inner_tool_calls: list[RunCodeInnerToolCall] = field(default_factory=list)
 
 
 class RunCodeExecutor(Protocol):
@@ -50,8 +51,14 @@ class StubRunCodeExecutor:
 class MontyRunCodeExecutor:
     """Run code using Pydantic Monty."""
 
-    def __init__(self, tool_defs: list[ToolDef] | None = None) -> None:
+    def __init__(
+        self,
+        tool_defs: list[ToolDef] | None = None,
+        *,
+        max_tool_calls: int | None = None,
+    ) -> None:
         self.tool_defs = tool_defs or []
+        self.max_tool_calls = max_tool_calls
 
     async def execute(self, code: str) -> RunCodeResult:
         """Execute code.
@@ -73,6 +80,11 @@ class MontyRunCodeExecutor:
                 ),
             )
 
+        bridge = RunCodeToolBridge(
+            self.tool_defs,
+            max_tool_calls=self.max_tool_calls,
+        )
+
         try:
             monty = pydantic_monty.Monty(
                 code,
@@ -80,8 +92,15 @@ class MontyRunCodeExecutor:
                 type_check=False,
             )
             output = await monty.run_async(
-                external_functions=external_functions_for_tool_defs(self.tool_defs),
+                external_functions=bridge.external_functions(),
             )
-            return RunCodeResult(output=str(output))
+            return RunCodeResult(
+                output=str(output),
+                inner_tool_calls=bridge.calls,
+            )
         except Exception as exc:
-            return RunCodeResult(output="", error=str(exc))
+            return RunCodeResult(
+                output="",
+                error=str(exc),
+                inner_tool_calls=bridge.calls,
+            )

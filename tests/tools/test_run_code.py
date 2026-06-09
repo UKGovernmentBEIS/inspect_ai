@@ -8,7 +8,10 @@ from inspect_ai.tool._tools._run_code._run_code import (
 )
 from inspect_ai.tool._tools._run_code._run_code_executor import RunCodeResult
 
-from inspect_ai.tool._tools._run_code._bridge import external_functions_for_tool_defs
+from inspect_ai.tool._tools._run_code._bridge import (
+    RunCodeToolBridge,
+    external_functions_for_tool_defs,
+)
 
 @pytest.fixture
 def anyio_backend():
@@ -160,3 +163,81 @@ async def test_run_code_can_call_wrapped_tool_with_monty():
     result = await tool(code='await dummy_tool("hello")')
 
     assert result == "hello"
+
+
+@pytest.mark.anyio
+async def test_run_code_bridge_records_inner_tool_call():
+    bridge = RunCodeToolBridge(_tool_defs([dummy_tool()]))
+
+    external_functions = bridge.external_functions()
+    result = await external_functions["dummy_tool"]("hello")
+
+    assert result == "hello"
+    assert len(bridge.calls) == 1
+    assert bridge.calls[0].name == "dummy_tool"
+    assert bridge.calls[0].args == ("hello",)
+    assert bridge.calls[0].result == "hello"
+    assert bridge.calls[0].error is None
+
+@pytest.mark.anyio
+async def test_run_code_bridge_enforces_max_tool_calls():
+    bridge = RunCodeToolBridge(
+        _tool_defs([dummy_tool()]),
+        max_tool_calls=1,
+    )
+
+    external_functions = bridge.external_functions()
+
+    assert await external_functions["dummy_tool"]("first") == "first"
+
+    with pytest.raises(RuntimeError, match="Maximum run_code inner tool calls exceeded"):
+        await external_functions["dummy_tool"]("second")
+
+    assert len(bridge.calls) == 1
+
+def failing_tool() -> Tool:
+    async def execute(value: str) -> str:
+        """Fail.
+
+        Args:
+            value: Ignored value.
+        """
+        raise RuntimeError("inner boom")
+
+    return ToolDef(
+        execute,
+        name="failing_tool",
+        description="Always fails.",
+    ).as_tool()
+
+@pytest.mark.anyio
+async def test_run_code_bridge_records_inner_tool_error():
+    bridge = RunCodeToolBridge(_tool_defs([failing_tool()]))
+
+    external_functions = bridge.external_functions()
+
+    with pytest.raises(RuntimeError, match="inner boom"):
+        await external_functions["failing_tool"]("x")
+
+    assert len(bridge.calls) == 1
+    assert bridge.calls[0].name == "failing_tool"
+    assert bridge.calls[0].error == "inner boom"
+
+@pytest.mark.anyio
+async def test_run_code_monty_enforces_max_tool_calls():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(
+        tools=[dummy_tool()],
+        execute=True,
+        max_tool_calls=1,
+    )
+
+    result = await tool(
+        code="""
+await dummy_tool("first")
+await dummy_tool("second")
+"""
+    )
+
+    assert "Maximum run_code inner tool calls exceeded" in result
