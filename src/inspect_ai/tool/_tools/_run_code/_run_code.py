@@ -64,7 +64,8 @@ def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
         )
 
     lines = [
-        "The code may call the following allowlisted Inspect tools as async functions. Use `await` when calling them:"
+        "The code may call the following allowlisted Inspect tools as async functions.",
+        "Use `await` when calling them:",
         "",
     ]
 
@@ -134,8 +135,8 @@ def run_code(
     tools: Sequence[Tool] | None = None,
     timeout: int | None = None,
     executor: RunCodeExecutor | None = None,
-    execute: bool = False,
-    max_tool_calls: int | None = None,
+    execute_code: bool = False,
+    max_inner_tool_calls: int | None = None,
     include_tool_call_trace: bool = False,
     max_output_chars: int | None = 20_000,
 ) -> Tool:
@@ -150,13 +151,12 @@ def run_code(
     tool_def_by_name = _tool_def_by_name(tool_defs)
     tool_defs = list(tool_def_by_name.values())
     usage_description = _run_code_usage_description(tool_defs)
-    inner_tools_description = _tool_interface_description(tool_defs)
     executor = executor or (
         MontyRunCodeExecutor(
             tool_defs=tool_defs,
-            max_tool_calls=max_tool_calls,
+            max_tool_calls=max_inner_tool_calls,
         )
-        if execute
+        if execute_code
         else StubRunCodeExecutor()
     )
 

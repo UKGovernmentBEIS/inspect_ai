@@ -1,26 +1,23 @@
+import asyncio
+
 import pytest
 
 from inspect_ai.tool import Tool, ToolDef, run_code
-
-from inspect_ai.tool._tools._run_code._run_code_executor import RunCodeResult
-
 from inspect_ai.tool._tools._run_code._bridge import (
+    RunCodeInnerToolCall,
     RunCodeToolBridge,
+    _preview,
     external_functions_for_tool_defs,
 )
-
-from inspect_ai.tool._tools._run_code._run_code import _format_run_code_result
-from inspect_ai.tool._tools._run_code._bridge import RunCodeInnerToolCall
-import asyncio
-from inspect_ai.tool._tools._run_code._bridge import _preview
-
 from inspect_ai.tool._tools._run_code._run_code import (
+    _format_run_code_result,
     _run_code_usage_description,
     _tool_def_by_name,
     _tool_defs,
     _tool_interface_description,
     _tool_signature,
 )
+from inspect_ai.tool._tools._run_code._run_code_executor import RunCodeResult
 
 @pytest.fixture
 def anyio_backend():
@@ -133,7 +130,7 @@ async def test_run_code_returns_executor_error():
 async def test_run_code_executes_simple_code_with_monty():
     pytest.importorskip("pydantic_monty")
 
-    tool = run_code(execute=True)
+    tool = run_code(execute_code=True)
     result = await tool(code="1 + 1")
 
     assert result == "2"
@@ -142,7 +139,7 @@ async def test_run_code_executes_simple_code_with_monty():
 async def test_run_code_reports_monty_error():
     pytest.importorskip("pydantic_monty")
 
-    tool = run_code(execute=True)
+    tool = run_code(execute_code=True)
     result = await tool(code="raise Exception('boom')")
 
     assert "boom" in result
@@ -168,7 +165,7 @@ def test_external_functions_reject_duplicate_tool_names():
 async def test_run_code_can_call_wrapped_tool_with_monty():
     pytest.importorskip("pydantic_monty")
 
-    tool = run_code(tools=[dummy_tool()], execute=True)
+    tool = run_code(tools=[dummy_tool()], execute_code=True)
 
     result = await tool(code='await dummy_tool("hello")')
 
@@ -240,8 +237,8 @@ async def test_run_code_monty_enforces_max_tool_calls():
 
     tool = run_code(
         tools=[dummy_tool()],
-        execute=True,
-        max_tool_calls=1,
+        execute_code=True,
+        max_inner_tool_calls=1,
     )
 
     result = await tool(
@@ -320,7 +317,7 @@ async def test_run_code_can_include_inner_tool_trace_with_monty():
 
     tool = run_code(
         tools=[dummy_tool()],
-        execute=True,
+        execute_code=True,
         include_tool_call_trace=True,
     )
 
@@ -441,7 +438,7 @@ async def test_run_code_can_call_multiple_wrapped_tools_with_monty():
 
     tool = run_code(
         tools=[dummy_tool(), second_dummy_tool()],
-        execute=True,
+        execute_code=True,
     )
 
     result = await tool(
@@ -461,7 +458,7 @@ async def test_run_code_can_call_wrapped_tools_with_asyncio_gather():
 
     tool = run_code(
         tools=[dummy_tool(), second_dummy_tool()],
-        execute=True,
+        execute_code=True,
         include_tool_call_trace=True,
     )
 
