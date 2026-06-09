@@ -112,3 +112,22 @@ async def test_run_code_returns_executor_error():
     result = await tool(code="raise Exception()")
 
     assert result == "boom"
+
+
+@pytest.mark.anyio
+async def test_run_code_executes_simple_code_with_monty():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(execute=True)
+    result = await tool(code="1 + 1")
+
+    assert result == "2"
+
+@pytest.mark.anyio
+async def test_run_code_reports_monty_error():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(execute=True)
+    result = await tool(code="raise Exception('boom')")
+
+    assert "boom" in result

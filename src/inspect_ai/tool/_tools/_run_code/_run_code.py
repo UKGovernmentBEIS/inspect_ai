@@ -1,6 +1,7 @@
 from inspect_ai.tool import Tool, ToolDef, tool
 from collections.abc import Sequence
-from _tools._run_code._run_code_executor import (
+from ._run_code_executor import (
+    MontyRunCodeExecutor,
     RunCodeExecutor,
     StubRunCodeExecutor,
 )
@@ -51,6 +52,7 @@ def run_code(
     tools: Sequence[Tool] | None = None,
     timeout: int | None = None,
     executor: RunCodeExecutor | None = None,
+    execute: bool = False,
 ) -> Tool:
     """Run Python code that can orchestrate selected tools.
 
@@ -61,7 +63,7 @@ def run_code(
 
     tool_defs = _tool_defs(tools)
     inner_tools_description = _tool_interface_description(tool_defs)
-    executor = executor or StubRunCodeExecutor()
+    executor = executor or (MontyRunCodeExecutor() if execute else StubRunCodeExecutor())
 
     async def execute(code: str) -> str:
         """Run Python code.

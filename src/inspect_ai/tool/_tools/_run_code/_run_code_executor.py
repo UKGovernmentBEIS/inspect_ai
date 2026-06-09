@@ -42,3 +42,39 @@ class StubRunCodeExecutor:
         return RunCodeResult(
             output="run_code execution is not implemented yet",
         )
+class MontyRunCodeExecutor:
+    """Run code using Pydantic Monty.
+
+    This executor does not expose inner Inspect tools yet.
+    """
+
+    async def execute(self, code: str) -> RunCodeResult:
+        """Execute code.
+
+        Args:
+            code: Python code to execute.
+
+        Returns:
+            Result of the code execution.
+        """
+        try:
+            import pydantic_monty
+        except ImportError:
+            return RunCodeResult(
+                output="",
+                error=(
+                    "pydantic-monty is not installed. "
+                    "Install it to use run_code execution."
+                ),
+            )
+
+        try:
+            monty = pydantic_monty.Monty(
+                code,
+                script_name="run_code.py",
+                type_check=False,
+            )
+            output = await monty.run_async()
+            return RunCodeResult(output=str(output))
+        except Exception as exc:
+            return RunCodeResult(output="", error=str(exc))
