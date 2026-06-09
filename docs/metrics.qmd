@@ -55,6 +55,10 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
     Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the `num_samples` option).
 
+-   `variance_surface()`
+
+    The variance components behind a mean score — sample `variance`, CLT `stderr`, and (with `cluster=`) the clustered standard error and a `design_effect` showing how much within-cluster correlation inflates the noise. Exposes the eval's noise floor rather than leaving it implicit.
+
 ## Metric Grouping
 
 The `grouped()` function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.
@@ -112,6 +116,24 @@ def gpqa():
 ```
 
 The `metrics` passed to the `Task` override the default metrics of the `choice()` scorer.
+
+## Eval reliability
+
+When you compare results — two models on the same eval, or one model across a suite of tasks — the comparison needs error bars and error control, not just a point delta. These helpers (in `inspect_ai.scorer`) operate on score vectors / p-values rather than as per-score metrics:
+
+-   `paired_delta(scores_a, scores_b)`
+
+    Confidence interval and significance test for the per-sample score delta when two models/runs are evaluated on the **same** samples. Because the comparison is *paired*, the standard error is computed from the per-sample *differences* — so the difficulty shared by both models cancels instead of inflating the error bar (treating the two vectors as independent is the common mistake). Returns `{delta, stderr, lower, upper, p_value, n}`. Use `align_paired_scores()` to align two `SampleScore` lists by `sample_id` first, and pass `clusters=` for a cluster-robust SE (e.g. when each item is scored over several epochs). For binary single-shot scores, `mcnemar_test()` is the exact paired test.
+
+-   `holm_bonferroni(pvalues)` and `benjamini_hochberg(pvalues)`
+
+    Multiple-comparison corrections for a suite of N tasks: Holm-Bonferroni controls the family-wise error rate, Benjamini-Hochberg controls the false discovery rate. Each returns adjusted p-values and which hypotheses survive at `alpha`.
+
+-   `min_samples_for_delta(delta, sd_diff)` and `power_for_samples(n, delta, sd_diff)`
+
+    Power analysis: how many (paired) samples are needed to detect a delta of a given size at a target power (default 0.8) and level (0.05), and the power achieved at a given `n`. Estimate `sd_diff` (the SD of per-sample differences) from a pilot run.
+
+The intervals and p-values use the large-sample normal approximation (the CLT), so no new dependency is introduced.
 
 ## Custom Metrics
 

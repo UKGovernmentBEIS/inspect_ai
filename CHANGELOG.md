@@ -1,5 +1,6 @@
 ## 0.3.240 (15 June 2026)
 
+- Metrics: Add an eval-reliability toolkit for putting statistical rigor on eval comparisons (builds on `stderr()`, stdlib + numpy only). `paired_delta()` reports a confidence interval and significance test for a per-sample score delta between two models/runs on the **same** samples — computed from the per-sample *differences* (the correct paired analysis), with `align_paired_scores()` to align two `SampleScore` lists by `sample_id`; a `clusters=` argument gives cluster-robust SEs and a `mcnemar_test()` covers binary single-shot scores. `holm_bonferroni()` and `benjamini_hochberg()` correct for multiple comparisons across a suite (family-wise error and false discovery rate). `min_samples_for_delta()` / `power_for_samples()` give power/minimum-sample guidance. `variance_surface()` is a metric exposing a score's variance components (sample variance, CLT and clustered standard error, clustering design effect) — the eval's noise floor.
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.

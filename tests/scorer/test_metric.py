@@ -28,6 +28,15 @@ from inspect_ai.scorer._metric import (
     metric_create,
 )
 from inspect_ai.scorer._metrics import grouped
+from inspect_ai.scorer._metrics.reliability import (
+    align_paired_scores,
+    benjamini_hochberg,
+    holm_bonferroni,
+    min_samples_for_delta,
+    paired_delta,
+    power_for_samples,
+    variance_surface,
+)
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
@@ -670,3 +679,180 @@ def test_dict_metric_all_samples_unscored():
         assert r.scored_samples == 0
         assert r.unscored_samples == 3
         assert math.isnan(r.metrics["mean"].value)
+
+
+_Z_95 = 1.959963984540054  # NormalDist().inv_cdf(0.975)
+
+
+# ---------------------------------------------------------------------------
+# Eval-reliability toolkit: paired delta, multiplicity, power, variance surface.
+# ---------------------------------------------------------------------------
+
+
+def test_paired_delta_matches_hand_computation():
+    # a - b = [1, 1, 1, 0]: mean 0.75, sample sd 0.5, se 0.25.
+    result = paired_delta([1, 1, 1, 0], [0, 0, 0, 0])
+    assert result["delta"] == pytest.approx(0.75)
+    assert result["stderr"] == pytest.approx(0.25)
+    assert result["n"] == 4.0
+    assert result["lower"] == pytest.approx(0.75 - _Z_95 * 0.25)
+    assert result["upper"] == pytest.approx(0.75 + _Z_95 * 0.25)
+    # z = 0.75 / 0.25 = 3.0 -> two-sided p = 2 * Phi(-3).
+    from statistics import NormalDist
+
+    assert result["p_value"] == pytest.approx(2 * NormalDist().cdf(-3.0))
+
+
+def test_paired_delta_uses_difference_se_not_independent():
+    # The correctness point: for positively-correlated paired scores the paired
+    # SE (SD of the differences) is far smaller than an independent-samples SE,
+    # because shared per-sample difficulty cancels. Here b = a - 0.1 exactly, so
+    # the differences are (near) constant and the paired SE collapses to ~0.
+    a = [0.9, 0.8, 0.7, 0.6, 0.5]
+    b = [0.8, 0.7, 0.6, 0.5, 0.4]
+    paired = paired_delta(a, b)
+    assert paired["delta"] == pytest.approx(0.1)
+    assert paired["stderr"] == pytest.approx(0.0, abs=1e-9)
+
+    # Independent-samples SE of the difference of means would be sqrt(se_a^2+se_b^2),
+    # which is strictly positive here — i.e. the naive (wrong) analysis reports a
+    # much larger error bar for the same data.
+    se_a = stderr()([SampleScore(score=Score(value=v)) for v in a])
+    se_b = stderr()([SampleScore(score=Score(value=v)) for v in b])
+    independent_se = (se_a**2 + se_b**2) ** 0.5
+    assert independent_se == pytest.approx(0.1)  # naive (wrong) error bar
+    assert paired["stderr"] < independent_se  # paired ~0 << independent
+
+
+def test_paired_delta_one_sided_alternatives():
+    a = [1, 1, 1, 0]
+    b = [0, 0, 0, 0]
+    two_sided = paired_delta(a, b, alternative="two-sided")["p_value"]
+    greater = paired_delta(a, b, alternative="greater")["p_value"]
+    less = paired_delta(a, b, alternative="less")["p_value"]
+    assert greater == pytest.approx(two_sided / 2)  # symmetric normal
+    assert less == pytest.approx(1.0 - greater)
+
+
+def test_paired_delta_validates_alignment_and_level():
+    with pytest.raises(ValueError):
+        paired_delta([1, 2, 3], [1, 2])  # length mismatch
+    with pytest.raises(ValueError):
+        paired_delta([1, 2], [1, 2], level=1.0)  # level out of range
+
+
+def test_paired_delta_small_sample_collapses():
+    result = paired_delta([1.0], [0.0])
+    assert result["delta"] == 1.0
+    assert result["lower"] == result["upper"] == 1.0
+    assert result["p_value"] == 1.0
+
+
+def test_align_paired_scores_orders_by_sample_id():
+    a = [
+        SampleScore(score=Score(value=1.0), sample_id="s2"),
+        SampleScore(score=Score(value=0.0), sample_id="s1"),
+    ]
+    b = [
+        SampleScore(score=Score(value=0.0), sample_id="s1"),
+        SampleScore(score=Score(value=1.0), sample_id="s2"),
+    ]
+    va, vb = align_paired_scores(a, b)
+    assert va == [0.0, 1.0]  # ordered s1, s2
+    assert vb == [0.0, 1.0]
+
+
+def test_align_paired_scores_requires_matching_ids():
+    a = [SampleScore(score=Score(value=1.0), sample_id="s1")]
+    b = [SampleScore(score=Score(value=1.0), sample_id="s2")]
+    with pytest.raises(ValueError):
+        align_paired_scores(a, b)
+
+
+def test_holm_bonferroni_known_pset():
+    # p = [0.01..0.05]: Holm rejects only the smallest; adjusted = running max of
+    # (m - k + 1) * p_(k) = [0.05, 0.08, 0.09, 0.09, 0.09].
+    result = holm_bonferroni([0.01, 0.02, 0.03, 0.04, 0.05], alpha=0.05)
+    assert result.adjusted == pytest.approx([0.05, 0.08, 0.09, 0.09, 0.09])
+    assert result.rejected == [True, False, False, False, False]
+    assert result.num_rejected == 1
+
+
+def test_holm_preserves_input_order():
+    # unsorted input -> outputs stay aligned to inputs
+    result = holm_bonferroni([0.04, 0.01, 0.05, 0.02, 0.03], alpha=0.05)
+    assert result.rejected == [False, True, False, False, False]
+    assert result.adjusted[1] == pytest.approx(0.05)
+
+
+def test_benjamini_hochberg_known_psets():
+    # p = [0.01..0.05]: BH rejects all five; q-values all 0.05.
+    result = benjamini_hochberg([0.01, 0.02, 0.03, 0.04, 0.05], alpha=0.05)
+    assert result.adjusted == pytest.approx([0.05, 0.05, 0.05, 0.05, 0.05])
+    assert result.rejected == [True, True, True, True, True]
+    # step-up with a middle gap: only the smallest survives.
+    result2 = benjamini_hochberg([0.005, 0.04, 0.5], alpha=0.05)
+    assert result2.adjusted == pytest.approx([0.015, 0.06, 0.5])
+    assert result2.rejected == [True, False, False]
+
+
+def test_bh_makes_at_least_as_many_discoveries_as_holm():
+    pvals = [0.001, 0.012, 0.03, 0.04, 0.2, 0.5]
+    holm = holm_bonferroni(pvals)
+    bh = benjamini_hochberg(pvals)
+    assert bh.num_rejected >= holm.num_rejected  # FDR <= FWER conservativeness
+
+
+def test_multiple_comparison_validation_and_empty():
+    with pytest.raises(ValueError):
+        holm_bonferroni([0.1, 1.5])  # p out of range
+    with pytest.raises(ValueError):
+        benjamini_hochberg([0.1], alpha=0.0)
+    assert holm_bonferroni([]).num_rejected == 0
+    assert benjamini_hochberg([]).adjusted == []
+
+
+def test_min_samples_for_delta_textbook_value():
+    # Classic: effect size d/sd = 0.5, alpha 0.05 two-sided, power 0.8 -> n ~= 32.
+    assert min_samples_for_delta(0.5, 1.0, power=0.8, alpha=0.05) == 32
+    # Smaller effects need (quadratically) more samples: halving d -> ~4x n.
+    assert min_samples_for_delta(0.25, 1.0) == 126
+
+
+def test_power_for_samples_inverts_min_samples():
+    n = min_samples_for_delta(0.5, 1.0, power=0.8)
+    # at the recommended n the power should meet/slightly exceed the target
+    assert power_for_samples(n, 0.5, 1.0) >= 0.8
+    # one fewer sample falls short
+    assert power_for_samples(n - 1, 0.5, 1.0) < 0.8
+
+
+def test_power_helpers_validate():
+    with pytest.raises(ValueError):
+        min_samples_for_delta(0.0, 1.0)  # zero effect
+    with pytest.raises(ValueError):
+        min_samples_for_delta(0.5, 0.0)  # non-positive sd
+    with pytest.raises(ValueError):
+        power_for_samples(0, 0.5, 1.0)  # n < 1
+
+
+def test_variance_surface_components():
+    scores = [SampleScore(score=Score(value=i)) for i in range(10)]
+    surface = variance_surface()(scores)
+    # var of 0..9 (ddof=1) = 9.16667; stderr = sd/sqrt(10).
+    assert surface["variance"] == pytest.approx(9.166667, abs=1e-5)
+    assert surface["stderr"] == pytest.approx(stderr()(scores))
+    assert surface["n"] == 10.0
+    assert "design_effect" not in surface  # no cluster requested
+
+
+def test_variance_surface_design_effect_with_cluster():
+    # Perfectly correlated within clusters -> clustering inflates the SE, so the
+    # design effect exceeds 1 (effectively fewer independent samples).
+    scores = [
+        SampleScore(score=Score(value=v), sample_metadata={"c": c})
+        for c, v in [(0, 1.0), (0, 1.0), (1, 0.0), (1, 0.0), (2, 1.0), (2, 1.0)]
+    ]
+    surface = variance_surface(cluster="c")(scores)
+    assert surface["stderr_clustered"] == pytest.approx(stderr(cluster="c")(scores))
+    assert surface["design_effect"] > 1.0

@@ -25,6 +25,16 @@ from ._metrics.accuracy import accuracy
 from ._metrics.grouped import grouped
 from ._metrics.mean import mean
 from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
+from ._metrics.reliability import (
+    MultipleComparison,
+    align_paired_scores,
+    benjamini_hochberg,
+    holm_bonferroni,
+    min_samples_for_delta,
+    paired_delta,
+    power_for_samples,
+    variance_surface,
+)
 from ._metrics.std import bootstrap_stderr, std, stderr, var
 from ._model import model_graded_fact, model_graded_qa
 from ._multi import multi_scorer
@@ -53,6 +63,7 @@ __all__ = [
     "INCORRECT",
     "Metric",
     "MetricProtocol",
+    "MultipleComparison",
     "NOANSWER",
     "PARTIAL",
     "SampleScore",
@@ -66,13 +77,16 @@ __all__ = [
     "Value",
     "ValueToFloat",
     "accuracy",
+    "align_paired_scores",
     "answer",
     "at_least",
+    "benjamini_hochberg",
     "bootstrap_stderr",
     "choice",
     "exact",
     "f1",
     "grouped",
+    "holm_bonferroni",
     "includes",
     "match",
     "math",
@@ -81,16 +95,19 @@ __all__ = [
     "mean_score",
     "median_score",
     "metric",
+    "min_samples_for_delta",
     "mode_score",
     "model_graded_fact",
     "model_graded_qa",
     "multi_scorer",
+    "paired_delta",
     "pass_at",
     "pass_k",
     "pattern",
     "perplexity",
     "perplexity_per_seq",
     "perplexity_per_token",
+    "power_for_samples",
     "score",
     "score_reducer",
     "scorer",
@@ -99,6 +116,7 @@ __all__ = [
     "target_perplexity",
     "value_to_float",
     "var",
+    "variance_surface",
 ]
 _BOOTSTRAP_RENAME_VERSION = "0.3.58"
 _PROVENANCE_DATA_VERSION = "0.3.154"
