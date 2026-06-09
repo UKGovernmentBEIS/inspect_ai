@@ -1,5 +1,9 @@
 from inspect_ai.tool import Tool, ToolDef, ToolResult, tool
 from collections.abc import Sequence
+from inspect_ai.tool._tools._run_code_executor import (
+    RunCodeExecutor,
+    StubRunCodeExecutor,
+)
 
 def _tool_defs(tools: Sequence[Tool] | None) -> list[ToolDef]:
     """Convert allowed tools into ToolDef objects."""
@@ -46,6 +50,7 @@ def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
 def run_code(
     tools: Sequence[Tool] | None = None,
     timeout: int | None = None,
+    executor: RunCodeExecutor | None = None,
 ) -> Tool:
     """Run Python code that can orchestrate selected tools.
 
@@ -56,6 +61,7 @@ def run_code(
 
     tool_defs = _tool_defs(tools)
     inner_tools_description = _tool_interface_description(tool_defs)
+    executor = executor or StubRunCodeExecutor()
 
     async def execute(code: str) -> str:
         """Run Python code.
@@ -63,7 +69,10 @@ def run_code(
         Args:
             code: Python code to execute.
         """
-        return "run_code execution is not implemented yet"
+        result = await executor.execute(code)
+        if result.error:
+            return result.error
+        return result.output
 
     return ToolDef(
         execute,

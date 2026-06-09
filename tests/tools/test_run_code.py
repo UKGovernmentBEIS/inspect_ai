@@ -6,6 +6,7 @@ from inspect_ai.tool._tools._run_code import (
     _tool_interface_description,
     _tool_signature,
 )
+from inspect_ai.tool._tools._run_code_executor import RunCodeResult
 
 @pytest.fixture
 def anyio_backend():
@@ -84,3 +85,30 @@ def test_run_code_description_mentions_wrapped_tool():
 
     assert "dummy_tool(value: string)" in tool_def.description
     assert "Echo a value." in tool_def.description
+
+class FakeRunCodeExecutor:
+    async def execute(self, code: str) -> RunCodeResult:
+        return RunCodeResult(output=f"executed: {code}")
+
+
+@pytest.mark.anyio
+async def test_run_code_uses_injected_executor():
+    tool = run_code(executor=FakeRunCodeExecutor())
+
+    result = await tool(code="x = 1")
+
+    assert result == "executed: x = 1"
+
+
+class ErrorRunCodeExecutor:
+    async def execute(self, code: str) -> RunCodeResult:
+        return RunCodeResult(output="", error="boom")
+
+
+@pytest.mark.anyio
+async def test_run_code_returns_executor_error():
+    tool = run_code(executor=ErrorRunCodeExecutor())
+
+    result = await tool(code="raise Exception()")
+
+    assert result == "boom"
