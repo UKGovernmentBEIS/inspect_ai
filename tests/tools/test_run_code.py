@@ -1,12 +1,12 @@
 import pytest
 
 from inspect_ai.tool import ToolDef, run_code, Tool
-from inspect_ai.tool._tools._run_code import (
+from _tools._run_code._run_code import (
     _tool_defs,
     _tool_interface_description,
     _tool_signature,
 )
-from inspect_ai.tool._tools._run_code_executor import RunCodeResult
+from _tools._run_code._run_code_executor import RunCodeResult
 
 @pytest.fixture
 def anyio_backend():

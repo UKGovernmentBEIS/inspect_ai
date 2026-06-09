@@ -1,6 +1,6 @@
-from inspect_ai.tool import Tool, ToolDef, ToolResult, tool
+from inspect_ai.tool import Tool, ToolDef, tool
 from collections.abc import Sequence
-from inspect_ai.tool._tools._run_code_executor import (
+from _tools._run_code._run_code_executor import (
     RunCodeExecutor,
     StubRunCodeExecutor,
 )
