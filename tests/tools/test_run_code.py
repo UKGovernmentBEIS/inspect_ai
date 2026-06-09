@@ -13,6 +13,9 @@ from inspect_ai.tool._tools._run_code._bridge import (
     external_functions_for_tool_defs,
 )
 
+from inspect_ai.tool._tools._run_code._run_code import _format_run_code_result
+from inspect_ai.tool._tools._run_code._bridge import RunCodeInnerToolCall
+
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
@@ -241,3 +244,70 @@ await dummy_tool("second")
     )
 
     assert "Maximum run_code inner tool calls exceeded" in result
+
+def test_format_run_code_result_without_trace():
+    result = RunCodeResult(
+        output="hello",
+        inner_tool_calls=[
+            RunCodeInnerToolCall(name="dummy_tool", args=("x",), result="x")
+        ],
+    )
+
+    formatted = _format_run_code_result(
+        result,
+        include_tool_call_trace=False,
+    )
+
+    assert formatted == "hello"
+
+
+def test_format_run_code_result_with_trace():
+    result = RunCodeResult(
+        output="hello",
+        inner_tool_calls=[
+            RunCodeInnerToolCall(name="dummy_tool", args=("x",), result="x")
+        ],
+    )
+
+    formatted = _format_run_code_result(
+        result,
+        include_tool_call_trace=True,
+    )
+
+    assert "hello" in formatted
+    assert "Inner tool calls:" in formatted
+    assert "- dummy_tool: ok" in formatted
+
+def test_format_run_code_result_with_error_trace():
+    result = RunCodeResult(
+        output="",
+        error="boom",
+        inner_tool_calls=[
+            RunCodeInnerToolCall(name="dummy_tool", error="inner boom")
+        ],
+    )
+
+    formatted = _format_run_code_result(
+        result,
+        include_tool_call_trace=True,
+    )
+
+    assert "boom" in formatted
+    assert "- dummy_tool: error" in formatted
+    assert "inner boom" in formatted
+
+@pytest.mark.anyio
+async def test_run_code_can_include_inner_tool_trace_with_monty():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(
+        tools=[dummy_tool()],
+        execute=True,
+        include_tool_call_trace=True,
+    )
+
+    result = await tool(code='await dummy_tool("hello")')
+
+    assert "hello" in result
+    assert "Inner tool calls:" in result
+    assert "- dummy_tool: ok" in result

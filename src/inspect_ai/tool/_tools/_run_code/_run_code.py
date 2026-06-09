@@ -1,10 +1,6 @@
 from inspect_ai.tool import Tool, ToolDef, tool
 from collections.abc import Sequence
-from ._run_code_executor import (
-    MontyRunCodeExecutor,
-    RunCodeExecutor,
-    StubRunCodeExecutor,
-)
+from ._run_code_executor import RunCodeExecutor, RunCodeResult, StubRunCodeExecutor, MontyRunCodeExecutor
 
 def _tool_defs(tools: Sequence[Tool] | None) -> list[ToolDef]:
     """Convert allowed tools into ToolDef objects."""
@@ -26,6 +22,26 @@ def _tool_signature(tool_def: ToolDef) -> str:
 
     return f"await {tool_def.name}({', '.join(args)})"
 
+def _format_run_code_result(
+    result: RunCodeResult,
+    *,
+    include_tool_call_trace: bool,
+) -> str:
+    """Format a run_code result for the model."""
+    output = result.error if result.error else result.output
+
+    if not include_tool_call_trace or not result.inner_tool_calls:
+        return output
+
+    lines = [output, "", "Inner tool calls:"]
+
+    for call in result.inner_tool_calls:
+        status = "error" if call.error else "ok"
+        lines.append(f"- {call.name}: {status}")
+        if call.error:
+            lines.append(f"  error: {call.error}")
+
+    return "\n".join(lines)
 
 def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
     """Describe the tools that will eventually be callable from run_code."""
@@ -54,6 +70,7 @@ def run_code(
     executor: RunCodeExecutor | None = None,
     execute: bool = False,
     max_tool_calls: int | None = None,
+    include_tool_call_trace: bool = False,
 ) -> Tool:
     """Run Python code that can orchestrate selected tools.
 
@@ -80,9 +97,10 @@ def run_code(
             code: Python code to execute.
         """
         result = await executor.execute(code)
-        if result.error:
-            return result.error
-        return result.output
+        return _format_run_code_result(
+            result,
+            include_tool_call_trace=include_tool_call_trace,
+        )
 
     return ToolDef(
         execute,
