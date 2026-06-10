@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE
 from inspect_ai.tool._tools._web_search._web_search import (
     EXTERNAL_PROVIDERS,
     WebSearchProviders,
@@ -344,6 +345,11 @@ class TestCreateExternalProvider:
             _create_external_provider({"exa": {"text": "bogus"}})
 
 
+def _providers(tool):
+    """Provider config from a web_search tool's options (drops the marker key)."""
+    return {k: v for k, v in ToolDef(tool).options.items() if k != INTERNAL_TOOL_TYPE}
+
+
 class TestOldSignatureVariants:
     """Tests for the old signature variants of web_search function.
 
@@ -361,27 +367,27 @@ class TestOldSignatureVariants:
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_bug_report_cse(self, mock_warning, mock_google_keys):
         """Test deprecated params without provider falls back to Google when env vars set."""
-        assert ToolDef(web_search(model="NA", num_results=1)).options == {
+        assert _providers(web_search(model="NA", num_results=1)) == {
             "google": {"model": "NA", "num_results": 1}
         }
 
     def test_no_parameters(self):
         """Test web_search() with no parameters returns all internal providers."""
-        assert ToolDef(web_search()).options == ALL_INTERNAL_PROVIDERS
+        assert _providers(web_search()) == ALL_INTERNAL_PROVIDERS
 
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_only_provider_parameter(self, mock_warning):
         """Test deprecated provider parameter works."""
-        assert ToolDef(web_search(provider="google")).options == {"google": {}}
-        assert ToolDef(web_search(provider="tavily")).options == {"tavily": {}}
+        assert _providers(web_search(provider="google")) == {"google": {}}
+        assert _providers(web_search(provider="tavily")) == {"tavily": {}}
 
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_provider_with_num_results(self, mock_warning):
         """Test deprecated provider + num_results parameters."""
-        assert ToolDef(web_search(provider="google", num_results=10)).options == {
+        assert _providers(web_search(provider="google", num_results=10)) == {
             "google": {"num_results": 10}
         }
-        assert ToolDef(web_search(provider="tavily", num_results=10)).options == {
+        assert _providers(web_search(provider="tavily", num_results=10)) == {
             "tavily": {"max_results": 10}
         }
 
@@ -392,7 +398,7 @@ class TestOldSignatureVariants:
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_num_results_only(self, mock_warning, mock_google_keys):
         """Test deprecated num_results without provider falls back to Google when env vars set."""
-        assert ToolDef(web_search(num_results=10)).options == {
+        assert _providers(web_search(num_results=10)) == {
             "google": {"num_results": 10}
         }
 
@@ -409,12 +415,12 @@ class TestOldSignatureVariants:
             return_value=None,
         ):
             # num_results is ignored, returns all internal providers
-            assert ToolDef(web_search(num_results=10)).options == ALL_INTERNAL_PROVIDERS
+            assert _providers(web_search(num_results=10)) == ALL_INTERNAL_PROVIDERS
 
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_provider_with_multiple_parameters(self, mock_warning):
         """Test deprecated provider with multiple deprecated parameters."""
-        assert ToolDef(
+        assert _providers(
             web_search(
                 provider="google",
                 num_results=10,
@@ -422,7 +428,7 @@ class TestOldSignatureVariants:
                 max_connections=15,
                 model="gpt-4o",
             )
-        ).options == {
+        ) == {
             "google": {
                 "num_results": 10,
                 "max_provider_calls": 5,
@@ -431,9 +437,9 @@ class TestOldSignatureVariants:
             }
         }
 
-        assert ToolDef(
+        assert _providers(
             web_search(provider="tavily", num_results=10, max_connections=15)
-        ).options == {"tavily": {"max_results": 10, "max_connections": 15}}
+        ) == {"tavily": {"max_results": 10, "max_connections": 15}}
 
     def test_conflict_between_old_and_new_signatures(self):
         """Test that using both provider and providers raises an error."""
