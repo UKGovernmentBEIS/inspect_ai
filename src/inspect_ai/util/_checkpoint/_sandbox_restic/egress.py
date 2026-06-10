@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import io
 import json
+import sys
 import tarfile
 from pathlib import Path
 
@@ -26,6 +27,7 @@ import anyio
 
 from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
 from .._async_fs import async_mkdir
 from .repo import _SANDBOX_RESTIC_DIR, _SANDBOX_RESTIC_PATH, _SANDBOX_RESTIC_REPO
@@ -139,7 +141,10 @@ async def egress_sandbox(
     # different copy-out mechanism. Typical inspect deltas are small
     # enough that a one-shot read_file is the right default.
     tar_path = f"{_EGRESS_STAGING}/egress-{tag}.tar"
-    tar_bytes = await env.read_file(tar_path, text=False)
+    # The first cycle's tarball carries the full initial pack set and can
+    # legitimately exceed the default read cap.
+    with override_max_read_file_size(sys.maxsize):
+        tar_bytes = await env.read_file(tar_path, text=False)
     await async_mkdir(dest_repo)
     await anyio.to_thread.run_sync(_extract_tar, tar_bytes, dest_repo)
 
