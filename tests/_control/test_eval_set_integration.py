@@ -2064,3 +2064,82 @@ def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
         "sample_events lost a recorder-completed sample (reads the on-disk log "
         "only, not the recorder)"
     )
+
+
+def test_task_retry_detaches_superseded_attempt_providers(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry detaches the superseded attempt's live providers.
+
+    The retry re-points the (one, shared) TaskLogger at the new attempt; the
+    superseded attempt's EvalState providers are bound methods of that
+    logger, so left attached they would serve the NEW attempt's recorder /
+    log / buffer data under the OLD attempt's eval_id. ``reinit`` detaches
+    them, leaving the superseded attempt's reads to its own (still-correct)
+    log; the latest attempt keeps live providers.
+    """
+    fail = {"calls": 0}
+
+    @solver
+    def fail_once_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail["calls"] += 1
+            if fail["calls"] == 1:
+                raise RuntimeError("synthetic first-attempt failure")
+            return state
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[fail_once_solver()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    # snapshot provider attachment per state just before the registry clears
+    # (the run boundary, after any park — both attempts are still registered)
+    from inspect_ai._control import eval_state as eval_state_mod
+
+    captured: dict[str, list[tuple[str, bool, bool, bool]]] = {}
+    orig_clear = eval_state_mod.clear_all_eval_states
+
+    def spy_clear() -> None:
+        captured["states"] = [
+            (
+                s.eval_id,
+                s.summaries_provider is not None,
+                s.sample_provider is not None,
+                s.events_provider is not None,
+            )
+            for s in eval_state_mod.get_eval_states()
+            if s.task == "task_flaky"
+        ]
+        orig_clear()
+
+    monkeypatch.setattr("inspect_ai._eval.evalset.clear_all_eval_states", spy_clear)
+
+    ok, _ = eval_set(
+        tasks=[task_flaky()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.05,
+        retry_immediate=True,
+    )
+    assert ok
+
+    states = captured["states"]
+    assert len(states) == 2, f"expected two attempts registered; got {states}"
+    # registration order: superseded attempt first, latest last
+    superseded, latest = states[0], states[-1]
+    assert superseded[1:] == (False, False, False), (
+        f"superseded attempt's providers must be detached: {superseded}"
+    )
+    assert latest[1:] == (True, True, True), (
+        f"latest attempt's providers must stay live: {latest}"
+    )

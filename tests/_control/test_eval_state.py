@@ -78,3 +78,43 @@ def test_finalize_preserves_recorded_outcomes() -> None:
     assert state.cancelled == 2
     assert state.total_tokens == 15
     assert state.total_messages == 3
+
+
+def test_detach_eval_providers_nulls_live_accessors() -> None:
+    """Detaching a superseded attempt removes its live providers only.
+
+    On task retry the (shared) TaskLogger is re-pointed at the new attempt;
+    the superseded attempt's bound-method providers would otherwise serve the
+    new attempt's data under the old eval_id. Counters and metadata persist.
+    """
+    from inspect_ai._control.eval_state import detach_eval_providers
+
+    async def summaries():
+        return []
+
+    async def sample(id, epoch, *, exclude_fields=None):
+        return None
+
+    register_eval(
+        "e1",
+        2,
+        log_location="logs/a.eval",
+        summaries_provider=summaries,
+        sample_provider=sample,
+        events_provider=lambda id, epoch: None,
+    )
+    record_sample_errored("e1")
+
+    detach_eval_providers("e1")
+
+    state = get_eval_state("e1")
+    assert state is not None
+    assert state.summaries_provider is None
+    assert state.sample_provider is None
+    assert state.events_provider is None
+    # everything else is untouched
+    assert state.errored == 1
+    assert state.log_location == "logs/a.eval"
+
+    # unregistered evals no-op
+    detach_eval_providers("never-registered")

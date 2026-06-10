@@ -261,6 +261,12 @@ class TaskLogger:
 
     async def reinit(self) -> None:
         """Reset this logger for a retry attempt with a fresh eval entry."""
+        from inspect_ai._control.eval_state import detach_eval_providers
+
+        # the superseded attempt's EvalState holds providers bound to THIS
+        # logger, which is about to be re-pointed at the new attempt
+        detach_eval_providers(self.eval.eval_id)
+
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
         self.flush_pending = []

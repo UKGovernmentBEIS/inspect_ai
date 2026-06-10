@@ -61,3 +61,28 @@ def test_completed_and_running_unaffected() -> None:
         _summary_from_eval_sample_summary(_summary(None, completed=False))["status"]
         == "running"
     )
+
+
+# --- deleted-log degradation -------------------------------------------------
+#
+# The retry sweep (retry_cleanup) deletes superseded attempts' logs while
+# their EvalStates persist through any keep-alive park; provider-less reads
+# that fall back to log_location must degrade, not 500.
+
+
+async def test_summaries_from_missing_log_degrade_to_empty(tmp_path) -> None:
+    from inspect_ai._control.state import _sample_summaries_from_log
+
+    assert await _sample_summaries_from_log(str(tmp_path / "deleted.eval")) == []
+
+
+async def test_full_sample_from_missing_log_degrades_to_none(tmp_path) -> None:
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.state import _full_sample
+
+    try:
+        # provider-less state (detached / reused) pointing at a deleted log
+        register_eval("e1", 1, log_location=str(tmp_path / "deleted.eval"))
+        assert await _full_sample("e1", "1", 1) is None
+    finally:
+        clear_all_eval_states()

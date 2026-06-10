@@ -355,6 +355,27 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def detach_eval_providers(eval_id: str) -> None:
+    """Null a superseded attempt's live providers.
+
+    Called by ``TaskLogger.reinit()`` when a task retry re-points the (one,
+    shared) logger at a fresh attempt: the superseded attempt's providers are
+    bound methods of that logger, so left attached they would silently serve
+    the *new* attempt's recorder/log/buffer data under the old attempt's
+    eval_id. Detaching them makes the superseded attempt's reads fall back to
+    its own ``log_location`` — its data stays correct until the retry sweep
+    removes that log, after which per-sample reads degrade to empty/404
+    (the counters on the state itself are unaffected). No-ops if the eval
+    isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.summaries_provider = None
+            state.sample_provider = None
+            state.events_provider = None
+
+
 def finalize_eval(eval_id: str) -> None:
     """Reconcile terminal counters when a task finishes.
 

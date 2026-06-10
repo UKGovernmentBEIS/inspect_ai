@@ -357,7 +357,8 @@ async def _read_full_sample(
 ) -> Any | None:
     """Read one concrete ``(sample_id, epoch)`` — recorder, else on-disk log."""
     # The provider already does recorder-then-disk; only when there's no
-    # provider (reused/synthetic eval) do we read the on-disk log directly.
+    # provider (reused/synthetic eval, or a superseded retry attempt whose
+    # providers were detached) do we read the on-disk log directly.
     if state.sample_provider is not None:
         return await state.sample_provider(
             sample_id, epoch, exclude_fields=exclude_fields
@@ -372,7 +373,10 @@ async def _read_full_sample(
         return await read_eval_log_sample_async(
             state.log_location, sample_id, epoch, exclude_fields=exclude_fields
         )
-    except IndexError:
+    except (IndexError, FileNotFoundError):
+        # FileNotFoundError: a superseded attempt's log removed by the
+        # retry sweep while its EvalState persists (through any keep-alive
+        # park) — the sample is simply no longer readable here
         return None
 
 
@@ -464,14 +468,21 @@ async def _sample_summaries_from_log(
 ) -> list[dict[str, Any]]:
     """Completed-sample summaries read from the on-disk log.
 
-    Only reached when the live recorder is unavailable (a reused eval, or
-    a finished eval whose recorder was torn down), so the log is finalized
-    and fully readable — a read error here is unexpected and propagates to
-    the API entry point.
+    Only reached when the live recorder is unavailable (a reused eval, a
+    finished eval whose recorder was torn down, or a superseded retry
+    attempt whose providers were detached), so the log is finalized. It may
+    however no longer *exist*: the retry sweep (``retry_cleanup``) deletes
+    superseded attempts' logs while their EvalStates persist through any
+    keep-alive park — degrade to an empty listing rather than failing the
+    request. Any other read error is unexpected and propagates to the API
+    entry point.
     """
     from inspect_ai.log._file import read_eval_log_sample_summaries_async
 
-    summaries = await read_eval_log_sample_summaries_async(location)
+    try:
+        summaries = await read_eval_log_sample_summaries_async(location)
+    except FileNotFoundError:
+        return []
     return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
 
 
