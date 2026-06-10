@@ -6,7 +6,7 @@ from shortuuid import uuid
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._compaction import (
     Compact,
     CompactionStrategy,
@@ -46,6 +46,8 @@ class AgentBridge:
         self._compact: Compact | None = None
         self._message_ids = {}
         self._last_message_count = 0
+        self._pending_operator = 0
+        self._operator_keys: set[str] = set()
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -110,6 +112,24 @@ class AgentBridge:
                 model=model,
             )
         return self._compact
+
+    def note_operator_message(self, message: ChatMessageUser) -> None:
+        """Record that an operator-injected user message is entering the agent.
+
+        Called by a bridged scaffold (e.g. inspect_swe, issue #66) right after it
+        drains an operator message from the agent channel and forwards it to its
+        underlying CLI. A bridged scaffold round-trips the message through its own
+        conversation store, so it re-enters ``bridge_generate`` as a plain
+        ``ChatMessageUser`` with ``source=None`` (the provenance the ACP transport
+        stamped at submit time is lost). The bridge restores ``source="operator"``
+        inside ``bridge_generate`` so it renders distinctly in the ACP TUI and
+        persists into the eval log (model events + final messages).
+
+        Recognition is positional — the operator turn is the latest user message
+        in the next request (queued sends coalesce into one) — so only the pending
+        count is used here; the ``message`` argument is accepted for caller clarity.
+        """
+        self._pending_operator += 1
 
     def _id_for_message(
         self, message: ChatMessage, conversation: list[ChatMessage]

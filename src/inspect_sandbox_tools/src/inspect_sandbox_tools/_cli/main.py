@@ -124,14 +124,10 @@ def _ensure_server_is_running() -> None:
 
     process = subprocess.Popen(
         (
-            # Production staticx mode
-            [executable_path, "server"]
-            # Get the correct executable path for staticx bundled executables. When
-            # running under staticx, sys.argv[0] points to the extracted temp executable
-            # which gets deleted when the parent process exits, breaking the server.
-            # The STATICX_PROG_PATH env var provides the absolute path of the program
-            # being executed.
-            if (executable_path := os.environ.get("STATICX_PROG_PATH"))
+            # Frozen onedir bundle: sys.executable is the stable launcher on disk
+            # (no self-extraction / self-deleting temp), so re-invoke it directly.
+            [sys.executable, "server"]
+            if getattr(sys, "frozen", False)
             # Dev/test mode: use Python interpreter with module invocation
             else [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "server"]
         ),

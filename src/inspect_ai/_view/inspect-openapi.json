@@ -133,6 +133,31 @@
         "title": "AnchorEvent",
         "type": "object"
       },
+      "AppConfig": {
+        "description": "Application configuration returned by GET /app-config.",
+        "properties": {
+          "inspect_version": {
+            "title": "Inspect Version",
+            "type": "string"
+          },
+          "scout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scout Version"
+          }
+        },
+        "required": [
+          "inspect_version"
+        ],
+        "title": "AppConfig",
+        "type": "object"
+      },
       "ApprovalEvent": {
         "description": "Tool approval.",
         "properties": {
@@ -1196,7 +1221,8 @@
               "manual",
               "token",
               "cost",
-              "budget"
+              "budget",
+              "agent_complete"
             ],
             "title": "Trigger",
             "type": "string"
@@ -10732,6 +10758,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/app-config": {
+      "get": {
+        "operationId": "api_app_config_app_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api App Config"
+      }
+    },
     "/chat-message": {
       "get": {
         "operationId": "_chat_message_chat_message_get",

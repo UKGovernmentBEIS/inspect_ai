@@ -1,7 +1,9 @@
 import json
 import os
 import re
+import sqlite3
 import tempfile
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Generator, Iterator, cast
@@ -12,6 +14,7 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer.database import sync_to_filestore
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
@@ -52,6 +55,43 @@ def test_wal_journal_mode(db: SampleBufferDatabase) -> None:
     with db._get_connection() as conn:
         mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
     assert str(mode).lower() == "wal"
+
+
+def test_wal_journal_mode_unavailable_warns_and_continues(
+    tmp_path: Path,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-lock failures enabling WAL should fall back to the current mode."""
+    original_connect = sqlite3.connect
+    warnings: list[str] = []
+
+    class WalUnavailableConnection(sqlite3.Connection):
+        def execute(self, sql: str, *args: Any, **kwargs: Any) -> sqlite3.Cursor:
+            if sql.strip().upper() == "PRAGMA JOURNAL_MODE=WAL":
+                raise sqlite3.OperationalError("disk I/O error")
+            return super().execute(sql, *args, **kwargs)
+
+    def connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        kwargs["factory"] = WalUnavailableConnection
+        return original_connect(*args, **kwargs)
+
+    def capture_warning(msg: object, *args: object, **_kwargs: object) -> None:
+        warnings.append(str(msg) % args if args else str(msg))
+
+    monkeypatch.setattr(sqlite3, "connect", connect)
+    monkeypatch.setattr(database_module.logger, "warning", capture_warning)
+
+    db = SampleBufferDatabase(location=str(tmp_path / "test.eval"), db_dir=tmp_path)
+    try:
+        db.start_sample(sample)
+        assert len(get_samples(db).samples) == 1
+    finally:
+        db.cleanup()
+
+    assert len(warnings) == 1
+    assert "could not enable WAL journal mode" in warnings[0]
+    assert "unavailable: disk I/O error" in warnings[0]
 
 
 def test_start_sample(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None:
@@ -519,3 +559,178 @@ def test_running_tasks():
             log_uri = Path(log_dir).absolute().as_uri()
             assert len(SampleBufferDatabase.running_tasks(log_uri)) == 2
             assert len(SampleBufferFilestore.running_tasks(log_dir)) == 2
+
+
+def test_connection_is_reused_within_thread(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """Operations on one thread reuse a single persistent connection."""
+    db.start_sample(sample=sample)
+
+    with db._get_connection() as conn1:
+        pass
+    with db._get_connection() as conn2:
+        pass
+
+    assert conn1 is conn2
+    assert conn1 is db._local.conn
+    # only the one per-thread connection is tracked
+    assert len(db._connections) == 1
+
+
+def test_connection_self_heals_after_error(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """A failed operation discards the connection; the next op reopens cleanly."""
+    db.start_sample(sample=sample)
+    conn_before = db._local.conn
+
+    # force a failure inside a write transaction
+    with pytest.raises(sqlite3.OperationalError):
+        with db._get_connection(write=True) as conn:
+            conn.execute("INSERT INTO nonexistent_table VALUES (1)")
+
+    # the poisoned connection was discarded (self-heal)
+    assert getattr(db._local, "conn", None) is None
+    assert conn_before not in db._connections
+
+    # subsequent operations succeed with a fresh connection
+    db.log_events(
+        [SampleEvent(id="sample1", epoch=1, event=InfoEvent(data="after-error"))]
+    )
+    conn_after = db._local.conn
+    assert conn_after is not None
+    assert conn_after is not conn_before
+
+    with db._get_connection() as conn:
+        events = list(db._get_events(conn, id="sample1", epoch=1))
+    assert len(events) == 1
+
+
+def test_cleanup_closes_all_connections(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """Cleanup closes every tracked connection before unlinking the db."""
+    db.start_sample(sample=sample)
+    tracked = list(db._connections)
+    assert len(tracked) >= 1
+
+    db.cleanup()
+
+    assert db._connections == []
+    assert db._closed is True
+    for conn in tracked:
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")
+
+
+def test_use_after_cleanup_raises_and_does_not_resurrect_db(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """After cleanup, operations raise rather than recreating the db files."""
+    db.start_sample(sample=sample)
+    db.cleanup()
+    assert not os.path.exists(db.db_path)
+
+    with pytest.raises(RuntimeError):
+        db.start_sample(sample=sample)
+
+    # the unlinked db (and WAL sidecars) were not resurrected
+    assert not os.path.exists(db.db_path)
+    assert not os.path.exists(f"{db.db_path}-wal")
+    assert not os.path.exists(f"{db.db_path}-shm")
+
+
+def test_per_thread_connections_and_cross_thread_cleanup(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """Each thread gets its own connection; cleanup closes them cross-thread."""
+    db.start_sample(sample=sample)
+    main_conn = db._local.conn
+
+    worker_conn: list[sqlite3.Connection] = []
+
+    def worker() -> None:
+        # a write from another thread opens that thread's own connection
+        db.log_events(
+            [SampleEvent(id="sample1", epoch=1, event=InfoEvent(data="from-worker"))]
+        )
+        worker_conn.append(db._local.conn)
+
+    t = threading.Thread(target=worker)
+    t.start()
+    t.join()
+
+    assert len(worker_conn) == 1
+    assert worker_conn[0] is not main_conn
+    assert main_conn in db._connections
+    assert worker_conn[0] in db._connections
+    assert len(db._connections) == 2
+
+    # cleanup on the main thread closes the (now dead) worker thread's
+    # connection without raising, thanks to check_same_thread=False
+    db.cleanup()
+    assert db._connections == []
+    with pytest.raises(sqlite3.ProgrammingError):
+        worker_conn[0].execute("SELECT 1")
+
+
+def test_thread_connection_discards_on_cleanup_race(
+    db: SampleBufferDatabase, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If cleanup wins the race during open, the new connection is discarded.
+
+    The used-after-cleanup guard re-checks ``_closed`` under the lock after
+    opening, so a connection opened concurrently with cleanup is closed and not
+    tracked (rather than left pointing at an unlinked database).
+    """
+    real_open = db._open_connection
+    opened: list[sqlite3.Connection] = []
+
+    def open_then_cleanup_wins() -> sqlite3.Connection:
+        conn = real_open()
+        opened.append(conn)
+        db._closed = True  # simulate cleanup completing while we were opening
+        return conn
+
+    monkeypatch.setattr(db, "_open_connection", open_then_cleanup_wins)
+    db._local.conn = None  # force a fresh open on this thread
+
+    with pytest.raises(RuntimeError):
+        db._thread_connection()
+
+    # the just-opened connection was closed and never tracked
+    assert len(opened) == 1
+    assert opened[0] not in db._connections
+    with pytest.raises(sqlite3.ProgrammingError):
+        opened[0].execute("SELECT 1")
+
+
+def test_open_connection_closes_conn_on_non_operational_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-OperationalError during PRAGMA setup must not leak the connection."""
+    original_connect = sqlite3.connect
+    closed: list[bool] = []
+
+    class FailingConnection(sqlite3.Connection):
+        def execute(self, sql: str, *args: Any, **kwargs: Any) -> sqlite3.Cursor:
+            if sql.strip().upper() == "PRAGMA SYNCHRONOUS=OFF":
+                raise ValueError("boom during PRAGMA setup")
+            return super().execute(sql, *args, **kwargs)
+
+        def close(self) -> None:
+            closed.append(True)
+            super().close()
+
+    def connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        kwargs["factory"] = FailingConnection
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", connect)
+
+    with pytest.raises(ValueError):
+        SampleBufferDatabase(location="test_location", db_dir=tmp_path)
+
+    # the half-open connection was closed before the error propagated
+    assert closed

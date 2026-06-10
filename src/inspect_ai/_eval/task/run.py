@@ -125,6 +125,9 @@ from inspect_ai.util._checkpoint._layout import (
     has_sample_checkpoint,
     sample_checkpoints_dir,
 )
+from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
+    scan_latest_committed_checkpoint,
+)
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.config import (
     CheckpointConfig,
@@ -538,7 +541,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             return sample_scores
                         elif isinstance(previous_sample, ResumeCheckpoint):
                             # signal intent — agent code can branch on
-                            # `cp.is_resuming`. No state hydration yet.
+                            # `cp.attempt`. Hydration runs inside
+                            # `_CheckpointerSetup.__aenter__`.
                             resume_checkpoint = previous_sample
 
                     # factory to create sample+state lazily (after semaphore)
@@ -1154,22 +1158,32 @@ async def task_run_sample(
                                                 error, raise_error = handle_error(ex)
 
                                     elif active.limit_exceeded_error:
-                                        # record event
-                                        transcript()._event(
-                                            SampleLimitEvent(
-                                                type="working",
-                                                message=active.limit_exceeded_error.message,
-                                                limit=active.limit_exceeded_error.limit,
+                                        err = active.limit_exceeded_error
+                                        # Record a SampleLimitEvent ONLY for a working-time
+                                        # limit. `sample.limit_exceeded()` (which set
+                                        # `limit_exceeded_error` and cancelled us) has two
+                                        # callers: monitor_working_limit(), which records no
+                                        # event of its own — so here we are its sole recorder
+                                        # — and the sandbox service, which surfaces a bridged
+                                        # message/token/cost limit that ALREADY recorded its
+                                        # own event at its detection point (e.g.
+                                        # check_message_limit). Recording the latter here would
+                                        # both duplicate that event and mislabel it "working".
+                                        if err.type == "working":
+                                            transcript()._event(
+                                                SampleLimitEvent(
+                                                    type=err.type,
+                                                    message=err.message,
+                                                    limit=err.limit,
+                                                )
                                             )
-                                        )
 
                                         # capture most recent state for scoring
                                         state = sample_state() or state
                                         limit = EvalSampleLimit(
-                                            type=active.limit_exceeded_error.type,
-                                            limit=active.limit_exceeded_error.limit
-                                            if active.limit_exceeded_error.limit
-                                            is not None
+                                            type=err.type,
+                                            limit=err.limit
+                                            if err.limit is not None
                                             else -1,
                                         )
 
@@ -1446,12 +1460,26 @@ async def task_run_sample(
                         )
 
                     if logger:
+                        # When the full event history is still resident in
+                        # memory we can log the sample directly from memory
+                        # rather than reading every event back out of the
+                        # realtime buffer DB and re-validating it. This is the
+                        # case whenever realtime logging is off (no buffer DB)
+                        # OR the transcript was not bounded-evicted (events
+                        # never exceeded the resident tail — the common case for
+                        # high-throughput runs). Only fall back to the streaming
+                        # read-back when events were actually evicted.
+                        log_from_memory = (
+                            logger.buffer_db is None
+                            or not sample_transcript.history.resident_events_truncated
+                        )
                         eval_sample = await log_sample(
                             eval_sample=make_eval_sample(
-                                include_events=logger.buffer_db is None
+                                include_events=log_from_memory
                             ),
                             logger=logger,
                             log_images=log_images,
+                            from_memory=log_from_memory,
                         )
                     else:
                         eval_sample = make_eval_sample()
@@ -1605,13 +1633,24 @@ async def log_sample(
     eval_sample: EvalSample,
     logger: TaskLogger,
     log_images: bool,
+    *,
+    from_memory: bool,
 ) -> EvalSample:
-    if logger.buffer_db is None:
+    # No realtime buffer DB, or the full history is still resident in memory:
+    # log directly from the in-memory sample (which carries its events). This
+    # avoids the open_sample_history -> materialize_streaming_sample round-trip
+    # (read every event back out of SQLite + re-validate). `complete_sample`
+    # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
+    # buffer exists it stays consistent for live viewing.
+    if logger.buffer_db is None or from_memory:
         await logger.complete_sample(
             condense_sample(eval_sample, log_images), flush=True
         )
         return eval_sample
 
+    # Events were bounded-evicted from memory: stream them back from the buffer
+    # DB (the only place the full history still lives) without re-materializing
+    # the whole sample in memory at once.
     logging_sample = condense_sample(
         eval_sample.model_copy(update={"events": [], "events_data": None}),
         log_images,
@@ -1646,10 +1685,19 @@ def eval_log_sample_source(
             return None
         if not await has_sample_checkpoint(eval_checkpoints_dir, id, epoch):
             return None
+        prior_sample_dir = sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
+        # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
+        # agent finished cleanly, scoring is the next thing → retry can
+        # skip the agent loop (the ``"resume_for_scoring"`` attempt).
+        checkpoint = await scan_latest_committed_checkpoint(prior_sample_dir)
+        attempt: Literal["initial", "resume", "resume_for_scoring"] = (
+            "resume_for_scoring"
+            if checkpoint is not None and checkpoint.trigger == "agent_complete"
+            else "resume"
+        )
         return ResumeCheckpoint(
-            sample_checkpoints_dir=sample_checkpoints_dir(
-                eval_checkpoints_dir, id, epoch
-            )
+            sample_checkpoints_dir=prior_sample_dir,
+            attempt=attempt,
         )
 
     # take care of no log or no samples in log. Note we still proceed when

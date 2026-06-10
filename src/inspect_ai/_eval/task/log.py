@@ -166,13 +166,15 @@ class TaskLogger:
         epochs = eval_config.epochs if eval_config.epochs else 1
         total_samples = len(sample_ids) * epochs
 
-        # adaptive defaults for high-throughput runs
+        # high-throughput runs still get a larger flush buffer (fewer main
+        # eval-log flushes), but we no longer force `log_realtime` or
+        # `score_display` off. Realtime logging is now cheap: sample completion
+        # logs directly from resident memory instead of reading every event
+        # back out of the buffer DB (see `log_sample` in run.py), and the
+        # WAL/persistent-connection buffer DB removed the read/write contention
+        # that motivated disabling it (#3173). Score-display recompute is
+        # throttled and was measured to be negligible at high sample counts.
         high_throughput = _is_high_throughput(total_samples)
-        if high_throughput:
-            if eval_config.log_realtime is None:
-                eval_config.log_realtime = False
-            if eval_config.score_display is None:
-                eval_config.score_display = False
 
         # write defaults for unspecified config
         for name, value in eval_config_defaults().items():
