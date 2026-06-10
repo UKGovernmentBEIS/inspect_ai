@@ -117,8 +117,7 @@ class TestLogFileInfoNativeParse:
         assert result.task_id == "abc123"
 
     def test_prefixed_timestamp_filename(self):
-        """Filename with a prefix before the timestamp (e.g. copied logs) still
-        parses task/task_id from the filename without a header read."""
+        """Prefixed-timestamp filenames (e.g. copied logs) skip the header read."""
         info = _make_fileinfo(
             "/logs/[ext] 2026-03-15T11-51-45+00-00_mytask_abc123.eval"
         )
