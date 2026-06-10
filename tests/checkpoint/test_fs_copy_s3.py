@@ -35,20 +35,24 @@ async def _put(fs: AsyncFilesystem, uri: str, content: bytes) -> None:
 
 
 def _checkpoint_bytes(checkpoint_id: int) -> bytes:
-    return Checkpoint(
-        checkpoint_id=checkpoint_id,
-        trigger="turn",
-        turn=checkpoint_id,
-        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
-        duration_ms=10,
-        size_bytes=100 + checkpoint_id,
-        host=SnapshotDetails(
-            snapshot_id=f"snap-{checkpoint_id}",
-            size_bytes=100 + checkpoint_id,
+    return (
+        Checkpoint(
+            checkpoint_id=checkpoint_id,
+            trigger="turn",
+            turn=checkpoint_id,
+            created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
             duration_ms=10,
-        ),
-        sandboxes={},
-    ).model_dump_json().encode()
+            size_bytes=100 + checkpoint_id,
+            host=SnapshotDetails(
+                snapshot_id=f"snap-{checkpoint_id}",
+                size_bytes=100 + checkpoint_id,
+                duration_ms=10,
+            ),
+            sandboxes={},
+        )
+        .model_dump_json()
+        .encode()
+    )
 
 
 async def test_fs_copy_cross_cutting_downloads_from_s3(
