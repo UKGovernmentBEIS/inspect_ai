@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Inspect View: Serve `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO` (local range reads went from ~1MB/s to native speed; a 127MB sample transcript now opens in ~4s instead of ~45s).
+- Inspect View: Hydrate log listing previews and details via batched server endpoints (new `/log-details`) instead of opening each `.eval` archive client-side with ~5 HTTP round-trips per file.
+- Inspect View: Parse task/task_id from filenames that have a prefix before the ISO timestamp (e.g. copied logs like `[ext] 2025-...`), and cache header-derived info by (path, mtime, size), avoiding per-file header reads on every listing.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
 - Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.
 - Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.

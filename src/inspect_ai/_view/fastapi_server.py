@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import urllib.parse
+from functools import partial
 from io import BytesIO
 from logging import getLogger
 from pathlib import Path
@@ -11,6 +12,7 @@ import anyio
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
 from starlette.staticfiles import StaticFiles
@@ -25,6 +27,7 @@ from typing_extensions import override
 
 from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import filesystem
@@ -56,7 +59,12 @@ from inspect_ai._view.scout_routes import get_scout_search_router
 from inspect_ai._view.user_info import UserInfo, user_info
 from inspect_ai.log import EvalLog
 from inspect_ai.log._edit import LogUpdate
-from inspect_ai.log._file import read_eval_log_headers_async
+from inspect_ai.log._file import (
+    read_eval_log_async,
+    read_eval_log_headers_async,
+    read_eval_log_sample_summaries_async,
+)
+from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.types import (
     PendingSampleUrls,
@@ -81,6 +89,13 @@ class FileMappingPolicy(Protocol):
     async def map(self, request: Request, file: str) -> str: ...
 
     async def unmap(self, request: Request, file: str) -> str: ...
+
+
+class LogDetailsItem(BaseModel):
+    """Header plus sample summaries for a single log file."""
+
+    header: EvalLog
+    sample_summaries: list[EvalSampleSummary]
 
 
 class InspectJsonResponse(JSONResponse):
@@ -224,11 +239,11 @@ def view_server_app(
         )
 
         if isinstance(response, BytesIO):
-            # For in-memory responses, Content-Length is known exactly
-            content_length = response.getbuffer().nbytes
-            return StreamingResponse(
-                content=response,
-                headers={"Content-Length": str(content_length)},
+            # Return in-memory bytes directly: StreamingResponse would iterate
+            # the BytesIO line-by-line (newline-split binary chunks), sending
+            # each through a threadpool hop — ~1MB/s for local range reads.
+            return Response(
+                content=response.getvalue(),
                 media_type="application/octet-stream",
             )
         else:
@@ -389,14 +404,7 @@ def view_server_app(
         else:
             return Response(status_code=HTTP_404_NOT_FOUND)
 
-    @app.get(
-        "/log-headers",
-        response_class=InspectJsonResponse,
-        response_model_exclude_none=True,
-    )
-    async def api_log_headers(
-        request: Request, file: list[str] = Query([])
-    ) -> list[EvalLog]:
+    async def _validate_and_map_files(request: Request, file: list[str]) -> list[str]:
         files = [normalize_uri(f) for f in file]
         mapped_files: list[str] = [""] * len(files)
 
@@ -408,7 +416,46 @@ def view_server_app(
             for i, f in enumerate(files):
                 tg.start_soon(_validate_and_map, i, f)
 
+        return mapped_files
+
+    @app.get(
+        "/log-headers",
+        response_class=InspectJsonResponse,
+        response_model_exclude_none=True,
+    )
+    async def api_log_headers(
+        request: Request, file: list[str] = Query([])
+    ) -> list[EvalLog]:
+        mapped_files = await _validate_and_map_files(request, file)
         return await read_eval_log_headers_async(mapped_files)
+
+    @app.get(
+        "/log-details",
+        response_class=InspectJsonResponse,
+        response_model_exclude_none=True,
+    )
+    async def api_log_details(
+        request: Request, file: list[str] = Query([])
+    ) -> list[LogDetailsItem | None]:
+        """Batched header + sample summaries.
+
+        Returns one item per requested file (None for files that could not
+        be read) so the client can hydrate log details without opening each
+        log archive over multiple range requests. Authorization and mapping
+        failures fail the whole request (same contract as /log-headers).
+        """
+        mapped_files = await _validate_and_map_files(request, file)
+
+        async def _read_details(f: str) -> LogDetailsItem | None:
+            try:
+                header = await read_eval_log_async(f, header_only=True)
+                summaries = await read_eval_log_sample_summaries_async(f)
+                return LogDetailsItem(header=header, sample_summaries=summaries)
+            except Exception as ex:
+                logger.debug(f"Failed to read log details from {f}: {ex}")
+                return None
+
+        return await tg_collect([partial(_read_details, f) for f in mapped_files])
 
     @app.get("/user-info", response_model_exclude_none=True)
     async def api_user_info() -> UserInfo:

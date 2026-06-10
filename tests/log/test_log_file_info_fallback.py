@@ -116,6 +116,16 @@ class TestLogFileInfoNativeParse:
         assert result.task == "mytask"
         assert result.task_id == "abc123"
 
+    def test_prefixed_timestamp_filename(self):
+        """Filename with a prefix before the timestamp (e.g. copied logs) still
+        parses task/task_id from the filename without a header read."""
+        info = _make_fileinfo(
+            "/logs/[ext] 2026-03-15T11-51-45+00-00_mytask_abc123.eval"
+        )
+        result = log_file_info(info)
+        assert result.task == "mytask"
+        assert result.task_id == "abc123"
+
 
 class TestLogFileInfoHeaderFallback:
     """Custom filenames (no ISO timestamp prefix) trigger header reading."""
@@ -180,6 +190,36 @@ class TestLogFileInfoHeaderFallback:
         assert result.task == "onlytask"
         # EvalSpec.task_id has Field(default_factory=str) -> defaults to ""
         assert result.task_id == ""
+
+    def test_header_info_cached_across_calls(self, tmp_path, monkeypatch):
+        """Repeated listings reuse the cached header info for unchanged files."""
+        import inspect_ai.log._file as file_mod
+
+        header = _make_full_header(task="cached_task", task_id="cached_id")
+        eval_path = tmp_path / "cache_test.eval"
+        _make_eval_zip(str(eval_path), header)
+
+        calls = {"n": 0}
+        orig = file_mod._try_read_header
+
+        def counting(name):
+            calls["n"] += 1
+            return orig(name)
+
+        monkeypatch.setattr(file_mod, "_try_read_header", counting)
+
+        info = _make_fileinfo(str(eval_path), size=os.path.getsize(eval_path))
+        r1 = log_file_info(info)
+        r2 = log_file_info(info)
+        assert calls["n"] == 1
+        assert r1.task == r2.task == "cached_task"
+
+        # changed mtime invalidates the cache entry
+        info2 = FileInfo(
+            name=info.name, type="file", size=info.size, mtime=info.mtime + 1
+        )
+        log_file_info(info2)
+        assert calls["n"] == 2
 
     def test_determinism(self, tmp_path):
         """Calling log_file_info twice on same file returns identical results."""

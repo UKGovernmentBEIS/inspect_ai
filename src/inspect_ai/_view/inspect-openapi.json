@@ -6222,6 +6222,27 @@
         "title": "LlmSearchRequest",
         "type": "object"
       },
+      "LogDetailsItem": {
+        "description": "Header plus sample summaries for a single log file.",
+        "properties": {
+          "header": {
+            "$ref": "#/components/schemas/EvalLog"
+          },
+          "sample_summaries": {
+            "items": {
+              "$ref": "#/components/schemas/EvalSampleSummary"
+            },
+            "title": "Sample Summaries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "header",
+          "sample_summaries"
+        ],
+        "title": "LogDetailsItem",
+        "type": "object"
+      },
       "LogDirResponse": {
         "properties": {
           "log_dir": {
@@ -11043,6 +11064,51 @@
           }
         },
         "summary": "Api Log Delete"
+      }
+    },
+    "/log-details": {
+      "get": {
+        "description": "Batched header + sample summaries.\n\nReturns one item per requested file (None for files that could not\nbe read) so the client can hydrate log details without opening each\nlog archive over multiple range requests. Authorization and mapping\nfailures fail the whole request (same contract as /log-headers).",
+        "operationId": "api_log_details_log_details_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "file",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "title": "File",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/LogDetailsItem"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": "Response Api Log Details Log Details Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Details"
       }
     },
     "/log-dir": {
