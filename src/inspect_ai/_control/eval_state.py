@@ -31,19 +31,40 @@ Why a counter aggregate rather than computing on demand from
 from __future__ import annotations
 
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Any
+from typing import TYPE_CHECKING, Protocol
 
-# Async accessor for an eval's completed-sample summaries (a list of
-# ``EvalSampleSummary``, typed loosely to keep this module dependency-free).
-SummariesProvider = Callable[[], Awaitable[list[Any] | None]]
+# The provider types live under TYPE_CHECKING so this module stays
+# dependency-free at runtime (it's imported during eval bootstrap, before the
+# log/event packages finish initializing). PEP 563 (`from __future__ import
+# annotations`) means every annotation below is a string, so nothing here is
+# evaluated at runtime — but note that `typing.get_type_hints(EvalState)`
+# would fail outside a type-checking context.
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
-# Async accessor for one full sample by ``(id, epoch)`` (an ``EvalSample`` or
-# None), accepting an optional ``exclude_fields`` keyword. Typed loosely (and
-# with ``...`` args) to keep this module dependency-free.
-SampleProvider = Callable[..., Awaitable[Any | None]]
+    from inspect_ai.log._log import EvalSample, EvalSampleSummary
+    from inspect_ai.log._transcript import TranscriptHistoryProvider
+
+    # Async accessor for an eval's completed-sample summaries.
+    SummariesProvider = Callable[[], Awaitable[list[EvalSampleSummary] | None]]
+
+    # Async accessor for one full sample by ``(id, epoch)``. A Protocol
+    # (rather than a Callable alias) because of the keyword-only
+    # ``exclude_fields`` argument.
+    class SampleProvider(Protocol):
+        def __call__(
+            self,
+            id: str | int,
+            epoch: int,
+            *,
+            exclude_fields: set[str] | None = None,
+        ) -> Awaitable[EvalSample | None]: ...
+
+    # Sync accessor for one sample's transcript-event history by
+    # ``(id, epoch)``, or None once the backing buffer is torn down.
+    EventsProvider = Callable[[str | int, int], TranscriptHistoryProvider | None]
 
 
 @dataclass
@@ -114,6 +135,16 @@ class EvalState:
     :attr:`log_location` when it's ``None`` (reused/synthetic eval) or the
     recorder no longer holds the sample (flushed / torn down)."""
 
+    events_provider: EventsProvider | None = None
+    """Live accessor for one sample's transcript-event history (a
+    ``TranscriptHistoryProvider``) from the realtime buffer. The events
+    analogue of :attr:`sample_provider`, for streaming-completion samples
+    whose recorder copy is event-less (their events live in the buffer
+    database): event pages read through the eval's own buffer instance
+    rather than the control layer re-deriving the buffer's location.
+    ``None`` for reused/synthetic evals; returns ``None`` once the buffer
+    is torn down."""
+
     sample_ids: list[str | int] = field(default_factory=list)
     """The eval's planned sample ids (after slicing). With :attr:`epochs`,
     the full set of planned ``(sample_id, epoch)`` pairs — which lets the
@@ -182,6 +213,7 @@ def register_eval(
     log_location: str = "",
     summaries_provider: SummariesProvider | None = None,
     sample_provider: SampleProvider | None = None,
+    events_provider: EventsProvider | None = None,
     sample_ids: list[str | int] | None = None,
     epochs: int = 1,
     run_id: str | None = None,
@@ -206,6 +238,7 @@ def register_eval(
             log_location=log_location,
             summaries_provider=summaries_provider,
             sample_provider=sample_provider,
+            events_provider=events_provider,
             sample_ids=sample_ids or [],
             epochs=epochs,
             run_id=run_id,

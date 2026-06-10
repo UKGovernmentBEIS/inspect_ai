@@ -70,6 +70,19 @@ attachment-resolved memory rather than re-materialized from the buffer DB.
 """
 
 
+class TranscriptHistoryUnavailableError(RuntimeError):
+    """A transcript's event history can no longer be served.
+
+    Raised by the bounded-memory history accessors when evicted events can't
+    be materialized: either the transcript has no history provider, or the
+    provider's backing store has been torn down or deleted (eg. the realtime
+    sample buffer racing eval teardown). Storage-agnostic — consumers catch
+    this rather than the backing store's own exception types. A
+    ``RuntimeError`` subclass so callers handling "history not available"
+    generically keep working.
+    """
+
+
 class TranscriptHistoryProvider(Protocol):
     @property
     def event_count(self) -> int: ...
@@ -261,15 +274,16 @@ class TranscriptHistory:
             insertion order.
 
         Raises:
-            RuntimeError: If `n` is `None`, events have been truncated, and no
-                history provider is available to materialize the full history.
+            TranscriptHistoryUnavailableError: If `n` is `None`, events
+                have been truncated, and no history provider is available to
+                materialize the full history.
         """
         transcript = self._transcript
         if n is not None and n <= 0:
             return []
         if transcript._history_provider is None:
             if n is None and transcript._events_truncated:
-                raise RuntimeError(
+                raise TranscriptHistoryUnavailableError(
                     "Full transcript history is not available from this Transcript"
                 )
             return transcript._events if n is None else transcript._events[-n:]
@@ -299,9 +313,10 @@ class TranscriptHistory:
             ``start`` is at or past the end of the history.
 
         Raises:
-            RuntimeError: If events have been truncated, the requested range
-                extends beyond the trailing resident window, and no history
-                provider is available to materialize the evicted events.
+            TranscriptHistoryUnavailableError: If events have been
+                truncated, the requested range extends beyond the trailing
+                resident window, and no history provider is available to
+                materialize the evicted events.
         """
         transcript = self._transcript
         start = max(0, start)
@@ -327,7 +342,7 @@ class TranscriptHistory:
             events = transcript._events[-n:]
             return events[:limit] if limit is not None else events
         if transcript._history_provider is None:
-            raise RuntimeError(
+            raise TranscriptHistoryUnavailableError(
                 "Full transcript history is not available from this Transcript"
             )
         return transcript._history_provider.events_from(start, limit)
@@ -347,14 +362,15 @@ class TranscriptHistory:
             transcript, or all events if no match is found.
 
         Raises:
-            RuntimeError: If events have been truncated and no history provider
-                is available to materialize the full history.
+            TranscriptHistoryUnavailableError: If events have been
+                truncated and no history provider is available to materialize
+                the full history.
         """
         transcript = self._transcript
         if transcript._events_truncated:
             if transcript._history_provider is not None:
                 return transcript._history_provider.events_since_last(event_type)
-            raise RuntimeError(
+            raise TranscriptHistoryUnavailableError(
                 "Full transcript history is not available from this Transcript"
             )
         events = list(transcript._events)

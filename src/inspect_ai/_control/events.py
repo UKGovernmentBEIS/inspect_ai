@@ -24,13 +24,13 @@ from __future__ import annotations
 
 import base64
 import json
-import sqlite3
 from collections.abc import Callable, Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
+    from inspect_ai.log._transcript import TranscriptHistoryProvider
 
 logger = getLogger(__name__)
 
@@ -232,8 +232,9 @@ async def _logged_source(
 
     The streaming completion path retains only an *event-less* sample in the
     recorder (its events live in the buffer database, not on the sample), so
-    when the resolved sample carries no events we read them from the buffer —
-    keeping the page gap-free for that window too.
+    when the resolved sample carries no events we page them through the
+    eval's registered events provider — keeping the page gap-free for that
+    window too.
     """
     from inspect_ai._control.state import _full_sample
 
@@ -241,18 +242,42 @@ async def _logged_source(
     if sample is None:
         return None
 
-    events = list(sample.events)
-    if not events:
-        # Use the resolved sample's stored id (not the request string) so the
-        # buffer lookup matches exactly — `_full_sample` already reconciled a
-        # digit-looking id (e.g. "001") to however it's actually stored.
-        buffered = _buffer_events(eval_id, sample.id, epoch)
-        if buffered is not None:
-            events = buffered
-
     nonce = _attempt_nonce(
         sample.uuid, sample.id, epoch, len(sample.error_retries or [])
     )
+
+    events = list(sample.events)
+    if not events:
+        # Streaming completion path: page through the eval's own buffer
+        # instance via the registered events provider — the same
+        # materialization as live bounded-transcript reads, with the page
+        # limit riding down to the buffer query rather than materializing
+        # the full history per request. Use the resolved sample's stored id
+        # (not the request string) so the buffer lookup matches exactly —
+        # `_full_sample` already reconciled a digit-looking id (e.g. "001")
+        # to however it's actually stored.
+        from inspect_ai.log._transcript import TranscriptHistoryUnavailableError
+
+        provider = _events_provider(eval_id, sample.id, epoch)
+        if provider is not None:
+            try:
+                total = int(provider.event_count)
+            except TranscriptHistoryUnavailableError as ex:
+                # the history store was torn down between provider resolution
+                # and this first read — degrade to the recorder's (event-less)
+                # sample rather than failing the request. Logged because
+                # outside that race this can also indicate a genuinely
+                # corrupt store.
+                logger.warning(
+                    "Buffer events read failed for eval %s (sample %s, epoch %d): %s",
+                    eval_id,
+                    sample.id,
+                    epoch,
+                    ex,
+                )
+                total = 0
+            if total > 0:
+                return nonce, provider.events_from, total, True
 
     def fetch(start: int, limit: int) -> list["Event"]:
         return events[start : start + limit]
@@ -260,63 +285,30 @@ async def _logged_source(
     return nonce, fetch, len(events), True
 
 
-def _buffer_events(
+def _events_provider(
     eval_id: str, sample_id: str | int, epoch: int
-) -> list["Event"] | None:
-    """The sample's events from the buffer database, or ``None``.
+) -> "TranscriptHistoryProvider | None":
+    """The eval's buffer-backed history provider for one sample, or ``None``.
 
-    The gap-free events source for a streaming-path sample whose recorder copy
-    is event-less and which hasn't yet been flushed to disk (the same buffer
-    the view server reads in-progress samples from). Read through
-    ``BufferTranscriptHistoryProvider`` — the same materialization path as
-    live bounded-transcript reads — so pooled message/call refs are
-    re-expanded, attachments are resolved, and superseded pending-event
-    versions are collapsed. Raw ``get_sample_data`` rows would expose
-    unresolved ``input_refs`` / ``call_refs`` (without the pools needed to
-    interpret them) in ``--full`` pages. ``None`` when there's no buffer
-    database (eval finished / no streaming) or it doesn't hold the sample, so
-    the caller keeps whatever the recorder/on-disk sample provided.
+    Resolved through ``EvalState.events_provider`` — the gap-free events
+    source for a streaming-path sample whose recorder copy is event-less
+    (its events live in the realtime buffer, the same one the view server
+    reads in-progress samples from). The TaskLogger registers a factory over
+    its *own* buffer instance (see ``TaskLogger.sample_events_provider``), so
+    this layer never knows where or what the buffer is, reads share the
+    writer's connections, and the buffer's read leases apply. The provider
+    materializes the same way live bounded-transcript reads do — pooled
+    message/call refs re-expanded, attachments resolved, superseded
+    pending-event versions collapsed. ``None`` for reused/synthetic evals or
+    once the buffer is torn down, so the caller keeps whatever the
+    recorder/on-disk sample provided.
     """
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-    if state is None or not state.log_location:
+    if state is None or state.events_provider is None:
         return None
-
-    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
-    from inspect_ai.log._recorders.buffer.transcript_history_provider import (
-        BufferTranscriptHistoryProvider,
-    )
-
-    # Read-only: this is a reader racing the buffer's owner (the eval can
-    # tear the buffer down, and stale-buffer sweeps can delete it, while a
-    # control request is in flight). A read-only connection can never
-    # (re-)create a just-deleted database file — without it, sqlite would
-    # leave an empty database behind that makes the task look running.
-    try:
-        buffer_db = SampleBufferDatabase(
-            state.log_location, create=False, read_only=True
-        )
-        events = list(
-            BufferTranscriptHistoryProvider(buffer_db, sample_id, epoch).events()
-        )
-    except FileNotFoundError:
-        # no buffer database for this location (eval finished / no streaming)
-        return None
-    except sqlite3.OperationalError as ex:
-        # the buffer was deleted (or became unreadable) between discovery and
-        # read — degrade like "no buffer" rather than failing the request,
-        # matching the old get_sample_data path. Logged because outside the
-        # deletion race this can also indicate a genuinely corrupt buffer.
-        logger.warning(
-            "Buffer database read failed for %s (sample %s, epoch %d): %s",
-            state.log_location,
-            sample_id,
-            epoch,
-            ex,
-        )
-        return None
-    return events or None
+    return state.events_provider(sample_id, epoch)
 
 
 # --- filtering + projection ------------------------------------------------

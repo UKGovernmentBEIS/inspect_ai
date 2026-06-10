@@ -295,36 +295,63 @@ async def test_evicted_events_without_provider_is_a_hard_error(
 # --- streaming-buffer events (event-less recorder sample) -------------------
 
 
+def _register_buffered_eval(db: Any, location: str) -> None:
+    """Register an eval whose events provider pages the given buffer db.
+
+    Mirrors what ``TaskLogger.sample_events_provider`` hands to
+    ``register_eval`` in production: a factory constructing a
+    ``BufferTranscriptHistoryProvider`` over the eval's own buffer instance.
+    """
+    from inspect_ai._control.eval_state import register_eval
+    from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+        BufferTranscriptHistoryProvider,
+    )
+
+    register_eval(
+        "e1",
+        1,
+        log_location=location,
+        events_provider=lambda id, epoch: BufferTranscriptHistoryProvider(
+            db, id, epoch
+        ),
+    )
+
+
+def _event_less_sample_stub(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make `_full_sample` resolve to the streaming-path event-less sample."""
+    import inspect_ai._control.state as state_mod
+    import inspect_ai.log._samples as samples_mod
+
+    async def event_less_sample(
+        eval_id: str, sample_id: str, epoch: int, *, exclude_fields: Any = None
+    ) -> Any:
+        return SimpleNamespace(events=[], id="s1", uuid="u1", epoch=1, error_retries=[])
+
+    monkeypatch.setattr(state_mod, "_full_sample", event_less_sample)
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
+
+
 async def test_buffer_served_events_are_materialized(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    """Events served from the buffer database are fully materialized.
+    """Events served from the buffer are fully materialized.
 
     The `.eval` streaming-completion path retains an event-less sample in the
     recorder (its events live in the buffer database), so the events page is
-    served from the buffer. Reading the raw buffer rows exposed condensed
-    events — `input_refs` / `call_refs` pointing into pools that weren't
-    returned, and unresolved attachments. The buffer read now goes through
-    `BufferTranscriptHistoryProvider` (the same materialization as live
-    transcript and finalized log reads), so pooled refs are re-expanded into
-    real messages.
+    served through the eval's registered events provider. Reading raw buffer
+    rows exposed condensed events — `input_refs` / `call_refs` pointing into
+    pools that weren't returned, and unresolved attachments. The provider path
+    (the same materialization as live transcript and finalized log reads)
+    re-expands pooled refs into real messages.
     """
-    import inspect_ai._control.state as state_mod
-    import inspect_ai.log._recorders.buffer.database as database_mod
-    import inspect_ai.log._samples as samples_mod
-    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.eval_state import clear_all_eval_states
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
     from inspect_ai.log._recorders.types import SampleEvent
     from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput
 
-    monkeypatch.setattr(
-        database_mod, "resolve_db_dir", lambda db_dir=None: db_dir or tmp_path
-    )
-    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
-
     location = str(tmp_path / "logs" / "task.eval")
-    db = SampleBufferDatabase(location)
+    db = SampleBufferDatabase(location, db_dir=tmp_path)
     event = ModelEvent(
         uuid="ev-1",
         model="mockllm/model",
@@ -336,17 +363,8 @@ async def test_buffer_served_events_are_materialized(
     )
     db.log_events([SampleEvent(id="s1", epoch=1, event=event)])
     try:
-        register_eval("e1", 1, log_location=location)
-
-        # the streaming-path shape: the resolved sample carries no events
-        async def event_less_sample(
-            eval_id: str, sample_id: str, epoch: int, *, exclude_fields: Any = None
-        ) -> Any:
-            return SimpleNamespace(
-                events=[], id="s1", uuid="u1", epoch=1, error_retries=[]
-            )
-
-        monkeypatch.setattr(state_mod, "_full_sample", event_less_sample)
+        _register_buffered_eval(db, location)
+        _event_less_sample_stub(monkeypatch)
 
         page = await sample_events("e1", "s1", 1, full=True)
         assert page is not None
@@ -362,73 +380,106 @@ async def test_buffer_served_events_are_materialized(
         db.cleanup()
 
 
-async def test_buffer_deleted_between_discovery_and_read_degrades(
+async def test_buffer_served_events_page_through_the_provider(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    """A buffer deletion racing the read degrades to the recorder's events.
+    """Buffer-served pages read page-sized via the provider, not all-at-once.
 
-    The eval can tear the buffer down (and stale-buffer sweeps can delete it)
-    while a control request is in flight. The read must degrade like "no
-    buffer" — an empty page from the event-less recorder sample — rather than
-    surface a 500, and the read-only connection must not leave a re-created
-    empty database behind.
+    The page limit must ride down to the provider's `events_from` (and from
+    there to the buffer query) — paging a long finished transcript must not
+    re-materialize the full history per request.
     """
-    import os
-
-    import inspect_ai._control.state as state_mod
-    import inspect_ai.log._recorders.buffer.database as database_mod
-    import inspect_ai.log._samples as samples_mod
     from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
     from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+        BufferTranscriptHistoryProvider,
+    )
     from inspect_ai.log._recorders.types import SampleEvent
 
-    monkeypatch.setattr(
-        database_mod, "resolve_db_dir", lambda db_dir=None: db_dir or tmp_path
-    )
-    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
-
     location = str(tmp_path / "logs" / "task.eval")
-    db = SampleBufferDatabase(location)
-    db.log_events([SampleEvent(id="s1", epoch=1, event=InfoEvent(data="hello"))])
-    db_path = db.db_path
+    db = SampleBufferDatabase(location, db_dir=tmp_path)
+    db.log_events(
+        [
+            SampleEvent(id="s1", epoch=1, event=InfoEvent(uuid=f"ev-{i}", data=i))
+            for i in range(5)
+        ]
+    )
+
+    calls: list[tuple[int, int | None]] = []
+
+    class CapturingProvider(BufferTranscriptHistoryProvider):
+        def events_from(self, start: int, limit: int | None = None) -> Any:
+            calls.append((start, limit))
+            return super().events_from(start, limit)
+
     try:
-        register_eval("e1", 1, log_location=location)
-
-        async def event_less_sample(
-            eval_id: str, sample_id: str, epoch: int, *, exclude_fields: Any = None
-        ) -> Any:
-            return SimpleNamespace(
-                events=[], id="s1", uuid="u1", epoch=1, error_retries=[]
-            )
-
-        monkeypatch.setattr(state_mod, "_full_sample", event_less_sample)
-
-        # delete the buffer files after discovery would find them: patch the
-        # provider's read to delete first, simulating the deletion landing
-        # between the constructor's glob and the first connect
-        from inspect_ai.log._recorders.buffer import transcript_history_provider
-
-        original_events = (
-            transcript_history_provider.BufferTranscriptHistoryProvider.events
+        register_eval(
+            "e1",
+            1,
+            log_location=location,
+            events_provider=lambda id, epoch: CapturingProvider(db, id, epoch),
         )
+        _event_less_sample_stub(monkeypatch)
 
-        def delete_then_read(self: Any) -> Any:
-            db._close_all_connections()
-            for suffix in ("", "-wal", "-shm"):
-                p = f"{db_path}{suffix}"
-                if os.path.exists(p):
-                    os.unlink(p)
-            return original_events(self)
+        page1 = await sample_events("e1", "s1", 1, limit=2)
+        assert page1 is not None and not page1["done"]
+        assert [e["event"] for e in page1["events"]] == ["info", "info"]
 
-        monkeypatch.setattr(
-            transcript_history_provider.BufferTranscriptHistoryProvider,
-            "events",
-            delete_then_read,
-        )
+        page2 = await sample_events("e1", "s1", 1, since=page1["next"], limit=2)
+        assert page2 is not None and not page2["done"]
 
+        page3 = await sample_events("e1", "s1", 1, since=page2["next"], limit=2)
+        assert page3 is not None and page3["done"]
+        assert len(page3["events"]) == 1
+
+        # each request was one page-sized provider read
+        assert calls == [(0, 2), (2, 2), (4, 2)]
+    finally:
+        clear_all_eval_states()
+        db.cleanup()
+
+
+async def test_buffer_torn_down_before_read_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A buffer teardown racing the read degrades to the recorder's events.
+
+    The eval can tear the buffer down while a control request is in flight.
+    Whether the provider factory already returns None (buffer gone) or the
+    first provider read fails (deletion landed between resolution and read),
+    the page must degrade like "no buffer" — empty events from the event-less
+    recorder sample — rather than surface a 500.
+    """
+    from test_helpers.transcript import FakeTranscriptHistoryProvider
+
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai.log import TranscriptHistoryUnavailableError
+
+    _event_less_sample_stub(monkeypatch)
+
+    class TornDownProvider(FakeTranscriptHistoryProvider):
+        def __init__(self) -> None:
+            super().__init__([])
+
+        @property
+        def event_count(self) -> int:
+            raise TranscriptHistoryUnavailableError("history store torn down")
+
+    try:
+        # deletion landed between provider resolution and the first read
+        register_eval("e1", 1, events_provider=lambda id, epoch: TornDownProvider())
         page = await sample_events("e1", "s1", 1)
-        assert page is not None, "deletion race must degrade, not 404/500"
+        assert page is not None, "teardown race must degrade, not 404/500"
         assert page["events"] == []  # recorder sample is event-less
-        assert not os.path.exists(db_path), "read re-created the deleted db file"
+        assert page["done"]
+    finally:
+        clear_all_eval_states()
+
+    try:
+        # buffer already torn down: the factory itself returns None
+        register_eval("e1", 1, events_provider=lambda id, epoch: None)
+        page = await sample_events("e1", "s1", 1)
+        assert page is not None
+        assert page["events"] == []
     finally:
         clear_all_eval_states()

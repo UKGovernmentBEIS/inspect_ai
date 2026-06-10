@@ -448,6 +448,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 log_location=logger.location,
                 summaries_provider=logger.sample_summaries,
                 sample_provider=logger.read_sample,
+                events_provider=logger.sample_events_provider,
                 sample_ids=sample_ids,
                 epochs=epochs,
                 run_id=logger.eval.run_id,

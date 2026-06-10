@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from inspect_ai.log._recorders.buffer.history import SampleHistory
+    from inspect_ai.log._transcript import TranscriptHistoryProvider
 
 
 def resolve_revision() -> EvalRevision | None:
@@ -355,6 +356,30 @@ class TaskLogger:
             )
         except IndexError:
             return None
+
+    def sample_events_provider(
+        self, id: str | int, epoch: int
+    ) -> "TranscriptHistoryProvider | None":
+        """History provider over the realtime buffer for one sample, or None.
+
+        The events counterpart to :meth:`sample_summaries` / :meth:`read_sample`,
+        handed to the control channel via ``register_eval``: events for a
+        streaming-completion sample (whose recorder copy is event-less — they
+        live in the buffer database) are read through the *same* buffer
+        instance this logger writes. That keeps the control layer ignorant of
+        what a buffer is (no path re-derivation, no second connection set) and
+        puts its reads under the buffer's sample read leases, which defer
+        removal while a read is open. Returns ``None`` when realtime logging
+        is off or the buffer has been torn down — callers then fall back to
+        the recorder/on-disk sample.
+        """
+        if self._buffer_db is None:
+            return None
+        from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+            BufferTranscriptHistoryProvider,
+        )
+
+        return BufferTranscriptHistoryProvider(self._buffer_db, id, epoch)
 
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
         await self.recorder.log_sample(self.eval, sample)
