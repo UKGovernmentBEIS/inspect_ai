@@ -483,6 +483,11 @@ def finalize_eval(eval_id: str) -> None:
     ``completed_at``. A no-op when the counters already reached ``total``,
     and for unregistered evals (eg. ``run_samples=False``, which returns
     before registration).
+
+    Folded samples have no per-sample record, so the samples listing
+    intentionally omits them: they never started, so there is nothing to
+    show and no value in identifying them individually. The counters, not
+    the listing row count, are authoritative for totals.
     """
     with _lock:
         state = _eval_states.get(eval_id)

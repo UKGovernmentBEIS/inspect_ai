@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal, NamedTuple
 
 import anyio
 from anyio.abc import TaskGroup
@@ -75,6 +75,7 @@ from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
     read_eval_log_sample_async,
+    read_eval_log_sample_summaries_async,
 )
 from inspect_ai.log._log import (
     EvalRetryError,
@@ -204,9 +205,25 @@ class PreviousError:
     sample: EvalSample
 
 
-EvalSampleSource = Callable[
+SampleLookup = Callable[
     [int | str, int], Awaitable[EvalSample | ResumeCheckpoint | PreviousError | None]
 ]
+ErrorHistoryIds = Callable[[], Awaitable[set[tuple[int | str, int]]]]
+
+
+class EvalSampleSource(NamedTuple):
+    """A prior attempt's sample source.
+
+    `lookup` resolves one planned `(id, epoch)` to a reusable sample, a
+    resume checkpoint, or carried error history. `error_history_ids`
+    returns the `(id, epoch)` pairs that errored in the prior attempt —
+    the only candidates that can yield a `PreviousError` — so teardown
+    carry-forward can probe just those instead of the full plan.
+    """
+
+    lookup: SampleLookup
+    error_history_ids: ErrorHistoryIds
+
 
 # Units allocated for sample progress - the total units
 # represents the total units of progress for an individual sample
@@ -592,7 +609,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # retry list so it doesn't suppress sample init/start emits
                     previous_attempt_errors: list[EvalRetryError] = []
                     if sample_source and sample_id is not None:
-                        previous_sample = await sample_source(sample_id, epoch)
+                        previous_sample = await sample_source.lookup(sample_id, epoch)
                         if isinstance(previous_sample, EvalSample):
                             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
                             if logger and log_samples:
@@ -1833,6 +1850,26 @@ def eval_log_sample_source(
     async def no_sample_source(id: int | str, epoch: int) -> None:
         return None
 
+    async def no_error_history() -> set[tuple[int | str, int]]:
+        return set()
+
+    async def error_history_from_file() -> set[tuple[int | str, int]]:
+        """The prior log's errored `(id, epoch)` pairs, from its summaries.
+
+        One bounded read of the summaries index — never per-sample log
+        reads. Degrades to "no candidates" on failure: this feeds teardown
+        carry-forward, which must not fail (or stall) task shutdown.
+        """
+        assert eval_log_info is not None
+        try:
+            summaries = await read_eval_log_sample_summaries_async(eval_log_info)
+            return {(s.id, s.epoch) for s in summaries if s.error is not None}
+        except Exception as ex:
+            py_logger.warning(
+                f"Unable to read sample summaries from retry log file: {ex}"
+            )
+            return set()
+
     async def _resume_if_checkpointed(
         id: int | str, epoch: int
     ) -> ResumeCheckpoint | None:
@@ -1882,9 +1919,9 @@ def eval_log_sample_source(
     # killed before writing any sample, and on-disk checkpoint files
     # can still drive resume detection in `read_from_memory` below.
     if not eval_log:
-        return no_sample_source
+        return EvalSampleSource(no_sample_source, no_error_history)
     elif not eval_log.samples and not eval_log_info and not eval_checkpoints_dir:
-        return no_sample_source
+        return EvalSampleSource(no_sample_source, no_error_history)
 
     # determine whether all samples in the dataset have ids (if not, then we can't
     # provide a sample source in the case where either dataset is shuffled, as the ids
@@ -1898,14 +1935,14 @@ def eval_log_sample_source(
             "Unable to re-use samples from retry log file because the dataset was shuffled "
             + "and some samples in the dataset do not have an 'id' field."
         )
-        return no_sample_source
+        return EvalSampleSource(no_sample_source, no_error_history)
 
     elif eval_log.eval.dataset.samples != len(dataset):
         py_logger.warning(
             "Unable to re-use samples from retry log file because the dataset size changed "
             + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
-        return no_sample_source
+        return EvalSampleSource(no_sample_source, no_error_history)
     elif eval_log_info:
         reader: AsyncZipReader | None = None
 
@@ -1925,7 +1962,7 @@ def eval_log_sample_source(
                 return sample
             return await _resume_or_seed_retry(id, epoch, sample)
 
-        return read_from_file
+        return EvalSampleSource(read_from_file, error_history_from_file)
     else:
 
         async def read_from_memory(
@@ -1943,7 +1980,16 @@ def eval_log_sample_source(
                 return match
             return await _resume_or_seed_retry(id, epoch, match)
 
-        return read_from_memory
+        memory_error_ids = {
+            (sample.id, sample.epoch)
+            for sample in (eval_log.samples or [])
+            if sample.error is not None
+        }
+
+        async def memory_error_history() -> set[tuple[int | str, int]]:
+            return memory_error_ids
+
+        return EvalSampleSource(read_from_memory, memory_error_history)
 
 
 # semaphore to limit concurrency. default max_samples to
@@ -2116,22 +2162,33 @@ async def carry_forward_unlogged_samples(
     surviving sample under-reports its retry count.
 
     Re-logging the prior record for such samples keeps the chain intact.
-    Only samples carrying genuine error history (`PreviousError`) need this;
-    clean / never-failed samples are left to reuse or re-run normally.
+    Only samples carrying genuine error history (`PreviousError`) need this,
+    and only the prior attempt's *errored* samples can yield one — so the
+    probe set is ``sample_source.error_history_ids()`` (at most one
+    summaries read) rather than the full plan. This runs at teardown,
+    inside the cancellation shield on the Ctrl-C path: probing every
+    planned ``(id, epoch)`` stalled shutdown of a large remote retry for
+    minutes, uninterruptibly.
     """
     if sample_source is None:
         return
+    candidates = await sample_source.error_history_ids()
+    if not candidates:
+        return
     summaries = await logger.sample_summaries()
     logged = {(s.id, s.epoch) for s in (summaries or [])}
-    for sample_id in sample_ids:
-        for epoch in range(1, epochs + 1):
-            if (sample_id, epoch) in logged:
-                continue
-            previous = await sample_source(sample_id, epoch)
-            if isinstance(previous, PreviousError):
-                await logger.complete_sample(
-                    condense_sample(previous.sample, log_images), flush=True
-                )
+    planned = {
+        (sample_id, epoch) for sample_id in sample_ids for epoch in range(1, epochs + 1)
+    }
+    # sorted for a deterministic re-log order
+    for sample_id, epoch in sorted(candidates, key=lambda k: (str(k[0]), k[1])):
+        if (sample_id, epoch) in logged or (sample_id, epoch) not in planned:
+            continue
+        previous = await sample_source.lookup(sample_id, epoch)
+        if isinstance(previous, PreviousError):
+            await logger.complete_sample(
+                condense_sample(previous.sample, log_images), flush=True
+            )
 
 
 async def _finish_task_log(

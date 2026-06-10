@@ -260,7 +260,7 @@ async def test_finish_task_log_carries_forward_on_every_non_success_status(
         carried.clear()
         log = await _finish_task_log(
             logger=logger,  # type: ignore[arg-type]
-            sample_source=lambda id, epoch: None,  # type: ignore[arg-type,return-value]
+            sample_source=None,
             sample_ids=[1],
             epochs=1,
             log_images=False,
@@ -272,3 +272,79 @@ async def test_finish_task_log_carries_forward_on_every_non_success_status(
 
     # the finish itself always ran
     assert [s for s, _ in finished] == ["cancelled", "error", "success"]
+
+
+async def test_carry_forward_probes_only_error_history_candidates() -> None:
+    """Carry-forward probes the prior attempt's errored samples only.
+
+    Probing the full plan (one prior-log sample read per planned (id, epoch))
+    stalled Ctrl-C teardown of large remote retries for minutes inside the
+    cancellation shield; only errored prior samples can yield PreviousError,
+    so the probe set is the source's error_history_ids — minus already-logged
+    samples and anything outside the current plan.
+    """
+    from types import SimpleNamespace
+    from typing import Any
+
+    from inspect_ai._eval.task.run import (
+        EvalSampleSource,
+        carry_forward_unlogged_samples,
+    )
+
+    lookups: list[tuple[Any, int]] = []
+
+    async def lookup(id: Any, epoch: int) -> Any:
+        lookups.append((id, epoch))
+        return None  # probed, but yields no PreviousError
+
+    async def error_ids() -> set[tuple[Any, int]]:
+        return {(5, 1), (7, 1), (999, 1)}  # 999 is outside the plan
+
+    async def sample_summaries() -> Any:
+        # sample 7 already logged this attempt
+        return [SimpleNamespace(id=7, epoch=1)]
+
+    logger = SimpleNamespace(sample_summaries=sample_summaries)
+    source = EvalSampleSource(lookup=lookup, error_history_ids=error_ids)
+
+    await carry_forward_unlogged_samples(
+        logger,  # type: ignore[arg-type]
+        source,
+        sample_ids=list(range(100)),
+        epochs=1,
+        log_images=False,
+    )
+
+    # 100 planned samples, but only the unlogged, in-plan candidate is probed
+    assert lookups == [(5, 1)]
+
+
+async def test_carry_forward_skips_entirely_without_candidates() -> None:
+    """No errored prior samples → no recorder read and no probes at all."""
+    from types import SimpleNamespace
+    from typing import Any
+
+    from inspect_ai._eval.task.run import (
+        EvalSampleSource,
+        carry_forward_unlogged_samples,
+    )
+
+    async def lookup(id: Any, epoch: int) -> Any:
+        raise AssertionError("no candidates — lookup must not be called")
+
+    async def error_ids() -> set[tuple[Any, int]]:
+        return set()
+
+    async def sample_summaries() -> Any:
+        raise AssertionError("no candidates — recorder must not be read")
+
+    logger = SimpleNamespace(sample_summaries=sample_summaries)
+    source = EvalSampleSource(lookup=lookup, error_history_ids=error_ids)
+
+    await carry_forward_unlogged_samples(
+        logger,  # type: ignore[arg-type]
+        source,
+        sample_ids=list(range(100)),
+        epochs=1,
+        log_images=False,
+    )

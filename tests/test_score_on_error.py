@@ -200,7 +200,7 @@ def test_score_on_error_sample_source_seeds_retry_for_errored():
     source = eval_log_sample_source(log, None, dataset)
 
     async def call() -> object:
-        return await source(errored_sample.id, errored_sample.epoch)
+        return await source.lookup(errored_sample.id, errored_sample.epoch)
 
     result = anyio.run(call)
     assert isinstance(result, PreviousError)
@@ -225,7 +225,7 @@ def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) ->
 
     async def call() -> object:
         async with AsyncFilesystem():
-            return await source(errored_sample.id, errored_sample.epoch)
+            return await source.lookup(errored_sample.id, errored_sample.epoch)
 
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
@@ -251,7 +251,7 @@ def test_eval_log_sample_source_scoring_resume_for_agent_complete_checkpoint(
 
     async def call() -> object:
         async with AsyncFilesystem():
-            return await source(errored_sample.id, errored_sample.epoch)
+            return await source.lookup(errored_sample.id, errored_sample.epoch)
 
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
@@ -274,7 +274,7 @@ def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) ->
 
     async def call() -> object:
         async with AsyncFilesystem():
-            return await source(errored_sample.id, errored_sample.epoch)
+            return await source.lookup(errored_sample.id, errored_sample.epoch)
 
     result = anyio.run(call)
     assert isinstance(result, PreviousError)
