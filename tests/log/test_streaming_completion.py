@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from test_helpers.task_logger import TaskLoggerShim
 
-from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.run import log_sample
 from inspect_ai.event import (
     InfoEvent,
@@ -71,7 +71,7 @@ async def test_log_sample_returns_materialized_streaming_sample(
     )
     recorder = EvalRecorder(str(tmp_path))
     spec = _eval_spec()
-    logger = _TaskLoggerShim(db)
+    logger = TaskLoggerShim(db)
     logger.recorder = recorder
     logger.eval = spec
     logger.flush_buffer = 1
@@ -120,7 +120,7 @@ async def test_log_sample_rebinds_timelines_to_materialized_events(tmp_path) -> 
     db.log_events([SampleEvent(id="sample", epoch=1, event=transcript_event)])
     recorder = EvalRecorder(str(tmp_path))
     spec = _eval_spec()
-    logger = _TaskLoggerShim(db)
+    logger = TaskLoggerShim(db)
     logger.recorder = recorder
     logger.eval = spec
     logger.flush_buffer = 1
@@ -286,7 +286,7 @@ async def _log_sample_with_buffer(
 ) -> tuple[EvalSample, EvalSample]:
     db = _buffer_db(tmp_path, events)
     recorder, spec = await _start_eval_recorder(tmp_path)
-    logger = _TaskLoggerShim(db)
+    logger = TaskLoggerShim(db)
     logger.recorder = recorder
     logger.eval = spec
     logger.flush_buffer = 1
@@ -303,11 +303,6 @@ async def _log_sample_with_buffer(
     ).samples
     assert logged_samples is not None
     return returned, logged_samples[0]
-
-
-class _TaskLoggerShim(TaskLogger):
-    def __init__(self, buffer_db: SampleBufferDatabase) -> None:
-        self._buffer_db = buffer_db
 
 
 @pytest.mark.anyio
@@ -342,7 +337,7 @@ async def test_log_sample_from_memory_writes_resident_events_without_buffer_read
     )
     db = _buffer_db(tmp_path, [_model("buffer-1", "answer")])
     recorder, spec = await _start_eval_recorder(tmp_path)
-    logger = _TaskLoggerShim(db)
+    logger = TaskLoggerShim(db)
     logger.recorder = recorder
     logger.eval = spec
     logger.flush_buffer = 1
