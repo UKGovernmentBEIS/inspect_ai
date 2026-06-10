@@ -22,6 +22,7 @@ from typing import Any, NoReturn
 import click
 import httpx
 
+from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._control.discovery import (
     DiscoveredControlServer,
     discovery_dir,
@@ -359,27 +360,7 @@ def release_command(pid: int | None) -> None:
     Does NOT cancel a running eval — it has no effect on in-flight samples
     (cancelling a running eval is a later-phase directive, not yet available).
     """
-    servers = list_discovered_servers()
-    if not servers:
-        click.echo("No running inspect processes found.", err=True)
-        raise click.exceptions.Exit(code=1)
-
-    if pid is not None:
-        matching = [s for s in servers if s.pid == pid]
-        if not matching:
-            click.echo(f"No running inspect process with pid {pid}.", err=True)
-            raise click.exceptions.Exit(code=1)
-        target = matching[0]
-    elif len(servers) == 1:
-        target = servers[0]
-    else:
-        pids = ", ".join(str(s.pid) for s in servers)
-        click.echo(
-            f"Multiple inspect processes are running (pids: {pids}). "
-            "Pass --pid to disambiguate.",
-            err=True,
-        )
-        raise click.exceptions.Exit(code=1)
+    target = _resolve_target_server(pid)
 
     try:
         transport = httpx.HTTPTransport(uds=str(target.socket_path))
@@ -393,6 +374,134 @@ def release_command(pid: int | None) -> None:
         raise click.exceptions.Exit(code=1) from exc
 
     click.echo(f"Release requested for pid {target.pid}.")
+
+
+def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
+    """Pick the inspect process a process-level command targets, or exit.
+
+    With ``--pid`` choose that process; otherwise default to the sole running
+    one, erroring (with the live pids) when there's more than one.
+    """
+    servers = list_discovered_servers()
+    if not servers:
+        click.echo("No running inspect processes found.", err=True)
+        raise click.exceptions.Exit(code=1)
+    if pid is not None:
+        matching = [s for s in servers if s.pid == pid]
+        if not matching:
+            click.echo(f"No running inspect process with pid {pid}.", err=True)
+            raise click.exceptions.Exit(code=1)
+        return matching[0]
+    if len(servers) == 1:
+        return servers[0]
+    pids = ", ".join(str(s.pid) for s in servers)
+    click.echo(
+        f"Multiple inspect processes are running (pids: {pids}). "
+        "Pass --pid to disambiguate.",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1)
+
+
+@ctl_command.command("add")
+@click.argument("task")
+@click.option(
+    "-T",
+    "task_args",
+    multiple=True,
+    metavar="ARG=VALUE",
+    help="Task argument (key=value), as for `inspect eval`; repeatable.",
+)
+@click.option(
+    "--pid",
+    type=int,
+    default=None,
+    help="PID of the inspect process to add to (required if more than one is running).",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Validate the task and report what would run, without starting it.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the add report).",
+)
+def add_command(
+    task: str, task_args: tuple[str, ...], pid: int | None, dry_run: bool, as_json: bool
+) -> None:
+    """Add a task to a running eval (must be launched with --ctl-server=keep-alive).
+
+    TASK is a task name or file, resolved in the target process via its
+    registry exactly as `inspect eval TASK` would — so it must be importable
+    in that process. Pass task args with `-T key=value`. The task runs under
+    the same run and shows up in `inspect ctl tasks` / `samples`; it uses the
+    eval's model(s).
+
+    Only works while the process is kept alive: a normal eval exits when its
+    tasks finish, so launch the eval with `--ctl-server=keep-alive` to add to it. Use
+    `--dry-run` to check a spec resolves before committing.
+    """
+    target = _resolve_target_server(pid)
+    report = _post_add_task(
+        target.socket_path, task, parse_cli_args(task_args), dry_run
+    )
+
+    if as_json:
+        click.echo(json_lib.dumps(report, indent=2))
+        return
+
+    _print_add_report(report, dry_run)
+
+
+def _post_add_task(
+    socket_path: Any, task: str, task_args: dict[str, Any], dry_run: bool
+) -> dict[str, Any]:
+    """POST a task spec to one control server's ``/evals`` route."""
+    body: dict[str, Any] = {"task": task, "task_args": task_args, "dry_run": dry_run}
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        # generous timeout: resolving the spec may import the task module
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=30.0
+        ) as client:
+            response = client.post("/evals", json=body)
+            # 400 (bad spec) / 409 (not addable) carry a structured message
+            if response.status_code in (400, 409):
+                click.echo(_error_detail(_HttpError(response)), err=True)
+                raise click.exceptions.Exit(code=1)
+            response.raise_for_status()
+            report = response.json()
+    except (httpx.HTTPError, OSError) as exc:
+        click.echo(f"Failed to add task: {_error_detail(exc)}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
+    return report if isinstance(report, dict) else {}
+
+
+class _HttpError(Exception):
+    """Carries a response so :func:`_error_detail` can read its ``error`` body."""
+
+    def __init__(self, response: httpx.Response) -> None:
+        self.response = response
+
+
+def _print_add_report(report: dict[str, Any], dry_run: bool) -> None:
+    """Render the add report: one line per task that was (or would be) added."""
+    tasks = report.get("tasks") or []
+    click.echo("Would add (dry run):" if dry_run else "Added:")
+    for t in tasks:
+        parts = [
+            f"  {t.get('task') or '?'} ({_short_id(str(t.get('task_id', '')))})",
+            str(t.get("model") or ""),
+            f"{t.get('dataset_samples')} samples",
+        ]
+        click.echo("  ·  ".join(p for p in parts if p))
+    if not dry_run:
+        click.echo("\nTrack it with `inspect ctl tasks` / `inspect ctl samples`.")
 
 
 def _fetch_summaries(

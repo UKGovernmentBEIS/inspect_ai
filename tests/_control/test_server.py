@@ -489,3 +489,83 @@ def test_eval_set_park_skipped_when_release_latched() -> None:
         asyncio.run(asyncio.wait_for(_keep_alive_park("set-1"), timeout=5))
     finally:
         reset_release_requested()
+
+
+async def test_add_eval_route_409_without_controller() -> None:
+    """`POST /evals` is rejected when the run isn't accepting added tasks."""
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.run_control import clear_run_controller
+
+    clear_run_controller()  # no addable run registered (not --ctl-server=keep-alive)
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        r = await client.post("/evals", json={"task": "t"})
+    assert r.status_code == 409
+    assert "keep-alive" in r.json()["error"]
+
+
+async def test_add_eval_route_accepts_and_reports() -> None:
+    """`POST /evals` resolves + queues a task and returns the add report."""
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.run_control import (
+        clear_run_controller,
+        create_run_controller,
+        register_run_controller,
+    )
+
+    sentinel = object()
+
+    def resolve(task: str, task_args: object, model: object) -> object:
+        return [sentinel], {
+            "task": task,
+            "tasks": [{"task_id": "x", "task": task, "dataset_samples": 2}],
+        }
+
+    controller = create_run_controller("test", resolve)
+    register_run_controller(controller)
+    try:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            r = await client.post(
+                "/evals", json={"task": "mytask", "task_args": {"a": 1}}
+            )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["accepted"] is True and body["task"] == "mytask"
+        # the route queued the resolved batch for the park
+        batch = await controller.next_pending()
+        assert batch == [sentinel]
+    finally:
+        clear_run_controller()
+
+
+async def test_add_eval_route_400_on_unresolvable_spec() -> None:
+    """A spec that can't be resolved is a 400 carrying the resolver's message."""
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.run_control import (
+        clear_run_controller,
+        create_run_controller,
+        register_run_controller,
+    )
+
+    def resolve(task: str, task_args: object, model: object) -> object:
+        raise ValueError(f"No task found for '{task}'.")
+
+    register_run_controller(create_run_controller("test", resolve))
+    try:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            r = await client.post("/evals", json={"task": "nope"})
+        assert r.status_code == 400
+        assert "No task found" in r.json()["error"]
+    finally:
+        clear_run_controller()

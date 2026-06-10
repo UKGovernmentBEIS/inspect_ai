@@ -1,4 +1,5 @@
 import contextlib
+import functools
 import logging
 import os
 import sys
@@ -10,7 +11,14 @@ import anyio
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import clear_all_eval_states
+from inspect_ai._control.run_control import (
+    RunController,
+    clear_run_controller,
+    create_run_controller,
+    register_run_controller,
+)
 from inspect_ai._control.server import (
+    ControlServer,
     control_server,
     release_requested,
     reset_release_requested,
@@ -917,55 +925,48 @@ async def _eval_async_inner(
         # "Implementation notes".
         #
         ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+
+        # Addable run (phase 3): under keep-alive, register a controller so
+        # `inspect ctl add` can submit a task that runs in this process under
+        # the same run_id. Resolution reuses the eval's models / config; the
+        # keep-alive park (below) drains and runs the additions.
+        run_controller: RunController | None = None
+        if ctl_keep_alive:
+            run_controller = create_run_controller(
+                run_id,
+                functools.partial(
+                    _resolve_added_task,
+                    models=model,
+                    model_roles=model_roles,
+                    config=GenerateConfig(**kwargs),
+                    sandbox=sandbox,
+                    sample_shuffle=sample_shuffle,
+                    checkpoint=checkpoint,
+                    cost_limit=cost_limit,
+                ),
+            )
+            register_run_controller(run_controller)
+
         async with (
             control_server(run_id=run_id, enabled=ctl_enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
         ):
             with scan_cm:
-                # single task definition (could be multi-model) or max_tasks capped to 1
-                if parallel == 1:
-                    results: list[EvalLog] = []
-                    for sequence in sorted(set(t.sequence for t in resolved_tasks)):
-                        task_batch = list(
-                            filter(lambda t: t.sequence == sequence, resolved_tasks)
-                        )
-                        results.extend(
-                            await eval_run(
-                                eval_set_id=eval_set_id,
-                                run_id=run_id,
-                                tasks=task_batch,
-                                parallel=parallel,
-                                eval_config=eval_config,
-                                eval_sandbox=sandbox,
-                                eval_checkpoint=checkpoint,
-                                recorder=recorder,
-                                header_only=log_header_only,
-                                epochs_reducer=epochs_reducer,
-                                solver=solver,
-                                scanner=scanner,
-                                scan_id=scan_id,
-                                tags=tags,
-                                metadata=metadata,
-                                run_samples=run_samples,
-                                score=score,
-                                debug_errors=debug_errors is True,
-                                task_retry_attempts=task_retry_attempts,
-                                **kwargs,
-                            )
-                        )
-                        # exit the loop if there was a cancellation
-                        if any([result.status == "cancelled" for result in results]):
-                            break
-
-                    # return list of eval logs
-                    logs = EvalLogs(results)
-
-                # multiple task definitions AND tasks not capped at 1
-                else:
-                    results = await eval_run(
+                # The one place eval_run is invoked for a batch of tasks. The
+                # initial tasks run as the first loop iteration below; then,
+                # under keep-alive, the park feeds later iterations with tasks
+                # added via `inspect ctl add`, all under this run_id. Parking
+                # inside `scan_cm` (but outside the task display, which lives in
+                # eval_run) means added tasks are scanned too. `debug_errors` is
+                # passed only on the parallel==1 path (the multi-task path never
+                # set it — preserved asymmetry).
+                async def run_batch(
+                    tasks: list[ResolvedTask], debug: bool
+                ) -> list[EvalLog]:
+                    return await eval_run(
                         eval_set_id=eval_set_id,
                         run_id=run_id,
-                        tasks=resolved_tasks,
+                        tasks=tasks,
                         parallel=parallel,
                         eval_config=eval_config,
                         eval_sandbox=sandbox,
@@ -980,28 +981,58 @@ async def _eval_async_inner(
                         metadata=metadata,
                         run_samples=run_samples,
                         score=score,
+                        debug_errors=debug,
                         task_retry_attempts=task_retry_attempts,
                         **kwargs,
                     )
+
+                logs = EvalLogs([])
+                results: list[EvalLog] = []
+                pending: list[ResolvedTask] | None = resolved_tasks
+                while pending is not None:
+                    if parallel == 1:
+                        # single task definition (could be multi-model): run
+                        # sequence groups in order, stopping on cancellation
+                        for sequence in sorted({t.sequence for t in pending}):
+                            results.extend(
+                                await run_batch(
+                                    [t for t in pending if t.sequence == sequence],
+                                    debug_errors is True,
+                                )
+                            )
+                            if any(r.status == "cancelled" for r in results):
+                                break
+                    else:
+                        # multiple task definitions, run together
+                        results.extend(await run_batch(pending, False))
                     logs = EvalLogs(results)
 
-            # keep-alive: after the body, park while the control / ACP
-            # servers are still up so `inspect ctl` can read state and
-            # request shutdown. (Standalone eval parks here, inside the
-            # task display; eval-set instead parks after the display has
-            # closed.) EvalStates are cleared at the run boundary below.
-            # a release received while the eval was still running latches
-            # ("exit when done") — skip the park (and its notice) entirely
-            if ctl_keep_alive and _ctl_server is not None and not release_requested():
-                import rich
+                    # a cancelled batch ends the run (don't park)
+                    if any(r.status == "cancelled" for r in results):
+                        break
+                    # only a keep-alive run parks for added tasks; a release
+                    # received while a batch was still running latches ("exit
+                    # when done") — skip the park (and its notice) entirely
+                    if (
+                        not (ctl_keep_alive and _ctl_server is not None)
+                        or release_requested()
+                    ):
+                        break
 
-                rich.get_console().print(
-                    "Eval finished. Keeping process alive — press Ctrl+C "
-                    "or run `inspect ctl release` to let it exit.",
-                    markup=False,
-                    highlight=False,
-                )
-                await wait_for_shutdown_async(_ctl_server)
+                    import rich
+
+                    rich.get_console().print(
+                        "Eval finished. Keeping process alive — add tasks with "
+                        "`inspect ctl add`, or press Ctrl+C / run `inspect ctl "
+                        "release` to let it exit.",
+                        markup=False,
+                        highlight=False,
+                    )
+                    # park until released (None) or a task is added (its
+                    # resolved batch becomes the next iteration's `pending`)
+                    pending = await _park_until_release_or_added(
+                        _ctl_server, run_controller
+                    )
 
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
@@ -1018,6 +1049,8 @@ async def _eval_async_inner(
         raise e
 
     finally:
+        # Stop accepting task additions for this run (no-op if none registered).
+        clear_run_controller()
         # Clear the process-level EvalState registry at the run boundary
         # (after any keep-alive park) — but only for a standalone eval.
         # When nested in an eval-set (eval_set_id set) the eval-set owns
@@ -1027,6 +1060,95 @@ async def _eval_async_inner(
 
     # return logs
     return logs
+
+
+def _resolve_added_task(
+    task_spec: str,
+    task_args_spec: dict[str, Any] | str | None,
+    model_override: str | None,
+    *,
+    models: list[Model],
+    model_roles: dict[str, str | Model] | None,
+    config: GenerateConfig,
+    sandbox: SandboxEnvironmentType | None,
+    sample_shuffle: bool | int | None,
+    checkpoint: CheckpointConfig | None,
+    cost_limit: float | None,
+) -> tuple[list[ResolvedTask], dict[str, Any]]:
+    """Resolve a task added via ``inspect ctl add`` to ``ResolvedTask``s + report.
+
+    Bound (via ``functools.partial``) to the host run's models / config / roles /
+    sandbox so the added task resolves consistently with the run, then handed to
+    the :class:`RunController`. Raises ``ValueError`` on an unresolvable spec (or
+    an unsupported model override) — the control route turns that into a 400.
+    """
+    if model_override:
+        raise ValueError(
+            "Specifying a model for an added task is not yet supported; "
+            "it runs against the eval's model(s)."
+        )
+    args = (
+        resolve_args(task_args_spec)
+        if isinstance(task_args_spec, str)
+        else (task_args_spec or {})
+    )
+    resolved_roles = resolve_model_roles(model_roles)
+    added: list[ResolvedTask] = []
+    for m in models:
+        init_active_model(m, config)
+        added.extend(
+            resolve_tasks(
+                task_spec, args, m, resolved_roles, sandbox, sample_shuffle, checkpoint
+            )
+        )
+    if not added:
+        raise ValueError(f"No task found for '{task_spec}'.")
+    resolve_model_costs(added, cost_limit)
+    report: dict[str, Any] = {
+        "task": added[0].task.name,
+        "tasks": [
+            {
+                "task_id": rt.id,
+                "task": rt.task.name,
+                "model": str(rt.model),
+                "dataset_samples": len(rt.task.dataset),
+            }
+            for rt in added
+        ],
+    }
+    return added, report
+
+
+async def _park_until_release_or_added(
+    server: "ControlServer",
+    controller: RunController | None,
+) -> list[ResolvedTask] | None:
+    """Wait for the keep-alive park to end or a task to be added.
+
+    Returns ``None`` when the process was released (``POST /release``), or the
+    next batch of added tasks to run. Both signals arrive on this loop, so we
+    race the release event against the controller's pending-task stream.
+    """
+    if controller is None:
+        await wait_for_shutdown_async(server)
+        return None
+
+    added: list[ResolvedTask] | None = None
+    async with anyio.create_task_group() as tg:
+
+        async def on_release() -> None:
+            await server.shutdown_event.wait()
+            tg.cancel_scope.cancel()
+
+        async def on_added() -> None:
+            nonlocal added
+            added = await controller.next_pending()
+            tg.cancel_scope.cancel()
+
+        tg.start_soon(on_release)
+        tg.start_soon(on_added)
+
+    return added
 
 
 def eval_retry(

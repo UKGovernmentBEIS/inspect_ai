@@ -8,7 +8,7 @@ This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though 
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
-> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl tasks` / `samples` / `sample` / `errors` / `events` / `release` commands, and the `--ctl-server` flag (on by default; `false` disables, `keep-alive` parks the process after the eval). **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits); **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
+> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl tasks` / `samples` / `sample` / `errors` / `events` / `release` commands, and the `--ctl-server` flag (on by default; `false` disables, `keep-alive` parks the process after the eval). **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** (in progress) adds the state-mutating directives — starting with adding a task to a running eval, then cancel / drain / requeue / modify-limits; **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
 
 ## Goals
 
@@ -83,7 +83,8 @@ inspect ctl events TASK SID [EPOCH]         # one sample's transcript events (cu
                                             #   --since CURSOR / --tail N / --type / --full / --since-time / --until
                                             #   (-f / --follow push is phase 4)
 
-# phase 3 (directives)
+# phase 3 (directives) — first up: add a task
+inspect ctl add TASK [--model M] [-T k=v] [--dry-run]  # add a task to a running --ctl-server=keep-alive eval
 inspect ctl cancel <eval-id> [--force]      # cancel an eval (current sample drains; scoring runs)
 inspect ctl cancel-sample <eval-id> <sid>   # cancel one sample
 inspect ctl drain <eval-id>                 # stop accepting new samples; let in-flight finish
@@ -229,6 +230,7 @@ Phase annotations reflect the [Implementation](#implementation) plan; phases 1�
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | `GET /evals/<id>/samples/<sid>/events` (SSE) | 4 |
 | Eval-wide transcript fan-in (push only) | `GET /evals/<id>/samples/events` (SSE) | 4 |
+| Add a task to a running eval | `POST /evals` (task spec → new sibling eval under this run) | 3 |
 | Cancel eval | `POST /evals/<id>/cancel` | 3 |
 | Drain | `POST /evals/<id>/drain` | 3 |
 | Requeue sample | `POST /evals/<id>/samples/<sid>/requeue` | 3 |
@@ -590,12 +592,41 @@ Unlocks watchdog agents (cursored polling). Live-render TUIs follow once phase-4
 
 ### Phase 3 — modification (direct) methods
 
-The first endpoints that **mutate eval state**, each idempotent and supporting `?dry_run=true` / `--dry-run` from day one:
+The first endpoints that **mutate the run**, each idempotent and supporting `?dry_run=true` / `--dry-run` from day one. The first directive built is **adding a task to a running eval**; the rest (cancel / drain / requeue / modify-limits) follow. The Security model's "future hardening" (SO_PEERCRED UID check, self-targeting guard) lands with this phase, since it introduces the first state-mutating writes.
+
+#### Add a task to a running eval
+
+`POST /evals` (CLI: `inspect ctl add TASK [...]`) submits a **task spec** that runs in the target process under the same `run_id`, appearing as a new sibling eval in `ls` / `samples` / `events`. Returns the new `eval_id`.
+
+**A spec, not a `Task`.** The wire is HTTP/JSON; a `Task` carries code (solvers, scorers, dataset). So the directive carries a *spec* — registry name or file path, `-T` task args, model, config / limit overrides — which the running process resolves in-process via the registry, exactly as `inspect eval <name>` does at launch. A task the process can't resolve (not importable in its environment) fails with a clear error; `--dry-run` surfaces that before committing.
+
+**Coupled to `--ctl-server=keep-alive`.** A normal eval ends when its initial task set drains, so there's no stable window to add to (an agent would race the teardown). Add-task is therefore a capability of an *addable* run — one launched with `--ctl-server=keep-alive`. An eval not launched addable rejects the directive with a clear error.
+
+**Two add paths, one discriminator.** "Are tasks currently running?" is exactly "is the live work-queue open?":
+
+- **Inject — tasks running.** The scheduler's queue is open → resolve the spec, mint identity + logger, enqueue it; a worker picks it up and it appears in the current task display.
+- **Restart — parked.** The run has drained and the process is parked (keep-alive, *outside* the display) → start a fresh scheduler session, re-launching the task display, for the added task(s) under the same `run_id`; on drain, return to the park. The park stays where it is today (after the eval body) — it just gains the ability to relaunch a session.
+
+The queue-closed check *is* the running→parked test, so the two paths can't both fire. An add that lands during the handoff (queue closing, display tearing down, park not yet entered) is **buffered**; the park drains buffered specs on entry — so an add is never lost regardless of timing.
+
+**Always the scheduler path (`run_single` deprecated).** Today `eval_run` uses `run_single` for `parallel==1` (all samples in one task group, no queue) and `run_multiple` (a worker pool over a `memory_object_stream`) for `parallel>1` — only the latter is injectable. Rather than maintain two shapes, **`run_single` is deprecated**: every run goes through the `run_multiple` scheduler (`parallel==1` ⇒ one worker), so a live queue always exists while the display is up and the inject path is uniform. The visible change is that a single-task run renders via the multi-task screen; behaviour is otherwise unchanged.
+
+**Workers.** An addable session **pre-starts `parallel` workers** — idle workers are suspended coroutines (no CPU, not shown in the display), so an injected task runs immediately instead of waiting for a busy worker to free, and there's no need to grow the pool mid-run. (Lazy spawn-on-inject is possible but needs a supervisor task *inside* the scheduler's group to own `start_soon` — a route can't spawn into a nursery it isn't inside — so pre-start is both simpler and effectively free.)
+
+**Identity & logging.** The added task joins the existing `run_id` with a fresh `eval_id` / `task_id` and its own log file in the run's `log_dir`; it `register_eval`s like any task, so the read surface covers it immediately and an agent gets back an `eval_id` it can then poll.
+
+**Wiring.** Mirrors the `--release` precedent (a route signalling the eval's own loop). The runner registers an `add_task` capability — a state-aware callback alongside `summaries_provider` / `sample_provider` on the process-global state — that either injects into the live queue or buffers for the park. The route resolves the spec on the eval's loop and invokes it; the response is deterministic (the new `eval_id`, a structured error, or a dry-run report).
+
+**`--dry-run`.** Resolves and validates the spec (task importable, model available, args type-check) and reports what *would* run (identity, model, sample count) without minting a log or starting work.
+
+**Scope.** Standalone `inspect eval --ctl-server=keep-alive` first; eval-set — which owns its own retry loop and task resolution — is a later increment.
+
+#### Other directives
 
 - `POST /evals/<id>/cancel` + `inspect ctl cancel` — graceful drain vs `--force`.
 - `POST /evals/<id>/drain`, `POST /evals/<id>/samples/<sid>/requeue`, `PATCH /evals/<id>` (modify per-sample limits / concurrency) + their CLI wrappers.
 
-These are the bigger eval-runner changes (live config mutation, requeue). The Security model's "future hardening" (SO_PEERCRED UID check, self-targeting guard) lands with this phase, since it introduces the first state-mutating writes.
+These are the bigger eval-runner changes (live config mutation, requeue).
 
 ### Phase 4 — push (SSE)
 
