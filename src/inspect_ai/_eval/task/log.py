@@ -2,10 +2,12 @@ import logging
 from importlib import metadata as importlib_metadata
 from typing import TYPE_CHECKING, Any, cast
 
+import anyio
 from shortuuid import uuid
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._eval.task.util import slice_dataset
+from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.git import git_context
@@ -60,6 +62,8 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.viewer import ViewerConfig
 
 logger = logging.getLogger(__name__)
+
+_STALE_FLUSH_INTERVAL: float = 60
 
 if TYPE_CHECKING:
     from inspect_ai.log._recorders.buffer.history import SampleHistory
@@ -242,9 +246,19 @@ class TaskLogger:
         if high_throughput and eval_config.log_buffer is None:
             eval_config.log_buffer = self.flush_buffer
         self.flush_pending: list[tuple[str | int, int]] = []
+        self._init_stale_flush_state()
 
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
+
+    def _init_stale_flush_state(self) -> None:
+        self._flush_lock = anyio.Lock()
+        self._flush_pending_lock = anyio.Lock()
+        self._stale_flush_cancel_scope: anyio.CancelScope | None = None
+        self._stale_flush_stopped: anyio.Event | None = None
+        self._stale_flush_stops: set[anyio.Event] = set()
+        self._stale_flush_generation = 0
+        self._stale_flush_interval = _STALE_FLUSH_INTERVAL
 
     async def init(self) -> None:
         self._bump_created_past_existing_logs()
@@ -267,6 +281,7 @@ class TaskLogger:
         # logger, which is about to be re-pointed at the new attempt
         detach_eval_providers(self.eval.eval_id)
 
+        await self._stop_stale_flush_timer()
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
         self.flush_pending = []
@@ -404,21 +419,135 @@ class TaskLogger:
             self._buffer_db.complete_sample(sample.summary())
 
         if flush:
-            self.flush_pending.append((sample.id, sample.epoch))
-            if len(self.flush_pending) >= self.flush_buffer:
-                await self.recorder.flush(self.eval)
+            async with self._flush_pending_lock:
+                was_empty = not self.flush_pending
+                self.flush_pending.append((sample.id, sample.epoch))
+                threshold_reached = len(self.flush_pending) >= self.flush_buffer
 
-                if self._buffer_db is not None:
-                    self._buffer_db.remove_samples(self.flush_pending)
-
-                self.flush_pending.clear()
+            if threshold_reached:
+                await self._stop_stale_flush_timer()
+                await self._flush_pending_samples()
+            elif was_empty:
+                await self._start_stale_flush_timer_if_needed()
 
         if sample.error is None:
             self._samples_completed += 1
 
+    async def _flush_pending_samples(
+        self, *, stale_flush_generation: int | None = None
+    ) -> None:
+        reschedule_stale_flush = False
+        async with self._flush_lock:
+            async with self._flush_pending_lock:
+                pending = list(self.flush_pending)
+                if not pending:
+                    return
+
+            await self.recorder.flush(self.eval)
+
+            async with self._flush_pending_lock:
+                if self._buffer_db is not None:
+                    self._buffer_db.remove_samples(pending)
+
+                # Items appended during the flush are at the tail; drop the flushed prefix.
+                del self.flush_pending[: len(pending)]
+                current_generation = self._stale_flush_generation
+                reschedule_stale_flush = bool(self.flush_pending) and (
+                    stale_flush_generation is None
+                    or stale_flush_generation == current_generation
+                )
+
+        if reschedule_stale_flush:
+            await self._arm_stale_flush_timer(generation=stale_flush_generation)
+
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         if self._buffer_db is not None:
             self._buffer_db.update_metrics(metrics)
+
+    async def _start_stale_flush_timer_if_needed(self) -> None:
+        await self._arm_stale_flush_timer()
+
+    async def _arm_stale_flush_timer(self, *, generation: int | None = None) -> None:
+        async with self._flush_pending_lock:
+            if generation is not None and generation != self._stale_flush_generation:
+                return
+
+            should_start = 0 < len(self.flush_pending) < self.flush_buffer
+            already_started = self._stale_flush_cancel_scope is not None
+            if not should_start or already_started:
+                return
+
+            cancel_scope = anyio.CancelScope()
+            stopped = anyio.Event()
+            current_generation = self._stale_flush_generation
+            self._stale_flush_cancel_scope = cancel_scope
+            self._stale_flush_stopped = stopped
+            self._stale_flush_stops.add(stopped)
+
+        try:
+            run_in_background(
+                self._stale_flush_after_delay,
+                cancel_scope,
+                stopped,
+                current_generation,
+            )
+        except Exception:
+            async with self._flush_pending_lock:
+                if self._stale_flush_cancel_scope is cancel_scope:
+                    self._stale_flush_cancel_scope = None
+                    self._stale_flush_stopped = None
+                self._stale_flush_stops.discard(stopped)
+            stopped.set()
+            raise
+
+    async def _stop_stale_flush_timer(self) -> None:
+        async with self._flush_pending_lock:
+            self._stale_flush_generation += 1
+            if self._stale_flush_cancel_scope is not None:
+                self._stale_flush_cancel_scope.cancel()
+                self._stale_flush_cancel_scope = None
+                self._stale_flush_stopped = None
+            stopped_events = list(self._stale_flush_stops)
+
+        for stopped in stopped_events:
+            await stopped.wait()
+
+    async def cleanup(self) -> None:
+        await self._stop_stale_flush_timer()
+        if self._buffer_db is not None:
+            self._buffer_db.cleanup()
+            self._buffer_db = None
+
+    async def _clear_stale_flush_timer(
+        self, cancel_scope: anyio.CancelScope, stopped: anyio.Event
+    ) -> None:
+        async with self._flush_pending_lock:
+            if self._stale_flush_cancel_scope is cancel_scope:
+                self._stale_flush_cancel_scope = None
+                self._stale_flush_stopped = None
+
+    async def _stale_flush_after_delay(
+        self,
+        cancel_scope: anyio.CancelScope,
+        stopped: anyio.Event,
+        generation: int,
+    ) -> None:
+        try:
+            with cancel_scope:
+                await anyio.sleep(self._stale_flush_interval)
+                await self._clear_stale_flush_timer(cancel_scope, stopped)
+                try:
+                    with anyio.CancelScope(shield=True):
+                        await self._flush_pending_samples(
+                            stale_flush_generation=generation
+                        )
+                except Exception as ex:
+                    logger.warning("Stale eval log flush failed: %s", ex, exc_info=ex)
+                    await self._arm_stale_flush_timer(generation=generation)
+        finally:
+            async with self._flush_pending_lock:
+                self._stale_flush_stops.discard(stopped)
+            stopped.set()
 
     async def log_finish(
         self,
@@ -428,6 +557,8 @@ class TaskLogger:
         reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
     ) -> EvalLog:
+        await self._stop_stale_flush_timer()
+
         # finish and get log
         log = await self.recorder.log_finish(
             self.eval, status, stats, results, reductions, error, self.header_only
