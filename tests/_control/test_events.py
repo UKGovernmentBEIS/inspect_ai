@@ -360,3 +360,75 @@ async def test_buffer_served_events_are_materialized(
     finally:
         clear_all_eval_states()
         db.cleanup()
+
+
+async def test_buffer_deleted_between_discovery_and_read_degrades(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A buffer deletion racing the read degrades to the recorder's events.
+
+    The eval can tear the buffer down (and stale-buffer sweeps can delete it)
+    while a control request is in flight. The read must degrade like "no
+    buffer" — an empty page from the event-less recorder sample — rather than
+    surface a 500, and the read-only connection must not leave a re-created
+    empty database behind.
+    """
+    import os
+
+    import inspect_ai._control.state as state_mod
+    import inspect_ai.log._recorders.buffer.database as database_mod
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.types import SampleEvent
+
+    monkeypatch.setattr(
+        database_mod, "resolve_db_dir", lambda db_dir=None: db_dir or tmp_path
+    )
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
+
+    location = str(tmp_path / "logs" / "task.eval")
+    db = SampleBufferDatabase(location)
+    db.log_events([SampleEvent(id="s1", epoch=1, event=InfoEvent(data="hello"))])
+    db_path = db.db_path
+    try:
+        register_eval("e1", 1, log_location=location)
+
+        async def event_less_sample(
+            eval_id: str, sample_id: str, epoch: int, *, exclude_fields: Any = None
+        ) -> Any:
+            return SimpleNamespace(
+                events=[], id="s1", uuid="u1", epoch=1, error_retries=[]
+            )
+
+        monkeypatch.setattr(state_mod, "_full_sample", event_less_sample)
+
+        # delete the buffer files after discovery would find them: patch the
+        # provider's read to delete first, simulating the deletion landing
+        # between the constructor's glob and the first connect
+        from inspect_ai.log._recorders.buffer import transcript_history_provider
+
+        original_events = (
+            transcript_history_provider.BufferTranscriptHistoryProvider.events
+        )
+
+        def delete_then_read(self: Any) -> Any:
+            db._close_all_connections()
+            for suffix in ("", "-wal", "-shm"):
+                p = f"{db_path}{suffix}"
+                if os.path.exists(p):
+                    os.unlink(p)
+            return original_events(self)
+
+        monkeypatch.setattr(
+            transcript_history_provider.BufferTranscriptHistoryProvider,
+            "events",
+            delete_then_read,
+        )
+
+        page = await sample_events("e1", "s1", 1)
+        assert page is not None, "deletion race must degrade, not 404/500"
+        assert page["events"] == []  # recorder sample is event-less
+        assert not os.path.exists(db_path), "read re-created the deleted db file"
+    finally:
+        clear_all_eval_states()

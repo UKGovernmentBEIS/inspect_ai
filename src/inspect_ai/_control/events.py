@@ -24,11 +24,15 @@ from __future__ import annotations
 
 import base64
 import json
+import sqlite3
 from collections.abc import Callable, Sequence
+from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
+
+logger = getLogger(__name__)
 
 # Page reader for one source: ``fetch(start, limit)`` returns up to ``limit``
 # events from absolute offset ``start``. The running source reads through
@@ -284,12 +288,34 @@ def _buffer_events(
         BufferTranscriptHistoryProvider,
     )
 
+    # Read-only: this is a reader racing the buffer's owner (the eval can
+    # tear the buffer down, and stale-buffer sweeps can delete it, while a
+    # control request is in flight). A read-only connection can never
+    # (re-)create a just-deleted database file — without it, sqlite would
+    # leave an empty database behind that makes the task look running.
     try:
-        buffer_db = SampleBufferDatabase(state.log_location, create=False)
+        buffer_db = SampleBufferDatabase(
+            state.log_location, create=False, read_only=True
+        )
+        events = list(
+            BufferTranscriptHistoryProvider(buffer_db, sample_id, epoch).events()
+        )
     except FileNotFoundError:
+        # no buffer database for this location (eval finished / no streaming)
         return None
-
-    events = list(BufferTranscriptHistoryProvider(buffer_db, sample_id, epoch).events())
+    except sqlite3.OperationalError as ex:
+        # the buffer was deleted (or became unreadable) between discovery and
+        # read — degrade like "no buffer" rather than failing the request,
+        # matching the old get_sample_data path. Logged because outside the
+        # deletion race this can also indicate a genuinely corrupt buffer.
+        logger.warning(
+            "Buffer database read failed for %s (sample %s, epoch %d): %s",
+            state.log_location,
+            sample_id,
+            epoch,
+            ex,
+        )
+        return None
     return events or None
 
 

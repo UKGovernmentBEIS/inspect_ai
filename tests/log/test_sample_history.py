@@ -424,3 +424,51 @@ def test_open_sample_history_from_honors_limit(tmp_path):
     with db.open_sample_history_from("sample", 1, 4, limit=10) as history:
         rows = history.raw_event_rows
     assert [row.event["data"] for row in rows] == [4]
+
+
+def test_read_only_connection_does_not_recreate_deleted_db(tmp_path):
+    """A read-only buffer reader cannot resurrect a deleted database (regression).
+
+    A reader (the control channel) races the buffer's owner: the eval can
+    tear the buffer down while a read is in flight. A plain sqlite connect
+    after deletion silently re-creates an empty database file, which makes
+    `running_tasks()` (a filename glob) report the finished task as still
+    running. `read_only=True` opens with `mode=ro`, which fails instead of
+    creating.
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+    db_path = db.db_path
+
+    # a read-only instance reads normally while the db exists
+    ro = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+    with ro.open_sample_history("sample", 1) as history:
+        assert [event["data"] for event in history.iter_events()] == ["hello"]
+
+    # the race: an instance constructed while the file existed (connections
+    # are lazy, so none is open yet — the shape of _buffer_events' fresh
+    # per-request instance), with the deletion landing before its first read
+    racing = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+    db._close_all_connections()
+    ro._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+
+    # the read-only reader fails rather than re-creating the file
+    with pytest.raises(sqlite3.OperationalError):
+        with racing.open_sample_history("sample", 1):
+            pass
+    assert not os.path.exists(db_path), "read-only connect re-created the db file"
+
+
+def test_read_only_is_incompatible_with_create(tmp_path):
+    with pytest.raises(ValueError, match="read_only"):
+        SampleBufferDatabase(str(tmp_path / "test.eval"), read_only=True)
