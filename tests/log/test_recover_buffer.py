@@ -5,6 +5,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+from test_helpers.buffer import DEAD_PID, simulate_crashed_buffer_db
+
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
@@ -53,9 +55,6 @@ def _make_model_event(content: str = "test response") -> ModelEvent:
     )
 
 
-_DEAD_PID = 99999999
-
-
 def _create_test_buffer(
     location: str,
     completed_ids: list[int],
@@ -83,13 +82,8 @@ def _create_test_buffer(
             [SampleEvent(id=id, epoch=1, event=_make_model_event(f"partial {id}"))]
         )
 
-    # Rename DB to dead PID to simulate crashed process
-    old_path = buffer.db_path
-    new_path = old_path.parent / old_path.name.replace(
-        f".{os.getpid()}.", f".{_DEAD_PID}."
-    )
-    old_path.rename(new_path)
-    buffer.db_path = new_path
+    # simulate a crashed process: snapshot the DB (incl. hot WAL) under a dead PID
+    simulate_crashed_buffer_db(buffer)
 
     return buffer
 
@@ -170,11 +164,7 @@ def test_read_buffer_recovery_data_empty() -> None:
 
         # Create DB but don't add any samples, simulate dead PID
         buffer = SampleBufferDatabase(location, create=True, db_dir=Path(db_dir))
-        old_path = buffer.db_path
-        new_path = old_path.parent / old_path.name.replace(
-            f".{os.getpid()}.", f".{_DEAD_PID}."
-        )
-        old_path.rename(new_path)
+        simulate_crashed_buffer_db(buffer)
 
         recovery = read_buffer_recovery_data(location, db_dir=db_dir)
         assert recovery is not None
@@ -224,44 +214,24 @@ def test_read_buffer_recovery_data_picks_newest_db() -> None:
     """Test that when multiple dead-PID DBs exist, the newest one is used."""
     import time
 
-    from inspect_ai._util.file import filesystem
-    from inspect_ai.log._recorders.buffer.database import (
-        location_dir_and_file,
-        resolve_db_dir,
-    )
-
     with tempfile.TemporaryDirectory() as temp_dir:
         db_dir = os.path.join(temp_dir, "bufferdb")
         location = os.path.join(temp_dir, "test.eval")
 
-        # Resolve the subdirectory where DBs are stored
-        resolved_dir = resolve_db_dir(Path(db_dir))
-        uri = filesystem(location).path_as_uri(location)
-        dir_hash, file = location_dir_and_file(uri)
-        log_subdir = resolved_dir / dir_hash
-        log_subdir.mkdir(parents=True, exist_ok=True)
-
-        # Create an older DB with dead PID 99999998
-        older_pid = 99999998
-        older_db = log_subdir / f"{file}.{older_pid}.db"
+        # Create an older crashed DB (dead PID 99999998)
         older_buffer = SampleBufferDatabase(location, create=True, db_dir=Path(db_dir))
-        # Add a sample to the older DB
         older_buffer.start_sample(_make_started_summary(1))
         older_buffer.log_events(
             [SampleEvent(id=1, epoch=1, event=_make_model_event("old response"))]
         )
         older_buffer.complete_sample(_make_completed_summary(1))
-        # Rename to dead PID
-        older_buffer.db_path.rename(older_db)
+        simulate_crashed_buffer_db(older_buffer, pid=99999998)
 
-        # Small delay to ensure different mtime
+        # Small delay to ensure the newer snapshot has a later mtime
         time.sleep(0.1)
 
-        # Create a newer DB with dead PID 99999999
-        newer_pid = _DEAD_PID
-        newer_db = log_subdir / f"{file}.{newer_pid}.db"
+        # Create a newer crashed DB (dead PID 99999999)
         newer_buffer = SampleBufferDatabase(location, create=True, db_dir=Path(db_dir))
-        # Add different samples to the newer DB
         newer_buffer.start_sample(_make_started_summary(10))
         newer_buffer.log_events(
             [SampleEvent(id=10, epoch=1, event=_make_model_event("new response"))]
@@ -271,8 +241,7 @@ def test_read_buffer_recovery_data_picks_newest_db() -> None:
         newer_buffer.log_events(
             [SampleEvent(id=11, epoch=1, event=_make_model_event("new partial"))]
         )
-        # Rename to dead PID
-        newer_buffer.db_path.rename(newer_db)
+        simulate_crashed_buffer_db(newer_buffer, pid=DEAD_PID)
 
         # Read recovery data — should pick the newer DB
         recovery = read_buffer_recovery_data(location, db_dir=db_dir)

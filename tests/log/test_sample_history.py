@@ -360,9 +360,6 @@ def test_open_sample_history_releases_write_lock_after_snapshot(tmp_path):
 def test_sample_history_read_methods_use_deferred_transactions(
     tmp_path, monkeypatch
 ) -> None:
-    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
-    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
-
     statements: list[str] = []
     original_connect = sqlite3.connect
 
@@ -375,7 +372,15 @@ def test_sample_history_read_methods_use_deferred_transactions(
         kwargs["factory"] = RecordingConnection
         return original_connect(*args, **kwargs)
 
+    # patch before constructing the db so its persistent per-thread connection
+    # records statements; reads reuse that connection rather than opening anew
     monkeypatch.setattr(sqlite3, "connect", connect)
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    # only capture statements issued by the read methods exercised below
+    statements.clear()
 
     assert db.sample_event_count("sample", 1) == 1
     assert db.sample_attachment("sample", 1, "missing") is None
