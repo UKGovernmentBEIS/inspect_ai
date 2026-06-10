@@ -227,12 +227,15 @@ jobs:
           uv venv
           uv pip install .[dev]
 
-      - name: Build sandbox-tools -dev binary
+      - name: Build sandbox-tools -dev binaries (glibc + musl)
         if: needs.check-tool-paths.outputs.injectable_src_changed == 'true' || needs.check-version-bump.outputs.version_correctly_bumped == 'true'
         env:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
-        run: uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
+        # Both libc variants: the slow suite includes an Alpine (musl) case.
+        run: |
+          uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
+          uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64 --musl
 
       - name: Run slow tool tests
         env:
@@ -282,19 +285,22 @@ jobs:
           uv venv
           uv pip install .[dev]
 
-      - name: Fetch published non-dev sandbox-tools binary
+      - name: Fetch published non-dev sandbox-tools binaries (glibc + musl)
         run: |
           VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
-          ARCH=amd64
-          FILENAME="inspect-sandbox-tools-${ARCH}-v${VERSION}"
-          URL="https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/${FILENAME}"
-          if ! curl -fsI "$URL" >/dev/null; then
-            echo "::error::Non-dev binary v${VERSION} not found at ${URL}. Run: python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py ${VERSION} then rerun this job."
-            exit 1
-          fi
           mkdir -p src/inspect_ai/binaries
-          curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"
-          chmod +x "src/inspect_ai/binaries/${FILENAME}"
+          # Both libc variants: the slow suite includes an Alpine (musl) case.
+          for FILENAME in \
+            "inspect-sandbox-tools-amd64-v${VERSION}" \
+            "inspect-sandbox-tools-amd64-musl-v${VERSION}"; do
+            URL="https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/${FILENAME}"
+            if ! curl -fsI "$URL" >/dev/null; then
+              echo "::error::Published binary ${FILENAME} not found at ${URL}. Run: python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py ${VERSION} then rerun this job."
+              exit 1
+            fi
+            curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"
+            chmod +x "src/inspect_ai/binaries/${FILENAME}"
+          done
 
       - name: Run slow tool tests against published artifact
         env:

@@ -621,6 +621,22 @@ def test_transcript_subscribe_receives_events_and_updates() -> None:
     assert received == [event, event]
 
 
+def test_extend_restored_events_notifies_subscribers() -> None:
+    restored = InfoEvent(uuid="restored", data="committed")
+    transcript = Transcript(bounded=False)
+    subscriber_events: list[Event] = []
+    transcript._subscribe(subscriber_events.append)
+
+    transcript._extend_restored_events(
+        [restored],
+        {},
+        notify_subscribers=True,
+    )
+
+    assert transcript.history.resident_events == [restored]
+    assert subscriber_events == [restored]
+
+
 def test_transcript_subscriber_exception_does_not_skip_processing(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

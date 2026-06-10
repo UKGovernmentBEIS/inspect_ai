@@ -3,9 +3,7 @@
 These dataclasses are the public surface that users construct when
 configuring checkpointing on a :class:`Sample`, :class:`Task`, or
 ``eval(...)``. Configs at different levels are combined via per-field
-merging — see :func:`merge_checkpoint_configs` in this module. The
-full semantic model is described in
-``design/plans/checkpointing-working.md`` §2.
+merging — see :func:`merge_checkpoint_configs` in this module.
 
 Every field on :class:`CheckpointConfig` defaults to ``None`` so that
 "not set at this level" is distinguishable from "explicitly set to a
@@ -26,9 +24,8 @@ DEFAULT_CHECKPOINT_TRIGGER = TokenInterval(every=500_000)
 """Trigger used when checkpointing is enabled but no layer set a trigger."""
 
 MAX_LISTED_FILES = 100
-"""Max files recorded per snapshot in a checkpoint file when file listing
-is enabled (``INSPECT_CHECKPOINT_LIST_FILES``); the count beyond this is
-recorded in ``additional_files``."""
+"""Max files recorded per snapshot in a checkpoint file; the count beyond
+this is recorded in ``additional_files``."""
 
 
 @dataclass
@@ -39,12 +36,10 @@ class CheckpointSampleConfig:
     also accepted at the task and eval layers (where they participate in
     the per-field merge — precedence: eval > sample > task).
 
-    The fields excluded from this base class — ``checkpoints_dir`` and
-    ``retention`` — are eval-wide concerns that the sample layer must
+    The fields excluded from this base class — ``checkpoints_location``
+    and ``retention`` — are eval-wide concerns that the sample layer must
     not influence. They live only on the derived :class:`CheckpointConfig`,
     which is the type used at the task and eval layers.
-
-    See ``design/plans/checkpointing-working.md`` §2.
     """
 
     trigger: CheckpointTrigger | None = None
@@ -74,12 +69,10 @@ class CheckpointConfig(CheckpointSampleConfig):
     config; the layers are combined per-field at sample-run time
     (precedence: eval > sample > task).
 
-    Adds the eval-wide fields (``checkpoints_dir``, ``retention``) to
-    the sample-permitted base class. Sample-layer configs use the base
+    Adds the eval-wide fields (``checkpoints_location``, ``retention``)
+    to the sample-permitted base class. Sample-layer configs use the base
     :class:`CheckpointSampleConfig` directly — these fields cannot be
     set per-sample.
-
-    See ``design/plans/checkpointing-working.md`` §2.
     """
 
     checkpoints_location: str | None = None
@@ -131,7 +124,7 @@ def merge_checkpoint_configs(
     The sample layer is typed :class:`CheckpointSampleConfig`, so it can
     only contribute to fields shared with that base class
     (``trigger``, ``sandbox_paths``, ``max_consecutive_failures``). The
-    eval-wide fields (``checkpoints_dir``, ``retention``) come only
+    eval-wide fields (``checkpoints_location``, ``retention``) come only
     from the task or eval layers.
 
     For every field, the highest-priority layer with a non-None value
