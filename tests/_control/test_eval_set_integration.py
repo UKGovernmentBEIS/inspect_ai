@@ -1532,6 +1532,63 @@ def test_ctl_eval_finishes_when_final_attempt_cancels_sibling(
     assert samples["in_flight"] == 0
 
 
+def test_ctl_eval_finishes_when_queued_samples_are_cancelled(
+    short_data_dir: Path,
+) -> None:
+    """Samples cancelled while still queued count toward the eval's total.
+
+    With ``max_samples=1`` and a 6-sample dataset, sample 1's failure tears
+    the task down while samples 2-6 are parked at the sample semaphore. A
+    queued sample's cancellation propagates before its per-sample terminal
+    record runs (unlike an in-flight sibling, whose handler records it), so
+    only the task-finish reconciliation (``finalize_eval``) accounts for
+    them — without it the eval reads ``running`` with 5 phantom ``queued``
+    forever.
+    """
+
+    @solver
+    def fail_first() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if int(state.sample_id) == 1:
+                raise RuntimeError("boom")
+            # unreachable under max_samples=1 (sample 1 fails first), but if a
+            # sample does start, hold rather than complete
+            await park_now()
+            return state
+
+        return solve
+
+    @task
+    def failing_queued() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in range(1, 7)],
+            solver=[fail_first()],
+            name="failing_queued",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        eval_set(
+            tasks=[failing_queued()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=1,
+        )
+
+    entry = cap.eval("failing_queued")
+    assert entry is not None
+    assert entry["status"] == "completed", entry
+    samples = entry["samples"]
+    assert samples["errored"] == 1
+    assert samples["cancelled"] == 5
+    assert samples["queued"] == 0
+    assert samples["in_flight"] == 0
+    assert entry["completed_at"] is not None
+
+
 def test_ctl_eval_finishes_when_limit_selects_zero_samples(
     short_data_dir: Path,
 ) -> None:

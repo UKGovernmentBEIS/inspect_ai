@@ -15,6 +15,7 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
+    finalize_eval,
     record_sample_cancelled,
     record_sample_completed,
     record_sample_errored,
@@ -438,7 +439,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # so the control channel (and other readers) can answer
             # "how many samples queued / running / done?" without
             # polling active_samples() or scanning logs. Paired with
-            # the unregister after the try/except block below.
+            # the finalize_eval in the finally below.
             register_eval(
                 logger.eval.eval_id,
                 total_samples,
@@ -829,6 +830,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
+
+        finally:
+            # every sample task has exited by here (the try encloses the task
+            # group), so any still-unaccounted samples can no longer record
+            finalize_eval(logger.eval.eval_id)
 
     # cleanup disk sample store if used
     if isinstance(sample_store, DiskSampleStore):

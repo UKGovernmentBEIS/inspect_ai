@@ -355,6 +355,33 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def finalize_eval(eval_id: str) -> None:
+    """Reconcile terminal counters when a task finishes.
+
+    A sample cancelled while still *queued* (eg. parked at the sample
+    semaphore when a sibling's failure tears the task group down) never
+    reaches a per-sample terminal record — the cancellation propagates
+    before its recording code runs, so ``completed + errored + cancelled``
+    can fall short of ``total`` and the eval would read "running" forever.
+    Called at the task's single finish point, after every sample task has
+    exited: any planned sample still unaccounted for can no longer run in
+    this attempt, so fold the shortfall into :attr:`EvalState.cancelled`
+    (the existing bucket for teardown cancellations) and stamp
+    ``completed_at``. A no-op when the counters already reached ``total``,
+    and for unregistered evals (eg. ``run_samples=False``, which returns
+    before registration).
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            shortfall = state.total - (
+                state.completed + state.errored + state.cancelled
+            )
+            if shortfall > 0:
+                state.cancelled += shortfall
+            _maybe_mark_finished(state)
+
+
 def _maybe_mark_finished(state: EvalState) -> None:
     """Stamp ``completed_at`` when every sample has terminated.
 
