@@ -38,14 +38,29 @@ class AgentBridge:
         checkpointer: Checkpointer | None = None,
     ) -> None:
         self._cp = checkpointer or _NoopCheckpointer()
-        self.state = self._cp.track("bridge_agent_state", lambda: self.state, state)
+        # AgentState is not a BaseModel so it can't be tracked directly;
+        # track its messages and output separately (same approach as react()).
+        state.messages = self._cp.track(
+            "bridge_messages",
+            lambda: self.state.messages,
+            state.messages,
+            value_type=list[ChatMessage],
+        )
+        state.output = self._cp.track(
+            "bridge_output", lambda: self.state.output, state.output
+        )
+        self.state = state
         self._message_ids = self._cp.track(
-            "bridge_message_ids", lambda: self._message_ids, {}
+            "bridge_message_ids",
+            lambda: self._message_ids,
+            {},
+            value_type=dict[str, list[str]],
         )
         self._compaction_prefix = self._cp.track(
             "bridge_compaction_prefix",
             lambda: self._compaction_prefix,
             state.messages.copy(),
+            value_type=list[ChatMessage],
         )
         self.filter = filter
         self.retry_refusals = retry_refusals
