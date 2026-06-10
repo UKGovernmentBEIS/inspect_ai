@@ -715,9 +715,13 @@ async def log_files_from_ls_async(
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
-# Native Inspect filenames always start with a full ISO timestamp
-# (date + T + HH[:-]MM[:-]SS); anything shorter must use the header fallback.
-_timestamp_prefix_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}")
+# Native Inspect filenames start with a full ISO timestamp (date + T +
+# HH[:-]MM[:-]SS) but tools may prepend a prefix when copying logs (e.g.
+# "[ext] 2025-..."), so accept a timestamp at any non-alphanumeric boundary
+# in the first part; anything without one must use the header fallback.
+_timestamp_prefix_re = re.compile(
+    r"(?<![0-9A-Za-z])\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}"
+)
 
 
 def is_log_file(file: str, extensions: list[str]) -> bool:
@@ -743,7 +747,7 @@ def _try_parse_filename(
     if len(parts) < 2:
         return None, None, None
 
-    if not _timestamp_prefix_re.match(parts[0]):
+    if not _timestamp_prefix_re.search(parts[0]):
         return None, None, None
 
     if len(parts) == 2:
@@ -756,6 +760,34 @@ def _try_parse_filename(
     task_id = part3[0]
     suffix = part3[1] if len(part3) > 1 else None
     return task, task_id, suffix
+
+
+# Cache header-derived (task, task_id, suffix) so repeated directory
+# listings don't re-read headers for files whose names lack a timestamp.
+# Keyed by (name, mtime, size) so a rewritten file invalidates naturally.
+_header_info_cache: dict[
+    tuple[str, float | None, int], tuple[str | None, str | None, str | None]
+] = {}
+_HEADER_INFO_CACHE_MAX = 25000
+
+
+def _header_cache_get(
+    info: FileInfo,
+) -> tuple[str | None, str | None, str | None] | None:
+    if info.mtime is None:
+        return None
+    return _header_info_cache.get((info.name, info.mtime, info.size))
+
+
+def _header_cache_put(
+    info: FileInfo, value: tuple[str | None, str | None, str | None]
+) -> None:
+    # without an mtime there is no way to detect a rewritten file
+    if info.mtime is None:
+        return
+    if len(_header_info_cache) >= _HEADER_INFO_CACHE_MAX:
+        _header_info_cache.clear()
+    _header_info_cache[(info.name, info.mtime, info.size)] = value
 
 
 def _try_read_header(
@@ -808,7 +840,15 @@ def log_file_info(info: FileInfo) -> "EvalLogInfo":
     parts = _filename_parts(info)
     task, task_id, suffix = _try_parse_filename(parts)
     if task is None:
-        task, task_id, suffix = _try_read_header(info.name)
+        cached = _header_cache_get(info)
+        if cached is not None:
+            task, task_id, suffix = cached
+        else:
+            task, task_id, suffix = _try_read_header(info.name)
+            # cache successes only: a transient read failure must not
+            # stick until the file's mtime happens to change
+            if task is not None:
+                _header_cache_put(info, (task, task_id, suffix))
     return _build_log_info(info, task, task_id, suffix)
 
 
@@ -816,7 +856,15 @@ async def log_file_info_async(info: FileInfo) -> "EvalLogInfo":
     parts = _filename_parts(info)
     task, task_id, suffix = _try_parse_filename(parts)
     if task is None:
-        task, task_id, suffix = await _try_read_header_async(info.name)
+        cached = _header_cache_get(info)
+        if cached is not None:
+            task, task_id, suffix = cached
+        else:
+            task, task_id, suffix = await _try_read_header_async(info.name)
+            # cache successes only: a transient read failure must not
+            # stick until the file's mtime happens to change
+            if task is not None:
+                _header_cache_put(info, (task, task_id, suffix))
     return _build_log_info(info, task, task_id, suffix)
 
 
