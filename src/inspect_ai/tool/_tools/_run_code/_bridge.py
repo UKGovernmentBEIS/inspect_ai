@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+from uuid import uuid4
 
 from inspect_ai.tool import ToolDef
 
@@ -22,6 +24,26 @@ def _preview(value: Any, *, max_chars: int = 500) -> str:
         return text[:max_chars]
 
     return text[: max_chars - len(suffix)] + suffix
+
+
+def _tool_call_arguments(
+    tool_def: ToolDef, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> dict[str, Any]:
+    """Convert Python args/kwargs into Inspect ToolCall arguments."""
+    if not args:
+        return dict(kwargs)
+
+    signature = inspect.signature(tool_def.tool)
+    bound = signature.bind_partial(*args, **kwargs)
+    return dict(bound.arguments)
+
+
+def _tool_message_result(message: Any) -> Any:
+    """Return the model-visible result from an Inspect tool message."""
+    if message.error is not None:
+        return message.error.message
+
+    return _coerce_external_function_result(message.content)
 
 
 @dataclass
@@ -73,6 +95,8 @@ class RunCodeToolBridge:
                 f"Maximum run_code inner tool calls exceeded: {self.max_tool_calls}"
             )
 
+        arguments = _tool_call_arguments(tool_def, args, kwargs)
+
         call = RunCodeInnerToolCall(
             name=tool_def.name,
             args_preview=_preview(args),
@@ -81,13 +105,50 @@ class RunCodeToolBridge:
         self.calls.append(call)
 
         try:
-            result = await tool_def.tool(*args, **kwargs)
-            result = _coerce_external_function_result(result)
+            result = await self._execute_inspect_tool_call(tool_def, arguments)
             call.result_preview = _preview(result)
             return result
         except Exception as exc:
             call.error = str(exc)
             raise
+
+    async def _execute_inspect_tool_call(
+        self,
+        tool_def: ToolDef,
+        arguments: dict[str, Any],
+    ) -> Any:
+        """Execute an inner tool call through Inspect's normal tool path."""
+        from inspect_ai.model._call_tools import execute_tools
+        from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+        from inspect_ai.tool._tool_call import ToolCall
+
+        call = ToolCall(
+            id=f"run_code_{uuid4().hex}",
+            function=tool_def.name,
+            arguments=arguments,
+        )
+
+        message = ChatMessageAssistant(
+            content="Tool call requested from inside run_code.",
+            tool_calls=[call],
+        )
+
+        result = await execute_tools(
+            [message],
+            self.tool_defs,
+        )
+
+        tool_messages = [
+            message
+            for message in result.messages
+            if isinstance(message, ChatMessageTool) and message.tool_call_id == call.id
+        ]
+
+        if not tool_messages:
+            return ""
+
+        tool_message = tool_messages[-1]
+        return _tool_message_result(tool_message)
 
 
 def external_functions_for_tool_defs(

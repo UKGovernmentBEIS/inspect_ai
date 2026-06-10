@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from inspect_ai.tool import Tool, ToolDef, run_code
+from inspect_ai.tool import Tool, ToolDef, ToolError, run_code
 from inspect_ai.tool._tools._run_code._bridge import (
     RunCodeInnerToolCall,
     RunCodeToolBridge,
@@ -518,3 +518,63 @@ def test_run_code_usage_description_mentions_asyncio_gather():
     description = _run_code_usage_description(tool_defs)
 
     assert "asyncio.gather" in description
+
+
+def typed_count_tool(calls: list[int]) -> Tool:
+    async def execute(count: int) -> str:
+        """Echo a count.
+
+        Args:
+            count: Count to echo.
+        """
+        calls.append(count)
+        return f"count:{count}"
+
+    return ToolDef(
+        execute,
+        name="typed_count_tool",
+        description="Echo a typed count.",
+    ).as_tool()
+
+
+@pytest.mark.anyio
+async def test_run_code_bridge_uses_inspect_argument_validation():
+    calls: list[int] = []
+    bridge = RunCodeToolBridge(_tool_defs([typed_count_tool(calls)]))
+
+    external_functions = bridge.external_functions()
+    result = await external_functions["typed_count_tool"]("not-an-int")
+
+    assert calls == []
+    assert isinstance(result, str)
+    assert result
+    assert "validation errors parsing tool input arguments" in result
+    assert "not-an-int" in result
+    assert "integer" in result
+
+
+def tool_error_tool() -> Tool:
+    async def execute(value: str) -> str:
+        """Raise a ToolError.
+
+        Args:
+            value: Ignored value.
+        """
+        raise ToolError("bad inner input")
+
+    return ToolDef(
+        execute,
+        name="tool_error_tool",
+        description="Always raises ToolError.",
+    ).as_tool()
+
+
+@pytest.mark.anyio
+async def test_run_code_bridge_surfaces_inner_tool_error():
+    bridge = RunCodeToolBridge(_tool_defs([tool_error_tool()]))
+
+    external_functions = bridge.external_functions()
+    result = await external_functions["tool_error_tool"]("x")
+
+    assert isinstance(result, str)
+    assert "bad inner input" in result
