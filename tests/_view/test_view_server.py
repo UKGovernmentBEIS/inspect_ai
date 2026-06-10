@@ -2168,3 +2168,87 @@ async def test_stream_log_bytes_streams_large_local_file(tmp_path: Path) -> None
     ranged = await stream_log_bytes(path, 10, 99, stream_threshold_bytes=16)
     assert not isinstance(ranged, BytesIO)
     assert await _consume(ranged) == payload[10:100]
+
+
+def test_api_log_download_content_length_matches_body_when_stat_is_stale(
+    view_client: ViewTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Content-Length must come from the actual body, not an earlier stat.
+
+    In-progress .eval files are rewritten in place, so the size measured
+    before the read can disagree with the bytes actually read. Simulate
+    that race deterministically by making the endpoint's get_log_size
+    over-report: the download must still succeed with the real bytes and
+    a Content-Length that matches them (previously the stale size was
+    stamped on the response, producing a header/body mismatch that makes
+    clients abort the download).
+    """
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    actual_size = Path(full_path).stat().st_size
+
+    async def stale_get_log_size(log_file: str) -> int:
+        return actual_size + 1000
+
+    monkeypatch.setattr(fastapi_server, "get_log_size", stale_get_log_size)
+
+    resp = view_client.request("GET", view_client.log_url("log-download", fname))
+    resp.raise_for_status()
+    assert len(resp.content) == actual_size
+    content_length = resp.headers.get("content-length")
+    if content_length is not None:
+        assert int(content_length) == len(resp.content)
+
+
+async def test_stream_log_bytes_local_streams_in_large_chunks(tmp_path: Path) -> None:
+    """The local streaming branch must pull large chunks per receive.
+
+    Iterating a ByteReceiveStream directly uses anyio's 64KB default —
+    one worker-thread hop per 64KB, which throttles large downloads. The
+    streaming branch reads 1MB per receive, so a multi-MB stream must
+    yield chunks larger than 64KB (the final chunk may be short).
+    """
+    payload = bytes(range(256)) * (3 * 4096)  # 3MB
+    log_file = tmp_path / "log.bin"
+    log_file.write_bytes(payload)
+
+    stream = await stream_log_bytes(log_file.as_posix(), stream_threshold_bytes=16)
+    assert not isinstance(stream, BytesIO)
+    chunks = [chunk async for chunk in stream]
+    assert b"".join(chunks) == payload
+    assert any(len(chunk) > 65536 for chunk in chunks), (
+        f"all {len(chunks)} chunks were <= 64KB — the stream is using "
+        "anyio's default receive size (one thread hop per 64KB)"
+    )
+
+
+async def test_stream_log_bytes_local_does_not_restat_known_size(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A known file size must not be re-stat'ed by the read path.
+
+    stream_log_bytes resolves the open-ended range itself, so the
+    get_log_bytes it delegates to must never call get_log_size (which is
+    a synchronous fs.info on the event loop for local files — previously
+    every /log-download stat'ed the file twice).
+    """
+    payload = b"x" * 1024
+    log_file = tmp_path / "log.bin"
+    log_file.write_bytes(payload)
+
+    calls = 0
+    real_get_log_size = inspect_ai._view.common.get_log_size
+
+    async def counting_get_log_size(log_file: str) -> int:
+        nonlocal calls
+        calls += 1
+        return await real_get_log_size(log_file)
+
+    monkeypatch.setattr(inspect_ai._view.common, "get_log_size", counting_get_log_size)
+
+    result = await stream_log_bytes(log_file.as_posix(), log_file_size=len(payload))
+    assert isinstance(result, BytesIO)
+    assert result.getvalue() == payload
+    assert calls == 0, (
+        f"get_log_size called {calls}x despite log_file_size being supplied"
+    )
