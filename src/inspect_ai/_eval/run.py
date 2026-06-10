@@ -133,9 +133,9 @@ async def eval_run(
         eval_solver = None
         eval_solver_spec = None
 
+    task_run_options: list[TaskRunOptions] = []
     try:
         # create run tasks
-        task_run_options: list[TaskRunOptions] = []
         for resolved_task in tasks:
             with chdir(task_run_dir(resolved_task.task)):
                 # tasks can provide their epochs, message_limit,
@@ -303,6 +303,11 @@ async def eval_run(
             return await run_multiple(task_run_options, parallel)
         else:
             return await run_single(task_run_options, debug_errors)
+
+    except BaseException:
+        for task_options in task_run_options:
+            await task_options.logger.cleanup()
+        raise
 
     finally:
         # shutdown sandbox environments
