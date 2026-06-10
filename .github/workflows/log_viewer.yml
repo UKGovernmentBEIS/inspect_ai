@@ -51,7 +51,9 @@ jobs:
       # The pipeline is Python → inspect-openapi.json → generated.ts. The two
       # arrows are checked independently: json → ts must match exactly, while
       # Python → json tolerates docstring-only ("description") drift so that
-      # doc changes don't require regenerating checked-in artifacts.
+      # doc changes don't require regenerating checked-in artifacts. As a
+      # result, description text in the committed artifacts can lag the Python
+      # docstrings until the next structural change forces a regeneration.
 
       - name: Check generated types are in sync with checked-in schema
         working-directory: src/inspect_ai/_view/ts-mono
@@ -59,7 +61,8 @@ jobs:
           pnpm --filter @tsmono/inspect-common types:generate
           if ! git diff --exit-code -- packages/inspect-common/src/types/generated.ts
           then
-            echo "generated.ts is out of sync with inspect-openapi.json. Please run:"
+            echo "generated.ts is out of sync with the committed inspect-openapi.json."
+            echo "Regenerate both artifacts and commit them:"
             echo "  python src/inspect_ai/_view/schema.py"
             exit 1
           fi
@@ -76,12 +79,14 @@ jobs:
               | grep -vE 'src/inspect_ai/_view/(inspect-openapi\.json|ts-mono)$' \
               | grep -q . \
             || git -C src/inspect_ai/_view/ts-mono status --porcelain \
-              | grep -v 'src/types/generated\.ts$' \
+              | grep -v 'packages/inspect-common/src/types/generated\.ts$' \
               | grep -q .
           then
             echo "Unexpected changes after regeneration:"
             git status
+            git diff -- . ':!src/inspect_ai/_view/inspect-openapi.json'
             git -C src/inspect_ai/_view/ts-mono status
+            git -C src/inspect_ai/_view/ts-mono diff -- . ':!packages/inspect-common/src/types/generated.ts'
             exit 1
           fi
 
