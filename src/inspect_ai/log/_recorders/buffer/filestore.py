@@ -5,7 +5,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypeAlias
 from zipfile import ZipFile
 
 from pydantic import BaseModel, Field
@@ -36,6 +36,14 @@ class Segment(BaseModel):
     last_call_pool_id: int = 0
 
 
+class SampleSegment(Segment):
+    # Same shape as Segment, but scoped to one sample's contribution.
+    pass
+
+
+SampleSegmentEntry: TypeAlias = int | SampleSegment
+
+
 class SegmentFile(BaseModel):
     id: str | int
     epoch: int
@@ -44,7 +52,7 @@ class SegmentFile(BaseModel):
 
 class SampleManifest(BaseModel):
     summary: EvalSampleSummary
-    segments: list[int] = Field(default_factory=list)
+    segments: list[SampleSegmentEntry] = Field(default_factory=list)
 
 
 class Manifest(BaseModel):
@@ -70,6 +78,18 @@ def _find_sample(
     )
 
 
+def sample_segment_id(segment: SampleSegmentEntry) -> int:
+    return segment if isinstance(segment, int) else segment.id
+
+
+def sample_segment_cursor(
+    segment: SampleSegmentEntry, segments_by_id: dict[int, Segment]
+) -> Segment | None:
+    if isinstance(segment, SampleSegment):
+        return segment
+    return segments_by_id.get(segment)
+
+
 def segments_for_sample_cursor(
     manifest: Manifest,
     sample: SampleManifest,
@@ -84,6 +104,8 @@ def segments_for_sample_cursor(
     OR-logic across cursor types: a segment qualifies if any of its
     last_*_id values exceeds the corresponding cursor. Over-inclusive
     by design; individual items must be post-filtered by the caller.
+    Legacy integer entries fall back to global segment maxima. That preserves
+    compatibility but can over-include old co-batched manifests.
 
     Cursors are floored at 0 because SQL AUTOINCREMENT ids start at 1,
     so a cursor of `None`, `-1`, or `0` are equivalent: "no items of
@@ -99,18 +121,29 @@ def segments_for_sample_cursor(
     after_message_pool = max(0, after_message_pool_id or 0)
     after_call_pool = max(0, after_call_pool_id or 0)
 
-    by_id = sorted(
-        (s for s in manifest.segments if s.id in sample.segments),
-        key=lambda s: s.id,
-    )
-    return [
-        s
-        for s in by_id
-        if s.last_event_id > after_event
-        or s.last_attachment_id > after_attachment
-        or s.last_message_pool_id > after_message_pool
-        or s.last_call_pool_id > after_call_pool
-    ]
+    segments_by_id = {s.id: s for s in manifest.segments}
+    matching: list[Segment] = []
+    seen_ids: set[int] = set()
+    for sample_segment in sample.segments:
+        segment_id = sample_segment_id(sample_segment)
+        if segment_id in seen_ids:
+            continue
+        segment = segments_by_id.get(segment_id)
+        if segment is None:
+            continue
+        cursor = (
+            sample_segment if isinstance(sample_segment, SampleSegment) else segment
+        )
+        if (
+            cursor.last_event_id > after_event
+            or cursor.last_attachment_id > after_attachment
+            or cursor.last_message_pool_id > after_message_pool
+            or cursor.last_call_pool_id > after_call_pool
+        ):
+            seen_ids.add(segment_id)
+            matching.append(segment)
+
+    return sorted(matching, key=lambda s: s.id)
 
 
 @dataclass(frozen=True)
@@ -219,8 +252,9 @@ class SampleBufferFilestore(SampleBuffer):
         if sample is None:
             return
 
+        sample_segment_ids = {sample_segment_id(segment) for segment in sample.segments}
         for segment in sorted(manifest.segments, key=lambda s: s.id):
-            if segment.id not in sample.segments:
+            if segment.id not in sample_segment_ids:
                 continue
             try:
                 data = self.read_segment_data(segment.id, id, epoch)
