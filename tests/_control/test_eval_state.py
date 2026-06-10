@@ -202,3 +202,148 @@ async def test_deferred_sample_stats_failure_keeps_provisional_split() -> None:
     }
     [entry] = await current_eval_summaries(0.0)
     assert calls["n"] == 1  # no retry storm
+
+
+async def test_deferred_resolution_failure_never_fails_request_or_siblings() -> None:
+    """Any Exception from a provider degrades that row only.
+
+    The summaries read of a corrupt reused log raises outside (OSError,
+    ValueError) — eg. zipfile.BadZipFile. It must neither fail the GET /evals
+    request (a 500 for the whole listing) nor cancel sibling resolutions
+    mid-read (which would strand THEIR rows on provisional values too).
+    """
+    from zipfile import BadZipFile
+
+    from inspect_ai._control.eval_state import (
+        DeferredSampleStats,
+        register_completed_eval,
+    )
+    from inspect_ai._control.state import current_eval_summaries
+
+    async def corrupt_provider() -> DeferredSampleStats:
+        raise BadZipFile("truncated central directory")
+
+    async def healthy_provider() -> DeferredSampleStats:
+        return DeferredSampleStats(total_messages=5, completed=1, errored=1)
+
+    register_completed_eval(
+        "corrupt",
+        total=4,
+        completed=4,
+        errored=0,
+        task="a",
+        task_id="ta",
+        deferred_sample_stats=corrupt_provider,
+    )
+    register_completed_eval(
+        "healthy",
+        total=2,
+        completed=2,
+        errored=0,
+        task="b",
+        task_id="tb",
+        deferred_sample_stats=healthy_provider,
+    )
+
+    entries = {e["task"]: e for e in await current_eval_summaries(0.0)}
+    # corrupt row degrades to its provisional split; healthy row refines
+    assert entries["a"]["samples"]["completed"] == 4
+    assert entries["a"]["samples"]["errored"] == 0
+    assert entries["b"]["samples"]["completed"] == 1
+    assert entries["b"]["samples"]["errored"] == 1
+
+
+async def test_deferred_resolution_cancelled_mid_read_retries_later() -> None:
+    """Cancellation mid-read restores the claim for a later retry.
+
+    A client disconnect (or server teardown) cancels the resolving request
+    mid-await. The provider was already claimed; without restoring it the row
+    would be stranded on provisional values forever — a LATER request must
+    retry and refine.
+    """
+    import anyio
+
+    from inspect_ai._control.eval_state import (
+        DeferredSampleStats,
+        register_completed_eval,
+        resolve_deferred_sample_stats,
+    )
+    from inspect_ai._control.state import current_eval_summaries
+
+    started = anyio.Event()
+    calls = {"n": 0}
+
+    async def provider() -> DeferredSampleStats:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            started.set()
+            await anyio.Event().wait()  # parked until cancelled
+        return DeferredSampleStats(total_messages=7, completed=1, errored=1)
+
+    state = register_completed_eval(
+        "e1",
+        total=2,
+        completed=2,
+        errored=0,
+        task="t",
+        task_id="tid",
+        deferred_sample_stats=provider,
+    )
+
+    # request 1: cancelled mid-read (the client went away)
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(resolve_deferred_sample_stats, state)
+        await started.wait()
+        tg.cancel_scope.cancel()
+
+    assert state.deferred_sample_stats is not None, "claim must be restored"
+
+    # request 2: retries and refines
+    [entry] = await current_eval_summaries(0.0)
+    assert calls["n"] == 2
+    assert entry["samples"]["errored"] == 1
+    assert entry["total_messages"] == 7
+
+
+async def test_deferred_resolutions_run_concurrently() -> None:
+    """The first-request resolution fans out concurrently (not serially).
+
+    Effective concurrency is governed by the filesystem's connection pool
+    (matching the bulk header reads in ``read_eval_logs_async``) — at this
+    layer the reads just must not serialize.
+    """
+    import anyio
+
+    from inspect_ai._control.eval_state import (
+        DeferredSampleStats,
+        register_completed_eval,
+    )
+    from inspect_ai._control.state import current_eval_summaries
+
+    in_flight = {"now": 0, "max": 0}
+
+    def make_provider() -> Any:
+        async def provider() -> DeferredSampleStats:
+            in_flight["now"] += 1
+            in_flight["max"] = max(in_flight["max"], in_flight["now"])
+            await anyio.sleep(0.001)
+            in_flight["now"] -= 1
+            return DeferredSampleStats(total_messages=1, completed=1, errored=0)
+
+        return provider
+
+    for i in range(20):
+        register_completed_eval(
+            f"e{i}",
+            total=1,
+            completed=1,
+            errored=0,
+            task=f"t{i}",
+            task_id=f"tid{i}",
+            deferred_sample_stats=make_provider(),
+        )
+
+    entries = await current_eval_summaries(0.0)
+    assert len(entries) == 20
+    assert all(e["total_messages"] == 1 for e in entries)
+    assert in_flight["max"] > 1  # genuinely concurrent

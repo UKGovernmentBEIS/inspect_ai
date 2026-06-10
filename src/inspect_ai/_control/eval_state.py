@@ -345,10 +345,16 @@ async def resolve_deferred_sample_stats(state: EvalState) -> None:
 
     Claims the provider under the lock first, so concurrent requests perform
     at most one read (a loser briefly sees the provisional header-derived
-    values — benign). On a read failure the provisional values stand
-    permanently: they sum to ``total``, so the row still renders terminal
-    (no phantom ``queued``), just with the header's coarser completed/errored
-    split.
+    values — benign). Failure semantics by class:
+
+    - Any ``Exception`` (unreadable or corrupt log — eg. ``BadZipFile``,
+      storage backend errors): the provisional values stand permanently
+      (they sum to ``total``, so the row still renders terminal) and the
+      provider is not retried. The read must never fail the surrounding
+      request, and a caught failure must never cancel sibling resolutions.
+    - Cancellation (client disconnect / server teardown mid-read): the
+      claim is restored so a later request retries the resolution, rather
+      than stranding the row on provisional values forever.
     """
     with _lock:
         provider = state.deferred_sample_stats
@@ -357,7 +363,7 @@ async def resolve_deferred_sample_stats(state: EvalState) -> None:
         return
     try:
         stats = await provider()
-    except (OSError, ValueError) as ex:
+    except Exception as ex:
         logger.warning(
             "Could not resolve sample stats for reused eval %s (%s): %s",
             state.eval_id,
@@ -365,6 +371,12 @@ async def resolve_deferred_sample_stats(state: EvalState) -> None:
             ex,
         )
         return
+    except BaseException:
+        # cancelled mid-read — restore the claim for a later retry
+        with _lock:
+            if state.deferred_sample_stats is None:
+                state.deferred_sample_stats = provider
+        raise
     with _lock:
         state.total_messages = stats.total_messages
         state.completed = stats.completed

@@ -34,6 +34,7 @@ activity.
 from __future__ import annotations
 
 from collections import defaultdict
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from inspect_ai._util.error import is_cancellation_message
@@ -81,11 +82,11 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     # Resolve reused evals' summaries-derived stats (lazy: the first request
     # pays the per-log reads — concurrently — instead of eval-set startup
     # paying them serially whether or not a control client ever connects;
-    # subsequent requests are free).
+    # subsequent requests are free). Unbounded fan-out matches the bulk
+    # header reads in `read_eval_logs_async`: effective concurrency is
+    # governed by the filesystem's connection pool.
     deferred = [s for s in states if s.deferred_sample_stats is not None]
     if deferred:
-        from functools import partial
-
         from inspect_ai._util._async import tg_collect
 
         await tg_collect(
