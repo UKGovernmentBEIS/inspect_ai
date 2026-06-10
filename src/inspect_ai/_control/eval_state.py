@@ -217,6 +217,16 @@ class EvalState:
     """Cumulative message count, accumulated like :attr:`total_tokens`."""
 
     @property
+    def terminal(self) -> int:
+        """Samples that reached a terminal outcome (completed/errored/cancelled).
+
+        The single definition of the terminal sum — used by both
+        :attr:`is_finished` and :func:`finalize_eval` so a future bucket
+        can't be added to one and missed by the other.
+        """
+        return self.completed + self.errored + self.cancelled
+
+    @property
     def is_finished(self) -> bool:
         """True once every sample has terminated (success, error, or cancel).
 
@@ -226,7 +236,7 @@ class EvalState:
         early-finish risk for ``total > 0`` — ``0 >= total`` is already False
         until enough samples terminate.
         """
-        return self.completed + self.errored + self.cancelled >= self.total
+        return self.terminal >= self.total
 
 
 # Module-level registry. Keyed by eval_id. A process can host multiple
@@ -477,9 +487,7 @@ def finalize_eval(eval_id: str) -> None:
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
-            shortfall = state.total - (
-                state.completed + state.errored + state.cancelled
-            )
+            shortfall = state.total - state.terminal
             if shortfall > 0:
                 state.cancelled += shortfall
             _maybe_mark_finished(state)
@@ -488,9 +496,10 @@ def finalize_eval(eval_id: str) -> None:
 def _maybe_mark_finished(state: EvalState) -> None:
     """Stamp ``completed_at`` when every sample has terminated.
 
-    Fires the first time ``completed + errored`` reaches ``total``;
-    later updates are no-ops so a late counter update from a teardown
-    race doesn't overwrite the original finish time. Also drops
+    Fires the first time the terminal sum (``completed + errored +
+    cancelled``) reaches ``total``; later updates are no-ops so a late
+    counter update from a teardown race doesn't overwrite the original
+    finish time. Also drops
     ``sample_ids`` — a finished eval has no pending samples, so the
     planned-id list is dead weight (it's retained on the state until the
     run boundary clears it). Caller must hold the registry lock.

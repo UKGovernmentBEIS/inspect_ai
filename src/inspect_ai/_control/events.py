@@ -2,7 +2,10 @@
 
 Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl events``): a
 **cursored-pull** window over one sample's events, read from its live
-``Transcript`` while running and from the on-disk log once terminal.
+``Transcript`` while running, and once terminal from the recorder's
+sample, the realtime buffer (via the eval's events provider — the
+streaming-completion path retains an event-less recorder sample), or the
+on-disk log (see ``_logged_source``).
 
 The cursor is an opaque token = ``(source nonce, absolute event offset)``.
 The offset indexes the *unfiltered* event sequence; type / time filters are

@@ -25,9 +25,6 @@ from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     register_completed_eval,
 )
-
-if TYPE_CHECKING:
-    from inspect_ai._control.eval_state import DeferredStatsProvider
 from inspect_ai._control.server import (
     control_server,
     release_requested,
@@ -94,6 +91,9 @@ from .task.resolved import ResolvedTask
 from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs
 from .task.tasks import Tasks
+
+if TYPE_CHECKING:
+    from inspect_ai._control.eval_state import DeferredStatsProvider
 
 logger = logging.getLogger(__name__)
 

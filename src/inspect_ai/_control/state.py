@@ -37,6 +37,7 @@ from collections import defaultdict
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import is_cancellation_message
 from inspect_ai._util.file import local_path
 
@@ -87,8 +88,6 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     # governed by the filesystem's connection pool.
     deferred = [s for s in states if s.deferred_sample_stats is not None]
     if deferred:
-        from inspect_ai._util._async import tg_collect
-
         await tg_collect(
             [partial(resolve_deferred_sample_stats, state) for state in deferred]
         )
@@ -117,8 +116,8 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     # eval_ids covered by some grouped state — used to attribute live
     # samples to their group when building the per-group summary.
     eval_id_to_group: dict[str, str] = {}
-    for group_key, states in states_by_group.items():
-        for state in states:
+    for group_key, group_states in states_by_group.items():
+        for state in group_states:
             eval_id_to_group[state.eval_id] = group_key
 
     # Live samples whose eval has no registered EvalState (eg. a brand-
@@ -128,20 +127,20 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
 
     summaries: list[dict[str, Any]] = []
 
-    for group_key, states in states_by_group.items():
+    for group_key, group_states in states_by_group.items():
         # Latest attempt = last registered. Retries are sequential (a
         # retry registers only after the prior attempt finishes), and
         # `get_eval_states()` preserves registration order, so the tail
         # is the current attempt. Selecting by `completed_at` would wrongly
         # prefer a finished earlier attempt over a still-running retry
         # (whose `completed_at` is None).
-        latest = states[-1]
-        attempts = len(states)
+        latest = group_states[-1]
+        attempts = len(group_states)
 
         # Live samples: pull from every attempt in the group (only the
         # latest will normally have any, but be defensive).
         group_samples: list[ActiveSample] = []
-        for state in states:
+        for state in group_states:
             group_samples.extend(samples_by_eval.get(state.eval_id, []))
 
         summaries.append(

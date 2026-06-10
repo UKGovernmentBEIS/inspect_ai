@@ -356,6 +356,32 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # deleted below — used by register_eval and carry_forward_unlogged_samples
     sample_ids = [s.id for s in dataset if s.id is not None]
 
+    async def finish_task_log(
+        status: EvalStatus,
+        stats: EvalStats,
+        results: EvalResults | None = None,
+        reductions: list[EvalSampleReductions] | None = None,
+        error: EvalError | None = None,
+    ) -> EvalLog:
+        """Finish via ``_finish_task_log`` with the run-invariant context.
+
+        Bound once here so every terminal branch finishes with the same
+        logger / sample-source / planned-ids context — a new branch can't
+        accidentally thread a stale or divergent value.
+        """
+        return await _finish_task_log(
+            logger=logger,
+            sample_source=options.sample_source,
+            sample_ids=sample_ids,
+            epochs=epochs,
+            log_images=log_images,
+            status=status,
+            stats=stats,
+            results=results,
+            reductions=reductions,
+            error=error,
+        )
+
     # handle sample errors (raise as required). use total_samples (sliced
     # dataset * epochs) as the denominator for fractional fail_on_error so
     # the mid-run abort threshold matches the end-of-run check below.
@@ -743,12 +769,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             )
 
             # finish
-            eval_log = await _finish_task_log(
-                logger=logger,
-                sample_source=options.sample_source,
-                sample_ids=sample_ids,
-                epochs=epochs,
-                log_images=log_images,
+            eval_log = await finish_task_log(
                 status="error" if mark_log_as_error else "success",
                 stats=stats,
                 results=results,
@@ -789,12 +810,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         f"Task cancelled by user ({task_cancel.cancel_type})"
                     )
                     error = eval_error(cancel_ex, TerminateTaskError, cancel_ex, None)
-                    eval_log = await _finish_task_log(
-                        logger=logger,
-                        sample_source=options.sample_source,
-                        sample_ids=sample_ids,
-                        epochs=epochs,
-                        log_images=log_images,
+                    eval_log = await finish_task_log(
                         status="error",
                         stats=stats,
                         results=results,
@@ -811,12 +827,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     )
                 else:
                     # External cancellation (ctrl+c)
-                    eval_log = await _finish_task_log(
-                        logger=logger,
-                        sample_source=options.sample_source,
-                        sample_ids=sample_ids,
-                        epochs=epochs,
-                        log_images=log_images,
+                    eval_log = await finish_task_log(
                         status="cancelled",
                         stats=stats,
                         results=results,
@@ -840,12 +851,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 collect_eval_data(stats)
 
                 # finish with error status
-                eval_log = await _finish_task_log(
-                    logger=logger,
-                    sample_source=options.sample_source,
-                    sample_ids=sample_ids,
-                    epochs=epochs,
-                    log_images=log_images,
+                eval_log = await finish_task_log(
                     status="error",
                     stats=stats,
                     results=results,
