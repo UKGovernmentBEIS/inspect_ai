@@ -153,7 +153,7 @@ class Capture(_Coordinator):
             await anyio.Event().wait()
 
     async def on_run_end(self, data: RunEnd) -> None:
-        self.evals = current_eval_summaries(0.0)
+        self.evals = await current_eval_summaries(0.0)
         for entry in self.evals:
             eval_id = entry["eval_id"]
             sample_rows = await current_sample_summaries(eval_id)

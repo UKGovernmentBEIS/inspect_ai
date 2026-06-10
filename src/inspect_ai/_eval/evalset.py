@@ -4,7 +4,7 @@ import logging
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Literal, NamedTuple, Set, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic import BaseModel
@@ -21,9 +21,13 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
+    DeferredSampleStats,
     clear_all_eval_states,
     register_completed_eval,
 )
+
+if TYPE_CHECKING:
+    from inspect_ai._control.eval_state import DeferredStatsProvider
 from inspect_ai._control.server import (
     control_server,
     release_requested,
@@ -768,9 +772,11 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
     confusing for an agent driving an eval-set under ``--ctl-server=keep-alive``
     that expects to see what the eval-set returned.
 
-    Only the ISO timestamp parse is fallible; everything else is
-    Pydantic-validated typed attribute access on already-parsed
-    headers.
+    Registration uses only the already-parsed headers (eval-set read them
+    to decide reuse), so it costs no extra I/O: the summaries-derived stats
+    (messages and the precise completed/errored split) are deferred behind
+    ``deferred_sample_stats`` and resolved by the first control request —
+    an eval-set that no control client ever queries never reads them.
     """
     from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 
@@ -790,73 +796,62 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             except (ValueError, TypeError):
                 completed_at = None
 
-        sample_stats = _reused_log_sample_stats(log_entry, total)
+        tokens = (
+            sum(u.total_tokens for u in stats.model_usage.values())
+            if stats is not None
+            else 0
+        )
+
+        # Provisional terminal split from the header, shown only until the
+        # deferred resolution (or permanently, if its read fails): the
+        # header's `completed_samples` counts *scored* samples, so it
+        # under-counts under early stopping and (with `score_on_error`)
+        # counts errored samples as completed — but it sums to `total`, so
+        # the row renders terminal with no phantom `queued`.
+        completed = results.completed_samples if results is not None else total
+        errored = max(0, total - completed)
 
         register_completed_eval(
             eval_spec.eval_id,
             total=total,
-            completed=sample_stats.completed,
-            errored=sample_stats.errored,
+            completed=completed,
+            errored=errored,
             task=eval_spec.task,
             task_id=eval_spec.task_id,
             model=str(eval_spec.model) if eval_spec.model else "",
             log_location=log_entry.info.name,
             run_id=eval_spec.run_id,
             completed_at=completed_at,
-            total_tokens=sample_stats.total_tokens,
-            total_messages=sample_stats.total_messages,
+            total_tokens=tokens,
+            total_messages=0,
+            deferred_sample_stats=_deferred_sample_stats(log_entry, total),
         )
 
 
-class _ReusedLogSampleStats(NamedTuple):
-    """Usage totals and terminal sample buckets for a reused log's synthetic state."""
+def _deferred_sample_stats(log_entry: Log, total: int) -> "DeferredStatsProvider":
+    """Lazy accessor for a reused log's summaries-derived stats.
 
-    total_tokens: int
-    total_messages: int
-    completed: int
-    errored: int
-
-
-def _reused_log_sample_stats(log_entry: Log, total: int) -> _ReusedLogSampleStats:
-    """Usage and terminal sample buckets for a reused log.
-
-    Tokens come from the header's ``stats.model_usage`` (authoritative, what
-    the console reports). Messages and the terminal sample buckets come from
-    the per-sample summaries, mirroring what the live path would have
+    Messages and the precise terminal buckets require reading the per-sample
+    summaries (a full log read — a network round-trip on S3), deferred to the
+    first control request. The split mirrors what the live path would have
     recorded: ``errored`` counts samples whose final attempt failed — a
     status-``success`` log can contain these under ``fail_on_error``
     tolerance — and everything else (scored and early-stopped alike, which
-    the live path both record as completed) lands in ``completed``. The
-    header's ``results.completed_samples`` can't serve here: it counts
-    *scored* samples, so it under-counts under early stopping and (with
-    ``score_on_error``) counts errored samples as completed.
-
-    Best-effort: a summaries read failure yields 0 messages and an
-    all-completed split rather than breaking reuse registration — the control
-    surface is non-critical, and keeping ``completed + errored == total``
-    preserves the terminal rendering (no phantom ``queued``).
+    the live path both record as completed) lands in ``completed``.
     """
-    stats = log_entry.header.stats
-    tokens = (
-        sum(u.total_tokens for u in stats.model_usage.values())
-        if stats is not None
-        else 0
-    )
-    try:
-        from inspect_ai.log._file import read_eval_log_sample_summaries
 
-        summaries = read_eval_log_sample_summaries(log_entry.info)
-        messages = sum(s.message_count or 0 for s in summaries)
+    async def provider() -> DeferredSampleStats:
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        summaries = await read_eval_log_sample_summaries_async(log_entry.info)
         errored = sum(1 for s in summaries if s.error is not None)
-    except (OSError, ValueError):
-        messages = 0
-        errored = 0
-    return _ReusedLogSampleStats(
-        total_tokens=tokens,
-        total_messages=messages,
-        completed=max(0, total - errored),
-        errored=errored,
-    )
+        return DeferredSampleStats(
+            total_messages=sum(s.message_count or 0 for s in summaries),
+            completed=max(0, total - errored),
+            errored=errored,
+        )
+
+    return provider
 
 
 async def _keep_alive_park(eval_set_id: str) -> None:

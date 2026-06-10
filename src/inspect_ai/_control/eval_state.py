@@ -32,8 +32,11 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from logging import getLogger
 from threading import Lock
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, NamedTuple, Protocol
+
+logger = getLogger(__name__)
 
 # The provider types live under TYPE_CHECKING so this module stays
 # dependency-free at runtime (it's imported during eval bootstrap, before the
@@ -65,6 +68,26 @@ if TYPE_CHECKING:
     # Sync accessor for one sample's transcript-event history by
     # ``(id, epoch)``, or None once the backing buffer is torn down.
     EventsProvider = Callable[[str | int, int], TranscriptHistoryProvider | None]
+
+    # Async accessor for a reused eval's summaries-derived stats, resolved
+    # lazily on first control request (see ``DeferredSampleStats``).
+    DeferredStatsProvider = Callable[[], Awaitable["DeferredSampleStats"]]
+
+
+class DeferredSampleStats(NamedTuple):
+    """Summaries-derived stats for a reused eval, resolved lazily.
+
+    A reused log's header is already parsed (eval-set reads it to decide
+    reuse), but these fields require reading the per-sample summaries — a
+    full log read that would otherwise run serially per reused log at
+    eval-set startup, whether or not a control client ever connects.
+    They're deferred behind :attr:`EvalState.deferred_sample_stats` and
+    resolved (once, memoized) by the first ``current_eval_summaries`` call.
+    """
+
+    total_messages: int
+    completed: int
+    errored: int
 
 
 @dataclass
@@ -144,6 +167,16 @@ class EvalState:
     rather than the control layer re-deriving the buffer's location.
     ``None`` for reused/synthetic evals; returns ``None`` once the buffer
     is torn down."""
+
+    deferred_sample_stats: DeferredStatsProvider | None = None
+    """Lazy accessor for a reused eval's summaries-derived stats
+    (:class:`DeferredSampleStats`). Resolved once — on the first
+    ``current_eval_summaries`` call — by
+    :func:`resolve_deferred_sample_stats`, which overwrites
+    :attr:`total_messages` / :attr:`completed` / :attr:`errored` and clears
+    this field. Until then (and permanently, if the resolution read fails)
+    those fields hold the header-derived provisional values set at
+    registration. ``None`` for live evals."""
 
     sample_ids: list[str | int] = field(default_factory=list)
     """The eval's planned sample ids (after slicing). With :attr:`epochs`,
@@ -267,6 +300,7 @@ def register_completed_eval(
     completed_at: float | None = None,
     total_tokens: int = 0,
     total_messages: int = 0,
+    deferred_sample_stats: DeferredStatsProvider | None = None,
 ) -> EvalState:
     """Register an eval that has already finished.
 
@@ -276,6 +310,10 @@ def register_completed_eval(
     normally maintain the state never fires. This bulk-equivalent
     sets the terminal counters up-front so ``current_eval_summaries``
     surfaces the eval as completed.
+
+    ``completed`` / ``errored`` / ``total_messages`` may be provisional
+    (header-derived) values refined later by ``deferred_sample_stats`` —
+    see :class:`DeferredSampleStats`.
 
     If an :class:`EvalState` for ``eval_id`` already exists, its
     fields are overwritten (the reused-log data is authoritative —
@@ -296,9 +334,41 @@ def register_completed_eval(
             completed_at=completed_at if completed_at is not None else time.time(),
             total_tokens=total_tokens,
             total_messages=total_messages,
+            deferred_sample_stats=deferred_sample_stats,
         )
         _eval_states[eval_id] = state
         return state
+
+
+async def resolve_deferred_sample_stats(state: EvalState) -> None:
+    """Resolve a reused eval's deferred summaries-derived stats (once).
+
+    Claims the provider under the lock first, so concurrent requests perform
+    at most one read (a loser briefly sees the provisional header-derived
+    values — benign). On a read failure the provisional values stand
+    permanently: they sum to ``total``, so the row still renders terminal
+    (no phantom ``queued``), just with the header's coarser completed/errored
+    split.
+    """
+    with _lock:
+        provider = state.deferred_sample_stats
+        state.deferred_sample_stats = None
+    if provider is None:
+        return
+    try:
+        stats = await provider()
+    except (OSError, ValueError) as ex:
+        logger.warning(
+            "Could not resolve sample stats for reused eval %s (%s): %s",
+            state.eval_id,
+            state.log_location,
+            ex,
+        )
+        return
+    with _lock:
+        state.total_messages = stats.total_messages
+        state.completed = stats.completed
+        state.errored = stats.errored
 
 
 def record_sample_completed(

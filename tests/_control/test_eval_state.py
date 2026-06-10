@@ -6,6 +6,8 @@ never reach a per-sample terminal record, so without reconciliation the
 counters never reach ``total`` and the eval reads "running" forever.
 """
 
+from typing import Any
+
 import pytest
 
 from inspect_ai._control.eval_state import (
@@ -118,3 +120,85 @@ def test_detach_eval_providers_nulls_live_accessors() -> None:
 
     # unregistered evals no-op
     detach_eval_providers("never-registered")
+
+
+async def test_deferred_sample_stats_resolve_lazily_and_once() -> None:
+    """Reused evals' summaries-derived stats resolve on first read, memoized.
+
+    Registration is header-only (eval-set already parsed the headers to
+    decide reuse); the per-log summaries read happens on the first
+    ``current_eval_summaries`` call — never at eval-set startup — and exactly
+    once.
+    """
+    from inspect_ai._control.eval_state import (
+        DeferredSampleStats,
+        register_completed_eval,
+    )
+    from inspect_ai._control.state import current_eval_summaries
+
+    calls = {"n": 0}
+
+    async def provider() -> DeferredSampleStats:
+        calls["n"] += 1
+        return DeferredSampleStats(total_messages=7, completed=1, errored=1)
+
+    register_completed_eval(
+        "e1",
+        total=2,
+        completed=2,  # provisional header-derived split
+        errored=0,
+        task="t",
+        task_id="tid",
+        deferred_sample_stats=provider,
+    )
+    assert calls["n"] == 0  # nothing read at registration
+
+    [entry] = await current_eval_summaries(0.0)
+    assert calls["n"] == 1
+    assert entry["samples"]["completed"] == 1
+    assert entry["samples"]["errored"] == 1
+    assert entry["total_messages"] == 7
+
+    # memoized: subsequent reads don't re-read
+    [entry] = await current_eval_summaries(0.0)
+    assert calls["n"] == 1
+    assert entry["samples"]["errored"] == 1
+
+
+async def test_deferred_sample_stats_failure_keeps_provisional_split() -> None:
+    """A failed resolution keeps the header-derived provisional values.
+
+    They sum to ``total``, so the row still renders terminal (no phantom
+    ``queued``) — just with the header's coarser completed/errored split.
+    The provider is not retried.
+    """
+    from inspect_ai._control.eval_state import register_completed_eval
+    from inspect_ai._control.state import current_eval_summaries
+
+    calls = {"n": 0}
+
+    async def failing_provider() -> Any:
+        calls["n"] += 1
+        raise OSError("log unreadable")
+
+    register_completed_eval(
+        "e1",
+        total=3,
+        completed=2,
+        errored=1,
+        task="t",
+        task_id="tid",
+        deferred_sample_stats=failing_provider,
+    )
+
+    [entry] = await current_eval_summaries(0.0)
+    assert entry["samples"] == {
+        "total": 3,
+        "completed": 2,
+        "errored": 1,
+        "cancelled": 0,
+        "in_flight": 0,
+        "queued": 0,
+    }
+    [entry] = await current_eval_summaries(0.0)
+    assert calls["n"] == 1  # no retry storm

@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from inspect_ai.log._samples import ActiveSample
 
 
-def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
+async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     """Build per-eval summaries for the ``GET /evals`` endpoint.
 
     No ``run_id`` filter — the discovery layer already scopes
@@ -70,8 +70,27 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
     # eval bootstrap before those packages finish initialising).
-    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai._control.eval_state import (
+        get_eval_states,
+        resolve_deferred_sample_stats,
+    )
     from inspect_ai.log._samples import active_samples
+
+    states = get_eval_states()
+
+    # Resolve reused evals' summaries-derived stats (lazy: the first request
+    # pays the per-log reads — concurrently — instead of eval-set startup
+    # paying them serially whether or not a control client ever connects;
+    # subsequent requests are free).
+    deferred = [s for s in states if s.deferred_sample_stats is not None]
+    if deferred:
+        from functools import partial
+
+        from inspect_ai._util._async import tg_collect
+
+        await tg_collect(
+            [partial(resolve_deferred_sample_stats, state) for state in deferred]
+        )
 
     # Group live samples by eval_id (per-attempt, not folded).
     samples_by_eval: dict[str, list[ActiveSample]] = defaultdict(list)
@@ -90,7 +109,7 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     # task. Fallback grouping by eval_id keeps pre-task_id states (or any
     # record missing a task_id) on their own row.
     states_by_group: dict[str, list[EvalState]] = defaultdict(list)
-    for state in get_eval_states():
+    for state in states:
         key = state.task_id if state.task_id else state.eval_id
         states_by_group[key].append(state)
 

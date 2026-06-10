@@ -133,12 +133,12 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         return len(evals) == 2 and all(e["samples"]["in_flight"] == 1 for e in evals)
 
     async def capture() -> list[dict]:
-        return current_eval_summaries(0.0)
+        return await current_eval_summaries(0.0)
 
     with probe(ready, capture) as p:
         eval_set(
@@ -199,8 +199,8 @@ def test_ctl_ls_survives_fast_task_finishing_first(short_data_dir: Path) -> None
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         fast = next((e for e in evals if e["task"] == "task_fast"), None)
         slow = next((e for e in evals if e["task"] == "task_slow"), None)
         return (
@@ -214,7 +214,7 @@ def test_ctl_ls_survives_fast_task_finishing_first(short_data_dir: Path) -> None
     async def capture() -> dict:
         return {
             "servers": len(list_discovered_servers()),
-            "tasks": {e["task"] for e in current_eval_summaries(0.0)},
+            "tasks": {e["task"] for e in await current_eval_summaries(0.0)},
         }
 
     with probe(ready, capture) as p:
@@ -404,12 +404,12 @@ def test_ctl_ls_server_survives_eval_set_retries(short_data_dir: Path) -> None:
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
+    async def ready() -> bool:
         servers = list_discovered_servers()
         # Record the socket the first time one is seen (before the retry).
         if servers and "path" not in first:
             first["path"] = servers[0].socket_path
-        evals = current_eval_summaries(0.0)
+        evals = await current_eval_summaries(0.0)
         holder = next((e for e in evals if e["task"] == "task_holder"), None)
         return (
             fail["calls"] >= 2
@@ -695,7 +695,7 @@ def test_keep_alive_park_entered_with_completed_state(
     captured: dict[str, list[dict]] = {}
 
     async def spy(eval_set_id: str) -> None:
-        captured["evals"] = current_eval_summaries(0.0)
+        captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
 
@@ -755,7 +755,7 @@ def test_keep_alive_works_when_all_logs_reused(
     captured: dict[str, list[dict]] = {}
 
     async def spy(eval_set_id: str) -> None:
-        captured["evals"] = current_eval_summaries(0.0)
+        captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
 
@@ -830,12 +830,12 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         return bool(evals) and evals[0]["samples"]["in_flight"] == 3
 
     async def capture() -> dict:
-        entry = current_eval_summaries(0.0)[0]
+        entry = (await current_eval_summaries(0.0))[0]
         return {
             "eval": entry,
             "samples": await current_sample_summaries(entry["eval_id"]),
@@ -904,8 +904,8 @@ def test_ctl_samples_includes_completed_samples(
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         return (
             bool(evals)
             and evals[0]["samples"]["completed"] == 2
@@ -913,7 +913,7 @@ def test_ctl_samples_includes_completed_samples(
         )
 
     async def capture() -> list[dict]:
-        entry = current_eval_summaries(0.0)[0]
+        entry = (await current_eval_summaries(0.0))[0]
         return await current_sample_summaries(entry["eval_id"])
 
     with probe(ready, capture, park=lambda sid: int(sid) % 2 == 1) as p:
@@ -958,8 +958,8 @@ def test_ctl_samples_recorder_ahead_of_disk(short_data_dir: Path) -> None:
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         return (
             bool(evals)
             and evals[0]["samples"]["completed"] == 2
@@ -969,7 +969,7 @@ def test_ctl_samples_recorder_ahead_of_disk(short_data_dir: Path) -> None:
     async def capture() -> dict:
         from inspect_ai.log._file import read_eval_log_sample_summaries_async
 
-        entry = current_eval_summaries(0.0)[0]
+        entry = (await current_eval_summaries(0.0))[0]
         rows = await current_sample_summaries(entry["eval_id"])
         location = next(s.log_location for s in get_eval_states() if s.log_location)
         try:
@@ -1024,8 +1024,8 @@ def test_ctl_samples_shows_score_for_single_scorer(short_data_dir: Path) -> None
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         return (
             bool(evals)
             and evals[0]["samples"]["completed"] == 1
@@ -1033,7 +1033,7 @@ def test_ctl_samples_shows_score_for_single_scorer(short_data_dir: Path) -> None
         )
 
     async def capture() -> list[dict]:
-        entry = current_eval_summaries(0.0)[0]
+        entry = (await current_eval_summaries(0.0))[0]
         return await current_sample_summaries(entry["eval_id"])
 
     with probe(ready, capture, park=lambda sid: int(sid) == 2) as p:
@@ -1076,8 +1076,8 @@ def test_ctl_samples_includes_pending_samples(short_data_dir: Path) -> None:
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         return (
             bool(evals)
             and evals[0]["samples"]["in_flight"] == 1
@@ -1085,7 +1085,7 @@ def test_ctl_samples_includes_pending_samples(short_data_dir: Path) -> None:
         )
 
     async def capture() -> list[dict]:
-        entry = current_eval_summaries(0.0)[0]
+        entry = (await current_eval_summaries(0.0))[0]
         return await current_sample_summaries(entry["eval_id"])
 
     with probe(ready, capture) as p:
@@ -1142,8 +1142,8 @@ def test_ctl_samples_shows_sample_retries(short_data_dir: Path) -> None:
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         return (
             bool(evals)
             and evals[0]["samples"]["completed"] == 1
@@ -1151,7 +1151,7 @@ def test_ctl_samples_shows_sample_retries(short_data_dir: Path) -> None:
         )
 
     async def capture() -> list[dict]:
-        entry = current_eval_summaries(0.0)[0]
+        entry = (await current_eval_summaries(0.0))[0]
         return await current_sample_summaries(entry["eval_id"])
 
     with probe(ready, capture) as p:
@@ -1207,8 +1207,8 @@ def test_ctl_samples_task_id_stable_across_retry(short_data_dir: Path) -> None:
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         flaky = next((e for e in evals if e["task"] == "task_flaky"), None)
         return (
             fail["calls"] >= 2
@@ -1219,7 +1219,7 @@ def test_ctl_samples_task_id_stable_across_retry(short_data_dir: Path) -> None:
 
     async def capture() -> dict:
         flaky = next(
-            e for e in current_eval_summaries(0.0) if e["task"] == "task_flaky"
+            e for e in await current_eval_summaries(0.0) if e["task"] == "task_flaky"
         )
         return {"eval": flaky, "rows": await current_sample_summaries(flaky["eval_id"])}
 
@@ -1286,7 +1286,7 @@ def test_ctl_samples_shows_task_level_retries(short_data_dir: Path) -> None:
         # recorder is torn down — confirm the completed sample is actually
         # readable (recorder or flushed log), not in the teardown gap, before
         # capturing.
-        evals = current_eval_summaries(0.0)
+        evals = await current_eval_summaries(0.0)
         rt = next((e for e in evals if e["task"] == "retry_task"), None)
         hg = next((e for e in evals if e["task"] == "hang_task"), None)
         if not (
@@ -1300,7 +1300,9 @@ def test_ctl_samples_shows_task_level_retries(short_data_dir: Path) -> None:
         return any(r["status"] == "completed" for r in rows)
 
     async def capture() -> list[dict]:
-        rt = next(e for e in current_eval_summaries(0.0) if e["task"] == "retry_task")
+        rt = next(
+            e for e in await current_eval_summaries(0.0) if e["task"] == "retry_task"
+        )
         return await current_sample_summaries(rt["eval_id"])
 
     with probe(ready, capture) as p:
@@ -1364,7 +1366,7 @@ def test_ctl_samples_shows_retries_on_running_reattempt(short_data_dir: Path) ->
         )
 
     async def capture() -> dict:
-        entry = current_eval_summaries(0.0)[0]
+        entry = (await current_eval_summaries(0.0))[0]
         rows = await current_sample_summaries(entry["eval_id"])
         detail = await sample_error_detail(entry["eval_id"], "1", 1)
         return {"rows": rows, "detail": detail}
@@ -1794,14 +1796,14 @@ def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> N
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         return bool(evals) and evals[0]["samples"]["in_flight"] == 1
 
     async def capture() -> dict:
         import time as _time
 
-        eid = current_eval_summaries(0.0)[0]["eval_id"]
+        eid = (await current_eval_summaries(0.0))[0]["eval_id"]
         page = await sample_events(eid, "1", 1)
         assert page is not None
         return {
@@ -1876,7 +1878,7 @@ def test_event_cursor_survives_running_to_terminal_transition(
             if int(state.sample_id) == 1:
                 # subject: produce some events, then snapshot the running cursor
                 state = await generate(state)
-                eid = current_eval_summaries(0.0)[0]["eval_id"]
+                eid = (await current_eval_summaries(0.0))[0]["eval_id"]
                 page = await sample_events(eid, "1", state.epoch)
                 assert page is not None and page["done"] is False
                 _transition_cursor.update(
@@ -1902,7 +1904,7 @@ def test_event_cursor_survives_running_to_terminal_transition(
     Path(log_dir).mkdir()
 
     async def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+        evals = await current_eval_summaries(0.0)
         if not evals or "cursor" not in _transition_cursor:
             return False
         eid = evals[0]["eval_id"]
@@ -2064,8 +2066,8 @@ def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    def ready() -> bool:
-        evals = current_eval_summaries(0.0)
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
         if not evals:
             return False
         eid = evals[0]["eval_id"]
@@ -2081,7 +2083,7 @@ def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
     async def capture() -> dict:
         from inspect_ai.log._file import read_eval_log_sample_summaries_async
 
-        eid = current_eval_summaries(0.0)[0]["eval_id"]
+        eid = (await current_eval_summaries(0.0))[0]["eval_id"]
         location = next(s.log_location for s in get_eval_states() if s.log_location)
         try:
             on_disk = await read_eval_log_sample_summaries_async(location)

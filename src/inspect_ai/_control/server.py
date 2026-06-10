@@ -195,7 +195,7 @@ class ControlServer:
 
         @app.get("/evals")
         async def list_evals() -> list[dict[str, Any]]:
-            return current_eval_summaries(started_at)
+            return await current_eval_summaries(started_at)
 
         @app.get("/evals/{eval_id}/samples")
         async def list_eval_samples(
