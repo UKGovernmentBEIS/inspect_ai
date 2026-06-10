@@ -257,8 +257,13 @@ def view_server_app(
         base_name = Path(file).stem
         filename = f"{base_name}.eval"
 
+        # No explicit Content-Length: the file may change between
+        # get_log_size() and the read (in-progress evals are rewritten
+        # in place), and a stale size makes clients fail the download.
+        # The buffered branch lets the framework set it from the actual
+        # body; the streaming branch uses chunked transfer encoding
+        # (same rationale as /log-bytes above).
         headers = {
-            "Content-Length": str(file_size),
             "Content-Disposition": f'attachment; filename="{filename}"',
         }
 
