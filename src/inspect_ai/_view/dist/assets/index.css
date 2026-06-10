@@ -16220,6 +16220,17 @@ body[class^="vscode-"] {
   --inspect-event-panel-sticky-top: 25px;
 }
 
+/* Full-viewport gate shown while the app config loads (or if it fails). */
+.app-config-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  padding: 1rem;
+  text-align: center;
+}
+
 li > p {
   margin-bottom: 0;
 }
