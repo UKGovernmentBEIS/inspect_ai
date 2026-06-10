@@ -141,7 +141,7 @@ async def egress_sandbox(
     # different copy-out mechanism. Typical inspect deltas are small
     # enough that a one-shot read_file is the right default.
     tar_path = f"{_EGRESS_STAGING}/egress-{tag}.tar"
-    # The first cycle's tarball carries the full initial pack set and can
+    # The tarball carries the full initial pack set and can
     # legitimately exceed the default read cap.
     with override_max_read_file_size(sys.maxsize):
         tar_bytes = await env.read_file(tar_path, text=False)
