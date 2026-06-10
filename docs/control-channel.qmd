@@ -134,7 +134,7 @@ With `keep-alive`, the process stays running after the eval finishes — its sta
 inspect ctl release
 ```
 
-If more than one process is parked, `release` lists their pids and you disambiguate with `--pid`. From Python, pass `ctl_server="keep-alive"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
+If more than one process is parked, `release` lists their pids and you disambiguate with `--pid`. Release also works ahead of time: issued while the eval is still running, it means "exit when done" — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). From Python, pass `ctl_server="keep-alive"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
 
 ## Disabling the Control Server
 

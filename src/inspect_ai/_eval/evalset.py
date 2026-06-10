@@ -26,6 +26,8 @@ from inspect_ai._control.eval_state import (
 )
 from inspect_ai._control.server import (
     control_server,
+    release_requested,
+    reset_release_requested,
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
@@ -338,6 +340,10 @@ def eval_set(
     # explicitly rather than silently giving a broken keep-alive
     # experience.
     ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+    # clear any release latch left by a prior run in this process; needed
+    # here as well as in eval_async because the all-reused short-circuit
+    # parks without ever calling eval()
+    reset_release_requested()
     if ctl_keep_alive and retry_immediate is False:
         raise PrerequisiteError(
             "--ctl-server=keep-alive is incompatible with retry_immediate=False "
@@ -863,7 +869,13 @@ async def _keep_alive_park(eval_set_id: str) -> None:
     accumulated during the run, reused ones via
     :func:`_register_reused_logs`); ``eval_set`` clears them at the run
     boundary once this returns.
+
+    A release received while the run was still in flight latches ("exit
+    when done") — the run's server is gone by the time this park binds its
+    fresh one, so the latch is the only carrier of that request.
     """
+    if release_requested():
+        return
     async with control_server(run_id=eval_set_id) as ctl_server:
         if ctl_server is None:
             # Bind failed: nothing to park on (can't be released via

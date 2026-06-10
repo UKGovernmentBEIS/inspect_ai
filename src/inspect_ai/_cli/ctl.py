@@ -351,9 +351,10 @@ def events_command(
 def release_command(pid: int | None) -> None:
     """Release a lingering --ctl-server=keep-alive process so it can exit.
 
-    Posts to the process's control endpoint /release route. The eval has
-    already completed; this just lets the parked process exit. No-op if the
-    process isn't actually parked (it'll exit on its own anyway).
+    Posts to the process's control endpoint /release route, letting a parked
+    process exit. Release latches: issued while the eval is still running,
+    it means "exit when done" — the process skips the keep-alive park and
+    exits as soon as the eval finishes.
 
     Does NOT cancel a running eval — it has no effect on in-flight samples
     (cancelling a running eval is a later-phase directive, not yet available).

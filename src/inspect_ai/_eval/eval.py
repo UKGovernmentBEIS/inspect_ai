@@ -12,6 +12,8 @@ from anyio.abc import TaskGroup
 from inspect_ai._control.eval_state import clear_all_eval_states
 from inspect_ai._control.server import (
     control_server,
+    release_requested,
+    reset_release_requested,
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
@@ -544,6 +546,11 @@ async def eval_async(
     # have already initialized
     resolve_ctl_server(ctl_server)
 
+    # clear any release latch left by a prior run in this process (we run
+    # before this run's control server binds, so a release received during
+    # the run still latches)
+    reset_release_requested()
+
     result: list[EvalLog] | None = None
 
     async def run(tg: TaskGroup) -> None:
@@ -983,7 +990,9 @@ async def _eval_async_inner(
             # request shutdown. (Standalone eval parks here, inside the
             # task display; eval-set instead parks after the display has
             # closed.) EvalStates are cleared at the run boundary below.
-            if ctl_keep_alive and _ctl_server is not None:
+            # a release received while the eval was still running latches
+            # ("exit when done") — skip the park (and its notice) entirely
+            if ctl_keep_alive and _ctl_server is not None and not release_requested():
                 import rich
 
                 rich.get_console().print(

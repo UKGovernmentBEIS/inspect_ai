@@ -395,3 +395,88 @@ def test_control_server_disabled_binds_nothing(
             assert list(discovery.discovery_dir().glob("*")) == []
 
     asyncio.run(run())
+
+
+def test_release_latches_before_the_park() -> None:
+    """A release received while the eval is still running means "exit when done".
+
+    The route latches process-wide (not just the per-server event): the
+    standalone park's wait must return immediately, and the eval-set park —
+    which binds a FRESH server after the run's server is gone — must see the
+    latch too. The latch resets at the outermost run boundary so a prior
+    run's release can't leak into the next run's park.
+    """
+    from inspect_ai._control.server import (
+        ControlServer,
+        release_requested,
+        request_release,
+        reset_release_requested,
+        wait_for_shutdown_async,
+    )
+
+    reset_release_requested()
+    try:
+        assert not release_requested()
+
+        # mid-run release latches...
+        request_release()
+        assert release_requested()
+
+        # ...so a later park's wait returns immediately, even on a fresh
+        # server whose own event was never set (the eval-set park shape)
+        async def park() -> None:
+            await asyncio.wait_for(
+                wait_for_shutdown_async(ControlServer(run_id="fresh")), timeout=5
+            )
+
+        asyncio.run(park())
+
+        # the next run clears the latch
+        reset_release_requested()
+        assert not release_requested()
+    finally:
+        reset_release_requested()
+
+
+async def test_release_route_sets_the_latch() -> None:
+    """POST /release latches process-wide in addition to the server event."""
+    from inspect_ai._control.server import (
+        ControlServer,
+        release_requested,
+        reset_release_requested,
+    )
+
+    reset_release_requested()
+    try:
+        server = ControlServer(run_id="test")
+        app = server._build_app()
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            response = await client.post("/release")
+            assert response.status_code == 200
+
+        assert release_requested()
+        assert server.shutdown_event.is_set()
+    finally:
+        reset_release_requested()
+
+
+def test_eval_set_park_skipped_when_release_latched() -> None:
+    """A latched release makes the eval-set park return without binding.
+
+    The eval-set park binds a fresh server (fresh event), so the latch is
+    the only carrier of a release received during the run. A regression
+    here would bind a real control server and park forever — bounded by
+    the wait_for timeout.
+    """
+    from inspect_ai._control.server import request_release, reset_release_requested
+    from inspect_ai._eval.evalset import _keep_alive_park
+
+    reset_release_requested()
+    try:
+        request_release()
+        asyncio.run(asyncio.wait_for(_keep_alive_park("set-1"), timeout=5))
+    finally:
+        reset_release_requested()

@@ -97,6 +97,38 @@ def resolve_ctl_server(value: bool | str | None) -> tuple[bool, bool]:
 
 
 # ---------------------------------------------------------------------------
+# Release latch
+# ---------------------------------------------------------------------------
+
+# Whether ``POST /release`` has been received during this run. Release is a
+# process-level latch, not a park-only signal: a release issued while the
+# eval is still running means "exit when done", so a later keep-alive park
+# must be skipped rather than ignoring the request. Module-level (rather
+# than per-ControlServer) because the eval-set park binds a FRESH server
+# after the run's server has torn down — a per-server event can't carry the
+# request across that boundary. Reset at the outermost run boundary
+# (``eval_async`` for standalone evals, ``eval_set`` for eval-sets).
+_release_requested = False
+
+
+def request_release() -> None:
+    """Latch a release request for this run (see ``_release_requested``)."""
+    global _release_requested
+    _release_requested = True
+
+
+def release_requested() -> bool:
+    """Whether a release has been requested during this run."""
+    return _release_requested
+
+
+def reset_release_requested() -> None:
+    """Clear the release latch (called at the outermost run boundary)."""
+    global _release_requested
+    _release_requested = False
+
+
+# ---------------------------------------------------------------------------
 # Control server
 # ---------------------------------------------------------------------------
 
@@ -227,11 +259,14 @@ class ControlServer:
             return page
 
         # Releases a keep-alive park (sets the shutdown event the park
-        # awaits); the process then exits. Named "release" rather than
-        # "shutdown" because it does NOT cancel a running eval — that's a
-        # later-phase directive.
+        # awaits); the process then exits. Release LATCHES: received while
+        # the eval is still running, it means "exit when done" — a later
+        # keep-alive park is skipped (see the release latch above). Named
+        # "release" rather than "shutdown" because it does NOT cancel a
+        # running eval — that's a later-phase directive.
         @app.post("/release")
         async def release() -> dict[str, bool]:
+            request_release()
             shutdown_event.set()
             return {"ok": True}
 
@@ -415,9 +450,11 @@ async def control_server(
 async def wait_for_shutdown_async(server: ControlServer | None) -> None:
     """Block until the server receives ``POST /release``.
 
-    No-ops when ``server`` is ``None`` (bind failed; the eval ran
-    without a control surface — nothing to wait on).
+    Returns immediately when a release was already latched during the run
+    (release means "exit when done", even when it arrives before the park)
+    and when ``server`` is ``None`` (bind failed; the eval ran without a
+    control surface — nothing to wait on).
     """
-    if server is None:
+    if server is None or release_requested():
         return
     await server.shutdown_event.wait()
