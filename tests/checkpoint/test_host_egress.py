@@ -8,6 +8,7 @@ remote sample checkpoints dir minus the network.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,9 @@ from inspect_ai.util._checkpoint._host_egress import (
     MANIFEST_FILENAME,
     _safe_order,
     host_egress,
+    seed_manifest,
 )
+from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 
 
 @pytest.fixture
@@ -42,6 +45,23 @@ def dest(tmp_path: Path) -> Path:
 def _write(p: Path, content: str = "x") -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content)
+
+
+def _checkpoint_json(checkpoint_id: int) -> str:
+    return Checkpoint(
+        checkpoint_id=checkpoint_id,
+        trigger="turn",
+        turn=checkpoint_id,
+        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+        duration_ms=10,
+        size_bytes=100 + checkpoint_id,
+        host=SnapshotDetails(
+            snapshot_id=f"snap-{checkpoint_id}",
+            size_bytes=100 + checkpoint_id,
+            duration_ms=10,
+        ),
+        sandboxes={},
+    ).model_dump_json()
 
 
 async def test_noop_when_no_files(staging: Path, dest: Path) -> None:
@@ -123,6 +143,17 @@ async def test_sandbox_repos_shipped(staging: Path, dest: Path) -> None:
 
     assert (dest / "restic" / "sandboxes" / "default" / "config").is_file()
     assert (dest / "restic" / "sandboxes" / "default" / "data" / "ab" / "cd").is_file()
+
+
+def test_seed_manifest_skips_torn_checkpoint_files(staging: Path) -> None:
+    _write(staging / "restic" / "host" / "config", "host-config")
+    _write(staging / "ckpt-00001.json", _checkpoint_json(1))
+    _write(staging / "ckpt-00002.json", "{")
+
+    assert seed_manifest(str(staging)) == 2
+
+    manifest = (staging / MANIFEST_FILENAME).read_text().splitlines()
+    assert set(manifest) == {"restic/host/config", "ckpt-00001.json"}
 
 
 def test_safe_order_ships_checkpoint_file_last() -> None:
