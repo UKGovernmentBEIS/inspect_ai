@@ -6,6 +6,7 @@ import os
 import tempfile
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
+from functools import partial
 from io import BytesIO
 from logging import getLogger
 from typing import (
@@ -26,6 +27,7 @@ import anyio
 from pydantic import BaseModel, Field, JsonValue
 from typing_extensions import override
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -1029,15 +1031,24 @@ async def _read_all_summaries_async(
             await _read_member_json(reader, SUMMARIES_JSON), SUMMARIES_JSON
         ), count
     else:
-        summaries: list[EvalSampleSummary] = []
-        for i in range(1, count + 1):
+        # An in-progress log has no consolidated summaries.json; it stores one journal
+        # summary file per sample. In this case, we read them concurrently (bounded).
+        semaphore = anyio.Semaphore(25)
+
+        async def read_summary_file(i: int) -> list[EvalSampleSummary]:
             summary_file = _journal_summary_file(i)
-            summary_path = _journal_summary_path(summary_file)
-            summaries.extend(
-                _parse_summaries(
-                    await _read_member_json(reader, summary_path), summary_file
+            async with semaphore:
+                data = await _read_member_json(
+                    reader, _journal_summary_path(summary_file)
                 )
-            )
+            return _parse_summaries(data, summary_file)
+
+        per_file = await tg_collect(
+            [partial(read_summary_file, i) for i in range(1, count + 1)]
+        )
+        summaries: list[EvalSampleSummary] = [
+            s for file_summaries in per_file for s in file_summaries
+        ]
         return summaries, count
 
 
