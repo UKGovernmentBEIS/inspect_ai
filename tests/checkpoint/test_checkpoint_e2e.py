@@ -143,10 +143,6 @@ def test_checkpoint_resume_rehydrated_event_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
-    # Opt into per-snapshot file listing so the ckpt JSON records the
-    # sandbox file paths (exercises host-side `restic ls` on the egressed
-    # sandbox repo).
-    monkeypatch.setenv("INSPECT_CHECKPOINT_LIST_FILES", "1")
     # Crash count (host file) + target are inherited by the child processes.
     cancel_file = tmp_path / "cancels.txt"
     monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))

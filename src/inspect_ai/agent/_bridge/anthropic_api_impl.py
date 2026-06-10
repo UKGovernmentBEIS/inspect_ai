@@ -19,6 +19,7 @@ from anthropic.types import (
     ToolReferenceBlockParam,
     Usage,
     WebSearchTool20250305Param,
+    WebSearchTool20260209Param,
 )
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
@@ -305,7 +306,8 @@ def tools_from_anthropic_tools(
 
 
 def resolve_web_search_providers(
-    tool_param: WebSearchTool20250305Param, web_search: WebSearchProviders
+    tool_param: WebSearchTool20250305Param | WebSearchTool20260209Param,
+    web_search: WebSearchProviders,
 ) -> WebSearchProviders:
     # pass through anthropic options if there is no special anthropic config
     anthropic_options = web_search.get("anthropic", False)

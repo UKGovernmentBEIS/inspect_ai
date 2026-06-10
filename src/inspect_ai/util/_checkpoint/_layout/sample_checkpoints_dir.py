@@ -11,9 +11,6 @@ checkpoints dir under the eval checkpoints dir. The dir holds:
   ``sandboxes/<name>/`` (per-sandbox restic repos).
 - ``context/`` — restic backup source (host context JSON files).
 
-See ``design/plans/checkpointing-working.md`` §1 and
-``design/plans/checkpointing-hydration.md``.
-
 The optional ``_<retry>`` suffix on the dir name is omitted until
 ``ActiveSample`` exposes the attempt index — see the TODO at the
 ``Checkpointer.__aenter__`` identity capture.
