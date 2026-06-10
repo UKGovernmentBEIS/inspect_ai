@@ -13,10 +13,12 @@ without the surface — eval correctness never depends on the control
 channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
-MVP scope: a single ``GET /evals`` read-only endpoint sufficient for
-``inspect ctl tasks`` plus a ``POST /release`` route for keep-alive
-release. Directives, sample-level endpoints, and event subscription
-land in subsequent phases.
+Current scope is the phase 1-2 read surface: ``GET /evals`` (per-task
+summaries), ``GET /evals/{id}/samples`` (sample listing, with an
+``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
+detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
+pull) — plus ``POST /release`` for keep-alive release. State-mutating
+directives (cancel / drain / requeue) and SSE push land in phases 3-4.
 """
 
 from __future__ import annotations

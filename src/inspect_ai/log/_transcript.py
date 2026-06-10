@@ -539,6 +539,15 @@ class Transcript:
     def _event(self, event: Event) -> None:
         track_pending = event.uuid is not None
         event_key = self._ensure_event_key(event)
+        # Duplicate detection covers RESIDENT events only — tracking every
+        # historical uuid would defeat bounded memory, so re-appending a uuid
+        # whose original was evicted is accepted (incrementing _event_count)
+        # even though the buffer database collapses both rows to one logical
+        # event. That puts logical offsets out of sync with buffer rows, which the
+        # control channel's cursor paging assumes aligned; no production path
+        # re-appends an evicted uuid (event *updates* go through
+        # _event_updated, which doesn't increment the count), so this is a
+        # documented limitation rather than a guarded one.
         if event_key in self._resident_event_ids:
             raise ValueError(f"Duplicate event uuid: {event_key}")
         self._process_event(event)
