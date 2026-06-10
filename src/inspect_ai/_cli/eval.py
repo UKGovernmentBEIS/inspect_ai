@@ -56,6 +56,7 @@ from .common import (
 )
 from .util import (
     SectionedCommand,
+    ctl_server_flag_callback,
     int_bool_or_str_flag_callback,
     int_bool_or_str_retry_flag_callback,
     int_or_bool_flag_callback,
@@ -427,6 +428,25 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "until one attaches."
         ),
         envvar="INSPECT_EVAL_ACP_SERVER",
+    )
+    @click.option(
+        "--ctl-server",
+        is_flag=False,
+        flag_value="true",
+        default=None,
+        callback=ctl_server_flag_callback,
+        help=(
+            "Control-channel server for this eval process (default: enabled "
+            "on an AF_UNIX socket — the endpoint the `inspect ctl` CLI, "
+            "scripted agents, and TUIs query). Pass `false` to disable it. "
+            "Pass `keep-alive` to also keep the process running after the "
+            "eval finishes so its state and results stay readable; the "
+            "process exits when `inspect ctl release` is run (or POST "
+            "/release is sent to the control endpoint). Without `keep-alive` "
+            "the process exits as soon as the eval body returns, taking the "
+            "control surface with it."
+        ),
+        envvar="INSPECT_EVAL_CTL_SERVER",
     )
     @click.option(
         "--limit",
@@ -960,6 +980,7 @@ def _eval_command_impl(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1108,6 +1129,7 @@ def _eval_command_impl(
         no_score=no_score,
         no_score_display=no_score_display,
         acp_server=acp_server,
+        ctl_server=ctl_server,
         is_eval_set=False,
         **config,
     )
@@ -1223,6 +1245,7 @@ def eval_set_command(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1380,6 +1403,7 @@ def eval_set_command(
         no_score=no_score,
         no_score_display=no_score_display,
         acp_server=acp_server,
+        ctl_server=ctl_server,
         is_eval_set=True,
         retry_attempts=retry_attempts,
         retry_immediate=retry_immediate,
@@ -1592,6 +1616,7 @@ def eval_exec(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1798,6 +1823,7 @@ def eval_exec(
             score=score,
             score_display=score_display,
             acp_server=acp_server,
+            ctl_server=ctl_server,
         )
         | kwargs
     )
@@ -2142,6 +2168,21 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_ACP_SERVER",
 )
 @click.option(
+    "--ctl-server",
+    is_flag=False,
+    flag_value="true",
+    default=None,
+    callback=ctl_server_flag_callback,
+    help=(
+        "Control-channel server for the retried eval's process (default: "
+        "enabled). Pass `false` to disable it; pass `keep-alive` to keep "
+        "the process running after the retried eval finishes so external "
+        "clients (the `inspect ctl` CLI, scripted agents) can still query "
+        "its state. Run `inspect ctl release` to release."
+    ),
+    envvar="INSPECT_EVAL_CTL_SERVER",
+)
+@click.option(
     "--max-connections",
     type=int,
     help=MAX_CONNECTIONS_HELP,
@@ -2209,6 +2250,7 @@ def eval_retry_command(
     no_score: bool | None,
     no_score_display: bool | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     max_connections: int | None,
     adaptive_connections: str | None,
     max_retries: int | None,
@@ -2330,6 +2372,7 @@ def eval_retry_command(
         score=score,
         score_display=score_display,
         acp_server=acp_server,
+        ctl_server=ctl_server,
         scanner=eval_scanner,
         max_retries=max_retries,
         timeout=timeout,
