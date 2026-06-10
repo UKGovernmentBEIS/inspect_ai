@@ -775,13 +775,6 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
         stats = header.stats
 
         total = results.total_samples if results is not None else 0
-        completed = results.completed_samples if results is not None else total
-        # success_logs are by definition logs whose final
-        # status was success — no terminal errors. Any
-        # in-attempt sample errors are captured in the log's
-        # error fields but aren't relevant to the high-level
-        # `errored` counter the control endpoint surfaces.
-        errored = 0
 
         completed_at: float | None = None
         completed_str = stats.completed_at if stats is not None else ""
@@ -791,32 +784,51 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             except (ValueError, TypeError):
                 completed_at = None
 
-        total_tokens, total_messages = _reused_log_usage(log_entry)
+        sample_stats = _reused_log_sample_stats(log_entry, total)
 
         register_completed_eval(
             eval_spec.eval_id,
             total=total,
-            completed=completed,
-            errored=errored,
+            completed=sample_stats.completed,
+            errored=sample_stats.errored,
             task=eval_spec.task,
             task_id=eval_spec.task_id,
             model=str(eval_spec.model) if eval_spec.model else "",
             log_location=log_entry.info.name,
             run_id=eval_spec.run_id,
             completed_at=completed_at,
-            total_tokens=total_tokens,
-            total_messages=total_messages,
+            total_tokens=sample_stats.total_tokens,
+            total_messages=sample_stats.total_messages,
         )
 
 
-def _reused_log_usage(log_entry: Log) -> tuple[int, int]:
-    """``(total_tokens, total_messages)`` for a reused log's synthetic state.
+class _ReusedLogSampleStats(NamedTuple):
+    """Usage totals and terminal sample buckets for a reused log's synthetic state."""
+
+    total_tokens: int
+    total_messages: int
+    completed: int
+    errored: int
+
+
+def _reused_log_sample_stats(log_entry: Log, total: int) -> _ReusedLogSampleStats:
+    """Usage and terminal sample buckets for a reused log.
 
     Tokens come from the header's ``stats.model_usage`` (authoritative, what
-    the console reports). The header has no message count, so messages are
-    summed from the per-sample summaries — best-effort: a read failure yields
-    0 messages rather than breaking reuse registration (the control surface is
-    non-critical, and the header was already parsed so the log is valid).
+    the console reports). Messages and the terminal sample buckets come from
+    the per-sample summaries, mirroring what the live path would have
+    recorded: ``errored`` counts samples whose final attempt failed — a
+    status-``success`` log can contain these under ``fail_on_error``
+    tolerance — and everything else (scored and early-stopped alike, which
+    the live path both record as completed) lands in ``completed``. The
+    header's ``results.completed_samples`` can't serve here: it counts
+    *scored* samples, so it under-counts under early stopping and (with
+    ``score_on_error``) counts errored samples as completed.
+
+    Best-effort: a summaries read failure yields 0 messages and an
+    all-completed split rather than breaking reuse registration — the control
+    surface is non-critical, and keeping ``completed + errored == total``
+    preserves the terminal rendering (no phantom ``queued``).
     """
     stats = log_entry.header.stats
     tokens = (
@@ -829,9 +841,16 @@ def _reused_log_usage(log_entry: Log) -> tuple[int, int]:
 
         summaries = read_eval_log_sample_summaries(log_entry.info)
         messages = sum(s.message_count or 0 for s in summaries)
+        errored = sum(1 for s in summaries if s.error is not None)
     except (OSError, ValueError):
         messages = 0
-    return tokens, messages
+        errored = 0
+    return _ReusedLogSampleStats(
+        total_tokens=tokens,
+        total_messages=messages,
+        completed=max(0, total - errored),
+        errored=errored,
+    )
 
 
 async def _keep_alive_park(eval_set_id: str) -> None:

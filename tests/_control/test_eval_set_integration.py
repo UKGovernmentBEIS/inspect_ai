@@ -291,6 +291,80 @@ def test_ctl_ls_shows_reused_logs_as_completed(short_data_dir: Path) -> None:
         assert entry["completed_at"] is not None
 
 
+def test_ctl_ls_reused_tolerant_success_log_reports_errored_samples(
+    short_data_dir: Path,
+) -> None:
+    """A reused tolerant-success log's errored samples count as errored.
+
+    With ``fail_on_error=False`` a log can be status-``success`` while
+    containing permanently-errored samples. Deriving the synthetic state's
+    counters from the header alone registered those as a shortfall —
+    ``errored: 0`` with phantom ``queued`` on a terminal eval, contradicting
+    the per-sample listing (which correctly shows them as ``error``). The
+    counters now come from the per-sample summaries, mirroring the live path.
+    """
+
+    @solver
+    def fail_second() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if int(state.sample_id) == 2:
+                raise RuntimeError("boom")
+            return state
+
+        return solve
+
+    @task
+    def tolerant() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[fail_second()],
+            fail_on_error=False,
+            name="tolerant",
+        )
+
+    @task
+    def fresh() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[generate()], name="fresh"
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    # Prime: tolerant errors on sample 2 but finishes status-success.
+    ok_first, logs_first = eval_set(
+        tasks=[tolerant()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=0,
+    )
+    assert ok_first, f"tolerant eval didn't reach success: {logs_first}"
+
+    # Re-run with a fresh task so eval() runs and on_run_end captures the
+    # reused task's synthetic state.
+    with capturing() as cap:
+        ok, _ = eval_set(
+            tasks=[tolerant(), fresh()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+        )
+    assert ok
+
+    entry = cap.eval("tolerant")
+    assert entry is not None
+    assert entry["status"] == "completed", entry
+    samples = entry["samples"]
+    assert samples["total"] == 2
+    assert samples["completed"] == 1
+    assert samples["errored"] == 1
+    assert samples["queued"] == 0
+
+    # the eval row agrees with the per-sample listing
+    rows = cap.eval_samples("tolerant")
+    assert sorted(r["status"] for r in rows) == ["completed", "error"]
+
+
 def test_ctl_ls_server_survives_eval_set_retries(short_data_dir: Path) -> None:
     """The control server stays bound (same socket) across an eval-set retry.
 
