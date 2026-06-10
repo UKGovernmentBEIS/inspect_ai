@@ -816,6 +816,7 @@ def test_history_events_from_serves_resident_window_without_provider() -> None:
     # resident window is [2, 3, 4]; start inside it slices memory
     assert _data(transcript.history.events_from(3)) == [3, 4]
     assert _data(transcript.history.events_from(3, limit=1)) == [3]
+    assert _data(transcript.history.events_from(3, limit=100)) == [3, 4]  # clamps
     assert transcript.history.events_from(5) == []  # at/past the end
 
 
@@ -850,6 +851,7 @@ def test_history_events_from_unbounded_transcript() -> None:
         transcript._event(InfoEvent(data=data))
 
     assert _data(transcript.history.events_from(0)) == [0, 1, 2]
+    assert _data(transcript.history.events_from(1, limit=100)) == [1, 2]  # clamps
     assert _data(transcript.history.events_from(-5, limit=2)) == [0, 1]  # clamps
 
 

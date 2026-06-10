@@ -177,10 +177,9 @@ class _TranscriptEventsView(Sequence[Event]):
             if provider is not None:
                 if start >= 0:
                     return provider.events_from(start)
-                if -start <= min(
-                    self._transcript._resident_tail, len(self._transcript._events)
-                ):
-                    return self._transcript._events[start:]
+                window = self._transcript._trailing_window(-start)
+                if window is not None:
+                    return window
                 return provider.recent_events(-start)
         return self._materialize()[index]
 
@@ -287,10 +286,10 @@ class TranscriptHistory:
                     "Full transcript history is not available from this Transcript"
                 )
             return transcript._events if n is None else transcript._events[-n:]
-        if n is not None and n <= min(
-            transcript._resident_tail, len(transcript._events)
-        ):
-            return transcript._events[-n:]
+        if n is not None:
+            window = transcript._trailing_window(n)
+            if window is not None:
+                return window
         return transcript._history_provider.recent_events(n)
 
     def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
@@ -324,23 +323,21 @@ class TranscriptHistory:
         if start >= count:
             return []
         if not transcript._events_truncated:
-            # nothing evicted: resident events ARE the logical history
-            events: Sequence[Event] = transcript._events[start:]
-            return events[:limit] if limit is not None else events
+            # nothing evicted: resident events ARE the logical history. Slice
+            # page-bounded in one step — copying the whole tail and then
+            # trimming it would be O(remaining history) per page on large
+            # transcripts.
+            end = count if limit is None else start + limit
+            return transcript._events[start:end]
         # Once events have been evicted, resident events are NOT a contiguous
-        # suffix of the logical history: pinned and pending events survive
-        # eviction at their insertion positions (eg. a SampleInitEvent ahead
-        # of the resident tail), so a logical offset can't be mapped into
-        # ``_events`` by suffix arithmetic. The exception is the trailing
-        # window ``recent_events`` also relies on: the newest
-        # ``resident_tail`` logical events are always resident and always the
-        # last elements of ``_events`` (eviction removes only *older*
-        # evictable events), so a read confined to that window is a memory
-        # slice. Anything earlier must come from the provider.
-        n = count - start
-        if n <= min(transcript._resident_tail, len(transcript._events)):
-            events = transcript._events[-n:]
-            return events[:limit] if limit is not None else events
+        # suffix of the logical history (pinned/pending events survive at
+        # their insertion positions), so a logical offset can't be mapped
+        # into ``_events`` by suffix arithmetic — only the trailing window is
+        # a memory read (see `Transcript._trailing_window` for the
+        # invariant). Anything earlier must come from the provider.
+        window = transcript._trailing_window(count - start, limit)
+        if window is not None:
+            return window
         if transcript._history_provider is None:
             raise TranscriptHistoryUnavailableError(
                 "Full transcript history is not available from this Transcript"
@@ -697,6 +694,28 @@ class Transcript:
         for ref in list(self._attachments):
             if ref not in self._attachment_refcount:
                 self._attachments.pop(ref, None)
+
+    def _trailing_window(self, n: int, limit: int | None = None) -> list[Event] | None:
+        """The newest ``n`` logical events, served from resident memory.
+
+        The eviction invariant this relies on — maintained by
+        :meth:`_evict_events`, and the single place it should be reasoned
+        about: eviction removes only the *oldest evictable* events, while
+        pinned and pending events survive at their insertion positions. Older
+        positions in ``_events`` may therefore be gapped relative to the
+        logical history, but the trailing ``min(_resident_tail,
+        len(_events))`` elements are always exactly the newest logical
+        events, in order.
+
+        Returns the window (optionally capped at ``limit`` events from its
+        start) when ``n`` lies within that guarantee, else ``None`` — the
+        caller must then materialize from the history provider (or fail).
+        """
+        if n > min(self._resident_tail, len(self._events)):
+            return None
+        first = len(self._events) - n
+        end = len(self._events) if limit is None else first + limit
+        return self._events[first:end]
 
     def _evict_events(self) -> None:
         if not self._bounded:
