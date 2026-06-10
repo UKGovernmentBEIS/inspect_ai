@@ -2,6 +2,7 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._answer import AnswerPattern, answer
 from ._choice import choice
+from ._claim_support import claim_support
 from ._classification import exact, f1
 from ._match import includes, match
 from ._math import math
@@ -70,6 +71,7 @@ __all__ = [
     "at_least",
     "bootstrap_stderr",
     "choice",
+    "claim_support",
     "exact",
     "f1",
     "grouped",
