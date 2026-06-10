@@ -1460,12 +1460,26 @@ async def task_run_sample(
                         )
 
                     if logger:
+                        # When the full event history is still resident in
+                        # memory we can log the sample directly from memory
+                        # rather than reading every event back out of the
+                        # realtime buffer DB and re-validating it. This is the
+                        # case whenever realtime logging is off (no buffer DB)
+                        # OR the transcript was not bounded-evicted (events
+                        # never exceeded the resident tail — the common case for
+                        # high-throughput runs). Only fall back to the streaming
+                        # read-back when events were actually evicted.
+                        log_from_memory = (
+                            logger.buffer_db is None
+                            or not sample_transcript.history.resident_events_truncated
+                        )
                         eval_sample = await log_sample(
                             eval_sample=make_eval_sample(
-                                include_events=logger.buffer_db is None
+                                include_events=log_from_memory
                             ),
                             logger=logger,
                             log_images=log_images,
+                            from_memory=log_from_memory,
                         )
                     else:
                         eval_sample = make_eval_sample()
@@ -1619,13 +1633,24 @@ async def log_sample(
     eval_sample: EvalSample,
     logger: TaskLogger,
     log_images: bool,
+    *,
+    from_memory: bool,
 ) -> EvalSample:
-    if logger.buffer_db is None:
+    # No realtime buffer DB, or the full history is still resident in memory:
+    # log directly from the in-memory sample (which carries its events). This
+    # avoids the open_sample_history -> materialize_streaming_sample round-trip
+    # (read every event back out of SQLite + re-validate). `complete_sample`
+    # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
+    # buffer exists it stays consistent for live viewing.
+    if logger.buffer_db is None or from_memory:
         await logger.complete_sample(
             condense_sample(eval_sample, log_images), flush=True
         )
         return eval_sample
 
+    # Events were bounded-evicted from memory: stream them back from the buffer
+    # DB (the only place the full history still lives) without re-materializing
+    # the whole sample in memory at once.
     logging_sample = condense_sample(
         eval_sample.model_copy(update={"events": [], "events_data": None}),
         log_images,

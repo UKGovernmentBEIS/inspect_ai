@@ -27,13 +27,11 @@ def create_checkpointer(
     development — the function returns a no-op setup unless the
     ``INSPECT_CHECKPOINTING`` env var is set to ``"1"``.
     """
-    # TODO(checkpointing-phase-3): capture the sample-level retry /
-    # attempt index. `ActiveSample` does not currently carry it; the
-    # value is published via the `on_sample_attempt_start` hook with
-    # `attempt: int` (1-based).  Resolution options are listed in
-    # `design/plans/checkpointing-working.md` §1 (re: sample-level
-    # retries) — likely we add an `attempt` field to `ActiveSample`
-    # so it's symmetric with `epoch`.
+    # TODO(checkpointing): capture the sample-level retry / attempt
+    # index. `ActiveSample` does not currently carry it; the value is
+    # published via the `on_sample_attempt_start` hook with
+    # `attempt: int` (1-based). Likely we add an `attempt` field to
+    # `ActiveSample` so it's symmetric with `epoch`.
     if config is None:
         return _NoopCheckpointer()
 

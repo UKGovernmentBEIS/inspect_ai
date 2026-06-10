@@ -1,7 +1,7 @@
 """On-disk schema for the host context written at each checkpoint fire.
 
 A sample working dir holds five JSON files that restic snapshots each
-cycle (see ``design/plans/checkpointing-working.md`` §5):
+cycle:
 
 - ``events.json`` — condensed transcript events.
 - ``events_data.json`` — ``EventsData`` (messages, calls dedup pools).

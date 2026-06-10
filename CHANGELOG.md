@@ -1,8 +1,17 @@
 ## Unreleased
 
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
+- Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.
+- Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.
+- Agent Bridge: Preserve `source="operator"` provenance on operator-injected messages.
+- Task Display: Update log/plain progress after errors.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
+- Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
 - S3: Retry when requests have stale signatures.
+
+## 0.3.239 (09 June 2026)
+
+- Anthropic: Explicitly classify Claude 5 (Fable/Mythos) models instead of relying on "latest"
 
 ## 0.3.238 (08 June 2026)
 

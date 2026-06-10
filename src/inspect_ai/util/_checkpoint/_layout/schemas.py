@@ -1,10 +1,8 @@
 """Pydantic models for the on-disk checkpoint layout.
 
 Defines the shape of the per-sample ``restic/restic-config.json`` and
-the per-checkpoint ``ckpt-NNNNN.json`` checkpoint files. See
-``design/plans/checkpointing-working.md`` §1 for the full layout
-description. These are pure data types — read/write helpers live with
-the Phase 3 write code.
+the per-checkpoint ``ckpt-NNNNN.json`` checkpoint files. These are pure
+data types — read/write helpers live with the write code.
 """
 
 from __future__ import annotations
@@ -38,12 +36,11 @@ class SnapshotDetails(BaseModel):
     files: list[str] | None = None
     """Absolute paths of files added or changed in this snapshot (relative
     to its parent; the full file set for the first snapshot), capped at
-    ``MAX_LISTED_FILES``. Opt-in via the ``INSPECT_CHECKPOINT_LIST_FILES``
-    env var; ``None`` when listing is disabled."""
+    ``MAX_LISTED_FILES``."""
 
     additional_files: int | None = None
     """Count of files beyond ``MAX_LISTED_FILES`` not included in
-    ``files``. ``None`` when listing is disabled or nothing was truncated."""
+    ``files``. ``None`` when nothing was truncated."""
 
 
 class Checkpoint(BaseModel):
@@ -96,5 +93,5 @@ class ResticConfig(BaseModel):
 
     restic_password: str
     """Password used by every repo (host + each sandbox) under this
-    sample. See ``design/plans/checkpointing-hydration.md`` for how it
-    reaches sandbox-side restic without being persisted in the sandbox."""
+    sample. Reaches sandbox-side restic via the per-exec environment;
+    never persisted in the sandbox."""
