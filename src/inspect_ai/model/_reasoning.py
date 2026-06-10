@@ -17,6 +17,59 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 logger = getLogger(__name__)
 
 
+NO_REASONING_MODEL_PATTERNS: tuple[str, ...] = (
+    r"(^|/)[^/]*(?:Base|Embedding|Reranker|Guard)(?:[-._/]|$)[^/]*",
+    r"(^|/)[^/]*(?:Non[-._]?Thinking|No[-._]?Think)(?:[-._/]|$)[^/]*",
+    r"(^|/)Qwen3(?:\.\d+)*-[^/]*Instruct(?:[-._/]|$)[^/]*",
+    r"(^|/)Qwen3-Coder-Next(?:[-._/]|$)[^/]*",
+    r"(^|/)Kimi-K2(?:\.\d+)*-[^/]*Instruct(?:[-._/]|$)[^/]*",
+)
+
+REASONING_PARSER_BY_MODEL: tuple[tuple[str, str], ...] = (
+    (r"(^|/)DeepSeek-V4(?:[-_/]|$)[^/]*", "deepseek_v4"),
+    (r"(^|/)DeepSeek-V3(?:[-_/]|$)[^/]*", "deepseek_v3"),
+
+    (r"(^|/)(?:DeepSeek-R1|QwQ|Intern-S1)(?:[-._/]|$)[^/]*", "deepseek_r1"),
+    (r"(^|/)Trinity-[^/]*(?:Think|Reasoning)[^/]*", "deepseek_r1"),
+
+    (r"(^|/)Qwen3(?:[-._/]|$)[^/]*", "qwen3"),
+    (r"(^|/)Intern-S[2-9]\d*(?:[-._/]|$)[^/]*", "qwen3"),
+    (r"(^|/)Mellum\d*-[^/]*(?:Think|Reasoning)[^/]*", "qwen3"),
+
+    (r"(^|/)Kimi-K2(?:[-._/]|$)[^/]*", "kimi_k2"),
+
+    (r"(^|/)(?:Magistral(?:[-._/]|$)|Ministral[^/]*Reasoning)[^/]*", "mistral"),
+    (r"(^|/)Mistral-(?:Medium-3\.5|Small-4)(?:[-._/]|$)[^/]*", "mistral"),
+
+    (r"(^|/)(?:MiniMax|MM)-M2(?:[-._/]|$)[^/]*", "minimax_m2"),
+
+    (r"(^|/)GLM-(?:4\.(?:[5-9]|[1-9]\d+)|5(?:\.\d+)*)(?:V)?(?:[-._/]|$)[^/]*", "glm45"),
+    (r"(^|/)(?:GLM-GA|Glyph)(?:[-._/]|$)[^/]*", "glm45"),
+
+    (r"(^|/)gemma-4(?:[-._/]|$)[^/]*", "gemma4"),
+    (r"(^|/)ERNIE-4(?:\.\d+)*-[^/]*Thinking[^/]*", "ernie45"),
+    (r"(^|/)granite-3\.(?:[2-9]|[1-9]\d+)(?:[-._/]|$)[^/]*", "granite"),
+
+    (r"(^|/)Hunyuan-[^/]*A13B(?:[-._/]|$)[^/]*", "hunyuan_a13b"),
+    (r"(^|/)(?:Hy3|Hunyuan-?3)(?:[-._/]|$)[^/]*", "hy_v3"),
+    (r"(^|/)Holo2(?:[-._/]|$)[^/]*", "holo2"),
+
+    (r"(^|/)(?:Xiaomi)?MiMo-V2(?:[-._/]|$)[^/]*", "mimo"),
+    (r"(^|/)Olmo-3(?:\.\d+)*-[^/]*(?:Think|Reasoning)[^/]*", "olmo3"),
+    (r"(^|/)Seed[-._]?OSS(?:[-._/]|$)[^/]*", "seed_oss"),
+
+    (r"(^|/)(?:NVIDIA-)?Nemotron-3-(?:Super|Ultra)(?:[-._/]|$)[^/]*", "nemotron_v3"),
+    (r"(^|/)(?:NVIDIA-)?Nemotron-3-[^/]*(?:Omni|Reasoning)[^/]*", "nemotron_v3"),
+
+    (r"(^|/)Step-3\.(?:[5-9]|[1-9]\d+)(?:[-._/]|$)[^/]*", "step3p5"),
+    (r"(^|/)Step-3(?:[-._/]|$)[^/]*", "step3"),
+
+    (r"(^|/)command-a-[^/]*reasoning[^/]*", "cohere_command3"),
+    (r"(^|/)(?:command-a-plus(?:[-._/]|$)|North-)[^/]*", "cohere_command4"),
+
+    (r"(^|/)(?:Laguna(?:[-._/]|$)|Poolside-[^/]*Laguna)[^/]*", "poolside_v1"),
+)
+
 # Fixed effort -> token budget table used to bridge `reasoning_effort` onto
 # providers that only accept an explicit token budget (Anthropic Claude 3.7-4.5,
 # Google Gemini 2.5). Magnitudes mirror the existing Anthropic max_tokens-sizing
@@ -122,6 +175,21 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
         )
     else:
         return content, None
+
+
+def reasoning_parser_for_model(model: str | None) -> str | None:
+    if not model:
+        return None
+
+    for pattern in NO_REASONING_MODEL_PATTERNS:
+        if re.search(pattern, model, re.IGNORECASE):
+            return None
+
+    for pattern, parser in REASONING_PARSER_BY_MODEL:
+        if re.search(pattern, model, re.IGNORECASE):
+            return parser
+
+    return None
 
 
 def _parse_attr(attrs_str: str, name: str) -> str | None:
