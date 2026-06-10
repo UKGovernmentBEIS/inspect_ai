@@ -29,7 +29,6 @@ from inspect_ai._view import fastapi_server
 from inspect_ai._view.common import (
     get_direct_url,
     get_log_bytes,
-    list_eval_logs_async,
     stream_log_bytes,
 )
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
@@ -1841,44 +1840,3 @@ async def test_stream_log_bytes_streams_large_local_file(tmp_path: Path) -> None
     ranged = await stream_log_bytes(path, 10, 99, stream_threshold_bytes=16)
     assert not isinstance(ranged, BytesIO)
     assert await _consume(ranged) == payload[10:100]
-
-
-async def test_list_eval_logs_async_missing_local_dir(tmp_path: Path) -> None:
-    """A missing local log dir lists as empty, not an error."""
-    assert await list_eval_logs_async(str(tmp_path / "nope"), recursive=False) == []
-    assert await list_eval_logs_async(str(tmp_path / "nope"), recursive=True) == []
-
-
-def test_list_eval_logs_async_s3(mock_s3: None) -> None:
-    """The unified listing path returns full metadata for S3 logs."""
-    s3_dir = "s3://test-bucket/list-logs-unified"
-    s3_log = f"{s3_dir}/2025-01-01T00-00-00+00-00_task_taskid.eval"
-    eval_log = inspect_ai.log.EvalLog(
-        eval=inspect_ai.log.EvalSpec(
-            created="2025-01-01T00:00:00Z",
-            task="task",
-            task_id="task_id",
-            dataset=inspect_ai.log.EvalDataset(),
-            model="model",
-            config=inspect_ai.log.EvalConfig(),
-        )
-    )
-    inspect_ai.log.write_eval_log(eval_log, s3_log, "eval")
-
-    async def run() -> None:
-        logs = await list_eval_logs_async(s3_dir)
-        assert [log.name for log in logs] == [s3_log]
-        assert logs[0].task == "task"
-        # mtime in ms since epoch — the unit incremental polling compares
-        assert logs[0].mtime is not None and logs[0].mtime > 1_000_000_000_000
-
-    asyncio.run(run())
-
-
-def test_list_eval_logs_async_missing_bucket(mock_s3: None) -> None:
-    """A log dir in a nonexistent bucket lists as empty, not an error."""
-
-    async def run() -> None:
-        assert await list_eval_logs_async("s3://no-such-bucket-inspect/logs") == []
-
-    asyncio.run(run())

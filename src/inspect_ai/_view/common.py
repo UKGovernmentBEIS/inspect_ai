@@ -1,4 +1,6 @@
 import asyncio
+import contextlib
+import inspect
 import os
 import urllib.parse
 from collections.abc import AsyncIterable
@@ -6,11 +8,12 @@ from functools import partial
 from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from logging import getLogger
-from typing import Any, Literal, NamedTuple, Tuple, cast
+from typing import Any, AsyncIterator, Literal, NamedTuple, Tuple, cast
 
+import anyio.to_thread
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
-from botocore.exceptions import ClientError
+from anyio import EndOfStream
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic import BaseModel
@@ -18,10 +21,14 @@ from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import _READ_FULLY_CHUNK_SIZE, AsyncFilesystem
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
-from inspect_ai._view.azure import normalize_azure_listing_name
+from inspect_ai._view.azure import (
+    azure_warning_hint,
+    normalize_azure_listing_name,
+    should_suppress_azure_error,
+)
 from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -439,22 +446,33 @@ async def stream_log_bytes(
         else:
             request_size = await get_log_size(log_file)
 
+        # resolve the open-ended range here so get_log_bytes doesn't
+        # re-stat the file (a second sync fs.info on the event loop)
+        read_start = start or 0
+        read_end_inclusive = end if end is not None else request_size - 1
+
         if request_size <= stream_threshold_bytes:
-            return BytesIO(await get_log_bytes(log_file, start, end))
+            return BytesIO(
+                await get_log_bytes(log_file, read_start, read_end_inclusive)
+            )
 
         # Stream large local files chunked off the event loop rather than
         # buffering them. (Previously this fell through to the S3 path and
         # raised "Expected S3FileSystem" for local files over the threshold.)
-        read_start = start or 0
-        read_end = (end + 1) if end is not None else request_size
+        read_end = read_end_inclusive + 1
 
         async def _stream_local() -> AsyncIterable[bytes]:
             byte_stream = await AsyncFilesystem().read_file_bytes(
                 log_file, read_start, read_end
             )
             try:
-                async for chunk in byte_stream:
-                    yield chunk
+                # pull 1MB per receive: iterating the stream directly uses
+                # anyio's 64KB default, i.e. one thread hop per 64KB
+                while True:
+                    try:
+                        yield await byte_stream.receive(_READ_FULLY_CHUNK_SIZE)
+                    except EndOfStream:
+                        break
             finally:
                 await byte_stream.aclose()
 
@@ -562,6 +580,31 @@ def async_connection(log_file: str) -> AsyncFileSystem:
     return _async_connections.get(protocol)
 
 
+@contextlib.asynccontextmanager
+async def async_filesystem(
+    location: str, fs_options: dict[str, Any] = {}
+) -> AsyncIterator[AsyncFileSystem]:
+    # determine protocol
+    protocol, _ = split_protocol(location)
+    protocol = protocol or "file"
+
+    # build options
+    options = default_fs_options(location)
+    options.update(fs_options)
+
+    if protocol == "s3":
+        options["skip_instance_cache"] = True
+        s3 = S3FileSystem(asynchronous=True, **options)
+        session = await s3.set_session()
+        try:
+            yield s3
+        finally:
+            await session.close()
+    else:
+        options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
+        yield fsspec.filesystem(protocol, **options)
+
+
 async def list_eval_logs_async(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     formats: list[Literal["eval", "json"]] | None = None,
@@ -571,9 +614,8 @@ async def list_eval_logs_async(
 ) -> list[EvalLogInfo]:
     """List all eval logs in a directory.
 
-    Lists via `AsyncFilesystem.iter_file_infos`: S3 uses a native async
-    client; all other filesystems are listed in worker threads, so the
-    event loop is never blocked.
+    Will be async for filesystem providers that support async (e.g. s3, gcs, etc.)
+    otherwise will fallback to sync implementation.
 
     Args:
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
@@ -582,31 +624,56 @@ async def list_eval_logs_async(
       recursive (bool): List log files recursively (defaults to True).
       descending (bool): List in descending order.
       fs_options (dict[str, Any]): Optional. Additional arguments to pass through
-          to the filesystem provider (e.g. `S3FileSystem`). On the S3
-          path only `anon` is honored (credentials/endpoint come from
-          the environment).
+          to the filesystem provider (e.g. `S3FileSystem`).
 
     Returns:
        List of EvalLog Info.
     """
-    async with AsyncFilesystem(anonymous=bool(fs_options.get("anon", False))) as afs:
-        try:
-            logs = [
-                info
-                async for info in afs.iter_file_infos(
-                    log_dir, recursive=recursive, fs_options=fs_options
-                )
-            ]
-        except FileNotFoundError:
-            return []
-        except ClientError as ex:
-            # match prior behavior: a log_dir whose bucket doesn't exist
-            # is an empty listing, not an error
-            if ex.response.get("Error", {}).get("Code") == "NoSuchBucket":
+    # async filesystem if we can
+    fs = filesystem(log_dir, fs_options)
+    if fs.is_async():
+        async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
+            # Attempt existence check with robust handling for Azure-style auth issues.
+            try:
+                exists = await async_fs._exists(log_dir)
+            except Exception as ex:  # noqa: BLE001
+                if should_suppress_azure_error(log_dir, ex):
+                    logger.warning(azure_warning_hint(log_dir, ex))
+                    exists = True
+                else:
+                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
+                    # Re-raise non-auth related issues
+                    raise
+
+            if exists:
+                # prevent caching of listings
+                async_fs.invalidate_cache(log_dir)
+                # list logs
+                if recursive:
+                    if _walk_supports_detail(async_fs):
+                        files = await _walk_with_detail(async_fs, log_dir)
+                    else:
+                        files = await _walk_without_detail(async_fs, log_dir)
+                else:
+                    files = cast(
+                        list[dict[str, Any]],
+                        await async_fs._ls(log_dir, detail=True),
+                    )
+                logs = [fs._file_info(file) for file in files]
+                # resolve to eval logs (async fan-out so header reads on
+                # non-conforming filenames don't block the event loop)
+                return await log_files_from_ls_async(logs, formats, descending)
+            else:
                 return []
-            raise
-        # resolve to eval logs (async fan-out so header reads on
-        # non-conforming filenames don't block the event loop)
+    else:
+        # sync filesystem (e.g. local) — run the existence check and the
+        # (potentially large recursive) listing in a worker thread so they
+        # don't block the event loop
+        if not await anyio.to_thread.run_sync(fs.exists, log_dir):
+            return []
+        logs = await anyio.to_thread.run_sync(
+            partial(fs.ls, log_dir, recursive=recursive)
+        )
         return await log_files_from_ls_async(logs, formats, descending)
 
 
@@ -648,3 +715,51 @@ def aliased_path(path: str) -> str:
         return path.replace(home_dir, "~", 1)
     else:
         return path
+
+
+def _walk_supports_detail(fs: AsyncFileSystem) -> bool:
+    walk = getattr(fs, "_walk", None)
+    if walk is None:
+        return False
+    try:
+        signature = inspect.signature(walk)
+    except (TypeError, ValueError):
+        return False
+    parameter = signature.parameters.get("detail")
+    if parameter is None:
+        return False
+    return parameter.kind in (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        inspect.Parameter.KEYWORD_ONLY,
+    )
+
+
+async def _walk_with_detail(fs: AsyncFileSystem, log_dir: str) -> list[dict[str, Any]]:
+    files: list[dict[str, Any]] = []
+    async for _, _, filenames in fs._walk(log_dir, detail=True):
+        files.extend(filenames.values())
+    return files
+
+
+async def _walk_without_detail(
+    fs: AsyncFileSystem, log_dir: str
+) -> list[dict[str, Any]]:
+    files: list[dict[str, Any]] = []
+    stack: list[str] = [log_dir]
+    seen: set[str] = set()
+    while stack:
+        current = stack.pop()
+        try:
+            entries = await fs._ls(current, detail=True)
+        except Exception:
+            continue
+        for entry in entries:
+            name = entry.get("name") or entry.get("path")
+            if not name:
+                continue
+            files.append(entry)
+            entry_type = entry.get("type")
+            if (entry_type == "directory" or name.endswith("/")) and name not in seen:
+                seen.add(name)
+                stack.append(name)
+    return files
