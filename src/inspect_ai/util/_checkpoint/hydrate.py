@@ -21,10 +21,10 @@ Sample-root selection:
   host egress (out of scope here) ships state to the remote sample
   checkpoints dir at fire time.
 
-Structure (see ``design/plans/checkpointing-hydration.md`` §3):
+Structure:
 
 - ``_hydrate`` (orchestrator): Phase 1 prologue (paths / dirs /
-  ``sample.json`` / restic binary), then Phase 2 with ``_hydrate_host``
+  ``restic/restic-config.json`` / restic binary), then Phase 2 with ``_hydrate_host``
   and ``_hydrate_sandboxes`` in parallel.
 - ``_hydrate_host``: host repo init or restore.
 - ``_hydrate_sandboxes``: dispatches ``_hydrate_sandbox`` per sandbox in
@@ -177,7 +177,7 @@ async def hydrate(
     )
 
     # Phase 1: synchronous prologue. After this completes, every Phase 2
-    # function can read the password from <sample_root>/sample.json
+    # function can read the password from <sample_root>/restic/restic-config.json
     # and reach restic on the host.
     new_eval_checkpoints_dir = eval_checkpoints_dir(
         log_location, config.checkpoints_location
