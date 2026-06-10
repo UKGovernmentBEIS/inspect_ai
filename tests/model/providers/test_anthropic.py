@@ -330,6 +330,7 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
         config: GenerateConfig,
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
@@ -668,6 +669,7 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
         config: GenerateConfig,
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
