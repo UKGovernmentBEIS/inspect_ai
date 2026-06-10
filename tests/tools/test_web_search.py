@@ -398,9 +398,7 @@ class TestOldSignatureVariants:
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_num_results_only(self, mock_warning, mock_google_keys):
         """Test deprecated num_results without provider falls back to Google when env vars set."""
-        assert _providers(web_search(num_results=10)) == {
-            "google": {"num_results": 10}
-        }
+        assert _providers(web_search(num_results=10)) == {"google": {"num_results": 10}}
 
     def test_deprecated_params_without_google_env_vars(self):
         """Test deprecated params without provider and without Google env vars.
