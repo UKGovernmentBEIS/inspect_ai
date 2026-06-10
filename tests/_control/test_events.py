@@ -483,3 +483,41 @@ async def test_buffer_torn_down_before_read_degrades(
         assert page["events"] == []
     finally:
         clear_all_eval_states()
+
+
+async def test_buffer_torn_down_between_count_and_fetch_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A teardown landing after event_count but before the page fetch degrades.
+
+    The two provider reads happen at different points in the request; the
+    fetch must get the same degrade contract as the count — a short (empty)
+    page with `done` still false (next doesn't advance), so the client's
+    retry re-resolves the source rather than the request 500ing.
+    """
+    from test_helpers.transcript import FakeTranscriptHistoryProvider
+
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai.log import TranscriptHistoryUnavailableError
+
+    _event_less_sample_stub(monkeypatch)
+
+    class TornDownAfterCount(FakeTranscriptHistoryProvider):
+        def __init__(self) -> None:
+            super().__init__([])
+
+        @property
+        def event_count(self) -> int:
+            return 3  # buffer still present at count time
+
+        def events_from(self, start: int, limit: int | None = None) -> Any:
+            raise TranscriptHistoryUnavailableError("history store torn down")
+
+    try:
+        register_eval("e1", 1, events_provider=lambda id, epoch: TornDownAfterCount())
+        page = await sample_events("e1", "s1", 1)
+        assert page is not None, "teardown race must degrade, not 404/500"
+        assert page["events"] == []
+        assert not page["done"]  # short page: the client retries
+    finally:
+        clear_all_eval_states()

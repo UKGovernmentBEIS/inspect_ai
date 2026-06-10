@@ -26,7 +26,7 @@ import base64
 import json
 from collections.abc import Callable, Sequence
 from logging import getLogger
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
@@ -37,9 +37,31 @@ logger = getLogger(__name__)
 # Page reader for one source: ``fetch(start, limit)`` returns up to ``limit``
 # events from absolute offset ``start``. The running source reads through
 # ``TranscriptHistory.events_from`` (resident fast path, history-provider
-# materialization below the resident window); the terminal source slices its
-# in-memory list.
+# materialization below the resident window); the terminal source either
+# slices its in-memory list or pages the realtime buffer via the eval's
+# events provider.
 EventsFetch = Callable[[int, int], "Sequence[Event]"]
+
+
+class EventsSource(NamedTuple):
+    """One resolvable source of a sample's transcript events.
+
+    Produced by ``_running_source`` (live transcript) and ``_logged_source``
+    (recorder / buffer / on-disk log); consumed by ``sample_events``.
+    """
+
+    nonce: str
+    """Cursor nonce identifying this source's sample attempt."""
+
+    fetch: EventsFetch
+    """Page reader over the source's unfiltered event sequence."""
+
+    total: int
+    """Total events in the source at resolution time."""
+
+    done: bool
+    """Whether the sample has terminated (no more events will come)."""
+
 
 # Default event-type filter: the "high-signal" tier a monitor cares about,
 # excluding the structural / high-volume tier (state / store / span / step / …)
@@ -190,41 +212,40 @@ def _attempt_nonce(
     return f"{base}:{attempts}"
 
 
-def _running_source(
-    eval_id: str, sample_id: str, epoch: int
-) -> tuple[str, EventsFetch, int, bool] | None:
+def _running_source(eval_id: str, sample_id: str, epoch: int) -> EventsSource | None:
     """The live source for a sample, or ``None`` if it isn't running here.
 
-    Returns ``(nonce, fetch, total, done)``. The fetch reads through
-    ``TranscriptHistory.events_from``, which serves resident events from
-    memory and materializes evicted ones from the history provider (the
-    realtime sample buffer) — so a cursor below the resident window of a
-    bounded transcript still pages gap-free, page-sized reads only (the
-    ``limit`` rides down to the buffer query). It raises ``RuntimeError``
-    when the requested range was evicted with no provider to recover it (a
-    bounded transcript without realtime logging — not a production
-    configuration).
+    The fetch reads through ``TranscriptHistory.events_from``, which serves
+    resident events from memory and materializes evicted ones from the
+    history provider (the realtime sample buffer) — so a cursor below the
+    resident window of a bounded transcript still pages gap-free, page-sized
+    reads only (the ``limit`` rides down to the buffer query). It raises
+    ``TranscriptHistoryUnavailableError`` when the requested range was
+    evicted with no provider to recover it (a bounded transcript without
+    realtime logging — not a production configuration).
     """
     from inspect_ai.log._samples import active_samples
 
     for s in active_samples():
         if s.eval_id == eval_id and str(s.sample.id) == sample_id and s.epoch == epoch:
             history = s.transcript.history
-            return (
-                _attempt_nonce(s.sample_uuid, s.sample.id, epoch, len(s.error_retries)),
-                history.events_from,
-                history.event_count,
-                s.completed is not None,
+            return EventsSource(
+                nonce=_attempt_nonce(
+                    s.sample_uuid, s.sample.id, epoch, len(s.error_retries)
+                ),
+                fetch=history.events_from,
+                total=history.event_count,
+                done=s.completed is not None,
             )
     return None
 
 
 async def _logged_source(
     eval_id: str, sample_id: str, epoch: int
-) -> tuple[str, EventsFetch, int, bool] | None:
+) -> EventsSource | None:
     """The terminal source for a sample (recorder buffer, then on-disk log).
 
-    Returns ``(nonce, fetch, total, True)``; ``None`` when the eval/sample
+    Always ``done`` (no more events will come); ``None`` when the eval/sample
     isn't available here (not in this process, or not yet readable). Reads via
     :func:`inspect_ai._control.state._full_sample` so a just-completed (or
     reused-on-retry) sample's events are visible the moment the samples listing
@@ -277,12 +298,38 @@ async def _logged_source(
                 )
                 total = 0
             if total > 0:
-                return nonce, provider.events_from, total, True
+                # bind the narrowed provider for the closure (mypy doesn't
+                # carry the not-None narrowing into nested functions)
+                resolved_provider = provider
+
+                # the page fetch gets the same degrade contract as the
+                # event_count read above: a teardown landing between the two
+                # serves a short (empty) page instead of failing the request.
+                # `next` advances only by what was served, so the client's
+                # retry re-resolves the source (recorder / on-disk log)
+                # without skipping events.
+                def fetch_buffered(start: int, limit: int) -> Sequence["Event"]:
+                    try:
+                        return resolved_provider.events_from(start, limit)
+                    except TranscriptHistoryUnavailableError as ex:
+                        logger.warning(
+                            "Buffer events read failed for eval %s "
+                            "(sample %s, epoch %d): %s",
+                            eval_id,
+                            sample.id,
+                            epoch,
+                            ex,
+                        )
+                        return []
+
+                return EventsSource(
+                    nonce=nonce, fetch=fetch_buffered, total=total, done=True
+                )
 
     def fetch(start: int, limit: int) -> list["Event"]:
         return events[start : start + limit]
 
-    return nonce, fetch, len(events), True
+    return EventsSource(nonce=nonce, fetch=fetch, total=len(events), done=True)
 
 
 def _events_provider(

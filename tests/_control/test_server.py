@@ -330,6 +330,15 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert seen["types"] == frozenset({"model", "tool"})  # comma-split
         assert seen["full"] is True
 
+        # whitespace around members is stripped — `--type "model, tool"`
+        # must not silently filter everything out
+        spaced = await client.get(
+            "/evals/e1/sample/events",
+            params={"sample_id": "case/001", "type": " model , tool, "},
+        )
+        assert spaced.status_code == 200, spaced.text
+        assert seen["types"] == frozenset({"model", "tool"})
+
         missing = await client.get(
             "/evals/e1/sample/events", params={"sample_id": "missing"}
         )

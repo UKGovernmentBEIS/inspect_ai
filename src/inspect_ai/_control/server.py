@@ -237,8 +237,13 @@ class ControlServer:
             since_time: float | None = None,
             until: float | None = None,
         ) -> Any:
+            # strip whitespace around the comma-separated members so natural
+            # spellings like `--type "model, tool"` don't silently match
+            # nothing
             types = (
-                frozenset(t for t in type.split(",") if t) if type is not None else None
+                frozenset(t for t in (p.strip() for p in type.split(",")) if t)
+                if type is not None
+                else None
             )
             page = await sample_events(
                 eval_id,

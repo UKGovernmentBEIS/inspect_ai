@@ -4,7 +4,7 @@ llms-description: Observe running evals from another process with the inspect ct
 ---
 
 ::: {.callout-note appearance="simple"}
-The agent checkpointing feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+The control channel features described below require the development version of Inspect. You can install the development version from GitHub with:
 
 ```bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
