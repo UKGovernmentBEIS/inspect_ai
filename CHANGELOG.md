@@ -1,7 +1,6 @@
 ## Unreleased
-
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
-- Inspect View: Serve `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO` (local range reads went from ~1MB/s to native speed; a 127MB sample transcript opens in ~10s instead of ~45s).
+- Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
 - Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.
 - Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.
@@ -10,6 +9,7 @@
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
 - S3: Retry when requests have stale signatures.
+- Inspect View: Serve `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO` (local range reads went from ~1MB/s to native speed; a 127MB sample transcript opens in ~10s instead of ~45s).
 
 ## 0.3.239 (09 June 2026)
 

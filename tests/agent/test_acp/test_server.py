@@ -18,11 +18,6 @@ import anyio
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai.agent._acp.discovery import (
-    cleanup_stale_discovery_files,
-    parse_host_port,
-    pid_alive,
-)
 from inspect_ai.agent._acp.server import acp_server
 
 
@@ -250,51 +245,6 @@ async def test_tcp_host_port_bind(short_data_dir: Path) -> None:
             pass
 
 
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        ("0.0.0.0:4444", ("0.0.0.0", 4444)),
-        ("127.0.0.1:8000", ("127.0.0.1", 8000)),
-        ("localhost:8080", ("localhost", 8080)),
-        ("[::1]:4444", ("::1", 4444)),
-        ("[2001:db8::1]:9999", ("2001:db8::1", 9999)),
-    ],
-)
-def test_parse_host_port_valid(value: str, expected: tuple[str, int]) -> None:
-    """Valid ``host:port`` shapes parse cleanly, including IPv6 brackets."""
-    assert parse_host_port(value) == expected
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        # Plain socket paths.
-        "/tmp/foo.sock",
-        "./relative/path",
-        "C:\\windows\\path",
-        # Path-like with colon: still a path, not a network address.
-        "/var/run/app:foo.sock",
-        # Malformed network addresses.
-        "no_colon_at_all",
-        ":4444",  # missing host
-        "host:",  # missing port
-        "host:not_a_number",
-        "[unclosed_bracket",
-        "[empty]:not_a_port",
-        # Empty / falsy.
-        "",
-    ],
-)
-def test_parse_host_port_not_a_network_address(value: str) -> None:
-    """Anything that doesn't unambiguously look like host:port returns None.
-
-    The caller then falls back to treating the value as a UNIX socket
-    path. Ambiguous inputs intentionally err on the side of UNIX so a
-    user-supplied path with a colon isn't silently misrouted to TCP.
-    """
-    assert parse_host_port(value) is None
-
-
 # ---------------------------------------------------------------------------
 # Connection lifecycle
 # ---------------------------------------------------------------------------
@@ -348,74 +298,11 @@ async def test_unknown_method_returns_method_not_found(
 
 
 # ---------------------------------------------------------------------------
-# Discovery cleanup
+# Stale-cleanup integration
 # ---------------------------------------------------------------------------
-
-
-def test_pid_alive_for_current_process() -> None:
-    """The current PID is always alive."""
-    assert pid_alive(os.getpid()) is True
-
-
-def test_pid_alive_for_invalid_pid() -> None:
-    """A PID we know to be invalid returns False."""
-    assert pid_alive(0) is False
-    assert pid_alive(-1) is False
-
-
-def test_cleanup_stale_discovery_files(short_data_dir: Path) -> None:
-    """A discovery file with a dead PID is removed; orphan socket too."""
-    acp_dir = short_data_dir / "acp"
-    acp_dir.mkdir(parents=True, exist_ok=True)
-    # Stale entry: PID guaranteed-dead (1 might be init on POSIX, use a
-    # huge sentinel that is essentially never assigned).
-    stale_sock = acp_dir / "stale.sock"
-    stale_sock.touch()
-    stale_discovery = acp_dir / "999999.json"
-    stale_discovery.write_text(
-        json.dumps(
-            {
-                "pid": 999999,
-                "eval_id": "old",
-                "socket_path": str(stale_sock),
-                "port": None,
-                "started_at": 0,
-            }
-        )
-    )
-    # Live entry: our own PID; must NOT be removed.
-    live_discovery = acp_dir / f"{os.getpid()}.json"
-    live_discovery.write_text(
-        json.dumps(
-            {
-                "pid": os.getpid(),
-                "eval_id": "live",
-                "socket_path": None,
-                "port": 12345,
-                "started_at": 0,
-            }
-        )
-    )
-
-    cleanup_stale_discovery_files()
-
-    assert not stale_discovery.exists()
-    assert not stale_sock.exists()
-    assert live_discovery.exists()
-
-
-def test_cleanup_tolerates_malformed_files(short_data_dir: Path) -> None:
-    """Bogus or unreadable discovery files are skipped silently."""
-    acp_dir = short_data_dir / "acp"
-    acp_dir.mkdir(parents=True, exist_ok=True)
-    (acp_dir / "garbage.json").write_text("{not valid json")
-    (acp_dir / "missing-pid.json").write_text(json.dumps({"socket_path": "/foo"}))
-    # Should not raise.
-    cleanup_stale_discovery_files()
-    # Malformed files left alone (best-effort policy — we only delete
-    # entries we can positively identify as stale).
-    assert (acp_dir / "garbage.json").exists()
-    assert (acp_dir / "missing-pid.json").exists()
+# (Unit tests for pid_alive / parse_host_port / the cleanup sweep
+# itself live under ``tests/_util/``. This file keeps only the server-
+# integration test that pins the cleanup-on-start hook.)
 
 
 @skip_if_trio
