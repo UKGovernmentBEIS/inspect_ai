@@ -292,7 +292,7 @@ def test_ctl_ls_shows_reused_logs_as_completed(short_data_dir: Path) -> None:
 
 
 def test_ctl_ls_reused_tolerant_success_log_reports_errored_samples(
-    short_data_dir: Path,
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A reused tolerant-success log's errored samples count as errored.
 
@@ -301,7 +301,10 @@ def test_ctl_ls_reused_tolerant_success_log_reports_errored_samples(
     counters from the header alone registered those as a shortfall —
     ``errored: 0`` with phantom ``queued`` on a terminal eval, contradicting
     the per-sample listing (which correctly shows them as ``error``). The
-    counters now come from the per-sample summaries, mirroring the live path.
+    precise counters now come from the per-sample summaries (mirroring the
+    live path), resolved lazily: until then the row shows an optimistic
+    all-completed provisional split (header-derived ``errored`` would
+    mislabel early-stopped samples as phantom failures).
     """
 
     @solver
@@ -340,6 +343,26 @@ def test_ctl_ls_reused_tolerant_success_log_reports_errored_samples(
     )
     assert ok_first, f"tolerant eval didn't reach success: {logs_first}"
 
+    # Snapshot the synthetic state right after registration (before any
+    # control request resolves the deferred stats) to pin the provisional
+    # polarity.
+    import inspect_ai._eval.evalset as evalset_mod
+    from inspect_ai._control.eval_state import get_eval_states
+
+    provisional: dict[str, tuple[int, int, bool]] = {}
+    orig_register = evalset_mod._register_reused_logs
+
+    def spy_register(success_logs: Any) -> None:
+        orig_register(success_logs)
+        for s in get_eval_states():
+            provisional[s.task] = (
+                s.completed,
+                s.errored,
+                s.deferred_sample_stats is not None,
+            )
+
+    monkeypatch.setattr(evalset_mod, "_register_reused_logs", spy_register)
+
     # Re-run with a fresh task so eval() runs and on_run_end captures the
     # reused task's synthetic state.
     with capturing() as cap:
@@ -351,6 +374,11 @@ def test_ctl_ls_reused_tolerant_success_log_reports_errored_samples(
         )
     assert ok
 
+    # pre-resolution: optimistic all-completed provisional, provider attached
+    assert provisional["tolerant"] == (2, 0, True), provisional
+
+    # post-resolution (the capture's /evals call resolved the deferred
+    # stats): the precise split surfaces the genuine tolerated error
     entry = cap.eval("tolerant")
     assert entry is not None
     assert entry["status"] == "completed", entry

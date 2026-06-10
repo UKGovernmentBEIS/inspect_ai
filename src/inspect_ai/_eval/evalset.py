@@ -802,20 +802,21 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             else 0
         )
 
-        # Provisional terminal split from the header, shown only until the
-        # deferred resolution (or permanently, if its read fails): the
-        # header's `completed_samples` counts *scored* samples, so it
-        # under-counts under early stopping and (with `score_on_error`)
-        # counts errored samples as completed — but it sums to `total`, so
-        # the row renders terminal with no phantom `queued`.
-        completed = results.completed_samples if results is not None else total
-        errored = max(0, total - completed)
-
+        # Provisional terminal split, shown only until the deferred
+        # resolution (or permanently, if its read fails): optimistically
+        # all-completed. Deriving `errored` from the header's
+        # `completed_samples` would mislabel early-stopped / unscored
+        # samples of a successful log as errors — phantom failures that
+        # mislead a monitoring agent into retrying or alerting on a healthy
+        # task. The precise split (which CAN surface genuine tolerated
+        # errors) arrives with the deferred resolution; either way the
+        # counters sum to `total`, so the row renders terminal with no
+        # phantom `queued`.
         register_completed_eval(
             eval_spec.eval_id,
             total=total,
-            completed=completed,
-            errored=errored,
+            completed=total,
+            errored=0,
             task=eval_spec.task,
             task_id=eval_spec.task_id,
             model=str(eval_spec.model) if eval_spec.model else "",
@@ -824,7 +825,11 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             completed_at=completed_at,
             total_tokens=tokens,
             total_messages=0,
-            deferred_sample_stats=_deferred_sample_stats(log_entry, total),
+            # without results the captured `total` is 0 and a resolution
+            # could write `errored > total`; leave the provisional standing
+            deferred_sample_stats=_deferred_sample_stats(log_entry, total)
+            if results is not None
+            else None,
         )
 
 
