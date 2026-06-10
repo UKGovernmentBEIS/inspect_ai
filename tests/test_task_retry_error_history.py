@@ -210,3 +210,65 @@ def test_task_retry_accumulates_across_attempts() -> None:
         assert summaries[1].retries == 1
         assert summaries[2].retries == 0
         assert summaries[3].retries == 2
+
+
+async def test_finish_task_log_carries_forward_on_every_non_success_status(
+    monkeypatch,
+) -> None:
+    """All terminal finishes preserve retry history; success skips it.
+
+    `_finish_task_log` is the single finish chokepoint: before it existed,
+    carry-forward was called at two of the three teardown branches and the
+    external-cancellation (Ctrl-C) branch silently dropped retry history —
+    and a cancelled log IS the seed for the next attempt. The chokepoint
+    makes the omission structurally impossible; this pins the status gating.
+    """
+    from types import SimpleNamespace
+    from typing import Any
+
+    import inspect_ai._eval.task.run as run_mod
+    from inspect_ai._eval.task.run import _finish_task_log
+    from inspect_ai.log import EvalStats
+
+    carried: list[str] = []
+    finished: list[tuple[str, Any]] = []
+
+    async def fake_carry_forward(
+        logger: Any, sample_source: Any, sample_ids: Any, epochs: Any, log_images: Any
+    ) -> None:
+        carried.append("called")
+
+    monkeypatch.setattr(run_mod, "carry_forward_unlogged_samples", fake_carry_forward)
+
+    async def log_finish(
+        status: str,
+        stats: Any,
+        results: Any = None,
+        reductions: Any = None,
+        error: Any = None,
+    ) -> Any:
+        finished.append((status, error))
+        return SimpleNamespace(status=status)
+
+    logger = SimpleNamespace(log_finish=log_finish)
+
+    for status, expect_carry in (
+        ("cancelled", True),  # the branch that used to skip it (Ctrl-C)
+        ("error", True),
+        ("success", False),
+    ):
+        carried.clear()
+        log = await _finish_task_log(
+            logger=logger,  # type: ignore[arg-type]
+            sample_source=lambda id, epoch: None,  # type: ignore[arg-type,return-value]
+            sample_ids=[1],
+            epochs=1,
+            log_images=False,
+            status=status,  # type: ignore[arg-type]
+            stats=EvalStats(),
+        )
+        assert log.status == status
+        assert bool(carried) == expect_carry, f"{status}: carry={carried}"
+
+    # the finish itself always ran
+    assert [s for s, _ in finished] == ["cancelled", "error", "success"]

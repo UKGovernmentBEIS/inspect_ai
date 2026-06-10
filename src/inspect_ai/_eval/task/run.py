@@ -81,6 +81,7 @@ from inspect_ai.log._log import (
     EvalSampleLimit,
     EvalSampleReductions,
     EvalSampleSummary,
+    EvalStatus,
     eval_error,
 )
 from inspect_ai.log._recorders.buffer.transcript_history_provider import (
@@ -742,8 +743,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             )
 
             # finish
-            eval_log = await logger.log_finish(
-                "error" if mark_log_as_error else "success", stats, results, reductions
+            eval_log = await _finish_task_log(
+                logger=logger,
+                sample_source=options.sample_source,
+                sample_ids=sample_ids,
+                epochs=epochs,
+                log_images=log_images,
+                status="error" if mark_log_as_error else "success",
+                stats=stats,
+                results=results,
+                reductions=reductions,
             )
 
             await emit_task_end(logger, eval_log)
@@ -780,11 +789,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         f"Task cancelled by user ({task_cancel.cancel_type})"
                     )
                     error = eval_error(cancel_ex, TerminateTaskError, cancel_ex, None)
-                    await carry_forward_unlogged_samples(
-                        logger, options.sample_source, sample_ids, epochs, log_images
-                    )
-                    eval_log = await logger.log_finish(
-                        "error", stats, results, reductions, error
+                    eval_log = await _finish_task_log(
+                        logger=logger,
+                        sample_source=options.sample_source,
+                        sample_ids=sample_ids,
+                        epochs=epochs,
+                        log_images=log_images,
+                        status="error",
+                        stats=stats,
+                        results=results,
+                        reductions=reductions,
+                        error=error,
                     )
                     td.complete(
                         TaskError(
@@ -796,8 +811,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     )
                 else:
                     # External cancellation (ctrl+c)
-                    eval_log = await logger.log_finish(
-                        "cancelled", stats, results, reductions
+                    eval_log = await _finish_task_log(
+                        logger=logger,
+                        sample_source=options.sample_source,
+                        sample_ids=sample_ids,
+                        epochs=epochs,
+                        log_images=log_images,
+                        status="cancelled",
+                        stats=stats,
+                        results=results,
+                        reductions=reductions,
                     )
                     td.complete(TaskCancelled(logger.samples_completed, stats))
 
@@ -816,16 +839,18 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # collect eval data
                 collect_eval_data(stats)
 
-                # carry forward error history for samples that never logged
-                # this attempt (a sibling error tore the task down before they
-                # ran) so a task-level retry's history chain stays intact
-                await carry_forward_unlogged_samples(
-                    logger, options.sample_source, sample_ids, epochs, log_images
-                )
-
                 # finish with error status
-                eval_log = await logger.log_finish(
-                    "error", stats, results, reductions, error
+                eval_log = await _finish_task_log(
+                    logger=logger,
+                    sample_source=options.sample_source,
+                    sample_ids=sample_ids,
+                    epochs=epochs,
+                    log_images=log_images,
+                    status="error",
+                    stats=stats,
+                    results=results,
+                    reductions=reductions,
+                    error=error,
                 )
 
                 # display it
@@ -2101,3 +2126,41 @@ async def carry_forward_unlogged_samples(
                 await logger.complete_sample(
                     condense_sample(previous.sample, log_images), flush=True
                 )
+
+
+async def _finish_task_log(
+    *,
+    logger: TaskLogger,
+    sample_source: EvalSampleSource | None,
+    sample_ids: list[str | int],
+    epochs: int,
+    log_images: bool,
+    status: EvalStatus,
+    stats: EvalStats,
+    results: EvalResults | None = None,
+    reductions: list[EvalSampleReductions] | None = None,
+    error: EvalError | None = None,
+) -> EvalLog:
+    """Finish the task log, preserving retry history first on non-success.
+
+    The single finish chokepoint for ``task_run``'s terminal branches: any
+    non-success finish is (or may be) a teardown that left planned samples
+    unlogged this attempt, and this attempt's log seeds the next attempt — so
+    unlogged samples' prior-attempt history is carried forward before the
+    finish is written. Routing every terminal branch through here means a
+    finish path can't forget the carry-forward (the external-cancellation
+    branch once did, silently dropping retry history on Ctrl-C — and
+    cancelled logs ARE retry seeds: ``retryable_eval_logs`` includes them and
+    eval-set treats any non-success log as incomplete).
+
+    Safe to call on fully-logged attempts (eg. an ``error`` status from the
+    ``fail_on_error`` threshold with every sample run): the carry-forward
+    re-logs only planned samples absent from this attempt's log whose source
+    carries genuine prior error history (``PreviousError``), so it degrades
+    to a no-op.
+    """
+    if status != "success":
+        await carry_forward_unlogged_samples(
+            logger, sample_source, sample_ids, epochs, log_images
+        )
+    return await logger.log_finish(status, stats, results, reductions, error)
