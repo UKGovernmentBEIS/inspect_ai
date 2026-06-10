@@ -5,6 +5,7 @@
 - Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.
 - Agent Bridge: Preserve `source="operator"` provenance on operator-injected messages.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
+- Inspect View: Pending sample buffers now store per-sample segment cursors to avoid repeatedly streaming co-batched segments after a sample reaches its own cursor. In-progress buffers written by this version may not be readable by older Inspect versions until the eval finishes and the ephemeral buffer is removed.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
 - S3: Retry when requests have stale signatures.
 
