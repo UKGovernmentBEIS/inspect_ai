@@ -488,6 +488,66 @@ def test_ctl_ls_aggregates_task_retries(short_data_dir: Path) -> None:
     assert entry["attempts"] == 2, f"expected attempts=2; got {entry}"
 
 
+def test_ctl_ls_aggregates_legacy_batch_retries(short_data_dir: Path) -> None:
+    """Legacy batch-retry attempts (``retry_immediate=False``) fold too.
+
+    Each legacy attempt is its own ``eval()`` call with a fresh ``run_id``
+    (the registry persists across them within the eval-set). Keying the fold
+    on ``(run_id, task_id)`` split the attempts into duplicate rows that made
+    the task selector permanently ambiguous — ``inspect ctl samples <task_id>``
+    errored with "matches multiple tasks ... pass a task id", and the task id
+    was exactly what matched both. Folding by ``task_id`` alone keeps one row
+    and a resolvable selector.
+    """
+    from inspect_ai._cli.ctl import _resolve_target_eval
+
+    fail = {"calls": 0}
+
+    @solver
+    def fail_once_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail["calls"] += 1
+            if fail["calls"] == 1:
+                raise RuntimeError("synthetic first-attempt failure")
+            return state
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[fail_once_solver()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        ok, _ = eval_set(
+            tasks=[task_flaky()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.05,
+            retry_immediate=False,
+        )
+    assert ok
+
+    flaky_entries = [e for e in cap.evals if e["task"] == "task_flaky"]
+    assert len(flaky_entries) == 1, (
+        f"legacy attempts should fold into one row: {cap.evals}"
+    )
+    entry = flaky_entries[0]
+    assert entry["status"] == "completed"
+    assert entry["attempts"] == 2, f"expected attempts=2; got {entry}"
+
+    # the selector resolves cleanly (this used to exit ambiguous)
+    resolved = _resolve_target_eval(cap.evals, entry["task_id"])
+    assert resolved["eval_id"] == entry["eval_id"]
+
+
 def test_ctl_ls_counts_reused_samples_on_retry(short_data_dir: Path) -> None:
     """Reused successful samples on a retry count toward ``completed``.
 

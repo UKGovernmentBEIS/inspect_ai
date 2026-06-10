@@ -19,10 +19,11 @@ happens:
   Each call has its own ``run_id``; the (eval-set-scoped) control
   server stays bound across them.
 
-The endpoint folds task retries into a single entry per
-``(run_id, task_id)``: when a task is retried by
-``task_retry_attempts`` (or eval-set-level retries), each attempt
-mints a fresh ``eval_id`` but ``task_id`` is preserved. Without
+The endpoint folds task retries into a single entry per ``task_id``:
+when a task is retried by ``task_retry_attempts`` (or eval-set-level
+retries — including the legacy ``retry_immediate=False`` mode, where
+each attempt is its own ``eval()`` call with a fresh ``run_id``), each
+attempt mints a fresh ``eval_id`` but ``task_id`` is preserved. Without
 folding, a task that failed twice and succeeded on attempt three
 would appear as three rows. The aggregated row reports the latest
 attempt's state (its counters subsume reused samples from prior
@@ -50,8 +51,8 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     visibility per process (each running inspect process has its own
     AF_UNIX socket / discovery file), so all entries from
     ``active_samples`` are this process's. Within the process, an
-    eval-set may span multiple ``run_id``s; we emit one entry per
-    ``(run_id, task_id)`` group and carry that group's
+    eval-set may span multiple ``run_id``s (legacy batch-retry mode);
+    we emit one entry per ``task_id`` group and carry that group's
     ``eval_id`` (latest attempt) along.
 
     Args:
@@ -59,7 +60,7 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
             haven't started yet.
 
     Returns:
-        One dict per (run_id, task_id) group, sorted by start time
+        One dict per task_id group, sorted by start time
         (oldest first). Each entry includes ``log_location`` (where this
         attempt's results are written), a nested ``samples`` block:
         ``{total, completed, errored, in_flight, queued}``, and an
@@ -77,18 +78,25 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     for sample in active_samples():
         samples_by_eval[sample.eval_id].append(sample)
 
-    # Group EvalStates by (run_id, task_id) so retry attempts of the
-    # same task collapse into a single group. Fallback grouping by
-    # eval_id keeps pre-task_id states (or any record missing a
-    # task_id) on their own row.
-    states_by_group: dict[tuple[str | None, str], list[EvalState]] = defaultdict(list)
+    # Group EvalStates by task_id so retry attempts of the same task
+    # collapse into a single group. Deliberately NOT keyed by run_id:
+    # legacy batch-retry mode (eval_set with retry_immediate=False) runs
+    # each attempt as its own eval() call with a fresh run_id, and keying
+    # on run_id split those attempts into duplicate rows that made the
+    # task selector permanently ambiguous. task_id alone is safe within a
+    # registry lifetime — the registry clears at every run boundary and
+    # only one eval run executes at a time (the `_eval_async_running`
+    # guard), so same-task_id states are always attempts of one logical
+    # task. Fallback grouping by eval_id keeps pre-task_id states (or any
+    # record missing a task_id) on their own row.
+    states_by_group: dict[str, list[EvalState]] = defaultdict(list)
     for state in get_eval_states():
-        key = (state.run_id, state.task_id) if state.task_id else (None, state.eval_id)
+        key = state.task_id if state.task_id else state.eval_id
         states_by_group[key].append(state)
 
     # eval_ids covered by some grouped state — used to attribute live
     # samples to their group when building the per-group summary.
-    eval_id_to_group: dict[str, tuple[str | None, str]] = {}
+    eval_id_to_group: dict[str, str] = {}
     for group_key, states in states_by_group.items():
         for state in states:
             eval_id_to_group[state.eval_id] = group_key
