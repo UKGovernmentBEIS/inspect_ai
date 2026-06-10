@@ -54,6 +54,7 @@
 - Inspect View: Fix stuck completed streaming samples
 - Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects.
 - Bugfix: Fix a rare `OperationalError: unable to open database file` when concurrent evals share a log directory.
+- vLLM: Read the served `max_model_len` from the server's `/v1/models` endpoint and register it as the model's context window (falling back to the static model catalog). This calibrates context management such as compaction against the window the server is actually running, which on self-hosted deployments is often smaller than the catalog value.
 
 ## 0.3.239 (09 June 2026)
 
