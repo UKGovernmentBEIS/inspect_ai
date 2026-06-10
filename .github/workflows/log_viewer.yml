@@ -48,17 +48,40 @@ jobs:
         working-directory: src/inspect_ai/_view/ts-mono
         run: pnpm install --frozen-lockfile
 
-      - name: Update schema and types
+      # The pipeline is Python → inspect-openapi.json → generated.ts. The two
+      # arrows are checked independently: json → ts must match exactly, while
+      # Python → json tolerates docstring-only ("description") drift so that
+      # doc changes don't require regenerating checked-in artifacts.
+
+      - name: Check generated types are in sync with checked-in schema
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: |
+          pnpm --filter @tsmono/inspect-common types:generate
+          if ! git diff --exit-code -- packages/inspect-common/src/types/generated.ts
+          then
+            echo "generated.ts is out of sync with inspect-openapi.json. Please run:"
+            echo "  python src/inspect_ai/_view/schema.py"
+            exit 1
+          fi
+
+      - name: Regenerate schema from Python source
         run: python src/inspect_ai/_view/schema.py
 
-      - name: Ensure schema and types changes are checked in
+      - name: Check schema is up to date (docstring-only drift tolerated)
+        run: python .github/scripts/check_openapi_drift.py
+
+      - name: Ensure regeneration produced no other changes
         run: |
-          if [[ $(git status --porcelain) != "" ]]
+          if git status --porcelain \
+              | grep -vE 'src/inspect_ai/_view/(inspect-openapi\.json|ts-mono)$' \
+              | grep -q . \
+            || git -C src/inspect_ai/_view/ts-mono status --porcelain \
+              | grep -v 'src/types/generated\.ts$' \
+              | grep -q .
           then
-            echo "Schemas or generated types are out of date. Please run:"
-            echo "  python src/inspect_ai/_view/schema.py"
+            echo "Unexpected changes after regeneration:"
             git status
-            git diff
+            git -C src/inspect_ai/_view/ts-mono status
             exit 1
           fi
 
