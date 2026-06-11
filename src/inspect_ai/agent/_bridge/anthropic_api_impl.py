@@ -60,7 +60,7 @@ from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
-from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE, ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._code_execution import (
@@ -298,7 +298,7 @@ def tools_from_anthropic_tools(
             ToolInfo(
                 name=f"mcp_server_{config.name}",
                 description=f"mcp_server_{config.name}",
-                options=config.model_dump(),
+                options={INTERNAL_TOOL_TYPE: "mcp_call", **config.model_dump()},
             )
         )
 
