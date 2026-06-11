@@ -271,6 +271,65 @@ async def test_compaction_iterations_still_summed() -> None:
 
 
 # ---------------------------------------------------------------------------
+# token counting (replayed fallback blocks need the beta header)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_count_tokens_adds_fallback_beta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """count_tokens on a fallen-back history sends the fallback beta header."""
+    init_sample_anthropic_assistant_internal()
+    message = _fallback_message(
+        [_fallback_block(), {"type": "text", "text": "served answer"}]
+    )
+    output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
+
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+
+    captured: dict[str, Any] = {}
+
+    async def fake_count_tokens(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+
+        class _Response:
+            input_tokens = 42
+
+        return _Response()
+
+    monkeypatch.setattr(api.client.messages, "count_tokens", fake_count_tokens)
+
+    count = await api.count_tokens([output.message])
+    assert count == 42
+    assert captured["extra_headers"]["anthropic-beta"] == FALLBACK_BETA
+    # the fallback block survives conversion (it's what requires the beta)
+    assert any(b.get("type") == "fallback" for b in captured["messages"][0]["content"])
+
+
+@pytest.mark.anyio
+async def test_count_tokens_no_beta_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+
+    captured: dict[str, Any] = {}
+
+    async def fake_count_tokens(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+
+        class _Response:
+            input_tokens = 7
+
+        return _Response()
+
+    monkeypatch.setattr(api.client.messages, "count_tokens", fake_count_tokens)
+
+    await api.count_tokens("Hello")
+    assert "extra_headers" not in captured
+
+
+# ---------------------------------------------------------------------------
 # refusal hint (suggest fallback_models when a rescuable refusal occurs)
 # ---------------------------------------------------------------------------
 
@@ -496,6 +555,21 @@ async def test_fallback_bridge_tolerates_from_alias() -> None:
 # ---------------------------------------------------------------------------
 # live (requires API key)
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_count_tokens_with_fallback_history_live() -> None:
+    """The API accepts a fallen-back history for token counting (with beta)."""
+    init_sample_anthropic_assistant_internal()
+    message = _fallback_message(
+        [_fallback_block(), {"type": "text", "text": "served answer"}]
+    )
+    output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
+
+    model = get_model(f"anthropic/{REQUESTED_MODEL}")
+    count = await model.api.count_tokens([output.message])
+    assert count > 0
 
 
 @pytest.mark.anyio

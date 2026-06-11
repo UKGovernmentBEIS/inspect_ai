@@ -597,8 +597,9 @@ class AnthropicAPI(ModelAPI):
             for m in input
         ]
 
-        # Check if messages contain compaction blocks before conversion
+        # Check for content requiring beta opt-ins before conversion
         has_compaction = _messages_contain_compaction(input)
+        has_fallback = _input_has_fallback(input)
 
         # Convert to Anthropic message format
         messages = [await message_param(m) for m in input]
@@ -623,22 +624,27 @@ class AnthropicAPI(ModelAPI):
             else:
                 thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
+        # Beta opt-ins required for special content in the history. The API
+        # validates content block types for token counting too, so replayed
+        # compaction and fallback blocks need the same betas as generate.
+        betas: list[str] = []
+        request_extra: dict[str, Any] = {}
         if has_compaction:
-            # Use beta header with context_management for compaction support
-            response = await self.client.messages.count_tokens(
-                model=self.service_model_name(),
-                messages=messages,
-                extra_headers={"anthropic-beta": "compact-2026-01-12"},
-                extra_body={
-                    "context_management": {"edits": [{"type": "compact_20260112"}]}
-                },
-                **thinking_config,
-            )
-        else:
-            # Standard token counting
-            response = await self.client.messages.count_tokens(
-                model=self.service_model_name(), messages=messages, **thinking_config
-            )
+            betas.append("compact-2026-01-12")
+            request_extra["extra_body"] = {
+                "context_management": {"edits": [{"type": "compact_20260112"}]}
+            }
+        if has_fallback:
+            betas.append(FALLBACK_BETA)
+        if betas:
+            request_extra["extra_headers"] = {"anthropic-beta": ",".join(betas)}
+
+        response = await self.client.messages.count_tokens(
+            model=self.service_model_name(),
+            messages=messages,
+            **request_extra,
+            **thinking_config,
+        )
         return response.input_tokens
 
     @override
