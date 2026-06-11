@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
 - Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.
