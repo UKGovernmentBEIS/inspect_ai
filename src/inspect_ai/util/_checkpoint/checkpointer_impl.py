@@ -26,7 +26,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.file import write_text_atomic
@@ -252,9 +252,9 @@ class _EnteredCheckpointer:
 
     async def tick(self) -> None:
         self._turn += 1
-        kind = self._trigger.tick()
-        if kind is not None:
-            await self._fire(kind)
+        fire = self._trigger.tick()
+        if fire is not None:
+            await self._fire(fire.kind, metadata=fire.metadata)
 
     async def checkpoint(self) -> None:
         await self._fire("manual")
@@ -331,7 +331,11 @@ class _EnteredCheckpointer:
         return initial_value
 
     async def _fire(
-        self, trigger: CheckpointTriggerKind, *, final: bool = False
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
     ) -> None:
         """Fire a checkpoint, enforcing ``max_consecutive_failures``.
 
@@ -349,7 +353,7 @@ class _EnteredCheckpointer:
         will land in it).
         """
         try:
-            await self._fire_once(trigger, final=final)
+            await self._fire_once(trigger, metadata=metadata, final=final)
         except Exception as err:
             self._consecutive_failures += 1
             self._record_fire_failure(trigger, err)
@@ -394,7 +398,11 @@ class _EnteredCheckpointer:
         )
 
     async def _fire_once(
-        self, trigger: CheckpointTriggerKind, *, final: bool = False
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
     ) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
@@ -492,6 +500,7 @@ class _EnteredCheckpointer:
                 checkpoint = Checkpoint(
                     checkpoint_id=next_checkpoint_id,
                     trigger=trigger,
+                    trigger_metadata=metadata,
                     turn=self._turn,
                     created_at=datetime.now(timezone.utc),
                     duration_ms=duration_ms,

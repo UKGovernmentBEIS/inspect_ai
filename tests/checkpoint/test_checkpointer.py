@@ -22,6 +22,7 @@ from typing import Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import JsonValue
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
 
 from inspect_ai.event._checkpoint import CheckpointEvent
@@ -163,9 +164,13 @@ class _CountingCheckpointer(_EnteredCheckpointer):
     fire_count: int = 0
 
     async def _fire(
-        self, trigger: CheckpointTriggerKind, *, final: bool = False
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
     ) -> None:
-        await super()._fire(trigger, final=final)
+        await super()._fire(trigger, metadata=metadata, final=final)
         self.fire_count += 1
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
@@ -213,7 +218,11 @@ class _FlakyCheckpointer(_EnteredCheckpointer):
     attempts: int = 0
 
     async def _fire_once(
-        self, trigger: CheckpointTriggerKind, *, final: bool = False
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
     ) -> None:
         self.attempts += 1
         if self.should_fail:
