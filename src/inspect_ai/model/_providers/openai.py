@@ -50,8 +50,11 @@ from .._openai_responses import (
 )
 from ._openai_batch import OpenAIBatcher
 from .util import (
+    azure_v1_base_url,
+    azure_v1_token_key,
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
+    is_azure_v1_api_version,
     model_base_url,
     require_azure_base_url,
     resolve_api_key,
@@ -266,6 +269,25 @@ class OpenAIAPI(ModelAPI):
             base_url = require_azure_base_url(
                 self.base_url, AZURE_OPENAI_BASE_URL_VARS, "OpenAI"
             )
+
+            # next-generation v1 API ("always latest"): the plain OpenAI
+            # client against {endpoint}/openai/v1/ with no dated api-version.
+            # managed identity works by passing the token provider as an
+            # async api_key callable (refreshed automatically per request).
+            if is_azure_v1_api_version(self.api_version):
+                return AsyncOpenAI(
+                    api_key=self.api_key
+                    if self.api_key
+                    else azure_v1_token_key(self.token_provider)
+                    if self.token_provider
+                    else None,
+                    base_url=azure_v1_base_url(base_url),
+                    http_client=self.http_client,
+                    timeout=self.client_timeout
+                    if self.client_timeout is not None
+                    else NOT_GIVEN,
+                    **self.model_args,
+                )
 
             # use managed identity if available, otherwise API key
             return AsyncAzureOpenAI(

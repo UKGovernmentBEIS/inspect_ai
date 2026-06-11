@@ -1,5 +1,6 @@
 ## Unreleased
 
+- OpenAI: Support the Azure OpenAI next-generation v1 API ("always latest") — set `api_version` to `v1` (or `AZUREAI_OPENAI_API_VERSION=v1`) to target `{endpoint}/openai/v1/` with no dated api-version; managed identity (Entra ID) is supported via automatic token refresh.
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
 - Anthropic: Raise a clear error when `reasoning_tokens` is set on Claude 4.7+ or Claude 5 (which removed the `budget_tokens` control); use `reasoning_effort` instead.

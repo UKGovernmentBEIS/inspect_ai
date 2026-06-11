@@ -147,6 +147,19 @@ inspect eval math.py --model openai/azure/gpt-4o-mini
 
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
 
+#### Next-generation v1 API
+
+Azure OpenAI also offers a [next-generation v1 API](https://learn.microsoft.com/en-us/azure/foundry/openai/api-version-lifecycle) that provides ongoing access to the latest features with no need to specify a new dated `api-version` each month. To opt in, set the API version to `v1`:
+
+``` bash
+export AZUREAI_OPENAI_API_KEY=your-api-key
+export AZUREAI_OPENAI_BASE_URL=https://your-resource.openai.azure.com
+export AZUREAI_OPENAI_API_VERSION=v1
+inspect eval math.py --model openai/azure/gpt-4o-mini
+```
+
+In this mode requests target `{base-url}/openai/v1/` with no `api-version` parameter (`preview` and `latest` are also accepted as aliases for `v1`). Set `AZUREAI_OPENAI_BASE_URL` to the resource endpoint — the `/openai/v1` path is appended automatically (endpoints that already include it are also fine). Features that are still in preview are opted into with feature-specific preview headers per the Microsoft documentation. Managed identity works as before: install `azure-identity` and leave the API key undefined.
+
 ### OpenAI on AWS Bedrock {#openai-on-aws-bedrock}
 
 The `openai` provider supports OpenAI models served through [Amazon Bedrock](https://aws.amazon.com/bedrock/). Use the normal `openai` provider with the `bedrock` qualifier, and use a standard OpenAI model identifier (Inspect automatically adds prefixes and suffixes required by Bedrock). For example:

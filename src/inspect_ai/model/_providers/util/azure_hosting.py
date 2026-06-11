@@ -3,7 +3,7 @@
 import os
 import re
 from logging import getLogger
-from typing import Callable
+from typing import Awaitable, Callable
 
 from inspect_ai._util.error import PrerequisiteError
 
@@ -14,6 +14,48 @@ logger = getLogger(__name__)
 # Default Azure audience for managed identity
 AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
 DEFAULT_AZURE_AUDIENCE = "https://cognitiveservices.azure.com/.default"
+
+# Sentinel api_version values that select the Azure OpenAI next-generation
+# v1 API ("always latest"). The v1 surface takes no dated api-version:
+# requests target {endpoint}/openai/v1/ and preview features are opted into
+# via feature-specific preview headers rather than an api-version. "v1" is
+# the canonical value; "preview" and "latest" are accepted as aliases (they
+# were used by the transitional Microsoft guidance).
+# https://learn.microsoft.com/en-us/azure/foundry/openai/api-version-lifecycle
+AZURE_V1_API_VERSIONS = ("v1", "preview", "latest")
+
+
+def is_azure_v1_api_version(api_version: str | None) -> bool:
+    """Check whether an api_version selects the Azure next-gen v1 API."""
+    return api_version is not None and api_version.lower() in AZURE_V1_API_VERSIONS
+
+
+def azure_v1_base_url(base_url: str) -> str:
+    """Resolve the base URL for the Azure OpenAI next-gen v1 API.
+
+    Appends `/openai/v1/` to the resource endpoint (tolerating endpoints
+    that already include it).
+    """
+    base_url = base_url.rstrip("/")
+    if not base_url.endswith("/openai/v1"):
+        base_url = f"{base_url}/openai/v1"
+    return f"{base_url}/"
+
+
+def azure_v1_token_key(
+    token_provider: Callable[[], str],
+) -> Callable[[], Awaitable[str]]:
+    """Adapt a sync bearer-token provider for use as an OpenAI client api_key.
+
+    The Azure next-gen v1 API uses the plain OpenAI client, which supports
+    managed identity by accepting an async api_key callable (invoked per
+    request for automatic token refresh).
+    """
+
+    async def token_key() -> str:
+        return token_provider()
+
+    return token_key
 
 
 def check_azure_deployment_mismatch(
