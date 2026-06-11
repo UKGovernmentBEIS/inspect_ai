@@ -4,9 +4,11 @@
 - Model: Record model fallbacks as a typed `ModelOutput.fallback` and roll them up per-sample on `EvalSample.model_fallbacks` (and sample summaries); expose a `fallbacks` count column in `samples_df()`.
 - Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
+- Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
 - Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.
 - Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.
+- Tools: `internal_tool_type()` helper and `INTERNAL_TOOL_TYPE` options key marking server-side tools.
 - Agent Bridge: Preserve `source="operator"` provenance on operator-injected messages.
 - Task Display: Update log/plain progress after errors.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
