@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task (task_args only apply to tasks referenced by name or file; they are ignored for `Task` instances passed directly). (#4194)
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
 - Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.

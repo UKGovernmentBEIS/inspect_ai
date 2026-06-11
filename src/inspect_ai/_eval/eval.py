@@ -88,7 +88,7 @@ from inspect_ai.util._display import (
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_tasks
+from .loader import resolve_tasks, task_args_apply_to_tasks
 from .run import eval_run
 from .task import Epochs, PreviousTask
 from .task.resolved import ResolvedTask, resolved_model_names
@@ -1664,6 +1664,14 @@ def eval_resolve_tasks(
     init_model_roles(resolved_model_roles or {})
 
     task_args = resolve_args(task_args)
+    if task_args and task_args_apply_to_tasks(tasks) is False:
+        log.warning(
+            f"task_args {sorted(task_args.keys())} will not be applied: "
+            "task_args only apply to tasks referenced by name or file (or "
+            "auto-discovered from the working directory); they are ignored "
+            "for Task instances passed directly. Pass these arguments to "
+            "your @task function when creating the task instead."
+        )
     # To support inspect-flow using this method directly, make sure not to create the display if it does not already exist.
     active_display = active_task_display()
     with active_display.suspend_task_app() if active_display else nullcontext():
