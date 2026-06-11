@@ -9,6 +9,17 @@ if TYPE_CHECKING:
 
 
 Scorers: TypeAlias = (
-    "Scorer" | "Scanner[Transcript]" | Sequence["Scorer" | "Scanner[Transcript]"]
+    "Scorer"
+    | "Scanner[Transcript]"
+    | Sequence[
+        "Scorer" | "Scanner[Transcript]" | tuple[str, "Scorer" | "Scanner[Transcript]"]
+    ]
+    | dict[str, "Scorer" | "Scanner[Transcript]"]
 )
-"""Set of scorers."""
+"""Set of scorers.
+
+Scorers may optionally be named — either with a `dict` of `{name: scorer}`
+or with `(name, scorer)` tuples within a sequence. Named forms are
+supported by `score()` / `score_async()` (where the name becomes the
+score name); `Task(scorer=...)` accepts only unnamed forms.
+"""

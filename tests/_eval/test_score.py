@@ -32,7 +32,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageUser,
 )
-from inspect_ai.scorer import accuracy
+from inspect_ai.scorer import accuracy, includes, match
 from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
@@ -548,3 +548,137 @@ async def test_score_preserves_model_usage_in_score_event():
     assert score_events[0].model_usage == sample_model_usage
     assert score_events[0].scorer == "simple_scorer"
     assert score_events[0].scorer_args == {"threshold": 0.75}
+
+
+def _scorer_aliasing_log():
+    """Minimal mockllm-based log for scorer name aliasing tests."""
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+
+    samples = [
+        EvalSample(
+            id=f"sample-{i}",
+            epoch=1,
+            input="What is 2+2?",
+            target="4",
+            messages=[ChatMessageUser(role="user", content="What is 2+2?")],
+            output=ModelOutput(
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(role="assistant", content="4")
+                    )
+                ]
+            ),
+        )
+        for i in range(2)
+    ]
+    return EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="test_task",
+            task_id="test",
+            run_id="test-run",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="test",
+            steps=[EvalPlanStep(solver="generate")],
+            config=GenerateConfig(),
+        ),
+        samples=samples,
+    )
+
+
+async def test_score_scorers_dict_aliases():
+    """A dict of scorers aliases scores to the dict keys (#4197)."""
+    log = _scorer_aliasing_log()
+
+    scored = await score_async(
+        log,
+        {"match_exact": match("exact"), "match_any": match("any")},
+        display="none",
+    )
+
+    # sample scores are keyed by the aliases
+    assert scored.samples is not None
+    for sample in scored.samples:
+        assert sample.scores is not None
+        assert [*sample.scores] == ["match_exact", "match_any"]
+
+    # results are named by the aliases (with per-alias params preserved)
+    assert scored.results is not None
+    results = {score.name: score for score in scored.results.scores}
+    assert [*results] == ["match_exact", "match_any"]
+    assert results["match_exact"].params == {"location": "exact"}
+    assert results["match_any"].params == {"location": "any"}
+
+    # score events record the alias as the scorer name
+    score_events = [e for e in scored.samples[0].events if isinstance(e, ScoreEvent)]
+    assert {e.scorer for e in score_events} == {"match_exact", "match_any"}
+
+
+async def test_score_scorers_tuple_aliases():
+    """(name, scorer) tuples mix with unnamed scorers in a sequence."""
+    log = _scorer_aliasing_log()
+
+    scored = await score_async(
+        log, [("match_strict", match()), includes()], display="none"
+    )
+
+    assert scored.samples is not None
+    assert [*(scored.samples[0].scores or {})] == ["match_strict", "includes"]
+    assert scored.results is not None
+    assert [score.name for score in scored.results.scores] == [
+        "match_strict",
+        "includes",
+    ]
+
+
+async def test_score_scorers_duplicate_aliases():
+    """Duplicate aliases are deduped like duplicate registry names."""
+    log = _scorer_aliasing_log()
+
+    scored = await score_async(
+        log, [("dup", match()), ("dup", includes())], display="none"
+    )
+
+    assert scored.samples is not None
+    assert [*(scored.samples[0].scores or {})] == ["dup", "dup1"]
+
+
+async def test_score_scorers_alias_append_collision():
+    """On append, an alias colliding with an existing score is deduped."""
+    log = _scorer_aliasing_log()
+
+    scored = await score_async(log, {"verdict": match()}, display="none")
+    rescored = await score_async(
+        scored, {"verdict": includes()}, action="append", display="none"
+    )
+
+    assert rescored.samples is not None
+    assert [*(rescored.samples[0].scores or {})] == ["verdict", "verdict1"]
+    assert rescored.results is not None
+    assert {score.name for score in rescored.results.scores} == {
+        "verdict",
+        "verdict1",
+    }
+
+
+async def test_score_scorers_unnamed_unchanged():
+    """Unnamed scorer lists keep their auto-derived, deduped names."""
+    log = _scorer_aliasing_log()
+
+    scored = await score_async(log, [match(), match()], display="none")
+
+    assert scored.samples is not None
+    assert [*(scored.samples[0].scores or {})] == ["match", "match1"]

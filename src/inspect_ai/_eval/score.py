@@ -23,7 +23,10 @@ import anyio
 from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
 from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
-from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
+from inspect_ai._eval.task.task import (
+    resolve_scorer_metrics,
+    resolve_scorers_and_names,
+)
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
@@ -88,7 +91,11 @@ def score(
 
     Args:
        log (EvalLog): Evaluation log.
-       scorers (Scorer): List of Scorers to apply to log
+       scorers (Scorers): Scorers to apply to log. Pass a dict of
+           `{name: scorer}` (or `(name, scorer)` tuples within a list)
+           to assign custom names to the resulting scores — e.g. to
+           run the same scorer with different parameters under
+           distinct names.
        metrics (list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None):
            Alternative metrics (overrides the metrics provided by the
            specified scorer and log).
@@ -203,7 +210,11 @@ async def score_async(
        log (EvalLog):
          Evaluation log. Only the headers are needed if `samples`
          is passed as well.
-       scorers (list[Scorer]): Scorers to apply to log
+       scorers (Scorers): Scorers to apply to log. Pass a dict of
+         `{name: scorer}` (or `(name, scorer)` tuples within a list)
+         to assign custom names to the resulting scores — e.g. to
+         run the same scorer with different parameters under
+         distinct names.
        metrics (list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None):
          Alternative metrics (overrides the metrics provided by the
          specified scorer and log).
@@ -224,8 +235,8 @@ async def score_async(
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
 
-    # resolve scorers
-    resolved_scorers = resolve_scorer(scorers)
+    # resolve scorers (along with any name aliases, e.g. from a dict of scorers)
+    resolved_scorers, scorer_aliases = resolve_scorers_and_names(scorers)
 
     if copy:
         # deepcopy so we don't mutate the passed log
@@ -272,7 +283,7 @@ async def score_async(
                 # since the sample score carries the scorer name that generated
                 # it (so using sample.scores directly isn't enough)
                 sample_score, names = await _run_score_task(
-                    log, sample, resolved_scorers, action
+                    log, sample, resolved_scorers, action, scorer_aliases
                 )
 
             assert sample.scores is not None
@@ -338,6 +349,7 @@ async def _run_score_task(
     sample: EvalSample,
     scorers: list[Scorer],
     action: ScoreAction,
+    scorer_aliases: list[str | None] | None = None,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
     target = Target(sample.target)
     state = TaskState(
@@ -380,9 +392,11 @@ async def _run_score_task(
     results: dict[str, SampleScore] = {}
     scorer_names: list[str] = []
     async with span(name=SCORERS_SPAN_NAME):
-        for scorer in scorers:
+        for idx_scorer, scorer in enumerate(scorers):
+            alias = scorer_aliases[idx_scorer] if scorer_aliases else None
             scorer_name = unique_scorer_name(
-                scorer, list({*existing_score_names, *results})
+                alias if alias is not None else scorer,
+                list({*existing_score_names, *results}),
             )
             scorer_names.append(scorer_name)
             async with span(name=scorer_name, type=SCORER_SPAN_TYPE):

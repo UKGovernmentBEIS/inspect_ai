@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scoring: `score()` / `score_async()` now accept a dict of scorers (`{name: scorer}`, or `(name, scorer)` tuples within a list) to alias scores to custom names — e.g. to run the same scorer with different parameters under distinct names.
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
 - Anthropic: Raise a clear error when `reasoning_tokens` is set on Claude 4.7+ or Claude 5 (which removed the `budget_tokens` control); use `reasoning_effort` instead.
