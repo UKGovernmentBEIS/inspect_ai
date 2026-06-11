@@ -78,6 +78,9 @@ from anthropic.types.beta import (
     BetaCompactionBlock,
     BetaCompactionBlockParam,
     BetaDirectCaller,
+    BetaFallbackBlock,
+    BetaFallbackBlockParam,
+    BetaFallbackInfoParam,
     BetaInputTokensTriggerParam,
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
@@ -169,6 +172,7 @@ from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
+    ModelFallback,
     ModelOutput,
     ModelUsage,
     StopCategory,
@@ -516,6 +520,12 @@ class AnthropicAPI(ModelAPI):
             if _request_has_edit_compaction(request):
                 betas.append("compact-2026-01-12")
 
+            # add fallback beta header if the input contains fallback blocks
+            # (so replayed blocks are accepted even if fallback_models is no
+            # longer configured, e.g. on a resumed eval with changed config)
+            if FALLBACK_BETA not in betas and _input_has_fallback(input):
+                betas.append(FALLBACK_BETA)
+
             # resolve betas and extra headers — preserve any client default
             # betas (e.g. oauth-2025-04-20 set via ANTHROPIC_AUTH_TOKEN)
             if len(betas) > 0:
@@ -552,6 +562,8 @@ class AnthropicAPI(ModelAPI):
                 raise ex
 
             model_call.set_response(response, self._http_hooks.end_request(request_id))
+
+            _warn_refusal_without_fallback(self, config, output)
 
             return output, model_call
 
@@ -590,8 +602,9 @@ class AnthropicAPI(ModelAPI):
             for m in input
         ]
 
-        # Check if messages contain compaction blocks before conversion
+        # Check for content requiring beta opt-ins before conversion
         has_compaction = _messages_contain_compaction(input)
+        has_fallback = _input_has_fallback(input)
 
         # Convert to Anthropic message format
         messages = [await message_param(m) for m in input]
@@ -616,22 +629,27 @@ class AnthropicAPI(ModelAPI):
             else:
                 thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
+        # Beta opt-ins required for special content in the history. The API
+        # validates content block types for token counting too, so replayed
+        # compaction and fallback blocks need the same betas as generate.
+        betas: list[str] = []
+        request_extra: dict[str, Any] = {}
         if has_compaction:
-            # Use beta header with context_management for compaction support
-            response = await self.client.messages.count_tokens(
-                model=self.service_model_name(),
-                messages=messages,
-                extra_headers={"anthropic-beta": "compact-2026-01-12"},
-                extra_body={
-                    "context_management": {"edits": [{"type": "compact_20260112"}]}
-                },
-                **thinking_config,
-            )
-        else:
-            # Standard token counting
-            response = await self.client.messages.count_tokens(
-                model=self.service_model_name(), messages=messages, **thinking_config
-            )
+            betas.append("compact-2026-01-12")
+            request_extra["extra_body"] = {
+                "context_management": {"edits": [{"type": "compact_20260112"}]}
+            }
+        if has_fallback:
+            betas.append(FALLBACK_BETA)
+        if betas:
+            request_extra["extra_headers"] = {"anthropic-beta": ",".join(betas)}
+
+        response = await self.client.messages.count_tokens(
+            model=self.service_model_name(),
+            messages=messages,
+            **request_extra,
+            **thinking_config,
+        )
         return response.input_tokens
 
     @override
@@ -937,6 +955,28 @@ class AnthropicAPI(ModelAPI):
                 "type": "json_schema",
                 "schema": json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS),
             }
+
+        # server-side refusal fallback (first-party Claude API only). routed
+        # via extra_body as the SDK only exposes `fallbacks` on
+        # client.beta.messages.create but inspect calls client.messages.create
+        if config.fallback_models:
+            if self.is_bedrock() or self.is_vertex() or self.is_azure():
+                warn_once(
+                    logger,
+                    "fallback_models is only supported on the first-party "
+                    "Anthropic API (not bedrock/vertex/azure) and will be ignored.",
+                )
+            elif normalized_batch_config(config.batch):
+                warn_once(
+                    logger,
+                    "fallback_models is not supported with the Anthropic "
+                    "Batches API and will be ignored.",
+                )
+            else:
+                betas.append(FALLBACK_BETA)
+                extra_body["fallbacks"] = [
+                    {"model": model} for model in config.fallback_models
+                ]
 
         # look for any of our native fields not in GenerateConfig in extra_body
         if config.extra_body is not None:
@@ -2341,6 +2381,7 @@ MessageBlock = Union[
     | BetaTextEditorCodeExecutionToolResultBlock
     | CodeExecutionToolResultBlock
     | BetaWebFetchToolResultBlock
+    | BetaFallbackBlock
 ]
 
 MessageBlockParam = Union[
@@ -2360,6 +2401,7 @@ MessageBlockParam = Union[
     | BetaTextEditorCodeExecutionToolResultBlockParam
     | CodeExecutionToolResultBlockParam
     | BetaWebFetchToolResultBlockParam
+    | BetaFallbackBlockParam
 ]
 
 
@@ -2435,6 +2477,8 @@ async def assistant_message_blocks(
             blocks.append(BetaWebFetchToolResultBlock.model_validate(block_param))
         elif block_param["type"] == "compaction":
             blocks.append(BetaCompactionBlock.model_validate(block_param))
+        elif block_param["type"] == "fallback":
+            blocks.append(BetaFallbackBlock.model_validate(block_param))
         else:
             logger.warning(
                 f"Unexpecxted assistant message block type: {block_param['type']}"
@@ -2840,13 +2884,29 @@ async def model_output_from_message(
         if msg_id:
             asst_metadata["message_id"] = msg_id
 
+    # server-side refusal fallback: collect handoffs (in content order) so we
+    # can surface the serving model and a structured metadata entry. on a
+    # streaming mid-output decline `message.model` names the *requested* model,
+    # so the serving model is the final handoff's `to` model.
+    fallback_handoffs = [
+        {"from": from_model, "to": to_model}
+        for block in message.content
+        if getattr(block, "type", None) == "fallback"
+        for from_model, to_model in [_fallback_block_models(block)]
+    ]
+    serving_model = (
+        fallback_handoffs[-1]["to"] or message.model
+        if fallback_handoffs
+        else message.model
+    )
+
     # resolve choice
     stop_reason, pause_turn = message_stop_reason(message)
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content,
             tool_calls=tool_calls,
-            model=model,
+            model=serving_model,
             source="generate",
             metadata=asst_metadata or None,
         ),
@@ -2869,10 +2929,23 @@ async def model_output_from_message(
     input_tokens_cache_write = usage.get("cache_creation_input_tokens", None)
     input_tokens_cache_read = usage.get("cache_read_input_tokens", None)
 
-    # When compaction occurs, the top-level usage excludes compaction iteration tokens.
-    # The iterations array contains per-iteration usage which we aggregate for accuracy.
+    # When compaction occurs, the top-level usage excludes compaction iteration
+    # tokens, so we aggregate the per-iteration usage for accuracy. Server-side
+    # fallback also populates `iterations` (a `fallback_message` entry for the
+    # serving attempt plus a `message` entry per declined attempt), but there
+    # the top-level usage already describes the serving (billed) attempt and an
+    # unbilled refused attempt must NOT be summed in — so detect fallback by
+    # the `fallback_message` marker and use the top-level usage as-is.
     iterations = usage.get("iterations", None)
-    if isinstance(iterations, list) and len(iterations) > 0:
+    is_fallback_iterations = isinstance(iterations, list) and any(
+        isinstance(it, dict) and it.get("type") == "fallback_message"
+        for it in iterations
+    )
+    if (
+        isinstance(iterations, list)
+        and len(iterations) > 0
+        and not is_fallback_iterations
+    ):
         # Aggregate tokens from all iterations
         input_tokens = sum(
             it.get("input_tokens", 0) for it in iterations if isinstance(it, dict)
@@ -2898,6 +2971,19 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
+    # server-side refusal fallback: record a typed ModelFallback so log
+    # analysis can detect a fallback without parsing assistant content. the
+    # handoff chain and per-attempt `usage.iterations` are surfaced as
+    # diagnostics on ModelFallback.metadata.
+    fallback: ModelFallback | None = None
+    requested_model = fallback_handoffs[0]["from"] if fallback_handoffs else None
+    if requested_model and serving_model:
+        fallback = ModelFallback(
+            model=requested_model,
+            fallback_model=serving_model,
+            metadata={"handoffs": fallback_handoffs, "iterations": iterations},
+        )
+
     # Cache diagnostics: surface the `diagnostics` response field as a
     # top-level metadata key (in addition to its automatic capture under
     # extra_body), and emit a one-time warning when a cache miss is named.
@@ -2919,7 +3005,7 @@ async def model_output_from_message(
 
     return (
         ModelOutput(
-            model=message.model,
+            model=serving_model,
             choices=[choice],
             usage=ModelUsage(
                 input_tokens=input_tokens,
@@ -2929,6 +3015,7 @@ async def model_output_from_message(
                 input_tokens_cache_read=input_tokens_cache_read,
                 reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
             ),
+            fallback=fallback,
             metadata=metadata,
         ),
         pause_turn,
@@ -2982,6 +3069,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
         | BetaBashCodeExecutionToolResultBlock
         | BetaTextEditorCodeExecutionToolResultBlock
         | BetaWebFetchToolResultBlock
+        | BetaFallbackBlock
         | ContentBlock
     ] = []
     for block in content_blocks_input:
@@ -2995,6 +3083,16 @@ def content_and_tool_calls_from_assistant_content_blocks(
                         **block, caller=BetaDirectCaller(type="direct")
                     )
                 )
+            elif block.get("type") == "fallback":  # type: ignore[comparison-overlap]
+                # the fallback block is not in the content block union, so
+                # validate it explicitly (e.g. echoed scaffold history via the
+                # agent bridge arrives as a dict). tolerate `from_` — the
+                # reserved-keyword `from` alias is mangled when a message is
+                # dumped without by_alias (e.g. the sandbox bridge).
+                fb = dict(block)
+                if "from_" in fb and "from" not in fb:
+                    fb["from"] = fb.pop("from_")
+                content_blocks.append(BetaFallbackBlock.model_validate(fb))
             else:
                 content_blocks.append(content_block_adapter.validate_python(block))
         else:
@@ -3009,7 +3107,22 @@ def content_and_tool_calls_from_assistant_content_blocks(
     if pending_mcp_tool_uses is None:
         pending_mcp_tool_uses = dict()
 
-    for content_block in content_blocks:
+    # server-side fallback: a declined attempt's content precedes the final
+    # `fallback` handoff block. The API forbids replaying thinking and unpaired
+    # client tool_use from the declined attempt, so drop them at conversion
+    # time (the raw blocks remain in the ModelCall log for analysis). Text and
+    # paired server tool blocks before the boundary are kept.
+    last_fallback_index = -1
+    for i, content_block in enumerate(content_blocks):
+        if getattr(content_block, "type", None) == "fallback":
+            last_fallback_index = i
+
+    for index, content_block in enumerate(content_blocks):
+        before_fallback_boundary = index < last_fallback_index
+        if before_fallback_boundary and isinstance(
+            content_block, (ThinkingBlock, RedactedThinkingBlock, ToolUseBlock)
+        ):
+            continue
         if content_block.type == "mcp_tool_use":  # type: ignore[comparison-overlap]
             tool_use_block = BetaMCPToolUseBlock.model_validate(
                 content_block.model_dump()
@@ -3116,6 +3229,13 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
         elif content_block.type == "compaction":
             content.append(_content_data_for_compaction(content_block))
+
+        elif content_block.type == "fallback":
+            # server-side refusal fallback handoff marker. wrap as ContentData
+            # (mirroring compaction) so it round-trips replay and the bridge.
+            # NOTE: this must precede the TextBlock branch — the non-beta SDK
+            # client parses the unknown block as a loose TextBlock.
+            content.append(_content_data_for_fallback(content_block))
 
         elif isinstance(content_block, TextBlock):
             if content_block.text is None:
@@ -3250,6 +3370,7 @@ COMPACT_20260112 = "compact_20260112"
 EXTRA_BODY = "extra_body"
 CONTEXT_MANAGEMENT = "context_management"
 MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
+FALLBACK_BETA = "server-side-fallback-2026-06-01"
 
 
 def _add_edit_compaction(
@@ -3350,6 +3471,122 @@ def _is_compaction_content(content: Content) -> bool:
     if isinstance(content, ContentData):
         return _compaction_from_content_data(content) is not None
     return False
+
+
+def _fallback_block_models(block: Any) -> tuple[str | None, str | None]:
+    """Extract (from_model, to_model) from a server-side fallback block.
+
+    Handles both the typed BetaFallbackBlock (from the bridge dict path) and
+    the lenient TextBlock the non-beta SDK client produces for an unknown
+    `fallback` block (with `from`/`to` carried in `model_extra`).
+    """
+
+    def info_model(info: Any) -> str | None:
+        if info is None:
+            return None
+        if isinstance(info, dict):
+            return info.get("model")
+        return getattr(info, "model", None)
+
+    from_info = getattr(block, "from_", None)
+    to_info = getattr(block, "to", None)
+    extra = getattr(block, "model_extra", None) or {}
+    if from_info is None:
+        from_info = extra.get("from")
+    if to_info is None:
+        to_info = extra.get("to")
+    return info_model(from_info), info_model(to_info)
+
+
+def _content_data_for_fallback(block: Any) -> ContentData:
+    from_model, to_model = _fallback_block_models(block)
+    return ContentData(
+        data={
+            "fallback_metadata": {
+                "type": "anthropic_fallback",
+                "from": {"model": from_model},
+                "to": {"model": to_model},
+            }
+        }
+    )
+
+
+def _fallback_from_content_data(
+    content: ContentData,
+) -> BetaFallbackBlockParam | None:
+    fallback_metadata = content.data.get("fallback_metadata", None)
+    if isinstance(fallback_metadata, dict):
+        if fallback_metadata.get("type") == "anthropic_fallback":
+            from_info = fallback_metadata.get("from")
+            to_info = fallback_metadata.get("to")
+            to_model = to_info.get("model") if isinstance(to_info, dict) else None
+            param = BetaFallbackBlockParam(
+                type="fallback",
+                to=BetaFallbackInfoParam(model=to_model),  # type: ignore[typeddict-item]
+            )
+            # `from` is a reserved keyword — set via dict key
+            from_model = from_info.get("model") if isinstance(from_info, dict) else None
+            if from_model is not None:
+                cast(dict[str, Any], param)["from"] = {"model": from_model}
+            return param
+
+    return None
+
+
+def _fallback_from_content(content: Content) -> dict[str, Any] | None:
+    if isinstance(content, ContentData):
+        meta = content.data.get("fallback_metadata", None)
+        if isinstance(meta, dict) and meta.get("type") == "anthropic_fallback":
+            return meta
+    return None
+
+
+def _input_has_fallback(input: list[ChatMessage]) -> bool:
+    return any(
+        _fallback_from_content(c) is not None
+        for m in input
+        if isinstance(m, ChatMessageAssistant) and isinstance(m.content, list)
+        for c in m.content
+    )
+
+
+def _warn_refusal_without_fallback(
+    api: "AnthropicAPI", config: GenerateConfig, output: ModelOutput
+) -> None:
+    """Suggest fallback_models when a rescuable classifier refusal occurs.
+
+    Fires only when fallback could actually have been used: fallback_models
+    not configured, first-party non-batch API, and a Claude 5+ requested model
+    (the `fallbacks` param is only accepted for models publishing
+    allowed_fallback_models -- Opus 4.7/4.8 emit the same refusal stop_details
+    but cannot fall back).
+    """
+    if config.fallback_models:
+        return
+    if api.is_bedrock() or api.is_vertex() or api.is_azure():
+        return
+    if normalized_batch_config(config.batch):
+        return
+    if not (api.is_claude_5() or api.is_claude_latest()):
+        return
+    # classifier refusal (stop_details.type == "refusal") distinguishes
+    # rescuable safety-classifier declines from other content_filter stops
+    choice = output.choices[0] if output.choices else None
+    if choice is None or choice.stop_reason != "content_filter":
+        return
+    details = choice.stop_details
+    if details is None or details.type != "refusal":
+        return
+    category = f" (category: {details.category})" if details.category else ""
+    warn_once(
+        logger,
+        f"{output.model} declined this request with a safety classifier "
+        f"refusal{category}. Such requests can usually be served by a "
+        "fallback model — set the fallback_models generate config "
+        "(e.g. --fallback-models claude-opus-4-8) to retry refused "
+        "requests automatically. Learn more at "
+        "https://inspect.aisi.org.uk/fallbacks.html.",
+    )
 
 
 def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
@@ -3682,8 +3919,10 @@ async def message_block_params(
         compaction_param = _compaction_from_content_data(content)
         if compaction_param:
             return [compaction_param]
-        else:
-            raise RuntimeError(f"Unexpected data block: {content.data}")
+        fallback_param = _fallback_from_content_data(content)
+        if fallback_param:
+            return [fallback_param]
+        raise RuntimeError(f"Unexpected data block: {content.data}")
 
     else:
         raise RuntimeError(
