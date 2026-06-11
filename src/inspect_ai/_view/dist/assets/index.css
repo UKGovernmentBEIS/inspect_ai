@@ -15709,15 +15709,11 @@ pre[class*="language-"] {
   padding: 1em;
   margin: 0.5em 0;
   overflow: auto;
-  /* border: 0.3em solid #7a6651; */
   border-radius: 0.5em;
-  box-shadow: 1px 1px 0.5em #000 inset;
 }
 .vscode-dark :not(pre) > code[class*="language-"] {
   padding: 0.15em 0.2em 0.05em;
   border-radius: 0.3em;
-  /* border: 0.13em solid #7a6651; */
-  box-shadow: 1px 1px 0.3em -0.1em #000 inset;
   white-space: normal;
 }
 .vscode-dark .token.cdata,
@@ -16224,6 +16220,17 @@ body[class^="vscode-"] {
   --inspect-event-panel-sticky-top: 25px;
 }
 
+/* Full-viewport gate shown while the app config loads (or if it fails). */
+.app-config-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  padding: 1rem;
+  text-align: center;
+}
+
 li > p {
   margin-bottom: 0;
 }
@@ -16592,17 +16599,52 @@ li > ul {
 .markdown-content p:last-child {
   margin-bottom: 0;
 }
-._panel_twp3v_1 {
+._panel_tison_1 {
   width: 100%;
   display: flex;
   justify-content: center;
 }
 
-._container_twp3v_7 {
+._container_tison_7 {
   margin-top: 3em;
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 0.3em;
+}
+
+._ellipsis_tison_14 {
+  display: inline-flex;
+}
+
+._ellipsis_tison_14 i {
+  font-style: normal;
+  animation: _ncp-ellipsis_tison_1 1.5s ease-in-out infinite both;
+}
+
+._ellipsis_tison_14 i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+._ellipsis_tison_14 i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes _ncp-ellipsis_tison_1 {
+  0%,
+  80%,
+  100% {
+    opacity: 0.22;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ._ellipsis_tison_14 i {
+    animation: none;
+    opacity: 0.55;
+  }
 }
 ._content_13ihw_1 {
   white-space: pre-wrap;
@@ -21239,48 +21281,131 @@ a._citationLink_1ggvf_9:hover {
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-._container_hzx5s_1 {
+._section_8yqw9_1 {
+  margin: 1em 0 0 0;
+}
+
+._header_8yqw9_5 {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding-bottom: 0.3em;
+}
+
+._label_8yqw9_12 {
+  font-weight: 600;
+}
+
+._badge_8yqw9_16 {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smallestest);
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid;
+  color: var(--srb-fg);
+  background: var(--srb-bg);
+  border-color: var(--srb-bd);
+}
+
+/* Shared chroma/lightness, hue varies — keeps the set harmonious. */
+._neutral_8yqw9_31 {
+  --srb-fg: oklch(0.5 0.05 155);
+  --srb-bg: oklch(0.972 0.018 155);
+  --srb-bd: oklch(0.86 0.055 155);
+}
+._amber_8yqw9_36 {
+  --srb-fg: oklch(0.52 0.09 64);
+  --srb-bg: oklch(0.972 0.034 75);
+  --srb-bd: oklch(0.85 0.065 75);
+}
+._blue_8yqw9_41 {
+  --srb-fg: oklch(0.5 0.11 256);
+  --srb-bg: oklch(0.972 0.026 256);
+  --srb-bd: oklch(0.86 0.055 256);
+}
+._rose_8yqw9_46 {
+  --srb-fg: oklch(0.52 0.14 22);
+  --srb-bg: oklch(0.972 0.032 22);
+  --srb-bd: oklch(0.87 0.06 22);
+}
+._gray_8yqw9_51 {
+  --srb-fg: oklch(0.48 0.006 260);
+  --srb-bg: oklch(0.972 0.003 260);
+  --srb-bd: oklch(0.88 0.005 260);
+}
+
+/* Dark mode — dark tinted fills with light text (the light fills above are
+   near-white and glare on a dark surface). */
+[data-bs-theme="dark"] ._neutral_8yqw9_31 {
+  --srb-fg: oklch(0.82 0.06 155);
+  --srb-bg: oklch(0.28 0.03 155);
+  --srb-bd: oklch(0.42 0.04 155);
+}
+[data-bs-theme="dark"] ._amber_8yqw9_36 {
+  --srb-fg: oklch(0.83 0.09 75);
+  --srb-bg: oklch(0.3 0.04 64);
+  --srb-bd: oklch(0.45 0.05 70);
+}
+[data-bs-theme="dark"] ._blue_8yqw9_41 {
+  --srb-fg: oklch(0.82 0.09 256);
+  --srb-bg: oklch(0.3 0.04 256);
+  --srb-bd: oklch(0.45 0.06 256);
+}
+[data-bs-theme="dark"] ._rose_8yqw9_46 {
+  --srb-fg: oklch(0.82 0.1 22);
+  --srb-bg: oklch(0.3 0.05 22);
+  --srb-bd: oklch(0.46 0.08 22);
+}
+[data-bs-theme="dark"] ._gray_8yqw9_51 {
+  --srb-fg: oklch(0.8 0.01 260);
+  --srb-bg: oklch(0.29 0.005 260);
+  --srb-bd: oklch(0.42 0.008 260);
+}
+._container_qdklk_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_hzx5s_6 {
+._all_qdklk_6 {
   display: flex;
   flex-direction: column;
   gap: 1em;
 }
 
-._tableSelection_hzx5s_12 {
+._tableSelection_qdklk_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._config_hzx5s_18 {
+._config_qdklk_18 {
   margin-top: 0;
 }
 
-._tools_hzx5s_22 {
+._tools_qdklk_22 {
   grid-column: -1/1;
 }
 
-._codePre_hzx5s_26 {
+._codePre_qdklk_26 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_hzx5s_26 {
+._code_qdklk_26 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_hzx5s_38 {
+._progress_qdklk_38 {
   margin-left: 0;
 }
 
-._error_hzx5s_42 {
+._error_qdklk_42 {
   color: var(--bs-danger);
   padding: 0.5em;
   border: 1px solid var(--bs-danger);
@@ -21291,7 +21416,7 @@ a._citationLink_1ggvf_9:hover {
   margin: 0.5em 0;
 }
 
-._cancelled_hzx5s_53 {
+._cancelled_qdklk_53 {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -21304,36 +21429,31 @@ a._citationLink_1ggvf_9:hover {
   margin: 0.5em 0;
 }
 
-._showAllLink_hzx5s_66 {
+._showAllLink_qdklk_66 {
   text-align: center;
   padding: 0.5em 0 0.7em;
 }
 
-._showAllLink_hzx5s_66 a {
+._showAllLink_qdklk_66 a {
   cursor: pointer;
   color: var(--bs-secondary-color);
   text-decoration: none;
 }
 
-._showAllIcon_hzx5s_77 {
+._showAllIcon_qdklk_77 {
   margin-right: 0.35em;
 }
 
-._showAllLink_hzx5s_66 a:hover {
+._showAllLink_qdklk_66 a:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._toolConfig_hzx5s_86 {
-  display: grid;
-  grid-template-columns: max-content minmax(0, auto);
-  column-gap: 1em;
-  row-gap: 0.5em;
+._toolConfig_qdklk_86 {
   padding-top: 0.5em;
-  overflow-wrap: anywhere;
 }
 
-._toolChoice_hzx5s_95 {
+._toolChoice_qdklk_90 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
@@ -21343,7 +21463,7 @@ a._citationLink_1ggvf_9:hover {
   overflow-wrap: anywhere;
 }
 
-._fallbackBadge_hzx5s_105 {
+._fallbackBadge_qdklk_100 {
   font-style: italic;
 }
 ._noMargin_1a3fk_1 {
