@@ -1197,10 +1197,28 @@ def test_fastapi_nan_metric(test_client: TestClient) -> None:
 
 
 def test_fastapi_only_dir_access_policy() -> None:
-    policy = fastapi_server.OnlyDirAccessPolicy("/allowed/dir")
+    policy = fastapi_server.OnlyDirAccessPolicy(["/allowed/dir"])
     assert asyncio.run(policy.can_read(None, "/allowed/dir/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/other/dir/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/allowed/dir/../etc/passwd"))  # type: ignore[arg-type]
+
+
+def test_only_dir_access_policy_allows_any_configured_dir() -> None:
+    import anyio
+
+    from inspect_ai._view.fastapi_server import OnlyDirAccessPolicy
+
+    policy = OnlyDirAccessPolicy(["/logs/a", "/logs/b"])
+    req = None
+
+    async def check() -> None:
+        assert await policy.can_read(req, "/logs/a/run.eval") is True
+        assert await policy.can_read(req, "/logs/b/run.eval") is True
+        assert await policy.can_read(req, "/logs/c/run.eval") is False
+        assert await policy.can_list(req, "/logs/b") is True
+        assert await policy.can_read(req, "/logs/a/../../etc/passwd") is False
+
+    anyio.run(check)
 
 
 def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:
@@ -1214,7 +1232,7 @@ def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:
     with fastapi.testclient.TestClient(
         fastapi_server.view_server_app(
             mapping_policy=mapping_policy(),
-            access_policy=fastapi_server.OnlyDirAccessPolicy("mocked_eval_set"),
+            access_policy=fastapi_server.OnlyDirAccessPolicy(["mocked_eval_set"]),
         )
     ) as client:
         assert client.request("GET", f"/logs/{mock_s3_eval_file}").status_code == 200

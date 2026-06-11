@@ -590,12 +590,12 @@ class _InspectStaticFiles(StaticFiles):
 
 
 class OnlyDirAccessPolicy(AccessPolicy):
-    def __init__(self, dir: str) -> None:
+    def __init__(self, dirs: list[str]) -> None:
         super().__init__()
-        self.dir = dir
+        self.dirs = dirs
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.dir) and ".." not in file
+        return ".." not in file and any(file.startswith(d) for d in self.dirs)
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)
@@ -628,7 +628,7 @@ def view_server(
     # setup server
     api = view_server_app(
         mapping_policy=None,
-        access_policy=OnlyDirAccessPolicy(log_dir) if not authorization else None,
+        access_policy=OnlyDirAccessPolicy([log_dir]) if not authorization else None,
         default_dirs=[log_dir],
         recursive=recursive,
         fs_options=fs_options,
