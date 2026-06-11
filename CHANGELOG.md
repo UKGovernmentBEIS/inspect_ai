@@ -10,6 +10,7 @@
 - Task Display: Update log/plain progress after errors.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
+- Sandbox: `self_check` now verifies that non-ASCII (UTF-8) command output round-trips correctly on `exec` stdout/stderr.
 - S3: Retry when requests have stale signatures.
 
 ## 0.3.239 (09 June 2026)
