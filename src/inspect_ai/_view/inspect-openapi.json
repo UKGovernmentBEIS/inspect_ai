@@ -140,6 +140,14 @@
             "title": "Inspect Version",
             "type": "string"
           },
+          "log_dirs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LogDirInfo"
+            },
+            "title": "Log Dirs",
+            "type": "array"
+          },
           "scout_version": {
             "anyOf": [
               {
@@ -153,7 +161,8 @@
           }
         },
         "required": [
-          "inspect_version"
+          "inspect_version",
+          "log_dirs"
         ],
         "title": "AppConfig",
         "type": "object"
@@ -1264,7 +1273,7 @@
         "type": "object"
       },
       "CheckpointSampleConfig": {
-        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_dir`` and\n``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_location``\nand ``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.",
         "properties": {
           "max_consecutive_failures": {
             "anyOf": [
@@ -6220,6 +6229,25 @@
           "type"
         ],
         "title": "LlmSearchRequest",
+        "type": "object"
+      },
+      "LogDirInfo": {
+        "description": "A configured log directory.\n\nAttributes:\n    log_dir: Resolved path/URI the client sends back as `?log_dir=`.\n    aliased: Display string with the home directory replaced by `~`.",
+        "properties": {
+          "aliased": {
+            "title": "Aliased",
+            "type": "string"
+          },
+          "log_dir": {
+            "title": "Log Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "log_dir",
+          "aliased"
+        ],
+        "title": "LogDirInfo",
         "type": "object"
       },
       "LogDirResponse": {
