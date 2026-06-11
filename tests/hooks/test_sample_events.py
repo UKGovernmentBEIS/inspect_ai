@@ -38,6 +38,7 @@ def test_emit_sample_event_unbounded_stream_never_blocks() -> None:
         eval_set_id=None,
         run_id="run-1",
         eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
     )
     sample_token = _sample_active.set(active)
     init_transcript(sample_transcript)

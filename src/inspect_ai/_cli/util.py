@@ -54,6 +54,43 @@ def int_or_bool_flag_callback(
     return callback
 
 
+def ctl_server_flag_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> bool | str | None:
+    """Parse the ``--ctl-server`` option (mirrors the ``--acp-server`` shape).
+
+    Desired behavior:
+    - Not specified at all -> None (default: control server on, no park)
+    - Specified with no value, or with "true" -> True (on)
+    - Specified with "false" -> False (off)
+    - Specified with "keep-alive" -> "keep-alive" (on + park after the eval)
+
+    The value grammar lives in :func:`resolve_ctl_server` (the same function
+    ``eval()`` / ``eval_set()`` use), so the CLI and the Python API accept
+    exactly the same values; this callback just translates its rejection into
+    a click usage error. Unlike ``--acp-server`` (whose free strings are
+    socket paths), ``--ctl-server`` admits exactly one string value today, so
+    anything else is more likely a typo of ``keep-alive`` than an intentional
+    choice.
+    """
+    source = ctx.get_parameter_source(param.name) if param.name else ""
+    if source == click.core.ParameterSource.DEFAULT:
+        return None
+    if value is None:
+        return True
+
+    from inspect_ai._control.server import resolve_ctl_server
+    from inspect_ai._util.error import PrerequisiteError
+
+    try:
+        enabled, keep_alive = resolve_ctl_server(str(value))
+    except PrerequisiteError as ex:
+        raise click.BadParameter(
+            f"Expected 'true', 'false', or 'keep-alive' for --ctl-server. Got: {value}"
+        ) from ex
+    return "keep-alive" if keep_alive else enabled
+
+
 def int_bool_or_str_retry_flag_callback(
     true_value: Any = True,
 ) -> Callable[[click.Context, click.Parameter, Any], Any]:

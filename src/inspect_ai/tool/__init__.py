@@ -41,7 +41,7 @@ from ._tool_call import (
 )
 from ._tool_choice import ToolChoice, ToolFunction
 from ._tool_def import ToolDef
-from ._tool_info import ToolInfo
+from ._tool_info import INTERNAL_TOOL_TYPE, ToolInfo, internal_tool_type
 from ._tool_params import ToolParam, ToolParams
 from ._tool_with import tool_with
 from ._tools._ask_user import ask_user
@@ -117,6 +117,8 @@ __all__ = [
     "ToolDef",
     "ToolFunction",
     "ToolInfo",
+    "INTERNAL_TOOL_TYPE",
+    "internal_tool_type",
     "ToolParam",
     "ToolParams",
     "Citation",
