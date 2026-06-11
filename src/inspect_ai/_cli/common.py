@@ -17,9 +17,8 @@ from inspect_ai.util._display import init_display_type
 from .util import parse_cli_args
 
 
-class CommonOptions(TypedDict):
+class CommonOptionsNoLogDir(TypedDict):
     log_level: str
-    log_dir: str
     display: Literal["full", "conversation", "rich", "plain", "log", "none"]
     no_ansi: bool | None
     traceback_locals: bool
@@ -27,6 +26,10 @@ class CommonOptions(TypedDict):
     debug: bool
     debug_port: int
     debug_errors: bool
+
+
+class CommonOptions(CommonOptionsNoLogDir):
+    log_dir: str
 
 
 def log_level_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -47,16 +50,23 @@ def log_level_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
-    @log_level_options
-    @click.option(
+def log_dir_option(multiple: bool = False) -> Callable[..., Any]:
+    return click.option(
         "--log-dir",
         type=str,
-        default="./logs",
-        callback=clean_log_dir,
-        envvar="INSPECT_LOG_DIR",
-        help="Directory for log files.",
+        multiple=multiple,
+        default=None if multiple else "./logs",
+        callback=None if multiple else clean_log_dir,
+        envvar=None if multiple else "INSPECT_LOG_DIR",
+        help="Directory for log files."
+        + (" (repeatable; for the viewer)" if multiple else ""),
     )
+
+
+def common_options_no_log_dir(
+    func: Callable[..., Any],
+) -> Callable[..., click.Context]:
+    @log_level_options
     @click.option(
         "--display",
         type=click.Choice(
@@ -112,7 +122,17 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-def process_common_options(options: CommonOptions) -> None:
+def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    @log_dir_option()
+    @common_options_no_log_dir
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return cast(Callable[..., click.Context], wrapper)
+
+
+def process_common_options(options: CommonOptionsNoLogDir) -> None:
     # set environment variables
     env_args = parse_cli_args(options["env"])
     init_cli_env(env_args)

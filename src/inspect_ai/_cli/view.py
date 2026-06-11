@@ -9,7 +9,35 @@ from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._view.view import view
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 
-from .common import CommonOptions, common_options, process_common_options
+from .common import (
+    CommonOptions,
+    CommonOptionsNoLogDir,
+    common_options,
+    common_options_no_log_dir,
+    log_dir_option,
+    process_common_options,
+)
+
+
+def resolve_view_log_dirs(log_dir_flags: tuple[str, ...], env: str | None) -> list[str]:
+    """Resolve the viewer's log dirs from --log-dir flags and INSPECT_LOG_DIR.
+
+    Flags take precedence; the env var is comma-split (comma is used rather
+    than os.pathsep so `s3://` / `file://` URIs survive). Falls back to
+    `./logs` when neither is provided.
+
+    Args:
+        log_dir_flags: Values from repeated `--log-dir` options.
+        env: Raw `INSPECT_LOG_DIR` value, or None.
+
+    Returns:
+        Ordered list of directory paths/URIs (at least one element).
+    """
+    if log_dir_flags:
+        return [d.rstrip("/\\") for d in log_dir_flags]
+    if env:
+        return [d.strip().rstrip("/\\") for d in env.split(",") if d.strip()]
+    return ["./logs"]
 
 
 def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -36,9 +64,10 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 # Define the base command group
 @click.group(name="view", invoke_without_command=True)
 @start_options
-@common_options
+@log_dir_option(multiple=True)
+@common_options_no_log_dir
 @click.pass_context
-def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
+def view_command(ctx: click.Context, /, **kwargs: Any) -> None:
     """Inspect log viewer.
 
     Learn more about using the log viewer at https://inspect.aisi.org.uk/log-viewer.html.
@@ -51,16 +80,21 @@ def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
 
 @view_command.command("start")
 @start_options
-@common_options
+@log_dir_option(multiple=True)
+@common_options_no_log_dir
 def start(
     recursive: bool,
     host: str,
     port: int,
-    **common: Unpack[CommonOptions],
+    log_dir: tuple[str, ...],
+    **common: Unpack[CommonOptionsNoLogDir],
 ) -> None:
     """View evaluation logs."""
     # read common options
     process_common_options(common)
+
+    # resolve log dirs (repeatable flag + comma-delimited env var)
+    log_dirs = resolve_view_log_dirs(log_dir, os.environ.get("INSPECT_LOG_DIR"))
 
     # resolve optional auth token
     INSPECT_VIEW_AUTHORIZATION_TOKEN = "INSPECT_VIEW_AUTHORIZATION_TOKEN"
@@ -75,7 +109,7 @@ def start(
 
     # run the viewer
     view(
-        log_dir=common["log_dir"],
+        log_dir=log_dirs,
         recursive=recursive,
         host=host,
         port=port,
