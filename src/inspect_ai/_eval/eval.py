@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from contextlib import nullcontext
+from contextvars import Token
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -732,6 +733,7 @@ async def _eval_async_inner(
 
     run_id = uuid()
 
+    enqueuer_token: Token[TaskEnqueuer | None] | None = None
     try:
         # intialise eval
         model = eval_init(
@@ -950,7 +952,7 @@ async def _eval_async_inner(
             cost_limit=cost_limit,
         )
         enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
-        register_task_enqueuer(enqueuer)
+        enqueuer_token = register_task_enqueuer(enqueuer)
 
         async with (
             control_server(run_id=run_id, enabled=ctl_enabled) as _ctl_server,
@@ -986,6 +988,7 @@ async def _eval_async_inner(
                         score=score,
                         debug_errors=debug,
                         task_retry_attempts=task_retry_attempts,
+                        task_source=task_source,
                         **kwargs,
                     )
 
@@ -1016,13 +1019,9 @@ async def _eval_async_inner(
                     if any(r.status == "cancelled" for r in batch_logs):
                         break
 
-                    # let a TaskSource observe this batch's results so its
-                    # next_tasks() decision can use them
-                    if task_source is not None:
-                        for log in batch_logs:
-                            for sample in log.samples or []:
-                                await task_source.sample_complete(sample)
-                            await task_source.task_complete(log)
+                    # (a TaskSource observes results via sample_complete /
+                    # task_complete, fired from task_run as each sample/task
+                    # finishes — so its next_tasks() decision below can use them)
 
                     # next batch under this run_id: imperative additions
                     # (enqueue_task) first, else the TaskSource's next_tasks()
@@ -1065,7 +1064,8 @@ async def _eval_async_inner(
 
     finally:
         # Stop accepting task additions for this run.
-        clear_task_enqueuer()
+        if enqueuer_token is not None:
+            clear_task_enqueuer(enqueuer_token)
         # Clear the process-level EvalState registry at the run boundary
         # (after any keep-alive park) — but only for a standalone eval.
         # When nested in an eval-set (eval_set_id set) the eval-set owns

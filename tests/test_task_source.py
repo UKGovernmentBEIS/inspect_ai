@@ -64,6 +64,36 @@ def test_task_source_single_batch_when_next_is_none() -> None:
     assert [log.eval.task for log in logs] == ["gen0"]
 
 
+def test_sample_complete_fires_per_sample_before_task() -> None:
+    # sample_complete fires as each sample finishes (one per sample), all before
+    # the task's task_complete — not batched at task end
+    class _Observer(TaskSource):
+        def __init__(self) -> None:
+            self.events: list[str] = []
+
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(input="hi", target="ok") for _ in range(3)],
+                    solver=[generate()],
+                    name="t",
+                )
+            ]
+
+        async def sample_complete(self, sample: EvalSample) -> None:
+            self.events.append("sample")
+
+        async def task_complete(self, log: EvalLog) -> None:
+            self.events.append("task")
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    obs = _Observer()
+    eval(tasks=obs, model="mockllm/model", display="none")
+    assert obs.events == ["sample", "sample", "sample", "task"]
+
+
 def test_task_source_rejected_outside_eval() -> None:
     # a TaskSource isn't a concrete task list — resolving one (e.g. via eval_set)
     # is a clear error

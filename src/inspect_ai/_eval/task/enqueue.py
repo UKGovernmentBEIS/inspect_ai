@@ -9,14 +9,15 @@ possible; higher layers (an RL driver, a control-channel directive) build on it.
 The eval runner registers a :class:`TaskEnqueuer` for the lifetime of the run.
 It holds a *resolve* closure (built by the runner, capturing the run's models /
 config / sandbox) that turns submitted tasks into ``ResolvedTask`` objects, plus
-a buffer the loop drains. The registry is a single process-global slot —
-``eval_async`` forbids concurrent runs, so at most one run is ever accepting
-tasks — and :func:`enqueue_task` validates an optional ``run_id`` against it so a
-stray/late caller can't enqueue into the wrong (or torn-down) run.
+a buffer the loop drains. The active enqueuer lives in a ``ContextVar`` so it is
+scoped to the run's async context (and propagates to its child tasks);
+:func:`enqueue_task` validates an optional ``run_id`` against it so a stray/late
+caller can't enqueue into the wrong (or torn-down) run.
 """
 
 from __future__ import annotations
 
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from threading import Lock
 from typing import TYPE_CHECKING, Callable
@@ -59,32 +60,28 @@ class TaskEnqueuer:
         return batch
 
 
-# Process-global slot. One active run per process (``eval_async`` guards against
-# concurrent runs), so a single slot suffices; the ``run_id`` on the enqueuer
-# lets :func:`enqueue_task` reject a caller targeting a different/stale run.
-_enqueuer: TaskEnqueuer | None = None
-_lock = Lock()
+# The active run's enqueuer, scoped to the run's async context. The ``run_id``
+# on the enqueuer lets :func:`enqueue_task` reject a caller targeting a
+# different/stale run.
+_enqueuer: ContextVar[TaskEnqueuer | None] = ContextVar("task_enqueuer", default=None)
 
 
 def create_task_enqueuer(run_id: str, resolve: ResolveTasksFn) -> TaskEnqueuer:
     return TaskEnqueuer(run_id=run_id, _resolve=resolve)
 
 
-def register_task_enqueuer(enqueuer: TaskEnqueuer) -> None:
-    global _enqueuer
-    with _lock:
-        _enqueuer = enqueuer
+def register_task_enqueuer(enqueuer: TaskEnqueuer) -> Token[TaskEnqueuer | None]:
+    """Install ``enqueuer`` as the active one; returns a token to restore with."""
+    return _enqueuer.set(enqueuer)
 
 
 def get_task_enqueuer() -> TaskEnqueuer | None:
-    with _lock:
-        return _enqueuer
+    return _enqueuer.get()
 
 
-def clear_task_enqueuer() -> None:
-    global _enqueuer
-    with _lock:
-        _enqueuer = None
+def clear_task_enqueuer(token: Token[TaskEnqueuer | None]) -> None:
+    """Restore the enqueuer in scope before the matching ``register`` call."""
+    _enqueuer.reset(token)
 
 
 def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:

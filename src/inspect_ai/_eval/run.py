@@ -67,6 +67,7 @@ from .task.run import (
     task_run,
 )
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task_and_sample
+from .task.task_source import TaskSource
 from .task.util import slice_dataset, task_run_dir
 
 log = logging.getLogger(__name__)
@@ -92,6 +93,7 @@ async def eval_run(
     run_samples: bool = True,
     score: bool = True,
     task_retry_attempts: int | None = 0,
+    task_source: "TaskSource | None" = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     # are sandboxes in play?
@@ -289,6 +291,7 @@ async def eval_run(
                         kwargs=kwargs,
                         initial_model_usage=resolved_task.initial_model_usage,
                         initial_role_usage=resolved_task.initial_role_usage,
+                        task_source=task_source,
                     )
                 )
 

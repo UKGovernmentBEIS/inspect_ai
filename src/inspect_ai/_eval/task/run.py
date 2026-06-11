@@ -180,6 +180,7 @@ from .scan import (
     scanned_transcripts_for_resume,
 )
 from .store import DiskSampleStore, maybe_page_to_disk
+from .task_source import TaskSource
 from .util import sample_messages, slice_dataset
 
 py_logger = getLogger(__name__)
@@ -269,6 +270,8 @@ class TaskRunOptions:
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
     initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
+    task_source: "TaskSource | None" = field(default=None)
+    """Run-level task source notified as this task's samples/task complete."""
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -712,6 +715,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
                         early_stopping=options.task.early_stopping,
+                        task_source=options.task_source,
                         fails_on_error=(
                             config.fail_on_error is not False
                             and config.continue_on_fail is not True
@@ -909,6 +913,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # restore sandbox limits
     reset_sandbox_limits(limit_tokens)
 
+    # notify a TaskSource (if the run has one) that this task is complete
+    if options.task_source is not None:
+        await options.task_source.task_complete(eval_log)
+
     # return eval log
     return eval_log
 
@@ -1024,6 +1032,7 @@ async def task_run_sample(
     ],
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
+    task_source: TaskSource | None,
     retry_on_error: int,
     score_on_error: bool,
     error_retries: list[EvalRetryError],
@@ -1660,6 +1669,10 @@ async def task_run_sample(
                     await emit_sample_end(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
                     )
+                    # notify a TaskSource (if the run has one) as each sample
+                    # completes, so it can react in real time
+                    if task_source is not None:
+                        await task_source.sample_complete(eval_sample)
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
@@ -1702,6 +1715,7 @@ async def task_run_sample(
             sample_error=sample_error,
             sample_complete=sample_complete,
             early_stopping=early_stopping,
+            task_source=task_source,
             fails_on_error=fails_on_error,
             # tick retry count down
             retry_on_error=retry_on_error - 1,
