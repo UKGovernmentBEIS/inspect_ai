@@ -74,8 +74,6 @@ def view_command(ctx: click.Context, /, **kwargs: Any) -> None:
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(start, **kwargs)
-    else:
-        pass
 
 
 @view_command.command("start")

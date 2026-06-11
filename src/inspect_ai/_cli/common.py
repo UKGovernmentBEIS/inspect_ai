@@ -51,6 +51,13 @@ def log_level_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def log_dir_option(multiple: bool = False) -> Callable[..., Any]:
+    """`--log-dir` option decorator.
+
+    With `multiple=True` (the viewer) the option is repeatable and the caller
+    owns env/cleanup — `INSPECT_LOG_DIR` and trailing-slash stripping are NOT
+    applied here (see `resolve_view_log_dirs`). The single-value default wires
+    `INSPECT_LOG_DIR` and the `clean_log_dir` callback as before.
+    """
     return click.option(
         "--log-dir",
         type=str,
@@ -133,6 +140,8 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def process_common_options(options: CommonOptionsNoLogDir) -> None:
+    # typed without log_dir: this never reads it, and the viewer passes a
+    # log-dir-less dict (it owns multi-dir resolution separately).
     # set environment variables
     env_args = parse_cli_args(options["env"])
     init_cli_env(env_args)
