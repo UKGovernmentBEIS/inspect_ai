@@ -99,6 +99,7 @@ from .task.enqueue import (
     register_task_enqueuer,
 )
 from .task.resolved import ResolvedTask, resolved_model_names
+from .task.task_source import TaskSource
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -745,9 +746,15 @@ async def _eval_async_inner(
             **kwargs,
         )
 
+        # A TaskSource drives the run dynamically: its initial_tasks() seed the
+        # run (resolved + validated up front like any task list) and become the
+        # first batch; next_tasks() then feeds subsequent batches (see the eval
+        # loop below). Any other task form resolves directly.
+        task_source = tasks if isinstance(tasks, TaskSource) else None
+
         # resolve tasks
         resolved_tasks, approval = eval_resolve_tasks(
-            tasks,
+            task_source.initial_tasks() if task_source is not None else tasks,
             task_args,
             model,
             model_roles,
@@ -928,22 +935,21 @@ async def _eval_async_inner(
         ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
 
         # Register a task enqueuer so additional tasks can be added to this run
-        # while it's in progress (see `enqueue_task`). The eval loop below drains
-        # and runs them under this run_id after each batch. Resolution reuses the
-        # run's models / config.
-        enqueuer: TaskEnqueuer = create_task_enqueuer(
-            run_id,
-            functools.partial(
-                _resolve_enqueued_tasks,
-                models=model,
-                model_roles=model_roles,
-                config=GenerateConfig(**kwargs),
-                sandbox=sandbox,
-                sample_shuffle=sample_shuffle,
-                checkpoint=checkpoint,
-                cost_limit=cost_limit,
-            ),
+        # while it's in progress — imperatively via `enqueue_task`, or
+        # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
+        # the run's models / config; the eval loop below runs them under this
+        # run_id after each batch.
+        resolve_added_tasks = functools.partial(
+            _resolve_enqueued_tasks,
+            models=model,
+            model_roles=model_roles,
+            config=GenerateConfig(**kwargs),
+            sandbox=sandbox,
+            sample_shuffle=sample_shuffle,
+            checkpoint=checkpoint,
+            cost_limit=cost_limit,
         )
+        enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
         register_task_enqueuer(enqueuer)
 
         async with (
@@ -952,13 +958,11 @@ async def _eval_async_inner(
         ):
             with scan_cm:
                 # The one place eval_run is invoked for a batch of tasks. The
-                # initial tasks run as the first loop iteration below; then,
-                # under keep-alive, the park feeds later iterations with tasks
-                # added via `inspect ctl add`, all under this run_id. Parking
-                # inside `scan_cm` (but outside the task display, which lives in
-                # eval_run) means added tasks are scanned too. `debug_errors` is
-                # passed only on the parallel==1 path (the multi-task path never
-                # set it — preserved asymmetry).
+                # initial tasks run as the first loop iteration below; tasks
+                # added during the run (via `enqueue_task` or a `TaskSource`)
+                # feed later iterations, all under this run_id. `debug_errors`
+                # is passed only on the parallel==1 path (the multi-task path
+                # never set it — preserved asymmetry).
                 async def run_batch(
                     tasks: list[ResolvedTask], debug: bool
                 ) -> list[EvalLog]:
@@ -989,29 +993,46 @@ async def _eval_async_inner(
                 results: list[EvalLog] = []
                 pending: list[ResolvedTask] | None = resolved_tasks
                 while pending is not None:
+                    batch_logs: list[EvalLog] = []
                     if parallel == 1:
                         # single task definition (could be multi-model): run
                         # sequence groups in order, stopping on cancellation
                         for sequence in sorted({t.sequence for t in pending}):
-                            results.extend(
+                            batch_logs.extend(
                                 await run_batch(
                                     [t for t in pending if t.sequence == sequence],
                                     debug_errors is True,
                                 )
                             )
-                            if any(r.status == "cancelled" for r in results):
+                            if any(r.status == "cancelled" for r in batch_logs):
                                 break
                     else:
                         # multiple task definitions, run together
-                        results.extend(await run_batch(pending, False))
+                        batch_logs.extend(await run_batch(pending, False))
+                    results.extend(batch_logs)
                     logs = EvalLogs(results)
 
                     # a cancelled batch ends the run
-                    if any(r.status == "cancelled" for r in results):
+                    if any(r.status == "cancelled" for r in batch_logs):
                         break
-                    # run any tasks added during this batch (via enqueue_task),
-                    # as the next batch under this run_id; empty => run is done
+
+                    # let a TaskSource observe this batch's results so its
+                    # next_tasks() decision can use them
+                    if task_source is not None:
+                        for log in batch_logs:
+                            for sample in log.samples or []:
+                                await task_source.sample_complete(sample)
+                            await task_source.task_complete(log)
+
+                    # next batch under this run_id: imperative additions
+                    # (enqueue_task) first, else the TaskSource's next_tasks()
+                    # (which may block, and ends the run by returning None).
                     pending = enqueuer.drain() or None
+                    if pending is None and task_source is not None:
+                        next_tasks = await task_source.next_tasks()
+                        pending = (
+                            resolve_added_tasks(next_tasks) if next_tasks else None
+                        )
 
             # keep-alive: after the run, park while the control / ACP servers
             # are still up so `inspect ctl` can read state and request release.

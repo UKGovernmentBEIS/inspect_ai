@@ -54,6 +54,7 @@ from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.hf import task_create_from_hf
 from .task.run import eval_log_sample_source
+from .task.task_source import TaskSource
 from .task.tasks import Tasks
 
 logger = getLogger(__name__)
@@ -79,6 +80,15 @@ def resolve_tasks(
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
 ) -> list[ResolvedTask]:
+    # A TaskSource drives a run dynamically and is handled by eval() (which
+    # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete
+    # task list, so it can't be resolved here (e.g. when passed to eval_set).
+    if isinstance(tasks, TaskSource):
+        raise ValueError(
+            "A TaskSource can only be passed to eval(); it isn't supported here "
+            "(e.g. eval_set / eval_retry / score)."
+        )
+
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         # shuffle data in tasks if requested
         if sample_shuffle:
