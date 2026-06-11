@@ -1,0 +1,172 @@
+---
+title: Fallbacks
+llms-description: Retrying classifier-refused requests on a fallback model, and how fallbacks are recorded in logs, dataframes, and the viewer.
+---
+
+::: {.callout-note appearance="simple"}
+The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+
+```bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+## Overview
+
+Claude 5 models include safety classifiers that can decline a request. A decline is not necessarily an error—the API returns a normal response with a refusal stop reason (surfaced by Inspect as `stop_reason="content_filter"`). Such a request can usually still be served by another Claude model.
+
+The `fallback_models` generate config enables this automatically: when the requested model's classifiers decline, the request is retried on one or more fallback models (tried in order) *within the same request*, using Anthropic's [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback). Your eval gets an answer in a single round trip, and Inspect records exactly which model served each generation.
+
+Fallbacks currently apply to:
+
+-   The first-party Anthropic Claude API only — fallbacks are not supported on Bedrock, Vertex, or Azure, nor with [batch mode](models-batch.qmd), and are ignored (with a warning) in those cases.
+
+-   Claude 5 and later requested models. Each fallback target must be one of the requested model's permitted targets, published as `allowed_fallback_models` on the model's [Models API](https://platform.claude.com/docs/en/api/models/list) entry (e.g. `claude-fable-5` permits `claude-opus-4-8`).
+
+## Basic Usage
+
+Specify one or more fallback models (up to three, tried in order) with the `--fallback-models` CLI option:
+
+``` bash
+inspect eval ctf.py --model anthropic/claude-fable-5 \
+   --fallback-models claude-opus-4-8
+```
+
+Or from Python (like all generate config, `fallback_models` can be specified at the eval, task, or model level):
+
+``` python
+from inspect_ai import eval
+
+eval(
+    "ctf.py",
+    model="anthropic/claude-fable-5",
+    fallback_models=["claude-opus-4-8"],
+)
+```
+
+Only a safety classifier decline triggers the fallback. If every model in the chain declines, the final refusal is returned (`stop_reason="content_filter"`).
+
+::: {.callout-note appearance="simple"}
+After a conversation falls back, Anthropic applies *sticky routing* (server-side, ~1 hour): later turns of that conversation go directly to the fallback model rather than re-asking the model that declined. Sticky-served generations are served by the fallback model but are not recorded as new fallbacks (no decline occurred on that turn).
+:::
+
+## Refusals
+
+Without fallbacks configured (or when every fallback also declines), the refusal itself is surfaced on the model output: `stop_reason` is `"content_filter"` and `stop_details` carries the structured refusal detail:
+
+| Field | Description |
+|------------------------------------|------------------------------------|
+| `type` | `"refusal"` for classifier declines. |
+| `category` | Policy area that triggered the classifier (e.g. `"cyber"`, `"bio"`, `"reasoning_extraction"`). May be `None` when the refusal maps to no named category. |
+| `explanation` | Human readable description (display it, don't parse it). |
+| `categories` | All triggering categories (list of `StopCategory`). |
+
+: {tbl-colwidths=\[30,70\]}
+
+Note that when a fallback successfully serves a request, the API does not report the declining attempt's refusal category—the declined attempt is unbilled and only its token counts appear in the response diagnostics. Refusal categories are available only on responses that actually ended in a refusal.
+
+## What Gets Recorded
+
+When a fallback serves a generation, Inspect records it at three levels:
+
+**Model output.** `ModelOutput.model` reports the model that actually produced the response, and `ModelOutput.fallback` records the handoff as a `ModelFallback`:
+
+| Field | Description |
+|------------------------------------|------------------------------------|
+| `model` | Model that was originally requested. |
+| `fallback_model` | Model that served the request. |
+| `count` | Number of generate calls (always 1 on a single output; aggregated in the sample rollup). |
+| `metadata` | Provider diagnostics—for Anthropic, the `handoffs` chain and the per-attempt `usage.iterations` billing record. |
+
+: {tbl-colwidths=\[30,70\]}
+
+**Message content.** The assistant message carries a content marker at the exact point of the handoff (this is also what allows Inspect to correctly replay fallen-back conversations on subsequent turns).
+
+**Sample rollup.** `EvalSample.model_fallbacks` (and sample summaries) aggregate all fallbacks that occurred during the sample—across solvers, subagents, and scorers alike—as a list of `ModelFallback` entries keyed by (requested, served) pair. The rollup is also available in [dataframes](dataframe.qmd): `samples_df()` includes a `fallbacks` column with the total count (0 if none), and the full detail is available via a custom column:
+
+``` python
+from inspect_ai.analysis import SampleColumn, SampleSummary, samples_df
+
+df = samples_df(
+    "logs",
+    columns=SampleSummary + [
+        SampleColumn("model_fallbacks", path="model_fallbacks")
+    ],
+)
+df[df.fallbacks > 0]
+```
+
+### Costs
+
+Cost estimation (including the `cost_limit` option) prices fallen-back requests at the *requested* model's rates—that is, as if no refusal had occurred. This keeps estimated costs comparable across samples and is conservative for `cost_limit`, since fallback targets are cheaper than the requested model (Anthropic bills each attempt at the rates of the model that ran it, and unbilled declined attempts cost nothing). If you need actual-spend accounting, the per-attempt billing record is preserved in `ModelFallback.metadata["iterations"]` on each `ModelEvent`'s output.
+
+## Viewer
+
+Fallbacks are surfaced throughout the Inspect viewer:
+
+-   **Samples list**: a *Fallbacks* column (shown automatically when any sample has fallbacks) with the total count per sample, plus `has_fallbacks` and `fallbacks` variables for [filtering](log-viewer.qmd) (e.g. `has_fallbacks` or `fallbacks > 2`).
+
+-   **Sample header**: the model meta line reads e.g. `anthropic/claude-fable-5 (fallback → claude-opus-4-8)`.
+
+-   **Transcript**: each fallen-back model call carries a `fallback → <model>` badge in its title bar, and a *Model Fallback* marker appears in the assistant message content at the point of the handoff.
+
+The task display shown while an eval is running (and the `inspect acp` session view) similarly annotate the model with `(fallback → <model>)` as soon as a fallback occurs.
+
+## Scanning for Fallbacks
+
+[Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners can mine a set of logs for fallbacks and refusals. The scanner below emits one result per fallen-back generation—with the handoff, the served message content, and citations back to the originating event and message—plus one result per outright refusal (where the structured refusal category *is* available):
+
+``` python
+from inspect_ai.event import ModelEvent
+from inspect_scout import Reference, Result, Scanner, scanner
+
+
+@scanner(events=["model"])
+def model_fallbacks() -> Scanner[ModelEvent]:
+    """Find generations served by a fallback model (or refused outright)."""
+
+    async def scan(event: ModelEvent) -> list[Result]:
+        results: list[Result] = []
+        output = event.output
+
+        # generation served by a fallback model
+        if output.fallback is not None:
+            message = output.message
+            references = [Reference(type="event", id=event.uuid or "")]
+            if message.id is not None:
+                references.append(Reference(type="message", id=message.id))
+            results.append(
+                Result(
+                    label="fallback",
+                    value=f"{output.fallback.model} → "
+                    + f"{output.fallback.fallback_model}",
+                    explanation=message.text,
+                    metadata={
+                        "model": output.fallback.model,
+                        "fallback_model": output.fallback.fallback_model,
+                        "diagnostics": output.fallback.metadata,
+                    },
+                    references=references,
+                )
+            )
+
+        # outright refusal (no fallback configured, every fallback
+        # declined, or the fallback attempt was skipped under load)
+        choice = output.choices[0] if output.choices else None
+        if choice is not None and choice.stop_reason == "content_filter":
+            details = choice.stop_details
+            results.append(
+                Result(
+                    label="refusal",
+                    value=(details.category if details else None) or "unknown",
+                    explanation=details.explanation if details else None,
+                    references=[Reference(type="event", id=event.uuid or "")],
+                )
+            )
+
+        return results
+
+    return scan
+```
+
+Results land in the scan results dataframe with `label` distinguishing fallbacks from refusals, and the `references` give one-click navigation to the cited message in the transcript. Note that the two result types are complementary: a *fallback* result means the refusal was rescued (so no refusal category is available), while a *refusal* result carries the category and explanation for declines that reached the response.

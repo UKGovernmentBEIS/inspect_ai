@@ -223,6 +223,14 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025
 
 ### Refusal Fallback {#anthropic-refusal-fallback}
 
+::: {.callout-note appearance="simple"}
+The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+
+```bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
 Claude 5 classifiers can decline a request, returning a refusal (surfaced by Inspect as `stop_reason="content_filter"`). Such a request can usually be served by another Claude model. Set the `fallback_models` generate config to retry refused requests on one or more fallback models (tried in order) within the same request, using Anthropic's [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback):
 
 ``` bash
@@ -235,11 +243,9 @@ Or via the `eval()` / `GenerateConfig` API:
 eval("arc.py", model="anthropic/claude-fable-5", fallback_models=["claude-opus-4-8"])
 ```
 
-When a fallback serves the request, `ModelOutput.model` reports the model that produced the response and `ModelOutput.fallback` records the handoff as a `ModelFallback` (requested `model`, serving `fallback_model`, with the per-attempt `handoffs` and `usage.iterations` diagnostics in its `metadata`). Fallbacks are also rolled up per-sample on `EvalSample.model_fallbacks` (and sample summaries), displayed in the Inspect viewer, and available in `samples_df()` via the `fallbacks` column. Each fallback target must be one of the requested model's permitted targets (published as `allowed_fallback_models` on the model's [Models API](https://platform.claude.com/docs/en/api/models/list) entry).
-
-Cost estimation (including `cost_limit`) prices fallen-back requests at the *requested* model's rates — that is, as if no refusal had occurred. This keeps estimated costs comparable across samples and is conservative for `cost_limit`, since fallback targets are cheaper than the requested model (Anthropic bills each attempt at the rates of the model that ran it). If you need actual-spend accounting, the per-attempt billing record is preserved in `ModelFallback.metadata["iterations"]` on each `ModelEvent`'s output.
-
 This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](models-batch.qmd), and is ignored (with a warning) in those cases.
+
+See the [Fallbacks](fallbacks.qmd) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
 
 #### Cache Diagnostics {#anthropic-cache-diagnostics}
 
