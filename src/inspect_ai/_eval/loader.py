@@ -49,7 +49,7 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
-from .registry import task_create
+from .registry import task_create, task_source_create
 from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.hf import task_create_from_hf
@@ -158,6 +158,66 @@ def resolve_tasks(
 
     # done! let's load the tasks
     return as_resolved_tasks(load_tasks(cast(list[str] | None, tasks), task_args))
+
+
+def resolve_task_source(tasks: Tasks, task_args: dict[str, Any]) -> TaskSource | None:
+    """Resolve `tasks` to a `TaskSource` if it is (or names) one, else `None`.
+
+    Handles the forms `eval()` accepts for a source: a `TaskSource` instance, a
+    `@task_source`-decorated function, a registered source name, or a
+    `file.py@name` spec naming a `@task_source`. Anything else returns `None` so
+    normal task resolution proceeds. The single-element list form is accepted
+    because the CLI passes specs as a list.
+    """
+    if isinstance(tasks, list):
+        if len(tasks) != 1:
+            return None
+        tasks = tasks[0]
+
+    # already a TaskSource instance
+    if isinstance(tasks, TaskSource):
+        return tasks
+
+    # a @task_source-decorated function (registered under type "task_source")
+    if callable(tasks):
+        if is_registry_object(tasks) and registry_info(tasks).type == "task_source":
+            return task_source_create(registry_info(tasks).name, **task_args)
+        return None
+
+    # a registered source name, or a file.py@name spec naming a source
+    if isinstance(tasks, str):
+        if registry_lookup("task_source", tasks) is not None:
+            return task_source_create(tasks, **task_args)
+        file, name = split_spec(tasks)
+        if name is not None:
+            return _load_task_source_from_file(file, name, task_args)
+
+    return None
+
+
+def _load_task_source_from_file(
+    file: str, name: str, task_args: dict[str, Any]
+) -> TaskSource | None:
+    # only probe local .py files that actually define a @task_source (a cheap
+    # text check so a task-only file isn't loaded here and then again as tasks)
+    task_path = Path(file)
+    if task_path.suffix != ".py" or not task_path.exists():
+        return None
+    try:
+        if not code_has_decorator(task_path.read_text(encoding="utf-8"), "task_source"):
+            return None
+    except OSError:
+        return None
+
+    # load the file's module (registers its decorators), then create the source
+    # — mirrors create_tasks' load_file_tasks + create_file_tasks for tasks
+    load_file_tasks(task_path.absolute())
+    if registry_lookup("task_source", name) is None:
+        return None
+    source = task_source_create(name, **task_args)
+    setattr(source, TASK_FILE_ATTR, task_path.as_posix())
+    setattr(source, TASK_RUN_DIR_ATTR, task_path.parent.resolve().as_posix())
+    return source
 
 
 def resolve_previous_tasks(
@@ -441,8 +501,9 @@ def create_file_tasks(
 # change the working directory, this one does not b/c it is
 # intended as a helper function)
 def _load_task_specs(task_path: Path) -> list[str]:
-    # load the module
-    module = load_module(task_path, code_has_task)
+    # load the module (also load files that only define task sources, so a
+    # `@task_source` is registered/discoverable just like a `@task`)
+    module = load_module(task_path, code_has_task_or_source)
     if module:
         # find the tasks in the module
         tasks = parse_decorators(task_path, "task")
@@ -474,6 +535,10 @@ def code_has_decorator(code: str, decorator: str) -> bool:
 
 def code_has_task(code: str) -> bool:
     return code_has_decorator(code, "task")
+
+
+def code_has_task_or_source(code: str) -> bool:
+    return code_has_decorator(code, "task") or code_has_decorator(code, "task_source")
 
 
 def as_solver_spec(solver: Solver) -> SolverSpec:

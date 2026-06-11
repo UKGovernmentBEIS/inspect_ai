@@ -5,6 +5,8 @@ via `sample_complete` / `task_complete`, and produces the next batch from
 `next_tasks()` until it returns `None` — all under one run_id.
 """
 
+from pathlib import Path
+
 import anyio
 import pytest
 
@@ -48,6 +50,12 @@ class _Generations(TaskSource):
             self._produced += 1
             return [_task(name)]
         return None
+
+
+@task_source(name="decorated_generations")
+def decorated_generations(count: int = 2) -> TaskSource:
+    """A registered, parameterized source (mirrors an `@task` definition)."""
+    return _Generations(count)
 
 
 def test_task_source_runs_batches_in_one_run() -> None:
@@ -118,7 +126,7 @@ def test_task_source_factory_seed_and_callbacks() -> None:
     async def on_task(log: EvalLog) -> None:
         tasks_seen.append(log.eval.task)
 
-    source = task_source(
+    source = TaskSource.from_tasks(
         [_task("gen0")],
         next_tasks=next_tasks,
         sample_complete=on_sample,
@@ -135,7 +143,9 @@ def test_task_source_factory_seed_and_callbacks() -> None:
 def test_task_source_factory_seed_only_runs_once() -> None:
     # omitting next_tasks stops after the seed (equivalent to a plain list)
     logs = eval(
-        tasks=task_source([_task("only")]), model="mockllm/model", display="none"
+        tasks=TaskSource.from_tasks([_task("only")]),
+        model="mockllm/model",
+        display="none",
     )
     assert [log.eval.task for log in logs] == ["only"]
 
@@ -176,7 +186,7 @@ def test_factory_task_complete_returning_tasks() -> None:
         return None
 
     logs = eval(
-        tasks=task_source([_task("gen0")], task_complete=on_task),
+        tasks=TaskSource.from_tasks([_task("gen0")], task_complete=on_task),
         model="mockllm/model",
         display="none",
     )
@@ -243,6 +253,57 @@ async def test_live_injection_runs_concurrently_with_in_flight_task() -> None:
     # blocker only reaches its end if the injected task ran while it was blocked
     assert "blocker-end" in order
     assert all(log.status == "success" for log in logs)
+
+
+def test_task_source_decorator_instance() -> None:
+    # calling a @task_source-decorated function yields a tagged TaskSource that
+    # eval() drives like any source
+    logs = eval(tasks=decorated_generations(2), model="mockllm/model", display="none")
+    assert sorted(log.eval.task for log in logs) == ["gen0", "gen1"]
+
+
+def test_task_source_decorator_passed_as_function() -> None:
+    # passing the decorated function itself (not an instance) resolves + runs it
+    logs = eval(tasks=decorated_generations, model="mockllm/model", display="none")
+    assert sorted(log.eval.task for log in logs) == ["gen0", "gen1"]
+
+
+def test_task_source_load_by_registered_name() -> None:
+    # resolve a registered source by name, like inspect eval <name>
+    logs = eval(tasks="decorated_generations", model="mockllm/model", display="none")
+    assert sorted(log.eval.task for log in logs) == ["gen0", "gen1"]  # default count=2
+
+
+def test_task_source_load_by_name_with_args() -> None:
+    # task args parameterize the source (mirrors @task / -T args)
+    logs = eval(
+        tasks="decorated_generations",
+        model="mockllm/model",
+        display="none",
+        task_args={"count": 3},
+    )
+    assert sorted(log.eval.task for log in logs) == ["gen0", "gen1", "gen2"]
+
+
+def test_task_source_load_from_file(tmp_path: Path) -> None:
+    # file.py@name spec resolves a @task_source defined in that file
+    src = tmp_path / "rl_source.py"
+    src.write_text(
+        "from inspect_ai import Task, TaskSource, task_source\n"
+        "from inspect_ai.dataset import Sample\n"
+        "from inspect_ai.solver import generate\n"
+        "\n"
+        "@task_source\n"
+        "def my_source() -> TaskSource:\n"
+        "    return TaskSource.from_tasks(\n"
+        "        [Task(dataset=[Sample(input='hi', target='ok')], "
+        "solver=[generate()], name='seed')]\n"
+        "    )\n"
+    )
+    logs = eval(
+        tasks=f"{src.as_posix()}@my_source", model="mockllm/model", display="none"
+    )
+    assert [log.eval.task for log in logs] == ["seed"]
 
 
 def test_task_source_rejected_outside_eval() -> None:

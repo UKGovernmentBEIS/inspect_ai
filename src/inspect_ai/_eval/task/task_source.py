@@ -19,8 +19,10 @@ returns immediately (it's the seed the run sets up and starts from, not subject
 to that blocking), which is how the run computes concurrency / validates before
 execution begins.
 
-For the common case where subclassing is more than you need, :func:`task_source`
-builds a ``TaskSource`` from a seed plus optional callbacks.
+For the common case where subclassing is more than you need,
+:meth:`TaskSource.from_tasks` builds a ``TaskSource`` from a seed plus optional
+callbacks. To register a reusable, named, parameterized source (and load it by
+name, like ``@task``), use the ``@task_source`` decorator.
 """
 
 from __future__ import annotations
@@ -77,43 +79,45 @@ class TaskSource:
         """
         return None
 
+    @classmethod
+    def from_tasks(
+        cls,
+        initial_tasks: list["Task"],
+        *,
+        next_tasks: Callable[[], Awaitable[list["Task"] | None]] | None = None,
+        sample_complete: Callable[["EvalSample"], Awaitable[list["Task"] | None]]
+        | None = None,
+        task_complete: Callable[["EvalLog"], Awaitable[list["Task"] | None]]
+        | None = None,
+    ) -> "TaskSource":
+        """Create a :class:`TaskSource` from a seed plus optional callbacks.
 
-def task_source(
-    initial_tasks: list["Task"],
-    *,
-    next_tasks: Callable[[], Awaitable[list["Task"] | None]] | None = None,
-    sample_complete: Callable[["EvalSample"], Awaitable[list["Task"] | None]]
-    | None = None,
-    task_complete: Callable[["EvalLog"], Awaitable[list["Task"] | None]] | None = None,
-) -> TaskSource:
-    """Create a :class:`TaskSource` from a seed plus optional callbacks.
+        A convenience for when subclassing is more than you need: provide the
+        initial tasks directly and, optionally, callbacks that react to results.
+        The ``sample_complete`` / ``task_complete`` callbacks may **return** a
+        list of follow-up tasks to add to the run (see those methods);
+        ``next_tasks`` is the blocking / explicit-pull alternative. Callbacks
+        typically close over shared state (e.g. accumulated scores) to decide
+        what to run next.
 
-    A convenience for when subclassing :class:`TaskSource` is more than you need:
-    provide the initial tasks directly and, optionally, callbacks that react to
-    results. The ``sample_complete`` / ``task_complete`` callbacks may **return**
-    a list of follow-up tasks to add to the run (see those methods on
-    :class:`TaskSource`); ``next_tasks`` is the blocking / explicit-pull
-    alternative. Callbacks typically close over shared state (e.g. accumulated
-    scores) to decide what to run next.
+        Args:
+            initial_tasks: The seed tasks to run first (see
+                :meth:`initial_tasks`). Required, and resolved up front.
+            next_tasks: Optional async callback returning the next batch, or
+                ``None`` to end the run (see :meth:`next_tasks`). If omitted (and
+                no callback returns tasks), the run stops after the seed —
+                equivalent to passing ``initial_tasks`` directly to ``eval()``.
+            sample_complete: Optional async callback invoked as each sample
+                finishes; may return follow-up tasks to add to the run.
+            task_complete: Optional async callback invoked as each task finishes;
+                may return follow-up tasks to add to the run.
 
-    Args:
-        initial_tasks: The seed tasks to run first (see
-            :meth:`TaskSource.initial_tasks`). Required, and resolved up front.
-        next_tasks: Optional async callback returning the next batch, or ``None``
-            to end the run (see :meth:`TaskSource.next_tasks`). If omitted (and no
-            callback returns tasks), the run stops after the seed — equivalent to
-            passing ``initial_tasks`` directly to ``eval()``.
-        sample_complete: Optional async callback invoked as each sample finishes;
-            may return follow-up tasks to add to the run.
-        task_complete: Optional async callback invoked as each task finishes; may
-            return follow-up tasks to add to the run.
-
-    Returns:
-        A ``TaskSource`` that delegates to the provided seed and callbacks.
-    """
-    return _CallableTaskSource(
-        initial_tasks, next_tasks, sample_complete, task_complete
-    )
+        Returns:
+            A ``TaskSource`` that delegates to the provided seed and callbacks.
+        """
+        return _CallableTaskSource(
+            initial_tasks, next_tasks, sample_complete, task_complete
+        )
 
 
 class _CallableTaskSource(TaskSource):

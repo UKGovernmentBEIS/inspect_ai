@@ -180,17 +180,43 @@ the ambient lookup.)
 ## Public surface
 
 - `TaskSource` is exported from `inspect_ai` (`__init__.py` `__all__`).
-- `task_source(initial_tasks, *, next_tasks=None, sample_complete=None,
-  task_complete=None)` — a factory that builds a `TaskSource` from a seed plus
+- `@task_source` decorator ([registry.py](../src/inspect_ai/_eval/registry.py),
+  exported from `inspect_ai`) — **mirrors `@task`**. Decorates a function
+  returning a `TaskSource`, registering it (registry type `"task_source"`) so it
+  can be referenced and **loaded by name** and parameterized, and tagging the
+  produced instance with registry info + file / run-dir attrs. `task_source_register`
+  / `task_source_create` parallel `task_register` / `task_create` (the latter
+  calls the registered wrapper directly — `registry_create` only auto-invokes
+  factories whose return-type name matches the registry type, which
+  `"task_source"` / `TaskSource` does not, the same as `score_reducer`).
+- `TaskSource.from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None,
+  task_complete=None)` — classmethod that builds a `TaskSource` from a seed plus
   optional callbacks, for the common case where subclassing is more than you
-  need. Returns a `_CallableTaskSource` that delegates to the provided callables
-  (which typically close over shared state to decide what to run next). Omitting
-  `next_tasks` stops after the seed — equivalent to passing the list directly.
-  Also exported from `inspect_ai`.
+  need. Returns a `_CallableTaskSource` delegating to the callables (which
+  typically close over shared state). Omitting `next_tasks` (and returning
+  nothing from callbacks) stops after the seed — equivalent to passing the list
+  directly.
+- **Load-by-name** — `resolve_task_source(tasks, task_args)`
+  ([loader.py](../src/inspect_ai/_eval/loader.py)), called by `eval_async`,
+  resolves a `TaskSource` from any form `eval()` accepts: an instance, a
+  `@task_source`-decorated function, a registered name, or a `file.py@name`
+  spec. The file case reuses `load_file_tasks` (the same module loader the task
+  path uses) after a cheap text check that the file defines a `@task_source` (so
+  a task-only file isn't loaded here and then again as tasks); the shared load
+  gate (`code_has_task_or_source`) now also makes source-only files discoverable
+  during directory enumeration, removing the task/source asymmetry. The CLI
+  passes specs as a one-element list, which it unwraps. Returns `None` for
+  anything else, so normal task resolution proceeds. So `inspect eval
+  rl.py@my_source -T lr=0.1` and `eval("rl.py@my_source")` both drive the live
+  path.
 - The `Tasks` type alias ([task/tasks.py](../src/inspect_ai/_eval/task/tasks.py))
-  includes `| TaskSource`, so `eval(tasks=…)` accepts it and the type checker is
-  happy.
+  includes `| TaskSource | Callable[..., TaskSource]`, so both a source and a
+  `@task_source` function type-check as `tasks`.
 - `enqueue_task` is the imperative primitive (same module group).
+
+`eval_set` / `eval_retry` / `score` still reject `TaskSource` **instances** with
+a clear error; a source *spec* passed to `eval_set` currently fails later as a
+task-not-found (not specially handled).
 
 ## Tests
 
@@ -198,7 +224,9 @@ the ambient lookup.)
   one `run_id`; single-batch when `next_tasks()` returns `None` immediately;
   `sample_complete` fires per sample *before* the task's `task_complete`;
   `task_complete` **returning** follow-up tasks chains generations (subclass and
-  factory); `task_source()` factory seed + callbacks; rejection outside `eval()`.
+  `from_tasks`); `TaskSource.from_tasks` seed + callbacks; `@task_source`
+  decorator (instance, passed-as-function, load-by-registered-name, with task
+  args, and `file.py@name`); live injection (below); rejection outside `eval()`.
 - `tests/test_enqueue_task.py` — added task runs in the same run; additions
   chain across batches; calling outside a run raises.
 
@@ -278,8 +306,11 @@ Implemented and tested in `eval()` / `eval_async()`:
 - [x] `sample_complete` / `task_complete` may **return** follow-up tasks (routed
       onto the run enqueuer via `_enqueue_source_tasks`) — the simplest sources
       need no `next_tasks()`.
-- [x] `task_source(...)` factory — build a source from a seed + callbacks without
-      subclassing.
+- [x] `TaskSource.from_tasks(...)` classmethod — build a source from a seed +
+      callbacks without subclassing.
+- [x] `@task_source` decorator (mirrors `@task`) + load-by-name: registered
+      name, `@task_source` function, or `file.py@name` spec, with task-arg
+      parameterization (`resolve_task_source`).
 - [x] Threaded via `TaskRunOptions` (no global), per-sample and per-task firing.
 - [x] `enqueue_task` imperative primitive backed by a `ContextVar`.
 - [x] **Live injection** for `TaskSource` runs: single live `eval_run`, one

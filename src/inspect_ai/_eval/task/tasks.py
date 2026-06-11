@@ -13,6 +13,7 @@ Tasks: TypeAlias = (
     | Callable[..., Task]
     | type[Task]
     | TaskSource
+    | Callable[..., TaskSource]
     | list[str]
     | list[PreviousTask]
     | list[ResolvedTask]

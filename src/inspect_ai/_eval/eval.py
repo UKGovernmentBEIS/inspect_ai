@@ -90,7 +90,7 @@ from inspect_ai.util._display import (
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_tasks
+from .loader import resolve_task_source, resolve_tasks
 from .run import TaskInjection, eval_run
 from .task import Epochs, PreviousTask
 from .task.enqueue import (
@@ -100,7 +100,6 @@ from .task.enqueue import (
     register_task_enqueuer,
 )
 from .task.resolved import ResolvedTask, resolved_model_names
-from .task.task_source import TaskSource
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -751,8 +750,10 @@ async def _eval_async_inner(
         # A TaskSource drives the run dynamically: its initial_tasks() seed the
         # run (resolved + validated up front like any task list) and become the
         # first batch; next_tasks() then feeds subsequent batches (see the eval
-        # loop below). Any other task form resolves directly.
-        task_source = tasks if isinstance(tasks, TaskSource) else None
+        # loop below). `tasks` may be a TaskSource instance or refer to one (a
+        # @task_source function, a registered name, or a file.py@name spec); any
+        # other task form resolves directly.
+        task_source = resolve_task_source(tasks, task_args)
 
         # resolve tasks
         resolved_tasks, approval = eval_resolve_tasks(
