@@ -88,6 +88,7 @@ For more detail on the different methods of configuration, see [Configuration](.
 | `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
 | `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
 | `--cache-prompt` | Values: `auto`, `true`, or `false`. Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only. |
+| `--fallback-models` | Fallback models (comma-separated, tried in order) when the model’s safety classifiers refuse the request. Anthropic Claude API only. |
 | `--effort` | Values: `low`, `medium`, `high`, `xhigh`, or `max`. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency (Claude 4.5, 4.6, 4.7 only, `max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7). |
 | `--verbosity` | Values `low`, `medium`, or `high`. Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models). |
 | `--reasoning-effort` | Values: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). |

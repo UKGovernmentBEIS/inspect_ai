@@ -355,6 +355,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./fallbacks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Fallbacks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multimodal</span></a>
   </div>
@@ -573,6 +579,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./control-channel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Channel</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./early-stopping.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Early Stopping</span></a>
   </div>
@@ -692,6 +704,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#multiple-models" id="toc-multiple-models" class="nav-link" data-scroll-target="#multiple-models">Multiple Models</a></li>
   <li><a href="#grading-robustness" id="toc-grading-robustness" class="nav-link" data-scroll-target="#grading-robustness">Grading Robustness</a></li>
+  <li><a href="#reproducible-grading" id="toc-reproducible-grading" class="nav-link" data-scroll-target="#reproducible-grading">Reproducible Grading</a></li>
   </ul>
 </nav>
     </div>
@@ -880,6 +893,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Because the grader sees dataset- and model-controlled text (the question, the submission, and any per-sample criterion), the built-in graders take two precautions against a model steering its own grade.</p>
 <p>Grade extraction binds to the last grade. The default <code>grade_pattern</code> (<code>(?is).*GRADE\s*:\s*([CPI])</code>) matches the last <code>GRADE: X</code> in the grader’s output. The instructions tell the grader to end with its grade, so an earlier <code>GRADE: C</code> (echoed in chain-of-thought, or injected via the submission) does not win. If you customise <code>grade_pattern</code>, keep this behaviour in mind.</p>
 <p>Structural delimiters are neutralized. The default templates wrap content in <code>[BEGIN DATA]</code> / <code>[END DATA]</code> markers. Before formatting the prompt, Inspect rewrites any <code>[BEGIN DATA]</code> / <code>[END DATA]</code> markers that appear in the model-controlled <code>answer</code>, the <code>question</code>, the <code>criterion</code>, and any <code>metadata</code> values (for example to <code>[END-DATA]</code>) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The <code>instructions</code> you provide are author-controlled and left untouched.</p>
+</section>
+<section id="reproducible-grading" class="level2">
+<h2 class="anchored" data-anchor-id="reproducible-grading">Reproducible Grading</h2>
+<p>By default the grader model runs with the provider’s default generation settings. In practice this often means a non-zero temperature (e.g.&nbsp;1.0) and no fixed seed, so grades for borderline answers can change from run to run and across epochs.</p>
+<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> do not take a generation <code>config</code> argument. To control the grader’s generation settings, configure the grader model with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> and pass it as <code>model</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> get_model, GenerateConfig</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_qa</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>grader <span class="op">=</span> get_model(<span class="st">"openai/gpt-4o"</span>, config<span class="op">=</span>GenerateConfig(temperature<span class="op">=</span><span class="dv">0</span>, seed<span class="op">=</span><span class="dv">42</span>))</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>model_graded_qa(model<span class="op">=</span>grader)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You can apply the same configuration through the <code>grader</code> model role instead of the <code>model</code> argument — see <a href="./models.html#model-roles">Model Roles</a>.</p>
+<p>For more reproducible grading:</p>
+<ol type="1">
+<li>Set <code>temperature=0</code> so the grader is as deterministic as the provider allows.</li>
+<li>Set a <code>seed</code> where the provider supports it.</li>
+<li>Run multiple <code>epochs</code> and inspect grade variance — setting <code>temperature=0</code> reduces, but does not always eliminate, run-to-run disagreement.</li>
+</ol>
 
 
 </section>

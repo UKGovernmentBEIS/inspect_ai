@@ -24,6 +24,7 @@
 - [Caching](https://inspect.aisi.org.uk/caching.html.md): Caching enables you to cache model output to reduce API calls, saving both time and expense.
 - [Concurrency](https://inspect.aisi.org.uk/models-concurrency.html.md): Tuning model API connection limits, adaptive concurrency, and rate-limit handling.
 - [Compaction](https://inspect.aisi.org.uk/compaction.html.md): Compacting message histories for long-running agents that exceed the context window.
+- [Fallbacks](https://inspect.aisi.org.uk/fallbacks.html.md): Retrying classifier-refused requests on a fallback model, and how fallbacks are recorded in logs, dataframes, and the viewer.
 - [Multimodal](https://inspect.aisi.org.uk/multimodal.html.md): How to use images, audio, and video in evaluations.
 - [Reasoning](https://inspect.aisi.org.uk/reasoning.html.md): Additional options and data available for reasoning models.
 - [Structured Output](https://inspect.aisi.org.uk/structured.html.md): How to constrain model output to a particular JSON schema.
@@ -65,6 +66,7 @@
 - [Parallelism](https://inspect.aisi.org.uk/parallelism.html.md): Running multiple tasks and models in parallel, sandbox concurrency, and writing parallel custom code.
 - [Handling Errors](https://inspect.aisi.org.uk/handling-errors.html.md): Techniques for dealing with runtime errors and recovering from crashes during evaluation.
 - [Setting Limits](https://inspect.aisi.org.uk/setting-limits.html.md): Setting time, message, token, and cost limits on evaluation tasks, samples, and agent execution.
+- [Control Channel](https://inspect.aisi.org.uk/control-channel.html.md): Observe running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, and keep-alive.
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md): The early stopping API for ending tasks early based on previously scored samples.
 - [Tracing](https://inspect.aisi.org.uk/tracing.html.md): Advanced execution tracing tools for diagnosing runtime issues.
 

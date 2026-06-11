@@ -163,3 +163,26 @@ Because the grader sees dataset- and model-controlled text (the question, the su
 Grade extraction binds to the last grade. The default `grade_pattern` (`(?is).*GRADE\s*:\s*([CPI])`) matches the last `GRADE: X` in the grader’s output. The instructions tell the grader to end with its grade, so an earlier `GRADE: C` (echoed in chain-of-thought, or injected via the submission) does not win. If you customise `grade_pattern`, keep this behaviour in mind.
 
 Structural delimiters are neutralized. The default templates wrap content in `[BEGIN DATA]` / `[END DATA]` markers. Before formatting the prompt, Inspect rewrites any `[BEGIN DATA]` / `[END DATA]` markers that appear in the model-controlled `answer`, the `question`, the `criterion`, and any `metadata` values (for example to `[END-DATA]`) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The `instructions` you provide are author-controlled and left untouched.
+
+## Reproducible Grading
+
+By default the grader model runs with the provider’s default generation settings. In practice this often means a non-zero temperature (e.g. 1.0) and no fixed seed, so grades for borderline answers can change from run to run and across epochs.
+
+[model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa) and [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact) do not take a generation `config` argument. To control the grader’s generation settings, configure the grader model with [get_model()](./reference/inspect_ai.model.html.md#get_model) and pass it as `model`:
+
+``` python
+from inspect_ai.model import get_model, GenerateConfig
+from inspect_ai.scorer import model_graded_qa
+
+grader = get_model("openai/gpt-4o", config=GenerateConfig(temperature=0, seed=42))
+
+model_graded_qa(model=grader)
+```
+
+You can apply the same configuration through the `grader` model role instead of the `model` argument — see [Model Roles](./models.html.md#model-roles).
+
+For more reproducible grading:
+
+1.  Set `temperature=0` so the grader is as deterministic as the provider allows.
+2.  Set a `seed` where the provider supports it.
+3.  Run multiple `epochs` and inspect grade variance — setting `temperature=0` reduces, but does not always eliminate, run-to-run disagreement.

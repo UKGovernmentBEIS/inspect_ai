@@ -50,10 +50,10 @@ samples_df("logs")
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 408 entries, 0 to 407
-Columns: 13 entries, sample_id to retries
+Columns: 14 entries, sample_id to fallbacks
 ```
 
-By default, `sample_df()` reads all of the columns in the [EvalSampleSummary](./reference/inspect_ai.log.html.md#evalsamplesummary) data structure (12 columns), along with the `eval_id` for linking back to the parent eval log file.
+By default, `sample_df()` reads all of the columns in the [EvalSampleSummary](./reference/inspect_ai.log.html.md#evalsamplesummary) data structure (13 columns), along with the `eval_id` for linking back to the parent eval log file.
 
 ### Column Groups
 
@@ -94,10 +94,10 @@ samples_df(
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 408 entries, 0 to 407
-Columns: 27 entries, sample_id to retries
+Columns: 28 entries, sample_id to fallbacks
 ```
 
-This dataframe has 27 columns rather than than the 13 we saw for the default [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
+This dataframe has 28 columns rather than than the 14 we saw for the default [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
 
 ### Filtering Logs
 
@@ -468,8 +468,11 @@ SampleSummary: list[Column] = [
     SampleColumn("error", path="error"),
     SampleColumn("limit", path="limit"),
     SampleColumn("retries", path="retries"),
+    SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
 ```
+
+The `fallbacks` column is the total number of generate calls served by a [fallback model](./providers.html.md#anthropic-refusal-fallback) (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
 The `eval_id` and `sample_id` fields are automatically included in all sample data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
 

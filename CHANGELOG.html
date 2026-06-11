@@ -443,13 +443,20 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
+<li>Anthropic: Support for server-side refusal fallback via the <code>fallback_models</code> generate config (Claude 5+ on the first-party Anthropic API).</li>
+<li>Model API: Record model fallbacks as a typed <code>ModelOutput.fallback</code> and roll them up per-sample on <code>EvalSample.model_fallbacks</code> (and sample summaries); expose a <code>fallbacks</code> count column in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span>.</li>
+<li>Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.</li>
+<li>Control Channel: <code>inspect eval</code> / <code>inspect eval-set</code> now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New <code>inspect ctl</code> commands let another process (CLI, scripts, agents) observe a running eval / eval-set.</li>
 <li>Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.</li>
 <li>Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.</li>
 <li>Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.</li>
+<li>Tools: <code>internal_tool_type()</code> helper and <code>INTERNAL_TOOL_TYPE</code> options key marking server-side tools.</li>
 <li>Agent Bridge: Preserve <code>source="operator"</code> provenance on operator-injected messages.</li>
+<li>Task Display: Update log/plain progress after errors.</li>
 <li>Eval Logs: Support for writing to Hugging Face Storage Buckets.</li>
-<li>Sandbox tools: Inject tool support as a PyInstaller <code>--onedir</code> bundle (a gzipped tar extracted in-container) instead of a single StaticX executable, and add a musl-linked variant so <code>bash_session</code>, <code>text_editor</code>, and MCP tools now work in musl-based sandboxes (e.g.&nbsp;Alpine) in addition to glibc. The matching arch × libc artifact is auto-detected at injection; glibc variants ship in the wheel and musl is fetched from S3 on demand.</li>
+<li>Sandbox tools: Inject tool support as a PyInstaller <code>--onedir</code> bundle instead of a single StaticX executable.</li>
 <li>S3: Retry when requests have stale signatures.</li>
+<li>Inspect View: Display model fallbacks (samples grid column, <code>has_fallbacks</code>/<code>fallbacks</code> filter variables, sample header, transcript fallback marker and model-event badge).</li>
 </ul>
 </section>
 <section id="june-2026" class="level2">

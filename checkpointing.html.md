@@ -207,7 +207,9 @@ When more than one of the sample / task / eval layers supplies a configuration, 
 
 ### Sandbox Paths
 
-`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed.
+`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g. `sandbox_paths={"tools": []}`) opts that sandbox out of checkpointing entirely.
+
+Cache directories are never backed up: any `.cache` directory at any depth (`**/.cache`, including the user’s XDG cache dir) is always excluded from sandbox backups — even when you specify `sandbox_paths` explicitly. Agents should not keep state they need across a resume under a `.cache` directory.
 
 ## Checkpoint Flow
 

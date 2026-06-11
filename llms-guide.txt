@@ -804,6 +804,7 @@ For more detail on the different methods of configuration, see [Configuration](.
 | `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
 | `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
 | `--cache-prompt` | Values: `auto`, `true`, or `false`. Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only. |
+| `--fallback-models` | Fallback models (comma-separated, tried in order) when the model’s safety classifiers refuse the request. Anthropic Claude API only. |
 | `--effort` | Values: `low`, `medium`, `high`, `xhigh`, or `max`. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency (Claude 4.5, 4.6, 4.7 only, `max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7). |
 | `--verbosity` | Values `low`, `medium`, or `high`. Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models). |
 | `--reasoning-effort` | Values: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). |
@@ -3582,6 +3583,32 @@ If there are other beta features you want to enable, use the `betas` model arg (
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
 ```
 
+### Refusal Fallback
+
+> **NOTE:**
+>
+> The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Claude 5 classifiers can decline a request, returning a refusal (surfaced by Inspect as `stop_reason="content_filter"`). Such a request can usually be served by another Claude model. Set the `fallback_models` generate config to retry refused requests on one or more fallback models (tried in order) within the same request, using Anthropic’s [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback):
+
+``` bash
+inspect eval arc.py --model anthropic/claude-fable-5 --fallback-models claude-opus-4-8
+```
+
+Or via the [eval()](./reference/inspect_ai.html.md#eval) / [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) API:
+
+``` python
+eval("arc.py", model="anthropic/claude-fable-5", fallback_models=["claude-opus-4-8"])
+```
+
+This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](./models-batch.html.md), and is ignored (with a warning) in those cases.
+
+See the [Fallbacks](./fallbacks.html.md) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
+
 #### Cache Diagnostics
 
 Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt cachijng. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
@@ -5335,6 +5362,135 @@ Compaction needs to both estimate the tokens currently used by the input as well
 2.  Context window sizes are computed using Inspect’s built-in [model database](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_model_data), which includes context window sizes for popular commercial and open-source models. If the context window for a model cannot be determined then a warning is printed and a default context-window of 128,000 is utilized.
 
 
+# Fallbacks – Inspect
+
+> **NOTE:**
+>
+> The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+## Overview
+
+Claude 5 models include safety classifiers that can decline a request. A decline need not be an error: the API returns a normal response with a refusal stop reason (surfaced by Inspect as `stop_reason="content_filter"`), and the same request can usually still be served by another Claude model.
+
+The `fallback_models` generation option enables this automatically. When the requested model’s classifiers decline, the request is retried on one or more fallback models (tried in order) within the same request, using Anthropic’s [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback). Inspect records which model served each generation.
+
+> **NOTE: NoteAPI Compatibility**
+>
+> Fallbacks apply only to the first-party Anthropic Claude API (they are ignored, with a warning, on Bedrock, Vertex, and Azure and with [batch mode](./models-batch.html.md)) and only to Claude 5 and later requested models. Each fallback target must be one of the requested model’s permitted targets, published as `allowed_fallback_models` on the model’s [Models API](https://platform.claude.com/docs/en/api/models/list) entry (currently `claude-opus-4-8` is the only permitted target for `claude-fable-5`).
+
+## Basic Usage
+
+Specify one or more fallback models (up to three, tried in order) with the `--fallback-models` CLI option:
+
+``` bash
+inspect eval ctf.py --model anthropic/claude-fable-5 \
+   --fallback-models claude-opus-4-8
+```
+
+Or from Python (like all generate config, `fallback_models` can be specified at the eval, task, or model level):
+
+``` python
+from inspect_ai import eval
+
+eval(
+    "ctf.py",
+    model="anthropic/claude-fable-5",
+    fallback_models=["claude-opus-4-8"],
+)
+```
+
+Only a safety classifier decline triggers the fallback. If every model in the chain declines, the final refusal is returned (`stop_reason="content_filter"`).
+
+## Refusals
+
+Without fallbacks configured (or when every fallback also declines), the refusal is surfaced on the model output: `stop_reason` is `"content_filter"` and `stop_details` carries the structured refusal detail:
+
+| Field | Description |
+|----|----|
+| `type` | `"refusal"` for classifier declines. |
+| `category` | Policy area that triggered the classifier (e.g. `"cyber"`, `"bio"`, `"reasoning_extraction"`). May be `None` when the refusal maps to no named category. |
+| `explanation` | Human readable description (display it, don’t parse it). |
+| `categories` | All triggering categories (list of `StopCategory`). |
+
+When a fallback serves a request, the API does not report the declining attempt’s refusal category (the declined attempt is unbilled and only its token counts appear in the response diagnostics). Refusal categories are available only on responses that actually ended in a refusal.
+
+## Fallback Logging
+
+When a fallback serves a generation, Inspect records it on the model output, in the message content, and in a per-sample rollup.
+
+On the model output, `ModelOutput.model` reports the model that actually produced the response, and `ModelOutput.fallback` records the handoff as a `ModelFallback`:
+
+| Field | Description |
+|----|----|
+| `model` | Model that was originally requested. |
+| `fallback_model` | Model that served the request. |
+| `count` | Number of generate calls (always 1 on a single output; aggregated in the sample rollup). |
+| `metadata` | Provider diagnostics. For Anthropic, the `handoffs` chain and the per-attempt `usage.iterations` billing record. |
+
+The assistant message also carries a content marker at the point of the handoff, which is what allows Inspect to replay fallen-back conversations on subsequent turns.
+
+At the sample level, `EvalSample.model_fallbacks` (and sample summaries) aggregate the fallbacks that occurred during the sample (across solvers, subagents, and scorers) as a list of `ModelFallback` entries keyed by requested and serving model. The rollup is also available in [dataframes](./dataframe.html.md): [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) includes a `fallbacks` column with the total count, and the full detail is available via a custom column:
+
+``` python
+from inspect_ai.analysis import SampleColumn, SampleSummary, samples_df
+
+df = samples_df(
+    "logs",
+    columns=SampleSummary + [
+        SampleColumn("model_fallbacks", path="model_fallbacks")
+    ],
+)
+df[df.fallbacks > 0]
+```
+
+### Costs
+
+Cost estimation (including the `cost_limit` option) prices fallen-back requests at the requested model’s rates, as if no refusal had occurred. This keeps estimated costs comparable across samples, and is conservative for `cost_limit` since fallback targets are cheaper than the requested model (Anthropic bills each attempt at the rates of the model that ran it, and declined attempts that produced no output are unbilled). If you need actual-spend accounting, the per-attempt billing record is preserved in `ModelFallback.metadata["iterations"]` on each [ModelEvent](./reference/inspect_ai.event.html.md#modelevent)’s output.
+
+## Viewer
+
+The viewer surfaces fallbacks in several places:
+
+- The samples list includes a *Fallbacks* column (shown when any sample has fallbacks) with the total count per sample. The `has_fallbacks` and `fallbacks` variables are available for [filtering](./log-viewer.html.md) (e.g. `has_fallbacks` or `fallbacks > 2`).
+
+- The sample header annotates the model, e.g. `anthropic/claude-fable-5 (fallback → claude-opus-4-8)`.
+
+- In the transcript, fallen-back model calls carry a `fallback → <model>` badge in their title bar, and a marker appears in the assistant message content at the point of the handoff.
+
+The task display shown while an eval is running (and the `inspect acp` session view) annotate the model the same way.
+
+## Fallback Scanning
+
+Scanners from [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) can locate fallbacks in a set of logs. The scanner below emits a result for each generation served by a fallback model, with the handoff as the value, an explanation noting the refusal followed by the served message content, and a reference to the originating event:
+
+``` python
+from inspect_ai.event import ModelEvent
+from inspect_scout import Reference, Result, Scanner, scanner
+
+
+@scanner(events=["model"])
+def model_fallbacks() -> Scanner[ModelEvent]:
+    """Find generations served by a fallback model."""
+
+    async def scan(event: ModelEvent) -> Result:
+        fallback = event.output.fallback
+        if fallback is None:
+            return Result(value=None)
+        return Result(
+            value=f"{fallback.model} → {fallback.fallback_model}",
+            explanation=f"{fallback.model} refused this request: "
+            + event.output.message.text,
+            references=[Reference(type="event", id=event.uuid or "")],
+        )
+
+    return scan
+```
+
+
 # Multimodal – Inspect
 
 ## Overview
@@ -6659,6 +6815,29 @@ Because the grader sees dataset- and model-controlled text (the question, the su
 Grade extraction binds to the last grade. The default `grade_pattern` (`(?is).*GRADE\s*:\s*([CPI])`) matches the last `GRADE: X` in the grader’s output. The instructions tell the grader to end with its grade, so an earlier `GRADE: C` (echoed in chain-of-thought, or injected via the submission) does not win. If you customise `grade_pattern`, keep this behaviour in mind.
 
 Structural delimiters are neutralized. The default templates wrap content in `[BEGIN DATA]` / `[END DATA]` markers. Before formatting the prompt, Inspect rewrites any `[BEGIN DATA]` / `[END DATA]` markers that appear in the model-controlled `answer`, the `question`, the `criterion`, and any `metadata` values (for example to `[END-DATA]`) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The `instructions` you provide are author-controlled and left untouched.
+
+## Reproducible Grading
+
+By default the grader model runs with the provider’s default generation settings. In practice this often means a non-zero temperature (e.g. 1.0) and no fixed seed, so grades for borderline answers can change from run to run and across epochs.
+
+[model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa) and [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact) do not take a generation `config` argument. To control the grader’s generation settings, configure the grader model with [get_model()](./reference/inspect_ai.model.html.md#get_model) and pass it as `model`:
+
+``` python
+from inspect_ai.model import get_model, GenerateConfig
+from inspect_ai.scorer import model_graded_qa
+
+grader = get_model("openai/gpt-4o", config=GenerateConfig(temperature=0, seed=42))
+
+model_graded_qa(model=grader)
+```
+
+You can apply the same configuration through the `grader` model role instead of the `model` argument — see [Model Roles](./models.html.md#model-roles).
+
+For more reproducible grading:
+
+1.  Set `temperature=0` so the grader is as deterministic as the provider allows.
+2.  Set a `seed` where the provider supports it.
+3.  Run multiple `epochs` and inspect grade variance — setting `temperature=0` reduces, but does not always eliminate, run-to-run disagreement.
 
 
 # Scoring Metrics – Inspect
@@ -12474,6 +12653,7 @@ Once an evaluation is developed, Inspect provides a number of tools for running 
 | [Parallelism](./parallelism.html.md) | Run multiple tasks and models in parallel and tune sandbox concurrency. |
 | [Handling Errors](./handling-errors.html.md) | Deal with runtime errors and recover from crashes during evaluation. |
 | [Setting Limits](./setting-limits.html.md) | Set time, message, token, and cost limits on tasks, samples, and agent execution. |
+| [Control Channel](./control-channel.html.md) | Observe running evals from another process: task and sample status, errors, and transcript events. |
 | [Early Stopping](./early-stopping.html.md) | End tasks early based on the scores of previously completed samples. |
 | [Tracing](./tracing.html.md) | Diagnose runtime issues with advanced execution tracing tools. |
 
@@ -13809,6 +13989,148 @@ Note that when limits are exceeded during an agent’s execution, the way this i
 - For tool based agents ([handoff()](./reference/inspect_ai.agent.html.md#handoff) and [as_tool()](./reference/inspect_ai.agent.html.md#as_tool)), if a limit is exceeded then a message to that effect is returned to the model but the *sample continues running*.
 
 
+# Control Channel – Inspect
+
+> **NOTE:**
+>
+> The control channel features described below require the development version of Inspect. You can install the development version from GitHub with:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+## Overview
+
+Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — without interrupting it or parsing log files.
+
+| Command | Description |
+|----|----|
+| `inspect ctl tasks` | List running tasks across all live Inspect processes. |
+| `inspect ctl samples` | List a task’s samples (running, completed, and pending). |
+| `inspect ctl errors` | List samples that errored or were retried. |
+| `inspect ctl sample` | Show one sample’s error detail, including prior attempts. |
+| `inspect ctl events` | Read one sample’s transcript events. |
+| `inspect ctl release` | Let a keep-alive process exit. |
+
+All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. Everything is read-only: nothing you do over the control channel affects the running eval (`release` only lets an already-finished process exit).
+
+The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
+
+## Listing Tasks
+
+`inspect ctl tasks` lists the tasks of every running eval on the machine:
+
+``` bash
+$ inspect ctl tasks
+task_id       task                         samples              started
+------------  ---------------------------  -------------------  --------
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond   12/40 (3 running)    14:02:11
+fR8mWn2cQspD  inspect_evals/humaneval      164/164 (complete)   13:58:40
+```
+
+Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored.
+
+## Selecting a Task
+
+The other commands take a `TASK` argument that selects a task from this list. It matches a task id (or unique prefix) first, then a task name — anchored at the start of the name or after a `/`, so `gpqa` matches `inspect_evals/gpqa_diamond`. When only one task is running you can omit it entirely.
+
+Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don’t use them).
+
+## Sample Status
+
+`inspect ctl samples` lists a task’s samples with their live status:
+
+``` bash
+$ inspect ctl samples gpqa
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40 (3 running)
+
+sample  epoch  status     time   idle  tokens  messages
+------  -----  ---------  -----  ----  ------  --------
+14      1      running    12:40  0:03  48210   22
+17      1      running    8:12   6:51  31055   14
+21      1      running    0:45   0:01  2150    3
+1       1      completed  4:02         18021   9
+...
+```
+
+The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. (Note that a single in-flight model request produces no events until it returns, so idle time also accumulates during one long model call.)
+
+Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — useful for monitoring loops that don’t want to re-read the full list.
+
+## Errors and Retries
+
+`inspect ctl errors` is a triage view of the samples that errored or were retried:
+
+``` bash
+$ inspect ctl errors gpqa
+sample  epoch  status   retries  error
+------  -----  -------  -------  ----------------------------------
+9       1      error    2        RuntimeError: tool execution failed
+17      1      running  1
+```
+
+`inspect ctl sample` drills into one sample’s full error history, including errors from prior attempts (both task-level retries and sample-level `retry_on_error`). Pass `--traceback` for full tracebacks:
+
+``` bash
+$ inspect ctl sample gpqa 9 --traceback
+```
+
+## Transcript Events
+
+`inspect ctl events` reads a running sample’s transcript — the sequence of model calls, tool calls, errors, and scores it has produced so far:
+
+``` bash
+$ inspect ctl events gpqa 17
+time      event  summary
+--------  -----  -------------------------------------------------
+14:09:01  model  openai/gpt-5 · 1840 tok · stop · The compound is...
+14:09:04  tool   bash(ls /data) → README.md results.csv
+14:09:11  model  openai/gpt-5 · 2105 tok · stop · Based on the...
+
+3 events  ·  more
+next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ
+```
+
+Reads are incremental: each page ends with a `next` cursor, and passing it back via `--since` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt’s transcript.
+
+Other options:
+
+| Option | Description |
+|----|----|
+| `--tail N` | Start N events from the end instead of the beginning. |
+| `--type model,tool` | Filter by event type (`*` for all). By default, high-volume structural events are excluded. |
+| `--full` | Return complete raw events instead of compact one-line summaries. |
+| `--since-time` / `--until` | Filter to a wall-clock window (unix timestamps). |
+
+Events for samples that have already completed are also readable — they are served from the eval’s log.
+
+## Keep Alive
+
+A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The `--ctl-server` option controls this:
+
+``` bash
+inspect eval ctf.py --ctl-server=keep-alive
+```
+
+With `keep-alive`, the process stays running after the eval finishes — its state remains queryable via `inspect ctl` and its logs are fully written — until you release it:
+
+``` bash
+inspect ctl release
+```
+
+If more than one process is parked, `release` lists their pids and you disambiguate with `--pid`. Release also works ahead of time: issued while the eval is still running, it means “exit when done” — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). From Python, pass `ctl_server="keep-alive"` to [eval()](./reference/inspect_ai.html.md#eval) or [eval_set()](./reference/inspect_ai.html.md#eval_set). For eval sets, keep-alive requires `retry_immediate=True` (the default).
+
+## Disabling the Control Server
+
+The control server is on by default. To run an eval without it:
+
+``` bash
+inspect eval ctf.py --ctl-server=false
+```
+
+The `INSPECT_EVAL_CTL_SERVER` environment variable mirrors the option (for example, set `INSPECT_EVAL_CTL_SERVER=false` to disable it across a CI job). If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.
+
+
 # Early Stopping – Inspect
 
 ## Overview
@@ -14833,10 +15155,10 @@ samples_df("logs")
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 408 entries, 0 to 407
-Columns: 13 entries, sample_id to retries
+Columns: 14 entries, sample_id to fallbacks
 ```
 
-By default, `sample_df()` reads all of the columns in the [EvalSampleSummary](./reference/inspect_ai.log.html.md#evalsamplesummary) data structure (12 columns), along with the `eval_id` for linking back to the parent eval log file.
+By default, `sample_df()` reads all of the columns in the [EvalSampleSummary](./reference/inspect_ai.log.html.md#evalsamplesummary) data structure (13 columns), along with the `eval_id` for linking back to the parent eval log file.
 
 ### Column Groups
 
@@ -14877,10 +15199,10 @@ samples_df(
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 408 entries, 0 to 407
-Columns: 27 entries, sample_id to retries
+Columns: 28 entries, sample_id to fallbacks
 ```
 
-This dataframe has 27 columns rather than than the 13 we saw for the default [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
+This dataframe has 28 columns rather than than the 14 we saw for the default [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
 
 ### Filtering Logs
 
@@ -15251,8 +15573,11 @@ SampleSummary: list[Column] = [
     SampleColumn("error", path="error"),
     SampleColumn("limit", path="limit"),
     SampleColumn("retries", path="retries"),
+    SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
 ```
+
+The `fallbacks` column is the total number of generate calls served by a [fallback model](./providers.html.md#anthropic-refusal-fallback) (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
 The `eval_id` and `sample_id` fields are automatically included in all sample data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
 

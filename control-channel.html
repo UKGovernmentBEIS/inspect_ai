@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Human Agent – Inspect</title>
+<title>Control Channel – Inspect</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -68,8 +68,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./tools.html" rel="next">
-<link href="./agent-bridge.html" rel="prev">
+<link href="./early-stopping.html" rel="next">
+<link href="./setting-limits.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -81,9 +81,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -229,7 +226,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./human-agent.html">Human Agent</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./running.html">Running</a></li><li class="breadcrumb-item"><a href="./control-channel.html">Control Channel</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -443,13 +440,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
  <span class="menu-text">Agents</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./agents.html" class="sidebar-item-text sidebar-link">
@@ -494,7 +491,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./human-agent.html" class="sidebar-item-text sidebar-link active">
+  <a href="./human-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Human Agent</span></a>
   </div>
 </li>
@@ -551,11 +548,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="sidebar-item-container"> 
             <a href="./running.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Running</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -582,7 +579,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./control-channel.html" class="sidebar-item-text sidebar-link">
+  <a href="./control-channel.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Control Channel</span></a>
   </div>
 </li>
@@ -699,27 +696,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
-  <li><a href="#usage" id="toc-usage" class="nav-link" data-scroll-target="#usage">Usage</a>
-  <ul class="collapse">
-  <li><a href="#container-access" id="toc-container-access" class="nav-link" data-scroll-target="#container-access">Container Access</a></li>
-  <li><a href="#task-commands" id="toc-task-commands" class="nav-link" data-scroll-target="#task-commands">Task Commands</a></li>
-  <li><a href="#answer-submission" id="toc-answer-submission" class="nav-link" data-scroll-target="#answer-submission">Answer Submission</a></li>
-  <li><a href="#quitting" id="toc-quitting" class="nav-link" data-scroll-target="#quitting">Quitting</a></li>
-  <li><a href="#intermediate-scoring" id="toc-intermediate-scoring" class="nav-link" data-scroll-target="#intermediate-scoring">Intermediate Scoring</a></li>
-  <li><a href="#container-user" id="toc-container-user" class="nav-link" data-scroll-target="#container-user">Container User</a></li>
-  </ul></li>
-  <li><a href="#recording" id="toc-recording" class="nav-link" data-scroll-target="#recording">Recording</a></li>
-  <li><a href="#headless" id="toc-headless" class="nav-link" data-scroll-target="#headless">Headless</a></li>
+  <li><a href="#listing-tasks" id="toc-listing-tasks" class="nav-link" data-scroll-target="#listing-tasks">Listing Tasks</a></li>
+  <li><a href="#selecting-a-task" id="toc-selecting-a-task" class="nav-link" data-scroll-target="#selecting-a-task">Selecting a Task</a></li>
+  <li><a href="#sample-status" id="toc-sample-status" class="nav-link" data-scroll-target="#sample-status">Sample Status</a></li>
+  <li><a href="#errors-and-retries" id="toc-errors-and-retries" class="nav-link" data-scroll-target="#errors-and-retries">Errors and Retries</a></li>
+  <li><a href="#transcript-events" id="toc-transcript-events" class="nav-link" data-scroll-target="#transcript-events">Transcript Events</a></li>
+  <li><a href="#keep-alive" id="toc-keep-alive" class="nav-link" data-scroll-target="#keep-alive">Keep Alive</a></li>
+  <li><a href="#disabling-the-control-server" id="toc-disabling-the-control-server" class="nav-link" data-scroll-target="#disabling-the-control-server">Disabling the Control Server</a></li>
   </ul>
 </nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./human-agent.html">Human Agent</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./running.html">Running</a></li><li class="breadcrumb-item"><a href="./control-channel.html">Control Channel</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Human Agent</h1>
+<h1 class="title">Control Channel</h1>
 </div>
 
 
@@ -736,60 +728,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The control channel features described below require the development version of Inspect. You can install the development version from GitHub with:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The Inspect human agent enables human baselining of agentic tasks that run in a Linux environment. Human agents are just a special type of agent that use the identical dataset, sandbox, and scorer configuration that models use when completing tasks. However, rather than entering an agent loop, the <code>human_cli</code> agent provides the human baseliner with:</p>
-<ol type="1">
-<li><p>A description of the task to be completed (input/prompt from the sample).</p></li>
-<li><p>Means to login to the container provisioned for the sample (including creating a remote VS Code session).</p></li>
-<li><p>CLI commands for use within the container to view instructions, submit answers, pause work, etc.</p></li>
-</ol>
-<p>Human baselining terminal sessions are <a href="#recording">recorded</a> by default so that you can later view which actions the user took to complete the task.</p>
-</section>
-<section id="example" class="level2">
-<h2 class="anchored" data-anchor-id="example">Example</h2>
-<p>Here, we run a human baseline on an <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/">Intercode CTF</a> sample. We use the <code>--solver</code> option to use the <code>human_cli</code> agent rather than the task’s default solver:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The evaluation runs as normal, and a <strong>Human Agent</strong> panel appears in the task UI to orient the human baseliner to the task and provide instructions for accessing the container. The user clicks the <strong>VS Code Terminal</strong> link and a terminal interface to the container is provided within VS Code:</p>
-<p><a href="images/inspect-human-agent.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-human-agent.png" class="img-fluid"></a></p>
-<p>Note that while this example makes use of VS Code, it is in no way required. Baseliners can use their preferred editor and terminal environment using the <code>docker exec</code> command provided at the bottom. Human baselining can also be done in a “headless” fashion without the task display (see the <a href="#headless">Headless</a> section below for details).</p>
-<p>Once the user discovers the flag, they can submit it using the <code>task submit</code> command. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> submit picoCTF{73bfc85c1ba7}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="usage" class="level2">
-<h2 class="anchored" data-anchor-id="usage">Usage</h2>
-<p>Using the <code>human_cli</code> agent is as straightforward as specifying it as the <code>--solver</code> for any existing task. Repeating the example above:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Or alternatively from within Python:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> human_cli</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_evals <span class="im">import</span> gdm_intercode_ctf</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(gdm_intercode_ctf(), sample_id<span class="op">=</span><span class="dv">44</span>, solver<span class="op">=</span>human_cli())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>There are however some requirements that should be met by your task before using it with the human CLI agent:</p>
-<ol type="1">
-<li><p>It should be solvable by using the tools available in a Linux environment (plus potentially access to the web, which the baseliner can do using an external web browser).</p></li>
-<li><p>The dataset <code>input</code> must fully specify the instructions for the task. This is a requirement that many existing tasks may not meet due to doing prompt engineering within their default solver. For example, the Intercode CTF eval had to be <a href="https://github.com/UKGovernmentBEIS/inspect_evals/commit/89912a1a51ba5beb4a13e1e480823c8b4626b873">modified in this fashion</a> to make it compatible with human agent.</p></li>
-</ol>
-<section id="container-access" class="level3">
-<h3 class="anchored" data-anchor-id="container-access">Container Access</h3>
-<p>The human agent works on the task within the default sandbox container for the task. Access to the container can be initiated using the command printed at the bottom of the <strong>Human Agent</strong> panel. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-itmzq4e-default-1 bash <span class="at">-l</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Alternatively, if the human agent is working within VS Code then two links are provided to access the container within VS Code:</p>
-<ul>
-<li><p><strong>VS Code Window</strong> opens a new VS Code window logged in to the container. The human agent can than create terminals, browse the file system, etc. using the VS Code interface.</p></li>
-<li><p><strong>VS Code Terminal</strong> opens a new terminal in the main editor area of VS Code (so that it is afforded more space than the default terminal in the panel.</p></li>
-</ul>
-</section>
-<section id="task-commands" class="level3">
-<h3 class="anchored" data-anchor-id="task-commands">Task Commands</h3>
-<p>The Human agent installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g.&nbsp;<code>task submit</code>, <code>task start</code>, <code>task stop</code>, <code>task instructions</code>, etc.). By default, the following command are available:</p>
+<p>Every <code>inspect eval</code> or <code>inspect eval-set</code> process binds a local control endpoint that exposes the live state of the run. The <code>inspect ctl</code> commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — without interrupting it or parsing log files.</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 40%">
-<col style="width: 60%">
+<col style="width: 35%">
+<col style="width: 65%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -799,86 +755,135 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>task submit</code></td>
-<td>Submit your final answer for the task.</td>
+<td><code>inspect ctl tasks</code></td>
+<td>List running tasks across all live Inspect processes.</td>
 </tr>
 <tr class="even">
-<td><code>task quit</code></td>
-<td>Quit the task without submitting an answer.</td>
+<td><code>inspect ctl samples</code></td>
+<td>List a task’s samples (running, completed, and pending).</td>
 </tr>
 <tr class="odd">
-<td><code>task note</code></td>
-<td>Record a note in the task transcript.</td>
+<td><code>inspect ctl errors</code></td>
+<td>List samples that errored or were retried.</td>
 </tr>
 <tr class="even">
-<td><code>task status</code></td>
-<td>Print task status (clock, scoring , etc.)</td>
+<td><code>inspect ctl sample</code></td>
+<td>Show one sample’s error detail, including prior attempts.</td>
 </tr>
 <tr class="odd">
-<td><code>task start</code></td>
-<td>Start the task clock (resume working)</td>
+<td><code>inspect ctl events</code></td>
+<td>Read one sample’s transcript events.</td>
 </tr>
 <tr class="even">
-<td><code>task stop</code></td>
-<td>Stop the task clock (pause working).</td>
-</tr>
-<tr class="odd">
-<td><code>task instructions</code></td>
-<td>Display task command and instructions.</td>
+<td><code>inspect ctl release</code></td>
+<td>Let a keep-alive process exit.</td>
 </tr>
 </tbody>
 </table>
-<p>Note that the instructions are also copied to an <code>instructions.txt</code> file in the container user’s working directory.</p>
+<p>All commands accept <code>--json</code> for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. Everything is read-only: nothing you do over the control channel affects the running eval (<code>release</code> only lets an already-finished process exit).</p>
+<p>The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.</p>
 </section>
-<section id="answer-submission" class="level3">
-<h3 class="anchored" data-anchor-id="answer-submission">Answer Submission</h3>
-<p>When the human agent has completed the task, they submit their answer using the <code>task submit</code>command. By default, the <code>task submit</code> command requires that an explicit answer be given (e.g.&nbsp;<code>task submit picoCTF{73bfc85c1ba7}</code>).</p>
-<p>However, if your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing <code>answer=False</code> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#human_cli">human_cli()</a></span>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(answer<span class="op">=</span><span class="va">False</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> answer=false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>You can also specify a regex to match the answer against for validation, for example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(answer<span class="op">=</span><span class="vs">r"picoCTF{</span><span class="dv">\w</span><span class="op">+</span><span class="vs">}"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="listing-tasks" class="level2">
+<h2 class="anchored" data-anchor-id="listing-tasks">Listing Tasks</h2>
+<p><code>inspect ctl tasks</code> lists the tasks of every running eval on the machine:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl tasks</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">task_id</span>       task                         samples              started</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------------</span>  <span class="at">---------------------------</span>  <span class="at">-------------------</span>  <span class="at">--------</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ZByxJpK4bKSz</span>  inspect_evals/gpqa_diamond   12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span>    <span class="ex">14:02:11</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">fR8mWn2cQspD</span>  inspect_evals/humaneval      164/164 <span class="er">(</span><span class="bu">complete</span><span class="kw">)</span>   <span class="ex">13:58:40</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Each row is one task: retried tasks stay on a single row (with an <code>attempts</code> column showing how many attempts have run), and an <code>errors</code> column appears when any samples have errored.</p>
 </section>
-<section id="quitting" class="level3">
-<h3 class="anchored" data-anchor-id="quitting">Quitting</h3>
-<p>If the user is unable to complete the task in some allotted time they may quit the task using the <code>task quit</code> command. This will result in <code>answer</code> being an empty string (which will presumably then be scored incorrect).</p>
+<section id="selecting-a-task" class="level2">
+<h2 class="anchored" data-anchor-id="selecting-a-task">Selecting a Task</h2>
+<p>The other commands take a <code>TASK</code> argument that selects a task from this list. It matches a task id (or unique prefix) first, then a task name — anchored at the start of the name or after a <code>/</code>, so <code>gpqa</code> matches <code>inspect_evals/gpqa_diamond</code>. When only one task is running you can omit it entirely.</p>
+<p>Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don’t use them).</p>
 </section>
-<section id="intermediate-scoring" class="level3">
-<h3 class="anchored" data-anchor-id="intermediate-scoring">Intermediate Scoring</h3>
-<p>You can optionally make intermediate scoring available to human baseliners so that they can check potential answers as they work. Use the <code>intermediate_scoring</code> option (which defaults to <code>False</code>) to do this:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(intermediate_scoring<span class="op">=</span><span class="va">True</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> intermediate_scoring=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>With this option enabled, the human agent can check their potential score on the task for a given answer using the <code>task score</code> command. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> score picoCTF{73bfc85c1ba7}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="sample-status" class="level2">
+<h2 class="anchored" data-anchor-id="sample-status">Sample Status</h2>
+<p><code>inspect ctl samples</code> lists a task’s samples with their live status:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl samples gpqa</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-5  ·  running  ·  12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ex">sample</span>  epoch  status     time   idle  tokens  messages</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">------</span>  <span class="at">-----</span>  <span class="at">---------</span>  <span class="at">-----</span>  <span class="at">----</span>  <span class="at">------</span>  <span class="at">--------</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ex">14</span>      1      running    12:40  0:03  48210   22</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ex">17</span>      1      running    8:12   6:51  31055   14</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">21</span>      1      running    0:45   0:01  2150    3</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="ex">1</span>       1      completed  4:02         18021   9</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="ex">...</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <code>idle</code> column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. (Note that a single in-flight model request produces no events until it returns, so idle time also accumulates during one long model call.)</p>
+<p>Pass <code>--active-since &lt;timestamp&gt;</code> to get only the samples that started or changed since a previous poll — useful for monitoring loops that don’t want to re-read the full list.</p>
 </section>
-<section id="container-user" class="level3">
-<h3 class="anchored" data-anchor-id="container-user">Container User</h3>
-<p>By default, the human agent will login to the container using its default user. You can specify an alternate user via the <code>user</code> option. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(user<span class="op">=</span><span class="st">"myuser"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> user=myuser</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="errors-and-retries" class="level2">
+<h2 class="anchored" data-anchor-id="errors-and-retries">Errors and Retries</h2>
+<p><code>inspect ctl errors</code> is a triage view of the samples that errored or were retried:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl errors gpqa</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">sample</span>  epoch  status   retries  error</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------</span>  <span class="at">-----</span>  <span class="at">-------</span>  <span class="at">-------</span>  <span class="at">----------------------------------</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">9</span>       1      error    2        RuntimeError: tool execution failed</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ex">17</span>      1      running  1</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>inspect ctl sample</code> drills into one sample’s full error history, including errors from prior attempts (both task-level retries and sample-level <code>retry_on_error</code>). Pass <code>--traceback</code> for full tracebacks:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample gpqa 9 <span class="at">--traceback</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
+<section id="transcript-events" class="level2">
+<h2 class="anchored" data-anchor-id="transcript-events">Transcript Events</h2>
+<p><code>inspect ctl events</code> reads a running sample’s transcript — the sequence of model calls, tool calls, errors, and scores it has produced so far:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl events gpqa 17</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">time</span>      event  summary</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">--------</span>  <span class="at">-----</span>  <span class="at">-------------------------------------------------</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="ex">14:09:01</span>  model  openai/gpt-5 · 1840 tok · stop · The compound is...</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">14:09:04</span>  tool   bash<span class="er">(</span><span class="fu">ls</span> /data<span class="kw">)</span> <span class="ex">→</span> README.md results.csv</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="ex">14:09:11</span>  model  openai/gpt-5 · 2105 tok · stop · Based on the...</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span> events  ·  more</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="ex">next:</span> eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Reads are incremental: each page ends with a <code>next</code> cursor, and passing it back via <code>--since</code> returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports <code>done</code> the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt’s transcript.</p>
+<p>Other options:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 35%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>--tail N</code></td>
+<td>Start N events from the end instead of the beginning.</td>
+</tr>
+<tr class="even">
+<td><code>--type model,tool</code></td>
+<td>Filter by event type (<code>*</code> for all). By default, high-volume structural events are excluded.</td>
+</tr>
+<tr class="odd">
+<td><code>--full</code></td>
+<td>Return complete raw events instead of compact one-line summaries.</td>
+</tr>
+<tr class="even">
+<td><code>--since-time</code> / <code>--until</code></td>
+<td>Filter to a wall-clock window (unix timestamps).</td>
+</tr>
+</tbody>
+</table>
+<p>Events for samples that have already completed are also readable — they are served from the eval’s log.</p>
 </section>
-<section id="recording" class="level2">
-<h2 class="anchored" data-anchor-id="recording">Recording</h2>
-<p>By default, human agent terminal sessions are recorded using the LInux <a href="https://www.redhat.com/en/blog/linux-script-command">script command</a>. Recorded sessions are saved in the sample store and available for playback within the Inspect View:</p>
-<p><a href="images/inspect-terminal-transcript.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-terminal-transcript.png" class="img-fluid"></a></p>
-<p>You can disable session recording with the <code>record_session</code> option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> record_session=false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="keep-alive" class="level2">
+<h2 class="anchored" data-anchor-id="keep-alive">Keep Alive</h2>
+<p>A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The <code>--ctl-server</code> option controls this:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>keep-alive</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>With <code>keep-alive</code>, the process stays running after the eval finishes — its state remains queryable via <code>inspect ctl</code> and its logs are fully written — until you release it:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl release</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>If more than one process is parked, <code>release</code> lists their pids and you disambiguate with <code>--pid</code>. Release also works ahead of time: issued while the eval is still running, it means “exit when done” — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). From Python, pass <code>ctl_server="keep-alive"</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>. For eval sets, keep-alive requires <code>retry_immediate=True</code> (the default).</p>
 </section>
-<section id="headless" class="level2">
-<h2 class="anchored" data-anchor-id="headless">Headless</h2>
-<p>The examples above demonstrate human baselining being initiated from the CLI and standard task display. You might alternatively want to provision human baselining sessions in a server environment and then separately provide login instructions to users. To suppress the standard task display in favour of just printing out the container login information, pass the <code>--display=plain</code> CLI option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli <span class="at">--display</span> plain</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Which will print the following to the terminal:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> task gdm_intercode_ctf <span class="er">(</span><span class="ex">1</span> sample<span class="kw">)</span><span class="bu">:</span> anthropic/claude-3-5-sonnet-20240620 <span class="er">(</span><span class="ex">config:</span> sample_id: 44<span class="kw">)</span><span class="ex">...</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">You</span> are completing a task on a Linux system <span class="er">(</span><span class="ex">task</span> instructions will be presented when you login<span class="kw">)</span><span class="bu">.</span> Login to the system with the following command:</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-iebwzkg-default-1 bash <span class="at">-l</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="disabling-the-control-server" class="level2">
+<h2 class="anchored" data-anchor-id="disabling-the-control-server">Disabling the Control Server</h2>
+<p>The control server is on by default. To run an eval without it:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <code>INSPECT_EVAL_CTL_SERVER</code> environment variable mirrors the option (for example, set <code>INSPECT_EVAL_CTL_SERVER=false</code> to disable it across a CI job). If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.</p>
 
 
 </section>
@@ -1398,13 +1403,13 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./agent-bridge.html" class="pagination-link" aria-label="Agent Bridge">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Agent Bridge</span>
+      <a href="./setting-limits.html" class="pagination-link" aria-label="Setting Limits">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Setting Limits</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./tools.html" class="pagination-link" aria-label="Tool Basics">
-        <span class="nav-page-text">Tool Basics</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./early-stopping.html" class="pagination-link" aria-label="Early Stopping">
+        <span class="nav-page-text">Early Stopping</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1462,38 +1467,6 @@ document.addEventListener("DOMContentLoaded", function () {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
-(function() {
-  let previousOnload = window.onload;
-  window.onload = () => {
-    if (previousOnload) {
-      previousOnload();
-    }
-    lightboxQuarto.on('slide_before_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      const href = trigger.getAttribute('href');
-      if (href !== null) {
-        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-        if (imgEl !== null) {
-          const srcAttr = imgEl.getAttribute("src");
-          if (srcAttr && srcAttr.startsWith("data:")) {
-            slideConfig.href = srcAttr;
-          }
-        }
-      } 
-    });
-  
-    lightboxQuarto.on('slide_after_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      if (window.Quarto?.typesetMath) {
-        window.Quarto.typesetMath(slideNode);
-      }
-    });
-  
-  };
-  
-})();
-          </script>
 
 
 

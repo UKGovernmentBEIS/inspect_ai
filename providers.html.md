@@ -230,6 +230,32 @@ If there are other beta features you want to enable, use the `betas` model arg (
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
 ```
 
+### Refusal Fallback
+
+> **NOTE:**
+>
+> The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Claude 5 classifiers can decline a request, returning a refusal (surfaced by Inspect as `stop_reason="content_filter"`). Such a request can usually be served by another Claude model. Set the `fallback_models` generate config to retry refused requests on one or more fallback models (tried in order) within the same request, using Anthropic’s [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback):
+
+``` bash
+inspect eval arc.py --model anthropic/claude-fable-5 --fallback-models claude-opus-4-8
+```
+
+Or via the [eval()](./reference/inspect_ai.html.md#eval) / [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) API:
+
+``` python
+eval("arc.py", model="anthropic/claude-fable-5", fallback_models=["claude-opus-4-8"])
+```
+
+This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](./models-batch.html.md), and is ignored (with a warning) in those cases.
+
+See the [Fallbacks](./fallbacks.html.md) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
+
 #### Cache Diagnostics
 
 Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt cachijng. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:

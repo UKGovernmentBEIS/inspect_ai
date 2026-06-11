@@ -355,6 +355,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./fallbacks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Fallbacks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multimodal</span></a>
   </div>
@@ -569,6 +575,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./setting-limits.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Setting Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control-channel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Channel</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -806,8 +818,8 @@ table a {
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples_df(<span class="st">"logs"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 408 entries, 0 to 407</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Columns: 13 entries, sample_id to retries</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>By default, <code>sample_df()</code> reads all of the columns in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span> data structure (12 columns), along with the <code>eval_id</code> for linking back to the parent eval log file.</p>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Columns: 14 entries, sample_id to fallbacks</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>By default, <code>sample_df()</code> reads all of the columns in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span> data structure (13 columns), along with the <code>eval_id</code> for linking back to the parent eval log file.</p>
 </section>
 <section id="column-groups" class="level3">
 <h3 class="anchored" data-anchor-id="column-groups">Column Groups</h3>
@@ -835,8 +847,8 @@ table a {
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 408 entries, 0 to 407</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>Columns: 27 entries, sample_id to retries</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This dataframe has 27 columns rather than than the 13 we saw for the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see <a href="#column-definitions">Column Definitions</a> for details).</p>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>Columns: 28 entries, sample_id to fallbacks</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This dataframe has 28 columns rather than than the 14 we saw for the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see <a href="#column-definitions">Column Definitions</a> for details).</p>
 </section>
 <section id="filtering-logs" class="level3">
 <h3 class="anchored" data-anchor-id="filtering-logs">Filtering Logs</h3>
@@ -970,7 +982,7 @@ table a {
 <h3 class="anchored" data-anchor-id="frontier">frontier()</h3>
 <p>Adds a “frontier” column to each task. The value of the “frontier” column will be <code>True</code> if for the task, the model was the top-scoring model among all models available at the moment the model was released; otherwise it will be <code>False</code>.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> requires scores and model release dates, so must be run after the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation.</p>
-<div id="253f9a2e" class="cell">
+<div id="39686cc9" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    evals_df, frontier, log_viewer, model_info, prepare</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -986,7 +998,7 @@ table a {
 <h3 class="anchored" data-anchor-id="score_to_float">score_to_float()</h3>
 <p>Converts one or more score columns to a float representation of the score.</p>
 <p>For each column specified, this operation will convert the values to floats using the provided <code>value_to_float</code> function. The column value will be replaced with the float value.</p>
-<div id="84e1549a" class="cell">
+<div id="accd7193" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    samples_df, frontier, model_info, prepare, score_to_float</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1187,7 +1199,9 @@ table a {
 <span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"error"</span>, path<span class="op">=</span><span class="st">"error"</span>),</span>
 <span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"limit"</span>, path<span class="op">=</span><span class="st">"limit"</span>),</span>
 <span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"retries"</span>, path<span class="op">=</span><span class="st">"retries"</span>),</span>
-<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"fallbacks"</span>, path<span class="op">=</span>sample_total_fallbacks),</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <code>fallbacks</code> column is the total number of generate calls served by a <a href="./providers.html#anthropic-refusal-fallback">fallback model</a> (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: <code>SampleColumn("model_fallbacks", path="model_fallbacks")</code>.</p>
 <p>The <code>eval_id</code> and <code>sample_id</code> fields are automatically included in all sample data frames. Additionally, a <code>log</code> field which includes the URI of the log file read from is included.</p>
 <p>By default, only score values are included in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span> columns. If you want to additional read the score answer, metadata, and explanation then use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplescores">SampleScores</a></span> column group. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>

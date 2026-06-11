@@ -8,6 +8,7 @@ Once an evaluation is developed, Inspect provides a number of tools for running 
 | [Parallelism](./parallelism.html.md) | Run multiple tasks and models in parallel and tune sandbox concurrency. |
 | [Handling Errors](./handling-errors.html.md) | Deal with runtime errors and recover from crashes during evaluation. |
 | [Setting Limits](./setting-limits.html.md) | Set time, message, token, and cost limits on tasks, samples, and agent execution. |
+| [Control Channel](./control-channel.html.md) | Observe running evals from another process: task and sample status, errors, and transcript events. |
 | [Early Stopping](./early-stopping.html.md) | End tasks early based on the scores of previously completed samples. |
 | [Tracing](./tracing.html.md) | Diagnose runtime issues with advanced execution tracing tools. |
 
