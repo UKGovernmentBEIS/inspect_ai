@@ -6,18 +6,22 @@ llms-description: Retrying classifier-refused requests on a fallback model, and 
 ::: {.callout-note appearance="simple"}
 The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
 
-```bash
+``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
 ## Overview
 
-Claude 5 models include safety classifiers that can decline a request. A decline is not an error: the API returns a normal response with a refusal stop reason (surfaced by Inspect as `stop_reason="content_filter"`), and the same request can usually still be served by another Claude model.
+Claude 5 models include safety classifiers that can decline a request. A decline need not be an error: the API returns a normal response with a refusal stop reason (surfaced by Inspect as `stop_reason="content_filter"`), and the same request can usually still be served by another Claude model.
 
-The `fallback_models` generate config enables this automatically. When the requested model's classifiers decline, the request is retried on one or more fallback models (tried in order) within the same request, using Anthropic's [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback). Inspect records which model served each generation.
+The `fallback_models` generation option enables this automatically. When the requested model's classifiers decline, the request is retried on one or more fallback models (tried in order) within the same request, using Anthropic's [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback). Inspect records which model served each generation.
 
-Fallbacks apply only to the first-party Anthropic Claude API (they are ignored, with a warning, on Bedrock, Vertex, and Azure and with [batch mode](models-batch.qmd)) and only to Claude 5 and later requested models. Each fallback target must be one of the requested model's permitted targets, published as `allowed_fallback_models` on the model's [Models API](https://platform.claude.com/docs/en/api/models/list) entry (for example, `claude-fable-5` permits `claude-opus-4-8`).
+::: {.callout-note appearance="simple"}
+## API Compatibility
+
+Fallbacks apply only to the first-party Anthropic Claude API (they are ignored, with a warning, on Bedrock, Vertex, and Azure and with [batch mode](models-batch.qmd)) and only to Claude 5 and later requested models. Each fallback target must be one of the requested model's permitted targets, published as `allowed_fallback_models` on the model's [Models API](https://platform.claude.com/docs/en/api/models/list) entry (currently `claude-opus-4-8` is the only permitted target for `claude-fable-5`).
+:::
 
 ## Basic Usage
 
@@ -42,10 +46,6 @@ eval(
 
 Only a safety classifier decline triggers the fallback. If every model in the chain declines, the final refusal is returned (`stop_reason="content_filter"`).
 
-::: {.callout-note appearance="simple"}
-After a conversation falls back, Anthropic applies *sticky routing* (server-side, for about an hour): later turns of the conversation go directly to the fallback model rather than re-asking the model that declined. Sticky-served generations are not recorded as new fallbacks, since no decline occurred on that turn.
-:::
-
 ## Refusals
 
 Without fallbacks configured (or when every fallback also declines), the refusal is surfaced on the model output: `stop_reason` is `"content_filter"` and `stop_details` carries the structured refusal detail:
@@ -57,11 +57,9 @@ Without fallbacks configured (or when every fallback also declines), the refusal
 | `explanation` | Human readable description (display it, don't parse it). |
 | `categories` | All triggering categories (list of `StopCategory`). |
 
-: {tbl-colwidths=\[30,70\]}
-
 When a fallback serves a request, the API does not report the declining attempt's refusal category (the declined attempt is unbilled and only its token counts appear in the response diagnostics). Refusal categories are available only on responses that actually ended in a refusal.
 
-## What Gets Recorded
+## Fallback Logging
 
 When a fallback serves a generation, Inspect records it on the model output, in the message content, and in a per-sample rollup.
 
@@ -73,8 +71,6 @@ On the model output, `ModelOutput.model` reports the model that actually produce
 | `fallback_model` | Model that served the request. |
 | `count` | Number of generate calls (always 1 on a single output; aggregated in the sample rollup). |
 | `metadata` | Provider diagnostics. For Anthropic, the `handoffs` chain and the per-attempt `usage.iterations` billing record. |
-
-: {tbl-colwidths=\[30,70\]}
 
 The assistant message also carries a content marker at the point of the handoff, which is what allows Inspect to replay fallen-back conversations on subsequent turns.
 
@@ -100,11 +96,11 @@ Cost estimation (including the `cost_limit` option) prices fallen-back requests 
 
 The viewer surfaces fallbacks in several places:
 
--   The samples list includes a *Fallbacks* column (shown when any sample has fallbacks) with the total count per sample. The `has_fallbacks` and `fallbacks` variables are available for [filtering](log-viewer.qmd) (e.g. `has_fallbacks` or `fallbacks > 2`).
+- The samples list includes a *Fallbacks* column (shown when any sample has fallbacks) with the total count per sample. The `has_fallbacks` and `fallbacks` variables are available for [filtering](log-viewer.qmd) (e.g. `has_fallbacks` or `fallbacks > 2`).
 
--   The sample header annotates the model, e.g. `anthropic/claude-fable-5 (fallback → claude-opus-4-8)`.
+- The sample header annotates the model, e.g. `anthropic/claude-fable-5 (fallback → claude-opus-4-8)`.
 
--   In the transcript, fallen-back model calls carry a `fallback → <model>` badge in their title bar, and a marker appears in the assistant message content at the point of the handoff.
+- In the transcript, fallen-back model calls carry a `fallback → <model>` badge in their title bar, and a marker appears in the assistant message content at the point of the handoff.
 
 The task display shown while an eval is running (and the `inspect acp` session view) annotate the model the same way.
 
