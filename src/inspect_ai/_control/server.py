@@ -32,7 +32,6 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 import anyio
-from pydantic import BaseModel
 
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
@@ -49,19 +48,6 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.sockets import lock_socket_file, prepare_socket_path
 
 logger = getLogger(__name__)
-
-
-class AddTaskRequest(BaseModel):
-    """Body of ``POST /evals`` — a task spec to add to the running eval.
-
-    Module-level (not nested in the route) so FastAPI can resolve the body
-    annotation when the module uses ``from __future__ import annotations``.
-    """
-
-    task: str
-    task_args: dict[str, Any] | str | None = None
-    model: str | None = None
-    dry_run: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -288,34 +274,6 @@ class ControlServer:
             request_release()
             shutdown_event.set()
             return {"ok": True}
-
-        # Add a task to the running eval (phase 3). Submits a task spec that
-        # runs in this process under the same run_id and appears as a new
-        # sibling eval in `ls`. Only honored for an addable run (launched
-        # `--ctl-server=keep-alive`) — otherwise 409. A spec that can't be resolved
-        # (unknown task / bad args) is a 400. `dry_run` validates + reports
-        # without starting work. (`AddTaskRequest` is module-level so FastAPI
-        # can resolve the body annotation under `from __future__ import
-        # annotations`.)
-        @app.post("/evals")
-        async def add_eval(body: AddTaskRequest) -> Any:
-            from inspect_ai._control.run_control import add_task
-
-            try:
-                report = add_task(
-                    body.task, body.task_args, body.model, dry_run=body.dry_run
-                )
-            except ValueError as ex:
-                return JSONResponse(status_code=400, content={"error": str(ex)})
-            if report is None:
-                return JSONResponse(
-                    status_code=409,
-                    content={
-                        "error": "This eval is not accepting added tasks "
-                        "(launch it with --ctl-server=keep-alive)."
-                    },
-                )
-            return report
 
         return app
 

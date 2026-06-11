@@ -11,14 +11,7 @@ import anyio
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import clear_all_eval_states
-from inspect_ai._control.run_control import (
-    RunController,
-    clear_run_controller,
-    create_run_controller,
-    register_run_controller,
-)
 from inspect_ai._control.server import (
-    ControlServer,
     control_server,
     release_requested,
     reset_release_requested,
@@ -99,6 +92,12 @@ from .context import init_eval_context
 from .loader import resolve_tasks
 from .run import eval_run
 from .task import Epochs, PreviousTask
+from .task.enqueue import (
+    TaskEnqueuer,
+    clear_task_enqueuer,
+    create_task_enqueuer,
+    register_task_enqueuer,
+)
 from .task.resolved import ResolvedTask, resolved_model_names
 from .task.tasks import Tasks
 
@@ -928,26 +927,24 @@ async def _eval_async_inner(
         #
         ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
 
-        # Addable run (phase 3): under keep-alive, register a controller so
-        # `inspect ctl add` can submit a task that runs in this process under
-        # the same run_id. Resolution reuses the eval's models / config; the
-        # keep-alive park (below) drains and runs the additions.
-        run_controller: RunController | None = None
-        if ctl_keep_alive:
-            run_controller = create_run_controller(
-                run_id,
-                functools.partial(
-                    _resolve_added_task,
-                    models=model,
-                    model_roles=model_roles,
-                    config=GenerateConfig(**kwargs),
-                    sandbox=sandbox,
-                    sample_shuffle=sample_shuffle,
-                    checkpoint=checkpoint,
-                    cost_limit=cost_limit,
-                ),
-            )
-            register_run_controller(run_controller)
+        # Register a task enqueuer so additional tasks can be added to this run
+        # while it's in progress (see `enqueue_task`). The eval loop below drains
+        # and runs them under this run_id after each batch. Resolution reuses the
+        # run's models / config.
+        enqueuer: TaskEnqueuer = create_task_enqueuer(
+            run_id,
+            functools.partial(
+                _resolve_enqueued_tasks,
+                models=model,
+                model_roles=model_roles,
+                config=GenerateConfig(**kwargs),
+                sandbox=sandbox,
+                sample_shuffle=sample_shuffle,
+                checkpoint=checkpoint,
+                cost_limit=cost_limit,
+            ),
+        )
+        register_task_enqueuer(enqueuer)
 
         async with (
             control_server(run_id=run_id, enabled=ctl_enabled) as _ctl_server,
@@ -1009,32 +1006,27 @@ async def _eval_async_inner(
                         results.extend(await run_batch(pending, False))
                     logs = EvalLogs(results)
 
-                    # a cancelled batch ends the run (don't park)
+                    # a cancelled batch ends the run
                     if any(r.status == "cancelled" for r in results):
                         break
-                    # only a keep-alive run parks for added tasks; a release
-                    # received while a batch was still running latches ("exit
-                    # when done") — skip the park (and its notice) entirely
-                    if (
-                        not (ctl_keep_alive and _ctl_server is not None)
-                        or release_requested()
-                    ):
-                        break
+                    # run any tasks added during this batch (via enqueue_task),
+                    # as the next batch under this run_id; empty => run is done
+                    pending = enqueuer.drain() or None
 
-                    import rich
+            # keep-alive: after the run, park while the control / ACP servers
+            # are still up so `inspect ctl` can read state and request release.
+            # A release received while the eval was still running latches
+            # ("exit when done") — skip the park (and its notice) entirely.
+            if ctl_keep_alive and _ctl_server is not None and not release_requested():
+                import rich
 
-                    rich.get_console().print(
-                        "Eval finished. Keeping process alive — add tasks with "
-                        "`inspect ctl add`, or press Ctrl+C / run `inspect ctl "
-                        "release` to let it exit.",
-                        markup=False,
-                        highlight=False,
-                    )
-                    # park until released (None) or a task is added (its
-                    # resolved batch becomes the next iteration's `pending`)
-                    pending = await _park_until_release_or_added(
-                        _ctl_server, run_controller
-                    )
+                rich.get_console().print(
+                    "Eval finished. Keeping process alive — press Ctrl+C "
+                    "or run `inspect ctl release` to let it exit.",
+                    markup=False,
+                    highlight=False,
+                )
+                await wait_for_shutdown_async(_ctl_server)
 
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
@@ -1051,8 +1043,8 @@ async def _eval_async_inner(
         raise e
 
     finally:
-        # Stop accepting task additions for this run (no-op if none registered).
-        clear_run_controller()
+        # Stop accepting task additions for this run.
+        clear_task_enqueuer()
         # Clear the process-level EvalState registry at the run boundary
         # (after any keep-alive park) — but only for a standalone eval.
         # When nested in an eval-set (eval_set_id set) the eval-set owns
@@ -1064,10 +1056,8 @@ async def _eval_async_inner(
     return logs
 
 
-def _resolve_added_task(
-    task_spec: str,
-    task_args_spec: dict[str, Any] | str | None,
-    model_override: str | None,
+def _resolve_enqueued_tasks(
+    tasks: Tasks,
     *,
     models: list[Model],
     model_roles: dict[str, str | Model] | None,
@@ -1076,81 +1066,27 @@ def _resolve_added_task(
     sample_shuffle: bool | int | None,
     checkpoint: CheckpointConfig | None,
     cost_limit: float | None,
-) -> tuple[list[ResolvedTask], dict[str, Any]]:
-    """Resolve a task added via ``inspect ctl add`` to ``ResolvedTask``s + report.
+) -> list[ResolvedTask]:
+    """Resolve tasks added to a running eval (via ``enqueue_task``).
 
-    Bound (via ``functools.partial``) to the host run's models / config / roles /
-    sandbox so the added task resolves consistently with the run, then handed to
-    the :class:`RunController`. Raises ``ValueError`` on an unresolvable spec (or
-    an unsupported model override) — the control route turns that into a 400.
+    Bound (via ``functools.partial``) to the run's models / config / roles /
+    sandbox, then handed to the :class:`TaskEnqueuer` so additions resolve
+    consistently with the run. Raises ``ValueError`` if the tasks can't be
+    resolved.
     """
-    if model_override:
-        raise ValueError(
-            "Specifying a model for an added task is not yet supported; "
-            "it runs against the eval's model(s)."
-        )
-    args = (
-        resolve_args(task_args_spec)
-        if isinstance(task_args_spec, str)
-        else (task_args_spec or {})
-    )
     resolved_roles = resolve_model_roles(model_roles)
-    added: list[ResolvedTask] = []
+    resolved: list[ResolvedTask] = []
     for m in models:
         init_active_model(m, config)
-        added.extend(
+        resolved.extend(
             resolve_tasks(
-                task_spec, args, m, resolved_roles, sandbox, sample_shuffle, checkpoint
+                tasks, {}, m, resolved_roles, sandbox, sample_shuffle, checkpoint
             )
         )
-    if not added:
-        raise ValueError(f"No task found for '{task_spec}'.")
-    resolve_model_costs(added, cost_limit)
-    report: dict[str, Any] = {
-        "task": added[0].task.name,
-        "tasks": [
-            {
-                "task_id": rt.id,
-                "task": rt.task.name,
-                "model": str(rt.model),
-                "dataset_samples": len(rt.task.dataset),
-            }
-            for rt in added
-        ],
-    }
-    return added, report
-
-
-async def _park_until_release_or_added(
-    server: "ControlServer",
-    controller: RunController | None,
-) -> list[ResolvedTask] | None:
-    """Wait for the keep-alive park to end or a task to be added.
-
-    Returns ``None`` when the process was released (``POST /release``), or the
-    next batch of added tasks to run. Both signals arrive on this loop, so we
-    race the release event against the controller's pending-task stream.
-    """
-    if controller is None:
-        await wait_for_shutdown_async(server)
-        return None
-
-    added: list[ResolvedTask] | None = None
-    async with anyio.create_task_group() as tg:
-
-        async def on_release() -> None:
-            await server.shutdown_event.wait()
-            tg.cancel_scope.cancel()
-
-        async def on_added() -> None:
-            nonlocal added
-            added = await controller.next_pending()
-            tg.cancel_scope.cancel()
-
-        tg.start_soon(on_release)
-        tg.start_soon(on_added)
-
-    return added
+    if not resolved:
+        raise ValueError("No tasks to enqueue (resolution produced none).")
+    resolve_model_costs(resolved, cost_limit)
+    return resolved
 
 
 def eval_retry(
