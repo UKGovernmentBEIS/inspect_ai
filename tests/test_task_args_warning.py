@@ -8,11 +8,13 @@ and eval_set() should warn.
 
 import logging
 import tempfile
+from typing import cast
 
 import pytest
 
 from inspect_ai import Task, eval, eval_set, task
 from inspect_ai._eval.loader import task_args_apply_to_tasks
+from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai.dataset import Sample
 
 WARNING_SNIPPET = "will not be applied"
@@ -40,11 +42,11 @@ def test_predicate_string_spec() -> None:
 
 
 def test_predicate_mixed_list() -> None:
-    # at least one element resolves by specification: args are applied
-    assert (
-        task_args_apply_to_tasks([task_args_warning_check(), "task_args_warning_check"])
-        is True
-    )
+    # at least one element resolves by specification: args are applied.
+    # The Tasks alias only admits homogeneous lists, but untyped callers
+    # can pass mixed lists, so the predicate must classify them correctly.
+    mixed = cast(Tasks, [task_args_warning_check(), "task_args_warning_check"])
+    assert task_args_apply_to_tasks(mixed) is True
 
 
 def test_predicate_task_function() -> None:
