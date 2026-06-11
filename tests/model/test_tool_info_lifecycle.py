@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import TypeVar
 
 import pytest
@@ -419,8 +420,22 @@ async def test_cache_policy_store_uses_explicit_cache_policy() -> None:
     input: list[ChatMessage] = [ChatMessageUser(content="hello")]
 
     try:
-        await model._generate(input, [], None, config)
-        await model._generate(input, [], None, config)
+        await model._generate(
+            input,
+            [],
+            None,
+            config,
+            start_time=datetime.now(timezone.utc),
+            working_start=0.0,
+        )
+        await model._generate(
+            input,
+            [],
+            None,
+            config,
+            start_time=datetime.now(timezone.utc),
+            working_start=0.0,
+        )
     finally:
         cache_clear("mockllm/model")
 
