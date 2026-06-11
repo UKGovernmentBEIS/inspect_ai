@@ -104,7 +104,7 @@ The viewer surfaces fallbacks in several places:
 
 The task display shown while an eval is running (and the `inspect acp` session view) annotate the model the same way.
 
-## Scanning for Fallbacks
+## Fallback Scanning
 
 Scanners from [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) can locate fallbacks and refusals in a set of logs. The scanner below emits one result per fallen-back generation (with the handoff, the served message content, and citations to the originating event and message) and one result per outright refusal, where the refusal category is available:
 
