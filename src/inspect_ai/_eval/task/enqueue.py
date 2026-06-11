@@ -45,12 +45,16 @@ class TaskEnqueuer:
     _resolve: ResolveTasksFn
     _pending: list["ResolvedTask"] = field(default_factory=list)
     _lock: Lock = field(default_factory=Lock)
+    on_enqueue: Callable[[], None] | None = None
+    """Fired after tasks are buffered — used by a live run to wake dispatch."""
 
     def enqueue(self, tasks: "Tasks") -> list["ResolvedTask"]:
         """Resolve ``tasks`` and queue them to run; returns the resolved tasks."""
         resolved = self._resolve(tasks)
         with self._lock:
             self._pending.extend(resolved)
+        if self.on_enqueue is not None:
+            self.on_enqueue()
         return resolved
 
     def drain(self) -> list["ResolvedTask"]:
@@ -88,8 +92,12 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     """Add one or more tasks to the running eval.
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
-    ``eval_id``/``task_id`` each, their own log files) once the in-flight batch
-    completes — resolved against the run's models and config.
+    ``eval_id``/``task_id`` each, their own log files), resolved against the
+    run's models and config.
+
+    When the run is driven by a :class:`~inspect_ai.TaskSource`, added tasks are
+    *live*: they start as soon as there is free capacity. Otherwise they run as a
+    follow-up batch, after the in-flight batch of tasks completes.
 
     Args:
         tasks: A ``Task`` (or list of tasks) to add to the running eval.

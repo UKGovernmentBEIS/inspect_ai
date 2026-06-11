@@ -5,14 +5,17 @@ via `sample_complete` / `task_complete`, and produces the next batch from
 `next_tasks()` until it returns `None` — all under one run_id.
 """
 
+import anyio
 import pytest
 
-from inspect_ai import Task, TaskSource, eval, task_source
+from inspect_ai import Task, TaskSource, eval, eval_async, task_source
 from inspect_ai._eval.loader import resolve_tasks
+from inspect_ai._eval.task.enqueue import enqueue_task
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.model import get_model
-from inspect_ai.solver import generate
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util._display import init_display_type
 
 
 def _task(name: str) -> Task:
@@ -178,6 +181,68 @@ def test_factory_task_complete_returning_tasks() -> None:
         display="none",
     )
     assert sorted(log.eval.task for log in logs) == ["gen0", "gen1"]
+
+
+async def test_live_injection_runs_concurrently_with_in_flight_task() -> None:
+    # Discriminates live injection from batch-at-a-time: a task injected mid-run
+    # must start while another task is still in flight. Here "blocker" parks
+    # until "injected" releases it, and "injected" is only enqueued (by
+    # "injector") once the run is already underway. Under batch-at-a-time the
+    # injected task wouldn't run until the seed batch completed — but the seed
+    # can't complete until the injected task releases the blocker, so only live
+    # injection lets this finish (the fail_after turns a regression into a fast
+    # failure instead of a hang).
+    released = anyio.Event()
+    order: list[str] = []
+
+    @solver
+    def blocker() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            order.append("blocker-start")
+            with anyio.fail_after(10):
+                await released.wait()
+            order.append("blocker-end")
+            return state
+
+        return solve
+
+    @solver
+    def releaser() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            order.append("injected")
+            released.set()
+            return state
+
+        return solve
+
+    @solver
+    def injector() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(
+                Task(dataset=[Sample(input="x")], solver=[releaser()], name="injected")
+            )
+            return state
+
+        return solve
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(dataset=[Sample(input="x")], solver=[blocker()], name="blocker"),
+                Task(dataset=[Sample(input="x")], solver=[injector()], name="injector"),
+            ]
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    init_display_type("none")
+    logs = await eval_async(tasks=_Src(), model="mockllm/model", max_tasks=2)
+
+    assert sorted(log.eval.task for log in logs) == ["blocker", "injected", "injector"]
+    assert len({log.eval.run_id for log in logs}) == 1
+    # blocker only reaches its end if the injected task ran while it was blocked
+    assert "blocker-end" in order
+    assert all(log.status == "success" for log in logs)
 
 
 def test_task_source_rejected_outside_eval() -> None:

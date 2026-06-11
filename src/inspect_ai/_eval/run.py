@@ -1,11 +1,10 @@
 import logging
 import os
 import sys
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any, Awaitable, Callable, NamedTuple, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
-from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
@@ -73,6 +72,35 @@ from .task.util import slice_dataset, task_run_dir
 log = logging.getLogger(__name__)
 
 
+@dataclass
+class TaskInjection:
+    """Source of additional tasks for a live (TaskSource-driven) eval run.
+
+    Built by ``eval_async`` from the run's enqueuer + ``TaskSource``; consumed by
+    :func:`eval_run`, which wraps it with task preparation (``TaskRunOptions`` +
+    incremental sandbox startup) before handing a prepared feed to
+    :func:`run_multiple`.
+    """
+
+    drain: Callable[[], list["ResolvedTask"]]
+    """Non-blocking: resolved tasks buffered (enqueued) since the last call."""
+
+    next: Callable[[], Awaitable[list["ResolvedTask"] | None]]
+    """Blocking: the next batch of resolved tasks, or ``None`` when complete."""
+
+    set_wake: Callable[[Callable[[], None]], None]
+    """Register a callback fired when new tasks are enqueued (wakes dispatch)."""
+
+
+@dataclass
+class PreparedFeed:
+    """A live feed of prepared ``TaskRunOptions`` consumed by :func:`run_multiple`."""
+
+    drain: Callable[[], Awaitable[list[TaskRunOptions]]]
+    next: Callable[[], Awaitable[list[TaskRunOptions] | None]]
+    set_wake: Callable[[Callable[[], None]], None]
+
+
 async def eval_run(
     eval_set_id: str | None,
     run_id: str,
@@ -94,35 +122,11 @@ async def eval_run(
     score: bool = True,
     task_retry_attempts: int | None = 0,
     task_source: "TaskSource | None" = None,
+    inject: TaskInjection | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
-    # are sandboxes in play?
-    has_sandbox = any(task.has_sandbox for task in tasks)
-
     # get cwd before any switching
     eval_wd = os.getcwd()
-
-    # ensure sample ids
-    task: Task | None = None
-    for resolved_task in tasks:
-        # add sample ids to dataset if they aren't there (start at 1 not 0)
-        task = resolved_task.task
-        for id, sample in enumerate(task.dataset):
-            if sample.id is None:
-                sample.id = id + 1
-
-        # Ensure sample ids are unique
-        ensure_unique_ids(task.dataset)
-
-    assert task, "Must encounter a task"
-
-    # run startup pass for the sandbox environments
-    shutdown_sandbox_environments: Callable[[], Awaitable[None]] | None = None
-    if has_sandbox and run_samples:
-        cleanup = eval_config.sandbox_cleanup is not False
-        shutdown_sandbox_environments = await startup_sandbox_environments(
-            resolve_sandbox_environment(eval_sandbox), tasks, eval_config, cleanup
-        )
 
     # resolve solver and solver spec
     if isinstance(solver, Solver):
@@ -135,10 +139,35 @@ async def eval_run(
         eval_solver = None
         eval_solver_spec = None
 
-    try:
+    # manage sandbox environments incrementally (initial + any injected tasks),
+    # tearing them all down once at the end of the run
+    sandbox_manager = SandboxManager(
+        resolve_sandbox_environment(eval_sandbox),
+        eval_config,
+        eval_config.sandbox_cleanup is not False,
+    )
+
+    async def prepare_options(
+        resolved_tasks: list[ResolvedTask],
+    ) -> list[TaskRunOptions]:
+        # ensure sample ids
+        for resolved_task in resolved_tasks:
+            # add sample ids to dataset if they aren't there (start at 1 not 0)
+            task = resolved_task.task
+            for id, sample in enumerate(task.dataset):
+                if sample.id is None:
+                    sample.id = id + 1
+
+            # Ensure sample ids are unique
+            ensure_unique_ids(task.dataset)
+
+        # run startup pass for the sandbox environments these tasks need
+        if run_samples and any(t.has_sandbox for t in resolved_tasks):
+            await sandbox_manager.start(resolved_tasks)
+
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
-        for resolved_task in tasks:
+        for resolved_task in resolved_tasks:
             with chdir(task_run_dir(resolved_task.task)):
                 # tasks can provide their epochs, message_limit,
                 # token_limit, time_limit, and fail_on_error so broadcast these
@@ -294,32 +323,53 @@ async def eval_run(
                         task_source=task_source,
                     )
                 )
+        return task_run_options
+
+    try:
+        # prepare the initial (seed) tasks
+        initial_options = await prepare_options(tasks)
+        assert initial_options or inject is not None, "Must encounter a task"
 
         # multiple mode is for running/displaying multiple
         # task definitions, which requires some smart scheduling
         # to ensure that we spread work among models
         if task_retry_attempts:
             return await run_task_retry_attempts(
-                task_run_options, parallel, task_retry_attempts=task_retry_attempts
+                initial_options, parallel, task_retry_attempts=task_retry_attempts
             )
-        else:
-            # `parallel` is the max concurrent (task × model) units; the
-            # scheduler spreads work across models and caps concurrency there,
-            # so e.g. parallel==1 runs one unit at a time (model-by-model for a
-            # single task definition).
-            return await run_multiple(
-                task_run_options, parallel, debug_errors=debug_errors
+
+        # a live (TaskSource-driven) run feeds run_multiple additional tasks
+        # while it is in progress; prepare each injected batch on the fly
+        feed: PreparedFeed | None = None
+        if inject is not None:
+
+            async def feed_drain() -> list[TaskRunOptions]:
+                return await prepare_options(inject.drain())
+
+            async def feed_next() -> list[TaskRunOptions] | None:
+                more = await inject.next()
+                return await prepare_options(more) if more else None
+
+            feed = PreparedFeed(
+                drain=feed_drain, next=feed_next, set_wake=inject.set_wake
             )
+
+        # `parallel` is the max concurrent (task × model) units; the
+        # scheduler spreads work across models and caps concurrency there,
+        # so e.g. parallel==1 runs one unit at a time (model-by-model for a
+        # single task definition).
+        return await run_multiple(
+            initial_options, parallel, debug_errors=debug_errors, feed=feed
+        )
 
     finally:
         # shutdown sandbox environments
-        if shutdown_sandbox_environments:
-            try:
-                await shutdown_sandbox_environments()
-            except BaseException as ex:
-                log.warning(
-                    f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
-                )
+        try:
+            await sandbox_manager.shutdown()
+        except BaseException as ex:
+            log.warning(
+                f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
+            )
 
         # clean up cached S3 sessions to prevent "Unclosed connector" warnings
         try:
@@ -328,11 +378,40 @@ async def eval_run(
             log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
+class _Wake:
+    """One-shot wake signal that can be re-armed (set on completion / injection).
+
+    Safe under cooperative scheduling: the only await is on ``wait()``; the
+    re-arm assignment afterwards runs without a yield point, so a concurrent
+    ``set()`` can't be lost between waking and re-arming.
+    """
+
+    def __init__(self) -> None:
+        self._event = anyio.Event()
+
+    def set(self) -> None:
+        self._event.set()
+
+    async def wait(self) -> None:
+        await self._event.wait()
+        self._event = anyio.Event()
+
+
 # multiple mode -- run multiple logical tasks (requires some smart
 # schedluing to ensure that we are spreading work among models)
 async def run_multiple(
-    tasks: list[TaskRunOptions], parallel: int, debug_errors: bool = False
+    tasks: list[TaskRunOptions],
+    parallel: int,
+    debug_errors: bool = False,
+    feed: PreparedFeed | None = None,
 ) -> list[EvalLog]:
+    # a live (TaskSource-driven) run accepts tasks while in progress and ends
+    # when its feed is exhausted, rather than when a fixed count completes
+    if feed is not None:
+        return await run_multiple_dynamic(
+            tasks, parallel, feed, debug_errors=debug_errors
+        )
+
     # track current usage of each model
     models: Set[str] = set()
     for task in tasks:
@@ -505,6 +584,147 @@ async def run_multiple(
 
         # Sort results by original index and return just the values
         return [r for _, r in sorted(results)]
+
+
+async def run_multiple_dynamic(
+    tasks: list[TaskRunOptions],
+    parallel: int,
+    feed: PreparedFeed,
+    debug_errors: bool = False,
+) -> list[EvalLog]:
+    """Run tasks while accepting more from ``feed`` until it is exhausted.
+
+    Like :func:`run_multiple` (same model-balanced concurrency cap), but the set
+    of tasks is open: ``feed.drain()`` supplies tasks enqueued during the run
+    (``enqueue_task`` / callbacks returning tasks) and ``feed.next()`` supplies
+    the (possibly blocking) next batch, returning ``None`` when the source is
+    done. The run completes when nothing is pending, nothing is in flight, and
+    the feed is exhausted. A cancelled task ends the run.
+    """
+    # model-balancing state (grows as tasks are injected)
+    model_counts: dict[str, int] = {}
+
+    def note_models(options: list[TaskRunOptions]) -> None:
+        for t in options:
+            model_counts.setdefault(str(t.model), 0)
+
+    note_models(tasks)
+    pending: list[TaskRunOptions] = list(tasks)
+    results: list[tuple[int, EvalLog]] = []
+    in_flight = 0
+    next_index = 0
+    cancelled = False
+    source_done = False
+
+    # woken on each task completion and on each injection (enqueue)
+    wake = _Wake()
+    feed.set_wake(wake.set)
+
+    def pick_balanced() -> TaskRunOptions:
+        # among models that have pending tasks, pick the least-used one
+        models_with_pending = {str(t.model) for t in pending}
+        model = min(models_with_pending, key=lambda m: model_counts[m])
+        opts = next(t for t in pending if str(t.model) == model)
+        pending.remove(opts)
+        return opts
+
+    async with display().task_screen(task_specs(tasks), parallel=True) as screen:
+        init_task_screen(screen)
+
+        try:
+            async with anyio.create_task_group() as tg:
+
+                async def run_one(options: TaskRunOptions, idx: int) -> None:
+                    nonlocal in_flight, cancelled
+                    result: EvalLog | None = None
+                    try:
+                        # per-task cancel scope (cancelling one task must not
+                        # cancel its siblings) — mirrors run_multiple's worker
+                        async with anyio.create_task_group() as task_tg:
+                            task_cancel = TaskCancel(
+                                can_retry=False, cancel_task=lambda _: None
+                            )
+
+                            def cancel_task(
+                                type: CancelType,
+                                cancel_tg: TaskGroup = task_tg,
+                                tc: TaskCancel = task_cancel,
+                            ) -> None:
+                                tc.cancel_type = type
+                                if type:
+                                    cancel_tg.cancel_scope.cancel()
+
+                            task_cancel.cancel_task = cancel_task
+
+                            async def _run() -> None:
+                                nonlocal result
+                                result = await task_run(
+                                    options, task_cancel=task_cancel
+                                )
+
+                            task_tg.start_soon(_run)
+                    except Exception as ex:
+                        log.error(
+                            f"Task '{options.task.name}' encountered an error during finalisation: {inner_exception(ex)}"
+                        )
+                        raise
+                    finally:
+                        in_flight -= 1
+                        model_counts[str(options.model)] -= 1
+                        if result is not None:
+                            results.append((idx, result))
+                        if result is None or result.status == "cancelled":
+                            cancelled = True
+                        wake.set()
+
+                while True:
+                    # pick up tasks buffered since the last cycle (non-blocking)
+                    injected = await feed.drain()
+                    if injected:
+                        note_models(injected)
+                        pending.extend(injected)
+                        display().update_task_count(len(injected))
+
+                    # dispatch up to the concurrency cap (model-balanced)
+                    while not cancelled and in_flight < parallel and pending:
+                        options = pick_balanced()
+                        model_counts[str(options.model)] += 1
+                        in_flight += 1
+                        next_index += 1
+                        tg.start_soon(run_one, options, next_index - 1)
+
+                    if cancelled:
+                        break
+
+                    # work still queued or running: wait for a completion or a
+                    # new injection, then re-evaluate
+                    if pending or in_flight > 0:
+                        await wake.wait()
+                        continue
+
+                    # fully idle (nothing pending, nothing in flight, nothing
+                    # buffered): ask the source for more — this may block — and
+                    # finish when it is exhausted
+                    if source_done:
+                        break
+                    more = await feed.next()
+                    if more is None:
+                        source_done = True
+                    else:
+                        note_models(more)
+                        pending.extend(more)
+                        display().update_task_count(len(more))
+        except ExceptionGroup as ex:
+            if debug_errors:
+                raise ex.exceptions[0]
+            else:
+                raise
+        except anyio.get_cancelled_exc_class():
+            pass
+        finally:
+            clear_task_screen()
+
+    return [r for _, r in sorted(results)]
 
 
 class PendingTask(NamedTuple):
@@ -807,65 +1027,99 @@ def resolve_task_sample_ids(
         return sample_id
 
 
+class SandboxManager:
+    """Starts sandbox environments incrementally and tears them all down.
+
+    Tasks injected into a live run arrive in batches, so startup must be
+    callable repeatedly — :meth:`start` initializes only sandboxenvs not already
+    started and accumulates their cleanups; :meth:`shutdown` runs every
+    accumulated cleanup once, at the end of the run.
+    """
+
+    def __init__(
+        self,
+        eval_sandbox: SandboxEnvironmentSpec | None,
+        config: EvalConfig,
+        cleanup: bool,
+    ) -> None:
+        self._eval_sandbox = eval_sandbox
+        self._config = config
+        self._cleanup = cleanup
+        self._started: Set[TaskSandboxEnvironment] = set()
+        self._cleanups: list[
+            tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]
+        ] = []
+
+    async def start(self, tasks: list[ResolvedTask]) -> None:
+        # find unique sandboxenvs not already started
+        sandboxenvs: Set[TaskSandboxEnvironment] = set()
+        for task in tasks:
+            # resolve each sample and add to sandboxenvs
+            resolved_task_sample_ids = resolve_task_sample_ids(
+                task.task.name, self._config.sample_id
+            )
+            dataset = slice_dataset(
+                task.task.dataset, self._config.limit, resolved_task_sample_ids
+            )
+            for sample in dataset:
+                sandbox = await resolve_sandbox_for_task_and_sample(
+                    self._eval_sandbox, task.task, sample
+                )
+                if (
+                    sandbox is not None
+                    and sandbox not in self._started
+                    and sandbox not in sandboxenvs
+                ):
+                    sandboxenvs.add(sandbox)
+
+        if not sandboxenvs:
+            return
+
+        # initialiase sandboxenvs (track cleanups)
+        with display().suspend_task_app():
+            for sandboxenv in sandboxenvs:
+                # find type
+                sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+
+                # run startup
+                task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+                with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
+                    await task_init("startup", sandboxenv.sandbox.config)
+
+                # track as started and append cleanup method
+                self._started.add(sandboxenv)
+                task_cleanup = cast(
+                    TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
+                )
+                self._cleanups.append(
+                    (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
+                )
+
+            # provide some space above task display
+            print("")
+
+    async def shutdown(self) -> None:
+        with anyio.CancelScope(shield=True):
+            for cleanup_jobs in self._cleanups:
+                try:
+                    cleanup_fn, config, task_run_dir = cleanup_jobs
+                    with chdir(task_run_dir):
+                        await cleanup_fn("shutdown", config, self._cleanup)
+                except BaseException as ex:
+                    log.warning(
+                        f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
+                    )
+
+
 async def startup_sandbox_environments(
     eval_sandbox: SandboxEnvironmentSpec | None,
     tasks: list[ResolvedTask],
     config: EvalConfig,
     cleanup: bool,
 ) -> Callable[[], Awaitable[None]]:
-    # find unique sandboxenvs
-    sandboxenvs: Set[TaskSandboxEnvironment] = set()
-    for task in tasks:
-        # resolve each sample and add to sandboxenvs
-        resolved_task_sample_ids = resolve_task_sample_ids(
-            task.task.name, config.sample_id
-        )
-        dataset = slice_dataset(
-            task.task.dataset, config.limit, resolved_task_sample_ids
-        )
-        for sample in dataset:
-            sandbox = await resolve_sandbox_for_task_and_sample(
-                eval_sandbox, task.task, sample
-            )
-            if sandbox is not None and sandbox not in sandboxenvs:
-                sandboxenvs.add(sandbox)
-
-    # initialiase sandboxenvs (track cleanups)
-    cleanups: list[tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]] = []
-    with display().suspend_task_app():
-        for sandboxenv in sandboxenvs:
-            # find type
-            sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
-
-            # run startup
-            task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-            with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
-                await task_init("startup", sandboxenv.sandbox.config)
-
-            # append cleanup method
-            task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
-            cleanups.append(
-                (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
-            )
-
-        # provide some space above task display
-        if sandboxenvs:
-            print("")
-
-    # return shutdown method
-    async def shutdown() -> None:
-        with anyio.CancelScope(shield=True):
-            for cleanup_jobs in cleanups:
-                try:
-                    cleanup_fn, config, task_run_dir = cleanup_jobs
-                    with chdir(task_run_dir):
-                        await cleanup_fn("shutdown", config, cleanup)
-                except BaseException as ex:
-                    log.warning(
-                        f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
-                    )
-
-    return shutdown
+    manager = SandboxManager(eval_sandbox, config, cleanup)
+    await manager.start(tasks)
+    return manager.shutdown
 
 
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:

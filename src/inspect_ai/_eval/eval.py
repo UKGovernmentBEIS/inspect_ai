@@ -91,7 +91,7 @@ from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
 from .loader import resolve_tasks
-from .run import eval_run
+from .run import TaskInjection, eval_run
 from .task import Epochs, PreviousTask
 from .task.enqueue import (
     TaskEnqueuer,
@@ -966,7 +966,9 @@ async def _eval_async_inner(
                 # is passed only on the parallel==1 path (the multi-task path
                 # never set it — preserved asymmetry).
                 async def run_batch(
-                    tasks: list[ResolvedTask], debug: bool
+                    tasks: list[ResolvedTask],
+                    debug: bool,
+                    inject: TaskInjection | None = None,
                 ) -> list[EvalLog]:
                     return await eval_run(
                         eval_set_id=eval_set_id,
@@ -989,6 +991,7 @@ async def _eval_async_inner(
                         debug_errors=debug,
                         task_retry_attempts=task_retry_attempts,
                         task_source=task_source,
+                        inject=inject,
                         **kwargs,
                     )
 
@@ -1038,7 +1041,28 @@ async def _eval_async_inner(
                             )
                     return EvalLogs(results)
 
-                logs = await run_batches(resolved_tasks)
+                if task_source is not None:
+                    # live (TaskSource-driven) run: one eval_run fed additional
+                    # tasks while in progress. Injected tasks — from the source's
+                    # next_tasks(), its sample/task_complete return values, or
+                    # enqueue_task — start on free capacity rather than waiting
+                    # for a batch boundary.
+                    async def inject_next() -> list[ResolvedTask] | None:
+                        more = await task_source.next_tasks()
+                        return resolve_added_tasks(more) if more else None
+
+                    injection = TaskInjection(
+                        drain=enqueuer.drain,
+                        next=inject_next,
+                        set_wake=lambda fn: setattr(enqueuer, "on_enqueue", fn),
+                    )
+                    logs = EvalLogs(
+                        await run_batch(
+                            resolved_tasks, debug_errors is True, inject=injection
+                        )
+                    )
+                else:
+                    logs = await run_batches(resolved_tasks)
 
             # keep-alive: after the run, park while the control / ACP servers
             # are still up so `inspect ctl` can read state and request release.

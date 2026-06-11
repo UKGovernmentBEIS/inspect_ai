@@ -202,10 +202,73 @@ the ambient lookup.)
 - `tests/test_enqueue_task.py` — added task runs in the same run; additions
   chain across batches; calling outside a run raises.
 
+## Live injection
+
+A `TaskSource`-driven run is **live**: a task added while the run is in progress
+starts on free capacity immediately, rather than waiting for a batch boundary.
+This is the default (and only) behavior for `TaskSource` runs — there is no flag
+and no change to the user-facing API. Plain evals (no `TaskSource`) are
+unchanged: they take the batch-at-a-time path, where `enqueue_task` additions
+run as a follow-up batch.
+
+### How it works
+
+When `task_source is not None`, `eval_async`
+([eval.py](../src/inspect_ai/_eval/eval.py)) takes a live path instead of the
+`run_batches` loop: it calls `eval_run` **once** with the seed and a
+`TaskInjection` ([run.py](../src/inspect_ai/_eval/run.py)) built from the run's
+enqueuer + source:
+
+- `drain` — `enqueuer.drain()` (non-blocking): tasks enqueued since last call
+  (from `enqueue_task` or callbacks returning tasks).
+- `next` — `await task_source.next_tasks()` resolved to `ResolvedTask`s, or
+  `None` when the source is done (blocking).
+- `set_wake` — registers a callback on the enqueuer (`on_enqueue`) so a mid-run
+  enqueue wakes the dispatcher.
+
+`eval_run` wraps that with its own task preparation (`prepare_options`:
+`ResolvedTask` → `TaskRunOptions`, with incremental sandbox startup via
+`SandboxManager`) into a `PreparedFeed`, and hands it to `run_multiple(...,
+feed=...)`.
+
+`run_multiple` with a `feed` dispatches via `run_multiple_dynamic`
+([run.py](../src/inspect_ai/_eval/run.py)) — same model-balanced concurrency cap
+as the static path, but an **open** task set. Its dispatcher loop, per cycle:
+drains buffered injections (growing the display via `update_task_count`),
+dispatches up to `parallel` (model-balanced), and — when nothing is pending,
+nothing is in flight, and nothing was buffered — calls the (blocking)
+`feed.next()`. It completes when the feed is exhausted *and* the queue has
+drained. A re-armable `_Wake` (set on each task completion and each enqueue)
+drives the loop; `feed.next()` is only awaited when fully idle, so no task can
+enqueue while it blocks (no lost-wakeup race).
+
+### Components
+
+- **`SandboxManager`** ([run.py](../src/inspect_ai/_eval/run.py)) — starts
+  sandboxenvs incrementally (only ones not already started) and accumulates
+  cleanups, so injected tasks get sandboxes and everything tears down once at
+  the end. `startup_sandbox_environments` is now a thin wrapper over it.
+- **`Display.update_task_count(n)`** ([display.py](../src/inspect_ai/_display/core/display.py))
+  — bumps the "completed / total" denominator as tasks are injected (per-task
+  progress views already grow on demand, the same path retries use). Implemented
+  for the rich, plain, and textual displays; a no-op default for the log
+  display. (Retries must *not* call this — they reuse a `task_id` and are deduped
+  in the title; an injected task is a new `task_id`, so it does.)
+- **`TaskEnqueuer.on_enqueue`** ([enqueue.py](../src/inspect_ai/_eval/task/enqueue.py))
+  — optional callback fired after buffering, used to wake the live dispatcher.
+
+### Tests
+
+`tests/test_task_source.py::test_live_injection_runs_concurrently_with_in_flight_task`
+discriminates live injection from batch-at-a-time: a "blocker" task parks until
+an injected task releases it, and the injected task is only enqueued mid-run. It
+can only complete if the injected task runs *while the blocker is still in
+flight* — under batch-at-a-time it would deadlock (the `fail_after` turns a
+regression into a fast failure rather than a hang).
+
 ## Status
 
-Implemented and tested for **batch-at-a-time** generation in
-`eval()` / `eval_async()`:
+Implemented and tested in `eval()` / `eval_async()`:
 
 - [x] `TaskSource` base class + `initial_tasks` / `next_tasks` /
       `sample_complete` / `task_complete`.
@@ -215,23 +278,26 @@ Implemented and tested for **batch-at-a-time** generation in
 - [x] `task_source(...)` factory — build a source from a seed + callbacks without
       subclassing.
 - [x] Threaded via `TaskRunOptions` (no global), per-sample and per-task firing.
-- [x] Batch loop driving `next_tasks()`, composing with `enqueue_task`.
 - [x] `enqueue_task` imperative primitive backed by a `ContextVar`.
+- [x] **Live injection** for `TaskSource` runs: single live `eval_run`,
+      `run_multiple_dynamic` open-set dispatcher, incremental `SandboxManager`,
+      growing display (rich / plain / textual).
+- [x] **Live injection is `TaskSource`-only.** A run is live iff it was given a
+      `TaskSource`. Plain evals take the unchanged batch-at-a-time `run_batches`
+      path, where `enqueue_task` additions run as a *follow-up batch* after the
+      current one (not live). Inside a `TaskSource` run, `enqueue_task` and
+      callback-returned tasks *are* live. Enabling live injection without a
+      `TaskSource` would require routing every eval through the dynamic
+      dispatcher (changing the default `parallel==1` sequence-group path).
 - [x] Rejected (with a clear error) on non-`eval()` paths.
 
 ## Next steps / future work
 
-### Live injection (no API change expected)
-
-The current loop is strictly batch-at-a-time: `next_tasks()` is only consulted
-*between* batches, so a slow batch can't be augmented mid-flight. The same
-`TaskSource` contract is intended to also support **live injection** — a
-concurrent producer feeding `run_multiple`'s queue while a batch is in flight,
-with a dynamic completion condition rather than a fixed batch boundary. This is
-expected to be an internal change to the eval loop (a concurrent producer task +
-a completion predicate) with **no change to the user-facing `TaskSource` API**:
-`initial_tasks()` still seeds, `next_tasks()` still produces, the notifications
-still fire per sample/task. Designing this is the main remaining piece.
+- **`task_retry_attempts` + live injection** — a live run uses `run_multiple`;
+  the `run_task_retry_attempts` variant has no feed, so task-level retries and
+  live injection don't yet combine (not reached for plain `eval()` TaskSource
+  runs, where `task_retry_attempts` is 0).
+- **`eval_set`** — see below; live injection does not change the eval_set story.
 
 ### `eval_set` support — feasible, but only pays off for deterministic sources
 
