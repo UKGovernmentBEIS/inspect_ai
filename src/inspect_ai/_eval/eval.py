@@ -873,11 +873,13 @@ async def _eval_async_inner(
             acp_server=acp_server,
         )
 
-        # run tasks - 2 codepaths, one for the traditional task at a time
-        # (w/ optional multiple models) and the other for true multi-task
-        # (which requires different scheduling and UI)
-        task_definitions = len(resolved_tasks) // len(model)
-        parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
+        # Max concurrently-executing (task × model) units. An explicit
+        # max_tasks bounds it directly — including a single task definition
+        # fanned across models, so `max_tasks=1` runs model-by-model rather
+        # than all at once (see issue #4195). When unset it has already been
+        # defaulted above to the model count (run all models in parallel) for
+        # the multi-model case, else None → 1 (one task at a time).
+        parallel = max_tasks if max_tasks is not None else 1
 
         # set run shape for log record enhancement
         if eval_config.epochs is not None:

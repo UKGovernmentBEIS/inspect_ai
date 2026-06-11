@@ -299,10 +299,14 @@ async def eval_run(
             return await run_task_retry_attempts(
                 task_run_options, parallel, task_retry_attempts=task_retry_attempts
             )
-        elif parallel > 1:
-            return await run_multiple(task_run_options, parallel)
         else:
-            return await run_single(task_run_options, debug_errors)
+            # `parallel` is the max concurrent (task × model) units; the
+            # scheduler spreads work across models and caps concurrency there,
+            # so e.g. parallel==1 runs one unit at a time (model-by-model for a
+            # single task definition).
+            return await run_multiple(
+                task_run_options, parallel, debug_errors=debug_errors
+            )
 
     finally:
         # shutdown sandbox environments
@@ -321,45 +325,11 @@ async def eval_run(
             log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
-# single mode -- run a single logical task (could consist of multiple
-# executable tasks if we are evaluating against multiple models)
-async def run_single(tasks: list[TaskRunOptions], debug_errors: bool) -> list[EvalLog]:
-    async with display().task_screen(task_specs(tasks), parallel=False) as screen:
-        # init ui
-        init_task_screen(screen)
-
-        results: list[tuple[int, EvalLog]] = []
-        try:
-            async with anyio.create_task_group() as tg:
-
-                async def run_task(index: int) -> None:
-                    # In run_single all tasks share a task group, so we don't want to cancel the entire group.
-                    # Instead, do not support cancel for run_single.
-                    result = await task_run(tasks[index], task_cancel=None)
-                    results.append((index, result))
-
-                for i in range(0, len(tasks)):
-                    tg.start_soon(run_task, i)
-        # exceptions can escape when debug_errors is True and that's okay
-        except ExceptionGroup as ex:
-            if debug_errors:
-                raise ex.exceptions[0]
-            else:
-                raise
-        except anyio.get_cancelled_exc_class():
-            # child tasks have already each handled this and updated results
-            pass
-        finally:
-            # clear ui
-            clear_task_screen()
-
-        # sort results by original index and return just the values
-        return [r for _, r in sorted(results)]
-
-
 # multiple mode -- run multiple logical tasks (requires some smart
 # schedluing to ensure that we are spreading work among models)
-async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalLog]:
+async def run_multiple(
+    tasks: list[TaskRunOptions], parallel: int, debug_errors: bool = False
+) -> list[EvalLog]:
     # track current usage of each model
     models: Set[str] = set()
     for task in tasks:
@@ -508,6 +478,12 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 # enqueue initial set of tasks
                 for _ in range(num_workers):
                     await enque_next_task()
+        # exceptions can escape when debug_errors is True and that's okay
+        except ExceptionGroup as ex:
+            if debug_errors:
+                raise ex.exceptions[0]
+            else:
+                raise
         except anyio.get_cancelled_exc_class():
             pass
         finally:

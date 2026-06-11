@@ -1571,7 +1571,7 @@ def test_eval_set_embed_viewer(tmp_path: Path) -> None:
 
 
 def test_eval_set_single_flush_error() -> None:
-    """run_single must propagate task exceptions (baseline — should already pass)."""
+    """A single-task run must propagate task exceptions (baseline — should already pass)."""
 
     async def broken_flush(self: ZipLogFile) -> None:
         raise OSError("Simulated S3 write failure")
