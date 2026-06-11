@@ -23,7 +23,8 @@ from inspect_ai.model._model import (
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_choice import ToolChoice
-from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
@@ -258,8 +259,12 @@ async def bridge_generate(
         # Apply filter if we have it (can either return output or alternate inputs)
         output: ModelOutput | None = None
         if bridge.filter:
+            # tool_to_tool_info (via ToolDef) preserves `options` — including
+            # the INTERNAL_TOOL_TYPE marker — so the filter sees the same
+            # ToolInfo the model provider would. parse_tool_info re-derives
+            # from the function signature and drops options.
             tool_info = [
-                parse_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
+                tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
                 for tool in tools
             ]
             if _is_model_filter(bridge.filter):
