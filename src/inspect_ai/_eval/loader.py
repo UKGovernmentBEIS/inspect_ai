@@ -70,6 +70,42 @@ def _merge_model_roles(
     return merged or None
 
 
+def task_args_apply_to_tasks(tasks: Tasks) -> bool | None:
+    """Whether `task_args` will be applied when resolving `tasks`.
+
+    `task_args` are applied only to tasks resolved by specification —
+    referenced by name or file, as a `TaskInfo`, as a decorated task
+    function or class, or auto-discovered from the working directory
+    (`resolve_tasks` routes all of these through `load_tasks`). They are
+    never applied to `Task` instances passed directly, whose args come
+    from the instance's own construction params (`resolve_task_args`).
+
+    Keep the classification here in sync with the branches of
+    `resolve_tasks` below.
+
+    Returns:
+        `True` if at least one element of `tasks` resolves by
+        specification (so `task_args` are applied); `False` if every
+        element is a `Task` instance (so `task_args` are ignored);
+        `None` if `tasks` contains already-resolved (`ResolvedTask`) or
+        previous (`PreviousTask`) tasks, whose args were fixed when
+        first resolved.
+    """
+    tasks_list = tasks if isinstance(tasks, list) else [tasks]
+
+    # None (and the equivalent empty list) auto-discovers from the cwd,
+    # which resolves by specification
+    if len(tasks_list) == 0 or all(t is None for t in tasks_list):
+        return True
+
+    if any(isinstance(t, (ResolvedTask, PreviousTask)) for t in tasks_list):
+        return None
+
+    # everything in Tasks other than a Task instance (str, TaskInfo,
+    # task function, task class) resolves by specification
+    return any(not isinstance(t, Task) for t in tasks_list)
+
+
 def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
