@@ -106,7 +106,7 @@ The task display shown while an eval is running (and the `inspect acp` session v
 
 ## Fallback Scanning
 
-Scanners from [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) can locate fallbacks and refusals in a set of logs. The scanner below emits one result per fallen-back generation (with the handoff, the served message content, and citations to the originating event and message) and one result per outright refusal, where the refusal category is available:
+Scanners from [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) can locate fallbacks in a set of logs. The scanner below emits a result for each generation served by a fallback model, with the handoff as the value, an explanation noting the refusal followed by the served message content, and a reference to the originating event:
 
 ``` python
 from inspect_ai.event import ModelEvent
@@ -115,50 +115,18 @@ from inspect_scout import Reference, Result, Scanner, scanner
 
 @scanner(events=["model"])
 def model_fallbacks() -> Scanner[ModelEvent]:
-    """Find generations served by a fallback model (or refused outright)."""
+    """Find generations served by a fallback model."""
 
-    async def scan(event: ModelEvent) -> list[Result]:
-        results: list[Result] = []
-        output = event.output
-
-        # generation served by a fallback model
-        if output.fallback is not None:
-            message = output.message
-            references = [Reference(type="event", id=event.uuid or "")]
-            if message.id is not None:
-                references.append(Reference(type="message", id=message.id))
-            results.append(
-                Result(
-                    label="fallback",
-                    value=f"{output.fallback.model} → "
-                    + f"{output.fallback.fallback_model}",
-                    explanation=message.text,
-                    metadata={
-                        "model": output.fallback.model,
-                        "fallback_model": output.fallback.fallback_model,
-                        "diagnostics": output.fallback.metadata,
-                    },
-                    references=references,
-                )
-            )
-
-        # outright refusal (no fallback configured, every fallback
-        # declined, or the fallback attempt was skipped under load)
-        choice = output.choices[0] if output.choices else None
-        if choice is not None and choice.stop_reason == "content_filter":
-            details = choice.stop_details
-            results.append(
-                Result(
-                    label="refusal",
-                    value=(details.category if details else None) or "unknown",
-                    explanation=details.explanation if details else None,
-                    references=[Reference(type="event", id=event.uuid or "")],
-                )
-            )
-
-        return results
+    async def scan(event: ModelEvent) -> Result:
+        fallback = event.output.fallback
+        if fallback is None:
+            return Result(value=None)
+        return Result(
+            value=f"{fallback.model} → {fallback.fallback_model}",
+            explanation=f"{fallback.model} refused this request: "
+            + event.output.message.text,
+            references=[Reference(type="event", id=event.uuid or "")],
+        )
 
     return scan
 ```
-
-Results land in the scan results dataframe with `label` distinguishing fallbacks from refusals, and the `references` enable navigation to the cited message in the transcript. The two result types are complementary: a fallback result means the refusal was rescued (so no category is available), while a refusal result carries the category and explanation for declines that reached the response.
