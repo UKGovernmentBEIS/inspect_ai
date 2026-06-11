@@ -163,6 +163,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
+from .enqueue import get_task_enqueuer
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -304,6 +305,19 @@ def plan_agent_name(plan: Plan) -> str | None:
         if is_registry_object(last_step):
             return registry_unqualified_name(registry_info(last_step).name)
     return None
+
+
+def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
+    """Add tasks a TaskSource callback returned to the running eval's queue.
+
+    Routes through the run's enqueuer (the same buffer ``enqueue_task`` feeds), so
+    the eval loop drains them as the next batch. A no-op if the callback returned
+    nothing or there is no active enqueuer.
+    """
+    if tasks:
+        enqueuer = get_task_enqueuer()
+        if enqueuer is not None:
+            enqueuer.enqueue(tasks)
 
 
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
@@ -914,8 +928,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     reset_sandbox_limits(limit_tokens)
 
     # notify a TaskSource (if the run has one) that this task is complete
+    # (it may return follow-up tasks to add to the run)
     if options.task_source is not None:
-        await options.task_source.task_complete(eval_log)
+        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
 
     # return eval log
     return eval_log
@@ -1670,9 +1685,11 @@ async def task_run_sample(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
                     )
                     # notify a TaskSource (if the run has one) as each sample
-                    # completes, so it can react in real time
+                    # completes, so it can react in real time (and add tasks)
                     if task_source is not None:
-                        await task_source.sample_complete(eval_sample)
+                        _enqueue_source_tasks(
+                            await task_source.sample_complete(eval_sample)
+                        )
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back

@@ -7,7 +7,7 @@ via `sample_complete` / `task_complete`, and produces the next batch from
 
 import pytest
 
-from inspect_ai import Task, TaskSource, eval
+from inspect_ai import Task, TaskSource, eval, task_source
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
@@ -92,6 +92,92 @@ def test_sample_complete_fires_per_sample_before_task() -> None:
     obs = _Observer()
     eval(tasks=obs, model="mockllm/model", display="none")
     assert obs.events == ["sample", "sample", "sample", "task"]
+
+
+def test_task_source_factory_seed_and_callbacks() -> None:
+    # task_source() builds a TaskSource from a seed + callbacks (no subclass).
+    # next_tasks closes over shared state to produce two more generations.
+    produced = [1]
+    tasks_seen: list[str] = []
+    samples_seen = 0
+
+    async def next_tasks() -> list[Task] | None:
+        if produced[0] < 3:
+            name = f"gen{produced[0]}"
+            produced[0] += 1
+            return [_task(name)]
+        return None
+
+    async def on_sample(sample: EvalSample) -> None:
+        nonlocal samples_seen
+        samples_seen += 1
+
+    async def on_task(log: EvalLog) -> None:
+        tasks_seen.append(log.eval.task)
+
+    source = task_source(
+        [_task("gen0")],
+        next_tasks=next_tasks,
+        sample_complete=on_sample,
+        task_complete=on_task,
+    )
+    logs = eval(tasks=source, model="mockllm/model", display="none")
+
+    assert sorted(log.eval.task for log in logs) == ["gen0", "gen1", "gen2"]
+    assert len({log.eval.run_id for log in logs}) == 1
+    assert tasks_seen == ["gen0", "gen1", "gen2"]
+    assert samples_seen == 3
+
+
+def test_task_source_factory_seed_only_runs_once() -> None:
+    # omitting next_tasks stops after the seed (equivalent to a plain list)
+    logs = eval(
+        tasks=task_source([_task("only")]), model="mockllm/model", display="none"
+    )
+    assert [log.eval.task for log in logs] == ["only"]
+
+
+def test_task_complete_returning_tasks_chains_generations() -> None:
+    # the simplest source: return follow-up tasks straight from task_complete,
+    # no next_tasks() and no manual buffer. The run chains until a completion
+    # returns nothing, all under one run_id.
+    class _Chain(TaskSource):
+        def __init__(self, count: int) -> None:
+            self.count = count
+            self._produced = 1  # gen0 is the seed
+
+        def initial_tasks(self) -> list[Task]:
+            return [_task("gen0")]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            if self._produced < self.count:
+                name = f"gen{self._produced}"
+                self._produced += 1
+                return [_task(name)]
+            return None
+
+    logs = eval(tasks=_Chain(3), model="mockllm/model", display="none")
+    assert sorted(log.eval.task for log in logs) == ["gen0", "gen1", "gen2"]
+    assert len({log.eval.run_id for log in logs}) == 1
+
+
+def test_factory_task_complete_returning_tasks() -> None:
+    # same pattern via the task_source() factory: task_complete returns followups
+    produced = [1]
+
+    async def on_task(log: EvalLog) -> list[Task] | None:
+        if produced[0] < 2:
+            name = f"gen{produced[0]}"
+            produced[0] += 1
+            return [_task(name)]
+        return None
+
+    logs = eval(
+        tasks=task_source([_task("gen0")], task_complete=on_task),
+        model="mockllm/model",
+        display="none",
+    )
+    assert sorted(log.eval.task for log in logs) == ["gen0", "gen1"]
 
 
 def test_task_source_rejected_outside_eval() -> None:

@@ -40,13 +40,13 @@ with no-op defaults:
 
 ```python
 class TaskSource:
-    def initial_tasks(self) -> list[Task]: ...           # sync seed (immediate)
-    async def next_tasks(self) -> list[Task] | None: ...  # async; None ends run
-    async def sample_complete(self, sample: EvalSample) -> None: ...  # observe
-    async def task_complete(self, log: EvalLog) -> None: ...          # observe
+    def initial_tasks(self) -> list[Task]: ...                          # sync seed (immediate)
+    async def next_tasks(self) -> list[Task] | None: ...                # async; None ends run
+    async def sample_complete(self, sample: EvalSample) -> list[Task] | None: ...  # observe + add
+    async def task_complete(self, log: EvalLog) -> list[Task] | None: ...          # observe + add
 ```
 
-The two halves of the contract are deliberately asymmetric:
+The two halves of the *production* contract are deliberately asymmetric:
 
 - **`initial_tasks()` is synchronous and must return immediately.** It is the
   seed the run sets up and starts from. The run resolves and validates it
@@ -55,11 +55,18 @@ The two halves of the contract are deliberately asymmetric:
 - **`next_tasks()` is async and may block indefinitely.** It is called *after*
   each batch finishes (and after that batch's completion notifications), can
   `await` external input or more results, and returns `None` to end the run.
-  This is what makes an open-ended "keep producing until told to stop" loop
-  expressible.
+  This is the blocking / explicit-pull path for an open-ended "keep producing
+  until told to stop" loop.
 
-`sample_complete` / `task_complete` are observation hooks. They fire as work
-completes (see below) so that a decision made in `next_tasks()` can use them.
+`sample_complete` / `task_complete` fire as work completes (see below) and serve
+double duty: they observe results *and* may **return follow-up tasks**. A
+returned list is added to the run exactly as `enqueue_task` would (it is routed
+through the same run enqueuer — see below), so the *simplest* sources never
+implement `next_tasks()` at all: they just react to each result and return the
+next tasks. The run then ends naturally when a batch's callbacks return nothing
+and `next_tasks()` (default `None`) yields no more. `next_tasks()` is reserved
+for the blocking case (wait for external input) that a per-result callback can't
+express.
 
 A `TaskSource` is passed as the `tasks` argument and runs under a **single
 `run_id`** — every generation shares the run, with each task getting its own
@@ -78,12 +85,13 @@ eval() / eval_async()              tasks=<TaskSource>
         while pending is not None:
             run_batch(pending)            ─► eval_run ─► task_run / task_run_sample
                                                  │            │
-                                                 │            └─ sample_complete(sample)  (per sample)
-                                                 └─ task_complete(log)                     (per task)
+                                                 │            └─ sample_complete(sample) ─┐ (per sample)
+                                                 └─ task_complete(log) ──────────────────┤ (per task)
+                                                          returned tasks ─► enqueuer ◄────┘
             if cancelled: break
-            pending = enqueuer.drain() or None              # imperative additions first
+            pending = enqueuer.drain() or None         # enqueue_task + returned tasks first
             if pending is None and task_source is not None:
-                pending = resolve(await task_source.next_tasks())   # else declarative
+                pending = resolve(await task_source.next_tasks())   # else blocking pull
 ```
 
 Key locations:
@@ -101,7 +109,10 @@ Key locations:
   [task/run.py](../src/inspect_ai/_eval/task/run.py): `task_run_sample` calls
   `task_source.sample_complete(eval_sample)` right after `emit_sample_end` (so
   it fires **per sample**, not batched at task end), and `task_run` calls
-  `task_source.task_complete(eval_log)` just before returning the log.
+  `task_source.task_complete(eval_log)` just before returning the log. Whatever
+  a callback **returns** is passed to `_enqueue_source_tasks`, which pushes it
+  onto the run enqueuer (`get_task_enqueuer().enqueue(...)`) — so returned tasks
+  and `enqueue_task` additions share one buffer and the loop drains both.
 - **The batch loop** — [eval.py](../src/inspect_ai/_eval/eval.py) (~line 999):
   drains imperatively-enqueued tasks first (`enqueuer.drain()`), and only if
   none calls `await task_source.next_tasks()`, resolving the result through the
@@ -126,17 +137,25 @@ silently running only the seed.
 
 ## Relationship to `enqueue_task`
 
-`TaskSource.next_tasks()` is the *declarative* way to add a next batch (the run
-pulls from it). `enqueue_task()`
-([task/enqueue.py](../src/inspect_ai/_eval/task/enqueue.py)) is the
-*imperative* counterpart — arbitrary user code running inside the eval (a
-solver, a scorer, a tool) can push tasks into the current run:
+There are three ways to add tasks to a run, in increasing directness, and they
+all feed one buffer:
 
-```python
-def enqueue_task(tasks: Tasks, *, run_id: str | None = None) -> None: ...
-```
+- **`next_tasks()`** — the blocking / explicit-pull path: the loop *pulls* the
+  next batch from the source between batches.
+- **Returning tasks from `sample_complete` / `task_complete`** — the *push from
+  a result* path: the simplest sources react to each completion and return the
+  follow-ups. The firing site routes the return value onto the run enqueuer, so
+  it is just sugar for "call `enqueue_task` with what you'd return."
+- **`enqueue_task()`**
+  ([task/enqueue.py](../src/inspect_ai/_eval/task/enqueue.py)) — the *imperative*
+  primitive for *arbitrary* code (a solver, a scorer, a tool), not just a
+  `TaskSource`, to push tasks into the current run:
 
-The two share the same downstream machinery:
+  ```python
+  def enqueue_task(tasks: Tasks, *, run_id: str | None = None) -> None: ...
+  ```
+
+The last two share the same downstream machinery:
 
 - A `TaskEnqueuer` holds the run's *resolve* closure (`_resolve_enqueued_tasks`,
   bound via `functools.partial` to the run's models / roles / config / sandbox /
@@ -161,6 +180,13 @@ the ambient lookup.)
 ## Public surface
 
 - `TaskSource` is exported from `inspect_ai` (`__init__.py` `__all__`).
+- `task_source(initial_tasks, *, next_tasks=None, sample_complete=None,
+  task_complete=None)` — a factory that builds a `TaskSource` from a seed plus
+  optional callbacks, for the common case where subclassing is more than you
+  need. Returns a `_CallableTaskSource` that delegates to the provided callables
+  (which typically close over shared state to decide what to run next). Omitting
+  `next_tasks` stops after the seed — equivalent to passing the list directly.
+  Also exported from `inspect_ai`.
 - The `Tasks` type alias ([task/tasks.py](../src/inspect_ai/_eval/task/tasks.py))
   includes `| TaskSource`, so `eval(tasks=…)` accepts it and the type checker is
   happy.
@@ -171,7 +197,8 @@ the ambient lookup.)
 - `tests/test_task_source.py` — batch-at-a-time over multiple generations under
   one `run_id`; single-batch when `next_tasks()` returns `None` immediately;
   `sample_complete` fires per sample *before* the task's `task_complete`;
-  rejection outside `eval()`.
+  `task_complete` **returning** follow-up tasks chains generations (subclass and
+  factory); `task_source()` factory seed + callbacks; rejection outside `eval()`.
 - `tests/test_enqueue_task.py` — added task runs in the same run; additions
   chain across batches; calling outside a run raises.
 
@@ -182,6 +209,11 @@ Implemented and tested for **batch-at-a-time** generation in
 
 - [x] `TaskSource` base class + `initial_tasks` / `next_tasks` /
       `sample_complete` / `task_complete`.
+- [x] `sample_complete` / `task_complete` may **return** follow-up tasks (routed
+      onto the run enqueuer via `_enqueue_source_tasks`) — the simplest sources
+      need no `next_tasks()`.
+- [x] `task_source(...)` factory — build a source from a seed + callbacks without
+      subclassing.
 - [x] Threaded via `TaskRunOptions` (no global), per-sample and per-task firing.
 - [x] Batch loop driving `next_tasks()`, composing with `enqueue_task`.
 - [x] `enqueue_task` imperative primitive backed by a `ContextVar`.
