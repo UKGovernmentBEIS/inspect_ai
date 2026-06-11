@@ -414,21 +414,26 @@ async def test_fire_includes_events_emitted_before_checkpointer_construction(
 
 
 async def test_fire_reopens_checkpoint_span_after_failure(dirs: _Dirs) -> None:
+    from inspect_ai.util._span import current_span_id
+
     cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
-    assert cp._current_span_cm is None
-    await cp._open_next_span()
-    open_before = cp._current_span_cm
-    assert open_before is not None
 
     async def fail_write_host_context(*_args: object) -> None:
         raise RuntimeError("write failed")
 
-    with patch.object(cp, "_write_host_context", side_effect=fail_write_host_context):
-        await cp.checkpoint()
+    async with cp.span_session():
+        open_before = current_span_id()
+        assert open_before is not None
 
-    assert cp._current_span_cm is not None
-    assert cp._current_span_cm is not open_before
-    await cp._close_current_span()
+        with patch.object(
+            cp, "_write_host_context", side_effect=fail_write_host_context
+        ):
+            await cp.checkpoint()
+
+        reopened = current_span_id()
+        assert reopened is not None
+        assert reopened != open_before
+    assert current_span_id() is None
 
 
 # --- hydrate: resume-state validation -------------------------------------
