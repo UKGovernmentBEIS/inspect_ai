@@ -2120,7 +2120,7 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'dev'", specifier = ">=2025.8.0" },
     { name = "agent-client-protocol", specifier = ">=0.10.1" },
     { name = "aioboto3", specifier = ">=13.0.0" },
-    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.108.0" },
+    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.109.1" },
     { name = "anyio", specifier = ">=4.8.0" },
     { name = "apprise", marker = "extra == 'dev'" },
     { name = "aws-bedrock-token-generator", marker = "extra == 'dev'" },
