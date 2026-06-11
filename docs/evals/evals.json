@@ -22,6 +22,29 @@
     "model_cards": []
   },
   {
+    "id": "ivanleo_agent_search",
+    "name": "agent-search",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Agent answers Gemini API questions by querying an indexed documentation database.",
+    "paper": null,
+    "code": "inspect_harbor/ivanleo_agent_search",
+    "contributors": [],
+    "samples": 20,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ivanleo_agent_search.html",
+    "model_cards": []
+  },
+  {
     "id": "agent_bench",
     "name": "AgentBench",
     "source": "evals",

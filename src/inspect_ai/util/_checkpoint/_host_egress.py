@@ -1,8 +1,7 @@
 """Host egress: ship sample staging dir → remote sample checkpoints dir.
 
 Runs at the end of each fire when the resolved sample checkpoints dir
-is remote. Mirrors the in-sandbox egress protocol (Appendix B of
-``design/plans/checkpointing-working.md``): manifest of files already
+is remote. Mirrors the in-sandbox egress protocol: manifest of files already
 shipped, diff against the live staging dir, ship new files in a safe
 order, then atomically update the manifest.
 

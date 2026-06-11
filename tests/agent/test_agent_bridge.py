@@ -429,6 +429,59 @@ def anthropic_web_search_agent() -> Agent:
 
 
 @agent
+def anthropic_web_search_multiturn_agent() -> Agent:
+    """Two-call scaffold whose follow-up request replays the searched turn.
+
+    With web search dynamic filtering (claude 4.6 and later) the assistant
+    turn contains nested server tool blocks (code_execution -> web_search w/
+    caller link) which must round trip through the bridge with order,
+    nesting, and callers intact (else the API fails the second call with
+    `source tool ... not found`).
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with AsyncAnthropic() as client:
+                tools: Any = [
+                    {
+                        "type": "web_search_20260209",
+                        "name": "web_search",
+                        "max_uses": 5,
+                    }
+                ]
+                messages: Any = [
+                    {
+                        "role": "user",
+                        "content": user_prompt(state.messages).text,
+                    }
+                ]
+                response = await client.messages.create(
+                    model="inspect",
+                    max_tokens=4096,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice={"type": "any"},
+                )
+
+                # follow-up turn replays the assistant turn (including its
+                # server tool blocks) back through the bridge
+                messages = messages + [
+                    {"role": "assistant", "content": response.content},
+                    {"role": "user", "content": "Answer in one short sentence."},
+                ]
+                await client.messages.create(
+                    model="inspect",
+                    max_tokens=4096,
+                    messages=messages,
+                    tools=tools,
+                )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
 def anthropic_code_execution_agent() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
@@ -820,6 +873,26 @@ def test_bridged_web_search_tool_anthropic():
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"max_uses": 5' in log_json
     check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
+def test_bridged_web_search_tool_anthropic_filtering():
+    # claude-sonnet-4-6 gates to the web_search_20260209 (dynamic filtering)
+    # backend; the scaffold's second call replays the searched assistant turn
+    # through the bridge (nested server tool blocks w/ caller links)
+    log = eval(
+        web_search_task(anthropic_web_search_multiturn_agent()),
+        model="anthropic/claude-sonnet-4-6",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"max_uses": 5' in log_json
+    # the dynamic filtering backend was actually engaged
+    assert '"type": "web_search_20260209"' in log_json
+    check_server_tool_use(log, "web_search")
+    # both scaffold calls completed (the second replays the first turn)
+    assert log.samples
+    model_events = [e for e in log.samples[0].events if e.event == "model"]
+    assert len(model_events) >= 2
 
 
 @skip_if_no_anthropic

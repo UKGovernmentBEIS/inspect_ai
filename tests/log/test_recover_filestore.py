@@ -10,6 +10,7 @@ from zipfile import ZipFile
 import pytest
 from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
+from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
@@ -383,13 +384,8 @@ def test_db_takes_priority_over_filestore() -> None:
             output=ModelOutput.from_content(model="mockllm/model", content="db output"),
         )
         buffer.log_events([SampleEvent(id=99, epoch=1, event=event)])
-        # Rename to dead PID
-        old_path = buffer.db_path
-        new_path = old_path.parent / old_path.name.replace(
-            f".{os.getpid()}.", ".99999999."
-        )
-        old_path.rename(new_path)
-        buffer.db_path = new_path
+        # simulate a crashed process: snapshot the DB (incl. hot WAL) under a dead PID
+        simulate_crashed_buffer_db(buffer)
 
         recovery = read_buffer_recovery_data(eval_path, db_dir=db_dir)
 
