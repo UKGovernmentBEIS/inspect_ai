@@ -59,7 +59,7 @@ class SimpleResponse:
 class ViewTestClient:
     def __init__(self, log_dir: Path) -> None:
         self.log_dir = log_dir
-        app = fastapi_server.view_server_app(default_dir=str(log_dir))
+        app = fastapi_server.view_server_app(default_dirs=[str(log_dir)])
         self._tc = fastapi.testclient.TestClient(app)
         self._tc.__enter__()
 
@@ -328,10 +328,10 @@ def test_api_app_config(view_client: ViewTestClient) -> None:
     resp.raise_for_status()
     config = resp.json()
     assert config["inspect_version"] == inspect_ai.__version__
-    # scout is an optional dependency: present as a string when installed,
-    # otherwise null.
     assert "scout_version" in config
     assert config["scout_version"] is None or isinstance(config["scout_version"], str)
+    assert [d["log_dir"] for d in config["log_dirs"]] == [str(view_client.log_dir)]
+    assert config["log_dirs"][0]["aliased"]
 
 
 def test_api_log_info(view_client: ViewTestClient) -> None:

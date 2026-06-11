@@ -100,12 +100,15 @@ class InspectJsonResponse(JSONResponse):
 def view_server_app(
     mapping_policy: FileMappingPolicy | None = None,
     access_policy: AccessPolicy | None = None,
-    default_dir: str = "",
+    default_dirs: list[str] = [],
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
 ) -> "FastAPI":
     app = FastAPI()
+
+    def _default_dir() -> str:
+        return default_dirs[0] if default_dirs else ""
 
     @app.exception_handler(FileNotFoundError)
     async def _file_not_found(_request: Request, _exc: FileNotFoundError) -> Response:
@@ -281,7 +284,7 @@ def view_server_app(
         log_dir: str | None = Query(None, alias="log_dir"),
     ) -> LogDirResponse:
         if log_dir is None:
-            log_dir = default_dir
+            log_dir = _default_dir()
         await _validate_list(request, log_dir)
         return get_log_dir(log_dir)
 
@@ -291,7 +294,7 @@ def view_server_app(
         log_dir: str | None = Query(None, alias="log_dir"),
     ) -> LogFilesResponse:
         if log_dir is None:
-            log_dir = default_dir
+            log_dir = _default_dir()
         await _validate_list(request, log_dir)
 
         client_etag = request.headers.get("If-None-Match")
@@ -318,7 +321,7 @@ def view_server_app(
         log_dir: str | None = Query(None, alias="log_dir"),
     ) -> LogListingResponse | Response:
         if log_dir is None:
-            log_dir = default_dir
+            log_dir = _default_dir()
         await _validate_list(request, log_dir)
         listing = await get_logs(
             await _map_file(request, log_dir),
@@ -343,7 +346,7 @@ def view_server_app(
         sub_dir: str = Query(None, alias="dir"),
     ) -> EvalSet | None:
         # resolve the eval-set directory (using the log_dir and dir params)
-        base_dir = log_dir if log_dir else default_dir
+        base_dir = log_dir if log_dir else _default_dir()
         if sub_dir and base_dir:
             eval_set_dir = base_dir + "/" + sub_dir.lstrip("/")
         elif sub_dir:
@@ -366,7 +369,7 @@ def view_server_app(
         sub_dir: str = Query(None, alias="dir"),
     ) -> Response:
         # resolve the eval-set directory (using the log_dir and dir params)
-        base_dir = log_dir if log_dir else default_dir
+        base_dir = log_dir if log_dir else _default_dir()
         if sub_dir and base_dir:
             flow_dir = base_dir + "/" + sub_dir.lstrip("/")
         elif sub_dir:
@@ -529,7 +532,7 @@ def view_server_app(
 
     @app.get("/app-config", response_model=AppConfig)
     async def api_app_config() -> AppConfig:
-        return get_app_config()
+        return get_app_config(log_dirs=default_dirs)
 
     scout_router = get_scout_search_router()
     if scout_router is not None:
@@ -626,7 +629,7 @@ def view_server(
     api = view_server_app(
         mapping_policy=None,
         access_policy=OnlyDirAccessPolicy(log_dir) if not authorization else None,
-        default_dir=log_dir,
+        default_dirs=[log_dir],
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
