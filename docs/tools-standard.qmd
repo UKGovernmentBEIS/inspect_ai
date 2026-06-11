@@ -363,6 +363,28 @@ solver=[
 ]
 ```
 
+#### Host backend
+
+By default, the `computer()` tool dispatches actions into a Docker sandbox. You can instead run actions directly against the host machine's desktop by passing `backend="host"`:
+
+``` python
+use_tools([computer(backend="host")])
+```
+
+This is useful for running computer-use evals against a local desktop (for example a Windows or macOS workstation) without the `aisiuk/inspect-computer-tool` container. No `sandbox` configuration is required when using this backend.
+
+Install the host-mode dependencies:
+
+``` bash
+pip install pyautogui mss Pillow
+```
+
+Notes:
+
+-   Mouse and keyboard actions run on the user's actual desktop — only use this on a machine where you are comfortable with the model controlling the cursor and keyboard. `pyautogui`'s fail-safe is enabled (slamming the cursor into a screen corner aborts the action).
+-   The `back_click` and `forward_click` actions are not supported in host mode.
+-   On macOS you must grant the Python interpreter "Accessibility" and "Screen Recording" permissions in **System Settings → Privacy & Security**.
+
 #### Examples
 
 Two of the Inspect examples demonstrate basic computer use:
