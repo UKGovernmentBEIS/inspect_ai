@@ -231,16 +231,19 @@ enqueuer + source:
 `SandboxManager`) into a `PreparedFeed`, and hands it to `run_multiple(...,
 feed=...)`.
 
-`run_multiple` with a `feed` dispatches via `run_multiple_dynamic`
-([run.py](../src/inspect_ai/_eval/run.py)) — same model-balanced concurrency cap
-as the static path, but an **open** task set. Its dispatcher loop, per cycle:
-drains buffered injections (growing the display via `update_task_count`),
-dispatches up to `parallel` (model-balanced), and — when nothing is pending,
-nothing is in flight, and nothing was buffered — calls the (blocking)
-`feed.next()`. It completes when the feed is exhausted *and* the queue has
-drained. A re-armable `_Wake` (set on each task completion and each enqueue)
-drives the loop; `feed.next()` is only awaited when fully idle, so no task can
-enqueue while it blocks (no lost-wakeup race).
+`run_multiple` ([run.py](../src/inspect_ai/_eval/run.py)) is a single dispatcher
+that serves both fixed and live runs — a fixed set (`feed is None`) is just a
+run whose feed is immediately exhausted (`_empty_feed`), so there is no separate
+"dynamic" function. Its dispatcher loop, per cycle: drains buffered injections
+(growing the display via `update_task_count`), dispatches up to `parallel`
+(model-balanced), and — when nothing is pending, nothing is in flight, and
+nothing was buffered — calls the (blocking) `feed.next()`. It completes when the
+feed is exhausted *and* the queue has drained. A re-armable `_Wake` (set on each
+task completion and each enqueue) drives the loop; `feed.next()` is only awaited
+when fully idle, so no task can enqueue while it blocks (no lost-wakeup race).
+Each task runs via the shared `_run_task` helper (a per-task cancel scope around
+`task_run`); initial tasks keep their input order in the results and injected
+tasks are appended in arrival order.
 
 ### Components
 
@@ -279,9 +282,9 @@ Implemented and tested in `eval()` / `eval_async()`:
       subclassing.
 - [x] Threaded via `TaskRunOptions` (no global), per-sample and per-task firing.
 - [x] `enqueue_task` imperative primitive backed by a `ContextVar`.
-- [x] **Live injection** for `TaskSource` runs: single live `eval_run`,
-      `run_multiple_dynamic` open-set dispatcher, incremental `SandboxManager`,
-      growing display (rich / plain / textual).
+- [x] **Live injection** for `TaskSource` runs: single live `eval_run`, one
+      `run_multiple` dispatcher (fixed = empty-feed; no separate dynamic path),
+      incremental `SandboxManager`, growing display (rich / plain / textual).
 - [x] **Live injection is `TaskSource`-only.** A run is live iff it was given a
       `TaskSource`. Plain evals take the unchanged batch-at-a-time `run_batches`
       path, where `enqueue_task` additions run as a *follow-up batch* after the

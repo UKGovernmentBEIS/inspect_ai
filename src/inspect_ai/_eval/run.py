@@ -397,210 +397,84 @@ class _Wake:
         self._event = anyio.Event()
 
 
-# multiple mode -- run multiple logical tasks (requires some smart
-# schedluing to ensure that we are spreading work among models)
+def _empty_feed() -> PreparedFeed:
+    """A feed that supplies nothing — turns the dispatcher into a fixed-set run."""
+
+    async def drain() -> list[TaskRunOptions]:
+        return []
+
+    async def next() -> list[TaskRunOptions] | None:
+        return None
+
+    def set_wake(_: Callable[[], None]) -> None:
+        pass
+
+    return PreparedFeed(drain=drain, next=next, set_wake=set_wake)
+
+
+async def _run_task(options: TaskRunOptions) -> EvalLog | None:
+    """Run one task in its own cancel scope so cancelling it can't affect siblings.
+
+    Returns the task's :class:`EvalLog`, or ``None`` if it was cancelled before
+    producing one. Re-raises (after logging) the rare error that escapes a task —
+    e.g. a failure during the final log write.
+    """
+    result: EvalLog | None = None
+    try:
+        with trace_action(
+            log, "Run Task", f"task: {options.task.name} ({options.model})"
+        ):
+            # a per-task group so a task cancelling itself doesn't cancel siblings
+            async with anyio.create_task_group() as task_tg:
+                task_cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
+
+                def cancel_task(
+                    type: CancelType,
+                    cancel_tg: TaskGroup = task_tg,
+                    tc: TaskCancel = task_cancel,
+                ) -> None:
+                    tc.cancel_type = type
+                    if type:
+                        cancel_tg.cancel_scope.cancel()
+
+                task_cancel.cancel_task = cancel_task
+
+                async def run() -> None:
+                    nonlocal result
+                    result = await task_run(options, task_cancel=task_cancel)
+
+                task_tg.start_soon(run)
+    except Exception as ex:
+        # errors generally don't escape from tasks (the exception being if an
+        # error occurs during the final write of the log)
+        log.error(
+            f"Task '{options.task.name}' encountered an error during finalisation: {inner_exception(ex)}"
+        )
+        raise
+    return result
+
+
+# multiple mode -- run multiple logical tasks with bounded, model-balanced
+# concurrency. The task set may be fixed (``feed is None``) or open (a feed
+# supplies more while the run is in progress); a fixed set is just a run whose
+# feed is immediately exhausted, so both share one dispatcher.
 async def run_multiple(
     tasks: list[TaskRunOptions],
     parallel: int,
     debug_errors: bool = False,
     feed: PreparedFeed | None = None,
 ) -> list[EvalLog]:
-    # a live (TaskSource-driven) run accepts tasks while in progress and ends
-    # when its feed is exhausted, rather than when a fixed count completes
-    if feed is not None:
-        return await run_multiple_dynamic(
-            tasks, parallel, feed, debug_errors=debug_errors
-        )
+    """Run tasks with bounded, model-balanced concurrency.
 
-    # track current usage of each model
-    models: Set[str] = set()
-    for task in tasks:
-        models.add(str(task.model))
-    model_counts = {model: 0 for model in models}
-
-    # setup pending tasks, queue, and results
-    pending_tasks = tasks.copy()
-    results: list[tuple[int, EvalLog]] = []
-    tasks_completed = 0
-    total_tasks = len(tasks)
-
-    # Create a mapping from task to its original index
-    task_to_original_index = {id(task): i for i, task in enumerate(tasks)}
-
-    # produce/consume tasks
-    send_channel, receive_channel = anyio.create_memory_object_stream[TaskRunOptions](
-        parallel * 2
-    )
-
-    # find a task that keeps as many different models as possible running concurrently
-    async def enque_next_task() -> bool:
-        if tasks_completed < total_tasks:
-            # filter out models that have no pending tasks
-            models_with_pending = {
-                model
-                for model in model_counts
-                if any(str(t.model) == model for t in pending_tasks)
-            }
-            if not models_with_pending:
-                return False
-
-            # among those models, pick one with the least usage
-            model = min(models_with_pending, key=lambda m: model_counts[m])
-
-            # now we know there's at least one pending task for this model so it's safe to pick it
-            next_task = next(t for t in pending_tasks if str(t.model) == model)
-            pending_tasks.remove(next_task)
-            model_counts[str(next_task.model)] += 1
-            with trace_action(
-                log, "Enque Task", f"task: {next_task.task.name} ({next_task.model})"
-            ):
-                await send_channel.send(next_task)
-            return True
-        else:
-            return False
-
-    async def worker() -> None:
-        try:
-            nonlocal tasks_completed
-            async for task_options in receive_channel:
-                result: EvalLog | None = None
-                # Get the original index of this task
-                original_index = task_to_original_index[id(task_options)]
-
-                # run the task
-                try:
-                    with trace_action(
-                        log,
-                        "Run Task",
-                        f"task: {task_options.task.name} ({task_options.model})",
-                    ):
-                        async with anyio.create_task_group() as tg:
-                            # Create a factory function that captures the current
-                            # task_options. Otherwise, we suffer from Python's
-                            # late/by reference binding behavior.
-                            # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
-
-                            task_cancel = TaskCancel(
-                                can_retry=False,
-                                cancel_task=lambda _: None,
-                            )
-
-                            def cancel_task(
-                                type: CancelType,
-                                cancel_tg: TaskGroup = tg,
-                                tc: TaskCancel = task_cancel,
-                            ) -> None:
-                                tc.cancel_type = type
-                                if type:
-                                    cancel_tg.cancel_scope.cancel()
-
-                            task_cancel.cancel_task = cancel_task
-
-                            def create_task_runner(
-                                options: TaskRunOptions = task_options,
-                                idx: int = original_index,
-                                task_cancel: TaskCancel = task_cancel,
-                            ) -> Callable[[], Awaitable[None]]:
-                                async def run_task() -> None:
-                                    nonlocal result
-                                    result = await task_run(
-                                        options, task_cancel=task_cancel
-                                    )
-                                    # Store result with its original index
-                                    results.append((idx, result))
-
-                                return run_task
-
-                            tg.start_soon(create_task_runner())
-
-                except Exception as ex:
-                    # errors generally don't escape from tasks (the exception being if an error
-                    # occurs during the final write of the log)
-                    log.error(
-                        f"Task '{task_options.task.name}' encountered an error during finalisation: {inner_exception(ex)}"
-                    )
-                    raise
-
-                # tracking
-                tasks_completed += 1
-                model_counts[str(task_options.model)] -= 1
-
-                # if a task was cancelled we are done
-                if not result or result.status == "cancelled":
-                    break
-
-                # check if there are more tasks to process
-                if tasks_completed < total_tasks:
-                    await enque_next_task()
-                elif tasks_completed == total_tasks:
-                    # all tasks are complete, close the stream
-                    try:
-                        await send_channel.aclose()
-                    except anyio.ClosedResourceError:
-                        # another worker might have already closed it
-                        pass
-        except anyio.EndOfStream:
-            pass
-
-    # with task display
-    async with display().task_screen(task_specs(tasks), parallel=True) as screen:
-        # init screen
-        init_task_screen(screen)
-
-        # Use anyio task group instead of manual task management
-        try:
-            async with anyio.create_task_group() as tg:
-                # computer number of workers (never more than total_tasks)
-                num_workers = min(parallel, total_tasks)
-
-                # start worker tasks
-                for _ in range(num_workers):
-                    tg.start_soon(worker)
-
-                # enqueue initial set of tasks
-                for _ in range(num_workers):
-                    await enque_next_task()
-        # exceptions can escape when debug_errors is True and that's okay
-        except ExceptionGroup as ex:
-            if debug_errors:
-                raise ex.exceptions[0]
-            else:
-                raise
-        except anyio.get_cancelled_exc_class():
-            pass
-        finally:
-            # Always ensure channels are closed
-            try:
-                await send_channel.aclose()
-            except anyio.ClosedResourceError:
-                pass
-
-            try:
-                await receive_channel.aclose()
-            except anyio.ClosedResourceError:
-                pass
-
-            clear_task_screen()
-
-        # Sort results by original index and return just the values
-        return [r for _, r in sorted(results)]
-
-
-async def run_multiple_dynamic(
-    tasks: list[TaskRunOptions],
-    parallel: int,
-    feed: PreparedFeed,
-    debug_errors: bool = False,
-) -> list[EvalLog]:
-    """Run tasks while accepting more from ``feed`` until it is exhausted.
-
-    Like :func:`run_multiple` (same model-balanced concurrency cap), but the set
-    of tasks is open: ``feed.drain()`` supplies tasks enqueued during the run
-    (``enqueue_task`` / callbacks returning tasks) and ``feed.next()`` supplies
-    the (possibly blocking) next batch, returning ``None`` when the source is
-    done. The run completes when nothing is pending, nothing is in flight, and
-    the feed is exhausted. A cancelled task ends the run.
+    The set may be fixed (``feed is None``) or open: ``feed.drain()``
+    (non-blocking) yields tasks enqueued since the last cycle and ``feed.next()``
+    (blocking) yields the next batch, returning ``None`` when the source is
+    exhausted. The run completes when nothing is pending, nothing is in flight,
+    and the feed is exhausted (immediately so for a fixed set). A cancelled task
+    ends the run.
     """
+    feed = feed or _empty_feed()
+
     # model-balancing state (grows as tasks are injected)
     model_counts: dict[str, int] = {}
 
@@ -608,11 +482,13 @@ async def run_multiple_dynamic(
         for t in options:
             model_counts.setdefault(str(t.model), 0)
 
+    # pending (index, task) pairs: initial tasks keep their original order and
+    # injected tasks are appended in arrival order, so results sort stably
     note_models(tasks)
-    pending: list[TaskRunOptions] = list(tasks)
+    pending: list[tuple[int, TaskRunOptions]] = list(enumerate(tasks))
+    next_index = len(tasks)
     results: list[tuple[int, EvalLog]] = []
     in_flight = 0
-    next_index = 0
     cancelled = False
     source_done = False
 
@@ -620,54 +496,32 @@ async def run_multiple_dynamic(
     wake = _Wake()
     feed.set_wake(wake.set)
 
-    def pick_balanced() -> TaskRunOptions:
-        # among models that have pending tasks, pick the least-used one
-        models_with_pending = {str(t.model) for t in pending}
+    def add(options: list[TaskRunOptions]) -> None:
+        nonlocal next_index
+        note_models(options)
+        pending.extend((next_index + i, opts) for i, opts in enumerate(options))
+        next_index += len(options)
+        display().update_task_count(len(options))
+
+    def pick_balanced() -> tuple[int, TaskRunOptions]:
+        # among models that have pending tasks, pick the least-used one (keeps as
+        # many different models running concurrently as possible)
+        models_with_pending = {str(opts.model) for _, opts in pending}
         model = min(models_with_pending, key=lambda m: model_counts[m])
-        opts = next(t for t in pending if str(t.model) == model)
-        pending.remove(opts)
-        return opts
+        item = next(p for p in pending if str(p[1].model) == model)
+        pending.remove(item)
+        return item
 
     async with display().task_screen(task_specs(tasks), parallel=True) as screen:
         init_task_screen(screen)
-
         try:
             async with anyio.create_task_group() as tg:
 
-                async def run_one(options: TaskRunOptions, idx: int) -> None:
+                async def run_one(idx: int, options: TaskRunOptions) -> None:
                     nonlocal in_flight, cancelled
                     result: EvalLog | None = None
                     try:
-                        # per-task cancel scope (cancelling one task must not
-                        # cancel its siblings) — mirrors run_multiple's worker
-                        async with anyio.create_task_group() as task_tg:
-                            task_cancel = TaskCancel(
-                                can_retry=False, cancel_task=lambda _: None
-                            )
-
-                            def cancel_task(
-                                type: CancelType,
-                                cancel_tg: TaskGroup = task_tg,
-                                tc: TaskCancel = task_cancel,
-                            ) -> None:
-                                tc.cancel_type = type
-                                if type:
-                                    cancel_tg.cancel_scope.cancel()
-
-                            task_cancel.cancel_task = cancel_task
-
-                            async def _run() -> None:
-                                nonlocal result
-                                result = await task_run(
-                                    options, task_cancel=task_cancel
-                                )
-
-                            task_tg.start_soon(_run)
-                    except Exception as ex:
-                        log.error(
-                            f"Task '{options.task.name}' encountered an error during finalisation: {inner_exception(ex)}"
-                        )
-                        raise
+                        result = await _run_task(options)
                     finally:
                         in_flight -= 1
                         model_counts[str(options.model)] -= 1
@@ -681,17 +535,14 @@ async def run_multiple_dynamic(
                     # pick up tasks buffered since the last cycle (non-blocking)
                     injected = await feed.drain()
                     if injected:
-                        note_models(injected)
-                        pending.extend(injected)
-                        display().update_task_count(len(injected))
+                        add(injected)
 
                     # dispatch up to the concurrency cap (model-balanced)
                     while not cancelled and in_flight < parallel and pending:
-                        options = pick_balanced()
+                        idx, options = pick_balanced()
                         model_counts[str(options.model)] += 1
                         in_flight += 1
-                        next_index += 1
-                        tg.start_soon(run_one, options, next_index - 1)
+                        tg.start_soon(run_one, idx, options)
 
                     if cancelled:
                         break
@@ -702,18 +553,16 @@ async def run_multiple_dynamic(
                         await wake.wait()
                         continue
 
-                    # fully idle (nothing pending, nothing in flight, nothing
-                    # buffered): ask the source for more — this may block — and
-                    # finish when it is exhausted
+                    # fully idle: ask the source for more (may block) and finish
+                    # when it is exhausted
                     if source_done:
                         break
                     more = await feed.next()
                     if more is None:
                         source_done = True
                     else:
-                        note_models(more)
-                        pending.extend(more)
-                        display().update_task_count(len(more))
+                        add(more)
+        # exceptions can escape when debug_errors is True and that's okay
         except ExceptionGroup as ex:
             if debug_errors:
                 raise ex.exceptions[0]
@@ -724,6 +573,7 @@ async def run_multiple_dynamic(
         finally:
             clear_task_screen()
 
+    # sort results by index and return just the values
     return [r for _, r in sorted(results)]
 
 
