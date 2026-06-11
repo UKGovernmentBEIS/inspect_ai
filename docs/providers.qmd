@@ -1056,7 +1056,7 @@ inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=fal
 `use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
 :::
 
-### Raw Text Completions
+### Raw Text Completions {#sec-vllm-completions}
 
 Use the `vllm-completions` provider when you want vLLM to receive a raw text prompt rather than chat messages rendered through a chat template:
 
@@ -1064,7 +1064,7 @@ Use the `vllm-completions` provider when you want vLLM to receive a raw text pro
 inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m
 ```
 
-This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations.
+This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations. It additionally manages the vLLM server lifecycle for you — to target an already-running OpenAI-compatible server, the [`openai-api-completions`](#openai-api-completions) provider offers the same behavior for any provider/server.
 
 #### Pre-Tokenized Prompts
 
@@ -1378,6 +1378,34 @@ You can enable the use of the streaming with the `openai-api` provider by passin
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
 ```
+
+### Completions API {#openai-api-completions}
+
+Use the `openai-api-completions` provider when you want the model to receive a raw prompt through the legacy `/v1/completions` endpoint rather than chat messages rendered through a chat template:
+
+``` bash
+inspect eval task.py --model openai-api-completions/<provider>/<model>
+```
+
+It follows the same naming and environment variable conventions as `openai-api`, accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations (echo mode, fill-in-the-middle, perplexity benchmarks).
+
+#### Pre-Tokenized Prompts
+
+If you already have token IDs (custom tokenizer, pre-tokenized dataset, anything where you need exact control over the input sequence), pass them through `ChatMessage.metadata["prompt_token_ids"]` instead of a string:
+
+``` python
+from inspect_ai.model import ChatMessageUser, get_model
+
+token_ids = my_custom_tokenizer.encode("Hello")
+model = get_model("openai-api-completions/<provider>/<model>")
+response = await model.generate(
+    input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+)
+```
+
+When `prompt_token_ids` is present, only the IDs are sent to the server — the message's `content` is not used as the prompt. The `content` field is still part of the `ChatMessage` though, so it shows up in transcripts and is readable by scorers/judges. A common pattern is to put the decoded (or any human-readable) version of the prompt in `content` so downstream tooling has something useful to display.
+
+Token IDs are passed through verbatim; whether the server adds special tokens to pre-tokenized prompts is server-dependent (vLLM does not — see [vLLM Completions API](#sec-vllm-completions)).
 
 ## OpenRouter
 
