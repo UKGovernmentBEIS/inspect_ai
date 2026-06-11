@@ -29,6 +29,7 @@ from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEd
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
+    ModelFallback,
     ModelOutput,
     ModelUsage,
 )
@@ -278,6 +279,9 @@ class EvalSampleSummary(BaseModel):
     role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage by role for sample."""
 
+    model_fallbacks: list[ModelFallback] | None = Field(default=None)
+    """Model fallbacks that occurred during the sample (None if no fallbacks)."""
+
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
 
@@ -449,6 +453,13 @@ class EvalSample(BaseModel):
     role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage by role for sample."""
 
+    model_fallbacks: list[ModelFallback] | None = Field(default=None)
+    """Model fallbacks that occurred during the sample (None if no fallbacks).
+
+    Includes fallbacks from all generate calls in the sample (solvers,
+    subagents, and scorers alike), aggregated by (model, fallback_model).
+    """
+
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
 
@@ -508,6 +519,7 @@ class EvalSample(BaseModel):
             scores=self.scores,
             model_usage=self.model_usage,
             role_usage=self.role_usage,
+            model_fallbacks=self.model_fallbacks,
             started_at=self.started_at,
             completed_at=self.completed_at,
             total_time=self.total_time,

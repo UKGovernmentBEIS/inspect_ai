@@ -79,6 +79,7 @@ class ActiveSample:
         self.total_messages = 0
         self.total_tokens = 0
         self.total_cost: float | None = None
+        self.fallback_models: list[str] = []
         self.transcript = transcript
         self.sandboxes = sandboxes
         self.checkpointer = checkpointer
@@ -362,6 +363,12 @@ def set_active_sample_total_messages(total_messages: int) -> None:
     active = sample_active()
     if active:
         active.total_messages = total_messages
+
+
+def set_active_sample_fallback_models(fallback_models: list[str]) -> None:
+    active = sample_active()
+    if active:
+        active.fallback_models = fallback_models
 
 
 _active_model_event: ContextVar[ModelEvent | None] = ContextVar(

@@ -172,6 +172,7 @@ from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
+    ModelFallback,
     ModelOutput,
     ModelUsage,
     StopCategory,
@@ -2936,18 +2937,18 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # server-side refusal fallback: record a structured metadata entry so log
+    # server-side refusal fallback: record a typed ModelFallback so log
     # analysis can detect a fallback without parsing assistant content. the
-    # per-attempt `usage.iterations` are also surfaced for cost analysis.
-    if fallback_handoffs:
-        metadata = (metadata or {}) | {
-            "fallback": {
-                "from": fallback_handoffs[0]["from"],
-                "to": serving_model,
-                "handoffs": fallback_handoffs,
-                "iterations": iterations,
-            }
-        }
+    # handoff chain and per-attempt `usage.iterations` are surfaced as
+    # diagnostics on ModelFallback.metadata.
+    fallback: ModelFallback | None = None
+    requested_model = fallback_handoffs[0]["from"] if fallback_handoffs else None
+    if requested_model and serving_model:
+        fallback = ModelFallback(
+            model=requested_model,
+            fallback_model=serving_model,
+            metadata={"handoffs": fallback_handoffs, "iterations": iterations},
+        )
 
     # Cache diagnostics: surface the `diagnostics` response field as a
     # top-level metadata key (in addition to its automatic capture under
@@ -2980,6 +2981,7 @@ async def model_output_from_message(
                 input_tokens_cache_read=input_tokens_cache_read,
                 reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
             ),
+            fallback=fallback,
             metadata=metadata,
         ),
         pause_turn,

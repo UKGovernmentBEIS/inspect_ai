@@ -174,12 +174,16 @@ async def test_fallback_refusal_before_output() -> None:
     assert output.usage is not None
     assert output.usage.input_tokens == 412
     assert output.usage.output_tokens == 264
-    # structured metadata
-    assert output.metadata is not None
-    fb = output.metadata["fallback"]
-    assert fb["from"] == REQUESTED_MODEL
-    assert fb["to"] == FALLBACK_MODEL
-    assert fb["handoffs"] == [{"from": REQUESTED_MODEL, "to": FALLBACK_MODEL}]
+    # typed fallback field
+    assert output.fallback is not None
+    assert output.fallback.model == REQUESTED_MODEL
+    assert output.fallback.fallback_model == FALLBACK_MODEL
+    assert output.fallback.count == 1
+    assert output.fallback.metadata is not None
+    assert output.fallback.metadata["handoffs"] == [
+        {"from": REQUESTED_MODEL, "to": FALLBACK_MODEL}
+    ]
+    assert isinstance(output.fallback.metadata["iterations"], list)
     # fallback block wrapped as ContentData (in position), text preserved
     content = output.message.content
     assert isinstance(content, list)
@@ -241,7 +245,7 @@ async def test_no_fallback_metadata_when_absent() -> None:
     message = _fallback_message([{"type": "text", "text": "normal answer"}])
     output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
     assert output.model == FALLBACK_MODEL
-    assert output.metadata is None or "fallback" not in output.metadata
+    assert output.fallback is None
 
 
 @pytest.mark.anyio
