@@ -204,6 +204,11 @@ _ADAPTIVE_ONLY_WARNING = (
     "anthropic model '{model}' does not support the '{parameter}' parameter "
     "(adaptive thinking only)."
 )
+_REASONING_TOKENS_UNSUPPORTED_ERROR = (
+    "anthropic model '{model}' does not support 'reasoning_tokens' (extended "
+    "thinking with an explicit token budget was removed in Claude 4.7). Use "
+    "'reasoning_effort' to control reasoning depth instead."
+)
 _MID_CONV_SYSTEM_HOISTED_WARNING = (
     "anthropic: {count} mid-conversation system message(s) were repositioned "
     "to the top-level system field because their placement violated the API "
@@ -823,6 +828,17 @@ class AnthropicAPI(ModelAPI):
     def completion_config(
         self, config: GenerateConfig
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
+        # Claude 4.7+ (including Claude 5) removed extended thinking, so
+        # `reasoning_tokens` (sent as `budget_tokens`) is rejected by the API.
+        # Fail fast with an actionable error that names `reasoning_tokens` and
+        # points to `reasoning_effort`, rather than letting the request 400 with
+        # a message about `budget_tokens` the caller never set.
+        if config.reasoning_tokens is not None and self.is_claude_4_7_or_later():
+            raise PrerequisiteError(
+                _REASONING_TOKENS_UNSUPPORTED_ERROR.format(
+                    model=self.service_model_name()
+                )
+            )
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = (config.extra_headers or {}).copy()
@@ -1008,6 +1024,10 @@ class AnthropicAPI(ModelAPI):
         Explicit `reasoning_tokens` wins; otherwise `reasoning_effort` is
         translated via the shared fixed-table bridge. Frontier Claude uses
         adaptive thinking with `effort` and ignores this path (returns None).
+
+        Note: `reasoning_tokens` on Claude 4.7+ (incl. Claude 5) is rejected up
+        front in `completion_config` (those models removed `budget_tokens`), so
+        this method is never reached with `reasoning_tokens` set on them.
         """
         if config.reasoning_tokens is not None:
             return config.reasoning_tokens

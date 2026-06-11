@@ -12,6 +12,7 @@ Covers:
 
 import pytest
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.anthropic import AnthropicAPI
 from inspect_ai.model._providers.google import GoogleGenAIAPI
@@ -110,6 +111,39 @@ def test_anthropic_frontier_does_not_use_bridge():
     api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
     # bridged_reasoning_tokens returns None for frontier (adaptive path)
     assert api.bridged_reasoning_tokens(GenerateConfig(reasoning_effort="high")) is None
+
+
+def test_anthropic_claude_4_6_still_honors_reasoning_tokens():
+    """Claude 4.6 still accepts `budget_tokens` (deprecated), so honor it."""
+    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
+    cfg = GenerateConfig(reasoning_tokens=2048)
+    assert api.bridged_reasoning_tokens(cfg) == 2048
+
+
+@pytest.mark.parametrize(
+    "model_name", ["claude-opus-4-7", "claude-opus-4-8", "claude-fable-5"]
+)
+def test_anthropic_reasoning_tokens_errors_on_4_7_plus(model_name):
+    """Claude 4.7+ / Claude 5 removed `budget_tokens`; reasoning_tokens errors.
+
+    Sending `{type: "enabled", budget_tokens}` to these models 400s, so Inspect
+    fails fast with an actionable error pointing at `reasoning_effort` rather
+    than emitting a request the API rejects.
+    """
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    cfg = GenerateConfig(reasoning_tokens=2048, max_tokens=64000)
+    with pytest.raises(PrerequisiteError, match="reasoning_tokens"):
+        api.completion_config(cfg)
+
+
+def test_anthropic_reasoning_effort_supported_on_claude_5():
+    """`reasoning_effort` is the supported control on Claude 5 (no error)."""
+    api = AnthropicAPI(model_name="claude-fable-5", api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        GenerateConfig(reasoning_effort="high", max_tokens=64000)
+    )
+    assert params["thinking"]["type"] == "adaptive"
+    assert params["output_config"]["effort"] == "high"
 
 
 # -- Google Gemini 2.5 bridge --
