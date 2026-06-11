@@ -16,13 +16,18 @@ from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentData, ContentReasoning, ContentText
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
+    ChatCompletionChoice,
     ChatMessageAssistant,
     GenerateConfig,
+    ModelOutput,
+    StopCategory,
+    StopDetails,
     get_model,
 )
 from inspect_ai.model._providers.anthropic import (
     FALLBACK_BETA,
     AnthropicAPI,
+    _warn_refusal_without_fallback,
     assistant_message_blocks,
     content_and_tool_calls_from_assistant_content_blocks,
     init_sample_anthropic_assistant_internal,
@@ -263,6 +268,168 @@ async def test_compaction_iterations_still_summed() -> None:
     assert output.usage is not None
     assert output.usage.input_tokens == 300
     assert output.usage.output_tokens == 30
+
+
+# ---------------------------------------------------------------------------
+# refusal hint (suggest fallback_models when a rescuable refusal occurs)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def hint_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    from inspect_ai._util import logger as logger_mod
+    from inspect_ai.model._providers import anthropic as anthropic_mod
+
+    warnings: list[str] = []
+    logger_mod._warned.clear()
+    monkeypatch.setattr(
+        anthropic_mod.logger, "warning", lambda msg: warnings.append(msg)
+    )
+    return warnings
+
+
+def _refusal_details() -> StopDetails:
+    return StopDetails(
+        type="refusal",
+        category="cyber",
+        explanation="This request was declined because it could enable cyber harm.",
+        categories=[StopCategory(category="cyber")],
+    )
+
+
+def _refusal_output(
+    details: StopDetails | None,
+    stop_reason: str = "content_filter",
+    model: str = REQUESTED_MODEL,
+) -> ModelOutput:
+    return ModelOutput(
+        model=model,
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content=""),
+                stop_reason=cast(Any, stop_reason),
+                stop_details=details,
+            )
+        ],
+    )
+
+
+def test_refusal_hint_emitted(hint_warnings: list[str]) -> None:
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+    _warn_refusal_without_fallback(
+        api, GenerateConfig(), _refusal_output(_refusal_details())
+    )
+    assert len(hint_warnings) == 1
+    assert "fallback_models" in hint_warnings[0]
+    assert "https://inspect.aisi.org.uk/fallbacks.html" in hint_warnings[0]
+    assert "cyber" in hint_warnings[0]
+
+
+def test_refusal_hint_suppressed_when_fallback_configured(
+    hint_warnings: list[str],
+) -> None:
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+    _warn_refusal_without_fallback(
+        api,
+        GenerateConfig(fallback_models=[FALLBACK_MODEL]),
+        _refusal_output(_refusal_details()),
+    )
+    assert hint_warnings == []
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "bedrock/us.anthropic.claude-fable-5",
+        "vertex/claude-fable-5@20260609",
+    ],
+)
+def test_refusal_hint_suppressed_on_bedrock_vertex(
+    model_name: str, hint_warnings: list[str]
+) -> None:
+    import os
+
+    os.environ.setdefault("AWS_REGION", "us-east-1")
+    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
+    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
+    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    _warn_refusal_without_fallback(
+        api, GenerateConfig(), _refusal_output(_refusal_details())
+    )
+    assert hint_warnings == []
+
+
+def test_refusal_hint_suppressed_in_batch_mode(hint_warnings: list[str]) -> None:
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+    _warn_refusal_without_fallback(
+        api, GenerateConfig(batch=True), _refusal_output(_refusal_details())
+    )
+    assert hint_warnings == []
+
+
+def test_refusal_hint_suppressed_on_non_claude_5(hint_warnings: list[str]) -> None:
+    # Opus 4.7/4.8 emit the same refusal stop_details but the fallbacks
+    # param is not accepted for them
+    api = AnthropicAPI(model_name=FALLBACK_MODEL, api_key="test-key")
+    _warn_refusal_without_fallback(
+        api, GenerateConfig(), _refusal_output(_refusal_details())
+    )
+    assert hint_warnings == []
+
+
+def test_refusal_hint_requires_refusal_details(hint_warnings: list[str]) -> None:
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+    # content_filter without stop_details (e.g. mid-stream HTTP error
+    # conversion) is not a classifier refusal
+    _warn_refusal_without_fallback(api, GenerateConfig(), _refusal_output(None))
+    # nor is a non-refusal details type
+    _warn_refusal_without_fallback(
+        api,
+        GenerateConfig(),
+        _refusal_output(StopDetails(type="other", explanation="something")),
+    )
+    assert hint_warnings == []
+
+
+def test_refusal_hint_not_on_normal_stop(hint_warnings: list[str]) -> None:
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+    _warn_refusal_without_fallback(
+        api, GenerateConfig(), _refusal_output(None, stop_reason="stop")
+    )
+    assert hint_warnings == []
+
+
+@pytest.mark.anyio
+async def test_refusal_hint_via_message_flow(hint_warnings: list[str]) -> None:
+    """stop_details flow from the wire message through to the hint."""
+    init_sample_anthropic_assistant_internal()
+    data = {
+        "id": "msg_test",
+        "type": "message",
+        "role": "assistant",
+        "model": REQUESTED_MODEL,
+        "content": [],
+        "stop_reason": "refusal",
+        "stop_details": {
+            "type": "refusal",
+            "category": "cyber",
+            "explanation": "This request was declined.",
+        },
+        "usage": {"input_tokens": 412, "output_tokens": 0},
+    }
+    message = cast(Message, construct_type(value=data, type_=Message))
+    output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
+    assert output.choices[0].stop_reason == "content_filter"
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "refusal"
+
+    api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
+    _warn_refusal_without_fallback(api, GenerateConfig(), output)
+    assert len(hint_warnings) == 1
+    assert "fallback_models" in hint_warnings[0]
 
 
 # ---------------------------------------------------------------------------

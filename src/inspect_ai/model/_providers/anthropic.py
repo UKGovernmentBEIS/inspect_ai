@@ -558,6 +558,8 @@ class AnthropicAPI(ModelAPI):
 
             model_call.set_response(response, self._http_hooks.end_request(request_id))
 
+            _warn_refusal_without_fallback(self, config, output)
+
             return output, model_call
 
         except BadRequestError as ex:
@@ -3513,6 +3515,45 @@ def _input_has_fallback(input: list[ChatMessage]) -> bool:
         for m in input
         if isinstance(m, ChatMessageAssistant) and isinstance(m.content, list)
         for c in m.content
+    )
+
+
+def _warn_refusal_without_fallback(
+    api: "AnthropicAPI", config: GenerateConfig, output: ModelOutput
+) -> None:
+    """Suggest fallback_models when a rescuable classifier refusal occurs.
+
+    Fires only when fallback could actually have been used: fallback_models
+    not configured, first-party non-batch API, and a Claude 5+ requested model
+    (the `fallbacks` param is only accepted for models publishing
+    allowed_fallback_models -- Opus 4.7/4.8 emit the same refusal stop_details
+    but cannot fall back).
+    """
+    if config.fallback_models:
+        return
+    if api.is_bedrock() or api.is_vertex() or api.is_azure():
+        return
+    if normalized_batch_config(config.batch):
+        return
+    if not (api.is_claude_5() or api.is_claude_latest()):
+        return
+    # classifier refusal (stop_details.type == "refusal") distinguishes
+    # rescuable safety-classifier declines from other content_filter stops
+    choice = output.choices[0] if output.choices else None
+    if choice is None or choice.stop_reason != "content_filter":
+        return
+    details = choice.stop_details
+    if details is None or details.type != "refusal":
+        return
+    category = f" (category: {details.category})" if details.category else ""
+    warn_once(
+        logger,
+        f"{output.model} declined this request with a safety classifier "
+        f"refusal{category}. Such requests can usually be served by a "
+        "fallback model — set the fallback_models generate config "
+        "(e.g. --fallback-models claude-opus-4-8) to retry refused "
+        "requests automatically. Learn more at "
+        "https://inspect.aisi.org.uk/fallbacks.html.",
     )
 
 
