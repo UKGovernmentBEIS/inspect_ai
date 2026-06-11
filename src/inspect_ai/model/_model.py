@@ -737,31 +737,16 @@ class Model:
         start_time = datetime.now(timezone.utc)
         working_start = sample_working_time()
         async with self._connection_concurrency(config):
-            # generate
-            output, event = await self._generate(
+            # generate (start_time/working_start are threaded down so the
+            # ModelEvent's timing fields are stamped before it is emitted)
+            output, _ = await self._generate(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache,
-            )
-
-            # update the most recent ModelEvent with the actual start/completed
-            # times as well as a computation of working time (events are
-            # created _after_ the call to _generate, potentially in response
-            # to retries, so they need their timestamp updated so it accurately
-            # reflects the full start/end time which we know here)
-            from inspect_ai.event._model import ModelEvent
-
-            assert isinstance(event, ModelEvent)
-            event.timestamp = start_time
-            event.working_start = working_start
-            completed = datetime.now(timezone.utc)
-            event.completed = completed
-            event.working_time = (
-                output.time
-                if output.time is not None
-                else (completed - start_time).total_seconds()
+                start_time=start_time,
+                working_start=working_start,
             )
 
             _stamp_redacted_reasoning_tokens(output)
@@ -951,6 +936,9 @@ class Model:
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        *,
+        start_time: datetime,
+        working_start: float,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
@@ -1092,6 +1080,8 @@ class Model:
                         cache="read",
                         output=existing,
                         call=None,
+                        start_time=start_time,
+                        working_start=working_start,
                     )
                     # mark this request as a cache hit so the post-call
                     # adaptive-controller success notification is suppressed —
@@ -1118,6 +1108,8 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache_mode,
+                start_time=start_time,
+                working_start=working_start,
             )
 
             # create timeout context manager if we have an attempt timeout
@@ -1435,6 +1427,8 @@ class Model:
         tool_choice: ToolChoice,
         config: GenerateConfig,
         cache: Literal["read", "write"] | None,
+        start_time: datetime,
+        working_start: float,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
     ) -> tuple[
@@ -1511,6 +1505,22 @@ class Model:
                     event.call.response = as_error_response(result.response)
                 else:
                     event.call.response = as_error_response(str(result))
+
+            # stamp the actual start/completed times and working time on the
+            # event. start_time/working_start are captured by the caller before
+            # the (possibly retrying) generate, so they reflect the full
+            # start/end of the request. This must happen before the event is
+            # emitted, as it is serialized to the log buffer at emission time
+            # with no subsequent update.
+            event.timestamp = start_time
+            event.working_start = working_start
+            completed = datetime.now(timezone.utc)
+            event.completed = completed
+            event.working_time = (
+                result.time
+                if isinstance(result, ModelOutput) and result.time is not None
+                else (completed - start_time).total_seconds()
+            )
 
             event.pending = None
             if sink is None:
