@@ -992,46 +992,53 @@ async def _eval_async_inner(
                         **kwargs,
                     )
 
-                logs = EvalLogs([])
-                results: list[EvalLog] = []
-                pending: list[ResolvedTask] | None = resolved_tasks
-                while pending is not None:
-                    batch_logs: list[EvalLog] = []
-                    if parallel == 1:
-                        # single task definition (could be multi-model): run
-                        # sequence groups in order, stopping on cancellation
-                        for sequence in sorted({t.sequence for t in pending}):
-                            batch_logs.extend(
-                                await run_batch(
-                                    [t for t in pending if t.sequence == sequence],
-                                    debug_errors is True,
+                # Run successive batches under this run_id until the run is
+                # exhausted: the seed first, then tasks added imperatively
+                # (enqueue_task) or declaratively (a TaskSource's next_tasks())
+                # feed later iterations, repeating until none remain. A
+                # cancelled batch ends the run. Returns the combined logs.
+                async def run_batches(initial: list[ResolvedTask]) -> EvalLogs:
+                    results: list[EvalLog] = []
+                    pending: list[ResolvedTask] | None = initial
+                    while pending is not None:
+                        batch_logs: list[EvalLog] = []
+                        if parallel == 1:
+                            # single task definition (could be multi-model): run
+                            # sequence groups in order, stopping on cancellation
+                            for sequence in sorted({t.sequence for t in pending}):
+                                batch_logs.extend(
+                                    await run_batch(
+                                        [t for t in pending if t.sequence == sequence],
+                                        debug_errors is True,
+                                    )
                                 )
+                                if any(r.status == "cancelled" for r in batch_logs):
+                                    break
+                        else:
+                            # multiple task definitions, run together
+                            batch_logs.extend(await run_batch(pending, False))
+                        results.extend(batch_logs)
+
+                        # a cancelled batch ends the run
+                        if any(r.status == "cancelled" for r in batch_logs):
+                            break
+
+                        # (a TaskSource observes results via sample_complete /
+                        # task_complete, fired from task_run as each sample/task
+                        # finishes — so its next_tasks() decision can use them)
+
+                        # next batch under this run_id: imperative additions
+                        # (enqueue_task) first, else the TaskSource's next_tasks()
+                        # (which may block, and ends the run by returning None).
+                        pending = enqueuer.drain() or None
+                        if pending is None and task_source is not None:
+                            next_tasks = await task_source.next_tasks()
+                            pending = (
+                                resolve_added_tasks(next_tasks) if next_tasks else None
                             )
-                            if any(r.status == "cancelled" for r in batch_logs):
-                                break
-                    else:
-                        # multiple task definitions, run together
-                        batch_logs.extend(await run_batch(pending, False))
-                    results.extend(batch_logs)
-                    logs = EvalLogs(results)
+                    return EvalLogs(results)
 
-                    # a cancelled batch ends the run
-                    if any(r.status == "cancelled" for r in batch_logs):
-                        break
-
-                    # (a TaskSource observes results via sample_complete /
-                    # task_complete, fired from task_run as each sample/task
-                    # finishes — so its next_tasks() decision below can use them)
-
-                    # next batch under this run_id: imperative additions
-                    # (enqueue_task) first, else the TaskSource's next_tasks()
-                    # (which may block, and ends the run by returning None).
-                    pending = enqueuer.drain() or None
-                    if pending is None and task_source is not None:
-                        next_tasks = await task_source.next_tasks()
-                        pending = (
-                            resolve_added_tasks(next_tasks) if next_tasks else None
-                        )
+                logs = await run_batches(resolved_tasks)
 
             # keep-alive: after the run, park while the control / ACP servers
             # are still up so `inspect ctl` can read state and request release.
