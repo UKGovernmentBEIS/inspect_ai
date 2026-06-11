@@ -1197,10 +1197,16 @@ def test_fastapi_nan_metric(test_client: TestClient) -> None:
 
 
 def test_fastapi_only_dir_access_policy() -> None:
+    import anyio
+
     policy = fastapi_server.OnlyDirAccessPolicy(["/allowed/dir"])
-    assert asyncio.run(policy.can_read(None, "/allowed/dir/file.eval"))  # type: ignore[arg-type]
-    assert not asyncio.run(policy.can_read(None, "/other/dir/file.eval"))  # type: ignore[arg-type]
-    assert not asyncio.run(policy.can_read(None, "/allowed/dir/../etc/passwd"))  # type: ignore[arg-type]
+
+    async def check() -> None:
+        assert await policy.can_read(None, "/allowed/dir/file.eval")  # type: ignore[arg-type]
+        assert not await policy.can_read(None, "/other/dir/file.eval")  # type: ignore[arg-type]
+        assert not await policy.can_read(None, "/allowed/dir/../etc/passwd")  # type: ignore[arg-type]
+
+    anyio.run(check)
 
 
 def test_only_dir_access_policy_allows_any_configured_dir() -> None:

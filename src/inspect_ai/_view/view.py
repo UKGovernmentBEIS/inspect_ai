@@ -47,8 +47,8 @@ def view(
     init_dotenv()
     init_logger(log_level)
 
-    # initialize the log_dirs
-    if log_dir is None:
+    # initialize the log_dirs (treat None/empty as "use the default")
+    if not log_dir:
         log_dirs = [os.getenv("INSPECT_LOG_DIR", "./logs")]
     elif isinstance(log_dir, str):
         log_dirs = [log_dir]

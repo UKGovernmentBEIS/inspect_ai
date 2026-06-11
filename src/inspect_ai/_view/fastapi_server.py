@@ -611,6 +611,18 @@ class OnlyDirAccessPolicy(AccessPolicy):
 
 
 def resolve_log_dirs(log_dirs: list[str]) -> list[str]:
+    """Ensure each log directory exists and return its canonical name.
+
+    Creates the directory if absent and returns the name reported by the
+    underlying filesystem (which re-attaches the scheme for `s3://` paths).
+    An unreachable or inaccessible directory raises, so startup fails fast.
+
+    Args:
+        log_dirs: Raw directory paths/URIs (local, `s3://`, `file://`).
+
+    Returns:
+        Canonical directory names, in the same order.
+    """
     resolved: list[str] = []
     for log_dir in log_dirs:
         fs = filesystem(log_dir)
