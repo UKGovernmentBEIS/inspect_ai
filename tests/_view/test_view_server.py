@@ -1221,6 +1221,16 @@ def test_only_dir_access_policy_allows_any_configured_dir() -> None:
     anyio.run(check)
 
 
+def test_resolve_log_dirs_creates_and_normalizes(tmp_path: Path) -> None:
+    from inspect_ai._view.fastapi_server import resolve_log_dirs
+
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    resolved = resolve_log_dirs([str(a), str(b)])
+    assert len(resolved) == 2
+    assert a.exists() and b.exists()
+
+
 def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:
     class mapping_policy(FileMappingPolicy):
         async def map(self, request: Request, file: str) -> str:

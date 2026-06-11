@@ -610,8 +610,18 @@ class OnlyDirAccessPolicy(AccessPolicy):
         return self._validate_log_dir(file)
 
 
+def resolve_log_dirs(log_dirs: list[str]) -> list[str]:
+    resolved: list[str] = []
+    for log_dir in log_dirs:
+        fs = filesystem(log_dir)
+        if not fs.exists(log_dir):
+            fs.mkdir(log_dir, True)
+        resolved.append(fs.info(log_dir).name)
+    return resolved
+
+
 def view_server(
-    log_dir: str,
+    log_dirs: list[str],
     recursive: bool = True,
     host: str = DEFAULT_SERVER_HOST,
     port: int = DEFAULT_VIEW_PORT,
@@ -619,17 +629,13 @@ def view_server(
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
 ) -> None:
-    # get filesystem and resolve log_dir to full path
-    fs = filesystem(log_dir)
-    if not fs.exists(log_dir):
-        fs.mkdir(log_dir, True)
-    log_dir = fs.info(log_dir).name
+    resolved_dirs = resolve_log_dirs(log_dirs)
 
     # setup server
     api = view_server_app(
         mapping_policy=None,
-        access_policy=OnlyDirAccessPolicy([log_dir]) if not authorization else None,
-        default_dirs=[log_dir],
+        access_policy=OnlyDirAccessPolicy(resolved_dirs) if not authorization else None,
+        default_dirs=resolved_dirs,
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
@@ -656,7 +662,7 @@ def view_server(
     filter_fastapi_log()
 
     # run app
-    display().print(f"Inspect View: {log_dir}")
+    display().print(f"Inspect View: {', '.join(resolved_dirs)}")
 
     async def run_server() -> None:
         config = uvicorn.Config(
