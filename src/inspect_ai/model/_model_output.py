@@ -69,6 +69,29 @@ class ModelUsage(BaseModel):
         )
 
 
+class ModelFallback(BaseModel):
+    """A model fallback (request served by a different model than requested)."""
+
+    model: str
+    """Model that was originally requested."""
+
+    fallback_model: str
+    """Model that served the request after fallback."""
+
+    count: int = Field(default=1)
+    """Number of generate calls served via this fallback.
+
+    Always 1 on a single `ModelOutput`; aggregated in the sample-level
+    `model_fallbacks` rollup.
+    """
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Provider-specific fallback diagnostics (e.g. Anthropic handoffs/iterations).
+
+    Per-call only — not included in the aggregated sample-level rollup.
+    """
+
+
 StopReason = Literal[
     "stop",
     "max_tokens",
@@ -247,6 +270,9 @@ class ModelOutput(BaseModel):
 
     usage: ModelUsage | None = Field(default=None)
     """Model token usage"""
+
+    fallback: ModelFallback | None = Field(default=None)
+    """Model fallback that served this output (None if served by the requested model)."""
 
     time: float | None = Field(default=None)
     """Time elapsed (in seconds) for call to generate."""

@@ -71,6 +71,7 @@ inspect-docs:
         - text: Concurrency
           href: models-concurrency.qmd
         - href: compaction.qmd
+        - href: fallbacks.qmd
         - href: multimodal.qmd
         - href: reasoning.qmd
         - href: structured.qmd
