@@ -9,11 +9,12 @@ active session).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
 import tempfile
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -187,14 +188,33 @@ def _fake_hydration(sample_checkpoints_dir: str, context_dir: str) -> HydrationR
     )
 
 
-def _counting(config: ResolvedCheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
+@contextlib.asynccontextmanager
+async def _counting(
+    config: ResolvedCheckpointConfig, dirs: _Dirs
+) -> AsyncIterator[_CountingCheckpointer]:
+    """Yield a counting checkpointer, closing its trailing span on exit.
+
+    These policy tests drive fires directly rather than through the
+    production ``span_session()`` wrapper, so the ``checkpoint N`` span
+    that each fire reopens (``_open_next_span`` in ``_fire_once``'s
+    ``finally``) would otherwise never be exited. An abandoned span CM
+    is finalized later by GC inside whatever test happens to be running,
+    emitting a stray ``SpanEndEvent`` (plus an "Exiting span created in
+    another context" warning) into that test's transcript. Closing in
+    ``finally`` makes the cleanup structural rather than a per-test
+    obligation (``_close_current_span`` is a no-op when no fire opened
+    a span).
+    """
     cp = _CountingCheckpointer(
         config=config,
         hydration=_fake_hydration(dirs.checkpoints, dirs.context),
         resume_checkpoint=None,
         reset_transcript_store=True,
     )
-    return cp
+    try:
+        yield cp
+    finally:
+        await cp._close_current_span()
 
 
 class _FlakyError(RuntimeError):
@@ -236,28 +256,32 @@ async def test_turn_interval_fires_at_each_threshold(dirs: _Dirs) -> None:
     # First tick is informational (boundary before turn 1) — doesn't
     # count toward the threshold. With every=3, fires happen on ticks
     # 4, 7, 10 — capturing 3 turns each. 10 ticks → 3 fires.
-    cp = _counting(ResolvedCheckpointConfig(trigger=TurnInterval(every=3)), dirs)
-    for _ in range(10):
-        await cp.tick()
-    assert cp.fire_count == 3
+    async with _counting(
+        ResolvedCheckpointConfig(trigger=TurnInterval(every=3)), dirs
+    ) as cp:
+        for _ in range(10):
+            await cp.tick()
+        assert cp.fire_count == 3
 
 
 async def test_turn_interval_resets_counter_on_fire(dirs: _Dirs) -> None:
-    cp = _counting(ResolvedCheckpointConfig(trigger=TurnInterval(every=4)), dirs)
-    # 4 ticks: first is informational, then 3 turns elapsed — no fire.
-    for _ in range(4):
+    async with _counting(
+        ResolvedCheckpointConfig(trigger=TurnInterval(every=4)), dirs
+    ) as cp:
+        # 4 ticks: first is informational, then 3 turns elapsed — no fire.
+        for _ in range(4):
+            await cp.tick()
+        assert cp.fire_count == 0
+        # 5th tick → 4 turns elapsed → fire.
         await cp.tick()
-    assert cp.fire_count == 0
-    # 5th tick → 4 turns elapsed → fire.
-    await cp.tick()
-    assert cp.fire_count == 1
-    # counter reset; next fire requires another 4 turns (= 4 more ticks
-    # since the post-fire ticks all count).
-    for _ in range(3):
+        assert cp.fire_count == 1
+        # counter reset; next fire requires another 4 turns (= 4 more ticks
+        # since the post-fire ticks all count).
+        for _ in range(3):
+            await cp.tick()
+        assert cp.fire_count == 1
         await cp.tick()
-    assert cp.fire_count == 1
-    await cp.tick()
-    assert cp.fire_count == 2
+        assert cp.fire_count == 2
 
 
 # --- time-based -----------------------------------------------------------
@@ -271,29 +295,29 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
         return fake_now[0]
 
     with patch("inspect_ai.util._checkpoint.checkpointer_impl.time.monotonic", clock):
-        cp = _counting(
+        async with _counting(
             ResolvedCheckpointConfig(trigger=TimeInterval(every=timedelta(seconds=10))),
             dirs,
-        )
-        # First tick anchors the clock; never fires.
-        await cp.tick()
-        assert cp.fire_count == 0
+        ) as cp:
+            # First tick anchors the clock; never fires.
+            await cp.tick()
+            assert cp.fire_count == 0
 
-        fake_now[0] = 1004.0
-        await cp.tick()
-        assert cp.fire_count == 0
+            fake_now[0] = 1004.0
+            await cp.tick()
+            assert cp.fire_count == 0
 
-        fake_now[0] = 1010.0
-        await cp.tick()
-        assert cp.fire_count == 1
+            fake_now[0] = 1010.0
+            await cp.tick()
+            assert cp.fire_count == 1
 
-        # immediately again at t=1010 → does not fire (counter just reset)
-        await cp.tick()
-        assert cp.fire_count == 1
+            # immediately again at t=1010 → does not fire (counter just reset)
+            await cp.tick()
+            assert cp.fire_count == 1
 
-        fake_now[0] = 1025.0
-        await cp.tick()
-        assert cp.fire_count == 2
+            fake_now[0] = 1025.0
+            await cp.tick()
+            assert cp.fire_count == 2
 
 
 # --- token-based ----------------------------------------------------------
@@ -309,51 +333,51 @@ async def test_token_interval_fires_when_usage_crosses_threshold(
         return fake_tokens[0]
 
     with patch("inspect_ai.model._model.sample_total_tokens", tokens):
-        cp = _counting(
+        async with _counting(
             ResolvedCheckpointConfig(trigger=TokenInterval(every=1000)),
             dirs,
-        )
-        # First tick anchors reference at current total; never fires.
-        fake_tokens[0] = 50
-        await cp.tick()
-        assert cp.fire_count == 0
+        ) as cp:
+            # First tick anchors reference at current total; never fires.
+            fake_tokens[0] = 50
+            await cp.tick()
+            assert cp.fire_count == 0
 
-        # Delta = 700 < 1000 → no fire.
-        fake_tokens[0] = 750
-        await cp.tick()
-        assert cp.fire_count == 0
+            # Delta = 700 < 1000 → no fire.
+            fake_tokens[0] = 750
+            await cp.tick()
+            assert cp.fire_count == 0
 
-        # Delta = 1050 ≥ 1000 → fire, anchor resets to 1100.
-        fake_tokens[0] = 1100
-        await cp.tick()
-        assert cp.fire_count == 1
+            # Delta = 1050 ≥ 1000 → fire, anchor resets to 1100.
+            fake_tokens[0] = 1100
+            await cp.tick()
+            assert cp.fire_count == 1
 
-        # Immediately again at 1100 → no fire (just anchored).
-        await cp.tick()
-        assert cp.fire_count == 1
+            # Immediately again at 1100 → no fire (just anchored).
+            await cp.tick()
+            assert cp.fire_count == 1
 
-        # Delta = 1000 ≥ 1000 → fire.
-        fake_tokens[0] = 2100
-        await cp.tick()
-        assert cp.fire_count == 2
+            # Delta = 1000 ≥ 1000 → fire.
+            fake_tokens[0] = 2100
+            await cp.tick()
+            assert cp.fire_count == 2
 
 
 # --- manual ---------------------------------------------------------------
 
 
 async def test_manual_policy_tick_never_fires(dirs: _Dirs) -> None:
-    cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
-    for _ in range(50):
-        await cp.tick()
-    assert cp.fire_count == 0
+    async with _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs) as cp:
+        for _ in range(50):
+            await cp.tick()
+        assert cp.fire_count == 0
 
 
 async def test_checkpoint_method_fires(dirs: _Dirs) -> None:
-    cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
-    await cp.tick()
-    await cp.checkpoint()
-    await cp.checkpoint()
-    assert cp.fire_count == 2
+    async with _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs) as cp:
+        await cp.tick()
+        await cp.checkpoint()
+        await cp.checkpoint()
+        assert cp.fire_count == 2
 
 
 # --- CheckpointEvent emission ---------------------------------------------
@@ -363,23 +387,23 @@ async def test_fire_emits_checkpoint_event(dirs: _Dirs) -> None:
     """Successful fire appends a `CheckpointEvent` carrying the checkpoint."""
     from inspect_ai.event._checkpoint import CheckpointEvent
 
-    cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
-    await cp.tick()
-    await cp.checkpoint()
-    await cp.checkpoint()
+    async with _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs) as cp:
+        await cp.tick()
+        await cp.checkpoint()
+        await cp.checkpoint()
 
-    emitted = [e for e in dirs.events if isinstance(e, CheckpointEvent)]
-    assert len(emitted) == 2
+        emitted = [e for e in dirs.events if isinstance(e, CheckpointEvent)]
+        assert len(emitted) == 2
 
-    first, second = emitted
-    assert first.checkpoint_id == 1
-    assert first.trigger == "manual"
-    assert second.checkpoint_id == 2
-    assert second.trigger == "manual"
-    # Flattened checkpoint fields carry full per-repo info; with no real
-    # restic the stub values from `_CountingCheckpointer._backup_host`
-    # round-trip.
-    assert first.host.snapshot_id.startswith("fake-snap-")
+        first, second = emitted
+        assert first.checkpoint_id == 1
+        assert first.trigger == "manual"
+        assert second.checkpoint_id == 2
+        assert second.trigger == "manual"
+        # Flattened checkpoint fields carry full per-repo info; with no real
+        # restic the stub values from `_CountingCheckpointer._backup_host`
+        # round-trip.
+        assert first.host.snapshot_id.startswith("fake-snap-")
 
 
 async def test_fire_includes_events_emitted_before_checkpointer_construction(
@@ -396,8 +420,8 @@ async def test_fire_includes_events_emitted_before_checkpointer_construction(
         "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
         return_value=active_transcript,
     ):
-        cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
-        await cp.checkpoint()
+        async with _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs) as cp:
+            await cp.checkpoint()
 
     events = json.loads((Path(dirs.context) / "events.json").read_text())
     assert events[0]["uuid"] == preexisting.uuid
@@ -405,21 +429,23 @@ async def test_fire_includes_events_emitted_before_checkpointer_construction(
 
 
 async def test_fire_reopens_checkpoint_span_after_failure(dirs: _Dirs) -> None:
-    cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
-    assert cp._current_span_cm is None
-    await cp._open_next_span()
-    open_before = cp._current_span_cm
-    assert open_before is not None
+    async with _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs) as cp:
+        assert cp._current_span_cm is None
+        await cp._open_next_span()
+        open_before = cp._current_span_cm
+        assert open_before is not None
 
-    async def fail_write_host_context(*_args: object) -> None:
-        raise RuntimeError("write failed")
+        async def fail_write_host_context(*_args: object) -> None:
+            raise RuntimeError("write failed")
 
-    with patch.object(cp, "_write_host_context", side_effect=fail_write_host_context):
-        await cp.checkpoint()
+        with patch.object(
+            cp, "_write_host_context", side_effect=fail_write_host_context
+        ):
+            await cp.checkpoint()
 
-    assert cp._current_span_cm is not None
-    assert cp._current_span_cm is not open_before
-    await cp._close_current_span()
+        assert cp._current_span_cm is not None
+        assert cp._current_span_cm is not open_before
+        await cp._close_current_span()
 
 
 # --- hydrate: resume-state validation -------------------------------------
@@ -763,9 +789,9 @@ async def test_fire_emits_trace_action(dirs: _Dirs) -> None:
     target.addHandler(handler)
     target.setLevel(TRACE)
     try:
-        cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
-        await cp.tick()
-        await cp.checkpoint()
+        async with _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs) as cp:
+            await cp.tick()
+            await cp.checkpoint()
     finally:
         target.removeHandler(handler)
         target.setLevel(prev_level)
