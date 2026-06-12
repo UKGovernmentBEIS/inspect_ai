@@ -17,6 +17,7 @@
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
 - S3: Retry when requests have stale signatures.
 - Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
+- Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects
 
 ## 0.3.239 (09 June 2026)
 
