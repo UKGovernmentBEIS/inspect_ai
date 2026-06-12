@@ -197,6 +197,21 @@ def _counting(config: ResolvedCheckpointConfig, dirs: _Dirs) -> _CountingCheckpo
     return cp
 
 
+async def _close_trailing_span(cp: _EnteredCheckpointer) -> None:
+    """Close the `checkpoint N` span left open by the last fire.
+
+    These policy tests drive fires directly rather than through the
+    production ``span_session()`` wrapper, so the span that each fire
+    reopens (``_open_next_span`` in ``_fire_once``'s ``finally``) is
+    never exited. An abandoned span CM is finalized later by GC inside
+    whatever test happens to be running, emitting a stray
+    ``SpanEndEvent`` (plus an "Exiting span created in another context"
+    warning) into that test's transcript. Every test that triggers at
+    least one fire must call this before returning.
+    """
+    await cp._close_current_span()
+
+
 class _FlakyError(RuntimeError):
     """Sentinel raised by `_FlakyCheckpointer` to stand in for a fire failure."""
 
@@ -240,6 +255,7 @@ async def test_turn_interval_fires_at_each_threshold(dirs: _Dirs) -> None:
     for _ in range(10):
         await cp.tick()
     assert cp.fire_count == 3
+    await _close_trailing_span(cp)
 
 
 async def test_turn_interval_resets_counter_on_fire(dirs: _Dirs) -> None:
@@ -258,6 +274,7 @@ async def test_turn_interval_resets_counter_on_fire(dirs: _Dirs) -> None:
     assert cp.fire_count == 1
     await cp.tick()
     assert cp.fire_count == 2
+    await _close_trailing_span(cp)
 
 
 # --- time-based -----------------------------------------------------------
@@ -294,6 +311,7 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
         fake_now[0] = 1025.0
         await cp.tick()
         assert cp.fire_count == 2
+        await _close_trailing_span(cp)
 
 
 # --- token-based ----------------------------------------------------------
@@ -336,6 +354,7 @@ async def test_token_interval_fires_when_usage_crosses_threshold(
         fake_tokens[0] = 2100
         await cp.tick()
         assert cp.fire_count == 2
+        await _close_trailing_span(cp)
 
 
 # --- manual ---------------------------------------------------------------
@@ -354,6 +373,7 @@ async def test_checkpoint_method_fires(dirs: _Dirs) -> None:
     await cp.checkpoint()
     await cp.checkpoint()
     assert cp.fire_count == 2
+    await _close_trailing_span(cp)
 
 
 # --- CheckpointEvent emission ---------------------------------------------
@@ -380,6 +400,7 @@ async def test_fire_emits_checkpoint_event(dirs: _Dirs) -> None:
     # restic the stub values from `_CountingCheckpointer._backup_host`
     # round-trip.
     assert first.host.snapshot_id.startswith("fake-snap-")
+    await _close_trailing_span(cp)
 
 
 async def test_fire_includes_events_emitted_before_checkpointer_construction(
@@ -398,6 +419,7 @@ async def test_fire_includes_events_emitted_before_checkpointer_construction(
     ):
         cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
         await cp.checkpoint()
+        await _close_trailing_span(cp)
 
     events = json.loads((Path(dirs.context) / "events.json").read_text())
     assert events[0]["uuid"] == preexisting.uuid
@@ -766,6 +788,7 @@ async def test_fire_emits_trace_action(dirs: _Dirs) -> None:
         cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
         await cp.tick()
         await cp.checkpoint()
+        await _close_trailing_span(cp)
     finally:
         target.removeHandler(handler)
         target.setLevel(prev_level)
