@@ -1140,7 +1140,11 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "qwen3-model",
                 "choices": [
-                    {"index": 0, "delta": {"reasoning": "Let me think"}, "finish_reason": None}
+                    {
+                        "index": 0,
+                        "delta": {"reasoning": "Let me think"},
+                        "finish_reason": None,
+                    }
                 ],
             },
             {
@@ -1148,7 +1152,11 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "qwen3-model",
                 "choices": [
-                    {"index": 0, "delta": {"reasoning": " about this"}, "finish_reason": None}
+                    {
+                        "index": 0,
+                        "delta": {"reasoning": " about this"},
+                        "finish_reason": None,
+                    }
                 ],
             },
             {
@@ -1156,7 +1164,11 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "qwen3-model",
                 "choices": [
-                    {"index": 0, "delta": {"content": "The answer is A"}, "finish_reason": None}
+                    {
+                        "index": 0,
+                        "delta": {"content": "The answer is A"},
+                        "finish_reason": None,
+                    }
                 ],
             },
             {
@@ -1170,13 +1182,21 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "qwen3-model",
                 "choices": [],
-                "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30},
+                "usage": {
+                    "prompt_tokens": 20,
+                    "completion_tokens": 10,
+                    "total_tokens": 30,
+                },
             },
         ]
 
         async def mock_event_stream():
             for chunk in chunks:
-                yield {"PayloadPart": {"Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")}}
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
 
         mock_client = AsyncMock()
         mock_client.invoke_endpoint_with_response_stream = AsyncMock(
@@ -1196,7 +1216,10 @@ class TestStreamingReasoning:
 
         assert model_output.completion == "The answer is A"
         # Verify reasoning was captured in the response for downstream parsing
-        assert model_call.response["choices"][0]["message"].get("reasoning_content") == "Let me think about this"
+        assert (
+            model_call.response["choices"][0]["message"].get("reasoning_content")
+            == "Let me think about this"
+        )
 
     @pytest.mark.anyio
     async def test_streaming_captures_reasoning_content_field(self):
@@ -1209,7 +1232,11 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "thinking-model",
                 "choices": [
-                    {"index": 0, "delta": {"content": None, "reasoning_content": "Thinking..."}, "finish_reason": None}
+                    {
+                        "index": 0,
+                        "delta": {"content": None, "reasoning_content": "Thinking..."},
+                        "finish_reason": None,
+                    }
                 ],
             },
             {
@@ -1217,7 +1244,11 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "thinking-model",
                 "choices": [
-                    {"index": 0, "delta": {"content": "Answer: B"}, "finish_reason": None}
+                    {
+                        "index": 0,
+                        "delta": {"content": "Answer: B"},
+                        "finish_reason": None,
+                    }
                 ],
             },
             {
@@ -1225,13 +1256,21 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "thinking-model",
                 "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-                "usage": {"prompt_tokens": 15, "completion_tokens": 8, "total_tokens": 23},
+                "usage": {
+                    "prompt_tokens": 15,
+                    "completion_tokens": 8,
+                    "total_tokens": 23,
+                },
             },
         ]
 
         async def mock_event_stream():
             for chunk in chunks:
-                yield {"PayloadPart": {"Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")}}
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
 
         mock_client = AsyncMock()
         mock_client.invoke_endpoint_with_response_stream = AsyncMock(
@@ -1250,7 +1289,10 @@ class TestStreamingReasoning:
         model_output, model_call = result
 
         assert model_output.completion == "Answer: B"
-        assert model_call.response["choices"][0]["message"].get("reasoning_content") == "Thinking..."
+        assert (
+            model_call.response["choices"][0]["message"].get("reasoning_content")
+            == "Thinking..."
+        )
 
     @pytest.mark.anyio
     async def test_streaming_reasoning_only_no_content(self):
@@ -1263,7 +1305,11 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "qwen3-model",
                 "choices": [
-                    {"index": 0, "delta": {"reasoning": "Deep reasoning here..."}, "finish_reason": None}
+                    {
+                        "index": 0,
+                        "delta": {"reasoning": "Deep reasoning here..."},
+                        "finish_reason": None,
+                    }
                 ],
             },
             {
@@ -1271,13 +1317,21 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "qwen3-model",
                 "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
             },
         ]
 
         async def mock_event_stream():
             for chunk in chunks:
-                yield {"PayloadPart": {"Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")}}
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
 
         mock_client = AsyncMock()
         mock_client.invoke_endpoint_with_response_stream = AsyncMock(
@@ -1297,7 +1351,10 @@ class TestStreamingReasoning:
 
         # Content is empty but reasoning is preserved
         assert model_output.completion == ""
-        assert model_call.response["choices"][0]["message"]["reasoning_content"] == "Deep reasoning here..."
+        assert (
+            model_call.response["choices"][0]["message"]["reasoning_content"]
+            == "Deep reasoning here..."
+        )
 
     @pytest.mark.anyio
     async def test_streaming_no_reasoning_field_when_absent(self):
@@ -1310,15 +1367,27 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "normal-model",
                 "choices": [
-                    {"index": 0, "delta": {"content": "Just text"}, "finish_reason": "stop"}
+                    {
+                        "index": 0,
+                        "delta": {"content": "Just text"},
+                        "finish_reason": "stop",
+                    }
                 ],
-                "usage": {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7},
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 2,
+                    "total_tokens": 7,
+                },
             },
         ]
 
         async def mock_event_stream():
             for chunk in chunks:
-                yield {"PayloadPart": {"Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")}}
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
 
         mock_client = AsyncMock()
         mock_client.invoke_endpoint_with_response_stream = AsyncMock(
@@ -1380,7 +1449,12 @@ class TestStreamingReasoning:
                         "index": 0,
                         "delta": {
                             "tool_calls": [
-                                {"index": 0, "id": "call_1", "type": "function", "function": {"name": "search", "arguments": ""}}
+                                {
+                                    "index": 0,
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {"name": "search", "arguments": ""},
+                                }
                             ]
                         },
                         "finish_reason": None,
@@ -1424,13 +1498,21 @@ class TestStreamingReasoning:
                 "created": 1700000000,
                 "model": "tool-model",
                 "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
             },
         ]
 
         async def mock_event_stream():
             for chunk in chunks:
-                yield {"PayloadPart": {"Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")}}
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
 
         mock_client = AsyncMock()
         mock_client.invoke_endpoint_with_response_stream = AsyncMock(
@@ -1501,14 +1583,24 @@ class TestStreamingReasoning:
                 "id": "chatcmpl-opt",
                 "created": 1700000000,
                 "model": "m",
-                "choices": [{"index": 0, "delta": {"content": "ok"}, "finish_reason": "stop"}],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                "choices": [
+                    {"index": 0, "delta": {"content": "ok"}, "finish_reason": "stop"}
+                ],
+                "usage": {
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "total_tokens": 2,
+                },
             },
         ]
 
         async def mock_event_stream():
             for chunk in chunks:
-                yield {"PayloadPart": {"Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")}}
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
 
         mock_client = AsyncMock()
         mock_client.invoke_endpoint_with_response_stream = AsyncMock(

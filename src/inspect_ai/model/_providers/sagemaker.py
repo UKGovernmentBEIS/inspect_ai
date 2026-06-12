@@ -650,9 +650,7 @@ class SagemakerAPI(ModelAPI):
         if accumulated_reasoning:
             message["reasoning_content"] = accumulated_reasoning
         if tool_calls:
-            message["tool_calls"] = [
-                tool_calls[i] for i in sorted(tool_calls)
-            ]
+            message["tool_calls"] = [tool_calls[i] for i in sorted(tool_calls)]
 
         final_response = {
             "id": final_id,
