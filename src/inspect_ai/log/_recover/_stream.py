@@ -117,7 +117,12 @@ def _write_sample_streaming(
     call_pool: list[JsonValue] = []
     msg_index: dict[str, int] = {}
     call_index: dict[str, int] = {}
-    walk_context = WalkContext(message_cache={}, only_core=False)
+    events_context = WalkContext(message_cache={}, only_core=False)
+    # The events and messages walks rewrite content differently (condense_event
+    # pools long text as attachments; messages_fn leaves it inline), so they
+    # must not share a message cache: a hit crossing content functions would
+    # leak attachment refs into fields that keep long text inline.
+    messages_context = WalkContext(message_cache={}, only_core=False)
     accumulator = MessageAccumulator()
 
     # Per-sample reconstruction state captured from raw events
@@ -240,7 +245,7 @@ def _write_sample_streaming(
             stream.write(b',"events":[')
             if include_events and raw_events:
                 condensed = [
-                    condense_event(ev, attachments, context=walk_context)
+                    condense_event(ev, attachments, context=events_context)
                     for ev in raw_events
                 ]
 
@@ -290,8 +295,10 @@ def _write_sample_streaming(
 
             # Walk messages for attachment refs
             messages_fn = messages_attachment_fn(attachments)
-            walked_input = walk_input(summary.input, messages_fn, walk_context)
-            walked_messages = walk_chat_messages(messages, messages_fn, walk_context)
+            walked_input = walk_input(summary.input, messages_fn, messages_context)
+            walked_messages = walk_chat_messages(
+                messages, messages_fn, messages_context
+            )
 
             # Sample init-derived fields
             _write_json_field(stream, "sandbox", sandbox_value, comma=True)
