@@ -832,12 +832,10 @@ class Model:
         """
         config = self._resolve_config(config)
 
-        # retry handler for token counting (429/timeouts retried with the
+        # Retry handler for token counting (429/timeouts retried with the
         # same backoff and adaptive-controller signaling as `generate`).
-        # No per-model concurrency cap: count_tokens is O(delta) under the
-        # compaction baseline mechanism, max_samples already provides the
-        # structural ceiling, retries handle rate limits, and provider
-        # count_tokens envelopes are wider than generate envelopes.
+        # Count-token calls still need the model connection cap: a caller can
+        # fan out many counts inside one sample before any generate() happens.
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -855,7 +853,8 @@ class Model:
         ) -> int:
             return await self.api.count_tokens(input, config)
 
-        return await _count_tokens(input, config)
+        async with self._connection_concurrency(config):
+            return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
