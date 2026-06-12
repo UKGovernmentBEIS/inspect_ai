@@ -83,6 +83,8 @@ def parse_retry_details(details: dict | None) -> float | None:
 
     items = details.get("error", {}).get("details", [])
     for item in items:
+        if "retryDelay" not in item:
+            continue
         delay = item["retryDelay"]
         return float(delay.removesuffix("s"))
 
