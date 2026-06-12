@@ -1,3 +1,4 @@
+import gzip
 import os
 import subprocess
 import sys
@@ -19,7 +20,7 @@ from inspect_ai._util.package import get_package_direct_url
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util import input_screen
 from inspect_ai.util._concurrency import concurrency
-from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_file_detector,
@@ -94,22 +95,39 @@ async def sandbox_with_injected_tools(
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
     try:
         info = await detect_sandbox_os(sandbox)
+        musl = info.get("libc") == "musl"
 
-        async with _open_executable_for_arch(info["architecture"]) as (_, f):
-            # TODO: The first tuple member, filename, isn't currently used, but it will be
-            await sandbox.write_file(SANDBOX_CLI, f.read())
-            # .write_file used `tee` which dropped execute permissions.
-            # Try root-only (0o700) first so the agent can't execute the binary;
-            # fall back to world-executable (+x) for sandboxes without root.
-            result = await sandbox.exec(["chmod", "700", SANDBOX_CLI], user="root")
-            if result.success:
-                sandbox._tools_user = "root"
-            else:
-                result = await sandbox.exec(["chmod", "+x", SANDBOX_CLI])
-                if not result.success:
-                    raise RuntimeError(
-                        f"Failed to chmod sandbox tools binary: {result.stderr}"
-                    )
+        async with _open_executable_for_arch(info["architecture"], musl) as (name, f):
+            gz_bytes = f.read()  # gzipped tar of the PyInstaller --onedir tree
+
+        # Create the install dir as root if possible so the tree is root-owned and
+        # can be hidden from the agent; fall back to the default user for rootless
+        # sandboxes (where user-switching will be disabled, auto-detected by the
+        # server).
+        if (
+            await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR], user="root")
+        ).success:
+            sandbox._tools_user = "root"
+        else:
+            result = await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR])
+            if not result.success:
+                raise RuntimeError(
+                    f"Failed to create sandbox tools dir: {result.stderr}"
+                )
+
+        await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
+
+        # When running as root, restrict the tree so the agent can neither read nor
+        # execute the tools. The default user (the one that runs `exec`) is root, so
+        # this does not impede tool calls.
+        if sandbox._tools_user == "root":
+            result = await sandbox.exec(
+                ["chmod", "700", SANDBOX_TOOLS_DIR], user="root"
+            )
+            if not result.success:
+                raise RuntimeError(
+                    f"Failed to chmod sandbox tools dir: {result.stderr}"
+                )
 
         # Start the server as root so it can setuid to any user for exec_remote.
         # If root isn't available, fall back to the sandbox's default user —
@@ -125,6 +143,72 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         ) from e
 
 
+async def _extract_tools_tree(
+    sandbox: SandboxEnvironment, name: str, gz_bytes: bytes, user: str | None
+) -> None:
+    """Extract the gzipped onedir tar into SANDBOX_TOOLS_DIR.
+
+    The artifact is staged to a temp file via write_file (which base64-encodes binary
+    content reliably; raw binary stdin through exec is not safe) and then extracted.
+
+    Optimistic path: ship the compressed artifact and extract with `tar xzf`. If the
+    container's `tar` lacks gzip support, fall back to injecting an uncompressed tar,
+    which only needs plain `tar xf` (the broadest assumption). The uncompressed tar is
+    cached in the binaries dir so we decompress at most once per artifact.
+    """
+    gz_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tgz"
+    await sandbox.write_file(gz_tmp, gz_bytes)
+    result = await sandbox.exec(
+        ["tar", "xzf", gz_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
+    )
+    await sandbox.exec(["rm", "-f", gz_tmp], user=user)
+    if result.success:
+        return
+
+    # Fallback: the container's tar can't gunzip. Inject the uncompressed tar.
+    trace_message(
+        logger,
+        TRACE_SANDBOX_TOOLS,
+        f"tar xzf failed ({result.stderr.strip()}); retrying with uncompressed tar",
+    )
+    tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
+    await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes))
+    result = await sandbox.exec(
+        ["tar", "xf", tar_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
+    )
+    await sandbox.exec(["rm", "-f", tar_tmp], user=user)
+    if not result.success:
+        raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
+
+
+def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:
+    """Return the uncompressed tar for an artifact, caching it in the binaries dir.
+
+    Used only by the fallback extraction path. Decompresses once and caches the result
+    next to the gzipped artifact (as `<name>.tar`) so repeated injections into
+    gzip-less sandboxes reuse it rather than re-decompressing each time. The write is
+    atomic so concurrent injections can't observe a partial file. Caching is
+    best-effort: if the binaries dir isn't writable (e.g. a locked-down install) we
+    just return the decompressed bytes rather than failing injection.
+    """
+    binaries_path = Path(inspect_ai.__file__).parent / "binaries"
+    cache_path = binaries_path / f"{name}.tar"
+    if cache_path.exists():
+        return cache_path.read_bytes()
+
+    tar_bytes = gzip.decompress(gz_bytes)
+    try:
+        binaries_path.mkdir(exist_ok=True)
+        tmp_path = cache_path.with_suffix(".tar.tmp")
+        tmp_path.write_bytes(tar_bytes)
+        os.replace(tmp_path, cache_path)
+    except OSError as ex:
+        trace_message(
+            logger, TRACE_SANDBOX_TOOLS, f"could not cache uncompressed tar: {ex}"
+        )
+    return tar_bytes
+
+
 @asynccontextmanager
 async def _open_executable(executable: str) -> AsyncIterator[BinaryIO]:
     """Open the executable file from the binaries package."""
@@ -135,13 +219,16 @@ async def _open_executable(executable: str) -> AsyncIterator[BinaryIO]:
                 yield f
 
 
-def _prompt_user_action(message: str, executable_name: str, arch: Architecture) -> None:
+def _prompt_user_action(
+    message: str, executable_name: str, arch: Architecture, musl: bool
+) -> None:
     """Prompt user for confirmation and raise PrerequisiteError if declined.
 
     Args:
         message: The message to display to the user
         executable_name: Name of the executable for error message
         arch: Architecture for build instructions
+        musl: Whether the missing executable is the musl variant (adds --musl)
 
     Raises:
         PrerequisiteError: If user declines the action
@@ -159,19 +246,24 @@ def _prompt_user_action(message: str, executable_name: str, arch: Architecture) 
         response = "n"
 
     if response != "y":
+        build_cmd = (
+            "python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py "
+            f"--arch {arch}" + (" --musl" if musl else "")
+        )
         raise PrerequisiteError(
             f"Container tools executable {executable_name} is required but not present. "
-            f"To build it, run: python src/inspect_ai/tool/sandbox_tools/build_within_container.py --arch {arch}"
+            f"To build it, run: {build_cmd}"
         )
 
 
 @asynccontextmanager
 async def _open_executable_for_arch(
     arch: Architecture,
+    musl: bool,
 ) -> AsyncIterator[tuple[str, BinaryIO]]:
     install_state = _get_install_state()
 
-    executable_name = _get_executable_name(arch, install_state == "edited")
+    executable_name = _get_executable_name(arch, install_state == "edited", musl)
 
     trace_message(logger, TRACE_SANDBOX_TOOLS, f"looking for {executable_name}")
 
@@ -185,10 +277,17 @@ async def _open_executable_for_arch(
                 return
         except (FileNotFoundError, ModuleNotFoundError, NotADirectoryError):
             if install_state == "pypi":
-                msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
-                # TODO: once we get the github CI/CD actions robust, this should be fatal
-                # raise PrerequisiteError(msg)
-                warn_once(logger, msg)
+                if musl:
+                    trace_message(
+                        logger,
+                        TRACE_SANDBOX_TOOLS,
+                        f"musl executable {executable_name} not bundled in PyPI package; attempting S3 download",
+                    )
+                else:
+                    msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
+                    # TODO: once we get the github CI/CD actions robust, this should be fatal
+                    # raise PrerequisiteError(msg)
+                    warn_once(logger, msg)
 
         # S3 Download Attempt. "pypi" might be wrongly detected, e.g., when UV_NO_INSTALLER_METADATA=1
         if install_state in {"clean", "pypi"}:
@@ -206,7 +305,7 @@ async def _open_executable_for_arch(
             # download from S3. This scenario is similar to the pypi error just above.
 
         # Build it locally
-        await _build_it(arch, executable_name)
+        await _build_it(arch, musl, executable_name)
 
         async with _open_executable(executable_name) as f:
             yield executable_name, f
@@ -219,12 +318,13 @@ def _get_sandbox_tools_version() -> str:
     return version_file.read_text().strip()
 
 
-def _get_executable_name(arch: Architecture, dev: bool) -> str:
+def _get_executable_name(arch: Architecture, dev: bool, musl: bool) -> str:
     return config_to_filename(
         SandboxToolsBuildConfig(
             arch=arch,
             version=int(_get_sandbox_tools_version()),
             suffix="dev" if dev else None,
+            musl=musl,
         )
     )
 
@@ -259,11 +359,12 @@ async def _download_from_s3(filename: str) -> bool:
         raise
 
 
-async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
+async def _build_it(arch: Architecture, musl: bool, dev_executable_name: str) -> None:
     _prompt_user_action(
         f"Executable '{dev_executable_name}' not found. Build locally? (requires Docker)",
         dev_executable_name,
         arch,
+        musl,
     )
 
     # Find the build script
@@ -276,7 +377,8 @@ async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
 
     # Run the build script
     subprocess.run(
-        [sys.executable, str(build_script_path), "--arch", arch],
+        [sys.executable, str(build_script_path), "--arch", arch]
+        + (["--musl"] if musl else []),
         capture_output=True,
         text=True,
         check=True,

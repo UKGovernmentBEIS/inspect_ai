@@ -71,6 +71,7 @@ inspect-docs:
         - text: Concurrency
           href: models-concurrency.qmd
         - href: compaction.qmd
+        - href: fallbacks.qmd
         - href: multimodal.qmd
         - href: reasoning.qmd
         - href: structured.qmd
@@ -116,6 +117,7 @@ inspect-docs:
         - href: parallelism.qmd
         - href: handling-errors.qmd
         - href: setting-limits.qmd
+        - href: control-channel.qmd
         - href: early-stopping.qmd
         - href: tracing.qmd   
     - text: Analysis

@@ -66,6 +66,7 @@ from ._score import edit_score
 from ._transcript import (
     Transcript,
     TranscriptHistory,
+    TranscriptHistoryUnavailableError,
     transcript,
 )
 
@@ -93,6 +94,7 @@ __all__ = [
     "EvalLogInfo",
     "Transcript",
     "TranscriptHistory",
+    "TranscriptHistoryUnavailableError",
     "transcript",
     "convert_eval_logs",
     "list_eval_logs",

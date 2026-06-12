@@ -241,12 +241,42 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
-    def test_claude_latest_defaults_to_200k(self):
-        """Test that a future Claude model (is_claude_latest) maps to haiku-4-5 (200K)."""
+    def test_claude_fable_5(self):
+        """Test that Claude Fable 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-fable-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_mythos_5(self):
+        """Test that Claude Mythos 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-mythos-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_latest_defaults_to_1m(self):
+        """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""
         # Use a hypothetical future model name that triggers is_claude_latest()
         model = get_model("anthropic/claude-sonnet-4-9")
         tokens = get_model_input_tokens(model)
-        assert tokens == 200_000
+        assert tokens == 1_000_000
+
+    def test_unregistered_claude_5_defaults_to_1m(self):
+        """Unregistered Claude 5 variants assume the 1M frontier.
+
+        Claude 5 detection matches any ``claude-*-5``, so a tier-named
+        ``claude-opus-5-0`` or a new codename ``claude-saga-5`` is classified as
+        Claude 5 (is_claude_5) even though it is not in the database. The
+        input_tokens_name() fallback must still resolve such names to 1M rather
+        than missing the database lookup entirely.
+        """
+        for model_name in (
+            "anthropic/claude-opus-5-0",
+            "anthropic/claude-sonnet-5-0",
+            "anthropic/claude-saga-5",
+        ):
+            model = get_model(model_name)
+            tokens = get_model_input_tokens(model)
+            assert tokens == 1_000_000, model_name
 
     def test_claude_latest_with_1m_beta(self):
         """Test that a future Claude model with 1M beta maps to opus-4-6 (1MM)."""

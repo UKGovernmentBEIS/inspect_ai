@@ -154,7 +154,7 @@ from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
-from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE, ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._code_execution import (
@@ -470,7 +470,7 @@ def tool_from_responses_tool(
         return ToolInfo(
             name=f"mcp_server_{config.name}",
             description=f"mcp_server_{config.name}",
-            options=config.model_dump(),
+            options={INTERNAL_TOOL_TYPE: "mcp_call", **config.model_dump()},
         )
     elif is_tool_search_tool_param(tool_param):
         # client-resolved tool discovery (e.g. codex-cli). Preserve the native

@@ -21,10 +21,10 @@ Sample-root selection:
   host egress (out of scope here) ships state to the remote sample
   checkpoints dir at fire time.
 
-Structure (see ``design/plans/checkpointing-hydration.md`` §3):
+Structure:
 
 - ``_hydrate`` (orchestrator): Phase 1 prologue (paths / dirs /
-  ``sample.json`` / restic binary), then Phase 2 with ``_hydrate_host``
+  ``restic/restic-config.json`` / restic binary), then Phase 2 with ``_hydrate_host``
   and ``_hydrate_sandboxes`` in parallel.
 - ``_hydrate_host``: host repo init or restore.
 - ``_hydrate_sandboxes``: dispatches ``_hydrate_sandbox`` per sandbox in
@@ -39,7 +39,6 @@ using the returned :class:`_HydrationResult`.
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -87,7 +86,6 @@ from .config import ResolvedCheckpointConfig
 from .sandbox_paths import SandboxBackupPaths, resolve_sandbox_backup_paths
 
 logger = getLogger(__name__)
-_DISABLE_ENV_VAR = "INSPECT_CHECKPOINT_VALIDATE_DISABLE"
 
 
 @dataclass
@@ -179,7 +177,7 @@ async def hydrate(
     )
 
     # Phase 1: synchronous prologue. After this completes, every Phase 2
-    # function can read the password from <sample_root>/sample.json
+    # function can read the password from <sample_root>/restic/restic-config.json
     # and reach restic on the host.
     new_eval_checkpoints_dir = eval_checkpoints_dir(
         log_location, config.checkpoints_location
@@ -500,9 +498,9 @@ async def _fs_copy_repo(
     src_base = f"{old_sample_dir}/{subpath}"
     new_root = Path(new_repo)
     written: list[str] = []
-    # `iter_files` yields URIs verbatim-prefixed by `src_base` for S3, but
-    # fsspec-normalized (absolute) for local sources — so slicing by
-    # `len(src_base)` mangles local relative sources. Relativize against the
+    # `iter_files` yields URIs whose prefix may not match `src_base` verbatim
+    # (e.g. a relative local `src_base` comes back as an absolute `file://`
+    # URI) — so slicing by `len(src_base)` is wrong. Relativize against the
     # `/<subpath>/` repo-root boundary instead: it's the last such marker in
     # the URI (a restic repo's own tree never contains `<subpath>`), so this
     # is correct regardless of how the backend normalizes the prefix.
@@ -807,16 +805,27 @@ def _validate_resume_state(
       (the highest cleanly-parsing checkpoint id — the true commit
       point).
 
-    Runs by default while the checkpoint code stabilizes. Set
-    ``INSPECT_CHECKPOINT_VALIDATE_DISABLE`` to skip it — a surgical escape
-    hatch for tests that drive the resume push with non-resume-shaped stub
-    data.
+    Runs by default while the checkpoint code stabilizes.
     """
-    if bool(os.environ.get(_DISABLE_ENV_VAR)):
-        return
-
     sample_dir = Path(local_path(sample_root))
-    checkpoint_files = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
+    checkpoint_ids: list[int] = []
+    for checkpoint_file in sample_dir.glob("ckpt-*.json"):
+        try:
+            filename_id = int(checkpoint_file.stem.removeprefix("ckpt-"))
+        except ValueError:
+            continue
+
+        try:
+            checkpoint = Checkpoint.model_validate_json(checkpoint_file.read_bytes())
+        except (ValueError, OSError):
+            continue
+        if checkpoint.checkpoint_id != filename_id:
+            raise RuntimeError(
+                f"[hydrate.validate] checkpoint file id mismatch for "
+                f"{checkpoint_file.name}: filename id {filename_id}, "
+                f"content id {checkpoint.checkpoint_id}"
+            )
+        checkpoint_ids.append(filename_id)
 
     # Walk events: collect checkpoint + prior_run span_begins,
     # CheckpointEvents, and all span_ends (span_end has no type attr —
@@ -833,10 +842,8 @@ def _validate_resume_state(
                 wrap_begins.append((i, e.name, e.id))
         elif isinstance(e, SpanEndEvent):
             end_by_id[e.id] = i
-        elif e.event == "checkpoint":
-            ckpt_id = getattr(e, "checkpoint_id", None)
-            if ckpt_id is not None:
-                checkpoint_events.append((i, ckpt_id))
+        elif isinstance(e, CheckpointEvent):
+            checkpoint_events.append((i, e.checkpoint_id))
 
     # --- assertions ---
     if not events:
@@ -909,10 +916,11 @@ def _validate_resume_state(
             f"{len(checkpoint_begins)}"
         )
 
-    if len(checkpoint_files) != len(checkpoint_begins):
+    expected_checkpoint_ids = list(range(1, expected_span_count + 1))
+    if expected_span_count > 0 and expected_span_count not in checkpoint_ids:
         raise RuntimeError(
-            f"[hydrate.validate] checkpoint file count ({len(checkpoint_files)}) != "
-            f"checkpoint span count ({len(checkpoint_begins)})"
+            f"[hydrate.validate] latest committed checkpoint file "
+            f"ckpt-{expected_span_count:05d}.json is missing or unparseable"
         )
 
     if expected_span_count != len(checkpoint_events):
@@ -922,12 +930,11 @@ def _validate_resume_state(
             f"hydrate-time), got {len(checkpoint_events)}"
         )
 
-    expected_event_ids = list(range(1, expected_span_count + 1))
     actual_event_ids = [ckpt_id for _, ckpt_id in checkpoint_events]
-    if actual_event_ids != expected_event_ids:
+    if actual_event_ids != expected_checkpoint_ids:
         raise RuntimeError(
             f"[hydrate.validate] CheckpointEvent checkpoint_id sequence "
-            f"mismatch. expected {expected_event_ids}, "
+            f"mismatch. expected {expected_checkpoint_ids}, "
             f"got {actual_event_ids}"
         )
 
