@@ -62,14 +62,29 @@ class TranscriptEventStore:
             self._reset_files()
         self._conn = connect(self._path, check_same_thread=False)
         self._lock = RLock()
-        # one store per sample transcript; full pool state lives in SQLite, so
-        # on a reopened store these start empty and _pool_pos transparently
-        # resolves existing rows by hash
+        # one store per sample transcript; full pool state lives in SQLite,
+        # and the in-memory indices are seeded from existing rows below so a
+        # reopened store dedups re-sent history against them
         self._msg_pool_index = MessagePoolIndex()
         self._call_pool_index = CallPoolIndex()
+        self._merge_cursors: dict[str, int] = {"message_pool": 0, "call_pool": 0}
         self._conn.row_factory = None
         self._closed = False
         self._init_schema(self._conn)
+        # Reopened stores have rows the empty in-memory indices don't know
+        # about; seed hash lookup state (first occurrence per hash) so the
+        # break path dedups re-sent history against existing rows. The
+        # condense callbacks insert unconditionally (the helper owns dedup),
+        # so without this seeding every reopen would duplicate re-sent
+        # history rows.
+        for pos, hash_value in self._conn.execute(
+            "SELECT pos, hash FROM message_pool ORDER BY pos"
+        ):
+            self._msg_pool_index.add_hash_only(str(hash_value), int(pos))
+        for pos, hash_value in self._conn.execute(
+            "SELECT pos, hash FROM call_pool ORDER BY pos"
+        ):
+            self._call_pool_index.add_hash(str(hash_value), int(pos), new_entry=False)
 
     @property
     def path(self) -> Path:
@@ -156,11 +171,61 @@ class TranscriptEventStore:
                     attachment_refs_from_value(event_jsonable), attachment_lookup
                 )
 
+    def _merge_pool_entry(
+        self, table: str, hash_value: str, json_text: str, *, dedup: bool = False
+    ) -> int:
+        """Merge one entry of a position-ordered pool list.
+
+        Positional-prefix semantics: sequential calls walk the existing
+        table from pos 0 via a per-table cursor. A hash match at the
+        cursor reuses that row (so re-seeding the same pool list is
+        idempotent and position-preserving); otherwise the entry is
+        appended — or, with ``dedup=True``, first looked up by hash
+        anywhere in the table.
+
+        ``dedup=False`` (hydration seeding): merged condensed events keep
+        their refs verbatim, so positions must round-trip exactly; a
+        hash-keyed merge would collapse occurrence rows (equal-content
+        rows at distinct positions), shifting every later position and
+        corrupting those refs.
+
+        ``dedup=True`` (buffer export): the caller remaps refs through the
+        returned positions, so cross-boundary hash dedup is safe — and
+        needed, because export runs after seeding and the buffer's
+        re-condensed history would otherwise duplicate every seeded row.
+
+        The cursor is not rewound on transaction rollback. That is safe:
+        a stale cursor pointing past the rolled-back row misses the
+        positional match and falls through to append / ``dedup`` lookup,
+        which never returns a wrong position — the cost is one skipped
+        cursor-match, not corruption. (``merge_message_pool`` /
+        ``merge_call_pool`` additionally reset the cursor to 0 on entry.)
+        """
+        cursor = self._merge_cursors[table]
+        row = self._conn.execute(
+            f"SELECT hash FROM {table} WHERE pos = ?", (cursor,)
+        ).fetchone()
+        if row is not None and str(row[0]) == hash_value:
+            pos = cursor
+        elif dedup:
+            pos = self._pool_pos(table, hash_value, json_text)
+        else:
+            pos = self._pool_append(table, hash_value, json_text)
+        self._merge_cursors[table] = pos + 1
+        return pos
+
     def merge_message_pool_entry(self, hash_value: str, json_text: str) -> int:
         with self._lock:
             self._ensure_open()
             with self._conn:
-                return self._pool_pos("message_pool", hash_value, json_text)
+                pos = self._merge_pool_entry(
+                    "message_pool", hash_value, json_text, dedup=True
+                )
+                # the live condense path dedups in memory only, so exported
+                # rows must be registered here or a later live merge of
+                # equal content would duplicate them
+                self._msg_pool_index.add_hash_only(hash_value, pos)
+                return pos
 
     def merge_message_pool(self, messages: Iterable[ChatMessage]) -> None:
         with self._lock:
@@ -168,8 +233,35 @@ class TranscriptEventStore:
             mark = self._msg_pool_index.mark()
             try:
                 with self._conn:
+                    # full position-ordered pool list: walk from pos 0 so
+                    # re-seeding the same list is idempotent
+                    self._merge_cursors["message_pool"] = 0
+                    positions: list[int] = []
+                    msgs: list[ChatMessage] = []
                     for message in messages:
-                        self._message_pos(message)
+                        hash_value = _pool._msg_hash(message)
+                        pos = self._merge_pool_entry(
+                            "message_pool",
+                            hash_value,
+                            _pool._msg_pool_json(_pool._msg_pool_jsonable(message)),
+                        )
+                        # registered even on a cursor hit: resume-pool objects
+                        # recur across the seeding pass, so pinning them earns
+                        # identity hits
+                        self._msg_pool_index.add(
+                            message, hash_value, pos, new_entry=False
+                        )
+                        positions.append(pos)
+                        msgs.append(message)
+                    # seed prefix state: the first post-resume event re-sends
+                    # this history; matching it as a prefix keeps positions
+                    # monotone instead of hash-mapping occurrence rows back
+                    # to first positions. Best-effort: hydrated pools are
+                    # walked-form while live inputs are pre-walk, so on any
+                    # mismatch the break path runs (correct, just not
+                    # single-range for that one event).
+                    if msgs:
+                        self._msg_pool_index.set_prev(msgs, positions)
             except BaseException:
                 self._msg_pool_index.restore(mark)
                 raise
@@ -178,7 +270,11 @@ class TranscriptEventStore:
         with self._lock:
             self._ensure_open()
             with self._conn:
-                return self._pool_pos("call_pool", hash_value, json_text)
+                pos = self._merge_pool_entry(
+                    "call_pool", hash_value, json_text, dedup=True
+                )
+                self._call_pool_index.add_hash(hash_value, pos, new_entry=False)
+                return pos
 
     def merge_call_pool(self, calls: Iterable[JsonValue]) -> None:
         with self._lock:
@@ -186,8 +282,21 @@ class TranscriptEventStore:
             mark = self._call_pool_index.mark()
             try:
                 with self._conn:
+                    self._merge_cursors["call_pool"] = 0
+                    positions: list[int] = []
+                    call_list: list[JsonValue] = []
                     for call in calls:
-                        self._call_pos(call)
+                        hash_value = _pool._call_hash(call)
+                        pos = self._merge_pool_entry(
+                            "call_pool",
+                            hash_value,
+                            _pool._call_pool_json(call),
+                        )
+                        self._call_pool_index.add_hash(hash_value, pos, new_entry=False)
+                        positions.append(pos)
+                        call_list.append(call)
+                    if call_list:
+                        self._call_pool_index.set_prev(call_list, positions)
             except BaseException:
                 self._call_pool_index.restore(mark)
                 raise
@@ -354,10 +463,16 @@ class TranscriptEventStore:
         content_fn = events_attachment_fn(event_attachments)
         context = WalkContext(message_cache={}, only_core=False)
 
+        # the callbacks append unconditionally: the helper has already made
+        # the dedup decision when it calls back (occurrence row on pure
+        # append, hash dedup on a break). A hash-keyed lookup here would
+        # collapse occurrence rows back onto their first positions and
+        # disagree with what set_prev records. Safe across reopen because
+        # __init__ seeds the in-memory hash indices from existing rows.
         def add_message(hash_value: str, walked: ChatMessage) -> int:
             message_jsonable = _pool._msg_pool_jsonable(walked)
             incoming_refs.update(attachment_refs_from_value(message_jsonable))
-            return self._pool_pos(
+            return self._pool_append(
                 "message_pool",
                 hash_value,
                 _pool._msg_pool_json(message_jsonable),
@@ -365,7 +480,7 @@ class TranscriptEventStore:
 
         def add_call(hash_value: str, walked: JsonValue) -> int:
             incoming_refs.update(attachment_refs_from_value(walked))
-            return self._pool_pos(
+            return self._pool_append(
                 "call_pool", hash_value, _pool._call_pool_json(walked)
             )
 
@@ -386,48 +501,13 @@ class TranscriptEventStore:
         incoming_refs.update(self._attachment_refs(condensed_remainder))
         return condensed_remainder
 
-    def _message_pos(self, message: ChatMessage) -> int:
-        """Pool position for a message already in walked/stored pool form.
+    def _pool_append(self, table: str, hash_value: str, json_text: str) -> int:
+        """Insert a new pool row at the next position, unconditionally.
 
-        Callers (`merge_message_pool`, seeding from hydrated pool entries)
-        pass walked-form messages, so hashing here matches the condense
-        path's walked-form hashes. Unlike the per-event condense path, the
-        index entry is registered even on a hash hit: resume-pool objects
-        recur across the seeding pass, so pinning them earns identity hits.
+        The condense helper owns dedup decisions (occurrence rows on pure
+        append, hash dedup on a break); this storage primitive never
+        second-guesses them.
         """
-        pos = self._msg_pool_index.get(message)
-        if pos is not None:
-            return pos
-        hash_value = _pool._msg_hash(message)
-        pos = self._msg_pool_index.get_by_hash(hash_value)
-        if pos is None:
-            pos = self._pool_pos(
-                "message_pool",
-                hash_value,
-                _pool._msg_pool_json(_pool._msg_pool_jsonable(message)),
-            )
-        self._msg_pool_index.add(message, hash_value, pos)
-        return pos
-
-    def _call_pos(self, call_message: JsonValue) -> int:
-        """Pool position for a call message already in walked/stored form."""
-        hash_value = _pool._call_hash(call_message)
-        pos = self._call_pool_index.get_by_hash(hash_value)
-        if pos is None:
-            pos = self._pool_pos(
-                "call_pool", hash_value, _pool._call_pool_json(call_message)
-            )
-        self._call_pool_index.add_hash(hash_value, pos)
-        return pos
-
-    def _pool_pos(self, table: str, hash_value: str, json_text: str) -> int:
-        row = self._conn.execute(
-            f"SELECT pos FROM {table} WHERE hash = ?",
-            (hash_value,),
-        ).fetchone()
-        if row is not None:
-            return int(row[0])
-
         pos_row = self._conn.execute(
             f"SELECT COALESCE(MAX(pos), -1) + 1 FROM {table}"
         ).fetchone()
@@ -438,6 +518,20 @@ class TranscriptEventStore:
             (pos, hash_value, json_text),
         )
         return pos
+
+    def _pool_pos(self, table: str, hash_value: str, json_text: str) -> int:
+        """Position of the first row with this hash, inserting if absent.
+
+        ``MIN(pos)`` makes the first occurrence the canonical dedup target,
+        deterministically, now that equal-content rows can coexist.
+        """
+        row = self._conn.execute(
+            f"SELECT MIN(pos) FROM {table} WHERE hash = ?",
+            (hash_value,),
+        ).fetchone()
+        if row is not None and row[0] is not None:
+            return int(row[0])
+        return self._pool_append(table, hash_value, json_text)
 
     @staticmethod
     def _attachment_refs(event: Event) -> set[str]:
@@ -517,15 +611,21 @@ class TranscriptEventStore:
 
             CREATE TABLE IF NOT EXISTS message_pool (
                 pos INTEGER PRIMARY KEY,
-                hash TEXT NOT NULL UNIQUE,
+                hash TEXT NOT NULL,
                 json TEXT NOT NULL
             );
 
+            CREATE INDEX IF NOT EXISTS idx_message_pool_hash
+                ON message_pool(hash);
+
             CREATE TABLE IF NOT EXISTS call_pool (
                 pos INTEGER PRIMARY KEY,
-                hash TEXT NOT NULL UNIQUE,
+                hash TEXT NOT NULL,
                 json TEXT NOT NULL
             );
+
+            CREATE INDEX IF NOT EXISTS idx_call_pool_hash
+                ON call_pool(hash);
 
             CREATE TABLE IF NOT EXISTS attachments (
                 hash TEXT PRIMARY KEY,
@@ -533,4 +633,42 @@ class TranscriptEventStore:
             );
             """
         )
+        for table in ("message_pool", "call_pool"):
+            TranscriptEventStore._migrate_unique_hash(conn, table)
         conn.commit()
+
+    @staticmethod
+    def _migrate_unique_hash(conn: Connection, table: str) -> None:
+        """Rebuild a pool table created by pre-occurrence-row code.
+
+        Old stores declared ``hash TEXT NOT NULL UNIQUE``; occurrence rows
+        require duplicate hashes. SQLite can't drop a column constraint in
+        place, so detect the inline UNIQUE in the table SQL and rebuild.
+        Positions (``pos``) are preserved exactly, so refs in stored events
+        remain valid.
+        """
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+            (table,),
+        ).fetchone()
+        if row is None or "UNIQUE" not in str(row[0]).upper():
+            return
+        # explicit BEGIN/COMMIT: executescript runs in autocommit otherwise,
+        # and a crash between RENAME and DROP would strand a {table}_old
+        # orphan holding a duplicate of every pool row
+        conn.executescript(
+            f"""
+            BEGIN;
+            ALTER TABLE {table} RENAME TO {table}_old;
+            CREATE TABLE {table} (
+                pos INTEGER PRIMARY KEY,
+                hash TEXT NOT NULL,
+                json TEXT NOT NULL
+            );
+            INSERT INTO {table}(pos, hash, json)
+                SELECT pos, hash, json FROM {table}_old;
+            DROP TABLE {table}_old;
+            CREATE INDEX IF NOT EXISTS idx_{table}_hash ON {table}(hash);
+            COMMIT;
+            """
+        )

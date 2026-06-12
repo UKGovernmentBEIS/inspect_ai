@@ -358,6 +358,147 @@ def test_buffer_export_to_transcript_store_hash_parity(tmp_path: Path) -> None:
     store.close()
 
 
+def test_transcript_store_duplicate_content_loop_is_linear(
+    tmp_path: Path, hash_counter: HashCounter
+) -> None:
+    """Done-loop through the store: occurrence rows, single-range refs."""
+    store = TranscriptEventStore(tmp_path / "transcript_event_store.sqlite")
+
+    n_turns = 50
+    history: list[ChatMessage] = []
+    wire: list[dict[str, JsonValue]] = []
+    for _ in range(n_turns):
+        history.append(ChatMessageUser(content="continue"))
+        history.append(ChatMessageAssistant(content="Done"))
+        wire.append({"role": "user", "content": "continue"})
+        wire.append({"role": "assistant", "content": "Done"})
+        call_msgs: list[JsonValue] = [dict(m) for m in wire]
+        store.merge_event(_model_event(list(history), call_msgs), _no_attachment)
+
+    budget = 5 * n_turns
+    assert hash_counter.msg_hashes <= budget
+    assert hash_counter.call_hashes <= budget
+
+    counts = store.counts()
+    assert counts.message_pool == 2 * n_turns
+    assert counts.call_pool == 2 * n_turns
+
+    work_dir = tmp_path / "out"
+    work_dir.mkdir()
+    store.write_transcript_files(
+        events_path=work_dir / "events.json",
+        events_data_path=work_dir / "events_data.json",
+        attachments_path=work_dir / "attachments.json",
+    )
+    store.close()
+
+    events = json.loads((work_dir / "events.json").read_text())
+    for i, ev in enumerate(events):
+        k = 2 * (i + 1)
+        assert ev["input_refs"] == [[0, k]], f"event {i}: {ev['input_refs']}"
+        assert ev["call"]["call_refs"] == [[0, k]]
+    # pool resolves to alternating contents in order
+    data = json.loads((work_dir / "events_data.json").read_text())
+    assert [m["content"] for m in data["messages"]] == ["continue", "Done"] * n_turns
+
+
+def test_transcript_store_positional_merge_preserves_occurrence_rows(
+    tmp_path: Path,
+) -> None:
+    """Seeding merges must align by position, not collapse by hash.
+
+    Simulates checkpoint-resume: a store with duplicate-content occurrence
+    rows is exported, then a new store is seeded from the hydrated pool
+    (merge_message_pool / merge_call_pool). Positions must round-trip so
+    refs in re-seeded condensed events stay valid.
+    """
+    db_path = tmp_path / "store.sqlite"
+    store = TranscriptEventStore(db_path)
+    # build occurrence rows via the append path
+    m1 = ChatMessageUser(content="same")
+    store.merge_event(_model_event([m1], [{"content": "same"}]), _no_attachment)
+    m2 = ChatMessageUser(content="same")  # fresh id, equal content
+    store.merge_event(
+        _model_event([m1, m2], [{"content": "same"}, {"content": "same"}]),
+        _no_attachment,
+    )
+    assert store.counts().message_pool == 2
+    assert store.counts().call_pool == 2
+
+    work_dir = tmp_path / "out"
+    work_dir.mkdir()
+    store.write_transcript_files(
+        events_path=work_dir / "events.json",
+        events_data_path=work_dir / "events_data.json",
+        attachments_path=work_dir / "attachments.json",
+    )
+    store.close()
+
+    raw = json.loads((work_dir / "events_data.json").read_text())
+    hydrated_msgs = validate_chat_messages(raw["messages"])
+    hydrated_calls: list[JsonValue] = raw["calls"]
+
+    # fresh store, seed from hydrated pools (checkpointer_impl pattern)
+    store2 = TranscriptEventStore(tmp_path / "store2.sqlite")
+    store2.merge_message_pool(hydrated_msgs)
+    store2.merge_call_pool(hydrated_calls)
+    assert store2.counts().message_pool == 2, "hash-collapse lost an occurrence row"
+    assert store2.counts().call_pool == 2
+
+    # re-seeding the same pools is idempotent (positional prefix match)
+    store2.merge_message_pool(hydrated_msgs)
+    store2.merge_call_pool(hydrated_calls)
+    assert store2.counts().message_pool == 2
+    assert store2.counts().call_pool == 2
+    store2.close()
+
+
+def test_transcript_store_migrates_old_unique_hash_schema(tmp_path: Path) -> None:
+    """A store created by old code (UNIQUE hash) must accept occurrence rows."""
+    import sqlite3
+
+    db_path = tmp_path / "old_store.sqlite"
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE events (
+            logical_id TEXT PRIMARY KEY,
+            first_seq INTEGER NOT NULL UNIQUE,
+            latest_json TEXT NOT NULL
+        );
+        CREATE TABLE message_pool (
+            pos INTEGER PRIMARY KEY,
+            hash TEXT NOT NULL UNIQUE,
+            json TEXT NOT NULL
+        );
+        CREATE TABLE call_pool (
+            pos INTEGER PRIMARY KEY,
+            hash TEXT NOT NULL UNIQUE,
+            json TEXT NOT NULL
+        );
+        CREATE TABLE attachments (hash TEXT PRIMARY KEY, content TEXT NOT NULL);
+        INSERT INTO message_pool(pos, hash, json)
+            VALUES (0, 'h-old', '{"role":"user","content":"old"}');
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    store = TranscriptEventStore(db_path)
+    # the Done-loop append path must be able to insert two equal-content rows
+    m1 = ChatMessageUser(content="same")
+    store.merge_event(_model_event([m1], [{"content": "same"}]), _no_attachment)
+    m2 = ChatMessageUser(content="same")
+    store.merge_event(
+        _model_event([m1, m2], [{"content": "same"}, {"content": "same"}]),
+        _no_attachment,
+    )
+    counts = store.counts()
+    assert counts.message_pool == 3  # old row + 2 occurrence rows
+    store.close()
+
+
 def test_transcript_store_reseed_dedups_dict_field_messages(tmp_path: Path) -> None:
     """Stored pool bytes must re-hash to the stored hash on re-seed.
 
