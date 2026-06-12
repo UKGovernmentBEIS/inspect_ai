@@ -7,7 +7,11 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.log import list_eval_logs, read_eval_log_sample_summaries
+from inspect_ai.log import (
+    list_eval_logs,
+    read_eval_log_sample,
+    read_eval_log_sample_summaries,
+)
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -18,7 +22,15 @@ from inspect_ai.log._log import (
     EvalStats,
 )
 from inspect_ai.log._recorders.eval import EvalRecorder
-from inspect_ai.model import ModelUsage
+from inspect_ai.log._util import thin_input
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+    ContentReasoning,
+    ContentText,
+    ModelUsage,
+)
 
 file = Path(__file__)
 
@@ -44,6 +56,88 @@ def test_sample_summaries_thin_metadata() -> None:
     summaries = read_eval_log_sample_summaries(log.location)
     assert len(summaries) > 0
     assert len(summaries[0].metadata["long"]) <= 1024
+
+
+def test_thin_input_does_not_mutate_messages() -> None:
+    # regression test for #4239: thin_input mutated shared ChatMessage objects
+    long_text = "a" * 10000
+    reasoning_message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="raw chain of thought"),
+            ContentText(text="visible response"),
+        ]
+    )
+    long_message = ChatMessageUser(content=long_text)
+    messages: list[ChatMessage] = [reasoning_message, long_message]
+
+    thinned = thin_input(messages)
+
+    # originals are intact
+    assert isinstance(reasoning_message.content, list)
+    assert reasoning_message.content[0] == ContentReasoning(
+        reasoning="raw chain of thought"
+    )
+    assert long_message.content == long_text
+
+    # thinned copies have placeholders/truncation
+    assert isinstance(thinned, list)
+    assert isinstance(thinned[0].content, list)
+    assert thinned[0].content[0] == ContentText(text="(Reasoning)")
+    assert isinstance(thinned[1].content, str)
+    assert len(thinned[1].content) < len(long_text)
+
+
+def test_sample_summary_does_not_mutate_sample_input() -> None:
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input=[
+            ChatMessageAssistant(
+                content=[
+                    ContentReasoning(reasoning="raw chain of thought"),
+                    ContentText(text="visible response"),
+                ]
+            )
+        ],
+        target="y",
+    )
+    summary = sample.summary()
+
+    assert isinstance(sample.input, list)
+    assert isinstance(sample.input[0].content, list)
+    assert sample.input[0].content[0] == ContentReasoning(
+        reasoning="raw chain of thought"
+    )
+    assert isinstance(summary.input, list)
+    assert isinstance(summary.input[0].content, list)
+    assert summary.input[0].content[0] == ContentText(text="(Reasoning)")
+
+
+def test_logged_sample_input_preserves_content() -> None:
+    task = Task(
+        dataset=[
+            Sample(
+                id="x",
+                input=[
+                    ChatMessageAssistant(
+                        content=[
+                            ContentReasoning(reasoning="raw chain of thought"),
+                            ContentText(text="visible response"),
+                        ]
+                    )
+                ],
+            )
+        ]
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir)[0]
+        logged = read_eval_log_sample(log.location, "x", 1)
+
+    assert isinstance(logged.input, list)
+    assert isinstance(logged.input[0].content, list)
+    assert logged.input[0].content[0] == ContentReasoning(
+        reasoning="raw chain of thought"
+    )
 
 
 def test_sample_summary_includes_role_usage() -> None:
