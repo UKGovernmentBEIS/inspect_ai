@@ -198,6 +198,10 @@ class SampleBufferDatabase(SampleBuffer):
             if log_shared
             else None
         )
+        # Per-thread SQLite connection caching for performance
+        self._thread_local = threading.local()
+        self._all_connections: list[Connection] = []
+        self._connection_lock = threading.Lock()
         self._sync_time = time.monotonic()
         self._sync_lock = threading.Lock()
         self._sync_wakeup = threading.Condition(self._sync_lock)
@@ -404,6 +408,19 @@ class SampleBufferDatabase(SampleBuffer):
         return True
 
     def _cleanup_now(self) -> None:
+        # Close all cached database connections
+        with self._connection_lock:
+            conns = self._all_connections[:]
+            self._all_connections.clear()
+        for conn in conns:
+            try:
+                conn.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
+        # Clear thread-local connection reference
+        if hasattr(self._thread_local, "conn"):
+            self._thread_local.conn = None
+
         cleanup_sample_buffer_db(self.db_path)
         if self._sync_filestore is not None:
             self._sync_filestore.cleanup()
@@ -734,14 +751,8 @@ class SampleBufferDatabase(SampleBuffer):
             if cleanup_ready:
                 self._cleanup_now()
 
-    @contextmanager
-    def _get_connection(
-        self,
-        *,
-        write: bool = False,
-        on_rollback: Callable[[], None] | None = None,
-    ) -> Iterator[Connection]:
-        """Get a database connection."""
+    def _open_connection(self) -> Connection:
+        """Open a new SQLite connection with proper configuration and retry logic."""
         max_retries = 5
         retry_delay = 0.1
 
@@ -750,8 +761,12 @@ class SampleBufferDatabase(SampleBuffer):
 
         for attempt in range(max_retries):
             try:
-                conn = sqlite3.connect(self.db_path, timeout=30)
-                conn.row_factory = sqlite3.Row  # enable row factory for named columns
+                conn = sqlite3.connect(
+                    self.db_path,
+                    timeout=30,
+                    check_same_thread=False
+                )
+                conn.row_factory = sqlite3.Row
 
                 # Enable foreign key constraints
                 conn.execute("PRAGMA foreign_keys = ON")
@@ -773,11 +788,32 @@ class SampleBufferDatabase(SampleBuffer):
                     continue
                 raise
 
-        # ensure we have a connection
         if conn is None:
             raise sqlite3.OperationalError(
                 f"Failed to establish connection after {max_retries} attempts"
             ) from last_error
+
+        return conn
+
+    def _thread_connection(self) -> Connection:
+        """Get or create a cached per-thread connection."""
+        conn = getattr(self._thread_local, "conn", None)
+        if conn is None:
+            conn = self._open_connection()
+            self._thread_local.conn = conn
+            with self._connection_lock:
+                self._all_connections.append(conn)
+        return conn
+
+    @contextmanager
+    def _get_connection(
+        self,
+        *,
+        write: bool = False,
+        on_rollback: Callable[[], None] | None = None,
+    ) -> Iterator[Connection]:
+        """Get a cached database connection (reused per-thread for performance)."""
+        conn = self._thread_connection()
 
         try:
             # do work
@@ -803,9 +839,6 @@ class SampleBufferDatabase(SampleBuffer):
                     on_rollback()
             raise
         finally:
-            # close the connection
-            conn.close()
-
             # if this was for write then sync (throttled)
             if write:
                 self._sync()
