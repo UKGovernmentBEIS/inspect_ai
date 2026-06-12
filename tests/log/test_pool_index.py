@@ -61,19 +61,6 @@ def test_message_pool_index_none_id_never_bucketed() -> None:
     assert index.get_by_hash("hash-a") == 0
 
 
-def test_message_pool_index_hash_dedup_across_ids() -> None:
-    """Same content, different id: second add maps to the same entry, size stays 1."""
-    index = MessagePoolIndex()
-    a = ChatMessageUser(content="same")
-    b = ChatMessageUser(content="same")
-    index.add(a, "hash-a", 0)
-    assert index.get(b) is None
-    assert index.get_by_hash("hash-a") == 0
-    index.add(b, "hash-a", 0)
-    assert index.get(b) == 0
-    assert index.size == 1
-
-
 def test_message_pool_index_mark_restore() -> None:
     index = MessagePoolIndex()
     a = ChatMessageUser(content="a")
@@ -84,7 +71,7 @@ def test_message_pool_index_mark_restore() -> None:
     d = ChatMessageUser(content="same")
     index.add(b, "hash-b", 1)
     index.add(c, "hash-c", 2)
-    index.add(d, "hash-c", 2)  # bucket-only add (hash already present)
+    index.add(d, "hash-c", 2, new_entry=False)  # accelerator-only registration
     assert index.size == 3
     index.restore(mark)
     assert index.size == 1
@@ -95,6 +82,100 @@ def test_message_pool_index_mark_restore() -> None:
     assert index.get_by_hash("hash-b") is None
     assert index.get_by_hash("hash-c") is None
     assert index.get_by_hash("hash-a") == 0
+
+
+def test_message_pool_index_match_prefix_identity_and_equality() -> None:
+    index = MessagePoolIndex()
+    a = ChatMessageUser(content="a")
+    b = ChatMessageUser(content="b")
+    assert index.match_prefix([a, b]) == []
+    assert index.prev_len == 0
+    index.set_prev([a, b], [0, 1])
+    assert index.prev_len == 2
+    assert index.match_prefix([a, b]) == [0, 1]
+    # a re-parsed clone (same id, same content) matches by equality
+    clone_a = ChatMessageUser.model_validate_json(a.model_dump_json())
+    assert index.match_prefix([clone_a, b]) == [0, 1]
+    # fresh id -> pydantic equality fails -> prefix breaks immediately
+    fresh = ChatMessageUser(content="a")
+    assert index.match_prefix([fresh, b]) == []
+    # divergence mid-list stops the match
+    c = ChatMessageUser(content="c")
+    assert index.match_prefix([a, c]) == [0]
+
+
+def test_message_pool_index_set_prev_copies_input() -> None:
+    index = MessagePoolIndex()
+    a = ChatMessageUser(content="a")
+    msgs: list[ChatMessage] = [a]
+    indices = [0]
+    index.set_prev(msgs, indices)
+    msgs.append(ChatMessageUser(content="b"))
+    indices.append(99)
+    b = ChatMessageUser(content="b")
+    assert index.match_prefix([a, b]) == [0]
+
+
+def test_message_pool_index_size_counts_rows_not_hashes() -> None:
+    index = MessagePoolIndex()
+    a = ChatMessageUser(content="same")
+    b = ChatMessageUser(content="same")  # fresh id, equal content
+    index.add(a, "hash-same", 0)
+    index.add(b, "hash-same", 1)  # second occurrence row sharing the hash
+    assert index.size == 2
+    assert index.get_by_hash("hash-same") == 0  # first occurrence wins
+    assert index.get(a) == 0
+    assert index.get(b) == 1  # own bucket entry
+
+
+def test_message_pool_index_accelerator_add_does_not_count() -> None:
+    """new_entry=False registers lookup state without claiming a pool row."""
+    index = MessagePoolIndex()
+    a = ChatMessageUser(content="a")
+    index.add(a, "hash-a", 0, new_entry=False)
+    assert index.size == 0
+    assert index.get(a) == 0
+    assert index.get_by_hash("hash-a") == 0
+
+
+def test_message_pool_index_restore_rewinds_size_and_drops_prefix() -> None:
+    index = MessagePoolIndex()
+    a = ChatMessageUser(content="a")
+    index.add(a, "hash-a", 0)
+    index.set_prev([a], [0])
+    mark = index.mark()
+
+    b = ChatMessageUser(content="same")
+    c = ChatMessageUser(content="same")
+    index.add(b, "hash-same", 1)
+    index.add(c, "hash-same", 2)
+    seed = ChatMessageUser(content="seed")
+    index.add(seed, "hash-seed", 0, new_entry=False)
+    index.set_prev([a, b, c], [0, 1, 2])
+    assert index.size == 3
+
+    index.restore(mark)
+    assert index.size == 1
+    assert index.get_by_hash("hash-same") is None
+    assert index.get(b) is None
+    assert index.get(seed) is None
+    # prefix state is dropped (a miss is safe, a stale hit is not)
+    assert index.match_prefix([a]) == []
+
+
+def test_message_pool_index_add_hash_only() -> None:
+    """Registers an existing row's hash with no object to bucket (seeding)."""
+    index = MessagePoolIndex()
+    index.add_hash_only("hash-x", 4)
+    assert index.size == 0
+    assert index.get_by_hash("hash-x") == 4
+    mark = index.mark()
+    index.add_hash_only("hash-y", 5)
+    index.add_hash_only("hash-y", 9)  # duplicate: first wins
+    assert index.get_by_hash("hash-y") == 5
+    index.restore(mark)
+    assert index.get_by_hash("hash-y") is None
+    assert index.get_by_hash("hash-x") == 4
 
 
 def test_call_pool_index_prefix_match() -> None:
@@ -497,6 +578,20 @@ def test_message_pool_index_heavy_add_mark_restore() -> None:
     assert index.size == 1
     assert index.get_by_hash("hash-heavy") is None
     assert index.get(light) == 0
+
+
+def test_message_pool_index_heavy_existing_hash_accelerator_add_not_logged() -> None:
+    """Heavy msg + existing hash + new_entry=False: nothing changes, nothing logged."""
+    index = MessagePoolIndex()
+    index.add_hash_only("hash-x", 7)
+    mark = index.mark()
+    heavy = _heavy_image_message()
+    index.add(heavy, "hash-x", 7, new_entry=False)
+    # nothing was logged: the log length must be unchanged
+    assert index.mark() == mark
+    assert index.size == 0
+    index.restore(mark)  # must be a no-op
+    assert index.get_by_hash("hash-x") == 7
 
 
 def test_condense_helper_heavy_message_dedups_via_hash_path() -> None:

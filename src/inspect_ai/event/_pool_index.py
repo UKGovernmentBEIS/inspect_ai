@@ -169,6 +169,16 @@ class MessagePoolIndex:
     entries reconstructed from storage (no object reuse) via
     ``get_by_hash``.
 
+    Like ``CallPoolIndex``, the previous event's input list and its pool
+    positions are retained (``set_prev``) so the next event's shared
+    prefix can be matched element-by-element (``match_prefix``) — this
+    keeps positions monotone for duplicate-content occurrences instead of
+    collapsing them to the first hash hit.
+
+    ``size`` counts pool *rows* recorded (occurrence rows may share a
+    hash), not distinct hashes, so buffer callers can derive the next
+    row position from it.
+
     Supports ``mark()``/``restore()`` to unwind state when a surrounding
     database transaction rolls back.
     """
@@ -176,15 +186,65 @@ class MessagePoolIndex:
     def __init__(self) -> None:
         # msg.id -> [(pre-walk message, pool index)]
         self._buckets: dict[str, list[tuple[ChatMessage, int]]] = {}
-        # walked-form content hash -> pool index
+        # walked-form content hash -> pool index (first occurrence wins)
         self._hash_index: dict[str, int] = {}
-        # undo log: (bucket key appended to or None, hash added or None)
-        self._log: list[tuple[str | None, str | None]] = []
+        # pool rows recorded (NOT distinct hashes: occurrence rows share hashes)
+        self._size: int = 0
+        # undo log: (bucket key appended to or None, hash added or None, row counted)
+        self._log: list[tuple[str | None, str | None, bool]] = []
+        # previous event's pre-walk input and its pool positions
+        self._prev_msgs: list[ChatMessage] = []
+        self._prev_indices: list[int] = []
 
     @property
     def size(self) -> int:
-        """Number of distinct pool entries indexed."""
-        return len(self._hash_index)
+        """Number of pool rows recorded via ``add(..., new_entry=True)``.
+
+        Meaningful as a position source only when every counted add
+        corresponds to exactly one persisted row (the buffer's contract).
+        """
+        return self._size
+
+    @property
+    def prev_len(self) -> int:
+        """Length of the previously recorded input (0 if none recorded)."""
+        return len(self._prev_msgs)
+
+    def match_prefix(self, msgs: Sequence[ChatMessage]) -> list[int]:
+        """Pool indices for the longest shared prefix with the previous input.
+
+        Elements match by object identity first, then pydantic equality
+        (which includes ``id``, so fresh-id re-sends deliberately miss).
+        Comparison stops at the first non-matching element.
+
+        Args:
+            msgs: New event's input messages (pre-walk).
+
+        Returns:
+            Pool indices for the matched prefix; empty if no previous input
+            was recorded or the first element differs.
+        """
+        indices: list[int] = []
+        for msg, prev_msg, prev_index in zip(msgs, self._prev_msgs, self._prev_indices):
+            if msg is prev_msg or msg == prev_msg:
+                indices.append(prev_index)
+            else:
+                break
+        return indices
+
+    def set_prev(self, msgs: Sequence[ChatMessage], indices: Sequence[int]) -> None:
+        """Record the input just condensed for prefix-matching the next event.
+
+        Copies both sequences shallowly (same aliasing contract as
+        ``CallPoolIndex.set_prev``: message values are shared, and in-place
+        mutation aliases every holder, which is already documented behavior).
+
+        Args:
+            msgs: Pre-walk input message list.
+            indices: Corresponding pool indices, parallel to ``msgs``.
+        """
+        self._prev_msgs = list(msgs)
+        self._prev_indices = list(indices)
 
     def get(self, msg: ChatMessage) -> int | None:
         """Fast-path lookup without serialization (identity, then equality).
@@ -219,8 +279,10 @@ class MessagePoolIndex:
         """
         return self._hash_index.get(hash_value)
 
-    def add(self, msg: ChatMessage, hash_value: str, index: int) -> None:
-        """Record a pool entry.
+    def add(
+        self, msg: ChatMessage, hash_value: str, index: int, *, new_entry: bool = True
+    ) -> None:
+        """Record a pool entry (or accelerator-only lookup state).
 
         Messages with a content string over ``_BUCKET_CONTENT_LIMIT`` are
         recorded in the hash index only (see module docstring): bucketing
@@ -230,6 +292,10 @@ class MessagePoolIndex:
             msg: Pre-walk message object.
             hash_value: Walked-form content hash.
             index: Pool index for this entry.
+            new_entry: ``True`` when this call corresponds to a newly
+                persisted pool row (counted in ``size``); ``False`` for
+                accelerator-only registration of an existing row
+                (resume/seeding paths).
         """
         bucket_key = msg.id if not _has_heavy_str(msg.__dict__) else None
         if bucket_key is not None:
@@ -238,8 +304,25 @@ class MessagePoolIndex:
         if hash_value not in self._hash_index:
             self._hash_index[hash_value] = index
             hash_added = hash_value
-        if bucket_key is not None or hash_added is not None:
-            self._log.append((bucket_key, hash_added))
+        if new_entry:
+            self._size += 1
+        if bucket_key is not None or hash_added is not None or new_entry:
+            self._log.append((bucket_key, hash_added, new_entry))
+
+    def add_hash_only(self, hash_value: str, index: int) -> None:
+        """Register an existing row's hash without an object to bucket.
+
+        Used when seeding from storage where only walked JSON is available.
+        Does not count toward ``size``.
+
+        Args:
+            hash_value: Walked-form content hash.
+            index: Pool index for this entry. Ignored if the hash is
+                already registered (first occurrence wins).
+        """
+        if hash_value not in self._hash_index:
+            self._hash_index[hash_value] = index
+            self._log.append((None, hash_value, False))
 
     def mark(self) -> int:
         """Return a mark for later ``restore()``.
@@ -250,13 +333,17 @@ class MessagePoolIndex:
         return len(self._log)
 
     def restore(self, mark: int) -> None:
-        """Undo all ``add()`` calls made since ``mark()`` was obtained.
+        """Undo all ``add()`` and ``add_hash_only()`` calls made since ``mark()``.
+
+        Correctness-bearing state (hashes, row count) is rewound precisely;
+        the prefix-match state is accelerator-only and dropped instead
+        (same rationale as ``CallPoolIndex.restore``).
 
         Args:
             mark: Value previously returned by ``mark()``.
         """
         while len(self._log) > mark:
-            bucket_key, hash_added = self._log.pop()
+            bucket_key, hash_added, row_added = self._log.pop()
             if bucket_key is not None:
                 bucket = self._buckets[bucket_key]
                 bucket.pop()
@@ -264,6 +351,10 @@ class MessagePoolIndex:
                     del self._buckets[bucket_key]
             if hash_added is not None:
                 del self._hash_index[hash_added]
+            if row_added:
+                self._size -= 1
+        self._prev_msgs = []
+        self._prev_indices = []
 
 
 class CallPoolIndex:
