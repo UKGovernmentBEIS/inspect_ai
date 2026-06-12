@@ -137,6 +137,42 @@ async def test_against_real_completions_server() -> None:
 @pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_vllm
+async def test_num_choices_real_server() -> None:
+    """E2E: num_choices maps to `n` and all returned choices are parsed."""
+    from inspect_ai.model._providers.vllm_completions import VLLMCompletionsAPI
+
+    vllm_model = get_model(
+        "vllm-completions/EleutherAI/pythia-70m",
+        config=GenerateConfig(max_tokens=5),
+        device=0,
+        gpu_memory_utilization=0.2,
+    )
+    # boot the server (tokenize triggers deferred startup)
+    vllm_api = vllm_model.api
+    assert isinstance(vllm_api, VLLMCompletionsAPI)
+    prompt = "The quick brown fox"
+    token_count = len(await vllm_api.tokenize(prompt))
+
+    model = get_model(
+        "openai-api-completions/local/EleutherAI/pythia-70m",
+        config=GenerateConfig(max_tokens=5, num_choices=3, temperature=1.0),
+        base_url=vllm_api.base_url,
+        api_key=vllm_api.api_key,
+    )
+    response = await model.generate(input=[ChatMessageUser(content=prompt)])
+    assert len(response.choices) == 3
+    for choice in response.choices:
+        assert isinstance(choice.message.content, str)
+        assert choice.stop_reason is not None
+    # prompt tokens are billed once per request, not once per choice
+    assert response.usage is not None
+    assert response.usage.input_tokens == token_count
+    assert response.usage.output_tokens > 5  # all choices' tokens counted
+
+
+@pytest.mark.anyio
+@skip_if_github_action
+@skip_if_no_vllm
 async def test_completion_logprobs_real_server() -> None:
     """E2E: completions-format logprobs parse correctly through the generic provider."""
     from inspect_ai.model._providers.vllm_completions import VLLMCompletionsAPI

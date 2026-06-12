@@ -17,6 +17,7 @@ import logging
 from typing import Any
 
 from openai import NotFoundError
+from openai.types.completion_choice import CompletionChoice
 from typing_extensions import override
 
 from inspect_ai.log._samples import set_active_model_event_call
@@ -165,7 +166,7 @@ async def generate_raw_completions(
     if not response.choices:
         return ModelOutput(model=response.model, choices=[]), model_call
 
-    def parse_choice(choice: Any) -> ChatCompletionChoice:
+    def parse_choice(choice: CompletionChoice) -> ChatCompletionChoice:
         # prompt_logprobs: vLLM extension (also implemented by SGLang), lives
         # inside the choice for /v1/completions (unlike chat completions where
         # it's top-level). Parsed when present, ignored otherwise.
