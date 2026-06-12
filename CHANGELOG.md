@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scorer: Warn when a model-graded scorer has no grader bound to its `model_role` and so grades with the model under evaluation (the model grades its own output), and when an even number of grader models is supplied (whose majority-vote ties are resolved by list order).
 - MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
 - MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
 - MCP: Fix in-sandbox stdio MCP servers hanging on large tool responses.
