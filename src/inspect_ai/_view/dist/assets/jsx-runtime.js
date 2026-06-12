@@ -34,7 +34,7 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
 	throw Error("Calling `require` for \"" + x + "\" in an environment that doesn't expose the `require` function. See https://rolldown.rs/in-depth/bundling-cjs#require-external-modules for more details.");
 });
 //#endregion
-//#region ../../node_modules/.pnpm/react@19.2.6/node_modules/react/cjs/react.production.js
+//#region ../../node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react.production.js
 /**
 * @license React
 * react.production.js
@@ -391,15 +391,15 @@ var require_react_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.useTransition = function() {
 		return ReactSharedInternals.H.useTransition();
 	};
-	exports.version = "19.2.6";
+	exports.version = "19.2.7";
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react@19.2.6/node_modules/react/index.js
+//#region ../../node_modules/.pnpm/react@19.2.7/node_modules/react/index.js
 var require_react = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_react_production();
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react@19.2.6/node_modules/react/cjs/react-jsx-runtime.production.js
+//#region ../../node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react-jsx-runtime.production.js
 /**
 * @license React
 * react-jsx-runtime.production.js
@@ -433,7 +433,7 @@ var require_react_jsx_runtime_production = /* @__PURE__ */ __commonJSMin(((expor
 	exports.jsxs = jsxProd;
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
+//#region ../../node_modules/.pnpm/react@19.2.7/node_modules/react/jsx-runtime.js
 var require_jsx_runtime = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_react_jsx_runtime_production();
 }));

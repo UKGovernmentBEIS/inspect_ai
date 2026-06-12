@@ -67,9 +67,10 @@ anthropic:
       context_length: 1000000
       output_tokens: 128000
       reasoning: True
-      # Adaptive thinking is always on for Claude 5; effort controls depth.
+      # Adaptive thinking is always on for Claude 5; effort controls depth, and
+      # the server-side default effort is `high` (like Opus 4.8).
       # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
-      reasoning_effort_default: adaptive
+      reasoning_effort_default: high
       versions:
         claude-fable-5:
           snapshot: "20260609"
@@ -82,9 +83,10 @@ anthropic:
       context_length: 1000000
       output_tokens: 128000
       reasoning: True
-      # Adaptive thinking is always on for Claude 5; effort controls depth.
+      # Adaptive thinking is always on for Claude 5; effort controls depth, and
+      # the server-side default effort is `high` (like Opus 4.8).
       # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
-      reasoning_effort_default: adaptive
+      reasoning_effort_default: high
       versions:
         claude-mythos-5:
           snapshot: "20260609"
