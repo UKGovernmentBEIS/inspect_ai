@@ -520,23 +520,12 @@ async def test_transient_retry_blocks_success_counting() -> None:
     assert ctrls[0].concurrency == 4
 
 
-# ---------- count_tokens has no per-model concurrency cap ----------
+# ---------- count_tokens shares the per-model concurrency cap ----------
 
 
 @pytest.mark.anyio
-async def test_count_tokens_no_concurrency_cap(monkeypatch) -> None:
-    """`Model.count_tokens` is not capped — concurrent calls all run in parallel.
-
-    Historically there was a per-model `concurrency(...)` semaphore at limit
-    10 around `count_tokens`. It was removed because (a) the cost is O(delta)
-    via compaction's baseline mechanism, (b) `max_samples` already provides a
-    structural ceiling, (c) retries handle 429s symmetrically with generate,
-    and (d) provider count_tokens envelopes are wider than generate envelopes.
-
-    This guards against re-introducing such a cap. We monkey-patch the model
-    API's `count_tokens` to track peak in-flight calls; without a cap the
-    peak should reach (or near) the launched-task count, well above 10.
-    """
+async def test_count_tokens_uses_connection_concurrency(monkeypatch) -> None:
+    """`Model.count_tokens` should honor the model connection cap."""
     import anyio
 
     from inspect_ai._util._async import tg_collect
@@ -559,13 +548,12 @@ async def test_count_tokens_no_concurrency_cap(monkeypatch) -> None:
 
     monkeypatch.setattr(type(model.api), "count_tokens", counting_count_tokens)
 
-    # Launch 50 concurrent count_tokens calls. With the old 10-cap, peak
-    # in-flight would max at 10. Without the cap, peak should be ~50.
-    await tg_collect([lambda: model.count_tokens("hello") for _ in range(50)])
-
-    assert peak_in_flight > 10, (
-        f"count_tokens appears capped at <=10 concurrent: peak in-flight = {peak_in_flight}"
+    cfg = GenerateConfig(max_connections=3)
+    await tg_collect(
+        [lambda: model.count_tokens("hello", config=cfg) for _ in range(20)]
     )
+
+    assert peak_in_flight == 3
 
 
 # ---------- adaptive_active / resolve_adaptive helpers ----------
