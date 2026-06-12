@@ -70,6 +70,8 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_binary_file_exists,
         test_exec_output,
         test_exec_stderr,
+        test_exec_output_utf,
+        test_exec_stderr_utf,
         test_exec_returncode,
         test_exec_timeout,
         test_exec_timeout_not_raised_on_fast_signal_death,
@@ -408,6 +410,31 @@ async def test_exec_stderr(sandbox_env: SandboxEnvironment) -> None:
     exec_result = await sandbox_env.exec(["sh", "-c", "echo boof; echo baz >&2"])
     assert exec_result.stderr == "baz\n", (
         f"stderr output should match; got {exec_result.stderr=}, expected 'baz\n'"
+    )
+
+
+# Non-ASCII output (valid UTF-8) must decode correctly on stdout/stderr.
+# ExecResult fields are str, so the bytes a command emits should round-trip as
+# the equivalent text. Catches implementations that surface the raw transport
+# encoding instead of decoding it (e.g. latin-1 mojibake).
+_UTF8_OUTPUT = "café résumé €100 中文 😀"
+
+
+async def test_exec_output_utf(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(["sh", "-c", f"printf '%s' '{_UTF8_OUTPUT}'"])
+    assert exec_result.stdout == _UTF8_OUTPUT, (
+        f"non-ASCII stdout should round-trip; expected {_UTF8_OUTPUT.encode('UTF-8')!r}, "
+        f"got {exec_result.stdout.encode('UTF-8')!r}"
+    )
+
+
+async def test_exec_stderr_utf(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(
+        ["sh", "-c", f"printf '%s' '{_UTF8_OUTPUT}' >&2"]
+    )
+    assert exec_result.stderr == _UTF8_OUTPUT, (
+        f"non-ASCII stderr should round-trip; expected {_UTF8_OUTPUT.encode('UTF-8')!r}, "
+        f"got {exec_result.stderr.encode('UTF-8')!r}"
     )
 
 

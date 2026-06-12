@@ -15,6 +15,7 @@
 - Task Display: Update log/plain progress after errors.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
+- Sandbox: `self_check` now verifies that non-ASCII (UTF-8) command output round-trips correctly on `exec` stdout/stderr.
 - S3: Retry when requests have stale signatures.
 - Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
 - Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects
