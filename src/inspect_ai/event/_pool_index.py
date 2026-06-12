@@ -6,7 +6,9 @@ in each event rather than the full conversation history:
 - ``MessagePoolIndex`` buckets on ``ChatMessage.id`` (a random UUID) and
   verifies candidates by object identity, then content equality. Agents
   reuse the same message objects across turns, so the identity fast path
-  hits for the entire shared history without any serialization.
+  hits for the entire shared history without any serialization. It also
+  retains the previous event's input list and pool positions so the next
+  event's shared prefix can be matched element-by-element.
 - ``CallPoolIndex`` exploits the append-mostly structure of provider wire
   requests: the previous event's message list is retained and the shared
   prefix matched by plain equality; only the divergent suffix is hashed.
@@ -14,6 +16,17 @@ in each event rather than the full conversation history:
   (no serialization or allocation); it is not O(new) like the message
   index, but in practice most events share a long stable prefix so the
   total work per event stays low.
+
+Pool positions are occurrence-keyed: a position identifies a logical
+occurrence of a message in the conversation, not merely its content.
+Re-sends of the same occurrence resolve via the prefix match or the
+identity buckets; only prefix-*break* paths (first event, trim,
+compaction, resume, fresh-id-rebuilt histories) consult content hashes.
+When an event purely appends to the previous one, suffix messages mint
+fresh per-occurrence rows even if their content duplicates an earlier
+row — otherwise a loop emitting identical content each turn would map
+its history onto alternating positions, making the range-compressed
+refs quadratic in turns.
 
 Correctness never depends on these assumptions: a merge happens only when
 serialization-equivalent equality (``_strict_eq``; plain ``==`` would
@@ -557,14 +570,20 @@ def condense_model_event_with_indices(
         ``messages.restore()``/``calls.restore()`` on rollback to keep the
         in-memory indices consistent with storage.
 
-        Identity-bucket entries are only registered for messages that are new
-        to the pool (hash miss). A message whose content duplicates an
-        already-pooled entry under a different id is re-walked and re-hashed
-        on each event that re-sends it. This is a bounded cost (duplicate-
-        content messages are rare), and avoids O(events × history) pinned
-        objects for fresh-id scaffolds (bridge-style agents) where a hash hit
-        would leave a useless bucket entry that could never produce a future
-        identity hit.
+        Occurrence identity: pool positions identify logical occurrences,
+        not just content. When an event's input is a pure append of the
+        previous event's input, the suffix messages are new occurrences and
+        mint per-occurrence pool rows without consulting the content-hash
+        index (which would map repeated content onto alternating positions,
+        making the range-compressed refs quadratic across a long loop).
+        Suffix rows are bucketed (the heavy-content gate still applies), so
+        re-sends of those objects resolve by identity. A prefix break
+        (first event, trim, compaction, resume, fresh-id-rebuilt histories)
+        keeps content dedup — and there the original decision not to bucket
+        hash-hit messages still applies: it avoids O(events × history)
+        pinned objects for fresh-id scaffolds (bridge-style agents) where a
+        hash hit would leave a useless bucket entry that could never
+        produce a future identity hit.
     """
     update: dict[str, Any] = {}
 
@@ -574,17 +593,23 @@ def condense_model_event_with_indices(
     if event.input_refs is not None and not event.input:
         pass
     elif event.input:
-        raw_indices: list[int] = []
-        for msg in event.input:
+        raw_indices = messages.match_prefix(event.input)
+        # 0 < prev_len guards the first-event/post-restore case (an empty
+        # previous input must not classify as append); == len(raw_indices)
+        # requires the FULL previous input to have matched. See the Note
+        # in this function's docstring for the append/break semantics.
+        pure_append = 0 < messages.prev_len == len(raw_indices)
+        for msg in event.input[len(raw_indices) :]:
             index = messages.get(msg)
             if index is None:
                 walked = walk_message(msg)
                 msg_hash = _pool._msg_hash(walked)
-                index = messages.get_by_hash(msg_hash)
+                index = None if pure_append else messages.get_by_hash(msg_hash)
                 if index is None:
                     index = add_message(msg_hash, walked)
                     messages.add(msg, msg_hash, index)
             raw_indices.append(index)
+        messages.set_prev(event.input, raw_indices)
         update["input"] = []
         update["input_refs"] = _compress_refs(raw_indices)
 
@@ -594,13 +619,14 @@ def condense_model_event_with_indices(
         msgs = call.request.get(msg_key) if msg_key else None
         if msgs and isinstance(msgs, list):
             call_indices = calls.match_prefix(msgs)
+            pure_append_calls = 0 < calls.prev_len == len(call_indices)
             for msg_value in msgs[len(call_indices) :]:
                 walked_value = walk_call_message(msg_value)
                 call_hash = _pool._call_hash(walked_value)
-                call_index = calls.get_by_hash(call_hash)
+                call_index = None if pure_append_calls else calls.get_by_hash(call_hash)
                 if call_index is None:
                     call_index = add_call(call_hash, walked_value)
-                calls.add_hash(call_hash, call_index)
+                    calls.add_hash(call_hash, call_index)
                 call_indices.append(call_index)
             calls.set_prev(msgs, call_indices)
             new_request = {k: v for k, v in call.request.items() if k != msg_key}

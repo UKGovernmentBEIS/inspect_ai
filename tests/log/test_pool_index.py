@@ -455,12 +455,129 @@ def test_condense_helper_duplicate_message_in_one_event() -> None:
     assert event.input_refs == [(0, 1), (0, 1)]
     assert len(recorder.messages) == 1
 
+    # append path: the same object appearing twice in the suffix
+    # identity-hits its just-minted row rather than minting another
+    # (raw indices [0, 0, 1, 1]; the middle 0, 1 run compresses to (0, 2))
+    other = ChatMessageUser(content="other")
+    event = _condense(
+        _model_event([msg, msg, other, other]), msg_index, call_index, recorder
+    )
+    assert event.input_refs == [(0, 1), (0, 2), (1, 2)]
+    assert len(recorder.messages) == 2
 
-def test_condense_helper_fresh_ids_bounded_index() -> None:
-    """Fresh objects/ids each turn (bridge-style agents) must not grow the index.
 
-    The identity bucket must stay bounded at the number of unique pool entries,
-    not grow with the number of events.
+def test_condense_helper_duplicate_content_loop_single_range_refs() -> None:
+    """Done-loop: identical content each turn, fresh objects+ids, history re-sent.
+
+    Occurrence-keyed positions: every event's refs compress to one range,
+    pool rows grow linearly, and re-sent objects never re-hash.
+    """
+    msg_index = MessagePoolIndex()
+    call_index = CallPoolIndex()
+    recorder = _Recorder()
+
+    history: list[ChatMessage] = []
+    wire: list[dict[str, JsonValue]] = []
+    n = 10
+    for i in range(n):
+        history.append(ChatMessageUser(content="continue"))
+        history.append(ChatMessageAssistant(content="Done"))
+        wire.append({"role": "user", "content": "continue"})
+        wire.append({"role": "assistant", "content": "Done"})
+        call_msgs: list[JsonValue] = [dict(m) for m in wire]
+        event = _condense(
+            _model_event(list(history), call_msgs=call_msgs),
+            msg_index,
+            call_index,
+            recorder,
+        )
+        k = 2 * (i + 1)
+        assert event.input_refs == [(0, k)], f"turn {i}: {event.input_refs}"
+        assert event.call is not None
+        assert event.call.call_refs == [(0, k)], f"turn {i}: {event.call.call_refs}"
+
+    # one pool row per occurrence (2 per turn), each walked exactly once
+    assert len(recorder.messages) == 2 * n
+    assert len(recorder.calls) == 2 * n
+    assert recorder.walked_messages == 2 * n
+    assert recorder.walked_calls == 2 * n
+    assert msg_index.size == 2 * n
+    assert call_index.size == 2 * n
+
+
+def test_condense_helper_prefix_break_falls_back_to_hash_dedup() -> None:
+    """A diverged history (trim/compaction) must not mint occurrence rows."""
+    msg_index = MessagePoolIndex()
+    call_index = CallPoolIndex()
+    recorder = _Recorder()
+
+    a = ChatMessageUser(content="a")
+    b = ChatMessageAssistant(content="b")
+    c = ChatMessageUser(content="c")
+    _condense(_model_event([a, b, c]), msg_index, call_index, recorder)
+    assert len(recorder.messages) == 3
+
+    # history rewritten: b dropped (compaction) -> prefix breaks after a
+    event = _condense(_model_event([a, c]), msg_index, call_index, recorder)
+    # a matches prefix (position 0); c hash-hits its existing row (position 2)
+    assert event.input_refs == [(0, 1), (2, 3)]
+    assert len(recorder.messages) == 3  # no new rows
+
+    # equal-content fresh-id message on ANOTHER break dedups by hash
+    # ([c, ...] does not extend [a, c], so this is a break, not an append)
+    fresh_c = ChatMessageUser(content="c")
+    event = _condense(_model_event([c, fresh_c]), msg_index, call_index, recorder)
+    assert event.input_refs == [(2, 3), (2, 3)]
+    assert len(recorder.messages) == 3
+
+    # whereas the same fresh-id duplicate appended to an extending history
+    # is a new occurrence and mints its own row (the design's core trade)
+    # (raw indices [2, 2, 3]; the trailing 2, 3 run compresses to (2, 4))
+    fresh_c2 = ChatMessageUser(content="c")
+    event = _condense(
+        _model_event([c, fresh_c, fresh_c2]), msg_index, call_index, recorder
+    )
+    assert event.input_refs == [(2, 3), (2, 4)]
+    assert len(recorder.messages) == 4
+
+
+def test_condense_helper_first_event_uses_hash_dedup() -> None:
+    """No previous input recorded -> break path, duplicates collapse."""
+    msg_index = MessagePoolIndex()
+    call_index = CallPoolIndex()
+    recorder = _Recorder()
+
+    dup_a = ChatMessageUser(content="dup")
+    dup_b = ChatMessageUser(content="dup")  # fresh id, equal content
+    event = _condense(_model_event([dup_a, dup_b]), msg_index, call_index, recorder)
+    assert event.input_refs == [(0, 1), (0, 1)]
+    assert len(recorder.messages) == 1
+    assert msg_index.size == 1
+
+
+def test_condense_helper_append_path_buckets_suffix_rows() -> None:
+    """Occurrence rows from the append path identity-hit on later breaks."""
+    msg_index = MessagePoolIndex()
+    call_index = CallPoolIndex()
+    recorder = _Recorder()
+
+    a = ChatMessageUser(content="same")
+    _condense(_model_event([a]), msg_index, call_index, recorder)
+    b = ChatMessageUser(content="same")  # fresh id, equal content
+    _condense(
+        _model_event([a, b]), msg_index, call_index, recorder
+    )  # append: b -> row 1
+    assert len(recorder.messages) == 2
+    # b was bucketed by the append path: a rebuilt history containing the
+    # same b object resolves it by identity (position 1), without rehashing
+    assert msg_index.get(b) == 1
+
+
+def test_condense_helper_fresh_ids_keep_todays_semantics() -> None:
+    """Bridge-style scaffolds (fresh objects+ids each turn) are unchanged.
+
+    Prefix can't match (pydantic == includes id) -> every event is a break;
+    content dedup keeps the pool at n rows and the index bounded.
     """
     msg_index = MessagePoolIndex()
     call_index = CallPoolIndex()
@@ -468,15 +585,12 @@ def test_condense_helper_fresh_ids_bounded_index() -> None:
 
     n = 20
     for k in range(1, n + 1):
-        # Rebuild full history with fresh objects and fresh ids each event,
-        # simulating bridge-style scaffolds that never reuse message objects.
         history = [ChatMessageUser(content=f"msg {i}") for i in range(k)]
         _condense(_model_event(history), msg_index, call_index, recorder)
 
     assert len(recorder.messages) == n  # content-deduped in the pool
     assert msg_index.size == n
-    # White-box: identity buckets must not accumulate one entry per occurrence;
-    # each unique message should produce exactly one bucket entry.
+    # identity buckets must not accumulate one entry per occurrence
     assert sum(len(b) for b in msg_index._buckets.values()) == n
 
 
@@ -629,11 +743,15 @@ def test_condense_helper_heavy_message_dedups_via_hash_path() -> None:
 
     first = _condense(_model_event([heavy]), msg_index, call_index, recorder)
     assert first.input_refs == [(0, 1)]
+    # a pure-append re-send resolves via the prefix match without a re-walk
     second = _condense(_model_event([heavy, light]), msg_index, call_index, recorder)
     assert second.input_refs == [(0, 2)]
+    assert recorder.walked_messages == 2
 
-    # heavy message pooled once but re-walked on the second event
-    # (the deliberate cost of not pinning it)
+    # a prefix break re-walks the unbucketed heavy message and hash-hits
+    # its existing row (the deliberate cost of not pinning it)
+    third = _condense(_model_event([light, heavy]), msg_index, call_index, recorder)
+    assert third.input_refs == [(1, 2), (0, 1)]
     assert len(recorder.messages) == 2
     assert recorder.walked_messages == 3
 
