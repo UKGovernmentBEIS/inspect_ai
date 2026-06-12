@@ -1,0 +1,211 @@
+import asyncio
+from collections.abc import Sequence
+
+from inspect_ai.tool import Tool, ToolDef, tool
+
+from ._run_code_executor import (
+    MontyRunCodeExecutor,
+    RunCodeExecutor,
+    RunCodeResult,
+    StubRunCodeExecutor,
+)
+
+
+def _tool_defs(tools: Sequence[Tool] | None) -> list[ToolDef]:
+    """Convert allowed tools into ToolDef objects."""
+    return [ToolDef(tool) for tool in tools or []]
+
+
+def _tool_signature(tool_def: ToolDef) -> str:
+    """Return a compact signature for an allowlisted tool."""
+    parameters = tool_def.parameters
+    if parameters is None or parameters.properties is None:
+        return f"{tool_def.name}()"
+
+    args: list[str] = []
+    required = set(parameters.required or [])
+
+    for name, schema in parameters.properties.items():
+        typ = schema.type or "any"
+        optional = "" if name in required else " | None"
+        args.append(f"{name}: {typ}{optional}")
+
+    return f"await {tool_def.name}({', '.join(args)})"
+
+
+def _format_run_code_result(
+    result: RunCodeResult,
+    *,
+    include_tool_call_trace: bool,
+) -> str:
+    """Format a run_code result for the model."""
+    output = result.error if result.error else result.output
+
+    if not include_tool_call_trace or not result.inner_tool_calls:
+        return output
+
+    lines = [output, "", "Inner tool calls:"]
+
+    for call in result.inner_tool_calls:
+        status = "error" if call.error else "ok"
+        lines.append(f"- {call.name}: {status}")
+        if call.error:
+            lines.append(f"  error: {call.error}")
+
+    return "\n".join(lines)
+
+
+def _truncate_text(text: str, max_chars: int | None) -> str:
+    """Truncate text to a maximum number of characters."""
+    if max_chars is None or len(text) <= max_chars:
+        return text
+
+    suffix = f"\n\n[run_code output truncated to {max_chars} characters]"
+    if max_chars <= len(suffix):
+        return text[:max_chars]
+
+    return text[: max_chars - len(suffix)] + suffix
+
+
+def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
+    """Describe the tools that will eventually be callable from run_code."""
+    if not tool_defs:
+        return (
+            "No inner tools are currently available. "
+            "The code can only use the Python execution environment."
+        )
+
+    lines = [
+        "The code may call the following allowlisted Inspect tools as async functions.",
+        "Use `await` when calling them:",
+        "",
+    ]
+
+    for tool_def in tool_defs:
+        lines.append(f"- `{_tool_signature(tool_def)}`: {tool_def.description}")
+
+    return "\n".join(lines)
+
+
+def _tool_def_by_name(tool_defs: list[ToolDef]) -> dict[str, ToolDef]:
+    """Return tool definitions indexed by name.
+
+    Raises:
+        ValueError: If more than one allowlisted tool has the same name.
+    """
+    tool_def_by_name: dict[str, ToolDef] = {}
+
+    for tool_def in tool_defs:
+        if tool_def.name in tool_def_by_name:
+            raise ValueError(f"Duplicate run_code inner tool name: {tool_def.name}")
+        tool_def_by_name[tool_def.name] = tool_def
+
+    return tool_def_by_name
+
+
+def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
+    """Return model-facing instructions for using run_code."""
+    lines = [
+        "Write Python code to solve the task.",
+        "The final expression is returned as the run_code result.",
+        "",
+    ]
+
+    if tool_defs:
+        lines.extend(
+            [
+                "You may call the allowlisted Inspect tools below as async functions.",
+                "Use `await` when calling these tools.",
+                "You may use `asyncio.gather(...)` to run multiple tool calls concurrently.",
+                "",
+                "Example:",
+                "```python",
+                "import asyncio",
+                "",
+                "results = await asyncio.gather(",
+                '    tool_name(arg="value"),',
+                '    another_tool(arg="value"),',
+                ")",
+                "results",
+                "```",
+                "",
+                _tool_interface_description(tool_defs),
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "No inner Inspect tools are available.",
+                "The code can only use the Python execution environment.",
+            ]
+        )
+
+    return "\n".join(lines)
+
+
+@tool
+def run_code(
+    tools: Sequence[Tool] | None = None,
+    timeout: int | None = None,
+    executor: RunCodeExecutor | None = None,
+    execute_code: bool = False,
+    max_inner_tool_calls: int | None = None,
+    include_tool_call_trace: bool = False,
+    max_output_chars: int | None = 20_000,
+) -> Tool:
+    """Run Python code that can orchestrate selected tools.
+
+    Args:
+        tools: Tools that code executed by run_code may call.
+        timeout: Maximum execution time in seconds.
+        executor: Executor used to run code. Intended for tests and alternative backends.
+        execute_code: Whether to execute code using the Monty-backed executor.
+        max_inner_tool_calls: Maximum number of allowlisted tool calls from inside run_code.
+        include_tool_call_trace: Whether to include a compact trace of inner tool calls in the result.
+        max_output_chars: Maximum number of characters returned by run_code.
+    """
+    tool_defs = _tool_defs(tools)
+    tool_def_by_name = _tool_def_by_name(tool_defs)
+    tool_defs = list(tool_def_by_name.values())
+    usage_description = _run_code_usage_description(tool_defs)
+    executor = executor or (
+        MontyRunCodeExecutor(
+            tool_defs=tool_defs,
+            max_inner_tool_calls=max_inner_tool_calls,
+        )
+        if execute_code
+        else StubRunCodeExecutor()
+    )
+
+    async def execute(code: str) -> str:
+        """Run Python code.
+
+        Args:
+            code: Python code to execute.
+        """
+        try:
+            if timeout is None:
+                result = await executor.execute(code)
+            else:
+                result = await asyncio.wait_for(
+                    executor.execute(code),
+                    timeout=timeout,
+                )
+        except asyncio.TimeoutError:
+            return f"run_code execution timed out after {timeout} seconds."
+
+        formatted = _format_run_code_result(
+            result,
+            include_tool_call_trace=include_tool_call_trace,
+        )
+
+        return _truncate_text(formatted, max_output_chars)
+
+    return ToolDef(
+        execute,
+        name="run_code",
+        description=(
+            "Run Python code that can orchestrate selected tools.\n\n"
+            f"{usage_description}"
+        ),
+    ).as_tool()
