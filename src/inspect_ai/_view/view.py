@@ -1,6 +1,7 @@
 import atexit
 import logging
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def view(
-    log_dir: str | None = None,
+    log_dir: str | Sequence[str] | None = None,
     recursive: bool = True,
     host: str = DEFAULT_SERVER_HOST,
     port: int = DEFAULT_VIEW_PORT,
@@ -32,7 +33,7 @@ def view(
     """Run the Inspect View server.
 
     Args:
-        log_dir: Directory to view logs from.
+        log_dir: Directory (or list of directories) to view logs from.
         recursive: Recursively list files in `log_dir`.
         host: Tcp/ip host (defaults to "127.0.0.1").
         port: Tcp/ip port (defaults to 7575).
@@ -46,9 +47,13 @@ def view(
     init_dotenv()
     init_logger(log_level)
 
-    # initialize the log_dir
+    # initialize the log_dirs (treat None/empty as "use the default")
     if not log_dir:
-        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
+        log_dirs = [os.getenv("INSPECT_LOG_DIR", "./logs")]
+    elif isinstance(log_dir, str):
+        log_dirs = [log_dir]
+    else:
+        log_dirs = list(log_dir)
 
     # acquire the requested port
     view_acquire_port(view_data_dir(), port)
@@ -56,7 +61,7 @@ def view(
     from .fastapi_server import view_server
 
     view_server(
-        log_dir=log_dir,
+        log_dirs=log_dirs,
         recursive=recursive,
         host=host,
         port=port,

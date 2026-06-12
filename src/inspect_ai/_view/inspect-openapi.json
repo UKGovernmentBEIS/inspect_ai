@@ -140,6 +140,14 @@
             "title": "Inspect Version",
             "type": "string"
           },
+          "log_dirs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LogDirInfo"
+            },
+            "title": "Log Dirs",
+            "type": "array"
+          },
           "scout_version": {
             "anyOf": [
               {
@@ -153,7 +161,8 @@
           }
         },
         "required": [
-          "inspect_version"
+          "inspect_version",
+          "log_dirs"
         ],
         "title": "AppConfig",
         "type": "object"
@@ -6262,6 +6271,25 @@
           "type"
         ],
         "title": "LlmSearchRequest",
+        "type": "object"
+      },
+      "LogDirInfo": {
+        "description": "A configured log directory.\n\nAttributes:\n    log_dir: Resolved path/URI the client sends back as `?log_dir=`.\n    aliased: Display string with the home directory replaced by `~`.",
+        "properties": {
+          "aliased": {
+            "title": "Aliased",
+            "type": "string"
+          },
+          "log_dir": {
+            "title": "Log Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "log_dir",
+          "aliased"
+        ],
+        "title": "LogDirInfo",
         "type": "object"
       },
       "LogDirResponse": {
