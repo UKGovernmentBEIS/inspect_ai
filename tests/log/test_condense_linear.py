@@ -20,7 +20,11 @@ from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript_store import TranscriptEventStore
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -143,6 +147,66 @@ def test_buffer_condense_is_linear(
     assert pool_calls == [
         {"role": "user", "content": f"message {i}"} for i in range(N_EVENTS)
     ]
+
+
+def test_buffer_duplicate_content_loop_is_linear(
+    db: SampleBufferDatabase, hash_counter: HashCounter
+) -> None:
+    """Done-loop: identical content every turn, fresh ids, history re-sent.
+
+    Occurrence-keyed positions make this linear in turns: one pool row per
+    occurrence, single-range refs per event, ~2 hashes per turn.
+    """
+    db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
+
+    n_turns = 50
+    history: list[ChatMessage] = []
+    wire: list[dict[str, JsonValue]] = []
+    for _ in range(n_turns):
+        # fresh objects with fresh ids each turn, content always identical
+        history.append(ChatMessageUser(content="continue"))
+        history.append(ChatMessageAssistant(content="Done"))
+        wire.append({"role": "user", "content": "continue"})
+        wire.append({"role": "assistant", "content": "Done"})
+        call_msgs: list[JsonValue] = [dict(m) for m in wire]
+        db.log_events(
+            [
+                SampleEvent(
+                    id="s1", epoch=1, event=_model_event(list(history), call_msgs)
+                )
+            ]
+        )
+
+    # linear hashing: ~2 message + ~2 call hashes per turn
+    budget = 5 * n_turns
+    assert hash_counter.msg_hashes <= budget, (
+        f"message hashing is superlinear: {hash_counter.msg_hashes}"
+    )
+    assert hash_counter.call_hashes <= budget, (
+        f"call hashing is superlinear: {hash_counter.call_hashes}"
+    )
+
+    data = db.get_sample_data("s1", 1)
+    assert data is not None
+    # one pool row per occurrence
+    assert len(data.message_pool) == 2 * n_turns
+    assert len(data.call_pool) == 2 * n_turns
+
+    # every event's refs are a single monotone range (the storage fix)
+    for i, ev in enumerate(data.events):
+        event_dict = ev.event
+        assert isinstance(event_dict, dict)
+        k = 2 * (i + 1)
+        assert event_dict["input_refs"] == [[0, k]], (
+            f"event {i}: {event_dict['input_refs']}"
+        )
+        call = event_dict["call"]
+        assert isinstance(call, dict)
+        assert call["call_refs"] == [[0, k]], f"event {i}: {call['call_refs']}"
+
+    # pool rows resolve to the original alternating contents in order
+    pool_msgs = [json.loads(entry.data) for entry in data.message_pool]
+    assert [m["content"] for m in pool_msgs] == ["continue", "Done"] * n_turns
 
 
 def _no_attachment(_: str) -> str | None:

@@ -120,23 +120,30 @@ class SampleBufferDatabase(SampleBuffer):
         UNIQUE(sample_id, sample_epoch, hash)
     );
 
+    -- Pool rows are per-occurrence: equal-content rows at distinct
+    -- positions are valid (positions derive from insertion order), so
+    -- there is deliberately no uniqueness on msg_id/hash.
     CREATE TABLE message_pool (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sample_id TEXT,
         sample_epoch INTEGER,
         msg_id TEXT,
-        data TEXT,
-        UNIQUE(sample_id, sample_epoch, msg_id)
+        data TEXT
     );
+
+    CREATE INDEX IF NOT EXISTS idx_message_pool_sample
+        ON message_pool(sample_id, sample_epoch);
 
     CREATE TABLE call_pool (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sample_id TEXT,
         sample_epoch INTEGER,
         hash TEXT,
-        data TEXT,
-        UNIQUE(sample_id, sample_epoch, hash)
+        data TEXT
     );
+
+    CREATE INDEX IF NOT EXISTS idx_call_pool_sample
+        ON call_pool(sample_id, sample_epoch);
 
     -- Indices for foreign keys and common queries
     CREATE INDEX IF NOT EXISTS idx_events_sample ON events(sample_id, sample_epoch);
@@ -1473,7 +1480,7 @@ class SampleBufferDatabase(SampleBuffer):
         msg: ChatMessage,
     ) -> None:
         conn.execute(
-            "INSERT OR IGNORE INTO message_pool (sample_id, sample_epoch, msg_id, data) VALUES (?, ?, ?, ?)",
+            "INSERT INTO message_pool (sample_id, sample_epoch, msg_id, data) VALUES (?, ?, ?, ?)",
             (str(sample_id), epoch, msg_id, _msg_pool_json(_msg_pool_jsonable(msg))),
         )
 
@@ -1486,7 +1493,7 @@ class SampleBufferDatabase(SampleBuffer):
         call_msg: JsonValue,
     ) -> None:
         conn.execute(
-            "INSERT OR IGNORE INTO call_pool (sample_id, sample_epoch, hash, data) VALUES (?, ?, ?, ?)",
+            "INSERT INTO call_pool (sample_id, sample_epoch, hash, data) VALUES (?, ?, ?, ?)",
             (str(sample_id), epoch, hash, _call_pool_json(call_msg)),
         )
 

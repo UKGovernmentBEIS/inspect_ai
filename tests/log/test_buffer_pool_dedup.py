@@ -445,31 +445,59 @@ def test_rollback_restores_pool_indices(
     assert last["input_refs"] == [[0, 2]]
 
 
-def test_buffer_pool_dedup_uses_content_hash_not_msg_id(
+def test_buffer_pool_dedup_break_path_uses_content_hash(
     db: SampleBufferDatabase,
 ) -> None:
-    """Messages with same content but different .id fields dedup to one pool entry."""
+    """On a prefix break, equal-content/different-id messages still hash-dedup.
+
+    The second event rewrites history (drops msg_1), so it takes the break
+    path, where content dedup is what protects sliding-window and bridge
+    scaffolds from per-occurrence row growth.
+    """
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
     db.start_sample(sample)
 
-    # Two distinct ChatMessage objects with identical content but different .id
     msg_1 = ChatMessageUser(content="Hello").model_copy(update={"id": "uuid-aaa"})
     msg_2 = ChatMessageUser(content="Hello").model_copy(update={"id": "uuid-bbb"})
+    msg_3 = ChatMessageUser(content="Other").model_copy(update={"id": "uuid-ccc"})
+
+    db.log_events(
+        [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_1, msg_3]))]
+    )
+    # history rewritten (msg_1 dropped) -> prefix break -> hash dedup applies
+    db.log_events(
+        [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_3, msg_2]))]
+    )
+
+    data = db.get_sample_data("s1", 1)
+    assert data is not None
+    # msg_2 deduped against msg_1's row by content despite the different id
+    assert len(data.message_pool) == 2
+
+    last = data.events[-1].event
+    assert isinstance(last, dict)
+    assert last["input_refs"] == [[1, 2], [0, 1]]
+
+
+def test_buffer_pool_append_path_mints_occurrence_rows(
+    db: SampleBufferDatabase,
+) -> None:
+    """On pure append, equal-content suffix messages get their own rows."""
+    sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
+    db.start_sample(sample)
+
+    msg_1 = ChatMessageUser(content="Hello")
+    msg_2 = ChatMessageUser(content="Hello")  # fresh id, equal content
 
     db.log_events([SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_1]))])
+    # pure append: previous input [msg_1] is a full prefix
     db.log_events(
         [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_1, msg_2]))]
     )
 
     data = db.get_sample_data("s1", 1)
     assert data is not None
-
-    # Same content -> should be 1 pool entry, not 2
-    assert len(data.message_pool) == 1, (
-        f"Expected 1 pool entry for identical content, got {len(data.message_pool)}"
-    )
-
-    # both occurrences in the second event resolve to pool position 0
+    assert len(data.message_pool) == 2  # one row per occurrence
     last = data.events[-1].event
     assert isinstance(last, dict)
-    assert last["input_refs"] == [[0, 1], [0, 1]]
+    assert last["input_refs"] == [[0, 2]]  # single monotone range
