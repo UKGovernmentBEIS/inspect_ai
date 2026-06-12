@@ -104,6 +104,23 @@ def test_message_pool_index_match_prefix_identity_and_equality() -> None:
     assert index.match_prefix([a, c]) == [0]
 
 
+def test_message_prefix_breaks_on_json_distinct_metadata() -> None:
+    """Python-equal, JSON-distinct prefix drift must break the message match.
+
+    Same corruption class as the call side: a metadata value drifting
+    0 -> 0.0 is python-equal but hashes differently, so reusing the prior
+    pool index would round-trip the old value.
+    """
+    index = MessagePoolIndex()
+    msg = ChatMessageUser(content="hi", metadata={"n": 0})
+    index.set_prev([msg], [0])
+    clone = msg.model_copy(update={"metadata": {"n": 0}})
+    assert index.match_prefix([clone]) == [0]  # equal-by-value still matches
+    drifted = msg.model_copy(update={"metadata": {"n": 0.0}})
+    assert msg == drifted  # python equality conflates them...
+    assert index.match_prefix([drifted]) == []  # ...the prefix must not
+
+
 def test_message_pool_index_set_prev_copies_input() -> None:
     index = MessagePoolIndex()
     a = ChatMessageUser(content="a")
