@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
+- Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
 - Anthropic: Raise a clear error when `reasoning_tokens` is set on Claude 4.7+ or Claude 5 (which removed the `budget_tokens` control); use `reasoning_effort` instead.
 - OpenAI: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the responses and OpenAI-compatible paths honored it).
