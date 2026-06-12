@@ -132,6 +132,10 @@ async def generate_raw_completions(
         request_kwargs["seed"] = config.seed
     if config.stop_seqs is not None:
         request_kwargs["stop"] = config.stop_seqs
+    if config.num_choices is not None:
+        # /v1/completions `n`: sample multiple completions per prompt in one
+        # request — prompt tokens are billed once, not per sample.
+        request_kwargs["n"] = config.num_choices
     if config.logprobs is True:
         request_kwargs["logprobs"] = config.top_logprobs or 1
     if extra_body:
@@ -161,26 +165,28 @@ async def generate_raw_completions(
     if not response.choices:
         return ModelOutput(model=response.model, choices=[]), model_call
 
-    choice = response.choices[0]
-
-    # prompt_logprobs: vLLM extension (also implemented by SGLang), lives
-    # inside the choice for /v1/completions (unlike chat completions where
-    # it's top-level). Parsed when present, ignored otherwise.
-    raw_plps = choice.model_extra.get("prompt_logprobs") if choice.model_extra else None
-    parsed_prompt_lps = parse_vllm_prompt_logprobs_raw(raw_plps) if raw_plps else None
-
-    # Completion token logprobs (standard completions format)
-    parsed_completion_lps = parse_completion_logprobs(choice.logprobs)
+    def parse_choice(choice: Any) -> ChatCompletionChoice:
+        # prompt_logprobs: vLLM extension (also implemented by SGLang), lives
+        # inside the choice for /v1/completions (unlike chat completions where
+        # it's top-level). Parsed when present, ignored otherwise.
+        raw_plps = (
+            choice.model_extra.get("prompt_logprobs") if choice.model_extra else None
+        )
+        return ChatCompletionChoice(
+            message=ChatMessageAssistant(content=choice.text),
+            stop_reason=as_stop_reason(choice.finish_reason),
+            # Completion token logprobs (standard completions format)
+            logprobs=parse_completion_logprobs(choice.logprobs),
+            prompt_logprobs=parse_vllm_prompt_logprobs_raw(raw_plps)
+            if raw_plps
+            else None,
+        )
 
     model_output = ModelOutput(
         model=response.model,
         choices=[
-            ChatCompletionChoice(
-                message=ChatMessageAssistant(content=choice.text),
-                stop_reason=as_stop_reason(choice.finish_reason),
-                logprobs=parsed_completion_lps,
-                prompt_logprobs=parsed_prompt_lps,
-            )
+            parse_choice(c)
+            for c in sorted(response.choices, key=lambda c: c.index or 0)
         ],
         usage=(
             ModelUsage(
