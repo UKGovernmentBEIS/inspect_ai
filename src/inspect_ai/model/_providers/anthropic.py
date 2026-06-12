@@ -31,6 +31,7 @@ from anthropic import (
 from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
+    CacheControlEphemeralParam,
     CodeExecutionToolResultBlock,
     CodeExecutionToolResultBlockParam,
     ContentBlock,
@@ -251,6 +252,7 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         streaming: bool | Literal["auto"] = "auto",
         betas: str | list[str] = [],
+        cache_ttl: Literal["5m", "1h"] | None = None,
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -263,6 +265,13 @@ class AnthropicAPI(ModelAPI):
         # record steraming and betas prefs
         self.streaming = streaming
         self.betas = betas if isinstance(betas, list) else [str(betas)]
+
+        # validate and record prompt cache ttl
+        if cache_ttl is not None and cache_ttl not in ("5m", "1h"):
+            raise ValueError(
+                f"Invalid cache_ttl '{cache_ttl}': valid values are '5m' and '1h'."
+            )
+        self.cache_ttl = cache_ttl
 
         # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
@@ -441,7 +450,7 @@ class AnthropicAPI(ModelAPI):
             # per-block markers added in resolve_chat_input on those services.
             # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
             if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
-                request["cache_control"] = {"type": "ephemeral"}
+                request["cache_control"] = cache_control_param(self.cache_ttl)
 
             # system messages and tools
             if system_param is not None:
@@ -1447,10 +1456,10 @@ class AnthropicAPI(ModelAPI):
         if cache_prompt:
             # system
             if system_param:
-                add_cache_control(system_param[-1])
+                add_cache_control(system_param[-1], self.cache_ttl)
             # tools
             if tools_params:
-                add_cache_control(tools_params[-1])
+                add_cache_control(tools_params[-1], self.cache_ttl)
             # mark the second-to-last cacheable block. auto-cache marks the
             # last; this write gives lookback a fallback when that block
             # changes (RAG, scorers, approvers, branching evals). harmless
@@ -1458,7 +1467,7 @@ class AnthropicAPI(ModelAPI):
             # suffices. Skip thinking/redacted_thinking blocks — the API
             # rejects cache_control on those.
             if message_params:
-                add_lookback_cache_control(message_params)
+                add_lookback_cache_control(message_params, self.cache_ttl)
 
         # return chat input
         return (
@@ -1939,7 +1948,9 @@ def is_code_execution_tool(
 _NON_CACHEABLE_BLOCK_TYPES = frozenset({"thinking", "redacted_thinking"})
 
 
-def add_lookback_cache_control(message_params: list[MessageParam]) -> None:
+def add_lookback_cache_control(
+    message_params: list[MessageParam], ttl: Literal["5m", "1h"] | None = None
+) -> None:
     """Tag the second-to-last cacheable content block across `message_params`.
 
     Walks blocks in reverse (last message first), skipping
@@ -1969,7 +1980,7 @@ def add_lookback_cache_control(message_params: list[MessageParam]) -> None:
                     continue
                 seen_cacheable += 1
                 if seen_cacheable == 2:
-                    add_cache_control(cast(dict[str, Any], block))
+                    add_cache_control(cast(dict[str, Any], block), ttl)
                     return
 
 
@@ -1989,8 +2000,16 @@ def add_cache_control(
     | BetaWebFetchTool20250910Param
     | BetaWebFetchTool20260209Param
     | dict[str, Any],
+    ttl: Literal["5m", "1h"] | None = None,
 ) -> None:
-    cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
+    cast(dict[str, Any], param)["cache_control"] = cache_control_param(ttl)
+
+
+def cache_control_param(ttl: Literal["5m", "1h"] | None) -> CacheControlEphemeralParam:
+    cache_control = CacheControlEphemeralParam(type="ephemeral")
+    if ttl is not None:
+        cache_control["ttl"] = ttl
+    return cache_control
 
 
 def consecutive_user_message_reducer(
