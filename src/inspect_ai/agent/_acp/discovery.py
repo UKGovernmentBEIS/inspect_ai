@@ -1,33 +1,24 @@
-"""Discovery primitives shared by the ACP server and CLI clients.
+"""ACP-specific discovery primitives.
 
-Public surface:
+Schema layer over :mod:`inspect_ai._util.discovery` — adds the ACP
+discovery directory, the per-eval-id socket path, the
+:class:`TargetAddress` / :class:`DiscoveredEval` shapes, and the
+``--server`` / ``--eval-id`` target-resolution policy used by the
+stdio bridge and TUI client.
 
-- :func:`discovery_dir` — the directory holding per-process discovery
-  JSON files + default UNIX socket nodes.
-- :func:`default_socket_path` — default AF_UNIX socket path for an
-  ``eval_id`` (sibling of the discovery file).
-- :func:`pid_alive` — POSIX-only "is this process still alive" check.
-- :func:`parse_host_port` — ``host:port`` parser (with IPv6 bracket
-  support); returns ``None`` when ``value`` is a path-like or otherwise
-  not a network address.
-- :func:`has_unix_sockets` — platform support check.
-- :func:`cleanup_stale_discovery_files` — best-effort sweep for files
-  whose owning PID is no longer alive.
-- :class:`TargetAddress` + :func:`resolve_target` — pick a connectable
-  address from the discovery dir / explicit overrides (used by the
-  stdio bridge and TUI client).
+Generic process-liveness, socket utilities, and discovery-file
+mechanics live in :mod:`inspect_ai._util.process`,
+:mod:`inspect_ai._util.sockets`, and :mod:`inspect_ai._util.discovery`
+respectively — import from those modules directly.
 """
 
 from __future__ import annotations
 
-import asyncio
-import json
-import os
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai._util.sockets import parse_host_port
 
 
 def discovery_dir() -> Path:
@@ -38,110 +29,6 @@ def discovery_dir() -> Path:
 def default_socket_path(eval_id: str) -> Path:
     """Default AF_UNIX socket path for a given eval_id."""
     return discovery_dir() / f"{eval_id}.sock"
-
-
-def pid_alive(pid: int) -> bool:
-    """Return ``True`` if a process with ``pid`` is currently alive."""
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)  # signal 0 = existence check only
-        return True
-    except (ProcessLookupError, OSError):
-        return False
-
-
-def parse_host_port(value: str) -> tuple[str, int] | None:
-    """Parse a ``host:port`` or ``[ipv6]:port`` string.
-
-    Returns ``(host, port)`` if ``value`` is a well-formed network
-    address, else ``None`` (treat the value as a UNIX socket path).
-
-    Raises :class:`ValueError` when ``value`` parses as ``host:port``
-    syntactically (so it's clearly intended as a network address)
-    but the port is out of the valid TCP range ``[0, 65535]``.
-    Falling through to UNIX-path interpretation in that case would
-    silently bind/connect to a literal path like
-    ``"127.0.0.1:99999"`` — misleading and harder to diagnose than
-    a clean error.
-
-    A bare integer is intentionally NOT parsed here — the caller
-    handles ``int`` transports separately for the loopback-port shape.
-    """
-    if not value:
-        return None
-
-    def _check_port(port: int) -> int:
-        if port < 0 or port > 65535:
-            raise ValueError(f"port out of range (must be 0-65535, got {port})")
-        return port
-
-    # IPv6 bracket form: [::1]:4444
-    if value.startswith("["):
-        end = value.find("]:")
-        if end == -1:
-            return None
-        host = value[1:end]
-        port_str = value[end + 2 :]
-        try:
-            port = int(port_str)
-        except ValueError:
-            return None
-        return host, _check_port(port)
-    # Path-like values never have ``host:port`` semantics — a UNIX socket
-    # at ``/tmp/foo`` should not be misread as host "" port "foo".
-    if "/" in value or "\\" in value:
-        return None
-    if ":" not in value:
-        return None
-    host, _, port_str = value.rpartition(":")
-    if not host or not port_str:
-        return None
-    try:
-        port = int(port_str)
-    except ValueError:
-        return None
-    return host, _check_port(port)
-
-
-def has_unix_sockets() -> bool:
-    """Whether the current platform supports AF_UNIX sockets.
-
-    POSIX always supports them. Windows 10/11 do; older Windows
-    versions don't expose :func:`asyncio.start_unix_server`.
-    """
-    if sys.platform != "win32":
-        return True
-    return hasattr(asyncio, "start_unix_server")
-
-
-def cleanup_stale_discovery_files() -> None:
-    """Remove discovery JSON files whose owning PID is no longer alive.
-
-    Called by :meth:`AcpServer.start` before writing our own discovery
-    file. Also unlinks the orphaned AF_UNIX socket node recorded in the
-    stale file so subsequent binds on the same path don't trip over a
-    leftover inode.
-    """
-    acp_dir = discovery_dir()
-    if not acp_dir.exists():
-        return
-    for path in acp_dir.glob("*.json"):
-        try:
-            data = json.loads(path.read_text())
-            pid = int(data.get("pid", -1))
-            if pid <= 0 or pid_alive(pid):
-                continue
-            path.unlink(missing_ok=True)
-            sock = data.get("socket_path")
-            if sock:
-                try:
-                    Path(sock).unlink(missing_ok=True)
-                except OSError:
-                    pass
-        except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError):
-            # Best effort — skip malformed entries.
-            continue
 
 
 # ---------------------------------------------------------------------------
@@ -226,22 +113,16 @@ def list_discovered_evals() -> list[DiscoveredEval]:
     Sorted most-recently-started first. Stale files (dead PID,
     malformed JSON, missing fields) are silently skipped — same
     resilience contract as :func:`cleanup_stale_discovery_files`.
+
+    Uses the shared :func:`list_alive_discovery_entries` helper to
+    walk the directory + filter on liveness, then applies the
+    ACP-specific schema (``socket_path`` OR ``host`` + ``port``,
+    ``eval_id`` field) to convert to :class:`DiscoveredEval`.
     """
-    acp_dir = discovery_dir()
-    if not acp_dir.exists():
-        return []
+    from inspect_ai._util.discovery import list_alive_discovery_entries
+
     results: list[DiscoveredEval] = []
-    for path in acp_dir.glob("*.json"):
-        try:
-            data = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
-        try:
-            pid = int(data.get("pid", -1))
-        except (TypeError, ValueError):
-            continue
-        if pid <= 0 or not pid_alive(pid):
-            continue
+    for data in list_alive_discovery_entries(discovery_dir()):
         target = _target_from_discovery_data(data)
         if target is None:
             continue

@@ -1,0 +1,147 @@
+---
+title: Control Channel
+llms-description: Observe running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, and keep-alive.
+---
+
+::: {.callout-note appearance="simple"}
+The control channel features described below require the development version of Inspect. You can install the development version from GitHub with:
+
+```bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+## Overview
+
+Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — without interrupting it or parsing log files.
+
+| Command | Description |
+|----|----|
+| `inspect ctl tasks` | List running tasks across all live Inspect processes. |
+| `inspect ctl samples` | List a task's samples (running, completed, and pending). |
+| `inspect ctl errors` | List samples that errored or were retried. |
+| `inspect ctl sample` | Show one sample's error detail, including prior attempts. |
+| `inspect ctl events` | Read one sample's transcript events. |
+| `inspect ctl release` | Let a keep-alive process exit. |
+
+: {tbl-colwidths=[35,65]}
+
+All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. Everything is read-only: nothing you do over the control channel affects the running eval (`release` only lets an already-finished process exit).
+
+The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
+
+## Listing Tasks
+
+`inspect ctl tasks` lists the tasks of every running eval on the machine:
+
+```bash
+$ inspect ctl tasks
+task_id       task                         samples              started
+------------  ---------------------------  -------------------  --------
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond   12/40 (3 running)    14:02:11
+fR8mWn2cQspD  inspect_evals/humaneval      164/164 (complete)   13:58:40
+```
+
+Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored.
+
+## Selecting a Task
+
+The other commands take a `TASK` argument that selects a task from this list. It matches a task id (or unique prefix) first, then a task name — anchored at the start of the name or after a `/`, so `gpqa` matches `inspect_evals/gpqa_diamond`. When only one task is running you can omit it entirely.
+
+Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don't use them).
+
+## Sample Status
+
+`inspect ctl samples` lists a task's samples with their live status:
+
+```bash
+$ inspect ctl samples gpqa
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40 (3 running)
+
+sample  epoch  status     time   idle  tokens  messages
+------  -----  ---------  -----  ----  ------  --------
+14      1      running    12:40  0:03  48210   22
+17      1      running    8:12   6:51  31055   14
+21      1      running    0:45   0:01  2150    3
+1       1      completed  4:02         18021   9
+...
+```
+
+The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. (Note that a single in-flight model request produces no events until it returns, so idle time also accumulates during one long model call.)
+
+Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — useful for monitoring loops that don't want to re-read the full list.
+
+## Errors and Retries
+
+`inspect ctl errors` is a triage view of the samples that errored or were retried:
+
+```bash
+$ inspect ctl errors gpqa
+sample  epoch  status   retries  error
+------  -----  -------  -------  ----------------------------------
+9       1      error    2        RuntimeError: tool execution failed
+17      1      running  1
+```
+
+`inspect ctl sample` drills into one sample's full error history, including errors from prior attempts (both task-level retries and sample-level `retry_on_error`). Pass `--traceback` for full tracebacks:
+
+```bash
+$ inspect ctl sample gpqa 9 --traceback
+```
+
+## Transcript Events
+
+`inspect ctl events` reads a running sample's transcript — the sequence of model calls, tool calls, errors, and scores it has produced so far:
+
+```bash
+$ inspect ctl events gpqa 17
+time      event  summary
+--------  -----  -------------------------------------------------
+14:09:01  model  openai/gpt-5 · 1840 tok · stop · The compound is...
+14:09:04  tool   bash(ls /data) → README.md results.csv
+14:09:11  model  openai/gpt-5 · 2105 tok · stop · Based on the...
+
+3 events  ·  more
+next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ
+```
+
+Reads are incremental: each page ends with a `next` cursor, and passing it back via `--since` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript.
+
+Other options:
+
+| Option | Description |
+|----|----|
+| `--tail N` | Start N events from the end instead of the beginning. |
+| `--type model,tool` | Filter by event type (`*` for all). By default, high-volume structural events are excluded. |
+| `--full` | Return complete raw events instead of compact one-line summaries. |
+| `--since-time` / `--until` | Filter to a wall-clock window (unix timestamps). |
+
+: {tbl-colwidths=[35,65]}
+
+Events for samples that have already completed are also readable — they are served from the eval's log.
+
+## Keep Alive
+
+A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The `--ctl-server` option controls this:
+
+```bash
+inspect eval ctf.py --ctl-server=keep-alive
+```
+
+With `keep-alive`, the process stays running after the eval finishes — its state remains queryable via `inspect ctl` and its logs are fully written — until you release it:
+
+```bash
+inspect ctl release
+```
+
+If more than one process is parked, `release` lists their pids and you disambiguate with `--pid`. Release also works ahead of time: issued while the eval is still running, it means "exit when done" — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). From Python, pass `ctl_server="keep-alive"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
+
+## Disabling the Control Server
+
+The control server is on by default. To run an eval without it:
+
+```bash
+inspect eval ctf.py --ctl-server=false
+```
+
+The `INSPECT_EVAL_CTL_SERVER` environment variable mirrors the option (for example, set `INSPECT_EVAL_CTL_SERVER=false` to disable it across a CI job). If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.

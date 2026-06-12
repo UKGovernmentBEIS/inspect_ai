@@ -1,14 +1,23 @@
 ## Unreleased
 
+- Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
+- Anthropic: Raise a clear error when `reasoning_tokens` is set on Claude 4.7+ or Claude 5 (which removed the `budget_tokens` control); use `reasoning_effort` instead.
+- OpenAI: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the responses and OpenAI-compatible paths honored it).
+- SageMaker: Fix streaming handler dropping reasoning tokens from thinking models.
+- Model API: Record model fallbacks as a typed `ModelOutput.fallback` and roll them up per-sample on `EvalSample.model_fallbacks` (and sample summaries); expose a `fallbacks` count column in `samples_df()`.
+- Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
 - Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.
 - Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.
+- Tools: `internal_tool_type()` helper and `INTERNAL_TOOL_TYPE` options key marking server-side tools.
 - Agent Bridge: Preserve `source="operator"` provenance on operator-injected messages.
 - Task Display: Update log/plain progress after errors.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
 - S3: Retry when requests have stale signatures.
+- Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
+- Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects
 
 ## 0.3.239 (09 June 2026)
 

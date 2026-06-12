@@ -3483,6 +3483,20 @@
             "title": "Metadata",
             "type": "object"
           },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -3928,6 +3942,20 @@
             "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
+          },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
           },
           "model_usage": {
             "additionalProperties": {
@@ -4927,6 +4955,20 @@
               }
             ],
             "title": "Extra Headers"
+          },
+          "fallback_models": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Models"
           },
           "frequency_penalty": {
             "anyOf": [
@@ -7099,6 +7141,43 @@
         "title": "ModelEvent",
         "type": "object"
       },
+      "ModelFallback": {
+        "description": "A model fallback (request served by a different model than requested).",
+        "properties": {
+          "count": {
+            "default": 1,
+            "title": "Count",
+            "type": "integer"
+          },
+          "fallback_model": {
+            "title": "Fallback Model",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "fallback_model",
+          "count"
+        ],
+        "title": "ModelFallback",
+        "type": "object"
+      },
       "ModelOutput": {
         "description": "Output from model generation.",
         "properties": {
@@ -7125,6 +7204,16 @@
               }
             ],
             "title": "Error"
+          },
+          "fallback": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelFallback"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "metadata": {
             "anyOf": [
