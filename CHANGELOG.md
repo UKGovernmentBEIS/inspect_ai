@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
+- Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
 - Anthropic: Raise a clear error when `reasoning_tokens` is set on Claude 4.7+ or Claude 5 (which removed the `budget_tokens` control); use `reasoning_effort` instead.
 - OpenAI: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the responses and OpenAI-compatible paths honored it).
@@ -17,6 +18,10 @@
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
 - S3: Retry when requests have stale signatures.
 - Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
+- Inspect View: Fix occasional intermittent hang while attempting to navigate to sample
+- Inspect View: Improve server side tool rendering transcripts and messages
+- Inspect View: Fix stuck completed streaming samples
+- Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects
 
 ## 0.3.239 (09 June 2026)
 

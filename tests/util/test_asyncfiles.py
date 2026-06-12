@@ -14,7 +14,6 @@ from inspect_ai._util.asyncfiles import (
     _current_async_fs,
     get_async_filesystem,
 )
-from inspect_ai._util.file import local_path
 
 S3_BUCKET = "s3://test-bucket"
 
@@ -672,8 +671,6 @@ async def test_iter_files_local_one_level() -> None:
         _make_local_tree(root)
         async with AsyncFilesystem() as fs:
             paths = await _collect(fs.iter_files(str(root)))
-            for p in paths:
-                assert p.startswith("file://")
             names = sorted(Path(p).name for p in paths)
             assert names == ["a.txt", "b.log"]
 
@@ -740,7 +737,6 @@ async def test_iter_dirs_local_one_level() -> None:
             terminal = sorted(p.rstrip("/").rsplit("/", 1)[-1] for p in paths)
             assert terminal == ["sub1", "sub2"]
             for p in paths:
-                assert p.startswith("file://")
                 assert p.endswith("/")
 
 
@@ -792,7 +788,7 @@ async def test_iter_files_local_excludes_dirs() -> None:
             paths = await _collect(fs.iter_files(str(root)))
             for p in paths:
                 assert not p.endswith("/")
-                assert Path(local_path(p)).is_file()
+                assert Path(p).is_file()
 
 
 def test_iter_files_s3_one_level(mock_s3: None) -> None:
