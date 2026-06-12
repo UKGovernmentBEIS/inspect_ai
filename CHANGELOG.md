@@ -1,6 +1,5 @@
 ## Unreleased
 
-- Eval Logs: Fix sample summary thinning mutating shared `ChatMessage` objects, which replaced non-text content (reasoning, images, etc.) with placeholders and truncated long text in the on-disk `EvalSample.input` (#4239).
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
 - Anthropic: Raise a clear error when `reasoning_tokens` is set on Claude 4.7+ or Claude 5 (which removed the `budget_tokens` control); use `reasoning_effort` instead.
@@ -18,6 +17,7 @@
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
 - S3: Retry when requests have stale signatures.
 - Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
+- Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects
 
 ## 0.3.239 (09 June 2026)
 
