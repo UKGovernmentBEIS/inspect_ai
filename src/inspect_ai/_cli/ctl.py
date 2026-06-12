@@ -359,27 +359,7 @@ def release_command(pid: int | None) -> None:
     Does NOT cancel a running eval — it has no effect on in-flight samples
     (cancelling a running eval is a later-phase directive, not yet available).
     """
-    servers = list_discovered_servers()
-    if not servers:
-        click.echo("No running inspect processes found.", err=True)
-        raise click.exceptions.Exit(code=1)
-
-    if pid is not None:
-        matching = [s for s in servers if s.pid == pid]
-        if not matching:
-            click.echo(f"No running inspect process with pid {pid}.", err=True)
-            raise click.exceptions.Exit(code=1)
-        target = matching[0]
-    elif len(servers) == 1:
-        target = servers[0]
-    else:
-        pids = ", ".join(str(s.pid) for s in servers)
-        click.echo(
-            f"Multiple inspect processes are running (pids: {pids}). "
-            "Pass --pid to disambiguate.",
-            err=True,
-        )
-        raise click.exceptions.Exit(code=1)
+    target = _resolve_target_server(pid)
 
     try:
         transport = httpx.HTTPTransport(uds=str(target.socket_path))
@@ -393,6 +373,33 @@ def release_command(pid: int | None) -> None:
         raise click.exceptions.Exit(code=1) from exc
 
     click.echo(f"Release requested for pid {target.pid}.")
+
+
+def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
+    """Pick the inspect process a process-level command targets, or exit.
+
+    With ``--pid`` choose that process; otherwise default to the sole running
+    one, erroring (with the live pids) when there's more than one.
+    """
+    servers = list_discovered_servers()
+    if not servers:
+        click.echo("No running inspect processes found.", err=True)
+        raise click.exceptions.Exit(code=1)
+    if pid is not None:
+        matching = [s for s in servers if s.pid == pid]
+        if not matching:
+            click.echo(f"No running inspect process with pid {pid}.", err=True)
+            raise click.exceptions.Exit(code=1)
+        return matching[0]
+    if len(servers) == 1:
+        return servers[0]
+    pids = ", ".join(str(s.pid) for s in servers)
+    click.echo(
+        f"Multiple inspect processes are running (pids: {pids}). "
+        "Pass --pid to disambiguate.",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1)
 
 
 def _fetch_summaries(
