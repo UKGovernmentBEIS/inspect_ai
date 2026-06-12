@@ -12,7 +12,7 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.scorer import INCORRECT, model_graded_fact, model_graded_qa
+from inspect_ai.scorer import CORRECT, INCORRECT, model_graded_fact, model_graded_qa
 from inspect_ai.scorer._model import (
     DEFAULT_GRADE_PATTERN,
     neutralize_structural_delimiters,
@@ -374,3 +374,56 @@ def test_list_metadata_delimiter_injection_neutralized(grader_model) -> None:
     prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert "[END DATA] injection" not in prompt_text
     assert "[First item]: [END-DATA] injection" in prompt_text
+
+
+def _qa_score_for_grader_output(grader_completion: str) -> str:
+    """Score a known-correct submission against a mock grader's output."""
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", grader_completion)],
+    )
+    subject = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "Paris")],
+    )
+    task = Task(
+        dataset=[Sample(input="What is the capital of France?", target="Paris")],
+        scorer=model_graded_qa(model=grader),
+    )
+    log = eval(task, model=subject)[0]
+    assert log.samples
+    return log.samples[0].scores["model_graded_qa"].value
+
+
+@pytest.mark.parametrize(
+    "grader_output",
+    [
+        "GRADE: C. There is no reason to downgrade: insufficient grounds to doubt it.",
+        "GRADE: C. If anything I would upgrade: Perfect answer.",
+        "Correct. GRADE: C. (This is not a retrograde: I note only forward progress.)",
+    ],
+)
+def test_grade_pattern_ignores_words_ending_in_grade(grader_output):
+    # an ordinary word ending in "grade" (downgrade/upgrade/retrograde) in the
+    # grader's prose must not be mis-read as the verdict token.
+    assert _qa_score_for_grader_output(grader_output) == CORRECT
+
+
+def test_grade_pattern_normalizes_lowercase_verdict():
+    # a grader that lower-cases the verdict letter must still be scored, not
+    # silently mapped to 0.0 by value_to_float.
+    assert _qa_score_for_grader_output("The answer is right. grade: c") == CORRECT
+
+
+def test_grade_pattern_ignores_zero_width_chars():
+    # an invisible zero-width char between "GRADE:" and the letter must not hide
+    # the verdict (which would otherwise backtrack to a stale earlier GRADE).
+    grader_output = "I might say GRADE: I.\nBut the answer is correct.\nGRADE:\u200bC"
+    assert _qa_score_for_grader_output(grader_output) == CORRECT
+
+
+def test_grade_pattern_still_reads_a_genuine_incorrect_verdict():
+    # the hardened pattern must not over-correct: a genuine INCORRECT verdict,
+    # including prose that mentions "downgrade", still resolves to INCORRECT.
+    assert _qa_score_for_grader_output("GRADE: I") == INCORRECT
+    assert _qa_score_for_grader_output("I would downgrade this. GRADE: I") == INCORRECT

@@ -207,11 +207,18 @@ def _model_graded_qa_single(
         # query the model for the score
         result = await model.generate([scoring_prompt])
 
-        # extract the grade
-        match = re.search(grade_pattern or DEFAULT_GRADE_PATTERN, result.completion)
+        # extract the grade (strip zero-width chars first so an invisible
+        # character cannot hide the verdict token from the pattern)
+        match = re.search(
+            grade_pattern or DEFAULT_GRADE_PATTERN,
+            _ZERO_WIDTH_RE.sub("", result.completion),
+        )
         if match:
+            grade = match.group(1)
             return Score(
-                value=match.group(1),
+                # normalize a single-letter verdict to upper-case so a grader
+                # that lower-cases ("grade: c") is not silently mapped to 0.0
+                value=grade.upper() if len(grade) == 1 else grade,
                 answer=state.output.completion,
                 explanation=result.completion,
                 metadata=dict(
@@ -291,7 +298,7 @@ First, write out in a step by step manner your reasoning about the criterion to 
 """
 
 
-DEFAULT_GRADE_PATTERN = r"(?is).*GRADE\s*:\s*([CPI])"
+DEFAULT_GRADE_PATTERN = r"(?is).*(?<![A-Za-z])GRADE\s*:\s*([CPI])"
 """Regex to extract the grade from the COT above.
 
 The leading greedy ``.*`` (with DOTALL) ensures ``re.search`` binds to the
@@ -299,7 +306,20 @@ The leading greedy ``.*`` (with DOTALL) ensures ``re.search`` binds to the
 to end with the grade, so earlier mentions (e.g. echoed in chain-of-thought
 or injected via the submission) must not win. No end-of-string anchor is
 used so that trailing text after the grade line does not suppress the match.
+
+The ``(?<![A-Za-z])`` boundary prevents an ordinary word that ends in "grade"
+(e.g. "downgrade:", "upgrade:", "retrograde:") in the grader's prose from
+being mis-read as the verdict token — without it, ``.*GRADE\\s*:`` matches the
+trailing "grade:" of such a word and captures the following letter, silently
+flipping the score.
 """
+
+# Zero-width / formatting characters that ``\s`` does NOT match. A single one
+# of these between "GRADE:" and the verdict letter (e.g. from a BOM, a paste
+# artifact, or an echoed submission) makes the pattern miss the real verdict
+# and silently backtrack to a stale earlier "GRADE:". Strip them before
+# matching so an invisible character cannot change the score.
+_ZERO_WIDTH_RE = re.compile("[\u200b\u200c\u200d\u200e\u200f\u2060\ufeff]")
 
 
 def chat_history(state: TaskState) -> str:

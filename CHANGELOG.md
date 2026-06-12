@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scorer: Harden model-graded verdict extraction so a word ending in "grade" in the grader's prose (e.g. "downgrade:"/"upgrade:"), a zero-width character before the verdict letter, or a lower-cased verdict letter no longer silently mis-scores the sample.
 - MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
 - MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
 - MCP: Fix in-sandbox stdio MCP servers hanging on large tool responses.
