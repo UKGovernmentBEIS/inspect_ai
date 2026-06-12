@@ -14368,9 +14368,24 @@ pre[class*="language-"] {
   --inspect-msg-label-bg-hover: #ebebef;
   --inspect-msg-label-border: #e4e4e9;
   --inspect-msg-label-text: #5f5f68;
+
+  /* Tool block (header/edge/zones) tokens: neutral by default so the
+     design-consistent look holds when Event Colors is off; the readable
+     variant points them at the colored tool tokens below. The left edges
+     are plain 1px card borders uncolored, 3px accent bands colorized. */
+  --inspect-tool-block-edge: 1px solid var(--bs-light-border-subtle);
+  --inspect-tool-block-header-bg: var(--bs-tertiary-bg);
+  /* The input continues the header surface; the output is lighter (plain
+     page background) so the call and its result read as distinct zones. */
+  --inspect-tool-block-input-bg: var(--inspect-tool-block-header-bg);
+  --inspect-tool-block-output-bg: var(--bs-body-bg);
+  --inspect-tool-block-ink: var(--bs-secondary-color);
+  --inspect-turn-prose-edge: 1px solid var(--bs-light-border-subtle);
 }
 
 :root[data-bs-theme="dark"] {
+  --inspect-tool-output-bg: #14171c;
+
   --inspect-msg-label-bg: #2a2a2e;
   --inspect-msg-label-bg-hover: #33333a;
   --inspect-msg-label-border: #3a3a40;
@@ -14396,6 +14411,12 @@ pre[class*="language-"] {
    already emit (no per-role classes, no duplicated styles). */
 :root[data-theme-variant="readable"] {
   --bs-body-color: var(--inspect-readable-body-color);
+  --inspect-tool-block-edge: 3px solid var(--inspect-readable-tool-call-border);
+  --inspect-tool-block-header-bg: var(--inspect-readable-tool-call-bg);
+  --inspect-tool-block-input-bg: var(--inspect-readable-tool-call-bg);
+  --inspect-tool-block-output-bg: var(--inspect-tool-output-bg);
+  --inspect-tool-block-ink: var(--inspect-readable-tool-call-border);
+  --inspect-turn-prose-edge: 3px solid var(--inspect-readable-assistant-border);
 }
 
 :root[data-theme-variant="readable"] [data-message-role] {
@@ -14442,55 +14463,6 @@ pre[class*="language-"] {
 :root[data-theme-variant="readable"] [data-message-role] div.tool-call-input {
   background-color: var(--inspect-tool-output-bg);
   border-left: 1px solid var(--bs-light-border-subtle);
-}
-
-/* The tool call is its own peer block: under readable the whole box is the blue
-   call surface (header + input). */
-:root[data-theme-variant="readable"] [data-message-kind="tool"] {
-  background-color: var(--inspect-readable-tool-call-bg);
-  border-left: 3px solid var(--inspect-readable-tool-call-border);
-}
-
-/* Flush the call input AND the output to the box padding edge in EVERY theme so
-   they line up. The input otherwise carries ToolInput's .toolView padding (and,
-   under readable, the .tool-call-input padding) plus the prism code block's own
-   padding/margin, over-indenting it relative to the output. The `:root` prefix
-   lifts specificity above the readable .tool-call-input rule. */
-:root [data-message-kind="tool"] pre.tool-call-input,
-:root [data-message-kind="tool"] div.tool-call-input {
-  border: 0;
-  border-radius: 0;
-  padding: 0 !important;
-}
-:root [data-message-kind="tool"] .tool-call-input pre[class*="language-"] {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-:root [data-message-kind="tool-result"] .tool-output {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-:root[data-theme-variant="readable"]
-  [data-message-kind="tool"]
-  pre.tool-call-input,
-:root[data-theme-variant="readable"]
-  [data-message-kind="tool"]
-  div.tool-call-input {
-  background-color: transparent;
-}
-
-/* The tool output attaches beneath its call — a light-gray box that shares the
-   call's blue left gutter so the pair reads as one connected card. */
-:root[data-theme-variant="readable"] [data-message-kind="tool-result"] {
-  background-color: var(--inspect-tool-output-bg);
-  border-left: 3px solid var(--inspect-readable-tool-call-border);
-}
-:root[data-theme-variant="readable"]
-  [data-message-kind="tool-result"]
-  .tool-output {
-  background-color: transparent;
-  border: 0;
-  border-radius: 0;
 }
 
 /* Light subtle box around tool output (standalone transcript tool events). */
@@ -18606,47 +18578,181 @@ a._citationLink_1ggvf_9:hover {
   overflow-wrap: break-word !important;
   word-break: break-all !important;
 }
-._mcpToolUse_1792k_1 {
-  margin-left: 0.5em;
-  margin-top: 2em;
-  margin-bottom: 2em;
-  padding: 0.25em 0.75em;
-  border-left: solid 5px var(--bs-border-color);
+/* Shared tool-call block grammar. Colors come from the tool-block tokens,
+   which are neutral by default and only colorized under the readable
+   variant (the Event Colors toggle); the output well is the tool-output
+   fill, hairlines/border are the subtle border token. */
+._block_ze280_5 {
+  border-left: var(--inspect-tool-block-edge);
 }
 
-._title_1792k_9 {
+._standalone_ze280_9 {
+  border-top: 1px solid var(--bs-light-border-subtle);
+  border-right: 1px solid var(--bs-light-border-subtle);
+  border-bottom: 1px solid var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+}
+
+._header_ze280_17 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  background-color: var(--inspect-tool-block-header-bg);
+}
+
+._icon_ze280_25 {
+  flex: none;
+  font-size: 13px;
+  color: var(--inspect-tool-block-ink);
+}
+
+._title_ze280_31 {
+  flex: none;
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smaller);
+  font-weight: 600;
+  color: var(--inspect-tool-block-ink);
+}
+
+._summary_ze280_39 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smaller);
+  color: var(--bs-secondary-color);
+}
+
+._pill_ze280_50 {
+  flex: none;
+  /* Right-aligned even when there is no args summary to push it over. */
+  margin-left: auto;
+  font-size: var(--inspect-font-size-smallestest);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--bs-secondary-color);
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-light-border-subtle);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+._inputZone_ze280_64 {
+  border-top: 1px solid var(--bs-light-border-subtle);
+  background-color: var(--inspect-tool-block-input-bg);
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
+._outputWell_ze280_71 {
+  border-top: 1px solid var(--bs-light-border-subtle);
+  background-color: var(--inspect-tool-block-output-bg);
+  padding: 12px 15px;
+  font-size: var(--inspect-font-size-smaller);
+  line-height: 1.6;
+}
+
+/* The zones own their padding/fill; flatten the boxed surfaces that nested
+   renderers (prism code blocks, tool-call-input call-outs, tool output wells)
+   would otherwise stack inside them. !important outranks the readable
+   variant's higher-specificity :root[data-theme-variant] surface rules. */
+._inputZone_ze280_64 pre.tool-call-input,
+._inputZone_ze280_64 div.tool-call-input {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+._inputZone_ze280_64 .tool-call-input pre[class*="language-"] {
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: transparent !important;
+}
+
+._outputWell_ze280_71 .tool-output {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+._error_z9ujs_1 {
+  color: var(--inspect-tool-error-color);
+  background-color: var(--inspect-tool-error-bg);
+  padding: 0.5em 0.7em;
+  border-radius: var(--bs-border-radius);
+  font-family: var(--bs-font-monospace);
+  overflow-wrap: anywhere;
+  margin: 0.5em 0;
+}
+
+._type_z9ujs_11 {
+  font-weight: 600;
   margin-bottom: 0.25em;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  column-gap: 0.3em;
-  align-items: baseline;
-  border-bottom: solid 1px var(--bs-border-color);
+  text-transform: capitalize;
 }
 
-._titleText_1792k_18 {
+._message_z9ujs_17 {
+  white-space: pre-wrap;
+}
+._todoList_1t8rx_1 {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.3em;
+}
+
+._inProgress_1t8rx_9 {
+  font-weight: bold;
+}
+._outputPre_7phrr_1 {
+  padding: 0.5em;
+  margin-top: 0.25em;
   margin-bottom: 0;
 }
 
-._args_1792k_22 {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 0.5em;
-  row-gap: 0.1em;
-  margin-bottom: 1em;
-  align-items: baseline;
+._toolView_7phrr_7 {
+  padding-top: 0 !important;
 }
 
-._argLabel_1792k_31 pre {
+._toolView_7phrr_7 pre {
+  margin-bottom: 0;
+}
+
+._toolView_7phrr_7 p > code {
+  font-size: var(--inspect-text-size-small) !important;
+  color: var(--bs-body-color) !important;
+}
+
+._outputCode_7phrr_20 {
+  font-size: var(--inspect-text-size-small) !important;
+  overflow-wrap: anywhere !important;
+  white-space: pre-wrap !important;
+}
+._tool_13xcg_1 {
+  margin-bottom: 0.5em;
+}
+
+._execOutput_13xcg_5 {
   margin: 0;
+  padding: 0;
+  background-color: transparent;
+  border: 0;
+  font-size: var(--inspect-font-size-smaller);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-._error_1792k_35 {
-  color: red;
-  font-weight: bold;
-}
-
-._toolPanel_1792k_40 {
-  display: contents;
+._execError_13xcg_16 {
+  color: var(--inspect-tool-error-color);
 }
 ._toolImage_1cvly_1 {
   max-width: 800px;
@@ -18736,61 +18842,17 @@ a._citationLink_1ggvf_9:hover {
   display: grid;
   row-gap: 0.5em;
 }
-._todoList_1t8rx_1 {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 0.3em;
-}
-
-._inProgress_1t8rx_9 {
-  font-weight: bold;
-}
-._outputPre_7phrr_1 {
-  padding: 0.5em;
-  margin-top: 0.25em;
-  margin-bottom: 0;
-}
-
-._toolView_7phrr_7 {
-  padding-top: 0 !important;
-}
-
-._toolView_7phrr_7 pre {
-  margin-bottom: 0;
-}
-
-._toolView_7phrr_7 p > code {
-  font-size: var(--inspect-text-size-small) !important;
-  color: var(--bs-body-color) !important;
-}
-
-._outputCode_7phrr_20 {
-  font-size: var(--inspect-text-size-small) !important;
-  overflow-wrap: anywhere !important;
-  white-space: pre-wrap !important;
-}
-._error_z9ujs_1 {
-  color: var(--inspect-tool-error-color);
-  background-color: var(--inspect-tool-error-bg);
-  padding: 0.5em 0.7em;
+/* Custom tool views (answer, submit, todo lists) own their full rendering —
+   they get the block frame (accent edge + container border) without the
+   header row. */
+._custom_v2cay_4 {
+  border: 1px solid var(--bs-light-border-subtle);
+  border-left: var(--inspect-tool-block-edge);
   border-radius: var(--bs-border-radius);
-  font-family: var(--bs-font-monospace);
-  overflow-wrap: anywhere;
-  margin: 0.5em 0;
+  overflow: hidden;
+  padding: 0.7rem;
 }
-
-._type_z9ujs_11 {
-  font-weight: 600;
-  margin-bottom: 0.25em;
-  text-transform: capitalize;
-}
-
-._message_z9ujs_17 {
-  white-space: pre-wrap;
-}
-._message_1gt9a_1 {
+._message_o8d3m_1 {
   font-weight: 300;
   margin-left: 0;
   margin-right: 0;
@@ -18798,17 +18860,32 @@ a._citationLink_1ggvf_9:hover {
   min-width: 0;
 }
 
-._systemRole_1gt9a_9 {
+._systemRole_o8d3m_9 {
   opacity: 0.7;
 }
 
-._timestamp_1gt9a_13 {
+/* Segmented assistant turn: prose bands and flush tool rows stack with
+   hairline separators inside the turn container. */
+._turnSegments_o8d3m_15 > * + * {
+  border-top: 1px solid var(--bs-light-border-subtle);
+}
+
+/* The prose row keeps the assistant band; the left accent token is neutral
+   by default and colorized under the readable variant (where the
+   [data-message-role] rules re-apply the identical color). Extra vertical
+   padding gives the prose rows more weight between the tool rows. */
+._proseSegment_o8d3m_23 {
+  padding: 0.9rem 0.7rem;
+  border-left: var(--inspect-turn-prose-edge);
+}
+
+._timestamp_o8d3m_28 {
   opacity: 0.5;
   font-size: var(--inspect-font-size-smaller);
   font-weight: normal;
 }
 
-._messageGrid_1gt9a_19 {
+._messageGrid_o8d3m_34 {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 0.5em;
@@ -18818,45 +18895,45 @@ a._citationLink_1ggvf_9:hover {
   align-items: flex-start;
 }
 
-._toolMessageGrid_1gt9a_29 {
+._toolMessageGrid_o8d3m_44 {
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._headerEnd_1gt9a_33 {
+._headerEnd_o8d3m_48 {
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
   flex: none;
 }
 
-._messageContents_1gt9a_40 {
+._messageContents_o8d3m_55 {
   margin-left: 0;
   padding-bottom: 0;
 }
 
-._messageContents_1gt9a_40._indented_1gt9a_45 {
+._messageContents_o8d3m_55._indented_o8d3m_60 {
   margin-left: 0rem;
 }
 
-._copyLink_1gt9a_49 {
+._copyLink_o8d3m_64 {
   opacity: 0;
   padding-left: 0;
   padding-right: 2em;
   margin-left: 0.2rem;
 }
 
-._copyLink_1gt9a_49:hover {
+._copyLink_o8d3m_64:hover {
   opacity: 0.75;
 }
 
-._metadataLabel_1gt9a_60 {
+._metadataLabel_o8d3m_75 {
   padding-top: 1em;
 }
 
-._hover_1gt9a_64 ._copyLink_1gt9a_49 {
+._hover_o8d3m_79 ._copyLink_o8d3m_64 {
   opacity: 0.75;
 }
-._grid_qa1cd_1 {
+._grid_1mah3_1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   /* row-gap spaces blocks within a turn (message → tool box); margin-bottom
@@ -18865,17 +18942,17 @@ a._citationLink_1ggvf_9:hover {
   margin-bottom: 0.75rem;
 }
 
-._number_qa1cd_10 {
+._number_1mah3_10 {
   margin-top: 0.1em;
 }
 
-._user_qa1cd_14 {
+._user_1mah3_14 {
   background-color: var(--bs-secondary-bg);
   border-radius: var(--bs-border-radius);
   border: solid 1px var(--bs-light-border-subtle);
 }
 
-._container_qa1cd_20 {
+._container_1mah3_20 {
   padding-left: 0.7rem;
   padding-right: 0.7rem;
   padding-top: 0.5rem;
@@ -18883,81 +18960,74 @@ a._citationLink_1ggvf_9:hover {
   border-right: solid 1px var(--bs-light-border-subtle);
 }
 
-._first_qa1cd_28 {
+._first_1mah3_28 {
   border-top-left-radius: var(--bs-border-radius);
   border-top-right-radius: var(--bs-border-radius);
   border-top: solid 1px var(--bs-light-border-subtle);
   padding-top: 0.7rem;
 }
 
-._last_qa1cd_35 {
+._last_1mah3_35 {
   border-bottom-left-radius: var(--bs-border-radius);
   border-bottom-right-radius: var(--bs-border-radius);
   border-bottom: solid 1px var(--bs-light-border-subtle);
   padding-bottom: 0.7rem;
 }
 
-._label_qa1cd_42 {
+._label_1mah3_42 {
   display: flex;
   justify-content: flex-end;
   padding-top: 0.7rem;
   margin-left: 0.4em;
 }
 
-._highlight_qa1cd_49 {
+._highlight_1mah3_49 {
   background-color: rgba(var(--bs-info-rgb), 0.12);
 }
 
-/* Prototype: self-contained box (used when tool calls are un-embedded) so the
-   assistant message and each tool call read as separate cards rather than one
-   connected band. */
-._box_qa1cd_56 {
+/* Assistant turn with server-side tool calls: one seamless container — the
+   prose band and flush tool rows inside supply their own left edges, so the
+   frame itself has no left border. */
+._turnContainer_1mah3_56 {
+  border: 1px solid var(--bs-light-border-subtle);
+  border-left: none;
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+}
+
+/* Self-contained box (used when tool calls are un-embedded) so the assistant
+   message and each tool call read as separate cards rather than one connected
+   band. */
+._box_1mah3_66 {
   position: relative;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
   padding: 0.7rem;
 }
 
-/* An assistant turn rendered as one connected stack: the message, its tool
-   call(s), and output(s) sit flush so they read as a single card with a
-   continuous left gutter. */
-._attachedGroup_qa1cd_66 {
-  display: flex;
-  flex-direction: column;
-}
-
-._attachedBottom_qa1cd_71 {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  /* Drop the divider so the call/output pair reads as one seamless card —
-     only the background color shifts (blue call → gray output). */
-  border-bottom: 0;
-}
-
-._attachedTop_qa1cd_79 {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-top: 0;
+/* Tool blocks carry their own frame; the wrapper only anchors the chip. */
+._toolPart_1mah3_74 {
+  position: relative;
 }
 
 /* Tool-call number chip, pinned to the top-right of its box to mirror the
    position chip on a message's role line. */
-._toolLabel_qa1cd_87 {
+._toolLabel_1mah3_80 {
   position: absolute;
-  top: 0.7rem;
+  top: 0.45rem;
   right: 0.7rem;
   z-index: 1;
 }
 
-._bottomMargin_qa1cd_94 {
+._bottomMargin_1mah3_87 {
   margin-bottom: 0.75rem;
 }
 
-._codeCompact_qa1cd_98 {
+._codeCompact_1mah3_91 {
   /* styles for compact code display */
 }
 
-._simple_qa1cd_102 {
+._simple_1mah3_95 {
   /* styles for simple display mode */
 }
 ._badge_10sr6_1,
@@ -20663,44 +20733,33 @@ a._citationLink_1ggvf_9:hover {
   flex: none;
   opacity: 0.85;
 }
-._panel_xm787_1 {
+._panel_1us8t_1 {
   margin: 0.2em 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1em;
+  row-gap: 0.3em;
+  align-items: baseline;
 }
 
-._metric_xm787_5 {
+._rowValue_1us8t_10 {
   display: flex;
-  gap: 0.5em;
+  flex-direction: column;
+  gap: 0.1em;
 }
 
-._label_xm787_10 {
-  font-weight: 600;
-  min-width: 5em;
-}
-
-._section_xm787_15 {
-  margin-top: 0.5em;
-}
-
-._sectionTitle_xm787_19 {
-  font-weight: 600;
-}
-
-._indented_xm787_23 {
-  padding-left: 1.5em;
-}
-
-._files_xm787_27 {
+._files_1us8t_16 {
   display: flex;
   flex-direction: column;
   gap: 0.1em;
   font-family: var(--bs-font-monospace);
 }
 
-._file_xm787_27 {
+._file_1us8t_16 {
   overflow-wrap: anywhere;
 }
 
-._fileOverflow_xm787_38 {
+._fileOverflow_1us8t_27 {
   font-style: italic;
   opacity: 0.7;
 }
@@ -21656,65 +21715,39 @@ a._citationLink_1ggvf_9:hover {
 ._subtaskLabel_ac4z2_17 {
   padding: 0 2em;
 }
-._summary_8xr5q_1 {
+._summary_1mtn2_1 {
   margin: 0.5em 0;
   width: 100%;
 }
 
-._labeledToolCall_8xr5q_6 {
+._labeledToolCall_1mtn2_6 {
   display: grid;
   grid-template-columns: auto max-content;
   row-gap: 0;
 }
 
-._label_8xr5q_6 {
+._label_1mtn2_6 {
   display: flex;
   justify-content: flex-end;
   padding-top: 0.7rem;
   margin-left: 0.4em;
 }
 
-._labeledToolContent_8xr5q_19 {
+._labeledToolContent_1mtn2_19 {
   min-width: 0;
 }
 
-/* The call/output attached pair (colors + inner flatten come from the shared
-   [data-message-kind] theme rules; here we supply the box structure). */
-._attachedGroup_8xr5q_25 {
-  display: flex;
-  flex-direction: column;
-}
-
-._toolBox_8xr5q_30 {
-  position: relative;
-  border: 1px solid var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
-  padding: 0.7rem;
-}
-
-._attachedBottom_8xr5q_37 {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  border-bottom: 0;
-}
-
-._attachedTop_8xr5q_43 {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-top: 0;
-}
-
-._approvalWrap_8xr5q_49 {
+._approvalWrap_1mtn2_23 {
   margin-top: 0.5rem;
 }
 
-._approval_8xr5q_49 {
+._approval_1mtn2_23 {
   border: none;
   padding: 0;
   margin-bottom: 0;
 }
 
-._progress_8xr5q_59 {
+._progress_1mtn2_33 {
   margin-left: 0;
 }
 ._node_t3xlr_1 {
