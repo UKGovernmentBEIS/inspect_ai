@@ -1,26 +1,46 @@
-"""Regression tests: per-event condensing must be O(new messages), not O(history).
+"""Regression tests for condensing correctness and complexity.
 
-Counts content-hash invocations while logging a growing conversation one
-event at a time (the live-eval pattern). Quadratic condensing computes
-~N²/2 hashes for N events; linear computes ~N. See
-inspect_ai/event/_pool_index.py for the strategy.
+Covers:
+
+Per-event condensing (live-eval pattern): counts content-hash invocations
+while logging a growing conversation one event at a time; quadratic behavior
+hashes ~N^2/2 messages, linear stays within a small multiple of N. See
+inspect_ai/event/_pool_index.py for the per-event strategy.
+
+Batch condensing (condense_sample): counts model_copy walks and pool hashes
+across a full condense_sample call; both must be O(unique messages), not
+O(history length). See inspect_ai/log/_condense.py walk-cache for the batch
+path.
+
+Cache isolation: asserts that the events walk and the messages walk use
+separate caches so that event-walked attachment refs never leak into
+sample.messages content (which must stay inline).
+
+Dedup correctness across paths: pool rows are reused on store reopen and
+buffer-to-transcript-store export (hash parity, insertion-order storage
+round-trips), and prefix matching never merges python-equal but
+JSON-distinct wire values (0 vs 0.0, True vs 1).
 """
 
 import json
 import tempfile
+from collections.abc import Mapping
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Generator, Iterator
+from typing import Any, Generator, Iterator
 
 import pytest
 from pydantic import JsonValue
 
+from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._validate import validate_chat_messages
-from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._condense import condense_events, condense_sample, expand_events
+from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript_store import TranscriptEventStore
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageBase, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -333,3 +353,271 @@ def test_transcript_store_reseed_dedups_dict_field_messages(tmp_path: Path) -> N
         f"(got {store2.counts().message_pool} rows)"
     )
     store2.close()
+
+
+class CopyCounter:
+    copies: int = 0
+
+
+@pytest.fixture
+def message_copy_counter(monkeypatch: pytest.MonkeyPatch) -> Iterator[CopyCounter]:
+    """Count ChatMessage.model_copy calls (== full message walks in condense)."""
+    counter = CopyCounter()
+    original = ChatMessageBase.model_copy
+
+    def counting_copy(
+        self: ChatMessageBase,
+        *,
+        update: Mapping[str, Any] | None = None,
+        deep: bool = False,
+    ) -> ChatMessageBase:
+        counter.copies += 1
+        return original(self, update=update, deep=deep)
+
+    monkeypatch.setattr(ChatMessageBase, "model_copy", counting_copy)
+    yield counter
+
+
+def _sample_with_growing_history(n_turns: int) -> EvalSample:
+    """A sample whose ModelEvent inputs re-send the same growing history objects.
+
+    Message content is ~250 chars (above the 100-char attachment threshold), so
+    the walk rewrites every message — the case where the old cache never hit.
+    Each event also carries a ModelCall with a growing wire list (fresh dicts
+    each turn, like providers produce) to exercise call-pool prefix matching.
+    """
+    history: list[ChatMessage] = []
+    wire: list[dict[str, JsonValue]] = []
+    events: list[Event] = []
+    for i in range(n_turns):
+        content = f"user message {i:06d} " * 12
+        history.append(ChatMessageUser(content=content))
+        wire.append({"role": "user", "content": content})
+        call_msgs: list[JsonValue] = [dict(m) for m in wire]
+        event = ModelEvent(
+            model="test",
+            input=list(history),
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_content("test", f"assistant reply {i:06d} " * 12),
+            call=ModelCall(
+                request={"model": "test", "messages": call_msgs},
+                response={"id": "r1"},
+            ),
+            timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        events.append(event)
+        history.append(event.output.message)
+    return EvalSample(
+        id="s1",
+        epoch=1,
+        input="start",
+        target="done",
+        messages=list(history),
+        events=events,
+    )
+
+
+@pytest.mark.parametrize("n_turns", [100, 200])
+def test_condense_sample_walk_is_linear(
+    n_turns: int, hash_counter: HashCounter, message_copy_counter: CopyCounter
+) -> None:
+    """condense_sample full walks and pool hashes must be O(unique messages).
+
+    Quadratic behavior walks/hashes ~n_turns^2/2 messages (>= 5000 at
+    n_turns=100); linear behavior stays within a small multiple of the
+    2*n_turns unique messages. Running at two sizes pins the scaling.
+    """
+    sample = _sample_with_growing_history(n_turns)
+    condensed = condense_sample(sample)
+
+    # full walks: each unique message is walked at most once per walk context
+    # (events context + messages context), plus small constant overhead
+    assert message_copy_counter.copies <= 8 * n_turns, (
+        f"message walking is superlinear: {message_copy_counter.copies} "
+        f"model_copy calls for {2 * n_turns} unique messages"
+    )
+    # pool dedup: each unique walked object hashed once via the id(obj) cache
+    assert hash_counter.msg_hashes <= 6 * n_turns, (
+        f"message hashing is superlinear: {hash_counter.msg_hashes} hashes "
+        f"for {2 * n_turns} unique messages"
+    )
+    # call pool dedup: prefix-matching reuses the previous event's indices,
+    # so only the divergent tail is hashed
+    assert hash_counter.call_hashes <= 6 * n_turns, (
+        f"call hashing is superlinear: {hash_counter.call_hashes} hashes "
+        f"for {n_turns} events"
+    )
+
+    # the condensed result is still correct: all unique event-input messages
+    # pooled (the last assistant message never appears in any input)
+    assert condensed.events_data is not None
+    assert len(condensed.events_data["messages"]) == 2 * n_turns - 1
+    last_event = condensed.events[-1]
+    assert isinstance(last_event, ModelEvent)
+    assert last_event.input == []
+    assert last_event.input_refs == [(0, 2 * n_turns - 1)]
+
+    # call pool: one unique wire message per turn, all pooled
+    assert len(condensed.events_data["calls"]) == n_turns
+    assert last_event.call is not None
+    assert last_event.call.call_refs == [(0, n_turns)]
+    assert last_event.call.call_key == "messages"
+    assert "messages" not in last_event.call.request
+
+
+def test_condense_sample_rewritten_history_condenses_correctly() -> None:
+    """Event inputs that are NOT prefix-extensions must still condense correctly.
+
+    The walk cache and pool dedup are tuned for the common scaffold shape
+    where each event's input extends the previous one with the same objects.
+    A history rewritten mid-conversation (messages dropped/reordered, fresh
+    objects with equal content) must still dedup equal content into the same
+    pool entry and round-trip every event's input.
+    """
+    # content < 100 chars so the events walk leaves it inline and the
+    # round-tripped inputs compare equal to the originals
+    m0 = ChatMessageUser(content="message zero")
+    m1 = ChatMessageUser(content="message one")
+    # fresh object, equal content to m0 (new id): pool dedup must merge them
+    m2 = ChatMessageUser(content="message zero")
+    m3 = ChatMessageUser(content="message three")
+    m4 = ChatMessageUser(content="message four")
+
+    inputs: list[list[ChatMessage]] = [
+        [m0],  # growing
+        [m0, m1],  # growing (identical prefix)
+        [m1, m2, m3],  # rewritten: reordered, m0 replaced by equal-content m2
+        [m1, m2, m3, m4],  # growing again from the rewritten history
+    ]
+    events: list[Event] = [_model_event(list(msgs), []) for msgs in inputs]
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="start",
+        target="done",
+        messages=[],
+        events=events,
+    )
+
+    condensed = condense_sample(sample)
+
+    # pool: m0, m1, m3, m4 (m2 deduped into m0's entry)
+    assert condensed.events_data is not None
+    pool = condensed.events_data["messages"]
+    assert [m.content for m in pool] == [
+        "message zero",
+        "message one",
+        "message three",
+        "message four",
+    ]
+
+    # refs: event 3's input [m1, m2, m3] -> indices [1, 0, 2]
+    ev3 = condensed.events[2]
+    assert isinstance(ev3, ModelEvent)
+    assert ev3.input == []
+    assert ev3.input_refs == [(1, 2), (0, 1), (2, 3)]
+    ev4 = condensed.events[3]
+    assert isinstance(ev4, ModelEvent)
+    assert ev4.input_refs == [(1, 2), (0, 1), (2, 4)]
+
+    # every event's input round-trips to the original (role, content) sequence
+    restored = expand_events(condensed.events, condensed.events_data)
+    for original_input, restored_event in zip(inputs, restored):
+        assert isinstance(restored_event, ModelEvent)
+        assert [(m.role, m.content) for m in restored_event.input] == [
+            (m.role, m.content) for m in original_input
+        ]
+
+
+def test_condense_sample_messages_stay_inline() -> None:
+    """sample.messages long content must stay inline after condense_sample.
+
+    sample.messages share objects/ids with event inputs but use different
+    attachment rules (events pool long text; messages keep it inline). The
+    walk's message cache must not leak event-walked results (attachment refs)
+    into the sample.messages walk — they must not share a cache.
+    """
+    long_text = "long message content " * 10  # > 100-char attachment threshold
+    msg = ChatMessageUser(content=long_text)
+    event = ModelEvent(
+        model="test",
+        input=[msg],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test", "ok"),
+    )
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="start",
+        target="done",
+        messages=[msg],
+        events=[event],
+    )
+
+    condensed = condense_sample(sample)
+
+    # events side: the pooled message's long content became an attachment ref
+    assert condensed.events_data is not None
+    pooled = condensed.events_data["messages"]
+    assert len(pooled) == 1
+    pooled_content = pooled[0].content
+    assert isinstance(pooled_content, str)
+    assert pooled_content.startswith("attachment://")
+    # messages side: the same message object keeps its content inline
+    messages_content = condensed.messages[0].content
+    assert messages_content == long_text
+
+
+def test_batch_call_prefix_breaks_on_json_distinct_values() -> None:
+    """Batch prefix match must not reuse a pool index for a JSON-distinct element.
+
+    Python == conflates 0 == 0.0 and True == 1; if the batch loop in
+    condense_model_event_calls used == to decide the prefix length, a wire
+    message that drifts from 0.0 to 0 between events would reuse the previous
+    event's pool index (which stores the 0.0-serialized bytes) and round-trip
+    the wrong value.
+
+    Repro shape:
+      event 1 wire: [{"role": "user", "n": 0.0}]
+      event 2 wire: [{"role": "user", "n": 0}, {"role": "user", "content": "next"}]
+
+    The first element is python-equal (0 == 0.0) but JSON-distinct, so the
+    call pool must contain THREE entries (0.0-variant, 0-variant, "next"),
+    and round-tripping event 2 must restore n=0 as an int, not 0.0.
+    """
+    ev1 = _model_event(
+        input_msgs=[ChatMessageUser(content="a")],
+        call_msgs=[{"role": "user", "n": 0.0}],
+    )
+    ev2 = _model_event(
+        input_msgs=[ChatMessageUser(content="b")],
+        call_msgs=[{"role": "user", "n": 0}, {"role": "user", "content": "next"}],
+    )
+
+    condensed_events, events_data = condense_events([ev1, ev2])
+
+    # Three distinct call-pool entries: 0.0-variant, 0-variant, "next"
+    call_pool = events_data["calls"]
+    assert len(call_pool) == 3, (
+        f"expected 3 call-pool entries (0.0-variant, 0-variant, next) but got "
+        f"{len(call_pool)}: {call_pool}"
+    )
+
+    # Round-trip event 2: first wire message must have n=0 (int), not 0.0
+    restored = expand_events(condensed_events, events_data)
+    ev2_restored = restored[1]
+    assert isinstance(ev2_restored, ModelEvent)
+    assert ev2_restored.call is not None
+    wire_msgs = ev2_restored.call.request.get("messages")
+    assert isinstance(wire_msgs, list) and len(wire_msgs) == 2
+    first_msg = wire_msgs[0]
+    assert isinstance(first_msg, dict)
+    n_val = first_msg["n"]
+    assert n_val == 0, f"expected n=0 but got {n_val!r}"
+    assert isinstance(n_val, int) and not isinstance(n_val, bool), (
+        f"expected int 0 but got {type(n_val).__name__} {n_val!r}"
+    )
