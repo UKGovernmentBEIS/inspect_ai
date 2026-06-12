@@ -10,14 +10,14 @@ from tenacity import (
 )
 from tenacity.retry import RetryBaseT
 from tenacity.stop import StopBaseT
-from tenacity.wait import WaitBaseT
+from tenacity.wait import WaitBaseT, wait_base
 from typing_extensions import TypedDict
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
 
 
-class wait_rate_limit_or_exponential(WaitBaseT):
+class wait_rate_limit_or_exponential(wait_base):
     def __init__(
         self,
         initial: float = 3,
