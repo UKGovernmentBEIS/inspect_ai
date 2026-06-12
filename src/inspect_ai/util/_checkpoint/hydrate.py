@@ -498,9 +498,9 @@ async def _fs_copy_repo(
     src_base = f"{old_sample_dir}/{subpath}"
     new_root = Path(new_repo)
     written: list[str] = []
-    # `iter_files` yields URIs verbatim-prefixed by `src_base` for S3, but
-    # fsspec-normalized (absolute) for local sources — so slicing by
-    # `len(src_base)` mangles local relative sources. Relativize against the
+    # `iter_files` yields URIs whose prefix may not match `src_base` verbatim
+    # (e.g. a relative local `src_base` comes back as an absolute `file://`
+    # URI) — so slicing by `len(src_base)` is wrong. Relativize against the
     # `/<subpath>/` repo-root boundary instead: it's the last such marker in
     # the URI (a restic repo's own tree never contains `<subpath>`), so this
     # is correct regardless of how the backend normalizes the prefix.

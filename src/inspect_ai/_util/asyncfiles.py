@@ -423,20 +423,21 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 for r in results:
                     yield r
         else:
-            fs = filesystem(base).fs
+            base_fs = filesystem(base)
+            fs = base_fs.fs
             if recursive:
                 paths = fs.find(base)
                 if isinstance(paths, dict):
                     paths = list(paths.keys())
                 for path in paths:
                     if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
-                        yield path
+                        yield base_fs.path_as_uri(path)
             else:
                 for entry in fs.ls(base, detail=True):
                     if entry["type"] == "file":
                         name = entry["name"]
                         if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
-                            yield name
+                            yield base_fs.path_as_uri(name)
 
     async def iter_dirs(
         self, base: str, pattern: str = "*", *, recursive: bool = False
@@ -491,19 +492,23 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 for r in results:
                     yield r
         else:
-            fs = filesystem(base).fs
+            base_fs = filesystem(base)
+            fs = base_fs.fs
             if not recursive:
                 for entry in fs.ls(base, detail=True):
                     if entry["type"] == "directory":
                         name = entry["name"]
                         terminal = name.rstrip("/").rsplit("/", 1)[-1]
                         if fnmatchcase(terminal, pattern):
-                            yield name.rstrip("/") + "/"
+                            yield base_fs.path_as_uri(name.rstrip("/")) + "/"
             else:
                 for dirpath, dirnames, _ in fs.walk(base):
                     for dirname in dirnames:
                         if fnmatchcase(dirname, pattern):
-                            yield f"{dirpath.rstrip('/')}/{dirname}/"
+                            yield (
+                                base_fs.path_as_uri(f"{dirpath.rstrip('/')}/{dirname}")
+                                + "/"
+                            )
 
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
