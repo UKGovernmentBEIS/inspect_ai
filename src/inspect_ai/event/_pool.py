@@ -1,20 +1,33 @@
 """Message and call pool deduplication for eval samples.
 
-Design note — hash-based dedup
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Pool dedup keys on a murmur3 hash of the canonical JSON serialisation of
-each ChatMessage (pydantic field order; dict fields keep insertion order
+Design note — occurrence-keyed dedup
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Pool positions identify logical *occurrences* of a message in the
+conversation, not merely content. The batch functions here
+(``condense_model_event_inputs`` / ``condense_model_event_calls``)
+mirror the per-event helper in ``inspect_ai.event._pool_index``: the
+previous event's input list and assigned positions are carried across
+the event loop, and each event's longest shared prefix (object identity,
+then equality) reuses those positions directly. When an event purely
+appends to the previous one, the suffix messages are new occurrences and
+mint fresh per-occurrence rows without consulting the content-hash index
+— otherwise a loop emitting identical content each turn would map its
+history onto alternating positions, making the range-compressed refs
+quadratic in turns. Only prefix-*break* paths (first event, trim,
+compaction, fresh-id-rebuilt histories) fall back to content dedup,
+keyed on a murmur3 hash of the canonical JSON serialisation of each
+ChatMessage (pydantic field order; dict fields keep insertion order
 through a serialize/parse round-trip, so rebuild-time hashes match),
 excluding the ``id`` field so that messages with identical content but
 different UUIDs are treated as duplicates.
 
-The batch functions here (``condense_model_event_inputs`` /
-``condense_model_event_calls``) hash every message and rely on a per-call
-``id(obj)`` cache; that is O(N) only when a single call spans all events
-(the final-log and recover paths). Per-event callers (the sample buffer
-and the transcript store) must NOT call these one event at a time — that
-is O(N²) in conversation length (each of the N model events carries the
-full ~N-message history). They use the incremental indices in
+``condense_model_event_inputs`` additionally keeps a per-call ``id(obj)``
+→ position cache, so re-sent message objects skip hashing entirely; that
+is O(N) only when a single call spans all events (the final-log and
+recover paths). Per-event callers (the sample buffer and the transcript
+store) must NOT call these one event at a time — that is O(N²) in
+conversation length (each of the N model events carries the full
+~N-message history). They use the incremental indices in
 ``inspect_ai.event._pool_index`` instead, which resolve re-sent messages
 by object identity / id-bucket equality and hash only genuinely new
 content.
@@ -89,18 +102,18 @@ def _call_pool_json(call_msg: JsonValue) -> str:
 
 
 def _build_msg_index(pool: list[ChatMessage]) -> dict[str, int]:
-    """Build hash -> pool index mapping, matching condense_model_event_inputs logic."""
+    """Build hash -> first-occurrence pool index, matching condense_model_event_inputs logic."""
     index: dict[str, int] = {}
     for i, msg in enumerate(pool):
-        index[_msg_hash(msg)] = i
+        index.setdefault(_msg_hash(msg), i)
     return index
 
 
 def _build_call_index(pool: list[JsonValue]) -> dict[str, int]:
-    """Build hash -> pool index mapping, matching condense_model_event_calls logic."""
+    """Build hash -> first-occurrence pool index, matching condense_model_event_calls logic."""
     index: dict[str, int] = {}
     for i, call_msg in enumerate(pool):
-        index[_call_hash(call_msg)] = i
+        index.setdefault(_call_hash(call_msg), i)
     return index
 
 
@@ -111,12 +124,12 @@ def condense_model_event_inputs(
 ) -> tuple[list[Event], dict[str, int], list[tuple[str, ChatMessage]]]:
     """Replace ModelEvent.input with message_pool references.
 
-    Assigns each unique ChatMessage a position starting at ``next_index``
+    Assigns each message occurrence a position starting at ``next_index``
     and replaces ModelEvent inputs with range-encoded input_refs into a
     pool. Callers that need the pool list must rebuild it from
     ``new_entries`` (in order of appearance).
 
-    See module docstring for the hash-based dedup strategy.
+    See module docstring for the occurrence-keyed dedup strategy.
 
     Args:
         events: Events to condense.
@@ -132,8 +145,11 @@ def condense_model_event_inputs(
         order).
     """
     index = dict(msg_index)
-    obj_id_cache: dict[int, str] = {}
+    # object identity -> assigned position (re-sent objects skip hashing)
+    obj_pos_cache: dict[int, int] = {}
     new_entries: list[tuple[str, ChatMessage]] = []
+    prev_input: list[ChatMessage] = []
+    prev_indices: list[int] = []
     result: list[Event] = []
     for event in events:
         if isinstance(event, ModelEvent):
@@ -141,16 +157,33 @@ def condense_model_event_inputs(
                 result.append(event)
                 continue
             if event.input:
+                # longest prefix of the previous event's input (identity,
+                # then equality) — the same occurrence-identity mechanism
+                # as condense_model_event_with_indices
                 raw_indices: list[int] = []
-                for msg in event.input:
+                for msg, prev_msg, prev_index in zip(
+                    event.input, prev_input, prev_indices
+                ):
+                    if msg is prev_msg or msg == prev_msg:
+                        raw_indices.append(prev_index)
+                    else:
+                        break
+                pure_append = 0 < len(prev_input) == len(raw_indices)
+                for msg in event.input[len(raw_indices) :]:
                     obj_key = id(msg)
-                    h = obj_id_cache.get(obj_key) or obj_id_cache.setdefault(
-                        obj_key, _msg_hash(msg)
-                    )
-                    if h not in index:
-                        index[h] = next_index + len(new_entries)
-                        new_entries.append((h, msg))
-                    raw_indices.append(index[h])
+                    pos = obj_pos_cache.get(obj_key)
+                    if pos is None:
+                        h = _msg_hash(msg)
+                        pos = None if pure_append else index.get(h)
+                        if pos is None:
+                            pos = next_index + len(new_entries)
+                            if h not in index:
+                                index[h] = pos
+                            new_entries.append((h, msg))
+                        obj_pos_cache[obj_key] = pos
+                    raw_indices.append(pos)
+                prev_input = list(event.input)
+                prev_indices = list(raw_indices)
                 event = event.model_copy(
                     update={"input": [], "input_refs": _compress_refs(raw_indices)}
                 )
@@ -214,10 +247,12 @@ def condense_model_event_calls(
 ) -> tuple[list[Event], dict[str, int], list[tuple[str, JsonValue]]]:
     """Replace call.request messages with call_pool references.
 
-    Assigns each unique call message a position starting at ``next_index``
-    and replaces ``event.call.request[<messages_key>]`` with range-encoded
-    ``call_refs``. Callers that need the pool list must rebuild it from
-    ``new_entries``.
+    Assigns each call-message occurrence a position starting at
+    ``next_index`` and replaces ``event.call.request[<messages_key>]``
+    with range-encoded ``call_refs``. Callers that need the pool list
+    must rebuild it from ``new_entries``.
+
+    See module docstring for the occurrence-keyed dedup strategy.
 
     Args:
         events: Events to condense.
@@ -233,6 +268,8 @@ def condense_model_event_calls(
     """
     index = dict(call_index)
     new_entries: list[tuple[str, JsonValue]] = []
+    prev_msgs: list[JsonValue] = []
+    prev_indices: list[int] = []
     result: list[Event] = []
     for event in events:
         if isinstance(event, ModelEvent) and event.call:
@@ -245,12 +282,23 @@ def condense_model_event_calls(
             msgs = event.call.request.get(msg_key) if msg_key else None
             if msgs and isinstance(msgs, list):
                 raw_indices: list[int] = []
-                for msg in msgs:
+                for msg, prev_msg, prev_index in zip(msgs, prev_msgs, prev_indices):
+                    if msg == prev_msg:
+                        raw_indices.append(prev_index)
+                    else:
+                        break
+                pure_append = 0 < len(prev_msgs) == len(raw_indices)
+                for msg in msgs[len(raw_indices) :]:
                     h = _call_hash(msg)
-                    if h not in index:
-                        index[h] = next_index + len(new_entries)
+                    pos = None if pure_append else index.get(h)
+                    if pos is None:
+                        pos = next_index + len(new_entries)
+                        if h not in index:
+                            index[h] = pos
                         new_entries.append((h, msg))
-                    raw_indices.append(index[h])
+                    raw_indices.append(pos)
+                prev_msgs = list(msgs)
+                prev_indices = list(raw_indices)
                 new_request = {
                     k: v for k, v in event.call.request.items() if k != msg_key
                 }

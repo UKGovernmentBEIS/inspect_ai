@@ -20,6 +20,8 @@ from inspect_ai.event._pool import (
     _msg_hash,
     _msg_pool_json,
     _msg_pool_jsonable,
+    condense_model_event_calls,
+    condense_model_event_inputs,
 )
 from inspect_ai.event._validate import validate_chat_messages
 from inspect_ai.log._condense import (
@@ -784,6 +786,91 @@ def test_condense_produces_range_encoded_call_refs():
     assert model_events[0].call.call_refs == [(0, 1)]
     # Event 2: 3 messages [0,1,2] -> [(0,3)]
     assert model_events[1].call.call_refs == [(0, 3)]
+
+
+def _make_model_event(input: list[ChatMessage]) -> ModelEvent:
+    return ModelEvent(
+        model="test-model",
+        input=input,
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+    )
+
+
+def _make_call_event(messages: list[JsonValue]) -> ModelEvent:
+    return ModelEvent(
+        model="test-model",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+        call=ModelCall(
+            request={"model": "test", "messages": messages},
+            response={"choices": []},
+        ),
+    )
+
+
+def test_condense_duplicate_content_loop_single_range_refs():
+    """Batch condense: Done-loop histories produce single-range refs.
+
+    Same occurrence-keyed semantics as the per-event helper: each event
+    whose input extends the previous event's input mints fresh pool rows
+    for the suffix; refs stay monotone single ranges.
+    """
+    history: list[ChatMessage] = []
+    events: list[Event] = []
+    n = 10
+    for _ in range(n):
+        history.append(ChatMessageUser(content="continue"))
+        history.append(ChatMessageAssistant(content="Done"))
+        events.append(_make_model_event(list(history)))
+
+    condensed, _, new_entries = condense_model_event_inputs(events, 0, {})
+    # one pool row per occurrence
+    assert len(new_entries) == 2 * n
+    for i, ev in enumerate(condensed):
+        assert isinstance(ev, ModelEvent)
+        k = 2 * (i + 1)
+        assert ev.input_refs == [(0, k)], f"event {i}: {ev.input_refs}"
+
+
+def test_condense_calls_duplicate_content_loop_single_range_refs():
+    wire: list[dict[str, JsonValue]] = []
+    events: list[Event] = []
+    n = 10
+    for _ in range(n):
+        wire.append({"role": "user", "content": "continue"})
+        wire.append({"role": "assistant", "content": "Done"})
+        events.append(_make_call_event([dict(m) for m in wire]))
+
+    condensed, _, new_entries = condense_model_event_calls(events, 0, {})
+    assert len(new_entries) == 2 * n
+    for i, ev in enumerate(condensed):
+        assert isinstance(ev, ModelEvent)
+        assert ev.call is not None
+        k = 2 * (i + 1)
+        assert ev.call.call_refs == [(0, k)], f"event {i}: {ev.call.call_refs}"
+
+
+def test_condense_batch_prefix_break_still_dedups():
+    """A non-extending event falls back to content dedup in the batch path."""
+    a = ChatMessageUser(content="a")
+    b = ChatMessageAssistant(content="b")
+    c = ChatMessageUser(content="c")
+    fresh_c = ChatMessageUser(content="c")  # fresh id, equal content
+    events: list[Event] = [
+        _make_model_event([a, b, c]),
+        _make_model_event([a, c, fresh_c]),  # b dropped: break after a
+    ]
+    condensed, _, new_entries = condense_model_event_inputs(events, 0, {})
+    assert len(new_entries) == 3  # a, b, c — fresh_c hash-deduped on the break
+    ev1 = condensed[1]
+    assert isinstance(ev1, ModelEvent)
+    assert ev1.input_refs == [(0, 1), (2, 3), (2, 3)]
 
 
 def test_resolve_range_encoded_input_refs():
