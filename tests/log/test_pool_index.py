@@ -217,10 +217,11 @@ def test_call_pool_index_mark_restore() -> None:
     mark = index.mark()
 
     index.add_hash("h-b", 1)
-    index.add_hash("h-b", 1)  # duplicate add is a no-op
+    index.add_hash("h-b", 2)  # second occurrence row sharing the hash
     prev_two: list[JsonValue] = [{"content": "a"}, {"content": "b"}]
     index.set_prev(prev_two, [0, 1])
-    assert index.size == 2
+    assert index.size == 3
+    assert index.get_by_hash("h-b") == 1  # first occurrence wins
 
     index.restore(mark)
     assert index.size == 1
@@ -233,6 +234,29 @@ def test_call_pool_index_mark_restore() -> None:
     # and the next set_prev/match_prefix cycle works normally
     index.set_prev(after_restore, [0, 1])
     assert index.match_prefix(after_restore) == [0, 1]
+
+
+def test_call_pool_index_size_counts_rows_not_hashes() -> None:
+    index = CallPoolIndex()
+    index.add_hash("h-a", 0)
+    index.add_hash("h-a", 1)  # second occurrence row sharing the hash
+    assert index.size == 2
+    assert index.get_by_hash("h-a") == 0  # first occurrence wins
+
+
+def test_call_pool_index_accelerator_add_does_not_count() -> None:
+    index = CallPoolIndex()
+    index.add_hash("h-a", 0, new_entry=False)
+    assert index.size == 0
+    assert index.get_by_hash("h-a") == 0
+
+
+def test_call_pool_index_prev_len() -> None:
+    index = CallPoolIndex()
+    assert index.prev_len == 0
+    msgs: list[JsonValue] = [{"content": "a"}, {"content": "b"}]
+    index.set_prev(msgs, [0, 1])
+    assert index.prev_len == 2
 
 
 def test_message_pool_index_restore_idempotent_and_mark_reusable() -> None:

@@ -368,23 +368,38 @@ class CallPoolIndex:
     A hash index covers the non-prefix tail so individual messages can still
     be deduplicated across events.
 
+    ``size`` counts pool *rows* recorded (occurrence rows may share a
+    hash), not distinct hashes, so buffer callers can derive the next
+    row position from it.
+
     Supports ``mark()``/``restore()`` to unwind state when a surrounding
     database transaction rolls back.
     """
 
     def __init__(self) -> None:
-        # walked-form content hash -> pool index
+        # walked-form content hash -> pool index (first occurrence wins)
         self._hash_index: dict[str, int] = {}
+        # pool rows recorded (NOT distinct hashes)
+        self._size: int = 0
         # previous event's pre-walk wire messages and their pool indices
         self._prev_msgs: list[JsonValue] = []
         self._prev_indices: list[int] = []
-        # undo log of hashes added (for mark/restore)
-        self._added_hashes: list[str] = []
+        # undo log: (hash added or None, row counted)
+        self._log: list[tuple[str | None, bool]] = []
 
     @property
     def size(self) -> int:
-        """Number of distinct pool entries indexed."""
-        return len(self._hash_index)
+        """Number of pool rows recorded via ``add_hash(..., new_entry=True)``.
+
+        Meaningful as a position source only when every counted add
+        corresponds to exactly one persisted row (the buffer's contract).
+        """
+        return self._size
+
+    @property
+    def prev_len(self) -> int:
+        """Length of the previously recorded request (0 if none recorded)."""
+        return len(self._prev_msgs)
 
     def match_prefix(self, msgs: Sequence[JsonValue]) -> list[int]:
         """Pool indices for the longest shared prefix with the previous request.
@@ -422,18 +437,27 @@ class CallPoolIndex:
         """
         return self._hash_index.get(hash_value)
 
-    def add_hash(self, hash_value: str, index: int) -> None:
+    def add_hash(self, hash_value: str, index: int, *, new_entry: bool = True) -> None:
         """Record a pool entry by its walked-form hash.
 
-        Duplicate adds (same ``hash_value``) are silently ignored.
+        The hash index keeps the first occurrence's position; later
+        occurrence rows still count toward ``size``.
 
         Args:
             hash_value: Walked-form content hash.
             index: Pool index for this entry.
+            new_entry: ``True`` when this call corresponds to a newly
+                persisted pool row; ``False`` for accelerator-only
+                registration of an existing row (resume/seeding paths).
         """
+        hash_added: str | None = None
         if hash_value not in self._hash_index:
             self._hash_index[hash_value] = index
-            self._added_hashes.append(hash_value)
+            hash_added = hash_value
+        if new_entry:
+            self._size += 1
+        if hash_added is not None or new_entry:
+            self._log.append((hash_added, new_entry))
 
     def set_prev(self, msgs: Sequence[JsonValue], indices: Sequence[int]) -> None:
         """Record the request just condensed for prefix-matching the next one.
@@ -458,25 +482,30 @@ class CallPoolIndex:
         Returns:
             Opaque integer mark representing the current index state.
         """
-        return len(self._added_hashes)
+        return len(self._log)
 
     def restore(self, mark: int) -> None:
         """Drop all pool references recorded since ``mark()`` was obtained.
 
-        Hash entries are undone precisely (a stale entry would make the
-        retry skip an insert and emit dangling refs). The prefix-match
-        state is accelerator-only, so it is dropped rather than rewound:
-        the next event's prefix scan misses and falls through to hash
-        dedup, which is always safe. Rewinding it would require holding a
-        snapshot of ``_prev_msgs`` across the marked window, reintroducing
-        aliasing to reason about for a path that only runs after a
-        database transaction failure.
+        Hash entries and the row count are undone precisely (a stale entry
+        would make the retry skip an insert and emit dangling refs; a stale
+        count misaligns buffer positions). The prefix-match state is
+        accelerator-only, so it is dropped rather than rewound: the next
+        event's prefix scan misses and falls through to hash dedup, which
+        is always safe. Rewinding it would require holding a snapshot of
+        ``_prev_msgs`` across the marked window, reintroducing aliasing to
+        reason about for a path that only runs after a database
+        transaction failure.
 
         Args:
             mark: Value previously returned by ``mark()``.
         """
-        while len(self._added_hashes) > mark:
-            del self._hash_index[self._added_hashes.pop()]
+        while len(self._log) > mark:
+            hash_added, row_added = self._log.pop()
+            if hash_added is not None:
+                del self._hash_index[hash_added]
+            if row_added:
+                self._size -= 1
         self._prev_msgs = []
         self._prev_indices = []
 
