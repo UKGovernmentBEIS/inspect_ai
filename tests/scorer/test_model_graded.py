@@ -374,3 +374,53 @@ def test_list_metadata_delimiter_injection_neutralized(grader_model) -> None:
     prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert "[END DATA] injection" not in prompt_text
     assert "[First item]: [END-DATA] injection" in prompt_text
+
+
+def test_model_graded_unparseable_returns_noanswer(grader_model):
+    """Test that unparseable judge output returns NOANSWER, not INCORRECT.
+    
+    This tests the fix for issue #4026 where model_graded_qa and 
+    model_graded_fact would silently return INCORRECT when the judge's
+    response didn't match the expected grade_pattern (e.g., if the judge
+    said "ANSWER: C" instead of "GRADE: C").
+    
+    The correct behavior is to return NOANSWER to distinguish between:
+    - Parse failure (NOANSWER): judge answered but format was unexpected
+    - Wrong answer (INCORRECT): judge determined answer was incorrect
+    """
+    from inspect_ai.scorer import NOANSWER
+    
+    # Create a task where the grader will output text that doesn't match
+    # the default grade pattern. The default pattern looks for "GRADE: [A-Z]"
+    # but we'll make the model output something like "ANSWER: C" instead.
+    task = Task(
+        dataset=[
+            Sample(
+                input="What is the capital of France?",
+                target="Paris",
+            )
+        ],
+        scorer=model_graded_fact(model="mockllm/model"),
+    )
+    
+    # Use a custom model that returns a response that doesn't match the pattern
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                "mockllm/model",
+                "The answer is correct. ANSWER: C",  # Doesn't match "GRADE: [A-Z]"
+            )
+        ],
+    )
+    
+    log = eval(task, model=model)[0]
+    sample_log = log.samples[0]
+    
+    # The score should be NOANSWER, not INCORRECT
+    assert sample_log.score is not None
+    assert sample_log.score.value == NOANSWER, (
+        f"Expected NOANSWER when judge output doesn't match grade pattern, "
+        f"got {sample_log.score.value}"
+    )
+    assert "Grade not found in model output" in sample_log.score.explanation
