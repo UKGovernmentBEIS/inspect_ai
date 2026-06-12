@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Agent bridge: preserve `NamespaceToolParam` grouping through to the OpenAI Responses API. Namespaced tools (e.g. codex's `multi_agent_v1.spawn_agent`) were previously flattened to `functions.<name>`, which OpenAI rejects on models that reserve those names for encrypted tool use.
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
