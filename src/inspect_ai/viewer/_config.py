@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Literal, Mapping, Sequence
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class ScannerResultField(BaseModel):
@@ -43,10 +43,10 @@ class MetadataField(BaseModel):
 class ScannerResultView(BaseModel):
     """Customizes the rendering of the sample scanner results."""
 
-    fields: list[ScannerResultField | MetadataField | str] | None = None
+    fields: Sequence[ScannerResultField | MetadataField | str] | None = None
     """Ordered list of sections to render. The list order provides any preferred render order; fields that are not included in the list will be rendered in their natural order after the included fields are rendered. `None` means fall back to the built-in default order. """
 
-    exclude_fields: list[ScannerResultField | MetadataField | str] = Field(
+    exclude_fields: Sequence[ScannerResultField | MetadataField | str] = Field(
         default_factory=list
     )
     """Fields to suppress. For a `ScannerResultField` entry, the matching
@@ -69,9 +69,12 @@ class SampleScoreViewSort(BaseModel):
 class SampleScoreView(BaseModel):
     """How the sample-header score panel should render when there are 3 or more scores."""
 
-    default: Literal["chips", "grid"] | None = None
+    default: Literal["chips", "grid"] | None = Field(
+        default=None, validation_alias=AliasChoices("default", "view")
+    )
     """Default rendering mode. `chips` = wrapping pills; `grid` = sortable
-    table. When None, the viewer picks based on score count."""
+    table. When None, the viewer picks based on score count. (The legacy
+    `view` key is still accepted on input.)"""
 
     sort: SampleScoreViewSort | None = None
     """Default sort. When None, scores render in their natural order."""
@@ -229,11 +232,11 @@ class TaskSamplesView(BaseModel):
     name itself when no override is set."""
 
     score_color_scales: (
-        dict[
+        Mapping[
             str,
             Literal["good-high", "good-low", "neutral", "diverging"]
             | ScoreColorScale
-            | dict[str, Literal["good", "bad", "warn", "info", "muted"]],
+            | Mapping[str, Literal["good", "bad", "warn", "info", "muted"]],
         ]
         | None
     ) = None

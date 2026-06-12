@@ -1,5 +1,4 @@
 import logging
-import os
 from importlib import metadata as importlib_metadata
 from typing import TYPE_CHECKING, Any, cast
 
@@ -64,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from inspect_ai.log._recorders.buffer.history import SampleHistory
+    from inspect_ai.log._transcript import TranscriptHistoryProvider
 
 
 def resolve_revision() -> EvalRevision | None:
@@ -167,13 +167,15 @@ class TaskLogger:
         epochs = eval_config.epochs if eval_config.epochs else 1
         total_samples = len(sample_ids) * epochs
 
-        # adaptive defaults for high-throughput runs
+        # high-throughput runs still get a larger flush buffer (fewer main
+        # eval-log flushes), but we no longer force `log_realtime` or
+        # `score_display` off. Realtime logging is now cheap: sample completion
+        # logs directly from resident memory instead of reading every event
+        # back out of the buffer DB (see `log_sample` in run.py), and the
+        # WAL/persistent-connection buffer DB removed the read/write contention
+        # that motivated disabling it (#3173). Score-display recompute is
+        # throttled and was measured to be negligible at high sample counts.
         high_throughput = _is_high_throughput(total_samples)
-        if high_throughput:
-            if eval_config.log_realtime is None:
-                eval_config.log_realtime = False
-            if eval_config.score_display is None:
-                eval_config.score_display = False
 
         # write defaults for unspecified config
         for name, value in eval_config_defaults().items():
@@ -248,9 +250,7 @@ class TaskLogger:
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
 
-        if self.eval.config.log_realtime is False or os.environ.get(
-            "PYTEST_CURRENT_TEST"
-        ):
+        if self.eval.config.log_realtime is False:
             return
 
         self._buffer_db = SampleBufferDatabase(
@@ -261,6 +261,12 @@ class TaskLogger:
 
     async def reinit(self) -> None:
         """Reset this logger for a retry attempt with a fresh eval entry."""
+        from inspect_ai._control.eval_state import detach_eval_providers
+
+        # the superseded attempt's EvalState holds providers bound to THIS
+        # logger, which is about to be re-pointed at the new attempt
+        detach_eval_providers(self.eval.eval_id)
+
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
         self.flush_pending = []
@@ -324,6 +330,64 @@ class TaskLogger:
     def remove_sample(self, id: str | int, epoch: int) -> None:
         if self._buffer_db is not None:
             self._buffer_db.remove_samples([(id, epoch)])
+
+    async def sample_summaries(self) -> list[EvalSampleSummary] | None:
+        """Live completed-sample summaries (handed to the control channel via ``register_eval``)."""
+        return await self.recorder.sample_summaries(self.eval)
+
+    async def read_sample(
+        self,
+        id: str | int,
+        epoch: int,
+        *,
+        exclude_fields: set[str] | None = None,
+    ) -> EvalSample | None:
+        """Read one full sample (recorder buffer, then on-disk log), or None."""
+        # The whole-sample counterpart to `sample_summaries`, handed to the
+        # control channel via `register_eval` so per-sample reads (error detail,
+        # event pages) source from the *same* place the samples listing does.
+        # Prefer the recorder's not-yet-flushed in-memory sample, falling back
+        # to the finalized on-disk log once it's flushed / the recorder is torn
+        # down — otherwise those reads see only the on-disk log and miss a
+        # just-completed (or reused-on-retry) sample the listing already shows.
+        buffered = await self.recorder.buffered_sample(self.eval, id, epoch)
+        if buffered is not None:
+            return buffered
+
+        from inspect_ai.log._file import read_eval_log_sample_async
+
+        # `exclude_fields` applies only here: the in-memory sample above is
+        # already resident, so returning it whole costs nothing.
+        try:
+            return await read_eval_log_sample_async(
+                self.location, id, epoch, exclude_fields=exclude_fields
+            )
+        except IndexError:
+            return None
+
+    def sample_events_provider(
+        self, id: str | int, epoch: int
+    ) -> "TranscriptHistoryProvider | None":
+        """History provider over the realtime buffer for one sample, or None.
+
+        The events counterpart to :meth:`sample_summaries` / :meth:`read_sample`,
+        handed to the control channel via ``register_eval``: events for a
+        streaming-completion sample (whose recorder copy is event-less — they
+        live in the buffer database) are read through the *same* buffer
+        instance this logger writes. That keeps the control layer ignorant of
+        what a buffer is (no path re-derivation, no second connection set) and
+        puts its reads under the buffer's sample read leases, which defer
+        removal while a read is open. Returns ``None`` when realtime logging
+        is off or the buffer has been torn down — callers then fall back to
+        the recorder/on-disk sample.
+        """
+        if self._buffer_db is None:
+            return None
+        from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+            BufferTranscriptHistoryProvider,
+        )
+
+        return BufferTranscriptHistoryProvider(self._buffer_db, id, epoch)
 
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
         await self.recorder.log_sample(self.eval, sample)

@@ -98,6 +98,11 @@ from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
 from inspect_ai.model._model import RetryDecision, log_model_retry
 from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_output import (
+    StopCategory,
+    StopDetails,
+    collect_stop_details,
+)
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
@@ -660,22 +665,22 @@ class GoogleGenAIAPI(ModelAPI):
         return f"google/{self.service_model_name()}"
 
     def is_gemini(self) -> bool:
-        return "gemini-" in self.service_model_name()
+        return "gemini-" in self.model_family()
 
     def is_gemini_flash(self) -> bool:
-        return "flash" in self.service_model_name()
+        return "flash" in self.model_family()
 
     def is_gemini_1_5(self) -> bool:
-        return "gemini-1.5" in self.service_model_name()
+        return "gemini-1.5" in self.model_family()
 
     def is_gemini_2_0(self) -> bool:
-        return "gemini-2.0" in self.service_model_name()
+        return "gemini-2.0" in self.model_family()
 
     def is_gemini_2_5(self) -> bool:
-        return "gemini-2.5" in self.service_model_name()
+        return "gemini-2.5" in self.model_family()
 
     def is_gemini_3(self) -> bool:
-        return "gemini-3" in self.service_model_name()
+        return "gemini-3" in self.model_family()
 
     def is_gemini_3_flash(self) -> bool:
         return self.is_gemini_3() and self.is_gemini_flash()
@@ -694,7 +699,7 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_thinking_only(self) -> bool:
         return (
             self.is_gemini_2_5() or self.is_gemini_3()
-        ) and "-pro" in self.service_model_name()
+        ) and "-pro" in self.model_family()
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
@@ -899,7 +904,7 @@ class GoogleGenAIAPI(ModelAPI):
         elif tool.options and self._use_native_code_execution(tool):
             return acc._replace(code_execution=ToolCodeExecution())
         else:
-            computer_use = maybe_computer_use_tool(self.model_name, tool)
+            computer_use = maybe_computer_use_tool(self.model_family(), tool)
             if computer_use is not None:
                 return acc._replace(computer_use=computer_use)
             else:
@@ -1832,6 +1837,9 @@ def completion_choice_from_candidate(
             source="generate",
         ),
         stop_reason=stop_reason,
+        stop_details=collect_stop_details(
+            "google", logger, lambda: google_stop_details(candidate)
+        ),
     )
 
     # add logprobs if provided
@@ -1875,14 +1883,20 @@ def completion_choices_from_candidates(
             for candidate in candidates_list
         ]
     elif response.prompt_feedback:
+        prompt_feedback = response.prompt_feedback
         return [
             ChatCompletionChoice(
                 message=ChatMessageAssistant(
-                    content=prompt_feedback_to_content(response.prompt_feedback),
+                    content=prompt_feedback_to_content(prompt_feedback),
                     model=model,
                     source="generate",
                 ),
                 stop_reason="content_filter",
+                stop_details=collect_stop_details(
+                    "google",
+                    logger,
+                    lambda: prompt_feedback_stop_details(prompt_feedback),
+                ),
             )
         ]
     else:
@@ -2076,6 +2090,63 @@ def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
             # Note: to avoid adding another option to StopReason,
             # this includes FinishReason.MALFORMED_FUNCTION_CALL
             return "unknown"
+
+
+def _enum_name(value: Any) -> str:
+    """Plain string for a genai enum (or any value)."""
+    return getattr(value, "name", None) or str(value)
+
+
+def _google_safety_categories(safety_ratings: Any) -> list[StopCategory]:
+    """Build StopCategory entries from the blocked safety ratings."""
+    categories: list[StopCategory] = []
+    for rating in safety_ratings or []:
+        if not getattr(rating, "blocked", None):
+            continue
+        category = getattr(rating, "category", None)
+        if category is None:
+            continue
+        probability = getattr(rating, "probability", None)
+        categories.append(
+            StopCategory(
+                category=_enum_name(category),
+                level=_enum_name(probability) if probability is not None else None,
+            )
+        )
+    return categories
+
+
+def google_stop_details(candidate: Candidate) -> StopDetails | None:
+    """Extract safety/refusal detail from a Gemini candidate."""
+    finish_reason = candidate.finish_reason
+    categories = _google_safety_categories(candidate.safety_ratings)
+    is_safety = (
+        finish_reason is not None
+        and finish_reason_to_stop_reason(finish_reason) == "content_filter"
+    )
+    if not categories and not is_safety:
+        return None
+    return StopDetails(
+        type=_enum_name(finish_reason) if finish_reason is not None else None,
+        explanation=getattr(candidate, "finish_message", None),
+        categories=categories,
+    )
+
+
+def prompt_feedback_stop_details(
+    feedback: GenerateContentResponsePromptFeedback,
+) -> StopDetails | None:
+    """Extract safety detail from a prompt-level block (no candidates)."""
+    block_reason = getattr(feedback, "block_reason", None)
+    categories = _google_safety_categories(feedback.safety_ratings)
+    explanation = getattr(feedback, "block_reason_message", None)
+    if explanation is None and block_reason is not None:
+        explanation = f"Blocked: {_enum_name(block_reason)}"
+    return StopDetails(
+        type=_enum_name(block_reason) if block_reason is not None else None,
+        explanation=explanation,
+        categories=categories,
+    )
 
 
 def parse_safety_settings(

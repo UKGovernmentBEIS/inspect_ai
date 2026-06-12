@@ -2,9 +2,11 @@ import asyncio
 import io
 import tempfile
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from anyio import EndOfStream
+from botocore.exceptions import ClientError
 
 from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
@@ -12,6 +14,7 @@ from inspect_ai._util.asyncfiles import (
     _current_async_fs,
     get_async_filesystem,
 )
+from inspect_ai._util.file import local_path
 
 S3_BUCKET = "s3://test-bucket"
 
@@ -399,6 +402,151 @@ def test_write_file_streaming_s3(mock_s3: None) -> None:
     asyncio.run(run())
 
 
+class _RetryingUploadClient:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.uploaded: list[bytes] = []
+
+    def upload_fileobj_sync(
+        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
+    ) -> None:
+        self.calls += 1
+        data = Fileobj.read()
+        if self.calls == 1:
+            raise ClientError(
+                cast(
+                    Any,
+                    {
+                        "Error": {"Code": "RequestTimeTooSkewed", "Message": "skewed"},
+                        "ResponseMetadata": {"RequestId": "request-1"},
+                    },
+                ),
+                "PutObject",
+            )
+        self.uploaded.append(data)
+
+    async def upload_fileobj(
+        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
+    ) -> None:
+        self.upload_fileobj_sync(Fileobj, Bucket, Key, **kwargs)
+
+
+class _FailingUploadClient:
+    def __init__(self, code: str) -> None:
+        self.code = code
+        self.calls = 0
+
+    def upload_fileobj_sync(
+        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
+    ) -> None:
+        self.calls += 1
+        Fileobj.read()
+        raise ClientError(
+            cast(
+                Any,
+                {
+                    "Error": {"Code": self.code, "Message": self.code},
+                    "ResponseMetadata": {"RequestId": "request-1"},
+                },
+            ),
+            "PutObject",
+        )
+
+    async def upload_fileobj(
+        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
+    ) -> None:
+        self.upload_fileobj_sync(Fileobj, Bucket, Key, **kwargs)
+
+
+class _SyncUploadClient:
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def upload_fileobj(
+        self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
+    ) -> None:
+        self._client.upload_fileobj_sync(Fileobj, Bucket, Key, **kwargs)
+
+
+class _NonSeekableBytesIO(io.BytesIO):
+    def seekable(self) -> bool:
+        return False
+
+
+async def test_write_file_streaming_s3_retries_stale_signature_from_start(
+    monkeypatch,
+):
+    client = _RetryingUploadClient()
+
+    async def s3_client_async(self):
+        return client
+
+    def s3_client(self):
+        return _SyncUploadClient(client)
+
+    async def no_sleep(seconds: float) -> None:
+        pass
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+    monkeypatch.setattr(AsyncFilesystem, "s3_client", s3_client)
+    monkeypatch.setattr("inspect_ai._util.asyncfiles.anyio.sleep", no_sleep)
+
+    content = b"full eval log contents"
+    async with AsyncFilesystem() as fs:
+        await fs.write_file_streaming("s3://bucket/path/log.eval", io.BytesIO(content))
+
+    assert client.calls == 2
+    assert client.uploaded == [content]
+
+
+async def test_write_file_streaming_s3_does_not_retry_non_seekable_source(
+    monkeypatch,
+):
+    client = _FailingUploadClient("RequestTimeTooSkewed")
+
+    async def s3_client_async(self):
+        return client
+
+    def s3_client(self):
+        return _SyncUploadClient(client)
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+    monkeypatch.setattr(AsyncFilesystem, "s3_client", s3_client)
+
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(ClientError) as exc_info:
+            await fs.write_file_streaming(
+                "s3://bucket/path/log.eval", _NonSeekableBytesIO(b"contents")
+            )
+
+    assert exc_info.value.response["Error"]["Code"] == "RequestTimeTooSkewed"
+    assert client.calls == 1
+
+
+async def test_write_file_streaming_s3_does_not_retry_non_retryable_error(
+    monkeypatch,
+):
+    client = _FailingUploadClient("AccessDenied")
+
+    async def s3_client_async(self):
+        return client
+
+    def s3_client(self):
+        return _SyncUploadClient(client)
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+    monkeypatch.setattr(AsyncFilesystem, "s3_client", s3_client)
+
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(ClientError) as exc_info:
+            await fs.write_file_streaming(
+                "s3://bucket/path/log.eval", io.BytesIO(b"contents")
+            )
+
+    assert exc_info.value.response["Error"]["Code"] == "AccessDenied"
+    assert client.calls == 1
+
+
 # =============================================================================
 # Tests for get_file()
 # =============================================================================
@@ -524,6 +672,8 @@ async def test_iter_files_local_one_level() -> None:
         _make_local_tree(root)
         async with AsyncFilesystem() as fs:
             paths = await _collect(fs.iter_files(str(root)))
+            for p in paths:
+                assert p.startswith("file://")
             names = sorted(Path(p).name for p in paths)
             assert names == ["a.txt", "b.log"]
 
@@ -590,6 +740,7 @@ async def test_iter_dirs_local_one_level() -> None:
             terminal = sorted(p.rstrip("/").rsplit("/", 1)[-1] for p in paths)
             assert terminal == ["sub1", "sub2"]
             for p in paths:
+                assert p.startswith("file://")
                 assert p.endswith("/")
 
 
@@ -641,7 +792,7 @@ async def test_iter_files_local_excludes_dirs() -> None:
             paths = await _collect(fs.iter_files(str(root)))
             for p in paths:
                 assert not p.endswith("/")
-                assert Path(p).is_file()
+                assert Path(local_path(p)).is_file()
 
 
 def test_iter_files_s3_one_level(mock_s3: None) -> None:

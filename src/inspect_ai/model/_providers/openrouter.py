@@ -229,8 +229,9 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         # without triggering signature validation. Non-Gemini providers
         # (Anthropic / Grok / OpenAI reasoning models) retain reasoning
         # replay since they require it for correct CoT continuation.
-        _strip_reasoning_details = "gemini" in self.model_name.lower()
-        _replay_reasoning_content = _requires_reasoning_content(self.model_name)
+        family = self.model_family()
+        _strip_reasoning_details = "gemini" in family.lower()
+        _replay_reasoning_content = _requires_reasoning_content(family)
 
         # convert reasoning_details to an extra body parameter
         def handle_reasoning_details(
@@ -321,8 +322,12 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         if config.cache_prompt is False:
             return False
         # Mirror the legacy-Claude gate from the direct anthropic provider.
-        bare = name.split(":", 1)[0]
-        if "claude-3-sonnet" in bare or "claude-2" in bare or "claude-instant" in bare:
+        family = self.model_family().lower().removeprefix("anthropic/")
+        if (
+            "claude-3-sonnet" in family
+            or "claude-2" in family
+            or "claude-instant" in family
+        ):
             return False
         return True
 

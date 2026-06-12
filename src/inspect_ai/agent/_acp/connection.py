@@ -686,7 +686,13 @@ class ConnectionHandler:
         if sample is None:
             # Sample finished — nothing to cancel. Idempotent.
             return {"cancelled": False}
-        for event in sample.transcript.events:
+        # Scan pending events only (a pending ToolEvent is what we can
+        # cancel) rather than the full `events` history — scoped, and it
+        # avoids materializing / re-inflating evicted history on a bounded
+        # transcript. Pending events are never evicted, and nested
+        # sub-agent tool calls (task / as_tool / handoff) record into this
+        # same sample transcript, so they remain reachable here.
+        for event in sample.transcript.pending_events:
             if (
                 isinstance(event, ToolEvent)
                 and event.id == tool_call_id

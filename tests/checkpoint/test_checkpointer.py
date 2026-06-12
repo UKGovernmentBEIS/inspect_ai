@@ -12,19 +12,23 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch
+from typing import Literal
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
 
+from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.log import Transcript, expand_events
 from inspect_ai.log._transcript import init_transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
@@ -44,6 +48,7 @@ from inspect_ai.util._checkpoint import (
     TurnInterval,
     checkpointer,
 )
+from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._triggers import CheckpointTriggerKind
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_impl import (
@@ -157,8 +162,10 @@ class _CountingCheckpointer(_EnteredCheckpointer):
 
     fire_count: int = 0
 
-    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
-        await super()._fire(trigger)
+    async def _fire(
+        self, trigger: CheckpointTriggerKind, *, final: bool = False
+    ) -> None:
+        await super()._fire(trigger, final=final)
         self.fire_count += 1
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
@@ -205,7 +212,9 @@ class _FlakyCheckpointer(_EnteredCheckpointer):
     should_fail: bool = False
     attempts: int = 0
 
-    async def _fire_once(self, trigger: CheckpointTriggerKind) -> None:
+    async def _fire_once(
+        self, trigger: CheckpointTriggerKind, *, final: bool = False
+    ) -> None:
         self.attempts += 1
         if self.should_fail:
             raise _FlakyError("boom")
@@ -413,15 +422,58 @@ async def test_fire_reopens_checkpoint_span_after_failure(dirs: _Dirs) -> None:
     await cp._close_current_span()
 
 
+# --- hydrate: resume-state validation -------------------------------------
+
+
+def _make_checkpoint(checkpoint_id: int) -> Checkpoint:
+    return Checkpoint(
+        checkpoint_id=checkpoint_id,
+        trigger="turn",
+        turn=checkpoint_id,
+        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+        duration_ms=10,
+        size_bytes=100 + checkpoint_id,
+        host=SnapshotDetails(
+            snapshot_id=f"snap-{checkpoint_id}",
+            size_bytes=100 + checkpoint_id,
+            duration_ms=10,
+        ),
+        sandboxes={},
+    )
+
+
+def _write_checkpoint_files(sample_root: Path, count: int) -> None:
+    sample_root.mkdir(parents=True, exist_ok=True)
+    for checkpoint_id in range(1, count + 1):
+        checkpoint = _make_checkpoint(checkpoint_id)
+        (sample_root / f"ckpt-{checkpoint_id:05d}.json").write_text(
+            checkpoint.model_dump_json()
+        )
+
+
+def _checkpoint_resume_events(count: int) -> list[Event]:
+    from inspect_ai.util._checkpoint.hydrate import _wrap_prior_run
+
+    events: list[Event] = []
+    for checkpoint_id in range(1, count + 1):
+        span_id = f"checkpoint-{checkpoint_id}"
+        events.extend(
+            [
+                SpanBeginEvent(
+                    id=span_id,
+                    name=f"checkpoint {checkpoint_id}",
+                    type="checkpoint",
+                ),
+                InfoEvent(uuid=f"work-{checkpoint_id}", data=f"work {checkpoint_id}"),
+                SpanEndEvent(id=span_id),
+                CheckpointEvent.from_details(_make_checkpoint(checkpoint_id)),
+            ]
+        )
+    return _wrap_prior_run(events, parent_span_id="current")
+
+
 def test_synthesize_trailing_checkpoint_event(tmp_path: Path) -> None:
     """Hydrate reconstructs the trailing CheckpointEvent from a checkpoint file."""
-    from datetime import datetime, timezone
-
-    from inspect_ai.event._checkpoint import CheckpointEvent
-    from inspect_ai.util._checkpoint._layout.schemas import (
-        Checkpoint,
-        SnapshotDetails,
-    )
     from inspect_ai.util._checkpoint.hydrate import (
         _synthesize_trailing_checkpoint_event,
     )
@@ -450,6 +502,237 @@ def test_synthesize_trailing_checkpoint_event(tmp_path: Path) -> None:
     # Synthesized event's timestamp matches the checkpoint's original
     # creation time — indistinguishable from a live emit.
     assert event.timestamp == checkpoint.created_at
+
+
+def _assert_spans_balanced(events: list[Event]) -> None:
+    """Assert span_begin/span_end nest LIFO with nothing left open."""
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+
+    stack: list[str] = []
+    for e in events:
+        if isinstance(e, SpanBeginEvent):
+            stack.append(e.id)
+        elif isinstance(e, SpanEndEvent):
+            assert stack and stack[-1] == e.id, f"unbalanced span_end {e.id}"
+            stack.pop()
+    assert not stack, f"unclosed spans: {stack}"
+
+
+def test_wrap_prior_run_reparents_existing_wraps_across_resumes() -> None:
+    """A second resume keeps prior wraps as clean siblings under the current span.
+
+    Models the cumulative buffer a second resume hydrates. Insertion
+    order puts the seeded earlier ``prior_run`` wrap *first*, then the
+    resumed session's own (still-open) structural ancestry, then a fresh
+    unwrapped checkpoint span nested under that ancestry's ``agent``
+    span. Both layers of scaffolding — leading (before the first wrap)
+    and trailing (between the wrap and the new checkpoint) — must be
+    sliced away: the surviving wrap is re-parented onto the current
+    span, and the new checkpoint span becomes a second sibling wrap with
+    nothing else inside it.
+    """
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.util._checkpoint.hydrate import _wrap_prior_run
+
+    restored_events: list[Event] = [
+        # leading scaffolding before the first wrap — dropped by the slice
+        SpanBeginEvent(id="agent0", name="react", type="agent"),
+        InfoEvent(data="leading-setup"),
+        # the wrap hydrated during the prior resume (seeded first in the
+        # buffer), parented to that resume's now-gone agent span
+        SpanBeginEvent(
+            id="restore-1",
+            name="checkpoint restore 1",
+            type="prior_run",
+            parent_id="agent0",
+        ),
+        SpanBeginEvent(
+            id="checkpoint-1",
+            name="checkpoint 1",
+            type="checkpoint",
+            parent_id="restore-1",
+        ),
+        SpanEndEvent(id="checkpoint-1"),
+        SpanEndEvent(id="restore-1"),
+        # the resumed session's OWN structural ancestry, recorded after the
+        # seeded wrap and still open at fire time — trailing scaffolding
+        SpanBeginEvent(id="init1", name="init", type="init"),
+        SpanEndEvent(id="init1"),
+        SpanBeginEvent(id="solvers1", name="solvers"),
+        SpanBeginEvent(id="solver1", name="react", type="solver", parent_id="solvers1"),
+        SpanBeginEvent(id="agent1", name="react", type="agent", parent_id="solver1"),
+        InfoEvent(data="trailing-setup"),
+        # the new, still-unwrapped checkpoint span nested under that agent
+        SpanBeginEvent(
+            id="checkpoint-2",
+            name="checkpoint 2",
+            type="checkpoint",
+            parent_id="agent1",
+        ),
+        SpanEndEvent(id="checkpoint-2"),
+    ]
+
+    wrapped = _wrap_prior_run(restored_events, parent_span_id="current")
+
+    # all structural ancestry (leading and trailing) is gone
+    span_ids = {
+        event.id
+        for event in wrapped
+        if isinstance(event, (SpanBeginEvent, SpanEndEvent))
+    }
+    assert {"agent0", "init1", "solvers1", "solver1", "agent1"}.isdisjoint(span_ids)
+
+    wrap_begins = [
+        event
+        for event in wrapped
+        if isinstance(event, SpanBeginEvent) and event.type == "prior_run"
+    ]
+    assert [w.name for w in wrap_begins] == [
+        "checkpoint restore 1",
+        "checkpoint restore 2",
+    ]
+    # both wraps sit under the current session's span as siblings
+    assert wrap_begins[0].id == "restore-1"
+    assert wrap_begins[0].parent_id == "current"
+    assert wrap_begins[1].parent_id == "current"
+
+    # the new wrap's first child is checkpoint-2, re-parented onto it — the
+    # wrap contains the checkpoint span and nothing else
+    new_wrap = wrap_begins[1]
+    new_wrap_idx = next(i for i, e in enumerate(wrapped) if e is new_wrap)
+    first_child = wrapped[new_wrap_idx + 1]
+    assert isinstance(first_child, SpanBeginEvent)
+    assert first_child.id == "checkpoint-2"
+    assert first_child.parent_id == new_wrap.id
+    _assert_spans_balanced(wrapped)
+
+
+def test_validate_resume_state_accepts_wrapped_checkpoint_shape(tmp_path: Path) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    events = _checkpoint_resume_events(2)
+
+    _validate_resume_state(events, str(sample_root), 2)
+
+
+def test_validate_resume_state_allows_torn_interior_checkpoint_file(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 3)
+    (sample_root / "ckpt-00002.json").write_text("{")
+    events = _checkpoint_resume_events(3)
+
+    _validate_resume_state(events, str(sample_root), 3)
+
+
+def test_validate_resume_state_allows_non_utf8_torn_checkpoint_file(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 3)
+    (sample_root / "ckpt-00002.json").write_bytes(b'{"checkpoint_id": 2, "x": "\xe2')
+    events = _checkpoint_resume_events(3)
+
+    _validate_resume_state(events, str(sample_root), 3)
+
+
+def test_validate_resume_state_allows_unreadable_interior_checkpoint_entry(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 3)
+    (sample_root / "ckpt-00002.json").unlink()
+    (sample_root / "ckpt-00002.json").mkdir()
+    events = _checkpoint_resume_events(3)
+
+    _validate_resume_state(events, str(sample_root), 3)
+
+
+def test_validate_resume_state_rejects_missing_prior_run_wrap(tmp_path: Path) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    events = _checkpoint_resume_events(2)
+    unwrapped = [
+        event
+        for event in events
+        if not (isinstance(event, SpanBeginEvent) and event.type == "prior_run")
+    ]
+
+    with pytest.raises(RuntimeError, match="no prior_run wrap"):
+        _validate_resume_state(unwrapped, str(sample_root), 2)
+
+
+def test_validate_resume_state_rejects_nonsequential_checkpoint_names(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    events = _checkpoint_resume_events(2)
+    for event in events:
+        if (
+            isinstance(event, SpanBeginEvent)
+            and event.type == "checkpoint"
+            and event.name == "checkpoint 2"
+        ):
+            event.name = "checkpoint 4"
+            break
+
+    with pytest.raises(RuntimeError, match="checkpoint span names not sequential"):
+        _validate_resume_state(events, str(sample_root), 2)
+
+
+def test_validate_resume_state_rejects_unparseable_latest_committed_file(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 1)
+    (sample_root / "ckpt-00002.json").write_text("{")
+    events = _checkpoint_resume_events(2)
+
+    with pytest.raises(RuntimeError, match="ckpt-00002.json is missing or unparseable"):
+        _validate_resume_state(events, str(sample_root), 2)
+
+
+def test_validate_resume_state_rejects_checkpoint_content_id_mismatch(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    (sample_root / "ckpt-00002.json").write_text(_make_checkpoint(3).model_dump_json())
+    events = _checkpoint_resume_events(2)
+
+    with pytest.raises(RuntimeError, match="checkpoint file id mismatch"):
+        _validate_resume_state(events, str(sample_root), 2)
+
+
+def test_validate_resume_state_rejects_latest_committed_count_mismatch(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    events = _checkpoint_resume_events(2)
+
+    with pytest.raises(RuntimeError, match="expected 1 checkpoint spans"):
+        _validate_resume_state(events, str(sample_root), 1)
 
 
 # --- tracing (inspect trace anomalies / dump --filter checkpoint) ---------
@@ -731,7 +1014,21 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     sample_dir = eval_dir / "s7__2"
     assert (sample_dir / "restic" / "restic-config.json").is_file()
     checkpoint_files = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
-    assert checkpoint_files == ["ckpt-00001.json", "ckpt-00002.json"]
+    # Clean cm exit (no exception, attempt != RESUME_FOR_SCORING) triggers
+    # the forced final "agent_complete" fire — so we get one more
+    # checkpoint than the two policy-driven ones.
+    assert checkpoint_files == [
+        "ckpt-00001.json",
+        "ckpt-00002.json",
+        "ckpt-00003.json",
+    ]
+    # The final checkpoint itself is the scoring-phase-resume marker.
+    from inspect_ai.util._checkpoint._layout.schemas import Checkpoint
+
+    final_checkpoint = Checkpoint.model_validate_json(
+        (sample_dir / "ckpt-00003.json").read_text()
+    )
+    assert final_checkpoint.trigger == "agent_complete"
 
     # Local destination → sample root is the sample checkpoints dir
     # itself; the `context/` subdir holds host context files.
@@ -767,7 +1064,7 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     work.mkdir()
     cp = _EnteredCheckpointer(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
-        hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
+        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(work)),
         resume_checkpoint=None,
         reset_transcript_store=True,
     )
@@ -794,7 +1091,9 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
 
 
 def _make_cp(**kwargs: object) -> _EnteredCheckpointer:
-    base = Path("/tmp/cp-test")
+    # Unique per call so parallel xdist workers (and successive calls) don't
+    # collide on the same SQLite transcript store under context_dir.
+    base = Path(tempfile.mkdtemp(prefix="cp-test-"))
     defaults: dict[str, object] = {
         "config": ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         "hydration": _fake_hydration(str(base / "ckpts"), str(base / "work")),
@@ -890,17 +1189,29 @@ def test_track_noop_session() -> None:
     assert out == 0
 
 
-def test_is_resuming_noop_false() -> None:
-    assert _NoopCheckpointer().is_resuming is False
+def test_attempt_noop_initial() -> None:
+    assert _NoopCheckpointer().attempt == "initial"
 
 
-def test_is_resuming_reflects_resume_checkpoint() -> None:
-    assert _make_cp().is_resuming is False
+def test_attempt_reflects_resume_checkpoint() -> None:
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+
+    assert _make_cp().attempt == "initial"
     assert (
         _make_cp(
-            resume_checkpoint=ResumeCheckpoint(sample_checkpoints_dir="/x"),
-        ).is_resuming
-        is True
+            resume_checkpoint=ResumeCheckpoint(
+                sample_checkpoints_dir="/x", attempt="resume"
+            ),
+        ).attempt
+        == "resume"
+    )
+    assert (
+        _make_cp(
+            resume_checkpoint=ResumeCheckpoint(
+                sample_checkpoints_dir="/x", attempt="resume_for_scoring"
+            ),
+        ).attempt
+        == "resume_for_scoring"
     )
 
 
@@ -918,9 +1229,23 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
         epoch=0,
     )
 
+    from inspect_ai.util._subprocess import ExecResult
+
     fake_env = MagicMock()
+    # Even a config-specified sandbox runs one resolution exec (home + XDG
+    # cache) so the cache dir can be excluded; canned `home\ncache` output.
+    fake_env.exec = AsyncMock(
+        return_value=ExecResult(
+            success=True, returncode=0, stdout="/root\n/root/.cache", stderr=""
+        )
+    )
     fake_sample_state = MagicMock(restic_password="pwd")
     sample_ckpt_path = str(tmp_path / "ckpts" / "s__0")
+
+    # Live-sandbox set drives hydration; "web" has an explicit config entry.
+    from inspect_ai.util._sandbox.context import sandbox_environments_context_var
+
+    sandbox_token = sandbox_environments_context_var.set({"web": fake_env})
 
     with (
         patch(
@@ -934,7 +1259,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
         patch(
             "inspect_ai.util._checkpoint.hydrate.ensure_restic_config",
             new=AsyncMock(return_value=fake_sample_state),
-        ) as ensure_restic_config_mock,
+        ) as ensure_config_mock,
         patch(
             "inspect_ai.util._checkpoint.hydrate.resolve_restic",
             new=AsyncMock(return_value=Path("/fake/restic")),
@@ -959,7 +1284,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
         io_mocks = (
             ensure_ckpt,
             ensure_ctx,
-            ensure_restic_config_mock,
+            ensure_config_mock,
             resolve,
             init_host,
             get_sandbox,
@@ -974,7 +1299,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             # __aenter__ ran every I/O step exactly once
             ensure_ckpt.assert_awaited_once()
             ensure_ctx.assert_awaited_once()
-            ensure_restic_config_mock.assert_awaited_once()
+            ensure_config_mock.assert_awaited_once()
             resolve.assert_awaited_once()
             init_host.assert_awaited_once()
             get_sandbox.assert_called_once_with("web")
@@ -986,6 +1311,8 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             assert cp2 is cp
             assert [m.call_count for m in io_mocks] == call_counts
 
+    sandbox_environments_context_var.reset(sandbox_token)
+
 
 async def test_write_host_context_exports_transcript_store_attachments(
     tmp_path: Path,
@@ -996,7 +1323,7 @@ async def test_write_host_context_exports_transcript_store_attachments(
     work.mkdir()
     cp = _EnteredCheckpointer(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
-        hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
+        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(work)),
         resume_checkpoint=None,
         reset_transcript_store=True,
     )
@@ -1074,8 +1401,8 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     assert [len(e.input) for e in model_events] == [2, 3, 4]
 
 
-def test_track_consumes_hydrated_agent_state() -> None:
-    hydration = _fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work")
+def test_track_consumes_hydrated_agent_state(tmp_path: Path) -> None:
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
     hydration.host.agent_state = {"phase": "resume", "other": "kept"}
     cp = _make_cp(hydration=hydration)
 
@@ -1134,7 +1461,9 @@ def test_checkpointer_closes_store_when_transcript_seed_fails(tmp_path: Path) ->
     ):
         with pytest.raises(RuntimeError, match="Cannot seed transcript events"):
             _make_cp(
-                hydration=_fake_hydration("/tmp/cp-test/ckpts", str(tmp_path / "work")),
+                hydration=_fake_hydration(
+                    str(tmp_path / "ckpts"), str(tmp_path / "work")
+                ),
             )
 
 
@@ -1243,6 +1572,11 @@ async def test_checkpointer_setup_close_unsubscribes_and_closes_store(
         sample_id="s",
         epoch=0,
     )
+    # Store-lifecycle test only: suppress the clean-exit finalize so the
+    # `async with setup` exits don't fire an `agent_complete` checkpoint
+    # (which would emit extra transcript events). Finalize is covered by
+    # the dedicated `__aexit__` tests below.
+    setup._finalized = True
     hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
     Path(hydration.sample_checkpoints_dir).mkdir(parents=True)
     Path(hydration.context_dir).mkdir(parents=True)
@@ -1288,6 +1622,11 @@ async def test_checkpointer_setup_reconstruct_preserves_transcript_store(
         sample_id="s",
         epoch=0,
     )
+    # Store-lifecycle test only: suppress the clean-exit finalize so the
+    # `async with setup` exits don't fire an `agent_complete` checkpoint
+    # (which would emit extra transcript events). Finalize is covered by
+    # the dedicated `__aexit__` tests below.
+    setup._finalized = True
 
     with (
         patch(
@@ -1314,6 +1653,122 @@ async def test_checkpointer_setup_reconstruct_preserves_transcript_store(
     assert [event["data"] for event in events] == ["first", "second"]
 
 
+# === __aexit__ finalize: scoring-phase-resume handoff ========================
+#
+# On a clean agent exit the setup fires a final "agent_complete" checkpoint and
+# a later scoring crash can resume into `"resume_for_scoring"` and skip
+# the agent loop. These tests pin the gating: finalize fires iff the cm was
+# entered, exited cleanly, isn't already a scoring-phase resume, and hasn't
+# already finalized.
+
+
+@contextmanager
+def _finalize_setup(
+    tmp_path: Path,
+    *,
+    attempt: Literal["initial", "resume", "resume_for_scoring"] | None = None,
+) -> Iterator[_CheckpointerSetup]:
+    """Yield a patched `_CheckpointerSetup`.
+
+    `hydrate` and `transcript` are stubbed (no real I/O). Pass `attempt`
+    to simulate a resumed session.
+    """
+    fake_transcript = Transcript(bounded=False)
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    Path(hydration.sample_checkpoints_dir).mkdir(parents=True)
+    Path(hydration.context_dir).mkdir(parents=True)
+    resume = (
+        ResumeCheckpoint(
+            sample_checkpoints_dir=str(tmp_path / "prior"), attempt=attempt
+        )
+        if attempt is not None
+        else None
+    )
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=resume,
+    )
+    with (
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+            return_value=hydration,
+        ),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+            return_value=fake_transcript,
+        ),
+    ):
+        yield setup
+
+
+async def test_finalize_fires_agent_complete(
+    tmp_path: Path,
+) -> None:
+    with _finalize_setup(tmp_path) as setup:
+        fire = AsyncMock()
+        with patch.object(_EnteredCheckpointer, "_fire", fire):
+            async with setup as cp:
+                assert isinstance(cp, _EnteredCheckpointer)
+        # clean exit → one forced final fire
+        fire.assert_awaited_once_with("agent_complete", final=True)
+
+
+async def test_finalize_skipped_when_exception_propagates(tmp_path: Path) -> None:
+    with _finalize_setup(tmp_path) as setup:
+        fire = AsyncMock()
+        with patch.object(_EnteredCheckpointer, "_fire", fire):
+            with pytest.raises(RuntimeError, match="boom"):
+                async with setup as cp:
+                    assert isinstance(cp, _EnteredCheckpointer)
+                    raise RuntimeError("boom")
+        # agent raised — the final fire should not run
+        fire.assert_not_awaited()
+
+
+async def test_finalize_skipped_for_scoring_phase_resume(tmp_path: Path) -> None:
+    with _finalize_setup(tmp_path, attempt="resume_for_scoring") as setup:
+        fire = AsyncMock()
+        with patch.object(_EnteredCheckpointer, "_fire", fire):
+            async with setup as cp:
+                assert isinstance(cp, _EnteredCheckpointer)
+        # latest checkpoint is already agent_complete — don't re-fire
+        assert cp.attempt == "resume_for_scoring"
+        fire.assert_not_awaited()
+
+
+async def test_finalize_attempts_final_fire_even_when_tolerated_failure(
+    tmp_path: Path,
+) -> None:
+    with _finalize_setup(tmp_path) as setup:
+        fire = AsyncMock()
+        with patch.object(_EnteredCheckpointer, "_fire", fire):
+            async with setup as cp:
+                assert isinstance(cp, _EnteredCheckpointer)
+                # stand in for a tolerated fire failure: `_fire` swallows the
+                # error but leaves the failure count non-zero
+                fire.side_effect = lambda *a, **k: setattr(
+                    cp, "_consecutive_failures", 1
+                )
+        # final fire was attempted; no separate marker is written.
+        fire.assert_awaited_once_with("agent_complete", final=True)
+
+
+async def test_finalize_idempotent_across_reentry(tmp_path: Path) -> None:
+    with _finalize_setup(tmp_path) as setup:
+        fire = AsyncMock()
+        with patch.object(_EnteredCheckpointer, "_fire", fire):
+            async with setup as cp:
+                assert isinstance(cp, _EnteredCheckpointer)
+            async with setup as cp2:
+                # cached re-entry returns the same checkpointer
+                assert cp2 is cp
+        # only the first clean exit finalizes
+        fire.assert_awaited_once_with("agent_complete", final=True)
+
+
 async def test_resume_resets_restored_transcript_store_before_seeding(
     tmp_path: Path,
 ) -> None:
@@ -1334,7 +1789,8 @@ async def test_resume_resets_restored_transcript_store_before_seeding(
         sample_id="s",
         epoch=0,
         resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=str(tmp_path / "prior-ckpts")
+            sample_checkpoints_dir=str(tmp_path / "prior-ckpts"),
+            attempt="resume",
         ),
     )
 
@@ -1377,7 +1833,8 @@ def test_resume_seed_skips_restored_resident_events(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=hydration,
         resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=str(tmp_path / "old")
+            sample_checkpoints_dir=str(tmp_path / "old"),
+            attempt="resume",
         ),
         reset_transcript_store=True,
     )
@@ -1389,32 +1846,6 @@ def test_resume_seed_skips_restored_resident_events(
     events = json.loads((snapshot / "events.json").read_text())
     assert [event["uuid"] for event in events] == ["restored"]
     assert [event["data"] for event in events] == ["committed"]
-
-
-def test_push_host_state_notifies_transcript_subscribers(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    restored = InfoEvent(uuid="restored", data="committed")
-    fake_transcript = Transcript(bounded=False)
-    subscriber_events: list[Event] = []
-    fake_transcript._subscribe(subscriber_events.append)
-    monkeypatch.setattr(
-        "inspect_ai.util._checkpoint.hydrate.transcript",
-        lambda: fake_transcript,
-    )
-    monkeypatch.setattr(
-        "inspect_ai.util._checkpoint.hydrate.sample_state",
-        lambda: type("FakeState", (), {"store": Store()})(),
-    )
-    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
-    hydration.host.condensed_events = [restored]
-
-    from inspect_ai.util._checkpoint.hydrate import _push_host_state
-
-    _push_host_state(hydration.host, str(tmp_path / "ckpts"), None)
-
-    assert fake_transcript.history.resident_events == [restored]
-    assert subscriber_events == [restored]
 
 
 def test_checkpointer_tracks_event_emitted_during_history_export(
@@ -1524,9 +1955,12 @@ async def test_resume_seed_preserves_message_pool_positions(tmp_path: Path) -> N
     assert [message.content for message in model_events[1].input] == ["q2"]
 
 
-async def test_resume_materializes_pooled_model_event_and_seeds_transcript(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+async def test_materialize_pooled_model_event_expands_seed_payload(
+    tmp_path: Path,
 ) -> None:
+    from inspect_ai.event._pool import materialize_pooled_events
+    from inspect_ai.util._checkpoint._layout import host_context
+
     msg_sys: ChatMessage = ChatMessageSystem(content="sys")
     msg_user: ChatMessage = ChatMessageUser(content="question")
     call_request = {"messages": [{"role": "user", "content": "question"}]}
@@ -1536,85 +1970,35 @@ async def test_resume_materializes_pooled_model_event_and_seeds_transcript(
         call=ModelCall.create(call_request, None),
     )
 
-    first_work = tmp_path / "first"
-    first_work.mkdir()
-    first_cp = _EnteredCheckpointer(
+    work = tmp_path / "work"
+    work.mkdir()
+    cp = _EnteredCheckpointer(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
-        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state1")),
+        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state")),
         resume_checkpoint=None,
         reset_transcript_store=True,
     )
-    first_cp._track_transcript_event(restored)
-    await first_cp._write_host_context(str(first_work), Store())
-    first_cp.close()
+    cp._track_transcript_event(restored)
+    await cp._write_host_context(str(work), Store())
+    cp.close()
 
-    from inspect_ai.util._checkpoint._layout import host_context
-
-    first_context = host_context.read(str(first_work))
-    assert len(first_context.condensed_events) == 1
-    condensed = first_context.condensed_events[0]
+    context = host_context.read(str(work))
+    condensed = context.condensed_events[0]
     assert isinstance(condensed, ModelEvent)
     assert condensed.input_refs is not None
     assert condensed.call is not None
     assert condensed.call.call_refs is not None
 
-    fake_transcript = Transcript(bounded=True, resident_tail=10, log_model_api=True)
-    monkeypatch.setattr(
-        "inspect_ai.util._checkpoint.hydrate.transcript",
-        lambda: fake_transcript,
+    materialized = materialize_pooled_events(
+        context.condensed_events,
+        context.msg_pool,
+        context.call_pool,
     )
-    monkeypatch.setattr(
-        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
-        lambda: fake_transcript,
-    )
-    monkeypatch.setattr(
-        "inspect_ai.util._checkpoint.hydrate.sample_state",
-        lambda: type("FakeState", (), {"store": Store()})(),
-    )
-
-    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state2"))
-    hydration.host.condensed_events = first_context.condensed_events
-    hydration.host.msg_pool = first_context.msg_pool
-    hydration.host.call_pool = first_context.call_pool
-
-    from inspect_ai.util._checkpoint.hydrate import _push_host_state
-
-    _push_host_state(hydration.host, str(tmp_path / "ckpts"), None)
-    seeded_events = fake_transcript.history.resident_events
-    assert len(seeded_events) == 1
-    seeded_model = seeded_events[0]
+    assert len(materialized) == 1
+    seeded_model = materialized[0]
     assert isinstance(seeded_model, ModelEvent)
     assert seeded_model.input_refs is None
     assert [message.content for message in seeded_model.input] == ["sys", "question"]
     assert seeded_model.call is not None
     assert seeded_model.call.call_refs is None
     assert seeded_model.call.request == call_request
-
-    resumed_cp = _EnteredCheckpointer(
-        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
-        hydration=hydration,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=str(tmp_path / "prior")
-        ),
-        reset_transcript_store=True,
-    )
-
-    resumed_work = tmp_path / "resumed"
-    resumed_work.mkdir()
-    resumed_cp._track_transcript_event(InfoEvent(uuid="after-resume", data="new"))
-    await resumed_cp._write_host_context(str(resumed_work), Store())
-    resumed_cp.close()
-
-    expanded = expand_events(
-        (resumed_work / "events.json").read_text(),
-        (resumed_work / "events_data.json").read_text(),
-    )
-    assert [event.uuid for event in expanded] == ["restored-model", "after-resume"]
-    expanded_model = expanded[0]
-    assert isinstance(expanded_model, ModelEvent)
-    assert [message.content for message in expanded_model.input] == [
-        "sys",
-        "question",
-    ]
-    assert expanded_model.call is not None
-    assert expanded_model.call.request == call_request

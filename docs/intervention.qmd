@@ -125,6 +125,29 @@ If you are monitoring several sessions where agents may ask questions, use the m
 
 In addition, the next section describes how to configure notifications so that you can be aware of questions as they are asked. 
 
+#### Input from Code
+
+You can also build user input directly into your custom agents by calling the `request_input()` function. Pass it a prompt message and an `ElicitationSchema` describing the fields you want filled in:
+
+``` python
+from inspect_ai.util import request_input
+from acp.schema import ElicitationSchema, ElicitationStringPropertySchema
+
+result = await request_input(
+    message="Please enter your name",
+    schema=ElicitationSchema(
+        properties={
+            "name": ElicitationStringPropertySchema(type="string"),
+        },
+        required=["name"],
+    ),
+)
+if result.outcome == "accepted":
+    name = result.content["name"]
+```
+
+`result.outcome` is one of `"accepted"`, `"declined"`, or `"cancelled"`. When `accepted`, `result.content` is a dict keyed by the schema's property names.
+
 ### Notifications
 
 Notifications fire whenever a human-in-the-loop interaction is posted (the `ask_user()` tool and tool-approval prompts). Inspect uses [Apprise](https://appriseit.com) to route notifications, which you can install with:

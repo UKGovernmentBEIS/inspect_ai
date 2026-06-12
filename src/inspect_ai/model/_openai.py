@@ -93,7 +93,15 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._model_output import ModelOutput, ModelUsage, StopReason, as_stop_reason
+from ._model_output import (
+    ModelOutput,
+    ModelUsage,
+    StopCategory,
+    StopDetails,
+    StopReason,
+    as_stop_reason,
+    collect_stop_details,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +130,38 @@ def is_o_series_model(model_name: str) -> bool:
 
 def needs_max_completion_tokens(model_name: str) -> bool:
     return is_gpt_5_model(model_name) or is_o_series_model(model_name)
+
+
+# OpenAI model-name tokens that identify non-generative models (embeddings,
+# audio, image, moderation). These must never be treated as a "latest"/frontier
+# chat model by is_latest_model().
+_NON_GENERATIVE_TOKENS = (
+    "embedding",
+    "whisper",
+    "dall-e",
+    "tts",
+    "moderation",
+    "image-1",
+    "sora",
+)
+
+
+def is_latest_model(model_name: str) -> bool:
+    """Detect an OpenAI predeployment/codename model as the current frontier.
+
+    OpenAI sometimes exposes pre-release models under internal code names (e.g.
+    `foo-bar-22`) that match none of the known naming conventions. Treat any such
+    unrecognized name as the latest model so it gets frontier behavior. Mirrors
+    the Anthropic provider's `is_claude_latest()`.
+    """
+    name = model_name.lower().removeprefix("openai.")  # bedrock api_model_name prefix
+    if any(token in name for token in _NON_GENERATIVE_TOKENS):
+        return False
+    if is_gpt_5_model(name) or is_o_series_model(name):
+        return False
+    if "gpt" in name or "codex" in name or "deep-research" in name:
+        return False
+    return True
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallUnion:
@@ -509,6 +549,8 @@ async def messages_from_openai(
         elif message["role"] == "assistant":
             # resolve content
             refusal: Literal[True] | None = None
+            smuggled_reasoning = None
+            parsed_reasoning_content = False
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
                 asst_content, smuggled_reasoning = parse_content_with_reasoning(
@@ -525,8 +567,11 @@ async def messages_from_openai(
                             redacted=smuggled_reasoning.redacted,
                             summary=smuggled_reasoning.summary,
                         ),
-                        ContentText(text=asst_content, internal=content_internal),
                     ]
+                    if asst_content:
+                        content.append(
+                            ContentText(text=asst_content, internal=content_internal)
+                        )
                 else:
                     content = asst_content
             elif asst_content is None:
@@ -536,13 +581,26 @@ async def messages_from_openai(
             else:
                 content = []
                 for ac in asst_content:
-                    content.extend(content_from_openai(ac, parse_reasoning=True))
+                    parsed_content = content_from_openai(ac, parse_reasoning=True)
+                    parsed_reasoning_content = parsed_reasoning_content or any(
+                        isinstance(c, ContentReasoning) for c in parsed_content
+                    )
+                    content.extend(parsed_content)
+                if parsed_reasoning_content:
+                    content = [
+                        c
+                        for c in content
+                        if not (isinstance(c, ContentText) and c.text == "")
+                    ]
 
             # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
             # interfaces e.g. DeepSeek do include this field so we pluck it out)
             # note that we already handled <think> tags so we only care about the
             # other sources
-            parse_result = parse_reasoning_content(message)
+            parse_result = parse_reasoning_content(
+                message,
+                parse_think=smuggled_reasoning is None and not parsed_reasoning_content,
+            )
             if parse_result is not None:
                 reasoning: ContentReasoning | None = (
                     content_reasoning_from_openai_reasoning(parse_result[0])
@@ -773,6 +831,7 @@ def chat_message_assistant_from_openai(
 
 def parse_reasoning_content(
     message: ChatCompletionMessage | ChatCompletionAssistantMessageParam,
+    parse_think: bool = True,
 ) -> tuple[CompletionsReasoningContent, str | None] | None:
     # look in various fields where reasoning lives
     for source in cast(
@@ -790,6 +849,9 @@ def parse_reasoning_content(
                 ),
                 None,
             )
+
+    if not parse_think:
+        return None
 
     # not found, look for <think> tag
     content = (
@@ -842,6 +904,53 @@ def model_output_from_openai(
     )
 
 
+def openai_stop_details(choice: Any) -> StopDetails | None:
+    """Extract refusal/content-filter detail from an OpenAI-style `Choice`.
+
+    Covers the OpenAI SDK family (OpenAI, Azure OpenAI, DeepSeek, vLLM, LM Studio,
+    Together, Groq). Refusal text comes from `message.refusal`; Azure adds a
+    `content_filter_results` object (a declared field on some SDK versions,
+    otherwise under `model_extra`).
+    """
+    message = getattr(choice, "message", None)
+    explanation = getattr(message, "refusal", None) if message is not None else None
+
+    # Azure content filtering: declared field, else under model_extra (OpenAI SDK)
+    # or additional_properties (azure.ai.inference SDK)
+    filter_results = getattr(choice, "content_filter_results", None)
+    if filter_results is None:
+        extra = getattr(choice, "model_extra", None) or getattr(
+            choice, "additional_properties", None
+        )
+        if isinstance(extra, dict):
+            filter_results = extra.get("content_filter_results")
+
+    # Only categories that actually triggered filtering count — `detected` alone
+    # (e.g. protected-material/jailbreak flagged but not blocked) can appear on a
+    # normal `stop` completion and must not be reported as a stop reason.
+    categories: list[StopCategory] = []
+    if isinstance(filter_results, dict):
+        for name, info in filter_results.items():
+            if isinstance(info, dict) and info.get("filtered"):
+                level = info.get("severity")
+                categories.append(
+                    StopCategory(
+                        category=str(name),
+                        level=str(level) if level is not None else None,
+                    )
+                )
+
+    if not categories and not explanation:
+        return None
+
+    finish_reason = getattr(choice, "finish_reason", None)
+    return StopDetails(
+        type="content_filter" if finish_reason == "content_filter" else "refusal",
+        explanation=explanation,
+        categories=categories,
+    )
+
+
 def chat_choices_from_openai(
     response: ChatCompletion,
     tools: list[ToolInfo],
@@ -858,6 +967,9 @@ def chat_choices_from_openai(
                 response.model, choice.message, tools, reasoning_extractor
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
+            stop_details=collect_stop_details(
+                "openai", logger, functools.partial(openai_stop_details, choice)
+            ),
             logprobs=(
                 Logprobs(**choice.logprobs.model_dump())
                 if choice.logprobs and choice.logprobs.content is not None
@@ -1035,6 +1147,7 @@ def openai_handle_bad_request(
 
     # narrow stop_reason
     stop_reason: StopReason | None = None
+    stop_details: StopDetails | None = None
     if e.code == "context_length_exceeded":
         stop_reason = "model_length"
     elif (
@@ -1045,10 +1158,22 @@ def openai_handle_bad_request(
         or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"
+        if e.code == "cyber_policy":
+            stop_details = StopDetails(
+                type="refusal",
+                category="cyber",
+                explanation=content,
+                categories=[StopCategory(category="cyber")],
+            )
+        else:
+            stop_details = StopDetails(type="refusal", explanation=content)
 
     if stop_reason:
         return ModelOutput.from_content(
-            model=model_name, content=content, stop_reason=stop_reason
+            model=model_name,
+            content=content,
+            stop_reason=stop_reason,
+            stop_details=stop_details,
         )
     else:
         return e

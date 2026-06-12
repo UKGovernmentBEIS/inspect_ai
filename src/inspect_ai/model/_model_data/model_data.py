@@ -34,6 +34,7 @@ class BaseModelDefinition(BaseModel):
     input_tokens: Optional[int] = None
     reasoning: Optional[bool] = None
     reasoning_effort_default: Optional[str] = None
+    family: Optional[str] = None
     snapshot: Optional[str] = None
     aliases: Optional[List[str]] = None
 
@@ -89,6 +90,7 @@ def create_model_info(
         reasoning=data_source.reasoning or model_def.reasoning,
         reasoning_effort_default=data_source.reasoning_effort_default
         or model_def.reasoning_effort_default,
+        family=data_source.family or model_def.family,
     )
 
 
@@ -130,6 +132,15 @@ class ModelInfo(BaseModel):
 
     Inspect does not send this value automatically — it is metadata used to
     generate the per-model defaults table in the docs.
+    """
+
+    family: str | None = Field(default=None)
+    """Reference model name used for capability and request-shape detection.
+
+    When set (typically via :func:`set_model_info`), provider capability
+    checks match against this string instead of the configured model name.
+    Use this to make a model with a custom alias behave like a known family.
+    This value does not change the model identifier sent to the provider.
     """
 
     cost: ModelCost | None = Field(default=None)

@@ -13,7 +13,7 @@ from inspect_ai.tool._sandbox_tools_utils._build_config import (
     [
         (
             "inspect-sandbox-tools-amd64-v123",
-            dict(arch="amd64", version=123, suffix=None),
+            dict(arch="amd64", version=123, suffix=None, musl=False),
         ),
         (
             "inspect-sandbox-tools-arm64-v200",
@@ -26,6 +26,14 @@ from inspect_ai.tool._sandbox_tools_utils._build_config import (
         (
             "inspect-sandbox-tools-arm64-v123-dev",
             dict(arch="arm64", version=123, suffix="dev"),
+        ),
+        (
+            "inspect-sandbox-tools-amd64-musl-v123",
+            dict(arch="amd64", version=123, suffix=None, musl=True),
+        ),
+        (
+            "inspect-sandbox-tools-arm64-musl-v19-dev",
+            dict(arch="arm64", version=19, suffix="dev", musl=True),
         ),
     ],
 )
@@ -94,6 +102,14 @@ def test_filename_to_config_invalid(filename, error_match):
             SandboxToolsBuildConfig(arch="arm64", version=123, suffix="dev"),
             "inspect-sandbox-tools-arm64-v123-dev",
         ),
+        (
+            SandboxToolsBuildConfig(arch="amd64", version=123, suffix=None, musl=True),
+            "inspect-sandbox-tools-amd64-musl-v123",
+        ),
+        (
+            SandboxToolsBuildConfig(arch="arm64", version=19, suffix="dev", musl=True),
+            "inspect-sandbox-tools-arm64-musl-v19-dev",
+        ),
     ],
 )
 def test_config_to_filename_valid(config, expected_filename):
@@ -108,6 +124,8 @@ def test_config_to_filename_valid(config, expected_filename):
         "inspect-sandbox-tools-arm64-v200",
         "inspect-sandbox-tools-amd64-v123-dev",
         "inspect-sandbox-tools-arm64-v123-dev",
+        "inspect-sandbox-tools-amd64-musl-v123",
+        "inspect-sandbox-tools-arm64-musl-v123-dev",
     ],
 )
 def test_roundtrip_conversion(filename):

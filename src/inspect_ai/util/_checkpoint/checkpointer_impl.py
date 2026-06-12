@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -38,7 +38,11 @@ from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.solver._task_state import sample_state
-from inspect_ai.util._restic import ResticBackupSummary, run_backup
+from inspect_ai.util._restic import (
+    ResticBackupSummary,
+    list_changed_files,
+    run_backup,
+)
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, store_jsonable
@@ -63,8 +67,9 @@ from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
 )
-from .config import ResolvedCheckpointConfig
+from .config import MAX_LISTED_FILES, ResolvedCheckpointConfig
 from .hydrate import HydrationResult, hydrate
+from .sandbox_paths import SandboxBackupPaths
 
 logger = getLogger(__name__)
 
@@ -104,6 +109,11 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         self._resume_checkpoint = resume_checkpoint
         self._cached: _EnteredCheckpointer | None = None
         self._reset_transcript_store_on_next_enter = True
+        # One-shot finalize gate. The first clean cm exit fires the
+        # "agent_complete" checkpoint; subsequent ``__aexit__`` calls
+        # (e.g. a hook re-entering ``checkpointer()`` after the agent
+        # returned) are no-ops.
+        self._finalized = False
 
     async def __aenter__(self) -> Checkpointer:
         if self._cached is not None:
@@ -126,7 +136,28 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         return self._cached
 
     async def __aexit__(self, *exc: object) -> None:
-        return None
+        # `exc[0]` is the propagating exception type (or None on a clean exit),
+        # per the context-manager protocol.
+        exc_type = exc[0] if exc else None
+        # Fire a final "agent_complete" checkpoint iff:
+        #
+        # - the cm was actually entered (hydrate ran),
+        # - no exception is propagating through the exit (agent didn't
+        #   raise / cancel / hit a limit),
+        # - this isn't the scoring-phase resume short-circuit (the
+        #   latest checkpoint is already ``agent_complete``), and
+        # - we haven't already finalized (idempotent across multiple
+        #   ``async with checkpointer():`` blocks in the same sample).
+        if (
+            self._cached is None
+            or exc_type is not None
+            or self._cached.attempt == "resume_for_scoring"
+            or self._finalized
+        ):
+            return
+        self._finalized = True
+        cp = self._cached
+        await cp._fire("agent_complete", final=True)
 
     def close(self) -> None:
         if self._cached is not None:
@@ -150,7 +181,7 @@ class _EnteredCheckpointer:
     Constructed by :class:`_CheckpointerSetup.__aenter__` once the
     on-disk + sandbox dependencies are in place. No lifecycle methods
     and no Optional state — the agent uses :meth:`tick`,
-    :meth:`checkpoint`, :meth:`track`, and :attr:`is_resuming` directly.
+    :meth:`checkpoint`, :meth:`track`, and :attr:`attempt` directly.
     """
 
     def __init__(
@@ -169,6 +200,7 @@ class _EnteredCheckpointer:
         self._host_restic = hydration.host_restic
         self._host_repo = hydration.host_repo
         self._restic_password = hydration.restic_password
+        self._sandbox_backup_paths = hydration.sandbox_backup_paths
         self._resume_checkpoint = resume_checkpoint
         self._agent_state: dict[str, Any] = (
             hydration.host.agent_state if hydration.host.agent_state is not None else {}
@@ -213,8 +245,10 @@ class _EnteredCheckpointer:
         self._closed = True
 
     @property
-    def is_resuming(self) -> bool:
-        return self._resume_checkpoint is not None
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
+        if self._resume_checkpoint is None:
+            return "initial"
+        return self._resume_checkpoint.attempt
 
     async def tick(self) -> None:
         self._turn += 1
@@ -296,7 +330,9 @@ class _EnteredCheckpointer:
             return value
         return initial_value
 
-    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
+    async def _fire(
+        self, trigger: CheckpointTriggerKind, *, final: bool = False
+    ) -> None:
         """Fire a checkpoint, enforcing ``max_consecutive_failures``.
 
         Wraps :meth:`_fire_once` so a failed attempt is *non-fatal by
@@ -306,9 +342,14 @@ class _EnteredCheckpointer:
         (N+1)th consecutive failure, ``0`` = any failure is fatal. A
         successful fire resets the count. On breach we re-raise so the
         sample fails through inspect's normal sample-error machinery.
+
+        ``final=True`` signals this is the harness-driven
+        "agent_complete" fire at solver exit — :meth:`_fire_once`
+        skips opening the next checkpoint span (no more agent work
+        will land in it).
         """
         try:
-            await self._fire_once(trigger)
+            await self._fire_once(trigger, final=final)
         except Exception as err:
             self._consecutive_failures += 1
             self._record_fire_failure(trigger, err)
@@ -352,7 +393,9 @@ class _EnteredCheckpointer:
             err,
         )
 
-    async def _fire_once(self, trigger: CheckpointTriggerKind) -> None:
+    async def _fire_once(
+        self, trigger: CheckpointTriggerKind, *, final: bool = False
+    ) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
         # the per-checkpoint file.
@@ -394,24 +437,51 @@ class _EnteredCheckpointer:
                 # are independent across sandboxes and from the host backup.
                 # `tg_collect` takes thunks (zero-arg callables) so coroutines
                 # are only created at task-group start time.
-                sandbox_items = list((self._config.sandbox_paths or {}).items())
+                sandbox_items = list(self._sandbox_backup_paths.items())
                 backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
                     partial(self._backup_host, next_checkpoint_id),
                     *[
                         partial(
                             self._backup_and_egress_sandbox,
                             name,
-                            paths,
+                            spec,
                             next_checkpoint_id,
                         )
-                        for name, paths in sandbox_items
+                        for name, spec in sandbox_items
                     ],
                 ]
                 summaries = await tg_collect(backup_funcs)
                 host_info = _snapshot_info(summaries[0])
-                sandbox_infos = {
-                    name: _snapshot_info(summary)
+                sandbox_summaries = [
+                    (name, summary)
                     for (name, _), summary in zip(sandbox_items, summaries[1:])
+                ]
+
+                # List each sandbox snapshot's added/changed files (capped at
+                # MAX_LISTED_FILES). Diffs host-side against the
+                # already-egressed repos in parallel, so the in-sandbox
+                # exec-output limit is never hit.
+                file_lists: list[tuple[list[str] | None, int]] = await tg_collect(
+                    [
+                        partial(
+                            list_changed_files,
+                            self._host_restic,
+                            sandbox_repo_dir(self._sample_root, name),
+                            self._restic_password,
+                            summary.snapshot_id,
+                            MAX_LISTED_FILES,
+                        )
+                        for name, summary in sandbox_summaries
+                    ]
+                )
+
+                sandbox_infos = {
+                    name: _snapshot_info(
+                        summary, files=files, additional_files=extra or None
+                    )
+                    for (name, summary), (files, extra) in zip(
+                        sandbox_summaries, file_lists
+                    )
                 }
 
                 # Cycle duration measured up to the checkpoint file write — the
@@ -453,10 +523,14 @@ class _EnteredCheckpointer:
                 # events.json. On resume, hydrate synthesizes the trailing
                 # event from the latest checkpoint file (working.md §8a).
                 transcript()._event(CheckpointEvent.from_details(checkpoint))
+
             finally:
-                # Reopen even if checkpointing fails after closing the prior span;
-                # subsequent agent events should stay nested under a checkpoint span.
-                await self._open_next_span()
+                # Reopen even if checkpointing fails after closing the prior
+                # span; subsequent agent events should stay nested under a
+                # checkpoint span. Skip on the harness-driven final fire —
+                # there is no more agent work to land in another span.
+                if not final:
+                    await self._open_next_span()
 
     async def _write_host_context(
         self,
@@ -557,11 +631,13 @@ class _EnteredCheckpointer:
         )
 
     async def _backup_and_egress_sandbox(
-        self, name: str, paths: list[str], checkpoint_id: int
+        self, name: str, spec: SandboxBackupPaths, checkpoint_id: int
     ) -> ResticBackupSummary:
         env = sandbox(name)
         tag = _restic_tag(checkpoint_id)
-        summary = await run_sandbox_backup(env, self._restic_password, paths, tag)
+        summary = await run_sandbox_backup(
+            env, self._restic_password, spec.include, tag, exclude=spec.exclude
+        )
         dest_repo = sandbox_repo_dir(self._sample_root, name)
         await egress_sandbox(
             env,
@@ -596,9 +672,15 @@ def _restic_tag(checkpoint_id: int) -> str:
     return f"ckpt-{checkpoint_id:05d}"
 
 
-def _snapshot_info(summary: ResticBackupSummary) -> SnapshotDetails:
+def _snapshot_info(
+    summary: ResticBackupSummary,
+    files: list[str] | None = None,
+    additional_files: int | None = None,
+) -> SnapshotDetails:
     return SnapshotDetails(
         snapshot_id=summary.snapshot_id,
         size_bytes=summary.data_added_packed,
         duration_ms=int(summary.total_duration * 1000),
+        files=files,
+        additional_files=additional_files,
     )

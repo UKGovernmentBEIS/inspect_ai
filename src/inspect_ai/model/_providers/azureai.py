@@ -2,6 +2,7 @@ import functools
 import json
 import os
 from copy import copy
+from logging import getLogger
 from typing import Any
 
 from azure.ai.inference.aio import ChatCompletionsClient
@@ -65,14 +66,21 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     StopReason,
+    collect_stop_details,
 )
-from .._openai import needs_max_completion_tokens, openai_media_filter
+from .._openai import (
+    needs_max_completion_tokens,
+    openai_media_filter,
+    openai_stop_details,
+)
 from .util import (
     environment_prerequisite_error,
     model_base_url,
 )
 from .util.chatapi import ChatAPIHandler
 from .util.llama31 import Llama31Handler
+
+logger = getLogger(__name__)
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
@@ -83,6 +91,29 @@ AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
 # legacy vars for migration
 AZURE_API_KEY = "AZURE_API_KEY"
 AZURE_ENDPOINT_URL = "AZURE_ENDPOINT_URL"
+
+
+def _is_llama_model(name: str) -> bool:
+    return "llama" in name.lower()
+
+
+def _is_llama3_model(name: str) -> bool:
+    return "llama-3" in name.lower()
+
+
+def _is_mistral_model(name: str) -> bool:
+    return "mistral" in name.lower()
+
+
+def _is_openai_model(name: str) -> bool:
+    """Check for OpenAI model naming conventions."""
+    name = name.lower()
+    return (
+        name.startswith("gpt-")
+        or name.startswith("o1")
+        or name.startswith("o3")
+        or name.startswith("o4")
+    )
 
 
 class AzureAIAPI(ModelAPI):
@@ -265,7 +296,7 @@ class AzureAIAPI(ModelAPI):
         if config.top_p is not None:
             params["top_p"] = config.top_p
         if config.max_tokens is not None:
-            if needs_max_completion_tokens(self.service_model_name().lower()):
+            if needs_max_completion_tokens(self.model_family()):
                 params["max_completion_tokens"] = config.max_tokens
             else:
                 params["max_tokens"] = config.max_tokens
@@ -324,23 +355,17 @@ class AzureAIAPI(ModelAPI):
         return self.model_name
 
     def is_llama(self) -> bool:
-        return "llama" in self.service_model_name().lower()
+        return _is_llama_model(self.model_family())
 
     def is_llama3(self) -> bool:
-        return "llama-3" in self.service_model_name().lower()
+        return _is_llama3_model(self.model_family())
 
     def is_mistral(self) -> bool:
-        return "mistral" in self.service_model_name().lower()
+        return _is_mistral_model(self.model_family())
 
     def is_openai_model(self) -> bool:
         """Check if this is an OpenAI model (gpt-*, o1, o3, o4, etc.)."""
-        name = self.service_model_name().lower()
-        return (
-            name.startswith("gpt-")
-            or name.startswith("o1")
-            or name.startswith("o3")
-            or name.startswith("o4")
-        )
+        return _is_openai_model(self.model_family())
 
     @override
     def canonical_name(self) -> str:
@@ -355,9 +380,9 @@ class AzureAIAPI(ModelAPI):
         if self.org_prefix:
             return f"{self.org_prefix}/{base_name}"
         # Auto-detect organization from model name
-        if self.is_openai_model():
+        if _is_openai_model(base_name):
             return f"openai/{base_name}"
-        elif self.is_mistral():
+        elif _is_mistral_model(base_name):
             return f"mistral/{base_name}"
         # For other models, return as-is and rely on fuzzy matching
         return base_name
@@ -561,6 +586,10 @@ def chat_complection_choice(
             model, choice.message, tools, handler
         ),
         stop_reason=chat_completion_stop_reason(choice.finish_reason),
+        # best-effort: azure.ai.inference may surface content_filter_results
+        stop_details=collect_stop_details(
+            "azureai", logger, lambda: openai_stop_details(choice)
+        ),
     )
 
 

@@ -22,6 +22,29 @@
     "model_cards": []
   },
   {
+    "id": "ivanleo_agent_search",
+    "name": "agent-search",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Agent answers Gemini API questions by querying an indexed documentation database.",
+    "paper": null,
+    "code": "inspect_harbor/ivanleo_agent_search",
+    "contributors": [],
+    "samples": 20,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ivanleo_agent_search.html",
+    "model_cards": []
+  },
+  {
     "id": "agent_bench",
     "name": "AgentBench",
     "source": "evals",
@@ -316,6 +339,28 @@
     "model_cards": []
   },
   {
+    "id": "datacurve_deep_swe",
+    "name": "DeepSWE",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "DeepSWE: Measuring frontier coding agents on original, long-horizon engineering tasks.",
+    "paper": "https://github.com/datacurve-ai/deep-swe",
+    "code": "inspect_harbor/datacurve_deep_swe",
+    "contributors": [],
+    "samples": 113,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/datacurve_deep_swe.html",
+    "model_cards": []
+  },
+  {
     "id": "deveval",
     "name": "DevEval",
     "source": "harbor",
@@ -565,6 +610,28 @@
     "model_cards": []
   },
   {
+    "id": "ai_forever_harness_bench_fast",
+    "name": "Harness-Bench (Fast)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Self-contained file-operation agent benchmark.",
+    "paper": "https://github.com/ai-forever/harness-bench-fast",
+    "code": "inspect_harbor/ai_forever_harness_bench_fast",
+    "contributors": [],
+    "samples": 231,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ai_forever_harness_bench_fast.html",
+    "model_cards": []
+  },
+  {
     "id": "scale_ai_hil_bench",
     "name": "HiL-Bench",
     "source": "harbor",
@@ -769,6 +836,28 @@
     "model_cards": []
   },
   {
+    "id": "lcb_longswebench_32k",
+    "name": "LongSWE-Bench (32k)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "LongCodeBench (LCB) LongSWE-Bench tasks — 32k context window bucket.",
+    "paper": "https://arxiv.org/abs/2505.07897",
+    "code": "inspect_harbor/lcb_longswebench_32k",
+    "contributors": [],
+    "samples": 3,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/lcb_longswebench_32k.html",
+    "model_cards": []
+  },
+  {
     "id": "mbpp",
     "name": "MBPP",
     "source": "evals",
@@ -864,6 +953,29 @@
     "samples": 7,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mlrc_bench/",
+    "model_cards": []
+  },
+  {
+    "id": "mmtb_multimedia_terminalbench",
+    "name": "MultiMedia-TerminalBench",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Multimodal"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "MultiMedia-TerminalBench (MMTB): a benchmark of 105 realistic multimedia-file tasks in persistent terminal workspaces, across 5 meta-categories grounded in paid practitioner workflows.",
+    "paper": "https://arxiv.org/abs/2605.10966",
+    "code": "inspect_harbor/mmtb_multimedia_terminalbench",
+    "contributors": [],
+    "samples": 105,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/mmtb_multimedia_terminalbench.html",
     "model_cards": []
   },
   {
@@ -1594,6 +1706,29 @@
     "model_cards": []
   },
   {
+    "id": "thetalab_vector_edit_gym",
+    "name": "Vector Edit Gym",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Multimodal"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "106 hand-authored SVG editing tasks across four difficulty tiers (easy / medium / hard / very_hard). Each task is a corrupted SVG plus a natural-language fix instruction. Strict structural and preservation metrics catch stylistic drift.",
+    "paper": null,
+    "code": "inspect_harbor/thetalab_vector_edit_gym",
+    "contributors": [],
+    "samples": 106,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/thetalab_vector_edit_gym.html",
+    "model_cards": []
+  },
+  {
     "id": "vmax_tasks",
     "name": "vmax-tasks",
     "source": "harbor",
@@ -1628,7 +1763,7 @@
       "agent",
       "sandbox"
     ],
-    "desc": "WebGen-Bench: Evaluating LLMs on Generating Interactive and Functional Websites from Scratch (101 test tasks).",
+    "desc": "WebGen-Bench: evaluating LLMs on generating interactive and functional websites from scratch.",
     "paper": "https://arxiv.org/abs/2505.03733",
     "code": "inspect_harbor/webgen_bench",
     "contributors": [],
@@ -3831,6 +3966,28 @@
     "model_cards": []
   },
   {
+    "id": "harbor_rewardhackbench",
+    "name": "RewardHackBench",
+    "source": "harbor",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "RewardHackBench: judge benchmark for detecting reward hacking in agent trajectories — each trace is labelled for harness-level cheating, task-level reward hacking, and refusals.",
+    "paper": null,
+    "code": "inspect_harbor/harbor_rewardhackbench",
+    "contributors": [],
+    "samples": 846,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/harbor_rewardhackbench.html",
+    "model_cards": []
+  },
+  {
     "id": "stereoset",
     "name": "StereoSet",
     "source": "evals",
@@ -3968,6 +4125,29 @@
     "samples": 1273,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/wmdp/",
+    "model_cards": []
+  },
+  {
+    "id": "aarr_aarri_bench",
+    "name": "AARRI-Bench",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "aarri(act as a real research intern)-bench, for evaluating LLM agents in academic research tasks.",
+    "paper": null,
+    "code": "inspect_harbor/aarr_aarri_bench",
+    "contributors": [],
+    "samples": 82,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aarr_aarri_bench.html",
     "model_cards": []
   },
   {
@@ -4746,6 +4926,28 @@
     "model_cards": []
   },
   {
+    "id": "agentic_labs_erp_bench",
+    "name": "ERP-Bench",
+    "source": "harbor",
+    "categories": [
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ERP-Bench is the Odoo 19 benchmark used in the Anchor paper, \"Preventing Artifact Drift in Agent Benchmark Generation.\" It contains 300 long-horizon procurement and manufacturing tasks generated from a single CP-SAT-backed specification.",
+    "paper": "https://arxiv.org/abs/2605.26321",
+    "code": "inspect_harbor/agentic_labs_erp_bench",
+    "contributors": [],
+    "samples": 300,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/agentic_labs_erp_bench.html",
+    "model_cards": []
+  },
+  {
     "id": "gdpval",
     "name": "GDPval",
     "source": "evals",
@@ -4977,6 +5179,29 @@
     "samples": 50,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vals_financeagent.html",
+    "model_cards": []
+  },
+  {
+    "id": "actava_ai_chi_bench",
+    "name": "χ-Bench",
+    "source": "harbor",
+    "categories": [
+      "Medicine",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "χ-Bench: long-horizon, policy-rich U.S. healthcare workflow agent benchmark spanning provider prior-authorization, payer utilization management, and care management (78 hub tasks).",
+    "paper": "https://arxiv.org/abs/2605.16679",
+    "code": "inspect_harbor/actava_ai_chi_bench",
+    "contributors": [],
+    "samples": 78,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/actava_ai_chi_bench.html",
     "model_cards": []
   },
   {
