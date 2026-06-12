@@ -17,6 +17,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -49,6 +50,7 @@ async def sandbox_agent_bridge(
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
+    checkpointer: Checkpointer | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -103,6 +105,7 @@ async def sandbox_agent_bridge(
             parameters like the system prompt, tools, and response format are always
             forwarded). Set `True` for faithful-proxy behavior where the client's
             generation parameters are authoritative.
+        checkpointer: The checkpointer.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -137,6 +140,7 @@ async def sandbox_agent_bridge(
                 model_aliases=model_aliases,
                 model_event_sink=model_event_sink,
                 forward_generation_config=forward_generation_config,
+                checkpointer=checkpointer,
             )
 
             # register bridged tools with the bridge

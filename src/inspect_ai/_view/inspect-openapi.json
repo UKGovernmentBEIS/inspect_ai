@@ -1227,6 +1227,20 @@
             "title": "Trigger",
             "type": "string"
           },
+          "trigger_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Metadata"
+          },
           "turn": {
             "title": "Turn",
             "type": "integer"
