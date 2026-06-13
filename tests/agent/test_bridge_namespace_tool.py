@@ -10,6 +10,7 @@ from inspect_ai.agent._bridge.responses_impl import (
 )
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai_responses import (
+    RESPONSES_NAMESPACE,
     is_custom_tool_param,
     is_function_tool_param,
     is_namespace_tool_param,
@@ -68,6 +69,23 @@ def test_tools_from_responses_tool_flattens_namespace():
     assert [t.name for t in tools] == ["submit_pov", "submit_patch"]
     for t in tools:
         assert isinstance(t, ToolInfo)
+
+
+def test_tools_from_responses_tool_stashes_namespace_on_options():
+    ns = {
+        "type": "namespace",
+        "name": "multi_agent_v1",
+        "description": "Multi-agent orchestration tools",
+        "tools": [_function_tool("spawn_agent"), _custom_tool("wait_agent")],
+    }
+    tools = tools_from_responses_tool(ns, {}, {})
+    for t in tools:
+        assert isinstance(t, ToolInfo)
+        assert t.options is not None
+        assert t.options[RESPONSES_NAMESPACE] == (
+            "multi_agent_v1",
+            "Multi-agent orchestration tools",
+        )
 
 
 def test_tools_from_responses_tool_single_function():
