@@ -491,6 +491,26 @@ def resolve_scorer(
     return [to_scorer(s) for s in scorers]
 
 
+def resolve_scorers_and_names(
+    scorer: "Scorers",
+) -> tuple[list[Scorer], list[str | None]]:
+    """Resolve scorers along with optional name aliases.
+
+    Accepts the same shapes as `resolve_scorer` plus named forms: a dict of
+    `{name: scorer}` or `(name, scorer)` tuples within a sequence. Returns
+    the resolved scorers and a parallel list of names (`None` for scorers
+    without an explicit name).
+    """
+    named: list[tuple[str | None, Any]]
+    if isinstance(scorer, dict):
+        named = list(scorer.items())
+    elif isinstance(scorer, Sequence):
+        named = [(s[0], s[1]) if isinstance(s, tuple) else (None, s) for s in scorer]
+    else:
+        named = [(None, scorer)]
+    return [to_scorer(s) for _, s in named], [name for name, _ in named]
+
+
 def to_scorer(s: Any) -> Scorer:
     if is_registry_object(s, type="scanner"):
         from inspect_scout import as_scorer

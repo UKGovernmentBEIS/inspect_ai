@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scoring: `score()` / `score_async()` now accept a dict of scorers (`{name: scorer}`, or `(name, scorer)` tuples within a list) to alias scores to custom names — e.g. to run the same scorer with different parameters under distinct names.
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
