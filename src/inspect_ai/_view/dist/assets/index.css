@@ -14368,9 +14368,24 @@ pre[class*="language-"] {
   --inspect-msg-label-bg-hover: #ebebef;
   --inspect-msg-label-border: #e4e4e9;
   --inspect-msg-label-text: #5f5f68;
+
+  /* Tool block (header/edge/zones) tokens: neutral by default so the
+     design-consistent look holds when Event Colors is off; the readable
+     variant points them at the colored tool tokens below. The left edges
+     are plain 1px card borders uncolored, 3px accent bands colorized. */
+  --inspect-tool-block-edge: 1px solid var(--bs-light-border-subtle);
+  --inspect-tool-block-header-bg: var(--bs-tertiary-bg);
+  /* The input continues the header surface; the output is lighter (plain
+     page background) so the call and its result read as distinct zones. */
+  --inspect-tool-block-input-bg: var(--inspect-tool-block-header-bg);
+  --inspect-tool-block-output-bg: var(--bs-body-bg);
+  --inspect-tool-block-ink: var(--bs-secondary-color);
+  --inspect-turn-prose-edge: 1px solid var(--bs-light-border-subtle);
 }
 
 :root[data-bs-theme="dark"] {
+  --inspect-tool-output-bg: #14171c;
+
   --inspect-msg-label-bg: #2a2a2e;
   --inspect-msg-label-bg-hover: #33333a;
   --inspect-msg-label-border: #3a3a40;
@@ -14396,6 +14411,12 @@ pre[class*="language-"] {
    already emit (no per-role classes, no duplicated styles). */
 :root[data-theme-variant="readable"] {
   --bs-body-color: var(--inspect-readable-body-color);
+  --inspect-tool-block-edge: 3px solid var(--inspect-readable-tool-call-border);
+  --inspect-tool-block-header-bg: var(--inspect-readable-tool-call-bg);
+  --inspect-tool-block-input-bg: var(--inspect-readable-tool-call-bg);
+  --inspect-tool-block-output-bg: var(--inspect-tool-output-bg);
+  --inspect-tool-block-ink: var(--inspect-readable-tool-call-border);
+  --inspect-turn-prose-edge: 3px solid var(--inspect-readable-assistant-border);
 }
 
 :root[data-theme-variant="readable"] [data-message-role] {
@@ -14442,55 +14463,6 @@ pre[class*="language-"] {
 :root[data-theme-variant="readable"] [data-message-role] div.tool-call-input {
   background-color: var(--inspect-tool-output-bg);
   border-left: 1px solid var(--bs-light-border-subtle);
-}
-
-/* The tool call is its own peer block: under readable the whole box is the blue
-   call surface (header + input). */
-:root[data-theme-variant="readable"] [data-message-kind="tool"] {
-  background-color: var(--inspect-readable-tool-call-bg);
-  border-left: 3px solid var(--inspect-readable-tool-call-border);
-}
-
-/* Flush the call input AND the output to the box padding edge in EVERY theme so
-   they line up. The input otherwise carries ToolInput's .toolView padding (and,
-   under readable, the .tool-call-input padding) plus the prism code block's own
-   padding/margin, over-indenting it relative to the output. The `:root` prefix
-   lifts specificity above the readable .tool-call-input rule. */
-:root [data-message-kind="tool"] pre.tool-call-input,
-:root [data-message-kind="tool"] div.tool-call-input {
-  border: 0;
-  border-radius: 0;
-  padding: 0 !important;
-}
-:root [data-message-kind="tool"] .tool-call-input pre[class*="language-"] {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-:root [data-message-kind="tool-result"] .tool-output {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-:root[data-theme-variant="readable"]
-  [data-message-kind="tool"]
-  pre.tool-call-input,
-:root[data-theme-variant="readable"]
-  [data-message-kind="tool"]
-  div.tool-call-input {
-  background-color: transparent;
-}
-
-/* The tool output attaches beneath its call — a light-gray box that shares the
-   call's blue left gutter so the pair reads as one connected card. */
-:root[data-theme-variant="readable"] [data-message-kind="tool-result"] {
-  background-color: var(--inspect-tool-output-bg);
-  border-left: 3px solid var(--inspect-readable-tool-call-border);
-}
-:root[data-theme-variant="readable"]
-  [data-message-kind="tool-result"]
-  .tool-output {
-  background-color: transparent;
-  border: 0;
-  border-radius: 0;
 }
 
 /* Light subtle box around tool output (standalone transcript tool events). */
@@ -16220,6 +16192,17 @@ body[class^="vscode-"] {
   --inspect-event-panel-sticky-top: 25px;
 }
 
+/* Full-viewport gate shown while the app config loads (or if it fails). */
+.app-config-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  padding: 1rem;
+  text-align: center;
+}
+
 li > p {
   margin-bottom: 0;
 }
@@ -17001,27 +16984,27 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._outer_1j47y_1 {
+._outer_mnipc_1 {
   /* Positioned so the block-left sticky toggle's containing block is this
      wrapper — keeps sticky behavior scoped to the panel instead of leaking
      to some arbitrary positioned ancestor up the tree. */
   position: relative;
 }
 
-._expandablePanel_1j47y_8 {
+._expandablePanel_mnipc_8 {
   position: relative;
 }
 
-._expandableBordered_1j47y_12 {
+._expandableBordered_mnipc_12 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
 
-._expandableTogglable_1j47y_17 {
+._expandableTogglable_mnipc_17 {
   margin-bottom: 1em;
 }
 
-._expandableContents_1j47y_21 {
+._expandableContents_mnipc_21 {
   font-size: var(--inspect-font-size-base);
 }
 
@@ -17037,7 +17020,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
    gradient) so the affordance works on any surface, regardless of the
    panel's bg. The inline-right toggle is a sibling of this wrapper, so it
    stays fully opaque. */
-._expandableTruncated_1j47y_37 {
+._expandableTruncated_mnipc_37 {
   -webkit-mask-image: linear-gradient(
     to bottom,
     black calc(100% - 3rem),
@@ -17046,7 +17029,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_1j47y_46 {
+._moreToggle_mnipc_46 {
   display: flex;
   margin-top: 0;
   height: 20px;
@@ -17056,11 +17039,11 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   color: var(--bs-link-color);
 }
 
-._moreToggle_1j47y_46._bordered_1j47y_56 {
+._moreToggle_mnipc_46._bordered_mnipc_56 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
-._moreToggleButton_1j47y_60 {
+._moreToggleButton_mnipc_60 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -17068,16 +17051,10 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   color: var(--bs-body-color);
 }
 
-._separator_1j47y_68 {
-  height: 1px;
-  background-color: var(--bs-light-border-subtle);
-  margin-top: -1px;
-}
-
 /* Fills the panel so its sticky child is bounded by the panel's rect.
    pointer-events: none lets clicks pass through to the content behind;
    the sticky child re-enables pointer events on itself. */
-._inlineToggleHolder_1j47y_77 {
+._inlineToggleHolder_mnipc_71 {
   position: absolute;
   inset: 0;
   display: flex;
@@ -17089,13 +17066,13 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   z-index: 2;
 }
 
-._inlineToggleSticky_1j47y_89 {
+._inlineToggleSticky_mnipc_83 {
   position: sticky;
   bottom: 0.25em;
   pointer-events: auto;
 }
 
-._moreToggle_1j47y_46._blockLeft_1j47y_95 {
+._moreToggle_mnipc_46._blockLeft_mnipc_89 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;
@@ -17300,7 +17277,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
    Compact density, mono labels, striped rows, rule-style section headers.
    Colors mapped to existing theme variables for light/dark support. */
 
-._grid_1qisc_5 {
+._grid_25rj7_5 {
   font-family: var(--bs-body-font-family);
   font-size: var(--inspect-font-size-small);
   color: var(--bs-body-color);
@@ -17309,13 +17286,13 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 
 /* ── Rows ─────────────────────────────────────────────────────── */
 
-._rows_1qisc_14 {
+._rows_25rj7_14 {
   display: grid;
   grid-template-columns: auto 1fr;
   column-gap: 1em;
 }
 
-._row_1qisc_14 {
+._row_25rj7_14 {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
@@ -17324,21 +17301,21 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   align-items: baseline;
 }
 
-._rows_1qisc_14 > ._row_1qisc_14:last-child {
+._rows_25rj7_14 > ._row_25rj7_14:last-child {
   border-bottom: none;
 }
 
 /* ── Striped variant (opt-in via striped prop) ───────────────── */
 
-._striped_1qisc_35 ._row_1qisc_14 {
+._striped_25rj7_35 ._row_25rj7_14 {
   padding-inline: 0.5rem;
 }
 
-._striped_1qisc_35 ._rows_1qisc_14 > ._row_1qisc_14:nth-child(even) {
+._striped_25rj7_35 ._rows_25rj7_14 > ._row_25rj7_14:nth-child(even) {
   background: var(--bs-light-bg-subtle);
 }
 
-._key_1qisc_43 {
+._key_25rj7_43 {
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smallest);
   color: var(--bs-secondary);
@@ -17347,46 +17324,71 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   word-break: break-all;
 }
 
-._val_1qisc_52 {
+._val_25rj7_52 {
   color: var(--bs-body-color);
   overflow-wrap: anywhere;
   font-feature-settings: "tnum";
 }
 
-._val_1qisc_52 pre {
+._val_25rj7_52 pre {
   margin: 0;
   padding: 0;
 }
 
-._empty_1qisc_63 {
+._empty_25rj7_63 {
   color: var(--bs-secondary);
   font-style: italic;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._numVal_1qisc_69 {
+._numVal_25rj7_69 {
   color: var(--bs-code-color);
 }
 
-._boolVal_1qisc_73 {
+._boolVal_25rj7_73 {
   color: var(--bs-success-text-emphasis, #198754);
+}
+
+/* ── Copy button (opt-in via copyButton option) ──────────────── */
+
+._rowsCopy_25rj7_79 {
+  grid-template-columns: auto 1fr max-content;
+}
+
+/* Wrapper carries the hover reveal so CopyButton's own opacity
+   styles still apply unchanged inside it. */
+._copyCell_25rj7_85 {
+  opacity: 0;
+  justify-self: end;
+  align-self: center;
+  transition: opacity 0.2s;
+}
+
+._copyCell_25rj7_85 button {
+  padding: 0;
+  line-height: 1;
+}
+
+._row_25rj7_14:hover ._copyCell_25rj7_85,
+._copyCell_25rj7_85:focus-within {
+  opacity: 1;
 }
 
 /* ── Sections (nested objects promoted to titled groups) ──────── */
 
-._group_1qisc_79 {
+._group_25rj7_104 {
   margin-top: 14px;
 }
 
-._rows_1qisc_14 + ._group_1qisc_79 {
+._rows_25rj7_14 + ._group_25rj7_104 {
   margin-top: 14px;
 }
 
-._group_1qisc_79 + ._group_1qisc_79 {
+._group_25rj7_104 + ._group_25rj7_104 {
   margin-top: 12px;
 }
 
-._groupHeader_1qisc_91 {
+._groupHeader_25rj7_116 {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -17394,7 +17396,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   padding-bottom: 2px;
 }
 
-._groupKey_1qisc_99 {
+._groupKey_25rj7_124 {
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smallest);
   font-weight: 500;
@@ -17402,7 +17404,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   letter-spacing: 0;
 }
 
-._groupRule_1qisc_107 {
+._groupRule_25rj7_132 {
   flex: 1;
   height: 1px;
   background: var(--bs-light-border-subtle);
@@ -17410,45 +17412,45 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 
 /* ── Depth 1 — tighter, lighter ──────────────────────────────── */
 
-._depth1_1qisc_115 {
+._depth1_25rj7_140 {
   font-size: calc(var(--inspect-font-size-small) - 0.05rem);
 }
 
-._depth1_1qisc_115 ._row_1qisc_14 {
+._depth1_25rj7_140 ._row_25rj7_14 {
   padding-block: 2px;
 }
 
-._depth1_1qisc_115 ._key_1qisc_43 {
+._depth1_25rj7_140 ._key_25rj7_43 {
   color: var(--bs-tertiary-color);
   font-size: var(--inspect-font-size-smallestest);
 }
 
-._depth1Group_1qisc_128 {
+._depth1Group_25rj7_153 {
   margin-top: 10px;
 }
 
-._depth1Group_1qisc_128 ._groupHeader_1qisc_91 {
+._depth1Group_25rj7_153 ._groupHeader_25rj7_116 {
   margin-bottom: 2px;
 }
 
-._depth1Group_1qisc_128 ._groupKey_1qisc_99 {
+._depth1Group_25rj7_153 ._groupKey_25rj7_124 {
   color: var(--bs-secondary);
   font-size: var(--inspect-font-size-smallestest);
 }
 
 /* ── Depth 2+ — yet tighter ──────────────────────────────────── */
 
-._depth2_1qisc_143 {
+._depth2_25rj7_168 {
   font-size: calc(var(--inspect-font-size-small) - 0.1rem);
 }
 
-._depth2_1qisc_143 ._row_1qisc_14 {
+._depth2_25rj7_168 ._row_25rj7_14 {
   padding-block: 2px;
 }
 
 /* ── Toggle (maxRows collapse) ───────────────────────────────── */
 
-._toggleContainer_1qisc_153 {
+._toggleContainer_25rj7_178 {
   display: flex;
   height: 20px;
   margin-top: 8px;
@@ -17459,7 +17461,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   width: fit-content;
 }
 
-._toggleButton_1qisc_164 {
+._toggleButton_25rj7_189 {
   font-size: var(--inspect-font-size-smallest);
   border: none;
   padding: 0 0.5rem;
@@ -17484,7 +17486,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 ._preCompact_seqs2_15 {
   margin-bottom: 0;
 }
-._keyPairContainer_qjlxf_1 {
+._keyPairContainer_1u1d5_1 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.5em;
@@ -17492,21 +17494,45 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   padding-bottom: 4px;
 }
 
-._keyPairBordered_qjlxf_9 {
+._keyPairBordered_1u1d5_9 {
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._key_qjlxf_1 {
+/* Copy button column (opt-in via copyButton prop) */
+
+._keyPairCopy_1u1d5_15 {
+  grid-template-columns: max-content auto max-content;
+}
+
+/* Wrapper carries the hover reveal so CopyButton's own opacity
+   styles still apply unchanged inside it. */
+._copyCell_1u1d5_21 {
+  opacity: 0;
+  justify-self: end;
+  transition: opacity 0.2s;
+}
+
+._copyCell_1u1d5_21 button {
+  padding: 0;
+  line-height: 1;
+}
+
+._keyPairContainer_1u1d5_1:hover ._copyCell_1u1d5_21,
+._copyCell_1u1d5_21:focus-within {
+  opacity: 1;
+}
+
+._key_1u1d5_1 {
   display: grid;
   grid-template-columns: 1em auto;
   cursor: pointer;
 }
 
-._pre_qjlxf_19 {
+._pre_1u1d5_43 {
   margin-bottom: 0;
 }
 
-._treeIcon_qjlxf_23 {
+._treeIcon_1u1d5_47 {
   margin-top: -3px;
 }
 ._circle_1seo2_1 {
@@ -18552,47 +18578,181 @@ a._citationLink_1ggvf_9:hover {
   overflow-wrap: break-word !important;
   word-break: break-all !important;
 }
-._mcpToolUse_1792k_1 {
-  margin-left: 0.5em;
-  margin-top: 2em;
-  margin-bottom: 2em;
-  padding: 0.25em 0.75em;
-  border-left: solid 5px var(--bs-border-color);
+/* Shared tool-call block grammar. Colors come from the tool-block tokens,
+   which are neutral by default and only colorized under the readable
+   variant (the Event Colors toggle); the output well is the tool-output
+   fill, hairlines/border are the subtle border token. */
+._block_ze280_5 {
+  border-left: var(--inspect-tool-block-edge);
 }
 
-._title_1792k_9 {
+._standalone_ze280_9 {
+  border-top: 1px solid var(--bs-light-border-subtle);
+  border-right: 1px solid var(--bs-light-border-subtle);
+  border-bottom: 1px solid var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+}
+
+._header_ze280_17 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  background-color: var(--inspect-tool-block-header-bg);
+}
+
+._icon_ze280_25 {
+  flex: none;
+  font-size: 13px;
+  color: var(--inspect-tool-block-ink);
+}
+
+._title_ze280_31 {
+  flex: none;
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smaller);
+  font-weight: 600;
+  color: var(--inspect-tool-block-ink);
+}
+
+._summary_ze280_39 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smaller);
+  color: var(--bs-secondary-color);
+}
+
+._pill_ze280_50 {
+  flex: none;
+  /* Right-aligned even when there is no args summary to push it over. */
+  margin-left: auto;
+  font-size: var(--inspect-font-size-smallestest);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--bs-secondary-color);
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-light-border-subtle);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+._inputZone_ze280_64 {
+  border-top: 1px solid var(--bs-light-border-subtle);
+  background-color: var(--inspect-tool-block-input-bg);
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
+._outputWell_ze280_71 {
+  border-top: 1px solid var(--bs-light-border-subtle);
+  background-color: var(--inspect-tool-block-output-bg);
+  padding: 12px 15px;
+  font-size: var(--inspect-font-size-smaller);
+  line-height: 1.6;
+}
+
+/* The zones own their padding/fill; flatten the boxed surfaces that nested
+   renderers (prism code blocks, tool-call-input call-outs, tool output wells)
+   would otherwise stack inside them. !important outranks the readable
+   variant's higher-specificity :root[data-theme-variant] surface rules. */
+._inputZone_ze280_64 pre.tool-call-input,
+._inputZone_ze280_64 div.tool-call-input {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+._inputZone_ze280_64 .tool-call-input pre[class*="language-"] {
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: transparent !important;
+}
+
+._outputWell_ze280_71 .tool-output {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+._error_z9ujs_1 {
+  color: var(--inspect-tool-error-color);
+  background-color: var(--inspect-tool-error-bg);
+  padding: 0.5em 0.7em;
+  border-radius: var(--bs-border-radius);
+  font-family: var(--bs-font-monospace);
+  overflow-wrap: anywhere;
+  margin: 0.5em 0;
+}
+
+._type_z9ujs_11 {
+  font-weight: 600;
   margin-bottom: 0.25em;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  column-gap: 0.3em;
-  align-items: baseline;
-  border-bottom: solid 1px var(--bs-border-color);
+  text-transform: capitalize;
 }
 
-._titleText_1792k_18 {
+._message_z9ujs_17 {
+  white-space: pre-wrap;
+}
+._todoList_1t8rx_1 {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.3em;
+}
+
+._inProgress_1t8rx_9 {
+  font-weight: bold;
+}
+._outputPre_7phrr_1 {
+  padding: 0.5em;
+  margin-top: 0.25em;
   margin-bottom: 0;
 }
 
-._args_1792k_22 {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 0.5em;
-  row-gap: 0.1em;
-  margin-bottom: 1em;
-  align-items: baseline;
+._toolView_7phrr_7 {
+  padding-top: 0 !important;
 }
 
-._argLabel_1792k_31 pre {
+._toolView_7phrr_7 pre {
+  margin-bottom: 0;
+}
+
+._toolView_7phrr_7 p > code {
+  font-size: var(--inspect-text-size-small) !important;
+  color: var(--bs-body-color) !important;
+}
+
+._outputCode_7phrr_20 {
+  font-size: var(--inspect-text-size-small) !important;
+  overflow-wrap: anywhere !important;
+  white-space: pre-wrap !important;
+}
+._tool_13xcg_1 {
+  margin-bottom: 0.5em;
+}
+
+._execOutput_13xcg_5 {
   margin: 0;
+  padding: 0;
+  background-color: transparent;
+  border: 0;
+  font-size: var(--inspect-font-size-smaller);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-._error_1792k_35 {
-  color: red;
-  font-weight: bold;
-}
-
-._toolPanel_1792k_40 {
-  display: contents;
+._execError_13xcg_16 {
+  color: var(--inspect-tool-error-color);
 }
 ._toolImage_1cvly_1 {
   max-width: 800px;
@@ -18682,61 +18842,17 @@ a._citationLink_1ggvf_9:hover {
   display: grid;
   row-gap: 0.5em;
 }
-._todoList_1t8rx_1 {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 0.3em;
-}
-
-._inProgress_1t8rx_9 {
-  font-weight: bold;
-}
-._outputPre_7phrr_1 {
-  padding: 0.5em;
-  margin-top: 0.25em;
-  margin-bottom: 0;
-}
-
-._toolView_7phrr_7 {
-  padding-top: 0 !important;
-}
-
-._toolView_7phrr_7 pre {
-  margin-bottom: 0;
-}
-
-._toolView_7phrr_7 p > code {
-  font-size: var(--inspect-text-size-small) !important;
-  color: var(--bs-body-color) !important;
-}
-
-._outputCode_7phrr_20 {
-  font-size: var(--inspect-text-size-small) !important;
-  overflow-wrap: anywhere !important;
-  white-space: pre-wrap !important;
-}
-._error_z9ujs_1 {
-  color: var(--inspect-tool-error-color);
-  background-color: var(--inspect-tool-error-bg);
-  padding: 0.5em 0.7em;
+/* Custom tool views (answer, submit, todo lists) own their full rendering —
+   they get the block frame (accent edge + container border) without the
+   header row. */
+._custom_v2cay_4 {
+  border: 1px solid var(--bs-light-border-subtle);
+  border-left: var(--inspect-tool-block-edge);
   border-radius: var(--bs-border-radius);
-  font-family: var(--bs-font-monospace);
-  overflow-wrap: anywhere;
-  margin: 0.5em 0;
+  overflow: hidden;
+  padding: 0.7rem;
 }
-
-._type_z9ujs_11 {
-  font-weight: 600;
-  margin-bottom: 0.25em;
-  text-transform: capitalize;
-}
-
-._message_z9ujs_17 {
-  white-space: pre-wrap;
-}
-._message_1gt9a_1 {
+._message_o8d3m_1 {
   font-weight: 300;
   margin-left: 0;
   margin-right: 0;
@@ -18744,17 +18860,32 @@ a._citationLink_1ggvf_9:hover {
   min-width: 0;
 }
 
-._systemRole_1gt9a_9 {
+._systemRole_o8d3m_9 {
   opacity: 0.7;
 }
 
-._timestamp_1gt9a_13 {
+/* Segmented assistant turn: prose bands and flush tool rows stack with
+   hairline separators inside the turn container. */
+._turnSegments_o8d3m_15 > * + * {
+  border-top: 1px solid var(--bs-light-border-subtle);
+}
+
+/* The prose row keeps the assistant band; the left accent token is neutral
+   by default and colorized under the readable variant (where the
+   [data-message-role] rules re-apply the identical color). Extra vertical
+   padding gives the prose rows more weight between the tool rows. */
+._proseSegment_o8d3m_23 {
+  padding: 0.9rem 0.7rem;
+  border-left: var(--inspect-turn-prose-edge);
+}
+
+._timestamp_o8d3m_28 {
   opacity: 0.5;
   font-size: var(--inspect-font-size-smaller);
   font-weight: normal;
 }
 
-._messageGrid_1gt9a_19 {
+._messageGrid_o8d3m_34 {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 0.5em;
@@ -18764,45 +18895,45 @@ a._citationLink_1ggvf_9:hover {
   align-items: flex-start;
 }
 
-._toolMessageGrid_1gt9a_29 {
+._toolMessageGrid_o8d3m_44 {
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._headerEnd_1gt9a_33 {
+._headerEnd_o8d3m_48 {
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
   flex: none;
 }
 
-._messageContents_1gt9a_40 {
+._messageContents_o8d3m_55 {
   margin-left: 0;
   padding-bottom: 0;
 }
 
-._messageContents_1gt9a_40._indented_1gt9a_45 {
+._messageContents_o8d3m_55._indented_o8d3m_60 {
   margin-left: 0rem;
 }
 
-._copyLink_1gt9a_49 {
+._copyLink_o8d3m_64 {
   opacity: 0;
   padding-left: 0;
   padding-right: 2em;
   margin-left: 0.2rem;
 }
 
-._copyLink_1gt9a_49:hover {
+._copyLink_o8d3m_64:hover {
   opacity: 0.75;
 }
 
-._metadataLabel_1gt9a_60 {
+._metadataLabel_o8d3m_75 {
   padding-top: 1em;
 }
 
-._hover_1gt9a_64 ._copyLink_1gt9a_49 {
+._hover_o8d3m_79 ._copyLink_o8d3m_64 {
   opacity: 0.75;
 }
-._grid_qa1cd_1 {
+._grid_1mah3_1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   /* row-gap spaces blocks within a turn (message → tool box); margin-bottom
@@ -18811,17 +18942,17 @@ a._citationLink_1ggvf_9:hover {
   margin-bottom: 0.75rem;
 }
 
-._number_qa1cd_10 {
+._number_1mah3_10 {
   margin-top: 0.1em;
 }
 
-._user_qa1cd_14 {
+._user_1mah3_14 {
   background-color: var(--bs-secondary-bg);
   border-radius: var(--bs-border-radius);
   border: solid 1px var(--bs-light-border-subtle);
 }
 
-._container_qa1cd_20 {
+._container_1mah3_20 {
   padding-left: 0.7rem;
   padding-right: 0.7rem;
   padding-top: 0.5rem;
@@ -18829,81 +18960,74 @@ a._citationLink_1ggvf_9:hover {
   border-right: solid 1px var(--bs-light-border-subtle);
 }
 
-._first_qa1cd_28 {
+._first_1mah3_28 {
   border-top-left-radius: var(--bs-border-radius);
   border-top-right-radius: var(--bs-border-radius);
   border-top: solid 1px var(--bs-light-border-subtle);
   padding-top: 0.7rem;
 }
 
-._last_qa1cd_35 {
+._last_1mah3_35 {
   border-bottom-left-radius: var(--bs-border-radius);
   border-bottom-right-radius: var(--bs-border-radius);
   border-bottom: solid 1px var(--bs-light-border-subtle);
   padding-bottom: 0.7rem;
 }
 
-._label_qa1cd_42 {
+._label_1mah3_42 {
   display: flex;
   justify-content: flex-end;
   padding-top: 0.7rem;
   margin-left: 0.4em;
 }
 
-._highlight_qa1cd_49 {
+._highlight_1mah3_49 {
   background-color: rgba(var(--bs-info-rgb), 0.12);
 }
 
-/* Prototype: self-contained box (used when tool calls are un-embedded) so the
-   assistant message and each tool call read as separate cards rather than one
-   connected band. */
-._box_qa1cd_56 {
+/* Assistant turn with server-side tool calls: one seamless container — the
+   prose band and flush tool rows inside supply their own left edges, so the
+   frame itself has no left border. */
+._turnContainer_1mah3_56 {
+  border: 1px solid var(--bs-light-border-subtle);
+  border-left: none;
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+}
+
+/* Self-contained box (used when tool calls are un-embedded) so the assistant
+   message and each tool call read as separate cards rather than one connected
+   band. */
+._box_1mah3_66 {
   position: relative;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
   padding: 0.7rem;
 }
 
-/* An assistant turn rendered as one connected stack: the message, its tool
-   call(s), and output(s) sit flush so they read as a single card with a
-   continuous left gutter. */
-._attachedGroup_qa1cd_66 {
-  display: flex;
-  flex-direction: column;
-}
-
-._attachedBottom_qa1cd_71 {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  /* Drop the divider so the call/output pair reads as one seamless card —
-     only the background color shifts (blue call → gray output). */
-  border-bottom: 0;
-}
-
-._attachedTop_qa1cd_79 {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-top: 0;
+/* Tool blocks carry their own frame; the wrapper only anchors the chip. */
+._toolPart_1mah3_74 {
+  position: relative;
 }
 
 /* Tool-call number chip, pinned to the top-right of its box to mirror the
    position chip on a message's role line. */
-._toolLabel_qa1cd_87 {
+._toolLabel_1mah3_80 {
   position: absolute;
-  top: 0.7rem;
+  top: 0.45rem;
   right: 0.7rem;
   z-index: 1;
 }
 
-._bottomMargin_qa1cd_94 {
+._bottomMargin_1mah3_87 {
   margin-bottom: 0.75rem;
 }
 
-._codeCompact_qa1cd_98 {
+._codeCompact_1mah3_91 {
   /* styles for compact code display */
 }
 
-._simple_qa1cd_102 {
+._simple_1mah3_95 {
   /* styles for simple display mode */
 }
 ._badge_10sr6_1,
@@ -20296,7 +20420,7 @@ a._citationLink_1ggvf_9:hover {
   -webkit-user-select: none;
   user-select: none;
 }
-._root_t7oq7_1 {
+._root_1qk7q_1 {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -20304,7 +20428,7 @@ a._citationLink_1ggvf_9:hover {
   min-height: 0;
 }
 
-._container_t7oq7_9 {
+._container_1qk7q_9 {
   display: grid;
   width: 100%;
   grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px var(
@@ -20314,44 +20438,50 @@ a._citationLink_1ggvf_9:hover {
   min-height: 100vh;
 }
 
-._container_t7oq7_9 > * {
+/* Embedded in another scroll container (e.g. a retry card): size to content
+   instead of reserving a full viewport. */
+._container_1qk7q_9._embedded_1qk7q_21 {
+  min-height: 0;
+}
+
+._container_1qk7q_9 > * {
   min-width: 0;
   padding-bottom: 1rem;
 }
 
-._container_t7oq7_9._outlineCollapsed_t7oq7_24 {
+._container_1qk7q_9._outlineCollapsed_1qk7q_30 {
   grid-template-columns: 22px 1px 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_t7oq7_9._noOutline_t7oq7_28 {
+._container_1qk7q_9._noOutline_1qk7q_34 {
   grid-template-columns: 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_t7oq7_9._rightPaneCollapsed_t7oq7_32 {
+._container_1qk7q_9._rightPaneCollapsed_1qk7q_38 {
   grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px 22px;
 }
 
-._container_t7oq7_9._outlineCollapsed_t7oq7_24._rightPaneCollapsed_t7oq7_32 {
+._container_1qk7q_9._outlineCollapsed_1qk7q_30._rightPaneCollapsed_1qk7q_38 {
   grid-template-columns: 22px 1px 1fr 1px 22px;
 }
 
-._container_t7oq7_9._noOutline_t7oq7_28._rightPaneCollapsed_t7oq7_32 {
+._container_1qk7q_9._noOutline_1qk7q_34._rightPaneCollapsed_1qk7q_38 {
   grid-template-columns: 1fr 1px 22px;
 }
 
-._container_t7oq7_9._noRightPane_t7oq7_44 {
+._container_1qk7q_9._noRightPane_1qk7q_50 {
   grid-template-columns: var(--outline-width, 180px) 1px 1fr;
 }
 
-._container_t7oq7_9._outlineCollapsed_t7oq7_24._noRightPane_t7oq7_44 {
+._container_1qk7q_9._outlineCollapsed_1qk7q_30._noRightPane_1qk7q_50 {
   grid-template-columns: 22px 1px 1fr;
 }
 
-._container_t7oq7_9._noOutline_t7oq7_28._noRightPane_t7oq7_44 {
+._container_1qk7q_9._noOutline_1qk7q_34._noRightPane_1qk7q_50 {
   grid-template-columns: 1fr;
 }
 
-._outline_t7oq7_24 {
+._outline_1qk7q_30 {
   padding-left: 0.6rem;
   /* Prevent stretching to the full grid-row height so that
      position:sticky has room to travel within the cell. */
@@ -20361,13 +20491,13 @@ a._citationLink_1ggvf_9:hover {
 /* Cap height to the visible area below the sticky offset and
    scroll internally when the outline is taller.
    Only when expanded — overflow clips the toggle button when collapsed. */
-._container_t7oq7_9:not(._outlineCollapsed_t7oq7_24) > ._outline_t7oq7_24 {
+._container_1qk7q_9:not(._outlineCollapsed_1qk7q_30) > ._outline_1qk7q_30 {
   max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
   overflow-y: auto;
   scrollbar-width: thin;
 }
 
-._outlineToggle_t7oq7_72 {
+._outlineToggle_1qk7q_78 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
@@ -20376,26 +20506,26 @@ a._citationLink_1ggvf_9:hover {
   right: 0.2rem;
 }
 
-._outlineToggle_t7oq7_72[aria-disabled="true"] {
+._outlineToggle_1qk7q_78[aria-disabled="true"] {
   cursor: default;
   opacity: 0.4;
 }
 
-._separator_t7oq7_86 {
+._separator_1qk7q_92 {
   background-color: var(--bs-border-color);
 }
 
-._rightSeparator_t7oq7_90 {
+._rightSeparator_1qk7q_96 {
   background-color: var(--bs-border-color);
 }
 
-._rightPane_t7oq7_32 {
+._rightPane_1qk7q_38 {
   padding-top: 0rem;
   padding-right: 0.2rem;
   align-self: start;
 }
 
-._container_t7oq7_9:not(._rightPaneCollapsed_t7oq7_32) > ._rightPane_t7oq7_32 {
+._container_1qk7q_9:not(._rightPaneCollapsed_1qk7q_38) > ._rightPane_1qk7q_38 {
   padding-left: 0.2rem;
   /* Leave room on the right for the absolutely-positioned close button. */
   padding-right: 1.2rem;
@@ -20404,7 +20534,7 @@ a._citationLink_1ggvf_9:hover {
   scrollbar-width: thin;
 }
 
-._rightPaneResizer_t7oq7_109 {
+._rightPaneResizer_1qk7q_115 {
   position: absolute;
   left: -3px;
   top: 0;
@@ -20418,12 +20548,12 @@ a._citationLink_1ggvf_9:hover {
   transition: background-color 120ms ease;
 }
 
-._rightPaneResizer_t7oq7_109:hover,
-._rightPaneResizer_t7oq7_109:active {
+._rightPaneResizer_1qk7q_115:hover,
+._rightPaneResizer_1qk7q_115:active {
   background-color: var(--bs-primary-border-subtle);
 }
 
-._rightPaneToggle_t7oq7_128 {
+._rightPaneToggle_1qk7q_134 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
@@ -20432,11 +20562,11 @@ a._citationLink_1ggvf_9:hover {
   left: 0.2rem;
 }
 
-._eventsList_t7oq7_137 {
+._eventsList_1qk7q_143 {
   padding-bottom: 1rem;
 }
 
-._sidebarHeader_t7oq7_141 {
+._sidebarHeader_1qk7q_147 {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -20444,12 +20574,12 @@ a._citationLink_1ggvf_9:hover {
   margin-bottom: 0.3rem;
 }
 
-._sidebarHeaderIcon_t7oq7_149 {
+._sidebarHeaderIcon_1qk7q_155 {
   font-size: 0.9em;
   flex-shrink: 0;
 }
 
-._sidebarHeaderTitle_t7oq7_154 {
+._sidebarHeaderTitle_1qk7q_160 {
   flex: 1;
   min-width: 0;
   font-weight: normal;
@@ -20465,7 +20595,7 @@ a._citationLink_1ggvf_9:hover {
    inside the anchor so it doesn't push surrounding content. z-index sits
    above sibling sticky headers (e.g. SampleScansSidebar's scanner picker
    at z-index: 2) so the close button paints on top. */
-._sidebarHeaderCloseAnchor_t7oq7_170 {
+._sidebarHeaderCloseAnchor_1qk7q_176 {
   position: sticky;
   top: 0;
   height: 0;
@@ -20474,14 +20604,14 @@ a._citationLink_1ggvf_9:hover {
 
 /* In the right pane, extend the anchor into the parent's right padding so
    the button lines up with the existing visual position. */
-._rightPane_t7oq7_32 ._sidebarHeaderCloseAnchor_t7oq7_170 {
+._rightPane_1qk7q_38 ._sidebarHeaderCloseAnchor_1qk7q_176 {
   margin-right: -1.2rem;
 }
 
 /* Center the close icon vertically with the rootHeader title that follows
    in the scroll content. The title (text-size-smaller) sits at the top of
    that content; this offset aligns the icon's visual center with the title's. */
-._sidebarHeaderClose_t7oq7_170 {
+._sidebarHeaderClose_1qk7q_176 {
   all: unset;
   cursor: pointer;
   font-size: 0.9em;
@@ -20492,7 +20622,7 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--bs-body-bg);
 }
 
-._sidebarHeaderClose_t7oq7_170:hover {
+._sidebarHeaderClose_1qk7q_176:hover {
   opacity: 0.7;
 }
 ._headline_1l22a_1 {
@@ -21353,48 +21483,48 @@ a._citationLink_1ggvf_9:hover {
   --srb-bg: oklch(0.29 0.005 260);
   --srb-bd: oklch(0.42 0.008 260);
 }
-._container_2vo8f_1 {
+._container_qdklk_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_2vo8f_6 {
+._all_qdklk_6 {
   display: flex;
   flex-direction: column;
   gap: 1em;
 }
 
-._tableSelection_2vo8f_12 {
+._tableSelection_qdklk_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._config_2vo8f_18 {
+._config_qdklk_18 {
   margin-top: 0;
 }
 
-._tools_2vo8f_22 {
+._tools_qdklk_22 {
   grid-column: -1/1;
 }
 
-._codePre_2vo8f_26 {
+._codePre_qdklk_26 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_2vo8f_26 {
+._code_qdklk_26 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_2vo8f_38 {
+._progress_qdklk_38 {
   margin-left: 0;
 }
 
-._error_2vo8f_42 {
+._error_qdklk_42 {
   color: var(--bs-danger);
   padding: 0.5em;
   border: 1px solid var(--bs-danger);
@@ -21405,7 +21535,7 @@ a._citationLink_1ggvf_9:hover {
   margin: 0.5em 0;
 }
 
-._cancelled_2vo8f_53 {
+._cancelled_qdklk_53 {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -21418,31 +21548,31 @@ a._citationLink_1ggvf_9:hover {
   margin: 0.5em 0;
 }
 
-._showAllLink_2vo8f_66 {
+._showAllLink_qdklk_66 {
   text-align: center;
   padding: 0.5em 0 0.7em;
 }
 
-._showAllLink_2vo8f_66 a {
+._showAllLink_qdklk_66 a {
   cursor: pointer;
   color: var(--bs-secondary-color);
   text-decoration: none;
 }
 
-._showAllIcon_2vo8f_77 {
+._showAllIcon_qdklk_77 {
   margin-right: 0.35em;
 }
 
-._showAllLink_2vo8f_66 a:hover {
+._showAllLink_qdklk_66 a:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._toolConfig_2vo8f_86 {
+._toolConfig_qdklk_86 {
   padding-top: 0.5em;
 }
 
-._toolChoice_2vo8f_90 {
+._toolChoice_qdklk_90 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
@@ -21450,6 +21580,10 @@ a._citationLink_1ggvf_9:hover {
   margin-top: 0.5em;
   padding-top: 0.5em;
   overflow-wrap: anywhere;
+}
+
+._fallbackBadge_qdklk_100 {
+  font-style: italic;
 }
 ._noMargin_1a3fk_1 {
   margin-bottom: 0;
@@ -21592,65 +21726,39 @@ a._citationLink_1ggvf_9:hover {
 ._subtaskLabel_ac4z2_17 {
   padding: 0 2em;
 }
-._summary_8xr5q_1 {
+._summary_1mtn2_1 {
   margin: 0.5em 0;
   width: 100%;
 }
 
-._labeledToolCall_8xr5q_6 {
+._labeledToolCall_1mtn2_6 {
   display: grid;
   grid-template-columns: auto max-content;
   row-gap: 0;
 }
 
-._label_8xr5q_6 {
+._label_1mtn2_6 {
   display: flex;
   justify-content: flex-end;
   padding-top: 0.7rem;
   margin-left: 0.4em;
 }
 
-._labeledToolContent_8xr5q_19 {
+._labeledToolContent_1mtn2_19 {
   min-width: 0;
 }
 
-/* The call/output attached pair (colors + inner flatten come from the shared
-   [data-message-kind] theme rules; here we supply the box structure). */
-._attachedGroup_8xr5q_25 {
-  display: flex;
-  flex-direction: column;
-}
-
-._toolBox_8xr5q_30 {
-  position: relative;
-  border: 1px solid var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
-  padding: 0.7rem;
-}
-
-._attachedBottom_8xr5q_37 {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  border-bottom: 0;
-}
-
-._attachedTop_8xr5q_43 {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-top: 0;
-}
-
-._approvalWrap_8xr5q_49 {
+._approvalWrap_1mtn2_23 {
   margin-top: 0.5rem;
 }
 
-._approval_8xr5q_49 {
+._approval_1mtn2_23 {
   border: none;
   padding: 0;
   margin-bottom: 0;
 }
 
-._progress_8xr5q_59 {
+._progress_1mtn2_33 {
   margin-left: 0;
 }
 ._node_t3xlr_1 {
@@ -21698,7 +21806,7 @@ a._citationLink_1ggvf_9:hover {
  * height as `--inspect-sample-header-height` on the tabs container.
  * The tabs slide up automatically when the header collapses and
  * back down when it expands. */
-._tabControls_1jky3_7 {
+._tabControls_1o8ft_7 {
   position: sticky;
   z-index: 1001;
   top: var(--inspect-sample-header-height, 0);
@@ -21707,77 +21815,248 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--bs-body-bg);
 }
 
-._fullWidth_1jky3_16 {
+._fullWidth_1o8ft_16 {
   width: 100%;
 }
 
-._metadataPanel_1jky3_20 {
+._metadataPanel_1o8ft_20 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-._padded_1jky3_26 {
+._padded_1o8ft_26 {
   padding-left: 0.8em;
   margin-top: 0.4em;
 }
 
-._error_1jky3_31 {
+._error_1o8ft_31 {
   padding-top: 0.5em;
 }
 
-._ansi_1jky3_35 {
+._ansi_1o8ft_35 {
   margin: 1em 0;
 }
 
-._noTop_1jky3_39 {
+._noTop_1o8ft_39 {
   margin-top: 0;
 }
 
-._chat_1jky3_43 {
+._chat_1o8ft_43 {
   padding: 0.5rem;
 }
 
-._padded_1jky3_26 {
+._padded_1o8ft_26 {
   padding: 1em;
 }
 
-._overflowVisible_1jky3_51 {
+._overflowVisible_1o8ft_51 {
   overflow-y: visible;
 }
 
-._retriedErrors_1jky3_55 {
-  margin: 0.5rem;
+._retriedErrors_1o8ft_55 {
+  /* Full-bleed (no card), with a small uniform inset from the tab edges. */
+  margin: 0;
+  padding: 0.5rem;
   min-width: 0;
   overflow: hidden;
   align-self: stretch;
   flex: 1;
 }
-._ansi_45i0c_1 {
+._card_zuaa2_1 {
+  flex: 1;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+._cardCollapsed_zuaa2_11 {
+  background: var(--bs-tertiary-bg);
+}
+
+._cardOpen_zuaa2_15 {
+  background: var(--bs-body-bg);
+}
+
+._header_zuaa2_19 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+}
+
+._attemptLabel_zuaa2_27 {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--bs-body-color);
+  white-space: nowrap;
+}
+
+._errorChip_zuaa2_34 {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--bs-font-monospace);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--bs-danger-bg-subtle);
+  color: var(--bs-danger-text-emphasis);
+  border: 1px solid var(--bs-danger-border-subtle);
+  white-space: nowrap;
+}
+
+._message_zuaa2_48 {
+  font-size: 12.5px;
+  color: var(--bs-secondary-color);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Right-aligned group: the (expanded-only) Error/Events toggle, duration, and
+   chevron. */
+._headerRight_zuaa2_59 {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+._headerToggle_zuaa2_66 {
+  display: flex;
+}
+
+._duration_zuaa2_70 {
+  font-family: var(--bs-font-monospace);
+  font-size: 12px;
+  color: var(--bs-tertiary-color);
+  white-space: nowrap;
+}
+
+._chevron_zuaa2_77 {
+  color: var(--bs-tertiary-color);
+  font-size: 14px;
+}
+
+/* No horizontal padding: the Events transcript goes edge-to-edge so its row
+   borders meet the card edges. The error panel re-adds its own inset. */
+._body_zuaa2_84 {
+  padding-top: 10px;
+  padding-bottom: 16px;
+}
+
+._errorPanel_zuaa2_89 {
+  margin: 0 14px;
+}
+
+._ansi_zuaa2_93 {
   margin: 0.5em 0;
   font-size: clamp(0.3rem, 1.1vw, 0.8rem) !important;
 }
+._row_iq6ks_1 {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
 
-._headerRow_45i0c_6 {
+._check_iq6ks_7 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bs-success);
+  color: #fff;
+  flex: none;
+  font-size: 10px;
+  position: relative;
+  /* Sits above the container's absolutely-positioned timeline rail. */
+  z-index: 1;
+}
+
+._copy_iq6ks_23 {
+  flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 4px;
+  margin-top: 2px;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+._success_iq6ks_33 {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--bs-success-text-emphasis);
+  white-space: nowrap;
+}
+
+._detail_iq6ks_40 {
+  font-size: 12.5px;
+  color: var(--bs-secondary-color);
+}
+._panel_1n9ws_1 {
   width: 100%;
 }
 
-._headerControls_45i0c_13 {
+._sectionLabel_1n9ws_5 {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+._timeline_1n9ws_14 {
+  position: relative;
+  margin-top: 18px;
+}
+
+._rail_1n9ws_19 {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--bs-border-color);
+}
+
+._items_1n9ws_28 {
   display: flex;
-  align-items: center;
-  margin-left: 1rem;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 12px;
 }
 
-._card_45i0c_20 {
-  width: 100%;
+._row_1n9ws_34 {
+  display: flex;
+  gap: 16px;
 }
 
-._attemptDropdown_45i0c_24 {
-  padding: 1px 0.25rem;
+/* Offsets the dot to align with the card header text; relative + z-index so it
+   paints above the absolutely-positioned rail. */
+._dotGutter_1n9ws_41 {
+  position: relative;
+  z-index: 1;
+  padding-top: 14px;
+}
+
+/* Failed-attempt marker: the viewer's standard error icon. The body-bg backdrop
+   punches it out over the rail so the line doesn't show through the glyph. */
+._statusIcon_1n9ws_49 {
+  display: block;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--bs-danger);
+  background: var(--bs-body-bg);
+  border-radius: 50%;
 }
 ._body_x9ww7_1 {
   color: var(--bs-danger);

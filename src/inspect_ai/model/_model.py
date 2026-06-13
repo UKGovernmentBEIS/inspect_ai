@@ -110,7 +110,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
-from ._model_output import ModelOutput, ModelUsage
+from ._model_output import ModelFallback, ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
@@ -1229,6 +1229,12 @@ class Model:
         model_output, event = await generate()
         total_time = time.monotonic() - time_start
 
+        # record any model fallback against the active sample (here in the
+        # outer frame rather than alongside usage recording so that cache
+        # hits also count -- a cached response originally served by a
+        # fallback is still a fallback-served response)
+        record_sample_model_fallback(model_output)
+
         # notify the adaptive controller of a clean success (no retries during
         # this logical request, AND not a cache hit since cache hits don't
         # exercise the rate limit). Successful-after-retry and cache hits are
@@ -2280,6 +2286,17 @@ def init_sample_model_usage() -> None:
     sample_model_usage_context_var.set({})
 
 
+def init_sample_model_data() -> None:
+    """Initialize all per-sample model accumulators (usage, role usage, fallbacks)."""
+    init_sample_model_usage()
+    init_sample_role_usage()
+    init_sample_model_fallbacks()
+
+
+def init_sample_model_fallbacks() -> None:
+    sample_model_fallbacks_context_var.set({})
+
+
 def init_role_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
     if initial_usage is not None:
         role_usage_context_var.set(initial_usage)
@@ -2369,6 +2386,43 @@ def sample_total_tokens() -> int:
 
 sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "sample_model_usage", default={}
+)
+
+
+def record_sample_model_fallback(output: ModelOutput) -> None:
+    """Accumulate a model fallback from a generate call into the active sample."""
+    from inspect_ai.log._samples import set_active_sample_fallback_models
+
+    if output.fallback is None:
+        return
+    fallbacks = sample_model_fallbacks_context_var.get(None)
+    if fallbacks is not None:
+        key = (output.fallback.model, output.fallback.fallback_model)
+        fallbacks[key] = fallbacks.get(key, 0) + output.fallback.count
+
+        # surface serving models on the active sample for realtime display
+        set_active_sample_fallback_models(
+            list(dict.fromkeys(fallback_model for _, fallback_model in fallbacks))
+        )
+
+
+def sample_model_fallbacks() -> list[ModelFallback]:
+    """Model fallbacks accumulated for the active sample.
+
+    Rollup entries carry (model, fallback_model, count) only — per-call
+    diagnostics remain on each ModelEvent's `output.fallback.metadata`.
+    """
+    return [
+        ModelFallback(model=model, fallback_model=fallback_model, count=count)
+        for (
+            model,
+            fallback_model,
+        ), count in sample_model_fallbacks_context_var.get().items()
+    ]
+
+
+sample_model_fallbacks_context_var: ContextVar[dict[tuple[str, str], int]] = ContextVar(
+    "sample_model_fallbacks", default={}
 )
 
 

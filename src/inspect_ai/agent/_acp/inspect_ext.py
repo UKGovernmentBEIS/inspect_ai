@@ -97,6 +97,7 @@ MESSAGE_ID_META_KEY = "inspect.message_id"
 MESSAGE_ROLE_META_KEY = "inspect.message_role"
 USER_SOURCE_META_KEY = "inspect.user_source"
 MODEL_META_KEY = "inspect.model"
+MODEL_FALLBACK_META_KEY = "inspect.model_fallback"
 MODEL_EVENT_UUID_META_KEY = "inspect.model_event_uuid"
 MODEL_EVENT_PENDING_META_KEY = "inspect.model_event_pending"
 MODEL_EVENT_COMPLETE_META_KEY = "inspect.model_event_complete"
@@ -459,9 +460,12 @@ def assistant_content_chunk_meta(event: ModelEvent, uuid: str | None) -> dict[st
     model switches mid-conversation), plus :data:`MODEL_EVENT_UUID_META_KEY`
     when the originating ``ModelEvent`` has a uuid (so clients can
     cross-reference back to the transcript event — the ACP message_id
-    is a UUIDv5 hash, one-way).
+    is a UUIDv5 hash, one-way). When a model fallback served the
+    generation, :data:`MODEL_FALLBACK_META_KEY` names the serving model.
     """
     meta: dict[str, Any] = {MODEL_META_KEY: event.model}
+    if event.output.fallback is not None:
+        meta[MODEL_FALLBACK_META_KEY] = event.output.fallback.fallback_model
     if uuid is not None:
         meta[MODEL_EVENT_UUID_META_KEY] = uuid
     return meta
@@ -491,11 +495,14 @@ def assistant_complete_chunk_meta(event: ModelEvent, uuid: str) -> dict[str, Any
     :data:`MODEL_EVENT_COMPLETE_META_KEY` = ``True`` to distinguish
     from the pending marker.
     """
-    return {
+    meta: dict[str, Any] = {
         MODEL_META_KEY: event.model,
         MODEL_EVENT_UUID_META_KEY: uuid,
         MODEL_EVENT_COMPLETE_META_KEY: True,
     }
+    if event.output.fallback is not None:
+        meta[MODEL_FALLBACK_META_KEY] = event.output.fallback.fallback_model
+    return meta
 
 
 # ---------------------------------------------------------------------------
