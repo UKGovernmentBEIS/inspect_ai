@@ -48,7 +48,12 @@ from openai.types.responses import (
     WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
-from openai.types.responses.namespace_tool_param import NamespaceToolParam
+from openai.types.responses.namespace_tool_param import (
+    NamespaceToolParam,
+)
+from openai.types.responses.namespace_tool_param import (
+    Tool as NamespaceInnerTool,
+)
 from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_code_interpreter_tool_call import (
     OutputImage,
@@ -495,15 +500,44 @@ def openai_responses_tool_choice(
             )
 
 
+RESPONSES_NAMESPACE = "__responses_namespace__"
+"""``ToolInfo.options`` key under which the agent bridge stashes the
+``(name, description)`` of the ``NamespaceToolParam`` a tool was flattened
+from, so that :func:`openai_responses_tools` can re-group it on the outgoing
+request. Without this, namespaced tools (e.g. codex's
+``multi_agent_v1.spawn_agent``) are sent flat as ``functions.spawn_agent``,
+which OpenAI's reserved-name validation rejects on models configured for
+encrypted tool use."""
+
+
 def openai_responses_tools(
     tools: list[ToolInfo],
     model_name: str,
     config: GenerateConfig,
     is_latest: bool = False,
 ) -> list[ToolParam]:
-    result = [
-        _tool_param_for_tool_info(tool, model_name, config, is_latest) for tool in tools
-    ]
+    result: list[ToolParam] = []
+    namespaces: dict[tuple[str, str], list[FunctionToolParam | CustomToolParam]] = {}
+    for tool in tools:
+        param = _tool_param_for_tool_info(tool, model_name, config, is_latest)
+        ns = (tool.options or {}).get(RESPONSES_NAMESPACE)
+        if isinstance(ns, tuple) and len(ns) == 2:
+            # Only function/custom tools may live inside a NamespaceToolParam;
+            # the bridge only stashes RESPONSES_NAMESPACE on those, so cast.
+            namespaces.setdefault(ns, []).append(
+                cast(FunctionToolParam | CustomToolParam, param)
+            )
+        else:
+            result.append(param)
+    for (ns_name, ns_desc), ns_tools in namespaces.items():
+        result.append(
+            NamespaceToolParam(
+                type="namespace",
+                name=ns_name,
+                description=ns_desc,
+                tools=cast(list[NamespaceInnerTool], ns_tools),
+            )
+        )
 
     # Add at most one image_generation tool if image output modality requested
     img_config = image_output_config(config.modalities)
