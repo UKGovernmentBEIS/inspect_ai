@@ -118,6 +118,18 @@
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"
   categories: ["Sandboxes"]
 
+- name: "[E2B Sandbox](https://meridianlabs-ai.github.io/inspect_sandboxes/e2b.html)"
+  description: |
+    Sandbox environment for Inspect using E2B's cloud infrastructure.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"
+  categories: ["Sandboxes"]
+
+- name: "[Runloop Sandbox](https://meridianlabs-ai.github.io/inspect_sandboxes/runloop.html)"
+  description: |
+    Sandbox environment for Inspect using Runloop's cloud infrastructure.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"
+  categories: ["Sandboxes"]
+
 
 - name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
   description: |
