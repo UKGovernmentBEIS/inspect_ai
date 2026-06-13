@@ -153,7 +153,7 @@ def _to_record(
         "contributors": list(data.get("contributors") or []),
         "samples": _derive_samples(tasks),
         "featured": False,
-        "url": f"https://ukgovernmentbeis.github.io/inspect_evals/evals/{group.lower()}/{slug}/",
+        "url": f"https://ukgovernmentbeis.github.io/inspect_evals/evals/{slug}/index.html",
     }
 
 
