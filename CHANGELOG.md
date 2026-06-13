@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Model API: New `openai-api-completions` provider for the legacy `/v1/completions` endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with `vllm-completions`.
+- Model API: `openai-api-completions` and `vllm-completions` accept pre-tokenized prompts via `ChatMessage.metadata["prompt_token_ids"]`.
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
