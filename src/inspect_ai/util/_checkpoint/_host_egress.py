@@ -40,6 +40,7 @@ from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
+from ._layout.schemas import Checkpoint
 
 logger = getLogger(__name__)
 
@@ -71,7 +72,11 @@ def seed_manifest(staging_dir: str) -> int:
     the destination. Returns the entry count for diagnostics.
     """
     staging = Path(staging_dir)
-    files = _scan_new_files(staging, shipped=set())
+    files = [
+        rel
+        for rel in _scan_new_files(staging, shipped=set())
+        if _committed_checkpoint_or_other(staging, rel)
+    ]
     _write_manifest(staging / MANIFEST_FILENAME, set(files))
     return len(files)
 
@@ -132,6 +137,16 @@ def _scan_new_files(staging: Path, shipped: set[str]) -> list[str]:
             continue
         new.append(rel_s)
     return new
+
+
+def _committed_checkpoint_or_other(staging: Path, rel: str) -> bool:
+    if not _CHECKPOINT_FILE_RE.match(Path(rel).name):
+        return True
+    try:
+        Checkpoint.model_validate_json((staging / rel).read_bytes())
+    except Exception:
+        return False
+    return True
 
 
 def _safe_order(files: list[str]) -> list[str]:
