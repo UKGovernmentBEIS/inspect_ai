@@ -194,6 +194,13 @@ class ModelAPI(abc.ABC):
     https://inspect.aisi.org.uk/models.html#model-args)
     """
 
+    account_id: str | None = None
+    """Stable account identifier supplied by an `override_api_key` hook.
+
+    Used to scope the connection pool when the credential itself is
+    short-lived; remains `None` when no hook supplies one.
+    """
+
     def __init__(
         self,
         model_name: str,
@@ -216,12 +223,6 @@ class ModelAPI(abc.ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.api_key_vars = api_key_vars
-        self.account_id: str | None = None
-        """Stable account identifier supplied by an `override_api_key` hook.
-
-        Used to scope the connection pool when the credential itself is
-        short-lived; remains `None` when no hook supplies one.
-        """
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
