@@ -618,3 +618,84 @@ async def test_run_code_bridge_uses_inspect_approval_for_inner_tool_calls():
     assert calls == []
     assert isinstance(result, str)
     assert result == "approval: Automatic decision."
+
+@pytest.mark.anyio
+async def test_run_code_monty_uses_inspect_approval_for_inner_tool_calls():
+    pytest.importorskip("pydantic_monty")
+
+    calls: list[str] = []
+
+    def approval_probe_tool() -> Tool:
+        async def execute(value: str) -> str:
+            """Record a value.
+
+            Args:
+                value: Value to record.
+            """
+            calls.append(value)
+            return f"approved:{value}"
+
+        return ToolDef(
+            execute,
+            name="approval_probe_tool",
+            description="Tool used to test approval.",
+        ).as_tool()
+
+    tool = run_code(
+        tools=[approval_probe_tool()],
+        execute_code=True,
+    )
+
+    with approval(
+        [
+            ApprovalPolicy(
+                approver=auto_approver(decision="reject"),
+                tools="approval_probe_tool",
+            )
+        ]
+    ):
+        result = await tool(code='await approval_probe_tool("secret")')
+
+    assert calls == []
+    assert isinstance(result, str)
+    assert result == "approval: Automatic decision."
+
+@pytest.mark.anyio
+async def test_run_code_monty_runs_inner_tool_when_approval_allows_it():
+    pytest.importorskip("pydantic_monty")
+
+    calls: list[str] = []
+
+    def approval_probe_tool() -> Tool:
+        async def execute(value: str) -> str:
+            """Record a value.
+
+            Args:
+                value: Value to record.
+            """
+            calls.append(value)
+            return f"approved:{value}"
+
+        return ToolDef(
+            execute,
+            name="approval_probe_tool",
+            description="Tool used to test approval.",
+        ).as_tool()
+
+    tool = run_code(
+        tools=[approval_probe_tool()],
+        execute_code=True,
+    )
+
+    with approval(
+        [
+            ApprovalPolicy(
+                approver=auto_approver(decision="approve"),
+                tools="approval_probe_tool",
+            )
+        ]
+    ):
+        result = await tool(code='await approval_probe_tool("secret")')
+
+    assert calls == ["secret"]
+    assert result == "approved:secret"
