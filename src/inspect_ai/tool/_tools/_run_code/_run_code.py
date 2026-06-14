@@ -107,6 +107,9 @@ def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
     """Return model-facing instructions for using run_code."""
     lines = [
         "Write Python code to solve the task.",
+        "The code is executed by Pydantic Monty, which supports only a restricted Python subset. Do not define classes.",
+        "Use ordinary functions, variables, loops, conditionals, comprehensions, and async/await.",
+        "Only a limited set of standard-library imports is available, such as asyncio, json, re, math, and datetime. Tool calls must be awaited.",
         "The final expression is returned as the run_code result.",
         "",
     ]

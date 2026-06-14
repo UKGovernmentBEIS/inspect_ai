@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from inspect_ai.approval import ApprovalPolicy, approval, auto_approver
 from inspect_ai.tool import Tool, ToolDef, ToolError, run_code
 from inspect_ai.tool._tools._run_code._bridge import (
     RunCodeInnerToolCall,
@@ -578,3 +579,42 @@ async def test_run_code_bridge_surfaces_inner_tool_error():
 
     assert isinstance(result, str)
     assert "bad inner input" in result
+
+
+@pytest.mark.anyio
+async def test_run_code_bridge_uses_inspect_approval_for_inner_tool_calls():
+    calls: list[str] = []
+
+    def approval_probe_tool() -> Tool:
+        async def execute(value: str) -> str:
+            """Record a value.
+
+            Args:
+                value: Value to record.
+            """
+            calls.append(value)
+            return f"approved:{value}"
+
+        return ToolDef(
+            execute,
+            name="approval_probe_tool",
+            description="Tool used to test approval.",
+        ).as_tool()
+
+    bridge = RunCodeToolBridge(_tool_defs([approval_probe_tool()]))
+
+    external_functions = bridge.external_functions()
+
+    with approval(
+        [
+            ApprovalPolicy(
+                approver=auto_approver(decision="reject"),
+                tools="approval_probe_tool",
+            )
+        ]
+    ):
+        result = await external_functions["approval_probe_tool"]("secret")
+
+    assert calls == []
+    assert isinstance(result, str)
+    assert result == "approval: Automatic decision."

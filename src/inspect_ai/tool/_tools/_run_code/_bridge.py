@@ -41,7 +41,7 @@ def _tool_call_arguments(
 def _tool_message_result(message: Any) -> Any:
     """Return the model-visible result from an Inspect tool message."""
     if message.error is not None:
-        return message.error.message
+        return f"{message.error.type}: {message.error.message}"
 
     return _coerce_external_function_result(message.content)
 
