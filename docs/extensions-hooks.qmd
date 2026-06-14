@@ -188,3 +188,17 @@ class ApiKeyFetcher(Hooks):
 def fetch_aws_secret(aws_arn: str) -> str:
     ...
 ```
+
+If your hook returns short-lived or rotating credentials, return an `ApiKeyOverrideResult` with a stable `account_id` (e.g. the secret ARN) so the model's connection pool is scoped by account rather than by the rotating credential:
+
+``` python
+from inspect_ai.hooks import ApiKeyOverride, ApiKeyOverrideResult
+
+def override_api_key(self, data: ApiKeyOverride) -> ApiKeyOverrideResult | None:
+    if data.value.startswith("arn:aws:secretsmanager:"):
+        return ApiKeyOverrideResult(
+            value=fetch_short_lived_credential(data.value),
+            account_id=data.value,
+        )
+    return None
+```

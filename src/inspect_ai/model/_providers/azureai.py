@@ -346,7 +346,7 @@ class AzureAIAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return f"{self.api_key}{self.model_name}"
+        return f"{self.account_id or self.api_key}{self.model_name}"
 
     def service_model_name(self) -> str:
         """Model name without any org prefix, for API calls."""

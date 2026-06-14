@@ -5,7 +5,7 @@ import pytest
 from inspect_ai import Task, eval
 from inspect_ai._util.registry import _registry, registry_lookup
 from inspect_ai.dataset import Sample
-from inspect_ai.hooks import ApiKeyOverride, Hooks, hooks
+from inspect_ai.hooks import ApiKeyOverride, ApiKeyOverrideResult, Hooks, hooks
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
@@ -73,6 +73,9 @@ class Mock401API(ModelAPI):
         """Retry on our mock 401 exception."""
         return isinstance(ex, Mock401Exception)
 
+    def connection_key(self) -> str:
+        return f"{self.account_id or self.api_key}:{self.model_name}"
+
 
 class MockRefreshTokenHook(Hooks):
     def __init__(self) -> None:
@@ -138,3 +141,56 @@ def test_reactive_token_refresh_on_401(mock_refresh_token_hook: MockRefreshToken
     finally:
         # Remove the provider from the registry to avoid conflicts in other tests.
         del _registry["modelapi:mock401"]
+
+
+class MockAccountIdHook(Hooks):
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    def override_api_key(self, data: ApiKeyOverride) -> ApiKeyOverrideResult | None:
+        if data.env_var_name != "TEST_API_KEY":
+            return None
+        self.call_count += 1
+        return ApiKeyOverrideResult(
+            value=f"token-{self.call_count}", account_id="account-a"
+        )
+
+
+@pytest.fixture
+def mock_account_id_hook() -> Generator[MockAccountIdHook, None, None]:
+    @hooks("test_account_id", description="Account-id override hook")
+    def get_hook() -> type[MockAccountIdHook]:
+        return MockAccountIdHook
+
+    hook = registry_lookup("hooks", "test_account_id")
+    assert isinstance(hook, MockAccountIdHook)
+    try:
+        yield hook
+    finally:
+        del _registry["hooks:test_account_id"]
+
+
+def test_account_id_scopes_connection_key(
+    mock_account_id_hook: MockAccountIdHook,
+) -> None:
+    """connection_key is stable across instances and refreshes given an account_id."""
+
+    @modelapi(name="mock401_account")
+    def mock401() -> type[ModelAPI]:
+        return Mock401API
+
+    try:
+        a = get_model("mock401_account/test", api_key="seed", fail_count=2)
+        a_key_before = a.api.connection_key()
+        b = get_model("mock401_account/test", api_key="seed", memoize=False)
+
+        assert a.api.api_key == "token-1"
+        assert b.api.api_key == "token-2"
+        assert a.api.connection_key() == b.api.connection_key() == "account-a:test"
+
+        log = eval(Task(dataset=[Sample(input="t", target="t")]), model=a)[0]
+        assert log.status == "success"
+        assert a.api.api_key == "token-4"
+        assert a.api.connection_key() == a_key_before
+    finally:
+        del _registry["modelapi:mock401_account"]

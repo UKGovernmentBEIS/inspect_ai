@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Hooks: `override_api_key` may now return an `ApiKeyOverrideResult` with a stable `account_id`, used to scope the connection pool when the credential itself is short-lived.
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.

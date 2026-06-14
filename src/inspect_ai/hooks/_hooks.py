@@ -312,6 +312,22 @@ class ApiKeyOverride:
     """The original value of the environment variable."""
 
 
+@dataclass(frozen=True)
+class ApiKeyOverrideResult:
+    """Result of an `override_api_key` hook."""
+
+    value: str
+    """The new API key value to use."""
+    account_id: str | None = None
+    """Stable identifier for the quota/account this credential draws on.
+
+    When set, this scopes the model's connection pool in place of the API key
+    itself. Hooks that return short-lived or rotating credentials should set
+    this so concurrency limits remain stable across refreshes and shared
+    across model instances on the same account.
+    """
+
+
 class Hooks:
     """Base class for hooks.
 
@@ -521,17 +537,25 @@ class Hooks:
         """
         pass
 
-    def override_api_key(self, data: ApiKeyOverride) -> str | None:
+    def override_api_key(
+        self, data: ApiKeyOverride
+    ) -> str | ApiKeyOverrideResult | None:
         """Optionally override an API key.
 
         When overridden, this method may return a new API key value which will be used
         in place of the original one during the eval.
 
+        Hooks that return short-lived or rotating credentials should return an
+        `ApiKeyOverrideResult` with `account_id` set to a stable identifier for
+        the underlying account, so the model's connection pool is scoped by
+        account rather than by the rotating credential.
+
         Args:
             data: Api key override data.
 
         Returns:
-            str | None: The new API key value to use, or None to use the original value.
+            The new API key value (as a string or `ApiKeyOverrideResult`), or
+            None to leave the original value in place.
         """
         return None
 
@@ -919,21 +943,24 @@ def has_api_key_override() -> bool:
     return False
 
 
-def override_api_key(env_var_name: str, value: str) -> str | None:
+def override_api_key(env_var_name: str, value: str) -> ApiKeyOverrideResult | None:
     data = ApiKeyOverride(env_var_name=env_var_name, value=value)
     for hook in get_all_hooks():
         if not hook.enabled():
             continue
         try:
             overridden = hook.override_api_key(data)
-            if overridden is not None:
+            if isinstance(overridden, str):
+                return ApiKeyOverrideResult(value=overridden)
+            elif overridden is not None:
                 return overridden
         except Exception as ex:
             logger.warning(
                 f"Exception calling override_api_key on hook '{hook.__class__.__name__}': {ex}"
             )
     # If none have been overridden, fall back to legacy behaviour.
-    return override_api_key_legacy(env_var_name, value)
+    legacy = override_api_key_legacy(env_var_name, value)
+    return ApiKeyOverrideResult(value=legacy) if legacy is not None else None
 
 
 _hooks_cache: list[Hooks] = []

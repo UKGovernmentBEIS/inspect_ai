@@ -216,6 +216,12 @@ class ModelAPI(abc.ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.api_key_vars = api_key_vars
+        self.account_id: str | None = None
+        """Stable account identifier supplied by an `override_api_key` hook.
+
+        Used to scope the connection pool when the credential itself is
+        short-lived; remains `None` when no hook supplies one.
+        """
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
@@ -229,7 +235,8 @@ class ModelAPI(abc.ABC):
             if api_key is not None:
                 override = override_api_key(key, api_key)
                 if override is not None:
-                    api_key = override
+                    api_key = override.value
+                    self.account_id = override.account_id or self.account_id
             # otherwise look it up in the environment and
             # override it if it has a value
             else:
@@ -237,14 +244,16 @@ class ModelAPI(abc.ABC):
                 if value is not None:
                     override = override_api_key(key, value)
                     if override is not None:
-                        os.environ[key] = override
+                        os.environ[key] = override.value
+                        self.account_id = override.account_id or self.account_id
                 # When a hook is registered but no API key exists anywhere,
                 # still call the hook so it can provide credentials from its
                 # own source (e.g. OAuth tokens, vault, etc.)
                 elif has_api_key_override():
                     override = override_api_key(key, "")
                     if override is not None:
-                        api_key = override
+                        api_key = override.value
+                        self.account_id = override.account_id or self.account_id
 
         # set any explicitly specified api key
         self.api_key = api_key

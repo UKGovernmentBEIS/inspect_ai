@@ -494,7 +494,9 @@ def test_has_api_key_override_multiple_hooks(
 def test_api_key_override(mock_hooks: MockHooks) -> None:
     overridden = override_api_key("TEST_VAR", "test_value")
 
-    assert overridden == "mocked-TEST_VAR-test_value"
+    assert overridden is not None
+    assert overridden.value == "mocked-TEST_VAR-test_value"
+    assert overridden.account_id is None
 
 
 def test_api_key_override_falls_back_to_legacy(mock_hooks: MockHooks) -> None:
@@ -509,7 +511,8 @@ def test_api_key_override_falls_back_to_legacy(mock_hooks: MockHooks) -> None:
         ):
             overridden = override_api_key("TEST_VAR", "test_value")
 
-    assert overridden == "legacy-TEST_VAR-test_value"
+    assert overridden is not None
+    assert overridden.value == "legacy-TEST_VAR-test_value"
 
 
 def test_init_hooks_can_be_called_multiple_times(mock_hooks: MockHooks) -> None:

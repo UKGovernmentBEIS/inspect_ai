@@ -605,7 +605,7 @@ class OpenAIAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.account_id or self.api_key}:{self.model_name}"
 
     @override
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
