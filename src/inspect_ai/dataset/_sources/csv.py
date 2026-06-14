@@ -6,6 +6,7 @@ from typing import Any
 
 from inspect_ai._util.asyncfiles import is_s3_filename
 from inspect_ai._util.file import file
+from inspect_ai.dataset._sources._retry import _call_with_dataset_retry
 from inspect_ai.dataset._sources.util import resolve_sample_files
 
 from .._dataset import (
@@ -32,6 +33,7 @@ def csv_dataset(
     fs_options: dict[str, Any] | None = None,
     fieldnames: list[str] | None = None,
     delimiter: str = ",",
+    retry: bool = True,
 ) -> Dataset:
     r"""Read dataset from CSV file.
 
@@ -60,6 +62,10 @@ def csv_dataset(
             If None, the values in the first row of the file will be used as the fieldnames.
             Useful for files without a header.
         delimiter: Optional. The delimiter to use when parsing the file. Defaults to ",".
+        retry: Retry transient HTTP/connection failures (rate limits, timeouts,
+            transient 5xx) with exponential backoff. Pass `False` to disable.
+            Defaults to `True`. Non-network failures (`FileNotFoundError`,
+            parsing errors, etc.) are never retried.
 
     Returns:
         Dataset read from CSV file.
@@ -71,35 +77,42 @@ def csv_dataset(
     if fs_options is None and is_s3_filename(csv_file):
         fs_options = dict(default_fill_cache=True, default_cache_type="readahead")
 
-    # read and convert samples
-    with file(csv_file, "r", encoding=encoding, fs_options=fs_options or {}) as f:
-        # filter out rows with empty values
-        valid_data = [
-            data
-            for data in csv_dataset_reader(f, dialect, fieldnames, delimiter)
-            if data and any(value.strip() for value in data.values())
-        ]
-        name = name if name else Path(csv_file).stem
-        dataset = MemoryDataset(
-            samples=data_to_samples(valid_data, data_to_sample, auto_id),
-            name=name,
-            location=os.path.abspath(csv_file),
-        )
+    resolved_fs_options = fs_options or {}
+    resolved_name = name if name else Path(csv_file).stem
 
-        # resolve relative file paths
-        resolve_sample_files(dataset)
+    def _load() -> Dataset:
+        # read and convert samples
+        with file(
+            csv_file, "r", encoding=encoding, fs_options=resolved_fs_options
+        ) as f:
+            # filter out rows with empty values
+            valid_data = [
+                data
+                for data in csv_dataset_reader(f, dialect, fieldnames, delimiter)
+                if data and any(value.strip() for value in data.values())
+            ]
+            dataset = MemoryDataset(
+                samples=data_to_samples(valid_data, data_to_sample, auto_id),
+                name=resolved_name,
+                location=os.path.abspath(csv_file),
+            )
 
-        # shuffle if requested
-        if shuffle:
-            dataset.shuffle(seed=seed)
+            # resolve relative file paths
+            resolve_sample_files(dataset)
 
-        shuffle_choices_if_requested(dataset, shuffle_choices)
+            # shuffle if requested
+            if shuffle:
+                dataset.shuffle(seed=seed)
 
-        # limit if requested
-        if limit:
-            return dataset[0:limit]
+            shuffle_choices_if_requested(dataset, shuffle_choices)
 
-        return dataset
+            # limit if requested
+            if limit:
+                return dataset[0:limit]
+
+            return dataset
+
+    return _call_with_dataset_retry(_load, label="csv_dataset") if retry else _load()
 
 
 def csv_dataset_reader(
