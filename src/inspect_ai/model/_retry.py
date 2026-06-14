@@ -10,11 +10,36 @@ from tenacity import (
 )
 from tenacity.retry import RetryBaseT
 from tenacity.stop import StopBaseT
-from tenacity.wait import WaitBaseT
+from tenacity.wait import WaitBaseT, wait_base
 from typing_extensions import TypedDict
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
+
+
+class wait_rate_limit_or_exponential(wait_base):
+    def __init__(
+        self,
+        initial: float = 3,
+        max: float = 1800,
+        exp_base: float = 2,
+        jitter: float = 3,
+    ):
+        self.exponential_wait = wait_exponential_jitter(
+            initial=initial, max=max, exp_base=exp_base, jitter=jitter
+        )
+
+    def __call__(self, retry_state: RetryCallState) -> float:
+        outcome = retry_state.outcome
+        if outcome and outcome.failed:
+            ex = outcome.exception()
+            if ex is not None:
+                from inspect_ai._util.http import parse_retry_after_from_exception
+                retry_after = parse_retry_after_from_exception(ex)
+                if retry_after is not None:
+                    return retry_after
+
+        return self.exponential_wait(retry_state)
 
 
 class ModelRetryConfig(TypedDict):
@@ -62,7 +87,7 @@ def model_retry_config(
     wait = (
         wait
         if wait is not None
-        else wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3)
+        else wait_rate_limit_or_exponential(initial=3, max=(30 * 60), jitter=3)
     )
 
     # tenacity's retry_if_exception expects a bool predicate; coerce
