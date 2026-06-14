@@ -2,7 +2,7 @@
 
 ## Overview
 
-Reasoning models like OpenAI GPT-5, Claude 4, and Gemini 3 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.
+Reasoning models like OpenAI GPT-5, Claude 4 and 5, and Gemini 3 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.
 
 ## Reasoning Effort
 
@@ -30,18 +30,20 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 | `minimal` / `low` / `medium` / `high` / `xhigh` | identical         |
 | `max`                                           | `xhigh`           |
 
-#### Anthropic Claude 4.6+
+#### Anthropic Claude 4.6+ and Claude 5
 
-Opus 4.6, Opus 4.7, Opus 4.8, and Sonnet 4.6 all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort; Opus 4.8 defaults to `high` server-side.
+Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8 and the Claude 5 models default to `high` server-side.
 
-| Inspect input     | API value                                |
-|-------------------|------------------------------------------|
-| `none`            | reasoning omitted                        |
-| `minimal` / `low` | `low`                                    |
-| `medium`          | `medium`                                 |
-| `high`            | `high`                                   |
-| `xhigh`           | `xhigh` on Claude 4.7+; otherwise `high` |
-| `max`             | `max`                                    |
+For the Claude 5 models thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the effort and the model continues to reason at its server-side default.
+
+| Inspect input     | API value                                              |
+|-------------------|--------------------------------------------------------|
+| `none`            | reasoning omitted (Claude 5: not disabled — see above) |
+| `minimal` / `low` | `low`                                                  |
+| `medium`          | `medium`                                               |
+| `high`            | `high`                                                 |
+| `xhigh`           | `xhigh` on Claude 4.7+ and Claude 5; otherwise `high`  |
+| `max`             | `max`                                                  |
 
 #### Anthropic Claude 3.7 / 4.0 / 4.1 / 4.5
 
@@ -128,6 +130,8 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 
 | Model                                | Default effort  |
 |--------------------------------------|-----------------|
+| anthropic/claude-fable-5             | high            |
+| anthropic/claude-mythos-5            | high            |
 | anthropic/claude-opus-4-6            | adaptive        |
 | anthropic/claude-opus-4-7            | adaptive        |
 | anthropic/claude-opus-4-8            | high            |
@@ -174,7 +178,7 @@ The following reasoning options are available from the CLI and within [GenerateC
 | Option | Description |
 |----|----|
 | `reasoning_effort` | Constrains effort on reasoning. Accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. See [Reasoning Effort](#reasoning-effort) for per-provider mapping. Supported by all reasoning models — Inspect automatically bridges effort to a token budget for legacy Claude (3.7–4.5) and Gemini 2.5. Default is provider-defined. |
-| `reasoning_tokens` | **Deprecated.** Prefer `reasoning_effort`. Explicit token budget for reasoning. Both Anthropic (`budget_tokens`) and Google (`thinking_budget`) have deprecated this control in favour of effort-based reasoning. |
+| `reasoning_tokens` | **Deprecated.** Prefer `reasoning_effort`. Explicit token budget for reasoning. Both Anthropic (`budget_tokens`) and Google (`thinking_budget`) have deprecated this control in favour of effort-based reasoning. On Anthropic Claude 4.7+ and Claude 5 it is unsupported (those models removed the token-budget control) and raises an error — use `reasoning_effort` instead, which works across all Claude versions. |
 | `reasoning_summary` | **OpenAI only.** Provide a summary of reasoning steps. Accepts `none`, `concise`, `detailed`, `auto`. Use `auto` to access the most detailed summarizer available. Some OpenAI accounts require [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification). |
 | `reasoning_history` | How much prior reasoning to replay in conversation history. Accepts `none`, `all`, `last`, `auto`. Use `last` to keep reasoning from dominating the context window. Defaults to `auto`. |
 

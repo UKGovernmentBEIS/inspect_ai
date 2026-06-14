@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inspect.aisi.org.uk/dataframe.html</loc>
-    <lastmod>2026-06-11T21:12:19.993Z</lastmod>
+    <lastmod>2026-06-11T21:18:34.568Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/extensions-sandboxes.html</loc>
@@ -86,7 +86,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/multi-agent.html</loc>
-    <lastmod>2026-05-28T01:12:56.431Z</lastmod>
+    <lastmod>2026-06-12T07:36:10.354Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/extensions.html</loc>
@@ -94,7 +94,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/models-concurrency.html</loc>
-    <lastmod>2026-05-28T01:12:56.431Z</lastmod>
+    <lastmod>2026-06-12T20:52:38.280Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/tools-standard.html</loc>
@@ -158,7 +158,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/CHANGELOG.html</loc>
-    <lastmod>2026-06-11T21:12:19.992Z</lastmod>
+    <lastmod>2026-06-13T14:00:20.554Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/extensions-approvers.html</loc>
@@ -194,7 +194,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/fallbacks.html</loc>
-    <lastmod>2026-06-11T21:12:19.994Z</lastmod>
+    <lastmod>2026-06-11T21:18:34.568Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/evals/index.html</loc>
@@ -246,7 +246,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reasoning.html</loc>
-    <lastmod>2026-06-11T21:12:15.012Z</lastmod>
+    <lastmod>2026-06-11T21:22:18.594Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/scoring-workflow.html</loc>
@@ -262,7 +262,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/providers.html</loc>
-    <lastmod>2026-06-11T21:12:19.995Z</lastmod>
+    <lastmod>2026-06-12T20:06:39.400Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/running.html</loc>
@@ -306,7 +306,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/options.html</loc>
-    <lastmod>2026-06-11T21:12:19.995Z</lastmod>
+    <lastmod>2026-06-11T21:18:34.569Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_view.html</loc>

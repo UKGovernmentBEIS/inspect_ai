@@ -444,8 +444,14 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
 <li>Anthropic: Support for server-side refusal fallback via the <code>fallback_models</code> generate config (Claude 5+ on the first-party Anthropic API).</li>
-<li>Model API: Record model fallbacks as a typed <code>ModelOutput.fallback</code> and roll them up per-sample on <code>EvalSample.model_fallbacks</code> (and sample summaries); expose a <code>fallbacks</code> count column in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span>.</li>
+<li>Anthropic: <code>cache_ttl</code> model arg for specifying the prompt cache TTL (“5m” or “1h”).</li>
 <li>Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.</li>
+<li>Anthropic: Raise a clear error when <code>reasoning_tokens</code> is set on Claude 4.7+ or Claude 5 (which removed the <code>budget_tokens</code> control); use <code>reasoning_effort</code> instead.</li>
+<li>OpenAI: Forward <code>GenerateConfig.extra_headers</code> on the chat completions API path (previously only the responses and OpenAI-compatible paths honored it).</li>
+<li>SageMaker: Fix streaming handler dropping reasoning tokens from thinking models.</li>
+<li>Model API: Record model fallbacks as a typed <code>ModelOutput.fallback</code> and roll them up per-sample on <code>EvalSample.model_fallbacks</code> (and sample summaries); expose a <code>fallbacks</code> count column in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span>.</li>
+<li>Agent Bridge: Preserve <code>NamespaceToolParam</code> grouping through to the OpenAI Responses API.</li>
+<li>Adaptive Connections: Raise the default minimum from 4 to 10.</li>
 <li>Control Channel: <code>inspect eval</code> / <code>inspect eval-set</code> now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New <code>inspect ctl</code> commands let another process (CLI, scripts, agents) observe a running eval / eval-set.</li>
 <li>Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.</li>
 <li>Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.</li>
@@ -457,6 +463,10 @@ ul.task-list li input[type="checkbox"] {
 <li>Sandbox tools: Inject tool support as a PyInstaller <code>--onedir</code> bundle instead of a single StaticX executable.</li>
 <li>S3: Retry when requests have stale signatures.</li>
 <li>Inspect View: Display model fallbacks (samples grid column, <code>has_fallbacks</code>/<code>fallbacks</code> filter variables, sample header, transcript fallback marker and model-event badge).</li>
+<li>Inspect View: Fix occasional intermittent hang while attempting to navigate to sample</li>
+<li>Inspect View: Improve server side tool rendering transcripts and messages</li>
+<li>Inspect View: Fix stuck completed streaming samples</li>
+<li>Bugfix: Fix sample summary thinning mutating shared <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span> objects</li>
 </ul>
 </section>
 <section id="june-2026" class="level2">

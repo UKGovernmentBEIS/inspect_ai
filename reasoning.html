@@ -731,7 +731,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Reasoning models like OpenAI GPT-5, Claude 4, and Gemini 3 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.</p>
+<p>Reasoning models like OpenAI GPT-5, Claude 4 and 5, and Gemini 3 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.</p>
 </section>
 <section id="reasoning-effort" class="level2">
 <h2 class="anchored" data-anchor-id="reasoning-effort">Reasoning Effort</h2>
@@ -767,10 +767,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 </section>
-<section id="anthropic-claude-4.6" class="level4">
-<h4 class="anchored" data-anchor-id="anthropic-claude-4.6">Anthropic Claude 4.6+</h4>
-<p>Opus 4.6, Opus 4.7, Opus 4.8, and Sonnet 4.6 all use <a href="https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking">adaptive thinking</a> with the <code>effort</code> parameter. When <code>reasoning_effort</code> is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort; Opus 4.8 defaults to <code>high</code> server-side.</p>
+<section id="anthropic-claude-4.6-and-claude-5" class="level4">
+<h4 class="anchored" data-anchor-id="anthropic-claude-4.6-and-claude-5">Anthropic Claude 4.6+ and Claude 5</h4>
+<p>Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use <a href="https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking">adaptive thinking</a> with the <code>effort</code> parameter. When <code>reasoning_effort</code> is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8 and the Claude 5 models default to <code>high</code> server-side.</p>
+<p>For the Claude 5 models thinking is <strong>always on</strong> and cannot be disabled: passing <code>none</code> does not turn reasoning off — Inspect omits the effort and the model continues to reason at its server-side default.</p>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 74%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Inspect input</th>
@@ -780,7 +785,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>none</code></td>
-<td>reasoning omitted</td>
+<td>reasoning omitted (Claude 5: not disabled — see above)</td>
 </tr>
 <tr class="even">
 <td><code>minimal</code> / <code>low</code></td>
@@ -796,7 +801,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>xhigh</code></td>
-<td><code>xhigh</code> on Claude 4.7+; otherwise <code>high</code></td>
+<td><code>xhigh</code> on Claude 4.7+ and Claude 5; otherwise <code>high</code></td>
 </tr>
 <tr class="even">
 <td><code>max</code></td>
@@ -1037,6 +1042,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
+<td>anthropic/claude-fable-5</td>
+<td>high</td>
+</tr>
+<tr class="even">
+<td>anthropic/claude-mythos-5</td>
+<td>high</td>
+</tr>
+<tr class="odd">
 <td>anthropic/claude-opus-4-6</td>
 <td>adaptive</td>
 </tr>
@@ -1183,7 +1196,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>reasoning_tokens</code></td>
-<td><strong>Deprecated.</strong> Prefer <code>reasoning_effort</code>. Explicit token budget for reasoning. Both Anthropic (<code>budget_tokens</code>) and Google (<code>thinking_budget</code>) have deprecated this control in favour of effort-based reasoning.</td>
+<td><strong>Deprecated.</strong> Prefer <code>reasoning_effort</code>. Explicit token budget for reasoning. Both Anthropic (<code>budget_tokens</code>) and Google (<code>thinking_budget</code>) have deprecated this control in favour of effort-based reasoning. On Anthropic Claude 4.7+ and Claude 5 it is unsupported (those models removed the token-budget control) and raises an error — use <code>reasoning_effort</code> instead, which works across all Claude versions.</td>
 </tr>
 <tr class="odd">
 <td><code>reasoning_summary</code></td>

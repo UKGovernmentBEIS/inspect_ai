@@ -3619,6 +3619,16 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis
 
 Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
 
+### Cache TTL
+
+Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default, using the standard 5-minute cache TTL. Use the `cache_ttl` model arg (`-M`) to specify a different TTL. Valid values are “5m” (the default) and “1h”:
+
+``` bash
+inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
+```
+
+Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart.
+
 ### Streaming
 
 The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default (“auto”) will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
@@ -4988,7 +4998,7 @@ Adaptive connections are a new feature introduced in Inspect v0.3.217. If you pr
 
 ### Bounds Tuning
 
-Tune the bounds with `min`, `start`, and `max`: `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and `max` is the ceiling.
+Tune the bounds with `min`, `start`, and `max`: `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), `max` is the ceiling, and `min` is the floor the controller won’t cut below (default 10). Be careful setting `min` very low: with many samples in flight, a handful of connections can stretch the gap between a given sample’s model calls past provider prompt-cache windows (e.g. Anthropic’s 5-minute TTL), making every request more expensive and consuming much more of your input-token rate limit.
 
 Set `max` higher than where you expect the controller to settle, since it’s a ceiling for the search, not a target. If you’re seeing the controller pin at `max` without ever scaling down, you likely have headroom: raise `max` until you observe occasional rate-limit cuts, which is the controller’s signal that it’s operating at the edge of your tier.
 
@@ -5777,7 +5787,7 @@ You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a glo
 
 ## Overview
 
-Reasoning models like OpenAI GPT-5, Claude 4, and Gemini 3 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.
+Reasoning models like OpenAI GPT-5, Claude 4 and 5, and Gemini 3 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or summarized reasoning traces for the chains of thought that led to their response.
 
 ## Reasoning Effort
 
@@ -5805,18 +5815,20 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 | `minimal` / `low` / `medium` / `high` / `xhigh` | identical         |
 | `max`                                           | `xhigh`           |
 
-#### Anthropic Claude 4.6+
+#### Anthropic Claude 4.6+ and Claude 5
 
-Opus 4.6, Opus 4.7, Opus 4.8, and Sonnet 4.6 all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort; Opus 4.8 defaults to `high` server-side.
+Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8 and the Claude 5 models default to `high` server-side.
 
-| Inspect input     | API value                                |
-|-------------------|------------------------------------------|
-| `none`            | reasoning omitted                        |
-| `minimal` / `low` | `low`                                    |
-| `medium`          | `medium`                                 |
-| `high`            | `high`                                   |
-| `xhigh`           | `xhigh` on Claude 4.7+; otherwise `high` |
-| `max`             | `max`                                    |
+For the Claude 5 models thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the effort and the model continues to reason at its server-side default.
+
+| Inspect input     | API value                                              |
+|-------------------|--------------------------------------------------------|
+| `none`            | reasoning omitted (Claude 5: not disabled — see above) |
+| `minimal` / `low` | `low`                                                  |
+| `medium`          | `medium`                                               |
+| `high`            | `high`                                                 |
+| `xhigh`           | `xhigh` on Claude 4.7+ and Claude 5; otherwise `high`  |
+| `max`             | `max`                                                  |
 
 #### Anthropic Claude 3.7 / 4.0 / 4.1 / 4.5
 
@@ -5903,6 +5915,8 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 
 | Model                                | Default effort  |
 |--------------------------------------|-----------------|
+| anthropic/claude-fable-5             | high            |
+| anthropic/claude-mythos-5            | high            |
 | anthropic/claude-opus-4-6            | adaptive        |
 | anthropic/claude-opus-4-7            | adaptive        |
 | anthropic/claude-opus-4-8            | high            |
@@ -5949,7 +5963,7 @@ The following reasoning options are available from the CLI and within [GenerateC
 | Option | Description |
 |----|----|
 | `reasoning_effort` | Constrains effort on reasoning. Accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. See [Reasoning Effort](#reasoning-effort) for per-provider mapping. Supported by all reasoning models — Inspect automatically bridges effort to a token budget for legacy Claude (3.7–4.5) and Gemini 2.5. Default is provider-defined. |
-| `reasoning_tokens` | **Deprecated.** Prefer `reasoning_effort`. Explicit token budget for reasoning. Both Anthropic (`budget_tokens`) and Google (`thinking_budget`) have deprecated this control in favour of effort-based reasoning. |
+| `reasoning_tokens` | **Deprecated.** Prefer `reasoning_effort`. Explicit token budget for reasoning. Both Anthropic (`budget_tokens`) and Google (`thinking_budget`) have deprecated this control in favour of effort-based reasoning. On Anthropic Claude 4.7+ and Claude 5 it is unsupported (those models removed the token-budget control) and raises an error — use `reasoning_effort` instead, which works across all Claude versions. |
 | `reasoning_summary` | **OpenAI only.** Provide a summary of reasoning steps. Accepts `none`, `concise`, `detailed`, `auto`. Use `auto` to access the most detailed summarizer available. Some OpenAI accounts require [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification). |
 | `reasoning_history` | How much prior reasoning to replay in conversation history. Accepts `none`, `all`, `last`, `auto`. Use `last` to keep reasoning from dominating the context window. Defaults to `auto`. |
 
@@ -8800,14 +8814,14 @@ def researcher() -> Agent:
 
     async def execute(state: AgentState) -> AgentState:
         """Research assistant."""
-        
+
         state.messages.append(
-            ChatMessageSystem("You are an expert researcher.")
+            ChatMessageSystem(content="You are an expert researcher.")
         )
-        
-        state = run(research_planner(), state)
-        state = run(research_searcher(), state)
-        state = run(research_writer(), state)
+
+        state = await run(research_planner(), state)
+        state = await run(research_searcher(), state)
+        state = await run(research_writer(), state)
 
         return state
 ```
@@ -8824,6 +8838,27 @@ plans = await gather(
 ```
 
 Note that the [run()](./reference/inspect_ai.agent.html.md#run) method makes a copy of the input so is suitable for running in parallel as shown above (the two parallel runs will not make shared/conflicting edits to the `state`).
+
+### Running Agents in Solvers
+
+The copying behavior described above also means that [run()](./reference/inspect_ai.agent.html.md#run) never propagates the agent’s conversation back to its input — it returns a new [AgentState](./reference/inspect_ai.agent.html.md#agentstate), and the caller decides what to do with it. This matters in particular when calling [run()](./reference/inspect_ai.agent.html.md#run) from a [solver](./solvers.html.md): if you discard the returned state, the agent’s conversation and output will not appear in the sample’s messages (though they remain visible in the sample transcript), and scorers that read `state.output` or `state.messages` will not see the agent’s work. Copy the fields you need back into the [TaskState](./reference/inspect_ai.solver.html.md#taskstate):
+
+``` python
+@solver
+def research_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # per-sample setup
+        ...
+        # run the agent, then reflect its conversation and
+        # output back into the task state
+        agent_state = await run(researcher(), state.messages)
+        state.messages = agent_state.messages
+        state.output = agent_state.output
+        return state
+    return solve
+```
+
+Alternatively, if you don’t need custom per-sample logic around the agent, use [as_solver()](./reference/inspect_ai.agent.html.md#as_solver) to convert the agent into a solver that updates the [TaskState](./reference/inspect_ai.solver.html.md#taskstate) automatically.
 
 ## Tools
 
