@@ -814,6 +814,11 @@ class SampleBufferDatabase(SampleBuffer):
 
         for attempt in range(max_retries):
             try:
+                # Re-create the parent directory immediately before connecting
+                # (writable connections only).
+                if not self._read_only:
+                    self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
                 # mode=ro can never (re-)create the file: a connect after
                 # the database was deleted raises OperationalError rather
                 # than leaving an empty database behind
@@ -883,7 +888,17 @@ class SampleBufferDatabase(SampleBuffer):
                 if conn is not None:
                     conn.close()
                     conn = None
-                if "locked" in str(e) and attempt < max_retries - 1:
+                # "locked" is always transient. "unable to open database file"
+                # is retryable only for writable connections: it usually means a
+                # sibling rmdir'd our shared log directory, which the mkdir above
+                # re-creates on the next attempt. For read_only connections it is
+                # the intended "buffer is gone" signal and must propagate so
+                # callers can degrade (see _control/events.py).
+                msg = str(e)
+                retryable = "locked" in msg or (
+                    not self._read_only and "unable to open database file" in msg
+                )
+                if retryable and attempt < max_retries - 1:
                     time.sleep(retry_delay * (2**attempt))
                     continue
                 raise

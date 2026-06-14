@@ -23,7 +23,8 @@
 - Inspect View: Fix occasional intermittent hang while attempting to navigate to sample
 - Inspect View: Improve server side tool rendering transcripts and messages
 - Inspect View: Fix stuck completed streaming samples
-- Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects
+- Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects.
+- Bugfix: Fix a rare `OperationalError: unable to open database file` when concurrent evals share a log directory.
 
 ## 0.3.239 (09 June 2026)
 
