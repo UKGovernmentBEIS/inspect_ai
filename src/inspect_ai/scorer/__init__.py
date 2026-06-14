@@ -26,10 +26,13 @@ from ._metrics.grouped import grouped
 from ._metrics.mean import mean
 from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
 from ._metrics.reliability import (
+    McNemarResult,
     MultipleComparison,
     align_paired_scores,
     benjamini_hochberg,
     holm_bonferroni,
+    mcnemar_from_scores,
+    mcnemar_test,
     min_samples_for_delta,
     paired_delta,
     power_for_samples,
@@ -61,6 +64,7 @@ __all__ = [
     "AnswerPattern",
     "CORRECT",
     "INCORRECT",
+    "McNemarResult",
     "Metric",
     "MetricProtocol",
     "MultipleComparison",
@@ -91,6 +95,8 @@ __all__ = [
     "match",
     "math",
     "max_score",
+    "mcnemar_from_scores",
+    "mcnemar_test",
     "mean",
     "mean_score",
     "median_score",

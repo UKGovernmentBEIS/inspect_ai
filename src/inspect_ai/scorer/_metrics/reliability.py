@@ -33,6 +33,7 @@ CLT for the means/mean-differences of eval scores. The *paired* structure — no
 and consistent with :func:`ci`.
 """
 
+import math
 from dataclasses import dataclass
 from logging import getLogger
 from statistics import NormalDist
@@ -137,11 +138,38 @@ def _p_value(z_stat: float, alternative: Alternative) -> float:
         )
 
 
+def _clustered_diff_stderr(diffs: Sequence[float], labels: Sequence[object]) -> float:
+    """Cluster-robust standard error of the mean per-sample *difference*.
+
+    The same finite-cluster-corrected estimator as :func:`_clustered_stderr`
+    (Appendix A of https://arxiv.org/pdf/2411.00640), but applied to the
+    per-sample differences rather than a single model's scores — this is the
+    quantity that becomes wrong when epochs/templates induce within-cluster
+    correlation in the *delta*. Returns 0.0 with fewer than two clusters.
+    """
+    import numpy as np
+
+    d = np.asarray(diffs, dtype=float)
+    lab = np.asarray(labels)
+    n = len(d)
+    unique = np.unique(lab)
+    c = len(unique)
+    if c < 2:
+        return 0.0
+    mean = float(d.mean())
+    clustered_var = 0.0
+    for cluster_id in unique:
+        e = d[lab == cluster_id] - mean
+        clustered_var += float(np.outer(e, e).sum())
+    return float(np.sqrt(clustered_var * c / (c - 1)) / n)
+
+
 def paired_delta(
     scores_a: Sequence[float],
     scores_b: Sequence[float],
     level: float = 0.95,
     alternative: Alternative = "two-sided",
+    clusters: Sequence[object] | None = None,
 ) -> dict[str, float]:
     """Paired confidence interval and significance test for a per-sample score delta.
 
@@ -164,10 +192,17 @@ def paired_delta(
           tests `delta != 0`; `"greater"` tests `delta > 0` (A beats B); `"less"`
           tests `delta < 0`. The confidence interval is always the two-sided
           `level` interval regardless of this setting.
+       clusters: Optional per-pair cluster labels (e.g. template, document, or
+          question group). When given, `stderr` — and therefore the interval and
+          p-value — is the **cluster-robust** standard error of the mean
+          *difference*, consistent with the clustered `stderr`/`ci` metrics but
+          applied to the delta. The result then also carries `stderr_iid` (the
+          uncorrected SE) and `design_effect` (`(stderr / stderr_iid) ** 2`).
 
     Returns:
        Mapping with `delta` (mean A − B), `stderr` (paired standard error),
        `lower`/`upper` (interval bounds), `p_value`, and `n` (number of pairs).
+       With `clusters` set it also includes `stderr_iid` and `design_effect`.
     """
     import numpy as np
 
@@ -180,6 +215,11 @@ def paired_delta(
             "paired_delta requires aligned, equal-length score vectors "
             f"(got {len(scores_a)} and {len(scores_b)}); align by sample id first"
         )
+    if clusters is not None and len(clusters) != len(scores_a):
+        raise ValueError(
+            f"clusters must have one label per pair (got {len(clusters)} for "
+            f"{len(scores_a)} pairs)"
+        )
 
     diffs = np.asarray(scores_a, dtype=float) - np.asarray(scores_b, dtype=float)
     n = len(diffs)
@@ -188,7 +228,7 @@ def paired_delta(
     if n < 2:
         # The standard error (and thus the interval/test) is undefined for fewer
         # than two pairs; collapse to the point estimate.
-        return {
+        out = {
             "delta": delta,
             "stderr": 0.0,
             "lower": delta,
@@ -196,8 +236,18 @@ def paired_delta(
             "p_value": 1.0,
             "n": float(n),
         }
+        if clusters is not None:
+            out["stderr_iid"] = 0.0
+            out["design_effect"] = 0.0
+        return out
 
-    se = float(np.std(diffs, ddof=1) / np.sqrt(n))
+    se_iid = float(np.std(diffs, ddof=1) / np.sqrt(n))
+    design_effect = 0.0
+    if clusters is not None:
+        se = _clustered_diff_stderr(diffs, clusters)
+        design_effect = (se / se_iid) ** 2 if se_iid > 0 else 0.0
+    else:
+        se = se_iid
     tail = (1.0 - level) / 2.0
     z = NormalDist().inv_cdf(1.0 - tail)
 
@@ -206,7 +256,7 @@ def paired_delta(
         # the test is degenerate (exactly zero delta is "not significant", any
         # non-zero constant delta is "infinitely significant").
         p_value = 1.0 if delta == 0.0 else 0.0
-        return {
+        out = {
             "delta": delta,
             "stderr": 0.0,
             "lower": delta,
@@ -214,9 +264,13 @@ def paired_delta(
             "p_value": p_value,
             "n": float(n),
         }
+        if clusters is not None:
+            out["stderr_iid"] = se_iid
+            out["design_effect"] = design_effect
+        return out
 
     z_stat = delta / se
-    return {
+    out = {
         "delta": delta,
         "stderr": se,
         "lower": float(delta - z * se),
@@ -224,6 +278,10 @@ def paired_delta(
         "p_value": _p_value(z_stat, alternative),
         "n": float(n),
     }
+    if clusters is not None:
+        out["stderr_iid"] = se_iid
+        out["design_effect"] = design_effect
+    return out
 
 
 def align_paired_scores(
@@ -480,6 +538,144 @@ def power_for_samples(
     )
     ncp = abs(delta) * (n**0.5) / sd_diff
     return NormalDist().cdf(ncp - z_a)
+
+
+@dataclass(frozen=True)
+class McNemarResult:
+    """Outcome of McNemar's test for a pair of binary (0/1) score vectors.
+
+    `n_a_only` counts samples A got right and B got wrong; `n_b_only` the
+    reverse. Concordant samples (both right or both wrong) carry no information
+    about the difference and are ignored by the test.
+
+    Attributes:
+       n_a_only: Discordant samples where A is right and B is wrong.
+       n_b_only: Discordant samples where A is wrong and B is right.
+       statistic: The chi-square statistic (`None` for the exact binomial test).
+       p_value: Two-sided p-value for `H0: the models are equally accurate`.
+       method: `"mcnemar_exact"`, `"mcnemar_chi2"`, or `"mcnemar_chi2_cc"`.
+    """
+
+    n_a_only: int
+    n_b_only: int
+    statistic: float | None
+    p_value: float
+    method: str
+
+    @property
+    def n_discordant(self) -> int:
+        """Number of samples the two models disagree on."""
+        return self.n_a_only + self.n_b_only
+
+
+def _binom_two_sided_p(b: int, c: int) -> float:
+    """Exact two-sided McNemar p-value.
+
+    Under H0 the `b` discordant successes are `Binomial(b + c, 0.5)`; this sums
+    the two-sided tail in closed form with `math.comb`.
+    """
+    n = b + c
+    if n == 0:
+        return 1.0
+    k = min(b, c)
+    tail = sum(math.comb(n, i) for i in range(k + 1)) * (0.5**n)
+    return min(1.0, 2.0 * tail)
+
+
+def mcnemar_test(
+    n_a_only: int,
+    n_b_only: int,
+    *,
+    exact: bool | None = None,
+    continuity_correction: bool = True,
+) -> McNemarResult:
+    """McNemar's test for two paired **binary** classifiers on shared samples.
+
+    For binary (0/1) single-shot scores, only the discordant samples — where
+    exactly one model is right — carry information about which model is better,
+    and the exact test is a binomial sign test on those. This is both more
+    correct in small samples and more legible ("the models disagree on N items")
+    than the normal-approximation :func:`paired_delta`. For non-binary or
+    epoch-averaged scores, use :func:`paired_delta` instead.
+
+    Args:
+       n_a_only: Samples A got right and B got wrong (discordant `b`).
+       n_b_only: Samples A got wrong and B got right (discordant `c`).
+       exact: Use the exact binomial test. Defaults to `True` when there are at
+          most 25 discordant pairs (where the chi-square approximation is
+          unreliable) and `False` otherwise.
+       continuity_correction: Apply Edwards' continuity correction to the
+          chi-square statistic. Ignored by the exact test.
+
+    Returns:
+       A :class:`McNemarResult`.
+    """
+    b, c = int(n_a_only), int(n_b_only)
+    if b < 0 or c < 0:
+        raise ValueError("discordant counts must be non-negative")
+    n = b + c
+    if n == 0:
+        return McNemarResult(b, c, 0.0, 1.0, "mcnemar_exact")
+
+    if exact is None:
+        exact = n <= 25
+
+    if exact:
+        return McNemarResult(b, c, None, _binom_two_sided_p(b, c), "mcnemar_exact")
+
+    stat_delta = float(abs(b - c))
+    if continuity_correction:
+        stat_delta = max(0.0, stat_delta - 1.0)
+    statistic = (stat_delta * stat_delta) / n
+    # Survival function of a chi-square with 1 dof: P(X > x) = erfc(sqrt(x / 2)).
+    p_value = math.erfc(math.sqrt(statistic / 2.0))
+    method = "mcnemar_chi2_cc" if continuity_correction else "mcnemar_chi2"
+    return McNemarResult(b, c, statistic, p_value, method)
+
+
+def mcnemar_from_scores(
+    scores_a: Sequence[float],
+    scores_b: Sequence[float],
+    *,
+    exact: bool | None = None,
+    continuity_correction: bool = True,
+) -> McNemarResult:
+    """McNemar's test from two aligned binary (0/1) score vectors.
+
+    The vectors must be aligned by sample (see :func:`align_paired_scores`) and
+    contain only 0.0/1.0 values — otherwise a `ValueError` is raised, since
+    McNemar is defined only for binary single-shot outcomes. For non-binary or
+    epoch-averaged scores use :func:`paired_delta`.
+
+    Args:
+       scores_a: Per-sample binary scores for model/run A.
+       scores_b: Per-sample binary scores for model/run B, aligned with A.
+       exact: See :func:`mcnemar_test`.
+       continuity_correction: See :func:`mcnemar_test`.
+
+    Returns:
+       A :class:`McNemarResult`.
+    """
+    import numpy as np
+
+    a = np.asarray(scores_a, dtype=float)
+    b = np.asarray(scores_b, dtype=float)
+    if a.shape != b.shape or a.ndim != 1:
+        raise ValueError("scores_a and scores_b must be 1-D and the same length")
+
+    def _binary(arr: np.ndarray) -> bool:
+        return bool(arr.size) and bool(np.all((arr == 0.0) | (arr == 1.0)))
+
+    if not _binary(a) or not _binary(b):
+        raise ValueError(
+            "McNemar's test requires binary (0/1) scores on both sides; for "
+            "non-binary or epoch-averaged scores use paired_delta instead"
+        )
+    n_a_only = int(np.count_nonzero((a == 1.0) & (b == 0.0)))
+    n_b_only = int(np.count_nonzero((a == 0.0) & (b == 1.0)))
+    return mcnemar_test(
+        n_a_only, n_b_only, exact=exact, continuity_correction=continuity_correction
+    )
 
 
 @metric

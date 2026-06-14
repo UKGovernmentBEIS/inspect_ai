@@ -32,6 +32,8 @@ from inspect_ai.scorer._metrics.reliability import (
     align_paired_scores,
     benjamini_hochberg,
     holm_bonferroni,
+    mcnemar_from_scores,
+    mcnemar_test,
     min_samples_for_delta,
     paired_delta,
     power_for_samples,
@@ -746,6 +748,67 @@ def test_paired_delta_small_sample_collapses():
     assert result["delta"] == 1.0
     assert result["lower"] == result["upper"] == 1.0
     assert result["p_value"] == 1.0
+
+
+def test_paired_delta_clustered_se_exceeds_iid_under_within_cluster_correlation():
+    # Two clusters (e.g. prompt templates) of four pairs each. Within a cluster
+    # the per-sample differences are identical, so the effective sample size is
+    # ~2 clusters, not 8 pairs: the cluster-robust delta SE must exceed the i.i.d.
+    # SE and the design effect must be > 1. Mirrors the clustered stderr/ci
+    # metrics, but applied to the *difference*.
+    a, b, clusters = [], [], []
+    for label, d in (("t1", 0.2), ("t2", -0.1)):
+        for _ in range(4):
+            a.append(d)
+            b.append(0.0)
+            clusters.append(label)
+
+    iid = paired_delta(a, b)
+    clustered = paired_delta(a, b, clusters=clusters)
+    assert clustered["delta"] == pytest.approx(iid["delta"])
+    assert clustered["stderr_iid"] == pytest.approx(iid["stderr"])
+    assert clustered["stderr"] > clustered["stderr_iid"]
+    assert clustered["design_effect"] > 1.0
+    assert (clustered["upper"] - clustered["lower"]) > (iid["upper"] - iid["lower"])
+
+
+def test_paired_delta_clusters_validates_length():
+    with pytest.raises(ValueError):
+        paired_delta([1.0, 0.0, 1.0], [0.0, 0.0, 0.0], clusters=["a", "b"])
+
+
+def test_mcnemar_exact_matches_binomial_sign_test():
+    # 3 vs 0 discordant: exact two-sided p = 2 * P(X <= 0 | Binom(3, 0.5)) = 2/8.
+    r = mcnemar_test(3, 0)
+    assert r.method == "mcnemar_exact"
+    assert r.statistic is None
+    assert r.p_value == pytest.approx(2 * (0.5**3))
+    assert r.n_discordant == 3
+    # Symmetric discordants are maximally non-significant.
+    assert mcnemar_test(7, 7, exact=True).p_value == pytest.approx(1.0)
+    # No discordant pairs -> nothing to distinguish.
+    assert mcnemar_test(0, 0).p_value == 1.0
+
+
+def test_mcnemar_chi2_with_continuity_correction():
+    from math import erfc, sqrt
+
+    r = mcnemar_test(40, 10)  # 50 discordant -> chi-square approximation
+    assert r.method == "mcnemar_chi2_cc"
+    assert r.statistic == pytest.approx((29.0**2) / 50.0)  # (|40-10|-1)^2 / 50
+    assert r.p_value == pytest.approx(erfc(sqrt(r.statistic / 2.0)))
+    assert r.p_value < 0.05
+
+
+def test_mcnemar_from_scores_counts_and_requires_binary():
+    a = [1, 1, 1, 0, 1, 0]
+    b = [0, 0, 1, 0, 1, 1]
+    r = mcnemar_from_scores(a, b)  # A-only: idx 0,1 -> 2 ; B-only: idx 5 -> 1
+    assert (r.n_a_only, r.n_b_only) == (2, 1)
+    with pytest.raises(ValueError):  # epoch-averaged / non-binary -> use paired_delta
+        mcnemar_from_scores([0.5, 1.0, 0.0], [0.0, 1.0, 1.0])
+    with pytest.raises(ValueError):
+        mcnemar_from_scores([1, 0, 1], [1, 0])
 
 
 def test_align_paired_scores_orders_by_sample_id():
