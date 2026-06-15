@@ -17,16 +17,6 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
-[options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
-exclude-newer-span = "P1W"
-
-[options.exclude-newer-package]
-inspect-petri = false
-inspect-ai = false
-inspect-scout = false
-inspect-swe = false
-
 [[package]]
 name = "adlfs"
 version = "2026.5.0"
