@@ -186,3 +186,64 @@ invalid_utf8_b64 = base64.b64encode(invalid_utf8_bytes).decode("utf-8")
 def test_parse_content_with_internal_invalid_encoding(s, expected_exception):
     with pytest.raises(expected_exception):
         parse_content_with_internal(s, "internal")
+
+
+async def test_chat_completions_forwards_config_extra_headers():
+    """config.extra_headers must reach the chat completions request (#same as responses/compatible)."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai._types import NOT_GIVEN
+    from openai.types.chat import ChatCompletion, ChatCompletionMessage
+    from openai.types.chat.chat_completion import Choice
+
+    from inspect_ai.model._providers.openai_completions import generate_completions
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    mock_completion = ChatCompletion.model_construct(
+        id="chatcmpl-test",
+        created=0,
+        model="gpt-4o",
+        object="chat.completion",
+        choices=[
+            Choice.model_construct(
+                finish_reason="stop",
+                index=0,
+                message=ChatCompletionMessage.model_construct(
+                    role="assistant", content="hello"
+                ),
+            )
+        ],
+    )
+
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(return_value=mock_completion)
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    openai_api = MagicMock()
+    openai_api.api_model_name.return_value = "gpt-4o"
+    openai_api.service_tier = None
+    openai_api.is_o_series.return_value = False
+    openai_api.is_gpt.return_value = True
+    openai_api.is_gpt_5.return_value = False
+
+    await generate_completions(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[ChatMessageUser(content="hi")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(extra_headers={"x-custom-header": "custom-value"}),
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        openai_api=openai_api,
+        batcher=None,
+    )
+
+    extra_headers = client.chat.completions.create.call_args.kwargs["extra_headers"]
+    assert extra_headers["x-custom-header"] == "custom-value"
+    assert extra_headers[HttpxHooks.REQUEST_ID_HEADER] == "req_1"

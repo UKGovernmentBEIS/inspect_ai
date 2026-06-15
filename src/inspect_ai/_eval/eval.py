@@ -1142,7 +1142,7 @@ def eval_retry(
             Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections:
             Adaptive concurrency for Model API connections. Defaults to enabled
-            (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100).
+            (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100).
             Pass `False` to opt out (uses static concurrency), an integer `N` as
             shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency`
             to fully customize bounds and tuning (cooldown_seconds, decrease_factor,
@@ -1314,7 +1314,7 @@ async def eval_retry_async(
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
-        adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
+        adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
         checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
 
     Returns:

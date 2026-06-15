@@ -120,7 +120,7 @@ MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (
 ADAPTIVE_CONNECTIONS_HELP = (
     "Adaptive concurrency for Model API connections, automatically scaling "
     "between bounds based on rate-limit feedback (default: enabled, with "
-    "min=4, start=20, max=100). Pass `false` to opt out, an integer N for "
+    "min=10, start=20, max=100). Pass `false` to opt out, an integer N for "
     "a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or "
     "`min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and "
     "`--batch` take precedence."
@@ -811,6 +811,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(
+        "--fallback-models",
+        type=str,
+        help="Fallback models (comma-separated, tried in order) when the model's safety classifiers refuse the request. Anthropic Claude API only.",
+        envvar="INSPECT_EVAL_FALLBACK_MODELS",
+    )
+    @click.option(
         "--verbosity",
         type=click.Choice(["low", "medium", "high"]),
         help='Constrains the verbosity of the model\'s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)',
@@ -1012,6 +1018,7 @@ def _eval_command_impl(
     internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    fallback_models: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
@@ -1277,6 +1284,7 @@ def eval_set_command(
     internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    fallback_models: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
@@ -1917,6 +1925,8 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
         if key in config_keys and value is not None:
             if key == "stop_seqs":
                 value = value.split(",")
+            if key == "fallback_models":
+                value = [m.strip() for m in value.split(",")]
             if key == "logprobs" and value is False:
                 value = None
             if key == "logit_bias" and value is not None:

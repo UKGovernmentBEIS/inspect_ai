@@ -307,6 +307,9 @@ def _write_sample_streaming(
 
             _write_json_field(stream, "model_usage", summary.model_usage, comma=True)
             _write_json_field(stream, "role_usage", summary.role_usage, comma=True)
+            _write_json_field(
+                stream, "model_fallbacks", summary.model_fallbacks, comma=True
+            )
             _write_json_field(stream, "started_at", summary.started_at, comma=True)
             _write_json_field(stream, "completed_at", summary.completed_at, comma=True)
             _write_json_field(stream, "total_time", summary.total_time, comma=True)
