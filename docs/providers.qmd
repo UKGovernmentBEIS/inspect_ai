@@ -257,6 +257,16 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis
 
 Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
 
+### Cache TTL {#anthropic-cache-ttl}
+
+Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default, using the standard 5-minute cache TTL. Use the `cache_ttl` model arg (`-M`) to specify a different TTL. Valid values are "5m" (the default) and "1h":
+
+``` bash
+inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
+```
+
+Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart.
+
 ### Streaming
 
 The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:

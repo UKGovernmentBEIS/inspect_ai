@@ -20,7 +20,7 @@
             "type": "integer"
           },
           "min": {
-            "default": 4,
+            "default": 10,
             "title": "Min",
             "type": "integer"
           },

@@ -95,6 +95,7 @@ from inspect_ai.model._internal import (
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
+    RESPONSES_NAMESPACE,
     TOOL_SEARCH_NAME,
     TOOL_SEARCH_OPTIONS_MARKER,
     assistant_internal,
@@ -512,6 +513,8 @@ def tools_from_responses_tool(
     locate the tool on the return trip.
     """
     if is_namespace_tool_param(tool_param):
+        ns_name = tool_param.get("name")
+        ns_desc = tool_param.get("description") or ns_name
         flattened: list[ToolInfo | Tool] = []
         for inner in tool_param.get("tools", []):
             inner_param = cast(ToolParam, inner)
@@ -519,6 +522,16 @@ def tools_from_responses_tool(
                 inner_param, web_search_providers, code_execution_providers
             )
             if inner_tool is not None:
+                # Stash the namespace so openai_responses_tools can re-group
+                # into a NamespaceToolParam on the outgoing request. Without
+                # this the tool reaches the API flat as functions.<name>,
+                # which OpenAI rejects on models that reserve those names for
+                # encrypted tool use (e.g. codex's multi_agent_v1.spawn_agent).
+                if isinstance(inner_tool, ToolInfo) and ns_name:
+                    inner_tool.options = {
+                        **(inner_tool.options or {}),
+                        RESPONSES_NAMESPACE: (ns_name, ns_desc),
+                    }
                 flattened.append(inner_tool)
         return flattened
     tool = tool_from_responses_tool(
