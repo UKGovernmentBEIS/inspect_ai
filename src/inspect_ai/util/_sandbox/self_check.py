@@ -1,7 +1,6 @@
 import random
 import string
 from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
-from unittest import mock
 
 import anyio
 
@@ -10,6 +9,7 @@ from inspect_ai.util import (
     SandboxEnvironment,
     SandboxEnvironmentLimits,
 )
+from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
 # If you're wondering these tests are not using pytest fixtures,
 # see the discussion https://github.com/UKGovernmentBEIS/inspect_ai/pull/347
@@ -236,12 +236,12 @@ async def test_read_file_nonsense_name(
 async def test_read_file_limit(sandbox_env: SandboxEnvironment) -> None:
     file_name = "large.file"
     await sandbox_env.write_file(file_name, "a" * 2048)  # 2 KiB
-    # Patch limit down to 1KiB for the test to save us from writing a 100 MiB file.
-    with mock.patch.object(SandboxEnvironmentLimits, "MAX_READ_FILE_SIZE", 1024):
+    with override_max_read_file_size(1024):
+        expected_limit = SandboxEnvironmentLimits.MAX_READ_FILE_SIZE_STR
         with Raises(OutputLimitExceededError) as e_info:
             await sandbox_env.read_file(file_name, text=True)
     assert e_info is not None, "OutputLimitExceededError should be raised"
-    assert "limit of 100 MiB was exceeded" in str(e_info.value), (
+    assert f"limit of {expected_limit} was exceeded" in str(e_info.value), (
         f"OutputLimitExceededError should mention the limit, got {e_info.value=}"
     )
     await _cleanup_file(sandbox_env, file_name)
