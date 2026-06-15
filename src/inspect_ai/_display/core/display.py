@@ -180,3 +180,4 @@ class Display(Protocol):
         the "completed / total" denominator reflects the growing set. No-op by
         default; displays that show a total override this.
         """
+        return None
