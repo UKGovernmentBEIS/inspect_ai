@@ -46,7 +46,7 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.log._recorders.eval import ZipLogFile
-from inspect_ai.model import CachePolicy, Model, get_model
+from inspect_ai.model import Model, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
@@ -719,13 +719,10 @@ def test_task_identifier_with_model_roles_model_configs():
     "field,value",
     [
         ("max_connections", 48),
-        ("adaptive_connections", False),
         ("max_retries", 20),
         ("timeout", 600),
         ("attempt_timeout", 60),
         ("batch", True),
-        ("cache_prompt", True),
-        ("cache", CachePolicy(expiry="1M")),
     ],
 )
 def test_task_identifier_ignores_runtime_config(field: str, value: object):

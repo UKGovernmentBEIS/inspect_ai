@@ -1221,10 +1221,7 @@ _GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
     "timeout",
     "attempt_timeout",
     "max_connections",
-    "adaptive_connections",
     "batch",
-    "cache",
-    "cache_prompt",
 }
 
 
