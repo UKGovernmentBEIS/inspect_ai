@@ -37,6 +37,10 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
+from inspect_ai.model._assistant_internal import (
+    dump_sample_assistant_internal,
+    init_sample_assistant_internal,
+)
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.util._restic import (
     ResticBackupSummary,
@@ -50,6 +54,7 @@ from inspect_ai.util._store import Store, store_jsonable
 from ._host_egress import host_egress
 from ._layout.host_context import (
     AGENT_STATE,
+    ASSISTANT_INTERNAL,
     ATTACHMENTS,
     EVENTS,
     EVENTS_DATA,
@@ -125,6 +130,8 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
             epoch=self._epoch,
             resume_checkpoint=self._resume_checkpoint,
         )
+        if result.host.assistant_internal is not None:
+            init_sample_assistant_internal(result.host.assistant_internal)
         reset_transcript_store = self._reset_transcript_store_on_next_enter
         self._cached = _EnteredCheckpointer(
             config=self._config,
@@ -564,6 +571,12 @@ class _EnteredCheckpointer:
             write_text_atomic(
                 context_path / AGENT_STATE,
                 to_json_str_safe(agent_state),
+            )
+        assistant_internal = dump_sample_assistant_internal()
+        if assistant_internal is not None:
+            write_text_atomic(
+                context_path / ASSISTANT_INTERNAL,
+                to_json_str_safe(assistant_internal),
             )
         self._transcript_store.write_transcript_files(
             events_path=context_path / EVENTS,

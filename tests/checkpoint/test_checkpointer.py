@@ -1196,6 +1196,59 @@ async def test_track_not_registered_no_file(tmp_path: Path) -> None:
     assert await _write_agent_state(tmp_path, cp) is None
 
 
+# === _write_host_context: assistant internal ================================
+
+
+@contextmanager
+def _populated_assistant_internal() -> Iterator[None]:
+    """Populate anthropic assistant-internal state; reset on exit."""
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._providers.anthropic import assistant_internal
+
+    init_sample_assistant_internal()
+    assistant_internal().thinking_blocks["h1"] = {
+        "type": "thinking",
+        "thinking": "hmm",
+        "signature": "sig",
+    }
+    try:
+        yield
+    finally:
+        init_sample_assistant_internal()
+
+
+async def test_write_host_context_includes_assistant_internal(tmp_path: Path) -> None:
+    """Provider-recorded state lands in assistant_internal.json and reads back."""
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    with _populated_assistant_internal():
+        cp = _make_cp()
+        work = tmp_path / "work"
+        work.mkdir()
+        await cp._write_host_context(str(work), Store())
+
+        data = json.loads((work / "assistant_internal.json").read_text())
+        assert data["anthropic"]["thinking_blocks"]["h1"]["thinking"] == "hmm"
+        assert host_context.read(str(work)).assistant_internal == data
+
+
+async def test_write_host_context_skips_empty_assistant_internal(
+    tmp_path: Path,
+) -> None:
+    """With nothing recorded, assistant_internal.json is not written."""
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    init_sample_assistant_internal()
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+
+    assert not (work / "assistant_internal.json").exists()
+    assert host_context.read(str(work)).assistant_internal is None
+
+
 def test_track_noop_session() -> None:
     """`_NoopCheckpointer.track()` returns initial_value and never registers."""
     cp = _NoopCheckpointer()

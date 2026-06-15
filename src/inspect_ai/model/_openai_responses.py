@@ -628,8 +628,43 @@ def assistant_internal() -> _AssistantInternal:
     return _openai_assistant_internal.get()
 
 
-def init_sample_openai_assistant_internal() -> None:
-    _openai_assistant_internal.set(_AssistantInternal())
+def init_sample_openai_assistant_internal(value: JsonValue | None = None) -> None:
+    """Initialize (``value is None``) or restore the sample's assistant internal.
+
+    Restore (``value`` from a prior :func:`dump_openai_assistant_internal`)
+    mutates the current instance in place rather than rebinding the context
+    var, so the restored state is visible outside the restoring task — see
+    ``inspect_ai.model._assistant_internal``.
+    """
+    if value is None:
+        _openai_assistant_internal.set(_AssistantInternal())
+        return
+    assert isinstance(value, dict)
+    internal = assistant_internal()
+    internal.tool_calls.update(cast("dict[str, Any]", value.get("tool_calls", {})))
+    internal.server_tool_uses.update(
+        cast("dict[str, Any]", value.get("server_tool_uses", {}))
+    )
+
+
+def dump_openai_assistant_internal() -> JsonValue | None:
+    """Dump the sample's assistant internal as a JSON value (``None`` if empty).
+
+    Values are the SDK's ``TypedDict`` request params — plain dicts at
+    runtime, so they serialize as-is and restore via cast with no
+    validation (corrupt data surfaces at request time, as it would have
+    in-memory).
+    """
+    internal = assistant_internal()
+    if not internal.tool_calls and not internal.server_tool_uses:
+        return None
+    return cast(
+        JsonValue,
+        {
+            "tool_calls": dict(internal.tool_calls),
+            "server_tool_uses": dict(internal.server_tool_uses),
+        },
+    )
 
 
 _openai_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
