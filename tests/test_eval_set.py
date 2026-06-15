@@ -46,7 +46,7 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.log._recorders.eval import ZipLogFile
-from inspect_ai.model import get_model
+from inspect_ai.model import CachePolicy, Model, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
@@ -713,6 +713,40 @@ def test_task_identifier_with_model_roles_model_configs():
         resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
     )
     run_eval_set(create_resolved_tasks)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("max_connections", 48),
+        ("adaptive_connections", False),
+        ("max_retries", 20),
+        ("timeout", 600),
+        ("attempt_timeout", 60),
+        ("batch", True),
+        ("cache_prompt", True),
+        ("cache", CachePolicy(expiry="1M")),
+    ],
+)
+def test_task_identifier_ignores_runtime_config(field: str, value: object):
+    # runtime concurrency / caching knobs don't affect outputs and shouldn't
+    # break eval_set resume — for either the primary model's config or any
+    # role's config.
+    primary_default = get_model("mockllm/model")
+    primary_tuned = get_model("mockllm/model", config=GenerateConfig(**{field: value}))
+    role_default = get_model("mockllm/scorer")
+    role_tuned = get_model("mockllm/scorer", config=GenerateConfig(**{field: value}))
+    args = EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+
+    def ident(primary: Model, role: Model) -> str:
+        t = hello_world()
+        task_with(t, model=primary, model_roles={"scorer": role})
+        (resolved,) = resolve_tasks([t], {}, primary, None, None, None)
+        return task_identifier(resolved, args)
+
+    baseline = ident(primary_default, role_default)
+    assert ident(primary_tuned, role_default) == baseline
+    assert ident(primary_default, role_tuned) == baseline
 
 
 def test_task_identifier_with_task_generate_configs():

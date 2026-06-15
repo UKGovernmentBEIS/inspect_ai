@@ -1221,7 +1221,10 @@ _GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
     "timeout",
     "attempt_timeout",
     "max_connections",
+    "adaptive_connections",
     "batch",
+    "cache",
+    "cache_prompt",
 }
 
 
@@ -1345,7 +1348,13 @@ def task_identifier(
 
     # hash for model roles
     if len(model_roles):
-        additional_hash_input += to_json_safe(model_roles)
+        additional_hash_input += to_json_safe(
+            model_roles,
+            exclude={
+                role: {"config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE}
+                for role in model_roles
+            },
+        )
 
     additional_hash_input += to_json_safe(additional_hash_fields)
 
