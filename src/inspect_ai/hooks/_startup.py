@@ -40,6 +40,7 @@ def _load_registry_hooks() -> list[Hooks]:
     if _registry_hooks_loaded:
         return []
 
+    import inspect_ai.hooks._sandbox_fingerprint._hook  # noqa: F401
     from inspect_ai.hooks._hooks import get_all_hooks
 
     # Note that hooks loaded by virtue of load_file_tasks() -> load_module() (e.g.

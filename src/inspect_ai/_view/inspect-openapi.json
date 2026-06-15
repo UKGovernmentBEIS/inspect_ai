@@ -3510,6 +3510,20 @@
               }
             ]
           },
+          "sandbox_fingerprint": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SandboxFingerprint"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sandbox Fingerprint"
+          },
           "scores": {
             "anyOf": [
               {
@@ -8219,6 +8233,109 @@
           "action"
         ],
         "title": "SandboxEvent",
+        "type": "object"
+      },
+      "SandboxFingerprint": {
+        "description": "Resolved runtime fingerprint of a sandbox environment.\n\nCaptured while a sample's sandbox is live, this records what the sandbox\n*actually resolved to* (image digest, OS, packages, ...) as opposed to the\n`SandboxEnvironmentSpec` recipe, which only records the (often mutable)\nconfiguration. All fields are optional so partial/degraded probes (e.g. a\nnon-docker provider that has no host-side image) remain valid.",
+        "properties": {
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "image_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Id"
+          },
+          "kernel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kernel"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "network_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Profile"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "packages": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packages"
+          },
+          "repo_digests": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo Digests"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "metadata"
+        ],
+        "title": "SandboxFingerprint",
         "type": "object"
       },
       "ScannerResultField": {

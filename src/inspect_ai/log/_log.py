@@ -36,7 +36,10 @@ from inspect_ai.model import (
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
-from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironmentSpec,
+    SandboxFingerprint,
+)
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 from inspect_ai.viewer import ViewerConfig
@@ -382,6 +385,9 @@ class EvalSample(BaseModel):
 
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
+
+    sandbox_fingerprint: dict[str, SandboxFingerprint] | None = Field(default=None)
+    """Resolved runtime fingerprint of each sandbox environment (keyed by env name)."""
 
     files: list[str] | None = Field(default=None)
     """Files that go along with the sample (copied to SandboxEnvironment)"""

@@ -155,7 +155,11 @@ from inspect_ai.util._limit import (
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox import SandboxTimeoutError
-from inspect_ai.util._sandbox.context import sandbox_connections
+from inspect_ai.util._sandbox.context import (
+    init_sample_sandbox_fingerprint,
+    sample_sandbox_fingerprint,
+    sandbox_connections,
+)
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._sandbox.limits import reset_sandbox_limits, set_sandbox_limits
 from inspect_ai.util._span import span
@@ -1073,6 +1077,7 @@ async def task_run_sample(
 
         # initialise subtask and scoring context
         init_sample_model_data()
+        init_sample_sandbox_fingerprint()
         set_sample_state(state)
         sample_transcript_bounded, history_provider = _sample_transcript_config(
             logger, sample_id, state.epoch
@@ -1776,6 +1781,7 @@ def create_eval_sample(
         target=sample.target,
         metadata=state.metadata or {},
         sandbox=sample.sandbox,
+        sandbox_fingerprint=sample_sandbox_fingerprint(),
         files=list(sample.files.keys()) if sample.files else None,
         setup=sample.setup,
         messages=state.messages,

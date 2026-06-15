@@ -136,6 +136,8 @@ def reconstruct_eval_sample(
         working_time=summary.working_time,
         uuid=summary.uuid,
         error=error,
+        # not persisted to the buffer DB, so unrecoverable after a crash
+        sandbox_fingerprint=None,
     )
 
 

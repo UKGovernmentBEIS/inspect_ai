@@ -16,6 +16,7 @@ from .environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxFingerprint,
 )
 from .registry import registry_find_sandboxenv
 
@@ -401,6 +402,27 @@ sandbox_with_environments_context_var = ContextVar[dict[str, SandboxEnvironment]
 )
 
 sandbox_default_context_var = ContextVar[str]("sandbox_default")
+
+sandbox_fingerprint_context_var: ContextVar[dict[str, SandboxFingerprint] | None] = (
+    ContextVar("sandbox_fingerprint", default=None)
+)
+
+
+def init_sample_sandbox_fingerprint() -> None:
+    sandbox_fingerprint_context_var.set({})
+
+
+def record_sample_sandbox_fingerprint(
+    name: str, fingerprint: SandboxFingerprint
+) -> None:
+    fingerprints = sandbox_fingerprint_context_var.get()
+    if fingerprints is not None:
+        fingerprints[name] = fingerprint
+
+
+def sample_sandbox_fingerprint() -> dict[str, SandboxFingerprint] | None:
+    fingerprints = sandbox_fingerprint_context_var.get()
+    return fingerprints if fingerprints else None
 
 
 async def _get_injection_target(
