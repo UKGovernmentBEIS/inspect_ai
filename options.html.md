@@ -8,7 +8,7 @@ Inspect evaluations have a large number of options available for logging, tuning
 
 2.  Options that you want to tweak per-eval to accommodate particular scenarios.
 
-For the former, we recommend you specify these options in a `.env` file within your project directory, which is covered in the section below. See the [Eval Options](#eval-options) for details on all available options.
+For the former, we recommend you specify these options in a `.env` file within your project directory, which is covered in the section below. See [Specifying Options](#specifying-options) for details on all available options.
 
 ## .env Files
 
