@@ -16,6 +16,7 @@ from inspect_ai.solver import generate
 # new expected value and bump TASK_IDENTIFIER_VERSION.
 _EXPECTED_TASK_IDENTIFIERS: dict[int, str] = {
     1: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/29797164a2ed3858f2e5b9a08f6594cfe398a975e2094dadb17a15f84e53613c",
+    2: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/83650e91c9e6d632029a66c6c00022eadbc3ba23687c82c324f9f41cfc193104",
 }
 
 
@@ -46,7 +47,14 @@ def _create_resolved_task_with_all_fields():
         "mockllm/model",
         config=GenerateConfig(temperature=0.5),
     )
-    scorer_model = get_model("mockllm/scorer")
+    # The scorer model role sets both a task-identity-relevant field
+    # (temperature) and a runtime knob that task_identifier excludes
+    # (max_connections). The excluded knob must be present so that changes
+    # to which model_roles config fields are excluded are detectable here.
+    scorer_model = get_model(
+        "mockllm/scorer",
+        config=GenerateConfig(temperature=0.3, max_connections=5),
+    )
 
     @task
     def version_test_task(task_arg: str = "test_value"):
