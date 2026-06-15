@@ -13,6 +13,7 @@ from .extract import (
     sample_input_as_str,
     sample_messages_as_str,
     sample_path_requires_full,
+    sample_total_fallbacks,
     sample_total_tokens,
 )
 
@@ -75,6 +76,7 @@ SampleSummary: list[Column] = [
     SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
     SampleColumn("retries", path="retries"),
+    SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
 """Sample summary columns."""
 

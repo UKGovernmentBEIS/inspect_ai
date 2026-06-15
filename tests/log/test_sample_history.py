@@ -469,6 +469,70 @@ def test_read_only_connection_does_not_recreate_deleted_db(tmp_path):
     assert not os.path.exists(db_path), "read-only connect re-created the db file"
 
 
+def test_writable_connection_recreates_missing_parent_dir(tmp_path):
+    """A writable buffer re-creates its log directory if a sibling removed it.
+
+    Buffers that share a log directory live in one samplebuffer subdir, and
+    cleanup_sample_buffer_db() rmdir's that subdir whenever it is momentarily
+    empty. A sibling buffer initializing in the same subdir can therefore find
+    its parent directory gone between its own mkdir and connect (or when reusing
+    a persistent connection). The writable connect must re-create the directory
+    and succeed rather than raising "unable to open database file".
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db_path = db.db_path
+    subdir = db_path.parent
+
+    # simulate a sibling's cleanup emptying and removing the shared subdir
+    db._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+    subdir.rmdir()
+    assert not subdir.exists()
+
+    # a writable connect re-creates the directory and succeeds
+    conn = db._open_connection()
+    try:
+        assert subdir.exists()
+    finally:
+        conn.close()
+
+
+def test_read_only_connection_does_not_recreate_missing_parent_dir(tmp_path):
+    """Read-only connections must not resurrect a removed log directory.
+
+    The mirror of the writable case: a reader racing the buffer's teardown must
+    fail cleanly (so callers can degrade) rather than re-create the directory and
+    open an empty database that makes a finished task look running.
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+    db_path = db.db_path
+    subdir = db_path.parent
+
+    ro = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+
+    db._close_all_connections()
+    ro._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+    subdir.rmdir()
+
+    with pytest.raises(sqlite3.OperationalError):
+        ro._open_connection()
+    assert not subdir.exists(), "read-only connect re-created the log directory"
+
+
 def test_read_only_is_incompatible_with_create(tmp_path):
     with pytest.raises(ValueError, match="read_only"):
         SampleBufferDatabase(str(tmp_path / "test.eval"), read_only=True)

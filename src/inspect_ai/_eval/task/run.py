@@ -113,8 +113,8 @@ from inspect_ai.model import (
 from inspect_ai.model._model import (
     init_model_usage,
     init_role_usage,
-    init_sample_model_usage,
-    init_sample_role_usage,
+    init_sample_model_data,
+    sample_model_fallbacks,
     sample_model_usage,
     sample_role_usage,
 )
@@ -1072,8 +1072,7 @@ async def task_run_sample(
             )
 
         # initialise subtask and scoring context
-        init_sample_model_usage()
-        init_sample_role_usage()
+        init_sample_model_data()
         set_sample_state(state)
         sample_transcript_bounded, history_provider = _sample_transcript_config(
             logger, sample_id, state.epoch
@@ -1789,6 +1788,7 @@ def create_eval_sample(
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
+        model_fallbacks=sample_model_fallbacks() or None,
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,
