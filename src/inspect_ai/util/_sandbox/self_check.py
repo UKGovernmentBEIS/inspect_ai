@@ -420,22 +420,42 @@ async def test_exec_stderr(sandbox_env: SandboxEnvironment) -> None:
 _UTF8_OUTPUT = "café résumé €100 中文 😀"
 
 
+def _utf8_octal_escapes() -> str:
+    # Octal escapes for each UTF-8 byte of _UTF8_OUTPUT, e.g. r"\303\251...".
+    # 3-digit zero-padded so an adjacent digit can't extend the escape.
+    return "".join(f"\\{b:03o}" for b in _UTF8_OUTPUT.encode("utf-8"))
+
+
 async def test_exec_output_utf(sandbox_env: SandboxEnvironment) -> None:
-    exec_result = await sandbox_env.exec(["sh", "-c", f"printf '%s' '{_UTF8_OUTPUT}'"])
+    # Write the file byte-by-byte from ASCII-only octal escapes, then cat it, so
+    # the *command* carries no non-ASCII bytes. Interpolating _UTF8_OUTPUT into
+    # the command instead would let a symmetric transport bug hide: the same
+    # wrong encode going in and wrong decode coming out cancel, and the round
+    # trip passes while both directions are broken. Generating the bytes inside
+    # the sandbox exercises only the output-decode path.
+    octal = _utf8_octal_escapes()
+    file_name = "test_exec_output_utf.file"
+    exec_result = await sandbox_env.exec(
+        ["sh", "-c", f"printf '{octal}' > {file_name} && cat {file_name}"]
+    )
     assert exec_result.stdout == _UTF8_OUTPUT, (
         f"non-ASCII stdout should round-trip; expected {_UTF8_OUTPUT.encode('UTF-8')!r}, "
         f"got {exec_result.stdout.encode('UTF-8')!r}"
     )
+    await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_exec_stderr_utf(sandbox_env: SandboxEnvironment) -> None:
+    octal = _utf8_octal_escapes()
+    file_name = "test_exec_stderr_utf.file"
     exec_result = await sandbox_env.exec(
-        ["sh", "-c", f"printf '%s' '{_UTF8_OUTPUT}' >&2"]
+        ["sh", "-c", f"printf '{octal}' > {file_name} && cat {file_name} >&2"]
     )
     assert exec_result.stderr == _UTF8_OUTPUT, (
         f"non-ASCII stderr should round-trip; expected {_UTF8_OUTPUT.encode('UTF-8')!r}, "
         f"got {exec_result.stderr.encode('UTF-8')!r}"
     )
+    await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
