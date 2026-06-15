@@ -732,10 +732,11 @@ def test_task_identifier_ignores_runtime_config(field: str, value: object):
     # runtime concurrency / caching knobs don't affect outputs and shouldn't
     # break eval_set resume — for either the primary model's config or any
     # role's config.
+    tuned = GenerateConfig.model_validate({field: value})
     primary_default = get_model("mockllm/model")
-    primary_tuned = get_model("mockllm/model", config=GenerateConfig(**{field: value}))
+    primary_tuned = get_model("mockllm/model", config=tuned)
     role_default = get_model("mockllm/scorer")
-    role_tuned = get_model("mockllm/scorer", config=GenerateConfig(**{field: value}))
+    role_tuned = get_model("mockllm/scorer", config=tuned)
     args = EvalSetArgsInTaskIdentifier(config=GenerateConfig())
 
     def ident(primary: Model, role: Model) -> str:
