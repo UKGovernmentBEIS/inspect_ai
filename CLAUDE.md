@@ -45,7 +45,11 @@ Additional files provide context when working in specific areas:
 
 `design/` contains architecture notes, subsystem internals, and documentation of repo/CI/development processes and workflows. Browse it before diving into an unfamiliar area.
 
-## Meridian fork — opening upstream PRs
+## Pull requests
+
+When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
+
+### Opening upstream PRs from the meridian fork
 
 This repo is the `meridianlabs-ai/inspect_ai` fork of upstream `UKGovernmentBEIS/inspect_ai` (the `origin` remote). Day-to-day work and PRs target the meridian fork; occasionally a change is also sent upstream.
 
