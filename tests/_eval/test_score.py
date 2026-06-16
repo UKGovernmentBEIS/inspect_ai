@@ -535,10 +535,14 @@ async def test_score_preserves_model_usage_in_score_event():
         return score
 
     # Run the scoring
+    from inspect_ai.model._model import get_model
+
     results, _ = await _run_score_task(
         log_header=log_header,
         sample=sample,
         scorers=[simple_scorer(threshold=0.75)],
+        model=get_model("mockllm/model"),
+        model_roles={},
         action="append",
     )
 
@@ -548,3 +552,85 @@ async def test_score_preserves_model_usage_in_score_event():
     assert score_events[0].model_usage == sample_model_usage
     assert score_events[0].scorer == "simple_scorer"
     assert score_events[0].scorer_args == {"threshold": 0.75}
+
+
+@pytest.mark.anyio
+async def test_score_model_roles_override():
+    """score_async() model_roles overrides merge over roles reconstructed from the log."""
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_config import ModelConfig
+
+    @scorer(metrics=[accuracy()])
+    def judge_model_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            judge = get_model(role="judge")
+            return Score(value=1.0, answer=str(judge))
+
+        return score
+
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input="q",
+        target="a",
+        messages=[ChatMessageUser(role="user", content="q")],
+        output=ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(role="assistant", content="a")
+                )
+            ]
+        ),
+    )
+
+    log = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="test_task",
+            task_id="test",
+            run_id="test-run",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            model_roles={"judge": ModelConfig(model="mockllm/log-judge")},
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="test",
+            steps=[EvalPlanStep(solver="generate")],
+            config=GenerateConfig(),
+        ),
+        samples=[sample],
+    )
+
+    # no override -> judge role resolved from log header
+    scored = await score_async(
+        log=log, scorers=[judge_model_scorer()], action="overwrite"
+    )
+    assert scored.samples is not None
+    assert scored.samples[0].scores is not None
+    assert scored.samples[0].scores["judge_model_scorer"].answer == "mockllm/log-judge"
+
+    # override -> caller-supplied judge wins over the log-derived one
+    override = get_model("mockllm/override-judge")
+    scored = await score_async(
+        log=log,
+        scorers=[judge_model_scorer()],
+        model_roles={"judge": override},
+        action="overwrite",
+    )
+    assert scored.samples is not None
+    assert scored.samples[0].scores is not None
+    assert (
+        scored.samples[0].scores["judge_model_scorer"].answer
+        == "mockllm/override-judge"
+    )

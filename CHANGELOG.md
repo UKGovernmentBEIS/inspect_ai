@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Score: Support `model` and `model_roles` overrides for re-scoring (`inspect score --model` / `--model-role`).
 - Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs
 - Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
 - Inspect View: Fix log-list grid columns snapping back to default widths while data loads
