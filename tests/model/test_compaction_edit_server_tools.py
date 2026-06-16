@@ -202,7 +202,7 @@ async def test_server_tool_compaction_anthropic_web_search() -> None:
     """Test Anthropic native web_search tool compaction doesn't cause 400 errors."""
     tools = [_create_web_search_tool("anthropic")]
     await check_server_tool_compaction(
-        "anthropic/claude-sonnet-4-20250514",
+        "anthropic/claude-sonnet-4-5",
         tools=tools,
     )
 

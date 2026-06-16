@@ -1,14 +1,21 @@
 ## Unreleased
 
+- Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields (`max_connections`, `max_retries`, etc.) from `model_roles` configs, matching the existing exclusion for the primary model — so tuning a role's concurrency no longer breaks resume.
+— Inspect View: Fix log-list grid columns snapping back to default widths while data loads
+— Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
+— Inspect View:  Improve tool input density
+
+## 0.3.240 (15 June 2026)
+
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
 - Anthropic: Raise a clear error when `reasoning_tokens` is set on Claude 4.7+ or Claude 5 (which removed the `budget_tokens` control); use `reasoning_effort` instead.
 - OpenAI: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the responses and OpenAI-compatible paths honored it).
+- OpenAI: Preserve Responses API `NamespaceToolParam` grouping through agent bridge.
 - SageMaker: Fix streaming handler dropping reasoning tokens from thinking models.
 - Model API: Record model fallbacks as a typed `ModelOutput.fallback` and roll them up per-sample on `EvalSample.model_fallbacks` (and sample summaries); expose a `fallbacks` count column in `samples_df()`.
 - Agent Bridge: Preserve `NamespaceToolParam` grouping through to the OpenAI Responses API.
-- Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields (`max_connections`, `max_retries`, etc.) from `model_roles` configs, matching the existing exclusion for the primary model — so tuning a role's concurrency no longer breaks resume.
 - Adaptive Connections: Raise the default minimum from 4 to 10.
 - Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
@@ -19,6 +26,7 @@
 - Task Display: Update log/plain progress after errors.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
+- Sandbox: `self_check` now verifies that non-ASCII (UTF-8) command output round-trips correctly on `exec` stdout/stderr.
 - S3: Retry when requests have stale signatures.
 - Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
 - Inspect View: Fix occasional intermittent hang while attempting to navigate to sample

@@ -7,7 +7,7 @@ from inspect_ai.model import GenerateConfig, get_model
 
 @skip_if_no_anthropic
 async def test_generate_attempt_timeout() -> None:
-    m = get_model("anthropic/claude-sonnet-4-20250514")
+    m = get_model("anthropic/claude-sonnet-4-5")
 
     with pytest.raises(tenacity.RetryError):
         await m.generate(
