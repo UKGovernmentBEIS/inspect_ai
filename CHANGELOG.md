@@ -1,3 +1,8 @@
+## Unreleased
+
+- MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
+- MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
+
 ## 0.3.240 (15 June 2026)
 
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).

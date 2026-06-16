@@ -178,9 +178,15 @@ class MCPServerSession:
                         # This matches the MCP SDK's stdio_client behavior.
                         continue
 
-                    assert isinstance(message.root, JSONRPCResponse | JSONRPCError), (
-                        f"No unsolicited messages supported: {message}"
-                    )
+                    # Drop unsolicited server->client messages (notifications and
+                    # server-initiated requests). This session is a request/response
+                    # proxy and does not forward them to the client. Crucially we must
+                    # ignore them rather than crash the reader task: a server that
+                    # emits e.g. `notifications/tools/list_changed` after initialize
+                    # (legal for any server advertising listChanged) would otherwise
+                    # kill this loop and hang every pending request until timeout.
+                    if not isinstance(message.root, JSONRPCResponse | JSONRPCError):
+                        continue
                     self._resolve_request(message.root)
 
         except asyncio.CancelledError:
