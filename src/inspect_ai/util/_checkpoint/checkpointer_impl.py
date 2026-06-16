@@ -119,9 +119,14 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         # (e.g. a hook re-entering ``checkpointer()`` after the agent
         # returned) are no-ops.
         self._finalized = False
+        # Whether the agent's ``async with checkpointer()`` scope is currently
+        # open. Gates ``current()`` so a borrowed session isn't handed out
+        # (and fired through) after the scope — and its span machinery — closes.
+        self._entered = False
 
     async def __aenter__(self) -> Checkpointer:
         if self._cached is not None:
+            self._entered = True
             return self._cached
         result = await hydrate(
             config=self._config,
@@ -140,9 +145,15 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
             reset_transcript_store=reset_transcript_store,
         )
         self._reset_transcript_store_on_next_enter = False
+        self._entered = True
         return self._cached
 
     async def __aexit__(self, *exc: object) -> None:
+        # Leaving the agent's ``async with checkpointer()`` scope ends the
+        # borrow window: ``current()`` must stop handing out the session (its
+        # span scope is now closing). Reset unconditionally, ahead of the
+        # finalize gate's early returns.
+        self._entered = False
         # `exc[0]` is the propagating exception type (or None on a clean exit),
         # per the context-manager protocol.
         exc_type = exc[0] if exc else None
@@ -167,7 +178,11 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         await cp._fire("agent_complete", final=True)
 
     def current(self) -> Checkpointer | None:
-        return self._cached
+        # Expose the session only while the owner's scope is open. ``_cached``
+        # outlives that scope (until ``close()`` at teardown), but firing
+        # through it post-exit writes a span-less, unresumable checkpoint — so
+        # gate on ``_entered``, not ``_cached``.
+        return self._cached if self._entered else None
 
     def close(self) -> None:
         if self._cached is not None:
