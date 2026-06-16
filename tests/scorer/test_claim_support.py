@@ -76,3 +76,22 @@ def test_claim_support_absence_boundary_reaches_grader():
     )
     assert score.value == INCORRECT
     assert "absence of evidence" in score.metadata["grader_prompt"]
+
+
+def test_claim_support_absence_partial_maps_to_partial():
+    # Absence isn't support (#4143): the rubric permits PARTIAL *or* UNSUPPORTED for
+    # a negative claim the transcript can't substantiate — never SUPPORTED.
+    # Sister test test_claim_support_absence_boundary_reaches_grader already locks
+    # the UNSUPPORTED→INCORRECT branch for this same "no network calls" claim; this
+    # locks the other rubric-permitted verdict, PARTIAL→PARTIAL. Together they pin
+    # *both* absence-permitted grades to non-CORRECT, so neither can leak into
+    # CORRECT. Note: this locks the grade→score mapping, not grader fidelity (that a
+    # real grader honours the prompt and never returns SUPPORTED for an absence
+    # claim) — the latter isn't deterministically unit-testable with a mock grader.
+    score = _run(
+        "The transcript exposes no network events, so this is only weakly inferable.\n"
+        "GRADE: PARTIAL",
+        "I made no network calls during this task.",
+    )
+    assert score.value == PARTIAL
+    assert score.value != CORRECT
