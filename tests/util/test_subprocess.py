@@ -1,4 +1,3 @@
-import logging
 import os
 import shutil
 import sys
@@ -119,7 +118,7 @@ def _process_found(pattern: str) -> bool:
 
 
 @pytest.mark.anyio
-async def test_subprocess_timeout_with_lost_child_watcher(monkeypatch, caplog):
+async def test_subprocess_timeout_with_lost_child_watcher(monkeypatch):
     """Regression: timeout must still fire when process.wait() never resolves.
 
     Under heavy subprocess churn, asyncio's child watcher can miss a process
@@ -147,19 +146,27 @@ async def test_subprocess_timeout_with_lost_child_watcher(monkeypatch, caplog):
 
     monkeypatch.setattr(_subprocess_mod, "open_process", open_process_lost_watcher)
 
+    # inspect_ai's package loggers have propagate=False once init_logger()
+    # has run (any prior test in the worker may have triggered it), so caplog
+    # never sees these — capture at the call site instead, matching the
+    # pattern used elsewhere in this file.
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        _subprocess_logger, "warning", lambda msg, *a: warnings.append(msg % a)
+    )
+
     start = time.monotonic()
-    with caplog.at_level(logging.WARNING, logger=_subprocess_logger.name):
-        with pytest.raises(TimeoutError):
-            # Outer fail_after guards against regression to an unbounded shielded
-            # wait — without the fix this would hang here indefinitely.
-            with anyio.fail_after(20):
-                await subprocess(["sleep", "30"], timeout=1)
+    with pytest.raises(TimeoutError):
+        # Outer fail_after guards against regression to an unbounded shielded
+        # wait — without the fix this would hang here indefinitely.
+        with anyio.fail_after(20):
+            await subprocess(["sleep", "30"], timeout=1)
     elapsed = time.monotonic() - start
 
     # 1s timeout + 2s SIGTERM grace + 1s bounded wait (graceful) + 1s bounded
     # wait (aclose) ≈ 5s; allow generous slack.
     assert elapsed < 15, f"cleanup took {elapsed:.1f}s; shielded wait not bounded?"
-    assert "child watcher" in caplog.text, "expected lost-subprocess warning"
+    assert any("child watcher" in w for w in warnings), warnings
 
 
 @pytest.mark.anyio
