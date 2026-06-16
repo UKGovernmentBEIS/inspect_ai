@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Mistral: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the conversation-api path honored it).
 - MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
 - MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
 - Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs
