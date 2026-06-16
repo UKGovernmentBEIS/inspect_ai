@@ -7,6 +7,7 @@
 - Inspect View: Fix log-list grid columns snapping back to default widths while data loads
 - Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
 - Inspect View:  Improve tool input density
+- Sandbox: Auto-capture the resolved runtime fingerprint of each sandbox (image digest, OS, kernel, packages, network profile) into a typed `EvalSample.sandbox_fingerprint` field at sample start, so environment drift between runs with identical recipes is detectable. Auto-on; opt out with `INSPECT_DISABLE_SANDBOX_FINGERPRINT`. Extend via `register_fingerprint_probe` / `@fingerprint_probe`.
 
 ## 0.3.240 (15 June 2026)
 
