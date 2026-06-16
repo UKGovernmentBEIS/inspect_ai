@@ -355,3 +355,32 @@ def test_score_rebuilds_eval_scorers_append() -> None:
         reloaded = read_eval_log(path)
         recompute_metrics(reloaded)
         assert _metrics_snapshot(reloaded) == before
+
+
+def test_score_append_duplicate_scorer_recompute_round_trip() -> None:
+    from inspect_ai import score
+    from inspect_ai.scorer import match
+
+    task = Task(
+        dataset=[Sample(input=f"q{i}", target="x") for i in range(8)],
+        scorer=match(),
+        epochs=2,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+
+        rescored = score(log, match(), action="append")
+        assert rescored.eval.scorers is not None
+        assert [s.name for s in rescored.eval.scorers] == ["match", "match"]
+        assert rescored.results is not None
+        assert [s.name for s in rescored.results.scores] == ["match", "match1"]
+
+        before = _metrics_snapshot(rescored)
+        path = os.path.join(log_dir, "rescored.eval")
+        write_eval_log(rescored, path)
+        reloaded = read_eval_log(path)
+        recompute_metrics(reloaded)
+
+    assert reloaded.results is not None
+    assert [s.name for s in reloaded.results.scores] == ["match", "match1"]
+    assert _metrics_snapshot(reloaded) == before

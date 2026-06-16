@@ -112,7 +112,7 @@ def eval_results(
     resolved_scorer_names = (
         set(scorer_names)
         if scorer_names is not None
-        else {info.name for info in scorers_info}
+        else set(_unique_scorer_names(scorers_info))
     )
 
     for sample_scores in scores:
@@ -259,6 +259,14 @@ def compute_eval_scores(
         )
 
     return result_scores
+
+
+def _unique_scorer_names(scorers_info: list[ScorerInfo]) -> list[str]:
+    """Mirror result score names so duplicate header scorers are accounted for."""
+    scorer_names: list[str] = []
+    for scorer_info in scorers_info:
+        scorer_names.append(unique_scorer_name(scorer_info.name, scorer_names))
+    return scorer_names
 
 
 def _flatten_metrics(
