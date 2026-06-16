@@ -1,8 +1,9 @@
 ## Unreleased
 
-— Inspect View: Fix log-list grid columns snapping back to default widths while data loads
-— Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
-— Inspect View:  Improve tool input density
+- Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
+- Inspect View: Fix log-list grid columns snapping back to default widths while data loads
+- Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
+- Inspect View:  Improve tool input density
 
 ## 0.3.240 (15 June 2026)
 
@@ -26,7 +27,6 @@
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
 - Sandbox: `self_check` now verifies that non-ASCII (UTF-8) command output round-trips correctly on `exec` stdout/stderr.
 - S3: Retry when requests have stale signatures.
-- Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
 - Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
 - Inspect View: Fix occasional intermittent hang while attempting to navigate to sample
 - Inspect View: Improve server side tool rendering transcripts and messages
