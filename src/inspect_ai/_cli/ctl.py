@@ -363,8 +363,9 @@ def keep_command(pid: int | None) -> None:
 
     Issued while the eval is still running, it takes effect when the eval
     finishes; the keep-alive status shown by `inspect ctl tasks` flips to on.
-    A release already latched wins ("exit when done"), so `keep` then has no
-    effect.
+    `keep` and `release` are last-write-wins, so a `keep` issued after a
+    `release` (while the eval is still running) is the last word and restores
+    the park.
     """
     target = _resolve_target_server(pid)
     try:
@@ -390,9 +391,10 @@ def release_command(pid: int | None) -> None:
     """Release a lingering --ctl-server=keep process so it can exit.
 
     Posts to the process's control endpoint /release route, letting a parked
-    process exit. Release latches: issued while the eval is still running,
-    it means "exit when done" — the process skips the keep-alive park and
-    exits as soon as the eval finishes.
+    process exit. Issued while the eval is still running it means "exit when
+    done" — the process skips the keep-alive park and exits as soon as the
+    eval finishes — unless a later `keep` overrides it (`keep` and `release`
+    are last-write-wins).
 
     Does NOT cancel a running eval — it has no effect on in-flight samples
     (cancelling a running eval is a later-phase directive, not yet available).
