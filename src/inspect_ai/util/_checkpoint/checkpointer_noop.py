@@ -13,11 +13,15 @@ class _NoopCheckpointer(contextlib.AbstractAsyncContextManager[Checkpointer]):
     setup is expected; ``__aenter__`` just returns ``self``.
     """
 
+    def __init__(self) -> None:
+        self._entered = False
+
     @property
     def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
         return "initial"
 
     async def __aenter__(self) -> Checkpointer:
+        self._entered = True
         return self
 
     async def __aexit__(self, *exc: object) -> None:
@@ -34,6 +38,9 @@ class _NoopCheckpointer(contextlib.AbstractAsyncContextManager[Checkpointer]):
 
     def close(self) -> None:
         return None
+
+    def current(self) -> Checkpointer | None:
+        return self if self._entered else None
 
     def track(
         self,

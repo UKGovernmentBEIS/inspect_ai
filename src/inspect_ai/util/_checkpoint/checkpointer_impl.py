@@ -166,6 +166,9 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         cp = self._cached
         await cp._fire("agent_complete", final=True)
 
+    def current(self) -> Checkpointer | None:
+        return self._cached
+
     def close(self) -> None:
         if self._cached is not None:
             self._cached.close()
