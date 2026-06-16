@@ -1,3 +1,4 @@
+import logging
 import re
 from functools import partial
 from typing import Any, Callable
@@ -6,6 +7,7 @@ from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.list import remove_last_match_and_after
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -23,6 +25,8 @@ from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._scorer import Scorer, scorer
 from ._target import Target
+
+logger = logging.getLogger(__name__)
 
 
 @scorer(metrics=[accuracy(), stderr()])
@@ -181,6 +185,10 @@ def _model_graded_qa_single(
         else:
             model = get_model()
 
+        # warn (once) if the grader has no explicit sampling config, since this
+        # makes per-item verdicts non-reproducible across runs (issue #4136)
+        _warn_if_grader_nondeterministic(model)
+
         # metadata without grading template variables
         metadata = omit(
             state.metadata, ["question", "answer", "criterion", "instructions"]
@@ -236,6 +244,33 @@ def _model_graded_qa_single(
             )
 
     return score
+
+
+def _warn_if_grader_nondeterministic(model: Model) -> None:
+    # When the grader's own GenerateConfig sets neither `temperature` nor `seed`,
+    # the provider default applies (e.g. temperature 1.0, unseeded for OpenAI
+    # chat models), so the same (output, criterion) pair can receive different
+    # grades across runs — most visibly on borderline items. Warn once and point
+    # to the docs rather than silently defaulting: temperature=0 only shrinks the
+    # effect (it is not a determinism guarantee) and reasoning graders ignore it
+    # entirely, so the right framing is variance-aware, not "promise determinism"
+    # (issue #4136).
+    config = model.config
+    if config.temperature is None and config.seed is None:
+        warn_once(
+            logger,
+            "Model-graded scorer is using grader "
+            f"'{model.name}' with no explicit temperature or seed. The provider "
+            "default temperature applies (e.g. 1.0 for OpenAI chat models), so "
+            "grades may vary across runs on borderline items. For more "
+            "reproducible scoring set a deterministic grader config (e.g. "
+            "temperature=0, and a seed where the provider supports it), for "
+            'example via a model role: --model-role \'grader={"model": '
+            '"openai/gpt-4o", "temperature": 0, "seed": 42}\'. See '
+            "https://inspect.aisi.org.uk/model-graded.html#reproducible-grading "
+            "for details. To silence this warning, set the grader's temperature "
+            "explicitly.",
+        )
 
 
 # these templates are based on the openai closedqa templates here:

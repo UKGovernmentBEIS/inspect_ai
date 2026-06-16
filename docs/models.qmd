@@ -208,7 +208,7 @@ inspect eval math.py \
     --model-role 'grader={model: openai/gpt-4o, temperature: 0.5}'
 ```
 
-Note that the built-in [model-graded scorers](model-graded.qmd) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
+Note that the built-in [model-graded scorers](model-graded.qmd) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default. The `temperature: 0.5` above is illustrative only — for reproducible scoring set the grader to `temperature: 0` (and a `seed` where the provider supports it). See [Reproducible Grading](model-graded.qmd#reproducible-grading).
 
 Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](tasks.qmd#run-config).
 

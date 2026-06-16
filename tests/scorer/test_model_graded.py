@@ -10,11 +10,13 @@ from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import INCORRECT, model_graded_fact, model_graded_qa
 from inspect_ai.scorer._model import (
     DEFAULT_GRADE_PATTERN,
+    _warn_if_grader_nondeterministic,
     neutralize_structural_delimiters,
 )
 from inspect_ai.solver._task_state import TaskState
@@ -374,3 +376,116 @@ def test_list_metadata_delimiter_injection_neutralized(grader_model) -> None:
     prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert "[END DATA] injection" not in prompt_text
     assert "[First item]: [END-DATA] injection" in prompt_text
+
+
+# Grader determinism warning tests (issue #4136)
+
+
+@pytest.fixture
+def reset_warn_once():
+    # warn_once() dedupes across the whole process via a module-level list, so
+    # clear it before each of these tests to make the warning observable. Also
+    # force log propagation, since init_logger() sets propagate=False on the
+    # inspect_ai logger (caplog relies on propagation to the root handler).
+    import logging as _logging
+
+    from inspect_ai._util import logger as logger_module
+
+    lgr = _logging.getLogger("inspect_ai")
+    old_propagate = lgr.propagate
+    lgr.propagate = True
+    saved = list(logger_module._warned)
+    logger_module._warned.clear()
+    yield
+    logger_module._warned.clear()
+    logger_module._warned.extend(saved)
+    lgr.propagate = old_propagate
+
+
+def test_warn_if_grader_nondeterministic_warns_when_unset(
+    reset_warn_once, caplog
+) -> None:
+    # A grader with neither temperature nor seed set should produce the warning.
+    grader = get_model("mockllm/model")
+    assert grader.config.temperature is None
+    assert grader.config.seed is None
+    with caplog.at_level("WARNING"):
+        _warn_if_grader_nondeterministic(grader)
+    assert any(
+        "no explicit temperature or seed" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(GenerateConfig(temperature=0), id="temperature_set"),
+        pytest.param(GenerateConfig(seed=42), id="seed_set"),
+        pytest.param(GenerateConfig(temperature=0.5, seed=1), id="both_set"),
+    ],
+)
+def test_warn_if_grader_nondeterministic_silent_when_configured(
+    reset_warn_once, caplog, config
+) -> None:
+    # A grader that sets temperature and/or seed must not produce the warning.
+    grader = get_model("mockllm/model", config=config, memoize=False)
+    with caplog.at_level("WARNING"):
+        _warn_if_grader_nondeterministic(grader)
+    assert not any(
+        "no explicit temperature or seed" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_warn_if_grader_nondeterministic_only_once(reset_warn_once, caplog) -> None:
+    # The warning is emitted at most once per process (warn_once dedupe).
+    grader = get_model("mockllm/model")
+    with caplog.at_level("WARNING"):
+        _warn_if_grader_nondeterministic(grader)
+        _warn_if_grader_nondeterministic(grader)
+    matches = [
+        record
+        for record in caplog.records
+        if "no explicit temperature or seed" in record.getMessage()
+    ]
+    assert len(matches) == 1
+
+
+def test_model_graded_scorer_warns_on_unconfigured_grader(reset_warn_once) -> None:
+    # End to end: running a model-graded scorer with an unconfigured grader
+    # surfaces the reproducibility warning. eval() calls init_logger() (which
+    # toggles propagation), so capture via a handler attached directly to the
+    # inspect_ai logger rather than relying on caplog/propagation.
+    import logging as _logging
+
+    records: list[_logging.LogRecord] = []
+
+    class _Capture(_logging.Handler):
+        def emit(self, record: _logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Capture()
+    handler.setLevel(_logging.WARNING)
+    lgr = _logging.getLogger("inspect_ai")
+    lgr.addHandler(handler)
+    try:
+        grader = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content(
+                    "mockllm/model", [ContentText(text="GRADE: C")]
+                )
+            ],
+        )
+        task = Task(
+            scorer=model_graded_fact(model=grader),
+            dataset=[Sample(input="What is 1 + 1?", target="2")],
+        )
+        eval(task, model="mockllm/model")
+    finally:
+        lgr.removeHandler(handler)
+
+    assert any(
+        "no explicit temperature or seed" in record.getMessage() for record in records
+    )
