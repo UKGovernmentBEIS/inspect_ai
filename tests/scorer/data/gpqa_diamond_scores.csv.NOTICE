@@ -1,0 +1,22 @@
+gpqa_diamond_scores.csv — vendored regression fixture
+=====================================================
+
+Source:   https://github.com/stephlinds/evalconfidence  (path: examples/data/gpqa_diamond_scores.csv)
+License:  Apache License, Version 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Author:   Steph Linds (ipfloater) — github.com/stephlinds
+Upstream: commit ba5613a8a011f54b487b114a48f40d6eb9db1b7c, release v0.1.1
+SHA-256:  2923b63c427a56cb63af2064f726ecd839fec27357430600bea7a9ed8dfdcfa6 (this file, byte-identical to upstream)
+
+This file is a scores-only derivative of a real GPQA Diamond run produced with
+inspect_evals/gpqa_diamond: 198 items × 5 epochs × 2 models = 1980 rows.
+Columns: item_id, model_id, score, epoch.
+Models compared: openai/gpt-5-nano-2025-08-07 vs openai/gpt-5.4-mini-2026-03-17.
+
+Item IDs are hashed and no question text, prompts, or model outputs are present —
+only per-(item, model, epoch) scores — so the fixture is safe to vendor.
+
+Provided by ipfloater (Steph Linds) on Inspect AI issue #4206 for use as a
+regression fixture. Redistributed here under the Apache-2.0 terms; the attribution
+above is a license condition and must be kept intact.
+
+The Apache-2.0 license text is reproduced in this directory as LICENSE-evalconfidence.txt.
