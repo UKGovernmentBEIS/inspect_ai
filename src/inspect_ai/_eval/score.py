@@ -372,6 +372,10 @@ async def _run_score_task(
 
     # load a copy of the current sample events into the transcript
     init_transcript(Transcript([*sample.events], log_model_api=False, bounded=False))
+    # restore stored timelines so timeline-dependent scorers (e.g. scout
+    # @scanner(timeline=True), petri's audit_judge) work on re-score
+    for tl in sample.timelines or []:
+        transcript().add_timeline(tl)
 
     if state.scores is None:
         state.scores = {}
