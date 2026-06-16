@@ -2,6 +2,11 @@
 
 - MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
 - MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
+- Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs
+- Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
+- Inspect View: Fix log-list grid columns snapping back to default widths while data loads
+- Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
+- Inspect View:  Improve tool input density
 
 ## 0.3.240 (15 June 2026)
 
@@ -13,6 +18,7 @@
 - OpenAI: Preserve Responses API `NamespaceToolParam` grouping through agent bridge.
 - SageMaker: Fix streaming handler dropping reasoning tokens from thinking models.
 - Model API: Record model fallbacks as a typed `ModelOutput.fallback` and roll them up per-sample on `EvalSample.model_fallbacks` (and sample summaries); expose a `fallbacks` count column in `samples_df()`.
+- Agent Bridge: Preserve `NamespaceToolParam` grouping through to the OpenAI Responses API.
 - Adaptive Connections: Raise the default minimum from 4 to 10.
 - Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.

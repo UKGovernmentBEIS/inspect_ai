@@ -224,11 +224,11 @@ def view_server_app(
         )
 
         if isinstance(response, BytesIO):
-            # For in-memory responses, Content-Length is known exactly
-            content_length = response.getbuffer().nbytes
-            return StreamingResponse(
-                content=response,
-                headers={"Content-Length": str(content_length)},
+            # Return in-memory bytes directly: StreamingResponse would iterate
+            # the BytesIO line-by-line (newline-split binary chunks), sending
+            # each through a threadpool hop — ~1MB/s for local range reads.
+            return Response(
+                content=response.getvalue(),
                 media_type="application/octet-stream",
             )
         else:
