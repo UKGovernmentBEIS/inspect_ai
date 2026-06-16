@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields (`max_connections`, `max_retries`, etc.) from `model_roles` configs, matching the existing exclusion for the primary model — so tuning a role's concurrency no longer breaks resume.
+- Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs (matching the existing exclusion for the primary model), adds `adaptive_connections`, `cache`, and `cache_prompt` to the excluded set, and excludes `base_url` from the `model_roles` hash — so tuning a role's concurrency, caching, or endpoint URL no longer breaks resume. `TASK_IDENTIFIER_VERSION` bumped to 2.
 — Inspect View: Fix log-list grid columns snapping back to default widths while data loads
 — Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
 — Inspect View:  Improve tool input density

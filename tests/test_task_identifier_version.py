@@ -43,16 +43,20 @@ def _create_resolved_task_with_all_fields():
           - working_limit
           - cost_limit
     """
+    # Each GenerateConfig site (primary model, role model, and the
+    # EvalSetArgsInTaskIdentifier.config that becomes eval_plan.config) sets
+    # both a task-identity-relevant field (temperature) and a runtime knob
+    # that task_identifier excludes (max_connections / max_retries). The role
+    # also sets base_url, which is excluded for the same reason. The excluded
+    # values must be present so that future changes to what task_identifier
+    # excludes are detectable here.
     model = get_model(
         "mockllm/model",
-        config=GenerateConfig(temperature=0.5),
+        config=GenerateConfig(temperature=0.5, max_connections=10),
     )
-    # The scorer model role sets both a task-identity-relevant field
-    # (temperature) and a runtime knob that task_identifier excludes
-    # (max_connections). The excluded knob must be present so that changes
-    # to which model_roles config fields are excluded are detectable here.
     scorer_model = get_model(
         "mockllm/scorer",
+        base_url="http://test:8000",
         config=GenerateConfig(temperature=0.3, max_connections=5),
     )
 
@@ -91,7 +95,7 @@ def test_task_identifier_version_stability():
 
     resolved_task = _create_resolved_task_with_all_fields()
     eval_set_args = EvalSetArgsInTaskIdentifier(
-        config=GenerateConfig(temperature=0.7),
+        config=GenerateConfig(temperature=0.7, max_retries=3),
         message_limit=100,
         token_limit=5000,
         time_limit=300,
