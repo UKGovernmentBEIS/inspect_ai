@@ -1875,8 +1875,8 @@ class SessionState:
 
         Wire shape mirrors :class:`inspect_ai.event.SampleLimitEvent`:
         a ``type`` discriminator (``message`` / ``time`` / ``working``
-        / ``token`` / ``cost`` / ``operator`` / ``custom``) plus a
-        human-readable ``message`` and an optional numeric ``limit``.
+        / ``token`` / ``turn`` / ``cost`` / ``operator`` / ``custom``)
+        plus a human-readable ``message`` and an optional numeric ``limit``.
 
         The chip surfaces all three: the type and the numeric limit
         in the header (``limit · token · 100.0k``), and the message

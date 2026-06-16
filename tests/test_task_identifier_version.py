@@ -17,6 +17,7 @@ from inspect_ai.solver import generate
 _EXPECTED_TASK_IDENTIFIERS: dict[int, str] = {
     1: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/29797164a2ed3858f2e5b9a08f6594cfe398a975e2094dadb17a15f84e53613c",
     2: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/83650e91c9e6d632029a66c6c00022eadbc3ba23687c82c324f9f41cfc193104",
+    3: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/7d262bcd59b6c9bd5c8acdf7c3f1342cede8c626a416c5b4b4a77a2e7ade7e99",
 }
 
 
@@ -39,6 +40,7 @@ def _create_resolved_task_with_all_fields():
           - version (non-default)
           - message_limit
           - token_limit
+          - turn_limit
           - time_limit
           - working_limit
           - cost_limit
@@ -69,6 +71,7 @@ def _create_resolved_task_with_all_fields():
             version=2,
             message_limit=50,
             token_limit=1000,
+            turn_limit=25,
             time_limit=120,
             working_limit=60,
             cost_limit=0.5,
@@ -98,6 +101,7 @@ def test_task_identifier_version_stability():
         config=GenerateConfig(temperature=0.7, max_retries=3),
         message_limit=100,
         token_limit=5000,
+        turn_limit=75,
         time_limit=300,
         working_limit=200,
         cost_limit=1.5,
