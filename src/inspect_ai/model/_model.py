@@ -863,9 +863,11 @@ class Model:
         config = self._resolve_config(config)
 
         # Retry handler for token counting (429/timeouts retried with the
-        # same backoff and adaptive-controller signaling as `generate`).
-        # Count-token calls still need the model connection cap: a caller can
-        # fan out many counts inside one sample before any generate() happens.
+        # same backoff as `generate`). Count-token calls still need a
+        # concurrency cap -- a caller can fan out many counts inside one
+        # sample -- but token counting hits a different provider rate-limit
+        # pool than inference, so it gets its own semaphore rather than
+        # sharing the generate() connection limiter.
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -883,7 +885,9 @@ class Model:
         ) -> int:
             return await self.api.count_tokens(input, config)
 
-        async with self._connection_concurrency(config):
+        model_name = ModelName(self)
+        key = f"ModelCountTokens({self.api.connection_key()})"
+        async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
             return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:

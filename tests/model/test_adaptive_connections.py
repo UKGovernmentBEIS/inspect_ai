@@ -520,12 +520,18 @@ async def test_transient_retry_blocks_success_counting() -> None:
     assert ctrls[0].concurrency == 4
 
 
-# ---------- count_tokens shares the per-model concurrency cap ----------
+# ---------- count_tokens uses its own dedicated semaphore ----------
 
 
 @pytest.mark.anyio
-async def test_count_tokens_uses_connection_concurrency(monkeypatch) -> None:
-    """`Model.count_tokens` should honor the model connection cap."""
+async def test_count_tokens_uses_dedicated_semaphore(monkeypatch) -> None:
+    """`count_tokens` is bounded by its own semaphore, not the inference limiter.
+
+    Token counting hits a different provider rate-limit pool than inference, so
+    it gets a dedicated cap (10) instead of sharing the generate() limiter. A
+    low `max_connections` therefore bounds inference but not token counting:
+    concurrent counts run up to the dedicated cap, not down to `max_connections`.
+    """
     import anyio
 
     from inspect_ai._util._async import tg_collect
@@ -548,12 +554,14 @@ async def test_count_tokens_uses_connection_concurrency(monkeypatch) -> None:
 
     monkeypatch.setattr(type(model.api), "count_tokens", counting_count_tokens)
 
+    # max_connections=3 bounds inference; count_tokens has its own cap of 10,
+    # so 20 concurrent counts peak at 10 rather than being throttled to 3.
     cfg = GenerateConfig(max_connections=3)
     await tg_collect(
         [lambda: model.count_tokens("hello", config=cfg) for _ in range(20)]
     )
 
-    assert peak_in_flight == 3
+    assert peak_in_flight == 10
 
 
 # ---------- adaptive_active / resolve_adaptive helpers ----------
