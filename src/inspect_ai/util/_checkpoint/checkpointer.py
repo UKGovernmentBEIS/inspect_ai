@@ -197,16 +197,26 @@ def current_checkpointer() -> Checkpointer | None:
     """Return the checkpointer the active agent has entered, or ``None``.
 
     Unlike :func:`checkpointer` — an async context manager that *opens* a
-    checkpointer session (and a per-checkpoint transcript span) — this is a
-    plain accessor for the session the agent has *already* opened. It exists
-    for sub-components that need to register checkpointed state via
-    :meth:`Checkpointer.track` (or fire via :meth:`Checkpointer.tick`) but do
-    not own the session: a custom ``model`` agent passed to ``react()``, a
-    tool, or a nested helper. Such a component must not re-enter
-    :func:`checkpointer`, which would open a duplicate ``span_session``.
+    session — this is a plain accessor for the session the owning agent has
+    *already* opened. Use it from a sub-component that runs INSIDE the
+    owner's ``async with checkpointer()`` scope and needs to register a
+    slice of resumable state via :meth:`Checkpointer.track`: a custom
+    ``model`` agent passed to ``react()``, or a tool.
 
-    Returns ``None`` when called outside an active sample, or before the
-    owning agent has opened ``async with checkpointer()``.
+    The session is shared and singular, so:
+
+    - Do **not** re-enter :func:`checkpointer` from a sub-component — that
+      opens a duplicate ``span_session``.
+    - ``track`` keys share one namespace and collide (raising
+      ``ValueError``) across components; prefix yours uniquely (the agent
+      bridge uses ``"bridge_*"`` keys, for example).
+    - This borrows the owner's session; it is not a way to run a *nested*
+      agent loop. There is one turn counter, one trigger, and one final
+      checkpoint per session, so a nested loop driving its own
+      :meth:`Checkpointer.tick` is not supported.
+
+    Returns ``None`` outside an active sample, or before the owner has
+    opened ``async with checkpointer()``.
     """
     # Function-scoped import to avoid a load-time cycle with
     # `inspect_ai.log._samples`.

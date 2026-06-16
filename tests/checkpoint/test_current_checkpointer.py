@@ -16,6 +16,9 @@ async def test_noop_current_tracks_entry() -> None:
     async with noop as cp:
         assert cp is noop
         assert noop.current() is noop
+    # Reset on exit, symmetric with the real setup (whose current() goes
+    # None once the session is torn down).
+    assert noop.current() is None
 
 
 async def test_current_checkpointer_returns_entered_session(

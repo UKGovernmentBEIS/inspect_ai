@@ -25,7 +25,7 @@ class _NoopCheckpointer(contextlib.AbstractAsyncContextManager[Checkpointer]):
         return self
 
     async def __aexit__(self, *exc: object) -> None:
-        return None
+        self._entered = False
 
     async def tick(self) -> None:
         return None
