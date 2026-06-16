@@ -44,3 +44,18 @@ Additional files provide context when working in specific areas:
 ## Design Documentation
 
 `design/` contains architecture notes, subsystem internals, and documentation of repo/CI/development processes and workflows. Browse it before diving into an unfamiliar area.
+
+## Meridian fork — opening upstream PRs
+
+This repo is the `meridianlabs-ai/inspect_ai` fork of upstream `UKGovernmentBEIS/inspect_ai` (the `origin` remote). Day-to-day work and PRs target the meridian fork; occasionally a change is also sent upstream.
+
+Opening a PR to upstream from a meridian branch via the GitHub API/CLI needs an explicit `head_repo` — without it GitHub can't resolve the org fork as the PR head and rejects it with `{"field":"head","code":"invalid"}` (or, via `gh pr create`, "Head ref must be a branch / Head sha can't be blank"):
+
+```bash
+gh api repos/UKGovernmentBEIS/inspect_ai/pulls -X POST \
+  -f title="<title>" -f base="main" \
+  -f head="<branch>" -f head_repo="meridianlabs-ai/inspect_ai" \
+  -F body=@<body.md>
+```
+
+`gh pr create` has no `--head-repo` flag ([cli/cli#6462](https://github.com/cli/cli/issues/6462)), so use the `gh api` form above for fork→upstream PRs. (A personal fork as head resolves without `head_repo`; the org fork requires it.)
