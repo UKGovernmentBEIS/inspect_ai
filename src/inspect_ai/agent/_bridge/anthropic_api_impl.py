@@ -202,8 +202,17 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
 
     thinking = json_data.get("thinking", None)
     if thinking:
-        if thinking.get("type", None) == "enabled":
+        thinking_type = thinking.get("type", None)
+        if thinking_type == "enabled":
             config.reasoning_tokens = thinking.get("budget_tokens", None)
+        elif thinking_type == "adaptive":
+            # Claude 4.6+ adaptive thinking carries reasoning depth in
+            # output_config.effort rather than a token budget. Map it to
+            # reasoning_effort (cleared by clear_generation_params when not
+            # forwarding); `effort` is not in that list and would leak.
+            output_config = json_data.get("output_config") or {}
+            if (effort := output_config.get("effort", None)) is not None:
+                config.reasoning_effort = effort
 
     tool_choice = json_data.get("tool_choice", {})
     if tool_choice.get("disable_parallel_tool_use", None) is True:

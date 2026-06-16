@@ -167,6 +167,39 @@ def test_anthropic_forward_then_clear():
     assert config.parallel_tool_calls is False
 
 
+def test_anthropic_adaptive_effort_forward_then_clear():
+    # Claude 4.6+ uses adaptive thinking and carries the reasoning depth in
+    # output_config.effort rather than thinking.budget_tokens.
+    json_data = {
+        "model": "inspect",
+        "max_tokens": 32000,
+        "thinking": {"type": "adaptive", "display": "summarized"},
+        "output_config": {"effort": "high"},
+    }
+
+    config = generate_config_from_anthropic(json_data)
+    # adaptive effort maps to reasoning_effort (a cleared generation param), not
+    # the bridge-leaking `effort` field
+    assert config.reasoning_effort == "high"
+
+    clear_generation_params(config)
+    _assert_cleared(config)
+    assert config.reasoning_effort is None
+
+
+def test_anthropic_adaptive_without_effort_is_noop():
+    # adaptive thinking with no explicit effort should leave reasoning depth to
+    # the model's default; nothing to forward
+    json_data = {
+        "model": "inspect",
+        "max_tokens": 32000,
+        "thinking": {"type": "adaptive"},
+    }
+    config = generate_config_from_anthropic(json_data)
+    assert config.reasoning_effort is None
+    assert config.reasoning_tokens is None
+
+
 def test_google_forward_then_clear():
     generation_config = {
         "temperature": 0.8,
