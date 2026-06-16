@@ -47,6 +47,8 @@ Additional files provide context when working in specific areas:
 
 ## Pull requests
 
+Write the PR description using the template at `.github/pull_request_template.md` (fill in its sections — the "This PR contains" checklist, current vs. new behavior, breaking changes, other info).
+
 When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
 
 ### Opening upstream PRs from the meridian fork
@@ -63,3 +65,5 @@ gh api repos/UKGovernmentBEIS/inspect_ai/pulls -X POST \
 ```
 
 `gh pr create` has no `--head-repo` flag ([cli/cli#6462](https://github.com/cli/cli/issues/6462)), so use the `gh api` form above for fork→upstream PRs. (A personal fork as head resolves without `head_repo`; the org fork requires it.)
+
+When a change is also sent upstream, the upstream PR becomes the system of record: once it's open, close the corresponding PR in the meridian repo, with a close comment linking to the upstream PR.
