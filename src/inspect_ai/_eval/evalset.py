@@ -1215,13 +1215,18 @@ def validate_eval_set_prerequisites(
         return all_logs
 
 
-# these generate config fields should not affect task identity
+# Runtime/transport GenerateConfig knobs that don't affect model outputs and so
+# must not affect task identity. Adding a field to GenerateConfig? See
+# test_generate_config_fields_classified — it will fail until you classify it.
 _GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
     "max_retries",
     "timeout",
     "attempt_timeout",
     "max_connections",
+    "adaptive_connections",
     "batch",
+    "cache",
+    "cache_prompt",
 }
 
 
@@ -1242,7 +1247,7 @@ def resolve_solver(
 # Version of the task_identifier computation. Bump this when the task_identifier
 # logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
 # recomputed.
-TASK_IDENTIFIER_VERSION = 1
+TASK_IDENTIFIER_VERSION = 2
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
@@ -1345,7 +1350,20 @@ def task_identifier(
 
     # hash for model roles
     if len(model_roles):
-        additional_hash_input += to_json_safe(model_roles)
+        # base_url is excluded for symmetry with the primary model (whose
+        # base_url is not hashed) and because several providers populate it
+        # from env vars during init, which would make the identifier
+        # environment-dependent.
+        additional_hash_input += to_json_safe(
+            model_roles,
+            exclude={
+                role: {
+                    "base_url": True,
+                    "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+                }
+                for role in model_roles
+            },
+        )
 
     additional_hash_input += to_json_safe(additional_hash_fields)
 
