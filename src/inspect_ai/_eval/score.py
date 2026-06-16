@@ -44,7 +44,9 @@ from inspect_ai.event._tree import (
 from inspect_ai.log import (
     EvalLog,
 )
+from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
+from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
@@ -369,6 +371,13 @@ async def _run_score_task(
     # initialize active model and store
     init_task_context(model, model_roles)
     init_subtask_store(state.store)
+
+    # resolve attachment:// refs so scorers see real content rather than
+    # opaque hashes; rebind timelines to the resolved event objects. Done
+    # per-sample so peak memory is bounded by concurrency, not sample count.
+    if sample.attachments:
+        sample = resolve_sample_attachments(sample)
+        sample = rebind_sample_timelines(sample)
 
     # load a copy of the current sample events into the transcript
     init_transcript(Transcript([*sample.events], log_model_api=False, bounded=False))
