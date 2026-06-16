@@ -1,13 +1,5 @@
 # Fallbacks – Inspect
 
-> **NOTE:**
->
-> The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 Claude 5 models include safety classifiers that can decline a request. A decline need not be an error: the API returns a normal response with a refusal stop reason (surfaced by Inspect as `stop_reason="content_filter"`), and the same request can usually still be served by another Claude model.

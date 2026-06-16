@@ -461,6 +461,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Task Display: Update log/plain progress after errors.</li>
 <li>Eval Logs: Support for writing to Hugging Face Storage Buckets.</li>
 <li>Sandbox tools: Inject tool support as a PyInstaller <code>--onedir</code> bundle instead of a single StaticX executable.</li>
+<li>Sandbox: <code>self_check</code> now verifies that non-ASCII (UTF-8) command output round-trips correctly on <code>exec</code> stdout/stderr.</li>
 <li>S3: Retry when requests have stale signatures.</li>
 <li>Inspect View: Display model fallbacks (samples grid column, <code>has_fallbacks</code>/<code>fallbacks</code> filter variables, sample header, transcript fallback marker and model-event badge).</li>
 <li>Inspect View: Fix occasional intermittent hang while attempting to navigate to sample</li>

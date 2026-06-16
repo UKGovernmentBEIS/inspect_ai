@@ -1,13 +1,5 @@
 # Control Channel – Inspect
 
-> **NOTE:**
->
-> The control channel features described below require the development version of Inspect. You can install the development version from GitHub with:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — without interrupting it or parsing log files.
