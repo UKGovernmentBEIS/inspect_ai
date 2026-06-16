@@ -27,11 +27,9 @@ from inspect_ai._control.eval_state import (
 )
 from inspect_ai._control.server import (
     control_server,
-    keep_alive_requested,
-    release_requested,
+    keep_alive_intent,
     request_keep_alive,
-    reset_keep_alive_requested,
-    reset_release_requested,
+    reset_keep_alive,
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
@@ -347,12 +345,10 @@ def eval_set(
     # explicitly rather than silently giving a broken keep-alive
     # experience.
     ctl = resolve_ctl_server(ctl_server)
-    # clear any release latch left by a prior run in this process; needed
-    # here as well as in eval_async because the all-reused short-circuit
+    # clear a stale keep-alive intent left by a prior run in this process;
+    # needed here as well as in eval_async because the all-reused short-circuit
     # parks without ever calling eval()
-    reset_release_requested()
-    # Same for the keep-alive latch (clear any stale one before this run).
-    reset_keep_alive_requested()
+    reset_keep_alive()
     if ctl.keep_alive and retry_immediate is False:
         raise PrerequisiteError(
             "--ctl-server=keep is incompatible with retry_immediate=False "
@@ -737,10 +733,10 @@ def eval_set(
 
         # park last of all — display closed and summary printed, so the
         # keep-alive notice lands in the console (not the live display pane).
-        # Gate on the latch (not just the launch flag) so a runtime `inspect
-        # ctl keep` during the run also parks; the park early-returns if a
-        # release latched in the meantime.
-        if keep_alive_requested():
+        # Gate on the intent (not just the launch flag) so a runtime `inspect
+        # ctl keep` during the run also parks; intent reflects the last-write
+        # of any keep / release received during the run.
+        if keep_alive_intent():
             run_coroutine(_keep_alive_park(eval_set_id))
 
         # return status + results
@@ -885,11 +881,11 @@ async def _keep_alive_park(eval_set_id: str) -> None:
     :func:`_register_reused_logs`); ``eval_set`` clears them at the run
     boundary once this returns.
 
-    A release received while the run was still in flight latches ("exit
-    when done") — the run's server is gone by the time this park binds its
-    fresh one, so the latch is the only carrier of that request.
+    A release received while the run was still in flight wins ("exit when
+    done") — the run's server is gone by the time this park binds its fresh
+    one, so the module-level intent is the only carrier of that request.
     """
-    if release_requested():
+    if not keep_alive_intent():
         return
     async with control_server(run_id=eval_set_id) as ctl_server:
         if ctl_server is None:

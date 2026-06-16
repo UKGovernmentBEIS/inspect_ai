@@ -12,11 +12,9 @@ from anyio.abc import TaskGroup
 from inspect_ai._control.eval_state import clear_all_eval_states
 from inspect_ai._control.server import (
     control_server,
-    keep_alive_requested,
-    release_requested,
+    keep_alive_intent,
     request_keep_alive,
-    reset_keep_alive_requested,
-    reset_release_requested,
+    reset_keep_alive,
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
@@ -549,16 +547,12 @@ async def eval_async(
     # have already initialized
     resolve_ctl_server(ctl_server)
 
-    # clear any release latch left by a prior run in this process (we run
-    # before this run's control server binds, so a release received during
-    # the run still latches)
-    reset_release_requested()
-    # Likewise clear a stale keep-alive latch — but only for a standalone
-    # eval. When nested in an eval-set (eval_set_id set), eval_set() owns the
-    # latch: it sets it BEFORE this inner eval() runs to advertise the
-    # impending park, so resetting here would erase that intent.
+    # clear a stale keep-alive intent left by a prior run in this process —
+    # but only for a standalone eval. When nested in an eval-set (eval_set_id
+    # set), eval_set() owns the intent: it sets it BEFORE this inner eval()
+    # runs to advertise the impending park, so resetting here would erase it.
     if eval_set_id is None:
-        reset_keep_alive_requested()
+        reset_keep_alive()
 
     result: list[EvalLog] | None = None
 
@@ -1006,16 +1000,11 @@ async def _eval_async_inner(
             # request shutdown. (Standalone eval parks here, inside the
             # task display; eval-set instead parks after the display has
             # closed — so this gate is scoped to standalone via eval_set_id.)
-            # The latch covers both the launch flag and a runtime `POST /keep`.
-            # EvalStates are cleared at the run boundary below. A release
-            # received while the eval was still running latches ("exit when
-            # done") — skip the park (and its notice) entirely.
-            if (
-                eval_set_id is None
-                and keep_alive_requested()
-                and _ctl_server is not None
-                and not release_requested()
-            ):
+            # The intent covers the launch flag and runtime `POST /keep` /
+            # `/release` (last-write-wins). EvalStates are cleared at the run
+            # boundary below. Intent off (never asked, or a release won the
+            # last word) skips the park and its notice entirely.
+            if eval_set_id is None and keep_alive_intent() and _ctl_server is not None:
                 import rich
 
                 rich.get_console().print(

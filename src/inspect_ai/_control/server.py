@@ -109,77 +109,56 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
 
 
 # ---------------------------------------------------------------------------
-# Release latch
+# Keep-alive intent
 # ---------------------------------------------------------------------------
 
-# Whether ``POST /release`` has been received during this run. Release is a
-# process-level latch, not a park-only signal: a release issued while the
-# eval is still running means "exit when done", so a later keep-alive park
-# must be skipped rather than ignoring the request. Module-level (rather
-# than per-ControlServer) because the eval-set park binds a FRESH server
-# after the run's server has torn down — a per-server event can't carry the
-# request across that boundary. Reset at the outermost run boundary
-# (``eval_async`` for standalone evals, ``eval_set`` for eval-sets).
-_release_requested = False
-
-
-def request_release() -> None:
-    """Latch a release request for this run (see ``_release_requested``)."""
-    global _release_requested
-    _release_requested = True
-
-
-def release_requested() -> bool:
-    """Whether a release has been requested during this run."""
-    return _release_requested
-
-
-def reset_release_requested() -> None:
-    """Clear the release latch (called at the outermost run boundary)."""
-    global _release_requested
-    _release_requested = False
-
-
-# ---------------------------------------------------------------------------
-# Keep-alive latch
-# ---------------------------------------------------------------------------
-
-# Whether this process intends to park after the eval finishes. Set either at
-# launch (``--ctl-server=keep``) or at runtime by ``POST /keep`` (the
-# ``inspect ctl keep`` command — the inverse of ``release``). Module-level for
-# the same reason as the release latch: it must survive the eval-set's fresh
-# park-time server binding (a per-server flag couldn't carry the launch / runtime
-# intent across that boundary), and it's the single source of truth the ``/evals``
-# endpoint reads to report each task's keep-alive status. Reset at the outermost
-# run boundary (``eval_async`` for standalone evals, ``eval_set`` for eval-sets).
-_keep_alive_requested = False
+# Whether this process intends to park after the eval finishes. A single
+# last-write-wins flag: set at launch (``--ctl-server=keep``) and toggled at
+# runtime by ``POST /keep`` (``inspect ctl keep`` -> on) and ``POST /release``
+# (``inspect ctl release`` -> off). Last-write-wins rather than "release is
+# sticky" so that, while the eval is still running, keep -> release -> keep
+# leaves the process in the keep state — each call simply overwrites the
+# intent. Module-level (not per-ControlServer) because the eval-set park binds
+# a FRESH server after the run's server has torn down — a per-server flag
+# couldn't carry the intent across that boundary — and it's the single source
+# of truth the ``/evals`` endpoint reports as each task's keep-alive status.
+# Reset at the outermost run boundary (``eval_async`` for standalone evals,
+# ``eval_set`` for eval-sets).
+_keep_alive = False
 
 
 def request_keep_alive() -> None:
-    """Latch a keep-alive request for this run (see ``_keep_alive_requested``)."""
-    global _keep_alive_requested
-    _keep_alive_requested = True
+    """Latch keep-alive on — the process parks after the eval finishes."""
+    global _keep_alive
+    _keep_alive = True
 
 
-def keep_alive_requested() -> bool:
-    """Whether keep-alive has been requested during this run."""
-    return _keep_alive_requested
+def request_release() -> None:
+    """Latch keep-alive off — the process exits when the eval finishes.
 
-
-def reset_keep_alive_requested() -> None:
-    """Clear the keep-alive latch (called at the outermost run boundary)."""
-    global _keep_alive_requested
-    _keep_alive_requested = False
-
-
-def effective_keep_alive() -> bool:
-    """Whether this process will actually park after the eval finishes.
-
-    Keep-alive requested (at launch or via ``POST /keep``) AND not superseded
-    by a release (which latches "exit when done"). This is the value the
-    ``/evals`` endpoint reports per task and that the parks gate on.
+    The inverse of :func:`request_keep_alive`. Issued while the eval is still
+    running it means "exit when done"; issued against a parked process it
+    releases the park. A later :func:`request_keep_alive` overrides it
+    (last-write-wins).
     """
-    return keep_alive_requested() and not release_requested()
+    global _keep_alive
+    _keep_alive = False
+
+
+def keep_alive_intent() -> bool:
+    """Whether this process will park after the eval finishes.
+
+    The live value the ``/evals`` endpoint reports per task and that the parks
+    gate on — the latest of the launch flag, ``POST /keep``, and ``POST
+    /release`` (last-write-wins).
+    """
+    return _keep_alive
+
+
+def reset_keep_alive() -> None:
+    """Clear the keep-alive intent (called at the outermost run boundary)."""
+    global _keep_alive
+    _keep_alive = False
 
 
 # ---------------------------------------------------------------------------
@@ -203,23 +182,37 @@ class ControlServer:
         self._sock: Any = None
         self._uvicorn_server: Any = None
         self._serve_task: asyncio.Task[None] | None = None
-        # Set by the ``POST /release`` route and awaited by the
-        # keep-alive park — both on this eval's loop, so a loop-native
-        # ``anyio.Event`` can be awaited directly.
-        self._shutdown_event = anyio.Event()
+        # Wakes the keep-alive park when ``POST /release`` clears the intent.
+        # A condition (not a one-shot event) so the park can re-check the
+        # intent and keep waiting after a keep that follows a release — both
+        # the route and the park run on this eval's loop.
+        self._park_cond = anyio.Condition()
 
     @property
     def socket_path(self) -> Path | None:
         return self._socket_path
 
-    @property
-    def shutdown_event(self) -> anyio.Event:
-        """Set when ``POST /release`` is received.
+    async def wait_for_release(self) -> None:
+        """Park until keep-alive intent is released.
 
-        Keep-alive callers await this event to know when the operator
-        wants the process to exit.
+        Blocks while :func:`keep_alive_intent` holds, re-checking it whenever
+        ``POST /release`` wakes it (via :meth:`notify_park_change`). Returns
+        immediately when the intent is already off. The loop tolerates a keep
+        that re-set the intent on between the release's wake-up and this
+        re-check (last-write-wins): it simply waits again.
         """
-        return self._shutdown_event
+        async with self._park_cond:
+            while keep_alive_intent():
+                await self._park_cond.wait()
+
+    async def notify_park_change(self) -> None:
+        """Wake :meth:`wait_for_release` so it re-checks the keep-alive intent.
+
+        Only ``POST /release`` needs this — the park exits on a transition to
+        OFF, so a keep (which sets the intent ON) has nothing to wake.
+        """
+        async with self._park_cond:
+            self._park_cond.notify_all()
 
     def _build_app(self) -> Any:
         """Build the FastAPI app.
@@ -232,7 +225,6 @@ class ControlServer:
 
         app = FastAPI()
         started_at = self._started_at
-        shutdown_event = self._shutdown_event
 
         @app.exception_handler(Exception)
         async def on_error(request: Request, exc: Exception) -> JSONResponse:
@@ -254,7 +246,7 @@ class ControlServer:
             # process hosts shares it. Stamp each row with the live value
             # (which reflects a runtime `POST /keep` or `/release`, not just
             # the launch flag) so `inspect ctl tasks` can report it.
-            keep_alive = effective_keep_alive()
+            keep_alive = keep_alive_intent()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
             return summaries
@@ -325,24 +317,25 @@ class ControlServer:
                 )
             return page
 
-        # Releases a keep-alive park (sets the shutdown event the park
-        # awaits); the process then exits. Release LATCHES: received while
-        # the eval is still running, it means "exit when done" — a later
-        # keep-alive park is skipped (see the release latch above). Named
-        # "release" rather than "shutdown" because it does NOT cancel a
-        # running eval — that's a later-phase directive.
+        # Latches keep-alive OFF for the process (the inverse of /keep) and
+        # wakes the park: a parked process exits, and a release received while
+        # the eval is still running means "exit when done". Last-write-wins —
+        # a later /keep overrides it. Named "release" rather than "shutdown"
+        # because it does NOT cancel a running eval — that's a later-phase
+        # directive.
         @app.post("/release")
         async def release() -> dict[str, bool]:
             request_release()
-            shutdown_event.set()
+            await self.notify_park_change()
             return {"ok": True}
 
-        # Latches keep-alive ON for this process (the inverse of /release):
-        # the process parks after the eval finishes instead of exiting, even
-        # if it was launched without `--ctl-server=keep`. The park gate
-        # reads the same module-level latch, so a request received any time
-        # before the eval finishes takes effect. A no-op once a release has
-        # latched ("exit when done" wins).
+        # Latches keep-alive ON for the process (the inverse of /release): it
+        # parks after the eval finishes instead of exiting, even if launched
+        # without `--ctl-server=keep`. Effective any time before the eval
+        # finishes. No park wake-up needed — the park only exits on a
+        # transition to OFF, so setting the intent ON is all a keep must do
+        # (a keep that follows a release just leaves the intent ON for the
+        # park to honour).
         @app.post("/keep")
         async def keep() -> dict[str, bool]:
             request_keep_alive()
@@ -526,13 +519,13 @@ async def control_server(
 
 
 async def wait_for_shutdown_async(server: ControlServer | None) -> None:
-    """Block until the server receives ``POST /release``.
+    """Park until keep-alive is released (``POST /release`` or intent off).
 
-    Returns immediately when a release was already latched during the run
-    (release means "exit when done", even when it arrives before the park)
-    and when ``server`` is ``None`` (bind failed; the eval ran without a
-    control surface — nothing to wait on).
+    Returns immediately when ``server`` is ``None`` (the bind failed and the
+    eval ran without a control surface — nothing to wait on) or when the
+    keep-alive intent is already off. Otherwise delegates to
+    :meth:`ControlServer.wait_for_release`.
     """
-    if server is None or release_requested():
+    if server is None:
         return
-    await server.shutdown_event.wait()
+    await server.wait_for_release()

@@ -816,7 +816,7 @@ def test_runtime_keep_parks_eval_set_launched_without_flag(
     """
     from inspect_ai._control.server import (
         request_keep_alive,
-        reset_keep_alive_requested,
+        reset_keep_alive,
     )
     from inspect_ai.hooks import _hooks as hooks_mod
 
@@ -861,7 +861,7 @@ def test_runtime_keep_parks_eval_set_launched_without_flag(
         assert ok
         assert captured.get("parked"), "runtime keep did not enter the park"
     finally:
-        reset_keep_alive_requested()
+        reset_keep_alive()
 
 
 def test_keep_alive_with_retry_immediate_false_is_rejected(
