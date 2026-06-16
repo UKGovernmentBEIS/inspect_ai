@@ -46,7 +46,25 @@ def _frequencies(
     return {k: counts.get(k, 0) / denom for k in keys}
 
 
-@metric(scores="unreduced")
+@metric(name="frequency", scores="unreduced")
+def _frequency(
+    categories: Sequence[str] | None = None,
+    normalize: bool = True,
+) -> Metric:
+    """Registry-backed implementation with JSON-safe category labels."""
+
+    def compute(scores: list[SampleScore]) -> dict[str, float]:
+        values = [s.score.value for s in scores]
+        _require_scalar(values, "frequency()")
+        return _frequencies(
+            values,
+            list(categories) if categories is not None else None,
+            normalize,
+        )
+
+    return compute
+
+
 def frequency(
     categories: Categories = None,
     normalize: bool = True,
@@ -75,14 +93,7 @@ def frequency(
     Returns:
        Frequency metric
     """
-    names = _category_names(categories)
-
-    def compute(scores: list[SampleScore]) -> dict[str, float]:
-        values = [s.score.value for s in scores]
-        _require_scalar(values, "frequency()")
-        return _frequencies(values, names, normalize)
-
-    return compute
+    return _frequency(categories=_category_names(categories), normalize=normalize)
 
 
 def categorical(categories: Categories = None) -> list[Metric]:
@@ -119,4 +130,4 @@ def categorical(categories: Categories = None) -> list[Metric]:
     Returns:
        List of metrics suitable for ``@scorer(metrics=...)``.
     """
-    return [frequency(categories=_category_names(categories))]
+    return [frequency(categories=categories)]

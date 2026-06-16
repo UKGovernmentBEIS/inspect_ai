@@ -106,6 +106,13 @@ def test_categorical_resolves_enum_to_list() -> None:
     assert registry_params(m)["categories"] == ["yes", "no", "unsure"]
 
 
+def test_frequency_resolves_enum_to_list() -> None:
+    from inspect_ai._util.registry import registry_params
+
+    m = frequency(categories=Verdict)
+    assert registry_params(m)["categories"] == ["yes", "no", "unsure"]
+
+
 # ---------------------------------------------------------------------------
 # @metric(scores=...) declaration
 # ---------------------------------------------------------------------------
@@ -194,6 +201,15 @@ def _verdict_scorer() -> Scorer:
     return score
 
 
+@scorer(metrics=[frequency(categories=Verdict)])
+def _verdict_frequency_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        idx = (hash((state.sample_id, state.epoch))) % 3
+        return Score(value=list(Verdict)[idx])
+
+    return score
+
+
 @scorer(metrics={"sab": categorical(Sabotage), "aware": categorical(Verdict)})
 def _behaviour_scorer() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
@@ -246,6 +262,35 @@ def test_categorical_recompute_round_trip() -> None:
 
         # round-trip through disk
         path = os.path.join(log_dir, "roundtrip.eval")
+        write_eval_log(log, path)
+        reloaded = read_eval_log(path)
+
+        recompute_metrics(reloaded)
+        after = _metrics_snapshot(reloaded)
+
+    assert before == after
+
+
+def test_frequency_strenum_recompute_round_trip() -> None:
+    task = Task(
+        dataset=[Sample(input=f"q{i}") for i in range(20)],
+        scorer=_verdict_frequency_scorer(),
+        epochs=3,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+        assert log.status == "success"
+        assert log.eval.scorers is not None
+        metrics = log.eval.scorers[0].metrics
+        assert isinstance(metrics, list)
+
+        metric_def = metrics[0]
+        assert not isinstance(metric_def, dict)
+        assert metric_def.options is not None
+        assert metric_def.options["categories"] == ["yes", "no", "unsure"]
+
+        before = _metrics_snapshot(log)
+        path = os.path.join(log_dir, "frequency-roundtrip.eval")
         write_eval_log(log, path)
         reloaded = read_eval_log(path)
 
