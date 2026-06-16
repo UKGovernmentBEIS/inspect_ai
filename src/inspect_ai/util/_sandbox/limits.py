@@ -127,12 +127,13 @@ def override_max_exec_output_size(limit: int) -> Iterator[None]:
 def override_max_read_file_size(limit: int) -> Iterator[None]:
     """Temporarily override the max read file size for the current context.
 
-    Updates both MAX_READ_FILE_SIZE and MAX_READ_FILE_SIZE_STR (they share a
-    ContextVar), so the enforced limit and its reported string stay consistent.
-    The override is scoped to the current async context and restored on exit.
+    Use this to read a file that is legitimately larger than the default
+    read file cap (e.g. a checkpoint egress tarball) without raising the
+    limit for unrelated reads. The override is scoped to the current async
+    context and restored on exit.
 
     Args:
-        limit: Read file size limit (in bytes) to apply within the context.
+        limit: File size limit (in bytes) to apply within the context.
     """
     token = _max_read_file_size_var.set(limit)
     try:

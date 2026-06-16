@@ -22,6 +22,7 @@ from typing import Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import JsonValue
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
 
 from inspect_ai.event._checkpoint import CheckpointEvent
@@ -163,9 +164,13 @@ class _CountingCheckpointer(_EnteredCheckpointer):
     fire_count: int = 0
 
     async def _fire(
-        self, trigger: CheckpointTriggerKind, *, final: bool = False
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
     ) -> None:
-        await super()._fire(trigger, final=final)
+        await super()._fire(trigger, metadata=metadata, final=final)
         self.fire_count += 1
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
@@ -213,7 +218,11 @@ class _FlakyCheckpointer(_EnteredCheckpointer):
     attempts: int = 0
 
     async def _fire_once(
-        self, trigger: CheckpointTriggerKind, *, final: bool = False
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
     ) -> None:
         self.attempts += 1
         if self.should_fail:
@@ -405,21 +414,26 @@ async def test_fire_includes_events_emitted_before_checkpointer_construction(
 
 
 async def test_fire_reopens_checkpoint_span_after_failure(dirs: _Dirs) -> None:
+    from inspect_ai.util._span import current_span_id
+
     cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
-    assert cp._current_span_cm is None
-    await cp._open_next_span()
-    open_before = cp._current_span_cm
-    assert open_before is not None
 
     async def fail_write_host_context(*_args: object) -> None:
         raise RuntimeError("write failed")
 
-    with patch.object(cp, "_write_host_context", side_effect=fail_write_host_context):
-        await cp.checkpoint()
+    async with cp.span_session():
+        open_before = current_span_id()
+        assert open_before is not None
 
-    assert cp._current_span_cm is not None
-    assert cp._current_span_cm is not open_before
-    await cp._close_current_span()
+        with patch.object(
+            cp, "_write_host_context", side_effect=fail_write_host_context
+        ):
+            await cp.checkpoint()
+
+        reopened = current_span_id()
+        assert reopened is not None
+        assert reopened != open_before
+    assert current_span_id() is None
 
 
 # --- hydrate: resume-state validation -------------------------------------
@@ -1180,6 +1194,59 @@ async def test_track_not_registered_no_file(tmp_path: Path) -> None:
     cp = _make_cp()
 
     assert await _write_agent_state(tmp_path, cp) is None
+
+
+# === _write_host_context: assistant internal ================================
+
+
+@contextmanager
+def _populated_assistant_internal() -> Iterator[None]:
+    """Populate anthropic assistant-internal state; reset on exit."""
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._providers.anthropic import assistant_internal
+
+    init_sample_assistant_internal()
+    assistant_internal().thinking_blocks["h1"] = {
+        "type": "thinking",
+        "thinking": "hmm",
+        "signature": "sig",
+    }
+    try:
+        yield
+    finally:
+        init_sample_assistant_internal()
+
+
+async def test_write_host_context_includes_assistant_internal(tmp_path: Path) -> None:
+    """Provider-recorded state lands in assistant_internal.json and reads back."""
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    with _populated_assistant_internal():
+        cp = _make_cp()
+        work = tmp_path / "work"
+        work.mkdir()
+        await cp._write_host_context(str(work), Store())
+
+        data = json.loads((work / "assistant_internal.json").read_text())
+        assert data["anthropic"]["thinking_blocks"]["h1"]["thinking"] == "hmm"
+        assert host_context.read(str(work)).assistant_internal == data
+
+
+async def test_write_host_context_skips_empty_assistant_internal(
+    tmp_path: Path,
+) -> None:
+    """With nothing recorded, assistant_internal.json is not written."""
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    init_sample_assistant_internal()
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+
+    assert not (work / "assistant_internal.json").exists()
+    assert host_context.read(str(work)).assistant_internal is None
 
 
 def test_track_noop_session() -> None:

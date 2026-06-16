@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from .._triggers import CheckpointTriggerKind
 
@@ -58,6 +58,10 @@ class Checkpoint(BaseModel):
 
     trigger: CheckpointTriggerKind
     """The policy that fired this checkpoint."""
+
+    trigger_metadata: dict[str, JsonValue] | None = None
+    """Trigger-specific fire details (e.g. configured threshold vs.
+    actual usage at fire time)."""
 
     turn: int
     """Agent turn index at which this checkpoint was taken."""
