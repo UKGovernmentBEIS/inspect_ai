@@ -1,0 +1,7 @@
+services:
+  default:
+    image: inspect-fingerprint-drift:latest
+    command: "tail -f /dev/null"
+    init: true
+    network_mode: none
+    stop_grace_period: 1s

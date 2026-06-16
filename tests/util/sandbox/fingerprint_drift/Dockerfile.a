@@ -1,0 +1,4 @@
+# Image "A" for the sandbox-fingerprint drift regression test: a Debian-based image.
+# Built and tagged inspect-fingerprint-drift:latest, then run; later replaced by
+# Dockerfile.b behind the SAME mutable tag to simulate silent image drift.
+FROM python:3.12-slim
