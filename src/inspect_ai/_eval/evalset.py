@@ -111,6 +111,7 @@ class EvalSetArgsInTaskIdentifier:
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None
     message_limit: int | None = None
     token_limit: int | None = None
+    turn_limit: int | None = None
     time_limit: int | None = None
     working_limit: int | None = None
     cost_limit: float | None = None
@@ -158,6 +159,7 @@ def eval_set(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -278,6 +280,7 @@ def eval_set(
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -405,6 +408,7 @@ def eval_set(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -575,6 +579,7 @@ def eval_set(
             solver=solver,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -1258,7 +1263,7 @@ def resolve_solver(
 # Version of the task_identifier computation. Bump this when the task_identifier
 # logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
 # recomputed.
-TASK_IDENTIFIER_VERSION = 2
+TASK_IDENTIFIER_VERSION = 3
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
@@ -1272,6 +1277,7 @@ def task_identifier(
         version: int | str
         message_limit: int | None
         token_limit: int | None
+        turn_limit: int | None
         time_limit: int | None
         working_limit: int | None
         cost_limit: float | None
@@ -1301,6 +1307,9 @@ def task_identifier(
             token_limit=task.task.token_limit
             if eval_set_args.token_limit is None
             else eval_set_args.token_limit,
+            turn_limit=task.task.turn_limit
+            if eval_set_args.turn_limit is None
+            else eval_set_args.turn_limit,
             time_limit=task.task.time_limit
             if eval_set_args.time_limit is None
             else eval_set_args.time_limit,
@@ -1324,6 +1333,7 @@ def task_identifier(
             version=task.eval.task_version,
             message_limit=task.eval.config.message_limit,
             token_limit=task.eval.config.token_limit,
+            turn_limit=task.eval.config.turn_limit,
             time_limit=task.eval.config.time_limit,
             working_limit=task.eval.config.working_limit,
             cost_limit=task.eval.config.cost_limit,
