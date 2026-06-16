@@ -18,6 +18,7 @@
 - Task Display: Update log/plain progress after errors.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
+- Sandbox: The conformance checks in `inspect_ai.util._sandbox.self_check` are now plain pytest tests rather than a `self_check()` runner. Provider authors should import the `test_*` checks (`from inspect_ai.util._sandbox.self_check import *`) and supply a `sandbox_env` fixture; the `self_check()` function has been removed.
 - S3: Retry when requests have stale signatures.
 - Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
 - Inspect View: Fix occasional intermittent hang while attempting to navigate to sample

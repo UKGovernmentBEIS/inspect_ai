@@ -1,6 +1,30 @@
+"""Portable conformance test suite for `SandboxEnvironment` implementations.
+
+These are plain pytest test functions that exercise the `SandboxEnvironment`
+contract (`exec`, `read_file`, `write_file`, cwd handling, ...). They live in the
+package — not under `tests/` — so any sandbox provider can reuse them against its
+own environment. To run them, a consumer:
+
+1. Pulls the checks into pytest collection::
+
+       from inspect_ai.util._sandbox.self_check import *  # noqa: F403
+
+2. Defines an async fixture named exactly ``sandbox_env`` that yields a
+   ``SandboxEnvironment`` (parameterize it over whatever sandbox configurations
+   you want to cover).
+
+3. Marks checks its sandbox can't satisfy as xfails *inside that fixture*, keyed
+   on the running check's name (``request.node.originalname``) — known failures
+   differ per provider/config, so they belong with the fixture, not the checks.
+
+inspect's own runner is ``tests/tools/test_sandbox_self_check.py`` (local + docker);
+``inspect_k8s_sandbox`` has its own. This module deliberately avoids importing
+pytest so it can be imported and inspected without it.
+"""
+
 import random
 import string
-from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
+from typing import Any, Generic, Optional, Type, TypeVar
 from unittest import mock
 
 import anyio
@@ -10,88 +34,6 @@ from inspect_ai.util import (
     SandboxEnvironment,
     SandboxEnvironmentLimits,
 )
-
-# If you're wondering these tests are not using pytest fixtures,
-# see the discussion https://github.com/UKGovernmentBEIS/inspect_ai/pull/347
-# It's not ideal, so a PR to fix this would be welcome.
-#
-# If you are struggling to debug a failing one of these, two tips:
-# 1. Comment out everything apart from the failing test in the list in the `self_check` function
-# 2. Get rid of the try/catch in check_test_fn (the body can just be `await fn(sandbox_env); return True`
-
-
-async def check_test_fn(
-    fn: Callable[[SandboxEnvironment], Coroutine[Any, Any, None]],
-    sandbox_env: SandboxEnvironment,
-) -> bool | str:
-    # Import this here rather than in module header in case of breakages because
-    # it's internal
-    from _pytest.outcomes import Failed
-
-    try:
-        await fn(sandbox_env)
-        return True
-    except AssertionError as e:
-        return f"FAILED: [{str(e)}]"
-    except Failed as e:
-        return f"FAILED: [{str(e)}]"
-    except Exception as e:
-        return f"ERROR: [{repr(e)}]"
-
-
-async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
-    # Note that these tests reuse the same sandbox environment. This means that
-    # if a test fails to clean up after itself, it may affect other tests.
-
-    results = {}
-
-    for fn in [
-        test_read_and_write_file_text,
-        test_read_and_write_file_binary,
-        test_read_and_write_large_file_binary,
-        test_write_file_text_utf,
-        test_read_and_write_file_including_directory_absolute,
-        test_read_and_write_file_including_directory_relative,
-        test_read_file_zero_length,
-        test_read_file_not_found,
-        test_read_file_not_allowed,
-        test_read_file_is_directory,
-        test_read_file_nonsense_name,
-        test_read_file_limit,
-        test_write_text_file_zero_length,
-        test_write_text_file_space,
-        test_write_text_file_is_directory,
-        test_write_text_file_without_permissions,
-        test_write_text_file_exists,
-        test_write_binary_file_zero_length,
-        test_write_binary_file_space,
-        test_write_binary_file_is_directory,
-        test_write_binary_file_without_permissions,
-        test_write_binary_file_exists,
-        test_exec_output,
-        test_exec_stderr,
-        test_exec_returncode,
-        test_exec_timeout,
-        test_exec_timeout_not_raised_on_fast_signal_death,
-        test_exec_timeout_kills_process,
-        test_exec_timeout_kills_child_processes,
-        test_exec_permission_error,
-        test_exec_env_vars,
-        test_exec_input_text,
-        test_exec_input_shell_special,
-        test_exec_input_binary,
-        test_exec_input_large,
-        test_exec_as_user,
-        test_exec_as_nonexistent_user,
-        test_cwd_unspecified,
-        test_cwd_custom,
-        test_cwd_relative,
-        test_cwd_absolute,
-    ]:
-        print(f"self_check: running {fn.__name__}")
-        results[fn.__name__] = await check_test_fn(fn, sandbox_env)
-
-    return results
 
 
 async def _cleanup_file(sandbox_env: SandboxEnvironment, filename: str) -> None:
@@ -707,3 +649,8 @@ class Raises(Generic[E]):
             )
         self.value = exc_value  # type: ignore
         return True
+
+
+# Export only the check functions so `from self_check import *` pulls them (and
+# nothing else) into a consumer's pytest collection. Derived, not hand-maintained.
+__all__ = [name for name in dir() if name.startswith("test_")]
