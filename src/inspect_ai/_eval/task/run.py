@@ -153,6 +153,7 @@ from inspect_ai.util._limit import (
     record_sample_limit_data,
 )
 from inspect_ai.util._limit import time_limit as create_time_limit
+from inspect_ai.util._limit import turn_limit as create_turn_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox import SandboxTimeoutError
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -721,6 +722,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         score_on_error=config.score_on_error or False,
                         error_retries=[],
                         previous_attempt_errors=previous_attempt_errors,
+                        turn_limit=config.turn_limit,
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
                         semaphore=sample_semaphore,
@@ -1028,6 +1030,7 @@ async def task_run_sample(
     score_on_error: bool,
     error_retries: list[EvalRetryError],
     previous_attempt_errors: list[EvalRetryError],
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     semaphore: contextlib.AbstractAsyncContextManager[Any],
@@ -1269,6 +1272,7 @@ async def task_run_sample(
                             state._token_limit,
                             state._cost_limit,
                             state._message_limit,
+                            create_turn_limit(turn_limit),
                             create_time_limit(time_limit),
                             create_working_limit(working_limit),
                         ):
@@ -1708,6 +1712,7 @@ async def task_run_sample(
             # forward on error that caused retry
             error_retries=copy(error_retries) + [retry_error],
             previous_attempt_errors=previous_attempt_errors,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,

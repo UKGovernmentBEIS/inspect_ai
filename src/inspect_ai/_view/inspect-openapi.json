@@ -2648,6 +2648,17 @@
             ],
             "title": "Token Limit"
           },
+          "turn_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Limit"
+          },
           "working_limit": {
             "anyOf": [
               {
@@ -3644,6 +3655,7 @@
               "working",
               "message",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"
@@ -7909,6 +7921,7 @@
               "time",
               "working",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"
