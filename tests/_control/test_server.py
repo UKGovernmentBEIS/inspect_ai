@@ -489,3 +489,112 @@ def test_eval_set_park_skipped_when_release_latched() -> None:
         asyncio.run(asyncio.wait_for(_keep_alive_park("set-1"), timeout=5))
     finally:
         reset_release_requested()
+
+
+def test_effective_keep_alive_requires_keep_and_no_release() -> None:
+    """`effective_keep_alive` is keep requested AND not superseded by release."""
+    from inspect_ai._control.server import (
+        effective_keep_alive,
+        request_keep_alive,
+        request_release,
+        reset_keep_alive_requested,
+        reset_release_requested,
+    )
+
+    reset_keep_alive_requested()
+    reset_release_requested()
+    try:
+        assert effective_keep_alive() is False  # neither set
+        request_keep_alive()
+        assert effective_keep_alive() is True  # keep set, no release
+        # a release latched in the meantime wins ("exit when done")
+        request_release()
+        assert effective_keep_alive() is False
+    finally:
+        reset_keep_alive_requested()
+        reset_release_requested()
+
+
+async def test_keep_route_sets_the_latch() -> None:
+    """POST /keep latches keep-alive process-wide."""
+    from inspect_ai._control.server import (
+        ControlServer,
+        keep_alive_requested,
+        reset_keep_alive_requested,
+    )
+
+    reset_keep_alive_requested()
+    try:
+        server = ControlServer(run_id="test")
+        app = server._build_app()
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            response = await client.post("/keep")
+            assert response.status_code == 200
+
+        assert keep_alive_requested()
+    finally:
+        reset_keep_alive_requested()
+
+
+async def test_evals_endpoint_decorates_keep_alive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GET /evals stamps each task summary with the live keep-alive status."""
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.server import (
+        ControlServer,
+        request_keep_alive,
+        reset_keep_alive_requested,
+        reset_release_requested,
+    )
+
+    async def _two_rows(started_at: float) -> list[dict]:
+        return [{"task_id": "a"}, {"task_id": "b"}]
+
+    monkeypatch.setattr(server_mod, "current_eval_summaries", _two_rows)
+
+    reset_keep_alive_requested()
+    reset_release_requested()
+    try:
+
+        async def _get() -> list[dict]:
+            app = ControlServer(run_id="test")._build_app()
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://localhost"
+            ) as client:
+                return (await client.get("/evals")).json()
+
+        # off by default
+        rows = await _get()
+        assert [r["keep_alive"] for r in rows] == [False, False]
+
+        # flips on for every row once keep-alive is latched
+        request_keep_alive()
+        rows = await _get()
+        assert [r["keep_alive"] for r in rows] == [True, True]
+    finally:
+        reset_keep_alive_requested()
+        reset_release_requested()
+
+
+def test_keep_alive_latch_resets() -> None:
+    """The keep-alive latch clears at the outermost run boundary."""
+    from inspect_ai._control.server import (
+        keep_alive_requested,
+        request_keep_alive,
+        reset_keep_alive_requested,
+    )
+
+    reset_keep_alive_requested()
+    try:
+        assert not keep_alive_requested()
+        request_keep_alive()
+        assert keep_alive_requested()
+        reset_keep_alive_requested()
+        assert not keep_alive_requested()
+    finally:
+        reset_keep_alive_requested()

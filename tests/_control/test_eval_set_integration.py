@@ -803,6 +803,67 @@ def test_keep_alive_works_when_all_logs_reused(
         assert entry["status"] == "completed"
 
 
+def test_runtime_keep_parks_eval_set_launched_without_flag(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A runtime `inspect ctl keep` parks an eval-set started without the flag.
+
+    Launched without ``ctl_server="keep-alive"`` the process would normally exit
+    when the run finishes. Latching keep-alive during the run (what ``POST
+    /keep`` does) must flip it to park instead — the eval-set gates its park on
+    the latch, not just the launch flag. We simulate the mid-run request by
+    latching just before the park decision, and assert the park is entered.
+    """
+    from inspect_ai._control.server import (
+        request_keep_alive,
+        reset_keep_alive_requested,
+    )
+    from inspect_ai.hooks import _hooks as hooks_mod
+
+    @task
+    def task_quick() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[generate()],
+            name="task_quick",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    captured: dict[str, bool] = {}
+
+    async def spy(eval_set_id: str) -> None:
+        captured["parked"] = True
+
+    monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
+
+    # Stand in for a `POST /keep` arriving during the run: the real end-event
+    # emit fires immediately before the park gate (and evalset imports it
+    # locally from inspect_ai.hooks._hooks), so latching here lands the request
+    # in the same window a runtime `keep` would.
+    real_emit = hooks_mod.emit_eval_set_end
+
+    async def emit_and_keep(eval_set_id: str, log_dir: str) -> None:
+        request_keep_alive()
+        await real_emit(eval_set_id, log_dir)
+
+    monkeypatch.setattr(hooks_mod, "emit_eval_set_end", emit_and_keep)
+
+    try:
+        ok, _ = eval_set(
+            tasks=[task_quick()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            # deliberately NOT keep-alive — the runtime keep must still park
+        )
+        assert ok
+        assert captured.get("parked"), "runtime keep did not enter the park"
+    finally:
+        reset_keep_alive_requested()
+
+
 def test_keep_alive_with_retry_immediate_false_is_rejected(
     short_data_dir: Path,
 ) -> None:

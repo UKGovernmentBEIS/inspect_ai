@@ -17,8 +17,9 @@ Current scope is the phase 1-2 read surface: ``GET /evals`` (per-task
 summaries), ``GET /evals/{id}/samples`` (sample listing, with an
 ``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
 detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
-pull) — plus ``POST /release`` for keep-alive release. State-mutating
-directives (cancel / drain / requeue) and SSE push land in phases 3-4.
+pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control.
+State-mutating directives (cancel / drain / requeue) and SSE push land
+in phases 3-4.
 """
 
 from __future__ import annotations
@@ -129,6 +130,48 @@ def reset_release_requested() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Keep-alive latch
+# ---------------------------------------------------------------------------
+
+# Whether this process intends to park after the eval finishes. Set either at
+# launch (``--ctl-server=keep-alive``) or at runtime by ``POST /keep`` (the
+# ``inspect ctl keep`` command — the inverse of ``release``). Module-level for
+# the same reason as the release latch: it must survive the eval-set's fresh
+# park-time server binding (a per-server flag couldn't carry the launch / runtime
+# intent across that boundary), and it's the single source of truth the ``/evals``
+# endpoint reads to report each task's keep-alive status. Reset at the outermost
+# run boundary (``eval_async`` for standalone evals, ``eval_set`` for eval-sets).
+_keep_alive_requested = False
+
+
+def request_keep_alive() -> None:
+    """Latch a keep-alive request for this run (see ``_keep_alive_requested``)."""
+    global _keep_alive_requested
+    _keep_alive_requested = True
+
+
+def keep_alive_requested() -> bool:
+    """Whether keep-alive has been requested during this run."""
+    return _keep_alive_requested
+
+
+def reset_keep_alive_requested() -> None:
+    """Clear the keep-alive latch (called at the outermost run boundary)."""
+    global _keep_alive_requested
+    _keep_alive_requested = False
+
+
+def effective_keep_alive() -> bool:
+    """Whether this process will actually park after the eval finishes.
+
+    Keep-alive requested (at launch or via ``POST /keep``) AND not superseded
+    by a release (which latches "exit when done"). This is the value the
+    ``/evals`` endpoint reports per task and that the parks gate on.
+    """
+    return keep_alive_requested() and not release_requested()
+
+
+# ---------------------------------------------------------------------------
 # Control server
 # ---------------------------------------------------------------------------
 
@@ -195,7 +238,15 @@ class ControlServer:
 
         @app.get("/evals")
         async def list_evals() -> list[dict[str, Any]]:
-            return await current_eval_summaries(started_at)
+            summaries = await current_eval_summaries(started_at)
+            # Keep-alive is a process-level property, so every task this
+            # process hosts shares it. Stamp each row with the live value
+            # (which reflects a runtime `POST /keep` or `/release`, not just
+            # the launch flag) so `inspect ctl tasks` can report it.
+            keep_alive = effective_keep_alive()
+            for summary in summaries:
+                summary["keep_alive"] = keep_alive
+            return summaries
 
         @app.get("/evals/{eval_id}/samples")
         async def list_eval_samples(
@@ -273,6 +324,17 @@ class ControlServer:
         async def release() -> dict[str, bool]:
             request_release()
             shutdown_event.set()
+            return {"ok": True}
+
+        # Latches keep-alive ON for this process (the inverse of /release):
+        # the process parks after the eval finishes instead of exiting, even
+        # if it was launched without `--ctl-server=keep-alive`. The park gate
+        # reads the same module-level latch, so a request received any time
+        # before the eval finishes takes effect. A no-op once a release has
+        # latched ("exit when done" wins).
+        @app.post("/keep")
+        async def keep() -> dict[str, bool]:
+            request_keep_alive()
             return {"ok": True}
 
         return app

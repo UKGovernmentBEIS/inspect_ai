@@ -12,7 +12,10 @@ from anyio.abc import TaskGroup
 from inspect_ai._control.eval_state import clear_all_eval_states
 from inspect_ai._control.server import (
     control_server,
+    keep_alive_requested,
     release_requested,
+    request_keep_alive,
+    reset_keep_alive_requested,
     reset_release_requested,
     resolve_ctl_server,
     wait_for_shutdown_async,
@@ -550,6 +553,12 @@ async def eval_async(
     # before this run's control server binds, so a release received during
     # the run still latches)
     reset_release_requested()
+    # Likewise clear a stale keep-alive latch — but only for a standalone
+    # eval. When nested in an eval-set (eval_set_id set), eval_set() owns the
+    # latch: it sets it BEFORE this inner eval() runs to advertise the
+    # impending park, so resetting here would erase that intent.
+    if eval_set_id is None:
+        reset_keep_alive_requested()
 
     result: list[EvalLog] | None = None
 
@@ -917,6 +926,13 @@ async def _eval_async_inner(
         # "Implementation notes".
         #
         ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+        # Advertise keep-alive via the process-global latch (the single source
+        # of truth the control server reports and the park gates on). A runtime
+        # `POST /keep` sets the same latch. An eval-set demotes its inner eval()
+        # to a plain on/off server and owns the latch itself, so ctl_keep_alive
+        # is only ever set here for a standalone eval.
+        if ctl_keep_alive:
+            request_keep_alive()
         async with (
             control_server(run_id=run_id, enabled=ctl_enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
@@ -989,10 +1005,17 @@ async def _eval_async_inner(
             # servers are still up so `inspect ctl` can read state and
             # request shutdown. (Standalone eval parks here, inside the
             # task display; eval-set instead parks after the display has
-            # closed.) EvalStates are cleared at the run boundary below.
-            # a release received while the eval was still running latches
-            # ("exit when done") — skip the park (and its notice) entirely
-            if ctl_keep_alive and _ctl_server is not None and not release_requested():
+            # closed — so this gate is scoped to standalone via eval_set_id.)
+            # The latch covers both the launch flag and a runtime `POST /keep`.
+            # EvalStates are cleared at the run boundary below. A release
+            # received while the eval was still running latches ("exit when
+            # done") — skip the park (and its notice) entirely.
+            if (
+                eval_set_id is None
+                and keep_alive_requested()
+                and _ctl_server is not None
+                and not release_requested()
+            ):
                 import rich
 
                 rich.get_console().print(

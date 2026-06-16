@@ -27,7 +27,10 @@ from inspect_ai._control.eval_state import (
 )
 from inspect_ai._control.server import (
     control_server,
+    keep_alive_requested,
     release_requested,
+    request_keep_alive,
+    reset_keep_alive_requested,
     reset_release_requested,
     resolve_ctl_server,
     wait_for_shutdown_async,
@@ -348,6 +351,8 @@ def eval_set(
     # here as well as in eval_async because the all-reused short-circuit
     # parks without ever calling eval()
     reset_release_requested()
+    # Same for the keep-alive latch (clear any stale one before this run).
+    reset_keep_alive_requested()
     if ctl_keep_alive and retry_immediate is False:
         raise PrerequisiteError(
             "--ctl-server=keep-alive is incompatible with retry_immediate=False "
@@ -355,6 +360,13 @@ def eval_set(
             "surface between attempts). Use --retry-immediate (the "
             "default) or drop the keep-alive value."
         )
+    # The eval-set owns the latch: set it now (after the rejection check),
+    # before the inner eval() binds its (plain on/off) control server, so that
+    # server reports keep-alive for the run and the inner eval() (eval_set_id
+    # set) leaves the latch alone rather than resetting it. The park below reads
+    # the same latch, so a runtime `POST /keep` during the run is honoured too.
+    if ctl_keep_alive:
+        request_keep_alive()
 
     # helper function to run a set of evals
     def run_eval(
@@ -724,8 +736,11 @@ def eval_set(
         run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
 
         # park last of all — display closed and summary printed, so the
-        # keep-alive notice lands in the console (not the live display pane)
-        if ctl_keep_alive:
+        # keep-alive notice lands in the console (not the live display pane).
+        # Gate on the latch (not just the launch flag) so a runtime `inspect
+        # ctl keep` during the run also parks; the park early-returns if a
+        # release latched in the meantime.
+        if keep_alive_requested():
             run_coroutine(_keep_alive_park(eval_set_id))
 
         # return status + results

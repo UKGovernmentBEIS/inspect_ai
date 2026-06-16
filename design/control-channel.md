@@ -76,6 +76,7 @@ inspect ctl tasks                              # list running tasks
 inspect ctl samples [TASK] [--active-since TS]  # per-sample table (status / retries / score / timing / idle)
 inspect ctl sample TASK SID [EPOCH] [-t]    # one sample's error history (--traceback for full)
 inspect ctl errors [TASK]                   # triage: samples that errored or were retried
+inspect ctl keep [--pid PID]               # keep a running process alive after its eval finishes
 inspect ctl release [--pid PID]            # release a lingering keep-alive process
 
 # phase 2 (shipped)
@@ -225,6 +226,7 @@ Phase annotations reflect the [Implementation](#implementation) plan; phases 1�
 | List samples (running + completed + pending) | `GET /evals/<id>/samples` | 1 ✅ |
 | Sample error detail | `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` | 1 ✅ |
 | Release a `--ctl-server=keep-alive` park | `POST /release` | 1 ✅ |
+| Set keep-alive on a running process | `POST /keep` | 1 ✅ |
 | Samples changed since (recency delta) | `GET /evals/<id>/samples?active_since=<ts>` | 2 ✅ |
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | `GET /evals/<id>/samples/<sid>/events` (SSE) | 4 |
@@ -241,7 +243,7 @@ Notes on the built shape vs the original plan:
 
 - **Eval status detail** was folded into `GET /evals` rather than a separate `GET /evals/<id>` — the list is already per-task (folded across retry attempts) and small, so the CLI fetches it and resolves a target client-side.
 - **Sample detail** is keyed by `(sample_id, epoch)` (epochs make that the real identity) and is scoped to **error** detail (current error + `error_retries`) rather than a full sample dump. `sample_id` is a **query parameter**, not a path segment: sample ids are arbitrary strings and may contain `/`, `?`, `#`, etc., which a path segment can't carry — a query param is URL-encoded end to end.
-- **`POST /release`** is process-scoped (no eval id) — it releases the keep-alive park for the whole process.
+- **`POST /release`** and **`POST /keep`** are process-scoped (no eval id) — they release / set the keep-alive park for the whole process. `keep` is the inverse of `release`: it latches keep-alive on a process launched without it, so the process parks (and stays inspectable) after its eval finishes.
 
 Destructive endpoints (phase 3+) accept `?dry_run=true` to return "would do X" without doing it (per the agent shape constraints).
 
@@ -428,6 +430,8 @@ Without help from the process lifecycle, LLM-agent workflows have a race conditi
 
 The fix is an explicit handoff: `--ctl-server=keep-alive` parks the process after the eval body completes, and `inspect ctl release` is the signal the agent issues when it's done. (Keep-alive is a *value* of the `--ctl-server` flag rather than a flag of its own because it presupposes the server — a parked process with no control endpoint could never be released. See "Flags" below.)
 
+Keep-alive can also be set **at runtime** on an already-running process via `inspect ctl keep` (`POST /keep`) — the inverse of `release`. This covers the "I launched it normally, but now I want to inspect it after it finishes" case without relaunching. Both the launch flag and the runtime command feed one **process-global keep-alive latch**: the launch path sets it before the control server binds; `POST /keep` sets it any time before the eval finishes; both parks gate on it (so a runtime request is honoured), and the `GET /evals` summaries report its live value so `inspect ctl tasks` shows the current keep-alive status (`on` / `off` / `mixed` across processes). A release latched in the meantime wins — it means "exit when done", so it supersedes a keep request and the reported status reads off. The latch resets at the outermost run boundary (mirroring the release latch), and for an eval-set the *eval-set* owns it — it sets the latch before its inner `eval()` binds the run's server, so that server reports keep-alive and the inner `eval()` doesn't reset it (its standalone reset is gated on `eval_set_id is None`).
+
 **What the value does.**
 
 - `inspect eval <task> --ctl-server=keep-alive` — after the eval body returns (including scoring + log write), the process blocks on the control endpoint's shutdown event. The control server stays bound. `inspect ctl tasks` continues to show the eval (with `samples.completed == total` and a final status), and the log files are present at their final paths. `POST /release` (issued by `inspect ctl release` or any HTTP client) releases the block; the process tears down its server and exits.
@@ -519,8 +523,8 @@ The always-on read surface plus the process-lifecycle plumbing agents need. Give
   - `GET /evals` — folded per-task summaries (subsumes the originally-planned `GET /evals/<id>` status detail; the CLI reads the whole list and resolves a task client-side).
   - `GET /evals/<id>/samples` — all of an eval's samples (running + completed + pending), merged from `active_samples` + the recorder's live summaries (falling back to the on-disk log) + the planned `(sample_id, epoch)` set. Running samples carry `last_activity_at` (unix ts of the sample's most recent transcript event) and `events` (a live event count) so a consumer can tell "stalled" from "working" — `now - last_activity_at` is the sample's idle time — without diffing successive polls. (Caveat: a single in-flight model generation emits no event until it returns, so neither field advances *within* one long call — the per-sample `events` stream has the same blind spot; closing it needs streaming token deltas or a "current operation" indicator via the `execution_observer`, out of scope here.)
   - `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` — one sample's error detail: current error + prior-attempt `error_retries` (running samples sourced from `active_samples`, terminal ones from the log). `sample_id` is a query param so string ids with reserved chars (`/`, `?`, `#`) address correctly.
-- **`POST /release`** — releases a `--ctl-server=keep-alive` park. The only write endpoint in phase 1, and it acts on the process, not on eval state.
-- **CLI (`inspect ctl`, `--json` throughout):** `tasks` (running tasks), `samples [TASK]` (per-sample table: status / retries / score / timing / idle / tokens), `sample TASK SAMPLE_ID [EPOCH] [--traceback]` (one sample's error history), `errors [TASK]` (triage list of errored / retried samples), `release [--pid]`. `TASK` resolves by task-id prefix, then task-name (anchored at the name start or after a `/`); a sole running task is the default.
+- **`POST /release`** / **`POST /keep`** — release / set a keep-alive park. The only write endpoints in phase 1, and they act on the process, not on eval state. `/keep` is the inverse of `/release`: it latches keep-alive (the same process-global latch the launch flag sets and both parks gate on), so a process launched without `--ctl-server=keep-alive` parks after its eval. A release already latched wins ("exit when done").
+- **CLI (`inspect ctl`, `--json` throughout):** `tasks` (running tasks; a keep-alive status footer reports `on` / `off` / `mixed` across processes), `samples [TASK]` (per-sample table: status / retries / score / timing / idle / tokens), `sample TASK SAMPLE_ID [EPOCH] [--traceback]` (one sample's error history), `errors [TASK]` (triage list of errored / retried samples), `keep [--pid]` (park a running process after its eval), `release [--pid]`. `TASK` resolves by task-id prefix, then task-name (anchored at the name start or after a `/`); a sole running task is the default.
 - **Retry + cancellation surfacing.** Sample retry counts — both sample-level `retry_on_error` and task-level retries (the latter seeded onto the re-run via the sample source, and carried across attempts that tear a sample down before it re-runs) — appear in `samples`; prior-attempt errors in `sample` / `errors`. A cancellation (a sibling failure tore the attempt down) is **not** a genuine error: it renders as `pending` when a retry will re-run the sample, `cancelled` when terminal — never `error`. This avoids the misleading "all samples error" snapshot during a retry teardown.
 - **`--ctl-server`** on `inspect eval` / `inspect eval-set` — on/off plus the `keep-alive` park value (see Implementation notes).
 
