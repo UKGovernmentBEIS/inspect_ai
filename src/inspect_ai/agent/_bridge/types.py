@@ -40,15 +40,28 @@ class AgentBridge:
         self._cp = checkpointer or _NoopCheckpointer()
         # AgentState is not a BaseModel so it can't be tracked directly;
         # track its messages and output separately (same approach as react()).
-        state.messages = self._cp.track(
+        #
+        # Register them for backup unconditionally, but only adopt the restored
+        # value when resuming purely to re-score. On a normal "resume" the
+        # sandbox agent rebuilds its own conversation (e.g. claude_code's
+        # --resume replays the full history back through the bridge), so
+        # _track_state repopulates state live; overwriting state here would feed
+        # the scaffold a restored, mid-turn (assistant-terminated) conversation,
+        # which is wrong for continuation and breaks prompt builders that require
+        # a non-assistant final message. "resume_for_scoring" skips the agent
+        # loop, so the tracked snapshot is the only source of the final state.
+        restored_messages = self._cp.track(
             "bridge_messages",
             lambda: self.state.messages,
             state.messages,
             value_type=list[ChatMessage],
         )
-        state.output = self._cp.track(
+        restored_output = self._cp.track(
             "bridge_output", lambda: self.state.output, state.output
         )
+        if self._cp.attempt == "resume_for_scoring":
+            state.messages = restored_messages
+            state.output = restored_output
         self.state = state
         self._message_ids = self._cp.track(
             "bridge_message_ids",
