@@ -18585,11 +18585,11 @@ a._citationLink_1ggvf_9:hover {
    which are neutral by default and only colorized under the readable
    variant (the Event Colors toggle); the output well is the tool-output
    fill, hairlines/border are the subtle border token. */
-._block_ze280_5 {
+._block_16fhi_5 {
   border-left: var(--inspect-tool-block-edge);
 }
 
-._standalone_ze280_9 {
+._standalone_16fhi_9 {
   border-top: 1px solid var(--bs-light-border-subtle);
   border-right: 1px solid var(--bs-light-border-subtle);
   border-bottom: 1px solid var(--bs-light-border-subtle);
@@ -18597,21 +18597,21 @@ a._citationLink_1ggvf_9:hover {
   overflow: hidden;
 }
 
-._header_ze280_17 {
+._header_16fhi_17 {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 9px 13px;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem 0 0.8rem;
   background-color: var(--inspect-tool-block-header-bg);
 }
 
-._icon_ze280_25 {
+._icon_16fhi_25 {
   flex: none;
   font-size: 13px;
   color: var(--inspect-tool-block-ink);
 }
 
-._title_ze280_31 {
+._title_16fhi_31 {
   flex: none;
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smaller);
@@ -18619,7 +18619,7 @@ a._citationLink_1ggvf_9:hover {
   color: var(--inspect-tool-block-ink);
 }
 
-._summary_ze280_39 {
+._summary_16fhi_39 {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -18630,7 +18630,7 @@ a._citationLink_1ggvf_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._pill_ze280_50 {
+._pill_16fhi_50 {
   flex: none;
   /* Right-aligned even when there is no args summary to push it over. */
   margin-left: auto;
@@ -18644,14 +18644,13 @@ a._citationLink_1ggvf_9:hover {
   padding: 1px 7px;
 }
 
-._inputZone_ze280_64 {
-  border-top: 1px solid var(--bs-light-border-subtle);
+._inputZone_16fhi_64 {
   background-color: var(--inspect-tool-block-input-bg);
-  padding: 0.5rem;
+  padding: 0 0.5rem 0.2rem 0.5rem;
   overflow-x: auto;
 }
 
-._outputWell_ze280_71 {
+._outputWell_16fhi_70 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding: 12px 15px;
@@ -18663,8 +18662,8 @@ a._citationLink_1ggvf_9:hover {
    renderers (prism code blocks, tool-call-input call-outs, tool output wells)
    would otherwise stack inside them. !important outranks the readable
    variant's higher-specificity :root[data-theme-variant] surface rules. */
-._inputZone_ze280_64 pre.tool-call-input,
-._inputZone_ze280_64 div.tool-call-input {
+._inputZone_16fhi_64 pre.tool-call-input,
+._inputZone_16fhi_64 div.tool-call-input {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -18672,13 +18671,13 @@ a._citationLink_1ggvf_9:hover {
   margin: 0 !important;
 }
 
-._inputZone_ze280_64 .tool-call-input pre[class*="language-"] {
+._inputZone_16fhi_64 .tool-call-input pre[class*="language-"] {
   margin: 0 !important;
   padding: 0 !important;
   background-color: transparent !important;
 }
 
-._outputWell_ze280_71 .tool-output {
+._outputWell_16fhi_70 .tool-output {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
