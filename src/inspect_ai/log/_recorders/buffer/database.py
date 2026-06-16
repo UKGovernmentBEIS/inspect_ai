@@ -145,12 +145,33 @@ class SampleBufferDatabase(SampleBuffer):
         location: str,
         *,
         create: bool = True,
+        read_only: bool = False,
         log_images: bool = True,
         log_shared: int | None = None,
         update_interval: int = 2,
         db_dir: Path | None = None,
     ):
+        """Open (or create) the sample buffer database for ``location``.
+
+        Args:
+            location: Eval log location the buffer belongs to.
+            create: Create the database (and schema) if it doesn't exist.
+            read_only: Open connections with SQLite ``mode=ro``. A read-only
+                connection can never (re-)create the database file, so a
+                reader racing the buffer's deletion (eval teardown, stale
+                sweep) fails with ``OperationalError`` instead of leaving an
+                empty database behind that makes the task look running.
+                Incompatible with ``create``.
+            log_images: Log image attachments.
+            log_shared: Sync interval for shared log directories.
+            update_interval: Version update interval.
+            db_dir: Override the database directory (defaults to the
+                inspect data dir).
+        """
+        if create and read_only:
+            raise ValueError("read_only is incompatible with create")
         self.location = filesystem(location).path_as_uri(location)
+        self._read_only = read_only
         self.log_images = log_images
         self.log_shared = log_shared
         self.update_interval = update_interval
@@ -697,12 +718,16 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         start: int,
+        limit: int | None = None,
     ) -> Iterator[SampleHistory]:
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
                 conn.execute("BEGIN")
                 history = self._sample_history(
-                    conn, id, epoch, self._get_events_from(conn, id, epoch, start)
+                    conn,
+                    id,
+                    epoch,
+                    self._get_events_from(conn, id, epoch, start, limit),
                 )
                 conn.commit()
             yield history
@@ -791,8 +816,24 @@ class SampleBufferDatabase(SampleBuffer):
 
         for attempt in range(max_retries):
             try:
+                # Re-create the parent directory immediately before connecting
+                # (writable connections only).
+                if not self._read_only:
+                    self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # mode=ro can never (re-)create the file: a connect after
+                # the database was deleted raises OperationalError rather
+                # than leaving an empty database behind
+                database = (
+                    f"{self.db_path.as_uri()}?mode=ro"
+                    if self._read_only
+                    else self.db_path
+                )
                 conn = sqlite3.connect(
-                    self.db_path, timeout=30, check_same_thread=False
+                    database,
+                    uri=self._read_only,
+                    timeout=30,
+                    check_same_thread=False,
                 )
                 conn.row_factory = sqlite3.Row  # enable row factory for named columns
 
@@ -811,29 +852,34 @@ class SampleBufferDatabase(SampleBuffer):
                 # as the prior delete+OFF mode (corruption only on OS/power
                 # loss, not on a clean process crash) while avoiding the
                 # per-commit fsync cost that dominates inference-light evals.
-                try:
-                    journal_mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
-                except sqlite3.OperationalError as ex:
-                    if "locked" in str(ex):
-                        raise
-                    journal_mode = f"unavailable: {ex}"
+                # (Read-only connections skip these journal/durability writes —
+                # they read whatever mode the writer established.)
+                if not self._read_only:
+                    try:
+                        journal_mode = conn.execute(
+                            "PRAGMA journal_mode=WAL"
+                        ).fetchone()[0]
+                    except sqlite3.OperationalError as ex:
+                        if "locked" in str(ex):
+                            raise
+                        journal_mode = f"unavailable: {ex}"
 
-                if not self._wal_checked:
-                    self._wal_checked = True
-                    if str(journal_mode).lower() != "wal":
-                        logger.warning(
-                            "Sample buffer database at %s could not enable WAL "
-                            "journal mode (using '%s'); this may lead to "
-                            "'database is locked' errors under concurrent "
-                            "access. This typically happens when the inspect "
-                            "data directory is on a network filesystem.",
-                            self.db_path,
-                            journal_mode,
-                        )
-                conn.execute("PRAGMA synchronous=OFF")
-                # cap WAL growth: truncate the -wal file back down after
-                # checkpoints rather than letting it grow without bound
-                conn.execute("PRAGMA journal_size_limit=134217728")
+                    if not self._wal_checked:
+                        self._wal_checked = True
+                        if str(journal_mode).lower() != "wal":
+                            logger.warning(
+                                "Sample buffer database at %s could not enable WAL "
+                                "journal mode (using '%s'); this may lead to "
+                                "'database is locked' errors under concurrent "
+                                "access. This typically happens when the inspect "
+                                "data directory is on a network filesystem.",
+                                self.db_path,
+                                journal_mode,
+                            )
+                    conn.execute("PRAGMA synchronous=OFF")
+                    # cap WAL growth: truncate the -wal file back down after
+                    # checkpoints rather than letting it grow without bound
+                    conn.execute("PRAGMA journal_size_limit=134217728")
                 conn.execute("PRAGMA cache_size=-64000")
                 conn.execute("PRAGMA temp_store=MEMORY")
 
@@ -844,7 +890,17 @@ class SampleBufferDatabase(SampleBuffer):
                 if conn is not None:
                     conn.close()
                     conn = None
-                if "locked" in str(e) and attempt < max_retries - 1:
+                # "locked" is always transient. "unable to open database file"
+                # is retryable only for writable connections: it usually means a
+                # sibling rmdir'd our shared log directory, which the mkdir above
+                # re-creates on the next attempt. For read_only connections it is
+                # the intended "buffer is gone" signal and must propagate so
+                # callers can degrade (see _control/events.py).
+                msg = str(e)
+                retryable = "locked" in msg or (
+                    not self._read_only and "unable to open database file" in msg
+                )
+                if retryable and attempt < max_retries - 1:
                     time.sleep(retry_delay * (2**attempt))
                     continue
                 raise
@@ -1147,7 +1203,10 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         start: int,
+        limit: int | None = None,
     ) -> Iterator[EventData]:
+        # LIMIT -1 is SQLite's "no limit", so the cap can ride the query
+        # unconditionally.
         query = """
             WITH first_rows AS (
                 SELECT
@@ -1166,8 +1225,11 @@ class SampleBufferDatabase(SampleBuffer):
             JOIN events e ON e.id = ordered_rows.latest_id
             WHERE ordered_rows.row_num > ?
             ORDER BY ordered_rows.row_num
+            LIMIT ?
         """
-        cursor = conn.execute(query, [str(id), epoch, start])
+        cursor = conn.execute(
+            query, [str(id), epoch, start, -1 if limit is None else limit]
+        )
 
         for row in cursor:
             event = json.loads(row["data"])

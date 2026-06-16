@@ -24,7 +24,7 @@ async def init_repo(restic: Path, repo: str, password: str) -> None:
     Skips if the repo is already initialized — important for callers
     that may re-enter the same repo across retries. ``repo`` is always
     a local filesystem path; restic is never invoked against a remote
-    backend (see ``design/plans/checkpointing-remote-dest.md``).
+    backend (remote destinations are reached via host egress instead).
     """
     Path(repo).mkdir(parents=True, exist_ok=True)
     if (Path(repo) / "config").exists():

@@ -409,6 +409,7 @@ class SampleBufferFilestore(SampleBuffer):
         id: str | int,
         epoch: int,
         start: int,
+        limit: int | None = None,
     ) -> AbstractContextManager["SampleHistory"]:
         raise NotImplementedError("Sample history is only available for buffer DBs")
 

@@ -9,6 +9,14 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
+from inspect_ai._control.eval_state import clear_all_eval_states
+from inspect_ai._control.server import (
+    control_server,
+    release_requested,
+    reset_release_requested,
+    resolve_ctl_server,
+    wait_for_shutdown_async,
+)
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
@@ -100,6 +108,7 @@ def eval(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -123,6 +132,7 @@ def eval(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -175,6 +185,12 @@ def eval(
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl release`
+            (or `POST /release`).
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -222,6 +238,7 @@ def eval(
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -308,6 +325,7 @@ def eval(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 cost_limit=cost_limit,
@@ -329,6 +347,7 @@ def eval(
                 score=score,
                 score_display=score_display,
                 acp_server=acp_server,
+                ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -372,6 +391,7 @@ async def eval_async(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -393,6 +413,7 @@ async def eval_async(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -437,6 +458,12 @@ async def eval_async(
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl release`
+            (or `POST /release`).
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
         tags: Tags to associate with this evaluation run.
@@ -475,6 +502,7 @@ async def eval_async(
         debug_errors: Raise task errors (rather than logging them) so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -517,6 +545,17 @@ async def eval_async(
     # `eval_set`, `eval_retry`, and `eval_retry_async` all funnel here.
     checkpoint = normalize_checkpoint(checkpoint)
 
+    # validate ctl_server here too (it's resolved where it's consumed, at the
+    # control-server bind inside the run) so a bad value fails fast as an
+    # argument error rather than after models, tasks, and run-start hooks
+    # have already initialized
+    resolve_ctl_server(ctl_server)
+
+    # clear any release latch left by a prior run in this process (we run
+    # before this run's control server binds, so a release received during
+    # the run still latches)
+    reset_release_requested()
+
     result: list[EvalLog] | None = None
 
     async def run(tg: TaskGroup) -> None:
@@ -554,6 +593,7 @@ async def eval_async(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 cost_limit=cost_limit,
@@ -575,6 +615,7 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 acp_server=acp_server,
+                ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -610,6 +651,7 @@ async def _eval_async_inner(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -631,6 +673,7 @@ async def _eval_async_inner(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -810,6 +853,7 @@ async def _eval_async_inner(
             score_on_error=score_on_error,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             cost_limit=cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
@@ -871,7 +915,20 @@ async def _eval_async_inner(
         # via the discovery file in `<inspect_data_dir>/acp/`. Nested
         # rather than parenthesized because ``scan_cm`` is a sync
         # context manager and Python disallows mixing in the comma form.
-        async with _acp_server(eval_id=run_id, transport=acp_server):
+        #
+        # The control channel HTTP server is default-on (unlike ACP,
+        # which is opt-in; disable with ctl_server=False). It exposes
+        # live-eval read / direct / event-subscription operations to
+        # `inspect ctl` CLI clients, TUIs, and agents. Bind failures are
+        # logged and swallowed — eval correctness never depends on the
+        # control channel coming up. See design/control-channel.md
+        # "Implementation notes".
+        #
+        ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+        async with (
+            control_server(run_id=run_id, enabled=ctl_enabled) as _ctl_server,
+            _acp_server(eval_id=run_id, transport=acp_server),
+        ):
             with scan_cm:
                 # single task definition (could be multi-model) or max_tasks capped to 1
                 if parallel == 1:
@@ -936,6 +993,24 @@ async def _eval_async_inner(
                     )
                     logs = EvalLogs(results)
 
+            # keep-alive: after the body, park while the control / ACP
+            # servers are still up so `inspect ctl` can read state and
+            # request shutdown. (Standalone eval parks here, inside the
+            # task display; eval-set instead parks after the display has
+            # closed.) EvalStates are cleared at the run boundary below.
+            # a release received while the eval was still running latches
+            # ("exit when done") — skip the park (and its notice) entirely
+            if ctl_keep_alive and _ctl_server is not None and not release_requested():
+                import rich
+
+                rich.get_console().print(
+                    "Eval finished. Keeping process alive — press Ctrl+C "
+                    "or run `inspect ctl release` to let it exit.",
+                    markup=False,
+                    highlight=False,
+                )
+                await wait_for_shutdown_async(_ctl_server)
+
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
 
@@ -949,6 +1024,14 @@ async def _eval_async_inner(
         await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         _eval_async_running = False
         raise e
+
+    finally:
+        # Clear the process-level EvalState registry at the run boundary
+        # (after any keep-alive park) — but only for a standalone eval.
+        # When nested in an eval-set (eval_set_id set) the eval-set owns
+        # this, clearing after its own park.
+        if eval_set_id is None:
+            clear_all_eval_states()
 
     # return logs
     return logs
@@ -982,6 +1065,7 @@ def eval_retry(
     score: bool = True,
     score_display: bool | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -1040,6 +1124,12 @@ def eval_retry(
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl release`
+            (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;
@@ -1060,7 +1150,7 @@ def eval_retry(
             Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections:
             Adaptive concurrency for Model API connections. Defaults to enabled
-            (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100).
+            (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100).
             Pass `False` to opt out (uses static concurrency), an integer `N` as
             shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency`
             to fully customize bounds and tuning (cooldown_seconds, decrease_factor,
@@ -1109,6 +1199,7 @@ def eval_retry(
             score=score,
             score_display=score_display,
             acp_server=acp_server,
+            ctl_server=ctl_server,
             scanner=scanner,
             max_retries=max_retries,
             timeout=timeout,
@@ -1160,6 +1251,7 @@ async def eval_retry_async(
     score: bool = True,
     score_display: bool | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -1210,6 +1302,12 @@ async def eval_retry_async(
             additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl release`
+            (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;
@@ -1224,7 +1322,7 @@ async def eval_retry_async(
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
-        adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
+        adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
         checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
 
     Returns:
@@ -1348,6 +1446,7 @@ async def eval_retry_async(
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
+        turn_limit = eval_log.eval.config.turn_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
@@ -1485,6 +1584,7 @@ async def eval_retry_async(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 max_samples=max_samples,
@@ -1502,6 +1602,7 @@ async def eval_retry_async(
                 score_display=score_display,
                 checkpoint=checkpoint,
                 acp_server=acp_server,
+                ctl_server=ctl_server,
                 **dict(config),
             )
         )[0]

@@ -195,6 +195,12 @@ async def eval_run(
                 else:
                     task.token_limit = task_eval_config.token_limit
 
+                # sample turn limit
+                if task_eval_config.turn_limit is None:
+                    task_eval_config.turn_limit = task.turn_limit
+                else:
+                    task.turn_limit = task_eval_config.turn_limit
+
                 # sample time limit
                 if task_eval_config.time_limit is None:
                     task_eval_config.time_limit = task.time_limit
