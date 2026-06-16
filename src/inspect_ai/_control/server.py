@@ -30,7 +30,7 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, NamedTuple
 
 import anyio
 
@@ -56,8 +56,18 @@ logger = getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def resolve_ctl_server(value: bool | str | None) -> tuple[bool, bool]:
-    """Resolve a ``ctl_server`` parameter value to ``(enabled, keep_alive)``.
+class CtlServerConfig(NamedTuple):
+    """Resolved ``ctl_server`` configuration (see :func:`resolve_ctl_server`)."""
+
+    enabled: bool
+    """Whether the control server binds at all."""
+
+    keep_alive: bool
+    """Whether the process parks after the eval finishes."""
+
+
+def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
+    """Resolve a ``ctl_server`` parameter value to a :class:`CtlServerConfig`.
 
     The ``ctl_server`` parameter on ``eval()`` / ``eval_set()`` (and the
     ``--ctl-server`` CLI flag) mirrors the ``--acp-server`` shape — one
@@ -65,8 +75,8 @@ def resolve_ctl_server(value: bool | str | None) -> tuple[bool, bool]:
 
     - ``None`` / ``True`` — control server on (the default).
     - ``False`` — control server off.
-    - ``"keep-alive"`` — control server on, and the process parks after
-      the eval finishes (until ``inspect ctl release`` / ``POST /release``).
+    - ``"keep"`` — control server on, and the process parks after the eval
+      finishes (until ``inspect ctl release`` / ``POST /release``).
 
     The CLI spellings (``"true"`` / ``"yes"`` / ``"1"``, ``"false"`` /
     ``"no"`` / ``"0"``, case-insensitive) are accepted too, so programmatic
@@ -77,23 +87,24 @@ def resolve_ctl_server(value: bool | str | None) -> tuple[bool, bool]:
 
     Raises:
         PrerequisiteError: For any other value — an unknown string is more
-            likely a typo of ``keep-alive`` than an intentional choice, and
+            likely a typo of ``keep`` than an intentional choice, and
             silently treating it as ``True`` would drop the requested park.
     """
     if value is None or value is True:
-        return True, False
+        return CtlServerConfig(enabled=True, keep_alive=False)
     if value is False:
-        return False, False
+        return CtlServerConfig(enabled=False, keep_alive=False)
     if isinstance(value, str):
         lower = value.lower()
         if lower in ("true", "yes", "1"):
-            return True, False
+            return CtlServerConfig(enabled=True, keep_alive=False)
         if lower in ("false", "no", "0"):
-            return False, False
-        if lower == "keep-alive":
-            return True, True
+            return CtlServerConfig(enabled=False, keep_alive=False)
+        # `keep-alive` is still accepted as a legacy alias for `keep`.
+        if lower in ("keep", "keep-alive"):
+            return CtlServerConfig(enabled=True, keep_alive=True)
     raise PrerequisiteError(
-        f"Unexpected ctl_server value '{value}' (expected true, false, or keep-alive)."
+        f"Unexpected ctl_server value '{value}' (expected true, false, or keep)."
     )
 
 
@@ -134,7 +145,7 @@ def reset_release_requested() -> None:
 # ---------------------------------------------------------------------------
 
 # Whether this process intends to park after the eval finishes. Set either at
-# launch (``--ctl-server=keep-alive``) or at runtime by ``POST /keep`` (the
+# launch (``--ctl-server=keep``) or at runtime by ``POST /keep`` (the
 # ``inspect ctl keep`` command — the inverse of ``release``). Module-level for
 # the same reason as the release latch: it must survive the eval-set's fresh
 # park-time server binding (a per-server flag couldn't carry the launch / runtime
@@ -328,7 +339,7 @@ class ControlServer:
 
         # Latches keep-alive ON for this process (the inverse of /release):
         # the process parks after the eval finishes instead of exiting, even
-        # if it was launched without `--ctl-server=keep-alive`. The park gate
+        # if it was launched without `--ctl-server=keep`. The park gate
         # reads the same module-level latch, so a request received any time
         # before the eval finishes takes effect. A no-op once a release has
         # latched ("exit when done" wins).

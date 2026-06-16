@@ -189,7 +189,7 @@ def eval(
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -459,7 +459,7 @@ async def eval_async(
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -925,16 +925,16 @@ async def _eval_async_inner(
         # control channel coming up. See design/control-channel.md
         # "Implementation notes".
         #
-        ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+        ctl = resolve_ctl_server(ctl_server)
         # Advertise keep-alive via the process-global latch (the single source
         # of truth the control server reports and the park gates on). A runtime
         # `POST /keep` sets the same latch. An eval-set demotes its inner eval()
-        # to a plain on/off server and owns the latch itself, so ctl_keep_alive
+        # to a plain on/off server and owns the latch itself, so ctl.keep_alive
         # is only ever set here for a standalone eval.
-        if ctl_keep_alive:
+        if ctl.keep_alive:
             request_keep_alive()
         async with (
-            control_server(run_id=run_id, enabled=ctl_enabled) as _ctl_server,
+            control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
         ):
             with scan_cm:
@@ -1141,7 +1141,7 @@ def eval_retry(
         score_display: Show scoring metrics in realtime (defaults to True)
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -1319,7 +1319,7 @@ async def eval_retry_async(
         score_display: Show scoring metrics in realtime (defaults to True)
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).

@@ -349,11 +349,11 @@ def test_resolve_ctl_server_values() -> None:
     """The ``ctl_server`` param resolves to ``(enabled, keep_alive)``.
 
     ``None`` and ``True`` are the default-on shape, ``False`` disables,
-    ``"keep-alive"`` enables + parks. The CLI string spellings are accepted
+    ``"keep"`` enables + parks. The CLI string spellings are accepted
     case-insensitively so programmatic callers can forward a flag or
     ``INSPECT_EVAL_CTL_SERVER`` env value verbatim. Any other string is
     rejected rather than silently treated as ``True`` — it's more likely a
-    typo of ``keep-alive``, and dropping the requested park would strand the
+    typo of ``keep``, and dropping the requested park would strand the
     user.
     """
     from inspect_ai._control.server import resolve_ctl_server
@@ -362,6 +362,8 @@ def test_resolve_ctl_server_values() -> None:
     assert resolve_ctl_server(None) == (True, False)
     assert resolve_ctl_server(True) == (True, False)
     assert resolve_ctl_server(False) == (False, False)
+    assert resolve_ctl_server("keep") == (True, True)
+    # `keep-alive` is still accepted as a legacy alias for `keep`
     assert resolve_ctl_server("keep-alive") == (True, True)
 
     # CLI / env-var spellings forwarded verbatim
@@ -372,6 +374,7 @@ def test_resolve_ctl_server_values() -> None:
     assert resolve_ctl_server("no") == (False, False)
     assert resolve_ctl_server("0") == (False, False)
     assert resolve_ctl_server("TRUE") == (True, False)
+    assert resolve_ctl_server("KEEP") == (True, True)
     assert resolve_ctl_server("Keep-Alive") == (True, True)
 
     with pytest.raises(PrerequisiteError, match="keepalive"):

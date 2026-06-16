@@ -227,12 +227,12 @@ def eval_set(
             persisted in the original log's `EvalConfig.acp_server`.
         ctl_server: Control-channel server for this eval-set process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval-set finishes so external
             clients (the `inspect ctl` CLI, scripted agents, TUIs) can still
             query state and read results — exit via `inspect ctl release`
             (or `POST /release`). Requires `retry_immediate=True` (the
-            default) for the `"keep-alive"` value.
+            default) for the `"keep"` value.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -337,7 +337,7 @@ def eval_set(
             "no task-level retries will be performed."
         )
 
-    # --ctl-server=keep-alive requires retry_immediate=True (the default).
+    # --ctl-server=keep requires retry_immediate=True (the default).
     # In retry_immediate=False mode eval-set makes multiple eval() calls
     # via tenacity, each with its own short-lived control server —
     # the keep-alive park would need to live OUTSIDE any single
@@ -346,26 +346,26 @@ def eval_set(
     # lifecycle aligned with eval()"). Refuse the combination
     # explicitly rather than silently giving a broken keep-alive
     # experience.
-    ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+    ctl = resolve_ctl_server(ctl_server)
     # clear any release latch left by a prior run in this process; needed
     # here as well as in eval_async because the all-reused short-circuit
     # parks without ever calling eval()
     reset_release_requested()
     # Same for the keep-alive latch (clear any stale one before this run).
     reset_keep_alive_requested()
-    if ctl_keep_alive and retry_immediate is False:
+    if ctl.keep_alive and retry_immediate is False:
         raise PrerequisiteError(
-            "--ctl-server=keep-alive is incompatible with retry_immediate=False "
+            "--ctl-server=keep is incompatible with retry_immediate=False "
             "(the legacy batch-retry mode tears down the control "
             "surface between attempts). Use --retry-immediate (the "
-            "default) or drop the keep-alive value."
+            "default) or drop the keep value."
         )
     # The eval-set owns the latch: set it now (after the rejection check),
     # before the inner eval() binds its (plain on/off) control server, so that
     # server reports keep-alive for the run and the inner eval() (eval_set_id
     # set) leaves the latch alone rather than resetting it. The park below reads
     # the same latch, so a runtime `POST /keep` during the run is honoured too.
-    if ctl_keep_alive:
+    if ctl.keep_alive:
         request_keep_alive()
 
     # helper function to run a set of evals
@@ -434,7 +434,7 @@ def eval_set(
             # Demoted to a plain on/off: eval-set owns the keep-alive park
             # itself (after the display closes), so the inner eval() must
             # not park inside the task display. See the park below.
-            ctl_server=ctl_enabled,
+            ctl_server=ctl.enabled,
             **kwargs,
         )
 
@@ -784,7 +784,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
     that normally publishes state never fires for them. Without an
     explicit registration here, ``inspect ctl tasks`` would show zero
     entries for an eval-set whose tasks all came from prior logs —
-    confusing for an agent driving an eval-set under ``--ctl-server=keep-alive``
+    confusing for an agent driving an eval-set under ``--ctl-server=keep``
     that expects to see what the eval-set returned.
 
     Registration uses only the already-parsed headers (eval-set read them

@@ -47,7 +47,7 @@ def ctl_command() -> None:
     binds by default.
 
     A process exits when its eval finishes; launch with ``inspect eval
-    --ctl-server=keep-alive`` to keep it inspectable (and its results
+    --ctl-server=keep`` to keep it inspectable (and its results
     readable) here until you run ``inspect ctl release``.
     """
     return None
@@ -56,13 +56,13 @@ def ctl_command() -> None:
 def _echo_no_running_evals() -> None:
     """Print the 'nothing to show' message shared by the read commands.
 
-    Surfaces ``--ctl-server=keep-alive`` here because this fires exactly
+    Surfaces ``--ctl-server=keep`` here because this fires exactly
     when a user is confused that a just-finished eval isn't listed — its
     process has already exited unless it was launched to park.
     """
     click.echo(
         f"No running evals found in {discovery_dir()}.\n"
-        "Start an eval with `inspect eval <task>` — add `--ctl-server=keep-alive` "
+        "Start an eval with `inspect eval <task>` — add `--ctl-server=keep` "
         "to keep the process inspectable after the eval finishes."
     )
 
@@ -358,7 +358,7 @@ def keep_command(pid: int | None) -> None:
     Posts to the process's control endpoint /keep route, latching keep-alive:
     the process parks after the eval finishes (until `inspect ctl release` or
     Ctrl+C) instead of exiting. The inverse of `release`. Use it to make a
-    process you launched WITHOUT `--ctl-server=keep-alive` inspectable — its
+    process you launched WITHOUT `--ctl-server=keep` inspectable — its
     state readable, its log final — after the eval completes.
 
     Issued while the eval is still running, it takes effect when the eval
@@ -387,7 +387,7 @@ def keep_command(pid: int | None) -> None:
     ),
 )
 def release_command(pid: int | None) -> None:
-    """Release a lingering --ctl-server=keep-alive process so it can exit.
+    """Release a lingering --ctl-server=keep process so it can exit.
 
     Posts to the process's control endpoint /release route, letting a parked
     process exit. Release latches: issued while the eval is still running,
