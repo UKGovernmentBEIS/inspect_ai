@@ -64,6 +64,12 @@ async def _drive(hook: SandboxFingerprintHook, environments: dict[str, Any]) -> 
     await hook.on_sample_start(_sample_start())
 
 
+def _fingerprints() -> dict[str, SandboxFingerprint]:
+    fingerprints = sample_sandbox_fingerprint()
+    assert fingerprints is not None
+    return fingerprints
+
+
 async def test_records_fingerprint_from_exec_probes() -> None:
     await _drive(SandboxFingerprintHook(), {"default": _mock_sandbox()})
 
@@ -86,13 +92,13 @@ async def test_packages_empty_dict_when_pip_returns_no_packages() -> None:
         }
     )
     await _drive(SandboxFingerprintHook(), {"default": sandbox})
-    assert sample_sandbox_fingerprint()["default"].packages == {}
+    assert _fingerprints()["default"].packages == {}
 
 
 async def test_degrades_when_connection_unavailable() -> None:
     await _drive(SandboxFingerprintHook(), {"default": _mock_sandbox(container=None)})
 
-    fingerprint = sample_sandbox_fingerprint()["default"]
+    fingerprint = _fingerprints()["default"]
     assert fingerprint.image_id is None
     assert fingerprint.os == "Debian GNU/Linux 12 (bookworm)"
 
@@ -104,7 +110,7 @@ async def test_never_raises_when_probes_fail() -> None:
 
     await _drive(SandboxFingerprintHook(), {"default": sandbox})
 
-    fingerprint = sample_sandbox_fingerprint()["default"]
+    fingerprint = _fingerprints()["default"]
     assert fingerprint.os is None
     assert fingerprint.image_id is None
     assert fingerprint.packages is None
@@ -131,7 +137,7 @@ async def test_custom_probe_lands_in_metadata() -> None:
     register_fingerprint_probe("custom_test", custom)
     try:
         await _drive(SandboxFingerprintHook(), {"default": _mock_sandbox()})
-        fingerprint = sample_sandbox_fingerprint()["default"]
+        fingerprint = _fingerprints()["default"]
         assert fingerprint.metadata["custom_key"] == "custom_value"
     finally:
         from inspect_ai.hooks._sandbox_fingerprint import _probes
