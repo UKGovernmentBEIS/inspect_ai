@@ -29,6 +29,7 @@
 - Agent Bridge: Preserve `source="operator"` provenance on operator-injected messages.
 - Task Display: Update log/plain progress after errors.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
+- Inspect View: Pending sample buffers now store per-sample segment cursors to avoid repeatedly streaming co-batched segments after a sample reaches its own cursor. In-progress buffers written by this version may not be readable by older Inspect versions until the eval finishes and the ephemeral buffer is removed.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
 - Sandbox: `self_check` now verifies that non-ASCII (UTF-8) command output round-trips correctly on `exec` stdout/stderr.
 - S3: Retry when requests have stale signatures.
