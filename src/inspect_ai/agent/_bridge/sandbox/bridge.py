@@ -105,7 +105,11 @@ async def sandbox_agent_bridge(
             parameters like the system prompt, tools, and response format are always
             forwarded). Set `True` for faithful-proxy behavior where the client's
             generation parameters are authoritative.
-        checkpointer: The checkpointer.
+        checkpointer: Checkpointer to drive through the bridge. When provided,
+            the bridge ticks it after each generation and registers its agent
+            state (messages, output, compaction prefix) for checkpoint backup
+            and restore, so a checkpointed run survives resume. Defaults to
+            `None` (no checkpointing).
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"

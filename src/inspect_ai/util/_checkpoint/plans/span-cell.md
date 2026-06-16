@@ -80,7 +80,8 @@ sample task T0: solver
       │      └─ per poll batch: tg.start_soon(_handle_request) per request
       │           T2a, T2b, …  Context = copy of T1 → ckpt1, frozen
       ├─ T_monitor = _monitor_proxy
-      └─ T0: execs CLI agent in container, parks at yield
+      └─ T0: parks at `yield bridge` (sandbox/bridge.py:190); the
+             caller (claude_code) execs the CLI agent in the container
 
 container agent proc → HTTP proxy → file RPC → T1 poll → T2x handler
    └─ inspect_*_api_request → bridge_generate → _track_state → await cp.tick()
