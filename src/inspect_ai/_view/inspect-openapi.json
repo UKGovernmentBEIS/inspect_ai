@@ -20,7 +20,7 @@
             "type": "integer"
           },
           "min": {
-            "default": 4,
+            "default": 10,
             "title": "Min",
             "type": "integer"
           },
@@ -131,6 +131,31 @@
           "anchor_id"
         ],
         "title": "AnchorEvent",
+        "type": "object"
+      },
+      "AppConfig": {
+        "description": "Application configuration returned by GET /app-config.",
+        "properties": {
+          "inspect_version": {
+            "title": "Inspect Version",
+            "type": "string"
+          },
+          "scout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scout Version"
+          }
+        },
+        "required": [
+          "inspect_version"
+        ],
+        "title": "AppConfig",
         "type": "object"
       },
       "ApprovalEvent": {
@@ -609,6 +634,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Logprobs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopDetails"
               },
               {
                 "type": "null"
@@ -1186,7 +1221,8 @@
               "manual",
               "token",
               "cost",
-              "budget"
+              "budget",
+              "agent_complete"
             ],
             "title": "Trigger",
             "type": "string"
@@ -1228,7 +1264,7 @@
         "type": "object"
       },
       "CheckpointSampleConfig": {
-        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_dir`` and\n``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_location``\nand ``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.",
         "properties": {
           "max_consecutive_failures": {
             "anyOf": [
@@ -3433,6 +3469,20 @@
             "title": "Metadata",
             "type": "object"
           },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -3878,6 +3928,20 @@
             "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
+          },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
           },
           "model_usage": {
             "additionalProperties": {
@@ -4877,6 +4941,20 @@
               }
             ],
             "title": "Extra Headers"
+          },
+          "fallback_models": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Models"
           },
           "frequency_penalty": {
             "anyOf": [
@@ -7049,6 +7127,43 @@
         "title": "ModelEvent",
         "type": "object"
       },
+      "ModelFallback": {
+        "description": "A model fallback (request served by a different model than requested).",
+        "properties": {
+          "count": {
+            "default": 1,
+            "title": "Count",
+            "type": "integer"
+          },
+          "fallback_model": {
+            "title": "Fallback Model",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "fallback_model",
+          "count"
+        ],
+        "title": "ModelFallback",
+        "type": "object"
+      },
       "ModelOutput": {
         "description": "Output from model generation.",
         "properties": {
@@ -7075,6 +7190,16 @@
               }
             ],
             "title": "Error"
+          },
+          "fallback": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelFallback"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "metadata": {
             "anyOf": [
@@ -9189,6 +9314,81 @@
         "title": "StepEvent",
         "type": "object"
       },
+      "StopCategory": {
+        "description": "A single refusal/safety category reported by (or derived for) a model stop.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          }
+        },
+        "required": [
+          "category"
+        ],
+        "title": "StopCategory",
+        "type": "object"
+      },
+      "StopDetails": {
+        "description": "Additional detail about why a model stopped generating (e.g. a content refusal).\n\n`categories` is the canonical list (always iterable; a single-category provider\nappears as one entry). `category` and `explanation` are a convenience high-level\nsummary derived from the same data \u2014 `category` is the primary category and\n`explanation` is human-readable (synthesized from `categories` when the provider\nsupplies no text). Read either way; both describe the same stop.",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/StopCategory"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "StopDetails",
+        "type": "object"
+      },
       "StoreEvent": {
         "description": "Change to data within the current `Store`.",
         "properties": {
@@ -10647,6 +10847,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/app-config": {
+      "get": {
+        "operationId": "api_app_config_app_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api App Config"
+      }
+    },
     "/chat-message": {
       "get": {
         "operationId": "_chat_message_chat_message_get",

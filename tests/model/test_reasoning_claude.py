@@ -22,7 +22,9 @@ async def test_reasoning_claude():
 async def test_reasoning_claude_opus_4_7():
     # Opus 4.7 defaults thinking.display to 'omitted'; Inspect sends
     # 'summarized', so summarized reasoning content must still come back.
-    await check_reasoning_content("anthropic/claude-opus-4-7")
+    # Claude 4.7+ rejects an explicit reasoning_tokens budget, so drive
+    # thinking via reasoning_effort only.
+    await check_reasoning_content("anthropic/claude-opus-4-7", reasoning_tokens=None)
 
 
 @pytest.mark.anyio

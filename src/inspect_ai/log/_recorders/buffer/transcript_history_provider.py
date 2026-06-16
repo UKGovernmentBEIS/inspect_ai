@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator, Mapping, Sequence
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
 from typing import TYPE_CHECKING, Protocol
 
 from inspect_ai.event._base import BaseEvent
@@ -12,6 +13,7 @@ from inspect_ai.event._pool import (
     resolve_model_event_inputs,
 )
 from inspect_ai.event._validate import validate_events
+from inspect_ai.log._condense import resolve_events_attachments
 from inspect_ai.log._log import EventsData
 from inspect_ai.log._recorders.buffer.types import JsonData
 
@@ -44,12 +46,34 @@ class TranscriptHistoryBuffer(Protocol):
     ) -> AbstractContextManager[SampleHistoryLike]: ...
 
     def open_sample_history_from(
-        self, id: str | int, epoch: int, start: int
+        self, id: str | int, epoch: int, start: int, limit: int | None = None
     ) -> AbstractContextManager[SampleHistoryLike]: ...
 
     def open_sample_history(
         self, id: str | int, epoch: int
     ) -> AbstractContextManager[SampleHistoryLike]: ...
+
+
+@contextmanager
+def _history_reads() -> Iterator[None]:
+    """Translate backing-store failures into the protocol's domain error.
+
+    The buffer database can be torn down (eval teardown, stale-buffer sweep)
+    while a reader holds this provider. Consumers of
+    ``TranscriptHistoryProvider`` are storage-agnostic, so they catch
+    ``TranscriptHistoryUnavailableError`` — not sqlite's exception types or
+    the buffer's used-after-cleanup ``RuntimeError``.
+    """
+    from inspect_ai.log._transcript import TranscriptHistoryUnavailableError
+
+    try:
+        yield
+    except TranscriptHistoryUnavailableError:
+        raise  # already translated (nested read)
+    except (sqlite3.OperationalError, RuntimeError) as ex:
+        raise TranscriptHistoryUnavailableError(
+            f"Transcript history store is unavailable: {ex}"
+        ) from ex
 
 
 class BufferTranscriptHistoryProvider:
@@ -65,7 +89,8 @@ class BufferTranscriptHistoryProvider:
 
     @property
     def event_count(self) -> int:
-        return self._buffer_db.sample_event_count(self._sample_id, self._epoch)
+        with _history_reads():
+            return self._buffer_db.sample_event_count(self._sample_id, self._epoch)
 
     def events(self) -> Sequence[Event]:
         return self._events()
@@ -78,24 +103,33 @@ class BufferTranscriptHistoryProvider:
             return self._events()
         if n <= 0:
             return []
-        with self._buffer_db.open_sample_history_tail(
-            self._sample_id, self._epoch, n
-        ) as history:
+        with (
+            _history_reads(),
+            self._buffer_db.open_sample_history_tail(
+                self._sample_id, self._epoch, n
+            ) as history,
+        ):
             return _materialize_events(history)
 
-    def events_from(self, start: int) -> Sequence[Event]:
-        if start <= 0:
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        if start <= 0 and limit is None:
             return self._events()
-        with self._buffer_db.open_sample_history_from(
-            self._sample_id, self._epoch, start
-        ) as history:
+        with (
+            _history_reads(),
+            self._buffer_db.open_sample_history_from(
+                self._sample_id, self._epoch, max(0, start), limit
+            ) as history,
+        ):
             return _materialize_events(history)
 
     def events_since_last(self, event_type: type[Event]) -> list[Event]:
         suffix: list[Event] = []
-        with self._buffer_db.open_sample_history(
-            self._sample_id, self._epoch
-        ) as history:
+        with (
+            _history_reads(),
+            self._buffer_db.open_sample_history(
+                self._sample_id, self._epoch
+            ) as history,
+        ):
             for event in _iter_materialized_events(history):
                 if isinstance(event, event_type):
                     suffix = [event]
@@ -104,46 +138,66 @@ class BufferTranscriptHistoryProvider:
         return suffix
 
     def contains_event(self, event_id: str) -> bool:
-        return self._buffer_db.sample_has_event(self._sample_id, self._epoch, event_id)
+        with _history_reads():
+            return self._buffer_db.sample_has_event(
+                self._sample_id, self._epoch, event_id
+            )
 
     def attachments(self) -> Mapping[str, str]:
-        with self._buffer_db.open_sample_history(
-            self._sample_id, self._epoch
-        ) as history:
+        with (
+            _history_reads(),
+            self._buffer_db.open_sample_history(
+                self._sample_id, self._epoch
+            ) as history,
+        ):
             return dict(history.attachments)
 
     def attachment(self, hash: str) -> str | None:
-        return self._buffer_db.sample_attachment(self._sample_id, self._epoch, hash)
+        with _history_reads():
+            return self._buffer_db.sample_attachment(self._sample_id, self._epoch, hash)
 
     def export_transcript_events(self, transcript_store: "TranscriptEventSink") -> int:
-        return self._buffer_db.export_transcript_events(
-            self._sample_id, self._epoch, transcript_store
-        )
+        with _history_reads():
+            return self._buffer_db.export_transcript_events(
+                self._sample_id, self._epoch, transcript_store
+            )
 
     def _events(self) -> list[Event]:
-        with self._buffer_db.open_sample_history(
-            self._sample_id, self._epoch
-        ) as history:
+        with (
+            _history_reads(),
+            self._buffer_db.open_sample_history(
+                self._sample_id, self._epoch
+            ) as history,
+        ):
             return _materialize_events(history)
 
     def _iter_events(self) -> Iterator[Event]:
-        with self._buffer_db.open_sample_history(
-            self._sample_id, self._epoch
-        ) as history:
+        with (
+            _history_reads(),
+            self._buffer_db.open_sample_history(
+                self._sample_id, self._epoch
+            ) as history,
+        ):
             yield from _iter_materialized_events(history)
 
 
 def _materialize_events(history: SampleHistoryLike) -> list[Event]:
-    return materialize_pooled_events(
+    events = materialize_pooled_events(
         history.iter_events(),
         history.events_data["messages"],
         history.events_data["calls"],
     )
+    # Resolve content attachments (large text / images) back to their
+    # underlying values so callers get usable events, not bare
+    # `attachment://<hash>` references. "core" leaves ModelEvent.call
+    # condensed, matching resident in-memory events.
+    return resolve_events_attachments(events, history.attachments)
 
 
 def _iter_materialized_events(history: SampleHistoryLike) -> Iterator[Event]:
     message_pool = history.events_data["messages"]
     call_pool = history.events_data["calls"]
+    attachments = history.attachments
     for raw_event in history.iter_events():
         event = (
             raw_event
@@ -151,7 +205,9 @@ def _iter_materialized_events(history: SampleHistoryLike) -> Iterator[Event]:
             else validate_events([raw_event])[0]
         )
         event = resolve_model_event_inputs([event], message_pool)[0]
-        yield resolve_model_event_calls([event], call_pool)[0]
+        event = resolve_model_event_calls([event], call_pool)[0]
+        # Resolve attachments per-event so streaming/index reads stay lazy.
+        yield resolve_events_attachments([event], attachments)[0]
 
 
 if TYPE_CHECKING:

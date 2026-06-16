@@ -20,11 +20,14 @@ MAX_TEXT_LENGTH = 5120
 
 
 def thin_input(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
-    # Clean the input of any images or documents
+    # Clean the input of any images or documents. Messages are copied rather
+    # than mutated in place -- callers (e.g. EvalSampleSummary.thin_data) pass
+    # message objects shared with the full EvalSample, which must remain intact.
     if isinstance(inputs, list):
         input: list[ChatMessage] = []
         for message in inputs:
             if not isinstance(message.content, str):
+                changed = False
                 filtered_content: list[
                     ContentText
                     | ContentReasoning
@@ -45,17 +48,26 @@ def thin_input(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
                                 refusal=content.refusal,
                             )
                             filtered_content.append(truncated_content)
+                            changed = True
                         else:
                             filtered_content.append(content)
                     else:
                         filtered_content.append(
                             ContentText(text=f"({content.type.capitalize()})")
                         )
-                message.content = filtered_content
-                input.append(message)
+                        changed = True
+                if changed:
+                    input.append(
+                        message.model_copy(update={"content": filtered_content})
+                    )
+                else:
+                    input.append(message)
             else:
-                message.content = truncate_text(message.content)
-                input.append(message)
+                truncated_text = truncate_text(message.content)
+                if truncated_text != message.content:
+                    input.append(message.model_copy(update={"content": truncated_text}))
+                else:
+                    input.append(message)
         return input
     else:
         return truncate_text(inputs)

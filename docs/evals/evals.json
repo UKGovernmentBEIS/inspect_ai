@@ -22,6 +22,29 @@
     "model_cards": []
   },
   {
+    "id": "ivanleo_agent_search",
+    "name": "agent-search",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Agent answers Gemini API questions by querying an indexed documentation database.",
+    "paper": null,
+    "code": "inspect_harbor/ivanleo_agent_search",
+    "contributors": [],
+    "samples": 20,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ivanleo_agent_search.html",
+    "model_cards": []
+  },
+  {
     "id": "agent_bench",
     "name": "AgentBench",
     "source": "evals",
@@ -43,7 +66,7 @@
     ],
     "samples": 26,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/agent_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agent_bench/",
     "model_cards": []
   },
   {
@@ -110,7 +133,7 @@
     ],
     "samples": 5000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/apps/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/apps/",
     "model_cards": []
   },
   {
@@ -155,7 +178,7 @@
     ],
     "samples": 1140,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/bigcodebench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bigcodebench/",
     "model_cards": []
   },
   {
@@ -223,7 +246,7 @@
     ],
     "samples": 100,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/class_eval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/class_eval/",
     "model_cards": []
   },
   {
@@ -290,7 +313,7 @@
     ],
     "samples": 406,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/compute_eval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/compute_eval/",
     "model_cards": []
   },
   {
@@ -402,7 +425,7 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ds1000/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ds1000/",
     "model_cards": []
   },
   {
@@ -560,7 +583,7 @@
     ],
     "samples": 238,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/frontier_cs/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/frontier_cs/",
     "model_cards": []
   },
   {
@@ -622,7 +645,7 @@
       "agent",
       "sandbox"
     ],
-    "desc": "HiL-Bench (Human-in-the-Loop): tests if agents know when to ask for help rather than proceed with uncertain knowledge.",
+    "desc": "HiL-Bench: software-engineering and text-to-SQL tasks (drawn from SWE-Bench Pro and BIRD) with critical details removed, testing whether an agent recognizes the gap and asks a human for help instead of guessing.",
     "paper": "https://arxiv.org/abs/2604.09408",
     "code": "inspect_harbor/scale_ai_hil_bench",
     "contributors": [],
@@ -651,7 +674,7 @@
     ],
     "samples": 164,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/humaneval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/humaneval/",
     "model_cards": []
   },
   {
@@ -696,7 +719,7 @@
     ],
     "samples": 810,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ifevalcode/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ifevalcode/",
     "model_cards": []
   },
   {
@@ -719,7 +742,7 @@
     ],
     "samples": 250,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/kernelbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/kernelbench/",
     "model_cards": []
   },
   {
@@ -809,7 +832,7 @@
     ],
     "samples": 1404,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/livecodebench_pro/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/livecodebench_pro/",
     "model_cards": []
   },
   {
@@ -854,7 +877,7 @@
     ],
     "samples": 257,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mbpp/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mbpp/",
     "model_cards": []
   },
   {
@@ -880,7 +903,7 @@
     ],
     "samples": 1,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mle_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mle_bench/",
     "model_cards": []
   },
   {
@@ -929,7 +952,7 @@
     ],
     "samples": 7,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mlrc_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mlrc_bench/",
     "model_cards": []
   },
   {
@@ -1024,7 +1047,7 @@
     ],
     "samples": 23,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/paperbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/paperbench/",
     "model_cards": []
   },
   {
@@ -1248,7 +1271,7 @@
     ],
     "samples": 500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/swe_bench/",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -1411,7 +1434,7 @@
     ],
     "samples": 460,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_lancer/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/swe_lancer/",
     "model_cards": []
   },
   {
@@ -1449,7 +1472,7 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A benchmark of freelance software engineering tasks from Upwork, valued at $1 million USD total in real-world payouts. Individual Contributor (IC) variant: end-to-end engineering tasks.",
+    "desc": "SWE-Lancer Diamond (IC): individual-contributor split of OpenAI's SWE-Lancer benchmark — real Upwork freelance software-engineering issues fixed in-repo and graded by end-to-end tests.",
     "paper": "https://arxiv.org/abs/2502.12115",
     "code": "inspect_harbor/openai_swe_lancer_diamond_ic",
     "contributors": [],
@@ -1657,7 +1680,7 @@
     ],
     "samples": 307,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/usaco/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/usaco/",
     "model_cards": []
   },
   {
@@ -1773,7 +1796,7 @@
     ],
     "samples": 33,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/assistant_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistant_bench/",
     "model_cards": []
   },
   {
@@ -1796,7 +1819,7 @@
     ],
     "samples": 4981,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/bfcl/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bfcl/",
     "model_cards": []
   },
   {
@@ -1866,7 +1889,7 @@
     ],
     "samples": 1266,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/browse_comp/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/browse_comp/",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -1896,7 +1919,7 @@
     ],
     "samples": 165,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gaia/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gaia/",
     "model_cards": []
   },
   {
@@ -1942,7 +1965,7 @@
     ],
     "samples": 7775,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/mind2web/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mind2web/",
     "model_cards": []
   },
   {
@@ -1993,11 +2016,34 @@
     ],
     "samples": 369,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/osworld/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/osworld/",
     "model_cards": [
       "chatgpt",
       "claude"
     ]
+  },
+  {
+    "id": "agentscope_ai_pawbench",
+    "name": "PawBench",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "PawBench: A comprehensive agent benchmark with 150 tasks covering coding, data analysis, tool use, reasoning, safety, and multimodal capabilities.",
+    "paper": "https://github.com/agentscope-ai/PawBench",
+    "code": "inspect_harbor/agentscope_ai_pawbench",
+    "contributors": [],
+    "samples": 150,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/agentscope_ai_pawbench.html",
+    "model_cards": []
   },
   {
     "id": "sycophancy",
@@ -2019,7 +2065,7 @@
     ],
     "samples": 4888,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/sycophancy/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sycophancy/",
     "model_cards": []
   },
   {
@@ -2044,7 +2090,7 @@
     ],
     "samples": 50,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/tau2/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/tau2/",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -2076,7 +2122,7 @@
     ],
     "samples": 34,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/theagentcompany/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/theagentcompany/",
     "model_cards": []
   },
   {
@@ -2169,7 +2215,7 @@
     ],
     "samples": 250,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbh/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bbh/",
     "model_cards": []
   },
   {
@@ -2192,7 +2238,7 @@
     ],
     "samples": 4520,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbeh/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bbeh/",
     "model_cards": []
   },
   {
@@ -2215,7 +2261,7 @@
     ],
     "samples": 3270,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/boolq/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/boolq/",
     "model_cards": []
   },
   {
@@ -2238,7 +2284,7 @@
     ],
     "samples": 9535,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/drop/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/drop/",
     "model_cards": []
   },
   {
@@ -2261,7 +2307,7 @@
     ],
     "samples": 10042,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/hellaswag/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/hellaswag/",
     "model_cards": []
   },
   {
@@ -2284,7 +2330,7 @@
     ],
     "samples": 541,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/ifeval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ifeval/",
     "model_cards": []
   },
   {
@@ -2396,7 +2442,7 @@
     ],
     "samples": 408,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/lingoly/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/lingoly/",
     "model_cards": []
   },
   {
@@ -2421,7 +2467,7 @@
     ],
     "samples": 847,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/mmmu/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mmmu/",
     "model_cards": [
       "chatgpt",
       "claude"
@@ -2447,7 +2493,7 @@
     ],
     "samples": 250,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/musr/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/musr/",
     "model_cards": []
   },
   {
@@ -2470,7 +2516,7 @@
     ],
     "samples": 225,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/niah/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/niah/",
     "model_cards": []
   },
   {
@@ -2493,7 +2539,7 @@
     ],
     "samples": 1100,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/novelty_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/novelty_bench/",
     "model_cards": []
   },
   {
@@ -2516,7 +2562,7 @@
     ],
     "samples": 8000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/paws/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/paws/",
     "model_cards": []
   },
   {
@@ -2539,7 +2585,7 @@
     ],
     "samples": 1838,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/piqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/piqa/",
     "model_cards": []
   },
   {
@@ -2562,7 +2608,7 @@
     ],
     "samples": 3498,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/race_h/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/race_h/",
     "model_cards": []
   },
   {
@@ -2674,7 +2720,7 @@
     ],
     "samples": 11873,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/squad/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/squad/",
     "model_cards": []
   },
   {
@@ -2701,7 +2747,7 @@
     ],
     "samples": 612,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/vimgolf_challenges/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/vimgolf_challenges/",
     "model_cards": []
   },
   {
@@ -2724,7 +2770,7 @@
     ],
     "samples": 1267,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/winogrande/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/winogrande/",
     "model_cards": []
   },
   {
@@ -2747,7 +2793,7 @@
     ],
     "samples": 87048,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/worldsense/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/worldsense/",
     "model_cards": []
   },
   {
@@ -2770,7 +2816,7 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/writing/writingbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/writingbench/",
     "model_cards": []
   },
   {
@@ -2793,7 +2839,7 @@
     ],
     "samples": 394,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/infinite_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/infinite_bench/",
     "model_cards": []
   },
   {
@@ -2816,7 +2862,7 @@
     ],
     "samples": 254,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/agieval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agieval/",
     "model_cards": []
   },
   {
@@ -2840,7 +2886,7 @@
     ],
     "samples": 58492,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bias/bbq/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bbq/",
     "model_cards": [
       "claude"
     ]
@@ -2866,7 +2912,7 @@
     ],
     "samples": 7200,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bias/bold/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bold/",
     "model_cards": []
   },
   {
@@ -2889,7 +2935,7 @@
     ],
     "samples": 1221,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/commonsense_qa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/commonsense_qa/",
     "model_cards": []
   },
   {
@@ -2936,7 +2982,7 @@
     ],
     "samples": 3000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/hle/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/hle/",
     "model_cards": [
       "chatgpt",
       "claude"
@@ -2962,7 +3008,7 @@
     ],
     "samples": 910,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/livebench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/livebench/",
     "model_cards": []
   },
   {
@@ -2986,7 +3032,7 @@
     ],
     "samples": 1153,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/macbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/macbench/",
     "model_cards": []
   },
   {
@@ -3010,7 +3056,7 @@
     ],
     "samples": 14042,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mmlu/",
     "model_cards": []
   },
   {
@@ -3033,7 +3079,7 @@
     ],
     "samples": 12032,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu_pro/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mmlu_pro/",
     "model_cards": []
   },
   {
@@ -3079,7 +3125,7 @@
     ],
     "samples": 397,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/onet/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/onet/",
     "model_cards": []
   },
   {
@@ -3102,7 +3148,7 @@
     ],
     "samples": 44,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/personality/personality/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/personality/",
     "model_cards": []
   },
   {
@@ -3148,7 +3194,7 @@
     ],
     "samples": 4326,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/simpleqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/simpleqa/",
     "model_cards": []
   },
   {
@@ -3171,7 +3217,7 @@
     ],
     "samples": 817,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/truthfulqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/truthfulqa/",
     "model_cards": []
   },
   {
@@ -3194,7 +3240,7 @@
     ],
     "samples": 250,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/xstest/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/xstest/",
     "model_cards": []
   },
   {
@@ -3244,7 +3290,7 @@
     ],
     "samples": 13,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/threecb/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/threecb/",
     "model_cards": []
   },
   {
@@ -3270,7 +3316,7 @@
     ],
     "samples": 25,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cti_realm/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cti_realm/",
     "model_cards": []
   },
   {
@@ -3313,7 +3359,7 @@
     ],
     "samples": 40,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cve_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cve_bench/",
     "model_cards": []
   },
   {
@@ -3342,7 +3388,7 @@
     ],
     "samples": 39,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybench/",
     "model_cards": [
       "claude"
     ]
@@ -3373,7 +3419,7 @@
     ],
     "samples": 6028,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybergym/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybergym/",
     "model_cards": [
       "claude"
     ]
@@ -3398,7 +3444,7 @@
     ],
     "samples": 80,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybermetric/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybermetric/",
     "model_cards": []
   },
   {
@@ -3421,7 +3467,7 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_3/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cyberseceval_3/",
     "model_cards": []
   },
   {
@@ -3444,7 +3490,7 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_4/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cyberseceval_4/",
     "model_cards": []
   },
   {
@@ -3467,7 +3513,7 @@
     ],
     "samples": 500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_2/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cyberseceval_2/",
     "model_cards": []
   },
   {
@@ -3493,7 +3539,7 @@
     ],
     "samples": 13,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_in_house_ctf/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_in_house_ctf/",
     "model_cards": []
   },
   {
@@ -3519,7 +3565,7 @@
     ],
     "samples": 78,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_intercode_ctf/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_intercode_ctf/",
     "model_cards": []
   },
   {
@@ -3542,7 +3588,7 @@
     ],
     "samples": 110,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sec_qa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sec_qa/",
     "model_cards": []
   },
   {
@@ -3565,7 +3611,7 @@
     ],
     "samples": 50,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sevenllm/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sevenllm/",
     "model_cards": []
   },
   {
@@ -3588,7 +3634,7 @@
     ],
     "samples": 39558,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/abstention_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/abstention_bench/",
     "model_cards": []
   },
   {
@@ -3614,7 +3660,7 @@
     ],
     "samples": 1014,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentdojo/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agentdojo/",
     "model_cards": []
   },
   {
@@ -3642,7 +3688,7 @@
     ],
     "samples": 176,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentharm/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agentharm/",
     "model_cards": []
   },
   {
@@ -3667,7 +3713,7 @@
     ],
     "samples": 10,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agent_threat_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agent_threat_bench/",
     "model_cards": []
   },
   {
@@ -3692,7 +3738,7 @@
     ],
     "samples": 26,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/anima/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/anima/",
     "model_cards": []
   },
   {
@@ -3715,7 +3761,7 @@
     ],
     "samples": 600,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ape/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ape/",
     "model_cards": []
   },
   {
@@ -3746,7 +3792,7 @@
     ],
     "samples": 630,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/b3/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/b3/",
     "model_cards": []
   },
   {
@@ -3774,7 +3820,7 @@
     ],
     "samples": 45,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ipi_coding_agent/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ipi_coding_agent/",
     "model_cards": []
   },
   {
@@ -3797,7 +3843,7 @@
     ],
     "samples": 500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/fortress/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/fortress/",
     "model_cards": []
   },
   {
@@ -3820,7 +3866,7 @@
     ],
     "samples": 20,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/make_me_pay/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/make_me_pay/",
     "model_cards": []
   },
   {
@@ -3843,7 +3889,7 @@
     ],
     "samples": 189,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/makemesay/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/makemesay/",
     "model_cards": []
   },
   {
@@ -3866,7 +3912,7 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mask/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mask/",
     "model_cards": []
   },
   {
@@ -3892,7 +3938,7 @@
     ],
     "samples": 200,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mind2web_sc/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mind2web_sc/",
     "model_cards": []
   },
   {
@@ -3916,7 +3962,7 @@
     ],
     "samples": 201,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/moru/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/moru/",
     "model_cards": []
   },
   {
@@ -3939,7 +3985,7 @@
     ],
     "samples": 200,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/persistbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/persistbench/",
     "model_cards": []
   },
   {
@@ -3984,7 +4030,7 @@
     ],
     "samples": 4299,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/stereoset/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/stereoset/",
     "model_cards": []
   },
   {
@@ -4007,7 +4053,7 @@
     ],
     "samples": 324,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/strong_reject/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/strong_reject/",
     "model_cards": []
   },
   {
@@ -4055,7 +4101,7 @@
     ],
     "samples": 48,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/tac/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/tac/",
     "model_cards": []
   },
   {
@@ -4078,7 +4124,7 @@
     ],
     "samples": 1001,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/coconot/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coconot/",
     "model_cards": []
   },
   {
@@ -4101,7 +4147,7 @@
     ],
     "samples": 1273,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/wmdp/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/wmdp/",
     "model_cards": []
   },
   {
@@ -4148,7 +4194,7 @@
     ],
     "samples": 2376,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/arc/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/arc/",
     "model_cards": []
   },
   {
@@ -4223,7 +4269,7 @@
     ],
     "samples": 2786,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/chembench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/chembench/",
     "model_cards": []
   },
   {
@@ -4274,7 +4320,7 @@
     ],
     "samples": 45,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/core_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/core_bench/",
     "model_cards": []
   },
   {
@@ -4302,7 +4348,7 @@
     ],
     "samples": 160,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/frontierscience/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/frontierscience/",
     "model_cards": [
       "chatgpt"
     ]
@@ -4331,7 +4377,7 @@
     ],
     "samples": 198,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/gpqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gpqa/",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -4386,7 +4432,7 @@
     ],
     "samples": 199,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/lab_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/lab_bench/",
     "model_cards": [
       "claude"
     ]
@@ -4438,7 +4484,7 @@
     ],
     "samples": 500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pubmedqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/pubmedqa/",
     "model_cards": []
   },
   {
@@ -4514,7 +4560,7 @@
     ],
     "samples": 30,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scbench/",
     "model_cards": []
   },
   {
@@ -4538,7 +4584,7 @@
     ],
     "samples": 65,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scicode/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scicode/",
     "model_cards": [
       "gemini"
     ]
@@ -4588,7 +4634,7 @@
     ],
     "samples": 70196,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sciknoweval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sciknoweval/",
     "model_cards": []
   },
   {
@@ -4638,7 +4684,7 @@
     ],
     "samples": 3000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sosbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sosbench/",
     "model_cards": []
   },
   {
@@ -4683,7 +4729,7 @@
     ],
     "samples": 30,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2024/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/aime2024/",
     "model_cards": []
   },
   {
@@ -4706,7 +4752,7 @@
     ],
     "samples": 30,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2025/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/aime2025/",
     "model_cards": [
       "chatgpt"
     ]
@@ -4731,7 +4777,7 @@
     ],
     "samples": 30,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2026/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/aime2026/",
     "model_cards": []
   },
   {
@@ -4754,7 +4800,7 @@
     ],
     "samples": 1319,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/gsm8k/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gsm8k/",
     "model_cards": []
   },
   {
@@ -4801,7 +4847,7 @@
     ],
     "samples": 12500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/math/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/math/",
     "model_cards": []
   },
   {
@@ -4826,7 +4872,7 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/mathvista/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathvista/",
     "model_cards": []
   },
   {
@@ -4849,7 +4895,7 @@
     ],
     "samples": 2750,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/mgsm/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mgsm/",
     "model_cards": []
   },
   {
@@ -4874,7 +4920,7 @@
     ],
     "samples": 5694,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/air_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/air_bench/",
     "model_cards": []
   },
   {
@@ -4949,7 +4995,7 @@
     ],
     "samples": 220,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gdpval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdpval/",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -4981,7 +5027,7 @@
     ],
     "samples": 5000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/healthbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/healthbench/",
     "model_cards": [
       "chatgpt"
     ]
@@ -5057,7 +5103,7 @@
     ],
     "samples": 1273,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/medqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/medqa/",
     "model_cards": []
   },
   {
@@ -5082,7 +5128,7 @@
     ],
     "samples": 300,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pre_flight/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/pre_flight/",
     "model_cards": []
   },
   {
@@ -5131,7 +5177,7 @@
     ],
     "samples": 1039,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/uccb/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/uccb/",
     "model_cards": []
   },
   {
@@ -5226,7 +5272,7 @@
     ],
     "samples": 5349,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/docvqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/docvqa/",
     "model_cards": []
   },
   {
@@ -5272,7 +5318,7 @@
     ],
     "samples": 11698,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/mmiu/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mmiu/",
     "model_cards": []
   },
   {
@@ -5320,7 +5366,7 @@
     ],
     "samples": 115,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vstar_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/vstar_bench/",
     "model_cards": []
   },
   {
@@ -5345,7 +5391,7 @@
     ],
     "samples": 451,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vqa_rad/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/vqa_rad/",
     "model_cards": []
   },
   {
@@ -5370,7 +5416,7 @@
     ],
     "samples": 100,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/zerobench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/zerobench/",
     "model_cards": []
   },
   {
@@ -5393,7 +5439,7 @@
     ],
     "samples": 1,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/agentic_misalignment/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agentic_misalignment/",
     "model_cards": []
   },
   {
@@ -5421,7 +5467,7 @@
     ],
     "samples": 1,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_self_proliferation/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_self_proliferation/",
     "model_cards": []
   },
   {
@@ -5448,7 +5494,7 @@
     ],
     "samples": 2,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_self_reasoning/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_self_reasoning/",
     "model_cards": []
   },
   {
@@ -5474,7 +5520,7 @@
     ],
     "samples": 9,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_stealth/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_stealth/",
     "model_cards": []
   },
   {
@@ -5497,7 +5543,7 @@
     ],
     "samples": 76,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/instrumentaleval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/instrumentaleval/",
     "model_cards": []
   },
   {
@@ -5520,7 +5566,7 @@
     ],
     "samples": 800,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/sad/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sad/",
     "model_cards": []
   }
 ]

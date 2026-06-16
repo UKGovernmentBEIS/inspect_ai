@@ -4,7 +4,7 @@ import logging
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Literal, NamedTuple, Set, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic import BaseModel
@@ -20,6 +20,18 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
+from inspect_ai._control.eval_state import (
+    DeferredSampleStats,
+    clear_all_eval_states,
+    register_completed_eval,
+)
+from inspect_ai._control.server import (
+    control_server,
+    release_requested,
+    reset_release_requested,
+    resolve_ctl_server,
+    wait_for_shutdown_async,
+)
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
@@ -80,6 +92,9 @@ from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs
 from .task.tasks import Tasks
 
+if TYPE_CHECKING:
+    from inspect_ai._control.eval_state import DeferredStatsProvider
+
 logger = logging.getLogger(__name__)
 
 
@@ -117,6 +132,7 @@ def eval_set(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -206,6 +222,14 @@ def eval_set(
             loopback port; a string is taken as a custom UNIX socket path;
             `None` (default) replays whatever transport (or no transport) was
             persisted in the original log's `EvalConfig.acp_server`.
+        ctl_server: Control-channel server for this eval-set process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep-alive"` additionally
+            keeps the process running after the eval-set finishes so external
+            clients (the `inspect ctl` CLI, scripted agents, TUIs) can still
+            query state and read results — exit via `inspect ctl release`
+            (or `POST /release`). Requires `retry_immediate=True` (the
+            default) for the `"keep-alive"` value.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -310,6 +334,28 @@ def eval_set(
             "no task-level retries will be performed."
         )
 
+    # --ctl-server=keep-alive requires retry_immediate=True (the default).
+    # In retry_immediate=False mode eval-set makes multiple eval() calls
+    # via tenacity, each with its own short-lived control server —
+    # the keep-alive park would need to live OUTSIDE any single
+    # eval() call, which is exactly the multi-loop bridging problem
+    # we deliberately avoid (see design/control-channel.md "Server
+    # lifecycle aligned with eval()"). Refuse the combination
+    # explicitly rather than silently giving a broken keep-alive
+    # experience.
+    ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+    # clear any release latch left by a prior run in this process; needed
+    # here as well as in eval_async because the all-reused short-circuit
+    # parks without ever calling eval()
+    reset_release_requested()
+    if ctl_keep_alive and retry_immediate is False:
+        raise PrerequisiteError(
+            "--ctl-server=keep-alive is incompatible with retry_immediate=False "
+            "(the legacy batch-retry mode tears down the control "
+            "surface between attempts). Use --retry-immediate (the "
+            "default) or drop the keep-alive value."
+        )
+
     # helper function to run a set of evals
     def run_eval(
         eval_set_id: str,
@@ -373,6 +419,10 @@ def eval_set(
             eval_set_id=eval_set_id,
             task_retry_attempts=task_retry_attempts,
             acp_server=acp_server,
+            # Demoted to a plain on/off: eval-set owns the keep-alive park
+            # itself (after the display closes), so the inner eval() must
+            # not park inside the task display. See the park below.
+            ctl_server=ctl_enabled,
             **kwargs,
         )
 
@@ -593,6 +643,8 @@ def eval_set(
             ]
             tasks_to_run = combined_tasks
 
+            _register_reused_logs(success_logs)
+
             if not tasks_to_run:
                 return [log.header for log in success_logs]
 
@@ -621,53 +673,65 @@ def eval_set(
     # finalize flag on attach, so reading from inside try_eval is too late
     prior_scan_clean = scan_already_clean(scanner, eval_set_id, log_dir)
 
-    with (
-        _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
-        scan_context(scanner, scan_id=eval_set_id, log_dir=log_dir),
-    ):
-        # emit start event
-        run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+    # EvalStates accumulate as tasks run (task_run registers but never
+    # unregisters); clear the registry at this run boundary — in `finally`,
+    # after any keep-alive park — so they stay visible in `inspect ctl tasks`
+    # through the run + park, but don't leak past it.
+    try:
+        with (
+            _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
+            scan_context(scanner, scan_id=eval_set_id, log_dir=log_dir),
+        ):
+            # emit start event
+            run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
-        if retry_immediate:
-            # retry handled by eval
-            results = try_eval()
+            if retry_immediate:
+                # retry handled by eval
+                results = try_eval()
+            else:
+                # execute w/ retry
+                results = retry(try_eval)
+
+            # final sweep to remove failed log files
+            if retry_cleanup:
+                task_ids = {result.eval.task_id for result in results}
+                cleanup_older_eval_logs(log_dir, task_ids)
+
+        # if specified, bundle the output directory
+        if bundle_dir:
+            bundle_log_dir(
+                log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
+            )
+
+        # report final status
+        success = all_evals_succeeded(results)
+        if success:
+            msg = status_msg(f"Completed all tasks in '{log_dir}' successfully")
         else:
-            # execute w/ retry
-            results = retry(try_eval)
+            msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
+        console.print(f"{msg}")
 
-        # final sweep to remove failed log files
-        if retry_cleanup:
-            task_ids = {result.eval.task_id for result in results}
-            cleanup_older_eval_logs(log_dir, task_ids)
+        if scanner is not None:
+            from inspect_ai._eval.task.scan import print_scan_status
 
-    # if specified, bundle the output directory
-    if bundle_dir:
-        bundle_log_dir(
-            log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
-        )
+            print()
+            print_scan_status(log_dir, scanner)
 
-    # report final status
-    success = all_evals_succeeded(results)
-    if success:
-        msg = status_msg(f"Completed all tasks in '{log_dir}' successfully")
-    else:
-        msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
-    console.print(f"{msg}")
+        # update manifest
+        write_log_dir_manifest(log_dir)
 
-    if scanner is not None:
-        from inspect_ai._eval.task.scan import print_scan_status
+        # emit end event
+        run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
 
-        print()
-        print_scan_status(log_dir, scanner)
+        # park last of all — display closed and summary printed, so the
+        # keep-alive notice lands in the console (not the live display pane)
+        if ctl_keep_alive:
+            run_coroutine(_keep_alive_park(eval_set_id))
 
-    # update manifest
-    write_log_dir_manifest(log_dir)
-
-    # emit end event
-    run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
-
-    # return status + results
-    return success, results
+        # return status + results
+        return success, results
+    finally:
+        clear_all_eval_states()
 
 
 @contextlib.contextmanager
@@ -695,6 +759,135 @@ def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
     finally:
         stop_event.set()
         write_log_listing(log_dir)
+
+
+def _register_reused_logs(success_logs: list[Log]) -> None:
+    """Publish synthetic :class:`EvalState`s for reused successful logs.
+
+    Reused tasks bypass ``task_run.py`` (their results are read from
+    disk rather than re-computed), so the per-task ``register_eval``
+    that normally publishes state never fires for them. Without an
+    explicit registration here, ``inspect ctl tasks`` would show zero
+    entries for an eval-set whose tasks all came from prior logs —
+    confusing for an agent driving an eval-set under ``--ctl-server=keep-alive``
+    that expects to see what the eval-set returned.
+
+    Registration uses only the already-parsed headers (eval-set read them
+    to decide reuse), so it costs no extra I/O: the summaries-derived stats
+    (messages and the precise completed/errored split) are deferred behind
+    ``deferred_sample_stats`` and resolved by the first control request —
+    an eval-set that no control client ever queries never reads them.
+    """
+    from inspect_ai._util.dateutil import datetime_from_iso_format_safe
+
+    for log_entry in success_logs:
+        header = log_entry.header
+        eval_spec = header.eval
+        results = header.results
+        stats = header.stats
+
+        total = results.total_samples if results is not None else 0
+
+        completed_at: float | None = None
+        completed_str = stats.completed_at if stats is not None else ""
+        if completed_str:
+            try:
+                completed_at = datetime_from_iso_format_safe(completed_str).timestamp()
+            except (ValueError, TypeError):
+                completed_at = None
+
+        tokens = (
+            sum(u.total_tokens for u in stats.model_usage.values())
+            if stats is not None
+            else 0
+        )
+
+        # Provisional terminal split, shown only until the deferred
+        # resolution (or permanently, if its read fails): optimistically
+        # all-completed. Deriving `errored` from the header's
+        # `completed_samples` would mislabel early-stopped / unscored
+        # samples of a successful log as errors — phantom failures that
+        # mislead a monitoring agent into retrying or alerting on a healthy
+        # task. The precise split (which CAN surface genuine tolerated
+        # errors) arrives with the deferred resolution; either way the
+        # counters sum to `total`, so the row renders terminal with no
+        # phantom `queued`.
+        register_completed_eval(
+            eval_spec.eval_id,
+            total=total,
+            completed=total,
+            errored=0,
+            task=eval_spec.task,
+            task_id=eval_spec.task_id,
+            model=str(eval_spec.model) if eval_spec.model else "",
+            log_location=log_entry.info.name,
+            run_id=eval_spec.run_id,
+            completed_at=completed_at,
+            total_tokens=tokens,
+            total_messages=0,
+            # without results the captured `total` is 0 and a resolution
+            # could write `errored > total`; leave the provisional standing
+            deferred_sample_stats=_deferred_sample_stats(log_entry, total)
+            if results is not None
+            else None,
+        )
+
+
+def _deferred_sample_stats(log_entry: Log, total: int) -> "DeferredStatsProvider":
+    """Lazy accessor for a reused log's summaries-derived stats.
+
+    Messages and the precise terminal buckets require reading the per-sample
+    summaries (a full log read — a network round-trip on S3), deferred to the
+    first control request. The split mirrors what the live path would have
+    recorded: ``errored`` counts samples whose final attempt failed — a
+    status-``success`` log can contain these under ``fail_on_error``
+    tolerance — and everything else (scored and early-stopped alike, which
+    the live path both record as completed) lands in ``completed``.
+    """
+
+    async def provider() -> DeferredSampleStats:
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        summaries = await read_eval_log_sample_summaries_async(log_entry.info)
+        errored = sum(1 for s in summaries if s.error is not None)
+        return DeferredSampleStats(
+            total_messages=sum(s.message_count or 0 for s in summaries),
+            completed=max(0, total - errored),
+            errored=errored,
+        )
+
+    return provider
+
+
+async def _keep_alive_park(eval_set_id: str) -> None:
+    """Park the eval-set process after the run completes (display closed).
+
+    Runs on a fresh loop once ``eval()`` (and its task display) has exited
+    and the summary has printed, so the notice + wait land in the console.
+    Brings up a control server for the lingering window and blocks until
+    ``POST /release``. EvalStates stay visible throughout (live ones
+    accumulated during the run, reused ones via
+    :func:`_register_reused_logs`); ``eval_set`` clears them at the run
+    boundary once this returns.
+
+    A release received while the run was still in flight latches ("exit
+    when done") — the run's server is gone by the time this park binds its
+    fresh one, so the latch is the only carrier of that request.
+    """
+    if release_requested():
+        return
+    async with control_server(run_id=eval_set_id) as ctl_server:
+        if ctl_server is None:
+            # Bind failed: nothing to park on (can't be released via
+            # `inspect ctl release`), so don't linger.
+            return
+        rich.get_console().print(
+            "Eval-set finished. Keeping process alive — press Ctrl+C or run "
+            "`inspect ctl release` to let it exit.",
+            markup=False,
+            highlight=False,
+        )
+        await wait_for_shutdown_async(ctl_server)
 
 
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:
@@ -1022,13 +1215,18 @@ def validate_eval_set_prerequisites(
         return all_logs
 
 
-# these generate config fields should not affect task identity
+# Runtime/transport GenerateConfig knobs that don't affect model outputs and so
+# must not affect task identity. Adding a field to GenerateConfig? See
+# test_generate_config_fields_classified — it will fail until you classify it.
 _GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
     "max_retries",
     "timeout",
     "attempt_timeout",
     "max_connections",
+    "adaptive_connections",
     "batch",
+    "cache",
+    "cache_prompt",
 }
 
 
@@ -1049,7 +1247,7 @@ def resolve_solver(
 # Version of the task_identifier computation. Bump this when the task_identifier
 # logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
 # recomputed.
-TASK_IDENTIFIER_VERSION = 1
+TASK_IDENTIFIER_VERSION = 2
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
@@ -1152,7 +1350,20 @@ def task_identifier(
 
     # hash for model roles
     if len(model_roles):
-        additional_hash_input += to_json_safe(model_roles)
+        # base_url is excluded for symmetry with the primary model (whose
+        # base_url is not hashed) and because several providers populate it
+        # from env vars during init, which would make the identifier
+        # environment-dependent.
+        additional_hash_input += to_json_safe(
+            model_roles,
+            exclude={
+                role: {
+                    "base_url": True,
+                    "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+                }
+                for role in model_roles
+            },
+        )
 
     additional_hash_input += to_json_safe(additional_hash_fields)
 

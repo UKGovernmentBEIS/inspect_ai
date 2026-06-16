@@ -32,6 +32,7 @@ from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
 from inspect_ai._view._dist import resolve_dist_directory
 from inspect_ai._view.common import (
+    AppConfig,
     LogDirResponse,
     LogFilesResponse,
     LogInfo,
@@ -40,6 +41,7 @@ from inspect_ai._view.common import (
     apply_log_edits,
     build_pending_sample_urls,
     delete_log,
+    get_app_config,
     get_log_dir,
     get_log_file,
     get_log_files,
@@ -222,11 +224,11 @@ def view_server_app(
         )
 
         if isinstance(response, BytesIO):
-            # For in-memory responses, Content-Length is known exactly
-            content_length = response.getbuffer().nbytes
-            return StreamingResponse(
-                content=response,
-                headers={"Content-Length": str(content_length)},
+            # Return in-memory bytes directly: StreamingResponse would iterate
+            # the BytesIO line-by-line (newline-split binary chunks), sending
+            # each through a threadpool hop — ~1MB/s for local range reads.
+            return Response(
+                content=response.getvalue(),
                 media_type="application/octet-stream",
             )
         else:
@@ -524,6 +526,10 @@ def view_server_app(
         if body is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         return body
+
+    @app.get("/app-config", response_model=AppConfig)
+    async def api_app_config() -> AppConfig:
+        return get_app_config()
 
     scout_router = get_scout_search_router()
     if scout_router is not None:

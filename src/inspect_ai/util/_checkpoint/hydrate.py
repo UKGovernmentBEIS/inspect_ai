@@ -21,10 +21,10 @@ Sample-root selection:
   host egress (out of scope here) ships state to the remote sample
   checkpoints dir at fire time.
 
-Structure (see ``design/plans/checkpointing-hydration.md`` §3):
+Structure:
 
 - ``_hydrate`` (orchestrator): Phase 1 prologue (paths / dirs /
-  ``sample.json`` / restic binary), then Phase 2 with ``_hydrate_host``
+  ``restic/restic-config.json`` / restic binary), then Phase 2 with ``_hydrate_host``
   and ``_hydrate_sandboxes`` in parallel.
 - ``_hydrate_host``: host repo init or restore.
 - ``_hydrate_sandboxes``: dispatches ``_hydrate_sandbox`` per sandbox in
@@ -39,7 +39,6 @@ using the returned :class:`_HydrationResult`.
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -63,6 +62,7 @@ from inspect_ai.solver._task_state import sample_state
 from inspect_ai.util._restic import init_repo, resolve_restic, restore_repo
 from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox.context import sandbox
+from inspect_ai.util._span import current_span_id
 
 from ._host_egress import seed_manifest
 from ._layout import host_context
@@ -86,7 +86,6 @@ from .config import ResolvedCheckpointConfig
 from .sandbox_paths import SandboxBackupPaths, resolve_sandbox_backup_paths
 
 logger = getLogger(__name__)
-_DISABLE_ENV_VAR = "INSPECT_CHECKPOINT_VALIDATE_DISABLE"
 
 
 @dataclass
@@ -178,7 +177,7 @@ async def hydrate(
     )
 
     # Phase 1: synchronous prologue. After this completes, every Phase 2
-    # function can read the password from <sample_root>/sample.json
+    # function can read the password from <sample_root>/restic/restic-config.json
     # and reach restic on the host.
     new_eval_checkpoints_dir = eval_checkpoints_dir(
         log_location, config.checkpoints_location
@@ -322,12 +321,16 @@ async def _hydrate_host(
         )
     with trace_action(logger, action, "host restore"):
         await restore_repo(host_restic, host_repo, restic_password, context_dir)
+    # Capture the live span id here (loop thread); the `_current_span_id`
+    # ContextVar isn't propagated into the worker thread below.
+    parent_span_id = current_span_id()
     result = await anyio.to_thread.run_sync(
         partial(
             _load_host_state,
             context_dir,
             sample_root,
             latest_committed_id,
+            parent_span_id,
         )
     )
     result = _push_host_state(result, sample_root, latest_committed_id)
@@ -520,6 +523,7 @@ def _load_host_state(
     context_dir: str,
     sample_root: str,
     latest_committed_id: int | None,
+    parent_span_id: str | None,
 ) -> _HostHydrationResult:
     """Read restored host context and prepare resume state.
 
@@ -544,6 +548,14 @@ def _load_host_state(
         synthesized = _synthesize_trailing_checkpoint_event(
             sample_root, latest_committed_id
         )
+        # Stamp the synthesized event with the restored session's active
+        # span (the innermost still-open span), matching the span the
+        # prior checkpoint events carry. Constructing the event live
+        # otherwise stamps `current_span_id()` — the *resuming* session's
+        # span, which lives outside the `prior_run` wrap and would dangle
+        # the checkpoint under the current agent instead of nesting it as
+        # a peer of the other restored checkpoints.
+        synthesized.span_id = _innermost_open_span_id(rehydrated_events)
         rehydrated_events.append(synthesized)
 
     rehydrated_events = materialize_pooled_events(
@@ -555,7 +567,7 @@ def _load_host_state(
     # session ends up as a sibling wrap inside this attempt's events.
     # See `_wrap_prior_run` for the slicing + reparenting
     # mechanics.
-    pushed_events = _wrap_prior_run(rehydrated_events)
+    pushed_events = _wrap_prior_run(rehydrated_events, parent_span_id)
 
     return _HostHydrationResult(
         agent_state=ctx.agent_state,
@@ -594,24 +606,40 @@ def _push_host_state(
     return result
 
 
-def _wrap_prior_run(events: list[Event]) -> list[Event]:
+def _wrap_prior_run(events: list[Event], parent_span_id: str | None) -> list[Event]:
     """Wrap the trailing unwrapped checkpoint spans in a new ``prior_run`` span.
 
-    The "tail" is the slice of ``events`` after the last existing
-    ``prior_run`` ``span_end`` (or the whole list if there are
-    no prior wraps). That tail is the most-recent prior session's
-    checkpoint spans, which haven't been wrapped yet — the current
-    session wraps them at hydrate time.
+    The buffer stores the full cumulative transcript (``init`` /
+    ``solvers`` / ``solver`` / ``agent`` structural spans plus setup
+    execs), but a ``prior_run`` wrap should contain only checkpoint
+    work — checkpoint spans as its direct children. We reproduce that by
+    discarding the resumed session's structural scaffolding in two
+    places:
 
-    Top-level ``span_begin`` events in the tail (depth 0 relative to the
-    new wrap — in practice the checkpoint span_begins) get their
-    ``parent_id`` rewritten to point at the new wrap's id, so the span
-    hierarchy reflects the new structure rather than carrying stale
-    parent ids from the prior session's transcript. ``span_end`` events
-    carry no ``parent_id``, so they pass through unchanged. The wrap's
-    own ``parent_id`` is ``None`` (sibling at the sample root,
-    alongside other prior wraps and the current session's checkpoint
-    spans).
+    - A leading slice drops everything before the first
+      checkpoint-related ``span_begin`` — an existing ``prior_run`` wrap
+      (from an earlier resume) or this session's first ``checkpoint``
+      span.
+    - A tail slice drops the resumed session's own ancestor spans that
+      sit between the last prior wrap and its first *new* checkpoint
+      span. The cumulative buffer records seeded prior wraps *before*
+      the live session's ancestor spans, so that scaffolding lands in
+      the tail rather than ahead of the leading slice.
+
+    Re-parenting fixes the stale parent ids the slices expose:
+
+    - Surviving ``prior_run`` wraps in the head pointed at a prior
+      session's (now-sliced) ``agent`` span; rewrite them to
+      ``parent_span_id`` so they sit as siblings under the current span.
+    - Depth-0 ``span_begin`` events in the tail (the checkpoint spans)
+      get ``parent_id`` rewritten to the new wrap; other depth-0 events
+      (``CheckpointEvent``s, inter-checkpoint execs) get ``span_id``
+      rewritten to it. ``span_end`` events carry no ``parent_id`` and
+      pass through unchanged.
+
+    The new wrap's own ``parent_id`` is ``parent_span_id`` — the live
+    span id captured at hydrate time — so the wrap nests under the
+    current session's span rather than dangling at the transcript root.
 
     Wrap numbering (``checkpoint restore 1``, ``2``, …) is the count
     of existing wraps plus one, so each resume adds one numbered
@@ -622,6 +650,22 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
     rehydrating rather than the work being rehydrated; the contained
     checkpoint spans carry their original timestamps.
     """
+    # Slice away the live session's scaffolding ahead of the first
+    # `prior_run` wrap or `checkpoint` span.
+    first_relevant = next(
+        (
+            i
+            for i, e in enumerate(events)
+            if isinstance(e, SpanBeginEvent) and e.type in ("prior_run", "checkpoint")
+        ),
+        None,
+    )
+    if first_relevant is None:
+        # Degenerate resume with no checkpoint structure; leave the events
+        # untouched and let `_validate_resume_state` surface the problem.
+        return list(events)
+    events = events[first_relevant:]
+
     prior_ids: set[str] = set()
     last_prior_end_idx = -1
     for i, e in enumerate(events):
@@ -630,17 +674,39 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
         elif isinstance(e, SpanEndEvent) and e.id in prior_ids:
             last_prior_end_idx = i
 
-    head = events[: last_prior_end_idx + 1]
+    # Re-parent surviving `prior_run` wraps onto the current session's span;
+    # their stored `parent_id` pointed at the now-sliced prior `agent` span.
+    head = [
+        e.model_copy(update={"parent_id": parent_span_id})
+        if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
+        else e
+        for e in events[: last_prior_end_idx + 1]
+    ]
     tail = events[last_prior_end_idx + 1 :]
 
-    if not tail:
+    # Slice the tail to its first *new* `checkpoint` span, dropping the
+    # resumed session's own structural scaffolding (`init` / `solvers` /
+    # `solver` / `agent` spans + setup execs). The new checkpoint span's
+    # `parent_id` points at the (now-dropped) `agent` span; the depth-0
+    # reparenting below rewrites it to the new wrap.
+    first_new_ckpt = next(
+        (
+            i
+            for i, e in enumerate(tail)
+            if isinstance(e, SpanBeginEvent) and e.type == "checkpoint"
+        ),
+        None,
+    )
+    if first_new_ckpt is None:
+        # No unwrapped checkpoint spans; nothing new to wrap this resume.
         return list(head)
+    tail = tail[first_new_ckpt:]
 
     next_n = len(prior_ids) + 1
     wrap_id = shortuuid()
     wrap_begin = SpanBeginEvent(
         id=wrap_id,
-        parent_id=None,
+        parent_id=parent_span_id,
         type="prior_run",
         name=f"checkpoint restore {next_n}",
     )
@@ -699,6 +765,21 @@ def _synthesize_trailing_checkpoint_event(
     )
 
 
+def _innermost_open_span_id(events: list[Event]) -> str | None:
+    """Return the id of the innermost span still open at the end of ``events``.
+
+    This is the restored session's active span at context-write time — the
+    agent span the checkpoints fire within. ``None`` if no span is open.
+    """
+    open_span_ids: list[str] = []
+    for e in events:
+        if isinstance(e, SpanBeginEvent):
+            open_span_ids.append(e.id)
+        elif isinstance(e, SpanEndEvent) and e.id in open_span_ids:
+            open_span_ids.remove(e.id)
+    return open_span_ids[-1] if open_span_ids else None
+
+
 def _validate_resume_state(
     events: list[Event],
     sample_root: str,
@@ -724,16 +805,27 @@ def _validate_resume_state(
       (the highest cleanly-parsing checkpoint id — the true commit
       point).
 
-    Runs by default while the checkpoint code stabilizes. Set
-    ``INSPECT_CHECKPOINT_VALIDATE_DISABLE`` to skip it — a surgical escape
-    hatch for tests that drive the resume push with non-resume-shaped stub
-    data.
+    Runs by default while the checkpoint code stabilizes.
     """
-    if bool(os.environ.get(_DISABLE_ENV_VAR)):
-        return
-
     sample_dir = Path(local_path(sample_root))
-    checkpoint_files = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
+    checkpoint_ids: list[int] = []
+    for checkpoint_file in sample_dir.glob("ckpt-*.json"):
+        try:
+            filename_id = int(checkpoint_file.stem.removeprefix("ckpt-"))
+        except ValueError:
+            continue
+
+        try:
+            checkpoint = Checkpoint.model_validate_json(checkpoint_file.read_bytes())
+        except (ValueError, OSError):
+            continue
+        if checkpoint.checkpoint_id != filename_id:
+            raise RuntimeError(
+                f"[hydrate.validate] checkpoint file id mismatch for "
+                f"{checkpoint_file.name}: filename id {filename_id}, "
+                f"content id {checkpoint.checkpoint_id}"
+            )
+        checkpoint_ids.append(filename_id)
 
     # Walk events: collect checkpoint + prior_run span_begins,
     # CheckpointEvents, and all span_ends (span_end has no type attr —
@@ -750,10 +842,8 @@ def _validate_resume_state(
                 wrap_begins.append((i, e.name, e.id))
         elif isinstance(e, SpanEndEvent):
             end_by_id[e.id] = i
-        elif e.event == "checkpoint":
-            ckpt_id = getattr(e, "checkpoint_id", None)
-            if ckpt_id is not None:
-                checkpoint_events.append((i, ckpt_id))
+        elif isinstance(e, CheckpointEvent):
+            checkpoint_events.append((i, e.checkpoint_id))
 
     # --- assertions ---
     if not events:
@@ -826,10 +916,11 @@ def _validate_resume_state(
             f"{len(checkpoint_begins)}"
         )
 
-    if len(checkpoint_files) != len(checkpoint_begins):
+    expected_checkpoint_ids = list(range(1, expected_span_count + 1))
+    if expected_span_count > 0 and expected_span_count not in checkpoint_ids:
         raise RuntimeError(
-            f"[hydrate.validate] checkpoint file count ({len(checkpoint_files)}) != "
-            f"checkpoint span count ({len(checkpoint_begins)})"
+            f"[hydrate.validate] latest committed checkpoint file "
+            f"ckpt-{expected_span_count:05d}.json is missing or unparseable"
         )
 
     if expected_span_count != len(checkpoint_events):
@@ -839,12 +930,11 @@ def _validate_resume_state(
             f"hydrate-time), got {len(checkpoint_events)}"
         )
 
-    expected_event_ids = list(range(1, expected_span_count + 1))
     actual_event_ids = [ckpt_id for _, ckpt_id in checkpoint_events]
-    if actual_event_ids != expected_event_ids:
+    if actual_event_ids != expected_checkpoint_ids:
         raise RuntimeError(
             f"[hydrate.validate] CheckpointEvent checkpoint_id sequence "
-            f"mismatch. expected {expected_event_ids}, "
+            f"mismatch. expected {expected_checkpoint_ids}, "
             f"got {actual_event_ids}"
         )
 

@@ -394,7 +394,9 @@ def completion_params_responses(
         # request isn't rejected. Mirrors the mapping in
         # `OpenAIAPI._get_reasoning_params_for_config`.
         reasoning["effort"] = (
-            "xhigh" if config.reasoning_effort == "max" else config.reasoning_effort
+            "xhigh"
+            if (config.reasoning_effort == "max" and not model_info.is_latest())
+            else config.reasoning_effort
         )
     if config.reasoning_summary != "none":
         reasoning["summary"] = config.reasoning_summary or "auto"

@@ -1,7 +1,74 @@
 ## Unreleased
 
+- MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
+- MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
+- Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs
+- Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
+- Inspect View: Fix log-list grid columns snapping back to default widths while data loads
+- Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
+- Inspect View:  Improve tool input density
+
+## 0.3.240 (15 June 2026)
+
+- Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
+- Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
+- Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
+- Anthropic: Raise a clear error when `reasoning_tokens` is set on Claude 4.7+ or Claude 5 (which removed the `budget_tokens` control); use `reasoning_effort` instead.
+- OpenAI: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the responses and OpenAI-compatible paths honored it).
+- OpenAI: Preserve Responses API `NamespaceToolParam` grouping through agent bridge.
+- SageMaker: Fix streaming handler dropping reasoning tokens from thinking models.
+- Model API: Record model fallbacks as a typed `ModelOutput.fallback` and roll them up per-sample on `EvalSample.model_fallbacks` (and sample summaries); expose a `fallbacks` count column in `samples_df()`.
+- Agent Bridge: Preserve `NamespaceToolParam` grouping through to the OpenAI Responses API.
+- Adaptive Connections: Raise the default minimum from 4 to 10.
+- Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set.
+- Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
+- Logging: Complete samples by logging the resident in-memory events directly rather than reading every event back out of the realtime buffer database.
+- Logging: Re-enable realtime logging and score display for large runs (≥1000 samples) — the buffer-database and sample-completion improvements make them inexpensive enough to leave on.
+- Tools: `internal_tool_type()` helper and `INTERNAL_TOOL_TYPE` options key marking server-side tools.
+- Agent Bridge: Preserve `source="operator"` provenance on operator-injected messages.
+- Task Display: Update log/plain progress after errors.
+- Eval Logs: Support for writing to Hugging Face Storage Buckets.
+- Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
+- Sandbox: `self_check` now verifies that non-ASCII (UTF-8) command output round-trips correctly on `exec` stdout/stderr.
+- S3: Retry when requests have stale signatures.
+- Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
+- Inspect View: Fix occasional intermittent hang while attempting to navigate to sample
+- Inspect View: Improve server side tool rendering transcripts and messages
+- Inspect View: Fix stuck completed streaming samples
+- Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects.
+- Bugfix: Fix a rare `OperationalError: unable to open database file` when concurrent evals share a log directory.
+
+## 0.3.239 (09 June 2026)
+
+- Anthropic: Explicitly classify Claude 5 (Fable/Mythos) models instead of relying on "latest"
+
+## 0.3.238 (08 June 2026)
+
+- Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled.
+- ACP: Render tool calls for agent-bridge agents (e.g. `claude_code`, `codex_cli`). 
+- ACP: Substitute `{{param}}` placeholders in tool-call views.
+- ACP: Keep the optimistic `user · queued` chip visible when agents are idle mid-turn.
+- Limits: Fix a spurious, mislabeled `working` limit event recorded alongside the real one when a message/token/cost limit is hit inside a sandboxed agent bridge (e.g. `claude_code`).
+- Inspect View: Improve model event rendering - add INFO tab (usage + stop reason) and a Stop Reason display
+- Inspect View: Fix: stop VirtualList from fighting deep-link scroll in WebKit
+- Inspect View: Fix: collapse the timeline by default when only main + scoring lanes exist
+- Inspect View: Fix: make collapse-all include model events (symmetry with expand-all)
+- Inspect View: Improved sample message/transcript placeholders + steady streaming
+- Inspect View: Color tool calls in model-event views like the messages tab
+- Inspect View: Improve log list responsiveness during bulk sync
+
+## 0.3.237 (07 June 2026)
+
+- Model API: `ChatCompletionChoice.stop_details` (`StopDetails`/`StopCategory`) surfaces a model's refusal/safety category and explanation when available.
+- Transcript: `transcript().events` now resolves content attachments (large text, images) instead of returning bare `attachment://` references when reads are served from the bounded-history provider.
+- Transcript: Use WAL journal mode for the realtime sample buffer database so concurrent reads and writes no longer raise `OperationalError: database is locked`.
+- Remove ACP patch for connection initialization order issue (resolved in ACP 0.10.1).
+
+## 0.3.236 (06 June 2026)
+
 - Model API: Add `ModelInfo.family` and `ModelAPI.model_family()`. Provider capability and request-shape checks now consult a registered `ModelInfo.family` before falling back to model-name matching, while preserving the configured model name for provider requests.
 - Together: Support the `stream` model arg (e.g. `-M stream=true`) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to `stop_reason="max_tokens"` instead of raising.
+- Groq: Map tool_choice="any" to "required" for forced tool calls.
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
 - Deep Agent: Subagent `submit()` calls are retained in the subagent transcript (previously stripped) and rendered as markdown, so a submit is distinguishable from a normal assistant message. The parent's result is unchanged.
 - Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox to share `/var/tmp/sandbox-services`.
@@ -13,10 +80,14 @@
 - Transcript: Bound resident memory for long-running samples by evicting older events to a history provider (opt-in via the `INSPECT_TRANSCRIPT_BOUNDED` environment variable). `transcript().events` remains a full, compatible view; use `transcript().history` for memory-aware access.
 - Inspect View: New `ViewerConfig` (passed via `Task(viewer=...)`) lets eval authors customize how a task's sample list, score panel, and scanner results render in the log viewer — including sample-list columns, default sort, score labels, and color scales. See [Custom Views](https://inspect.aisi.org.uk/task-views.html).
 - Transcript: Revert disabling of buffer history database when running tests.
-- Inspect View: Dark mode, event and message color support
+- Inspect View: Dark mode, event and message color support.
 - Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.
-- Inspect View: Collapse same-name nested solver/agent spans in transcripts
-- Inspect View: Fix truncation of long transcript outlines when scrolling
+- Inspect View: Collapse same-name nested solver/agent spans in transcripts.
+- Inspect View: Fix truncation of long transcript outlines when scrolling.
+- Inspect View: Switch to dev dependencies for scout and inspect apps.
+- Inspect View: Fixes to live sample following behavior.
+- Inspect View: Properly clear log/sample before paint when viewing log (#284).
+- Inspect View: don't render primitive solvers as sub-agents (#287).
 - Bugfix: Inspect View sample-list columns now expand to fill the available width.
 - Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.
 - Bugfix: Preserve OpenAI Responses API encrypted reasoning through agent bridge round-trips and replay reasoning input items with empty `content` to avoid server validation errors.

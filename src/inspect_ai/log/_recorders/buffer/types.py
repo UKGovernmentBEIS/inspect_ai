@@ -182,8 +182,14 @@ class SampleBuffer(abc.ABC):
         id: str | int,
         epoch: int,
         start: int,
+        limit: int | None = None,
     ) -> AbstractContextManager["SampleHistory"]:
-        """Open a consistent sample-history snapshot from ``start`` onward."""
+        """Open a consistent sample-history snapshot from ``start`` onward.
+
+        ``limit`` caps the number of events read (``None`` = through the end),
+        so cursored page readers don't materialize the full remaining history
+        to serve one page.
+        """
         ...
 
     @abc.abstractmethod

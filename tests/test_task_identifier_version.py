@@ -16,6 +16,7 @@ from inspect_ai.solver import generate
 # new expected value and bump TASK_IDENTIFIER_VERSION.
 _EXPECTED_TASK_IDENTIFIERS: dict[int, str] = {
     1: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/29797164a2ed3858f2e5b9a08f6594cfe398a975e2094dadb17a15f84e53613c",
+    2: "tests/test_task_identifier_version.py@version_test_task#44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a/mockllm/model/83650e91c9e6d632029a66c6c00022eadbc3ba23687c82c324f9f41cfc193104",
 }
 
 
@@ -42,11 +43,22 @@ def _create_resolved_task_with_all_fields():
           - working_limit
           - cost_limit
     """
+    # Each GenerateConfig site (primary model, role model, and the
+    # EvalSetArgsInTaskIdentifier.config that becomes eval_plan.config) sets
+    # both a task-identity-relevant field (temperature) and a runtime knob
+    # that task_identifier excludes (max_connections / max_retries). The role
+    # also sets base_url, which is excluded for the same reason. The excluded
+    # values must be present so that future changes to what task_identifier
+    # excludes are detectable here.
     model = get_model(
         "mockllm/model",
-        config=GenerateConfig(temperature=0.5),
+        config=GenerateConfig(temperature=0.5, max_connections=10),
     )
-    scorer_model = get_model("mockllm/scorer")
+    scorer_model = get_model(
+        "mockllm/scorer",
+        base_url="http://test:8000",
+        config=GenerateConfig(temperature=0.3, max_connections=5),
+    )
 
     @task
     def version_test_task(task_arg: str = "test_value"):
@@ -83,7 +95,7 @@ def test_task_identifier_version_stability():
 
     resolved_task = _create_resolved_task_with_all_fields()
     eval_set_args = EvalSetArgsInTaskIdentifier(
-        config=GenerateConfig(temperature=0.7),
+        config=GenerateConfig(temperature=0.7, max_retries=3),
         message_limit=100,
         token_limit=5000,
         time_limit=300,

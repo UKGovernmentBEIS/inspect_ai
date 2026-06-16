@@ -163,6 +163,22 @@ class EvalRecorder(FileRecorder):
         await log.buffer_sample_streaming(sample, history)
 
     @override
+    async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            return None
+        return await log.sample_summaries()
+
+    @override
+    async def buffered_sample(
+        self, eval: EvalSpec, id: str | int, epoch: int
+    ) -> EvalSample | None:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            return None
+        return await log.buffered_sample(id, epoch)
+
+    @override
     async def flush(self, eval: EvalSpec) -> None:
         # get the zip log
         log = self.data[self._log_file_key(eval)]
@@ -676,6 +692,7 @@ class ZipLogFile:
         self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()
         self._samples: list[EvalSample] = []
+        self._streaming_samples: dict[tuple[str | int, int], EvalSample] = {}
         self._summary_counter = 0
         self._summaries: list[EvalSampleSummary] = []
         self._log_start: LogStart | None = None
@@ -729,6 +746,12 @@ class ZipLogFile:
 
             self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
 
+            # Retain the event-less sample so the control channel can read its
+            # error detail before the next flush makes it on-disk-readable
+            # (events stay in the buffer database — see ``buffered_sample``).
+            # Cleared in ``flush`` once the sample lands on disk.
+            self._streaming_samples[(sample.id, sample.epoch)] = sample
+
             self._summary_counter += 1
             summary = sample.summary()
             summary_file = _journal_summary_file(self._summary_counter)
@@ -769,6 +792,36 @@ class ZipLogFile:
                 ]
                 self._summaries.extend(summaries)
 
+    async def sample_summaries(self) -> list[EvalSampleSummary]:
+        """All sample summaries recorded so far (gap-free, ahead of disk).
+
+        Unions ``_summaries`` (already journalled) with the not-yet-flushed
+        ``_samples`` so a just-completed sample isn't missed between flushes.
+        """
+        async with self._lock:
+            return [*self._summaries, *(sample.summary() for sample in self._samples)]
+
+    async def buffered_sample(self, id: str | int, epoch: int) -> EvalSample | None:
+        """A not-yet-flushed full sample by ``(id, epoch)``, or None.
+
+        Gap-free counterpart to :meth:`sample_summaries`, covering both
+        completion paths during the window before a sample is flushed to disk:
+
+        - ``_samples`` — buffered whole samples (with events) awaiting a flush
+          (the reused-on-retry path).
+        - ``_streaming_samples`` — the streaming path's event-less samples
+          (their events live in the buffer database, so this carries error
+          detail / scores but not events).
+
+        Returns ``None`` once flushed (the on-disk log takes over) or for a
+        recorder that doesn't buffer; callers fall back to the on-disk log.
+        """
+        async with self._lock:
+            for sample in self._samples:
+                if sample.id == id and sample.epoch == epoch:
+                    return sample
+            return self._streaming_samples.get((id, epoch))
+
     async def write(self, filename: str, data: Any) -> None:
         async with self._lock:
             self._zip_writestr(filename, data)
@@ -790,6 +843,13 @@ class ZipLogFile:
                 finally:
                     # re-open zip file w/ self.temp_file pointer at end
                     self._open()
+
+            # Everything written so far is now in the uploaded file's central
+            # directory and readable from disk, so the streaming-path samples no
+            # longer need their in-memory copy (the buffered ``_samples`` are
+            # cleared by ``write_buffered_samples``, which the flush callers run
+            # first).
+            self._streaming_samples.clear()
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:

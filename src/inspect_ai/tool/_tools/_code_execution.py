@@ -4,6 +4,7 @@ from typing_extensions import TypedDict
 
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE
 from inspect_ai.tool._tools._execute import code_viewer, python
 
 CodeExecutionProvider: TypeAlias = Literal[
@@ -123,7 +124,10 @@ def code_execution(
     return ToolDef(
         execute,
         name="code_execution",
-        options=dict(providers=normalized_providers),
+        options={
+            INTERNAL_TOOL_TYPE: "code_execution",
+            "providers": normalized_providers,
+        },
     ).as_tool()
 
 

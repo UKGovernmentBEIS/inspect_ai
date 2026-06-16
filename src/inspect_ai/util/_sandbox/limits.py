@@ -123,6 +123,24 @@ def override_max_exec_output_size(limit: int) -> Iterator[None]:
         _max_exec_output_size_var.reset(token)
 
 
+@contextmanager
+def override_max_read_file_size(limit: int) -> Iterator[None]:
+    """Temporarily override the max read file size for the current context.
+
+    Updates both MAX_READ_FILE_SIZE and MAX_READ_FILE_SIZE_STR (they share a
+    ContextVar), so the enforced limit and its reported string stay consistent.
+    The override is scoped to the current async context and restored on exit.
+
+    Args:
+        limit: Read file size limit (in bytes) to apply within the context.
+    """
+    token = _max_read_file_size_var.set(limit)
+    try:
+        yield
+    finally:
+        _max_read_file_size_var.reset(token)
+
+
 class OutputLimitExceededError(Exception):
     """Exception raised when a sandbox invocation results in excessive output."""
 
