@@ -1,3 +1,9 @@
+## Unreleased
+
+— Inspect View: Fix log-list grid columns snapping back to default widths while data loads
+— Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
+— Inspect View:  Improve tool input density
+
 ## 0.3.240 (15 June 2026)
 
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).

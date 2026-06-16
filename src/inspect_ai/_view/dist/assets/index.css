@@ -16984,27 +16984,27 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._outer_mnipc_1 {
+._outer_1ml7m_1 {
   /* Positioned so the block-left sticky toggle's containing block is this
      wrapper — keeps sticky behavior scoped to the panel instead of leaking
      to some arbitrary positioned ancestor up the tree. */
   position: relative;
 }
 
-._expandablePanel_mnipc_8 {
+._expandablePanel_1ml7m_8 {
   position: relative;
 }
 
-._expandableBordered_mnipc_12 {
+._expandableBordered_1ml7m_12 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
 
-._expandableTogglable_mnipc_17 {
+._expandableTogglable_1ml7m_17 {
   margin-bottom: 1em;
 }
 
-._expandableContents_mnipc_21 {
+._expandableContents_1ml7m_21 {
   font-size: var(--inspect-font-size-base);
 }
 
@@ -17020,7 +17020,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
    gradient) so the affordance works on any surface, regardless of the
    panel's bg. The inline-right toggle is a sibling of this wrapper, so it
    stays fully opaque. */
-._expandableTruncated_mnipc_37 {
+._expandableTruncated_1ml7m_37 {
   -webkit-mask-image: linear-gradient(
     to bottom,
     black calc(100% - 3rem),
@@ -17029,7 +17029,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_mnipc_46 {
+._moreToggle_1ml7m_46 {
   display: flex;
   margin-top: 0;
   height: 20px;
@@ -17039,11 +17039,14 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   color: var(--bs-link-color);
 }
 
-._moreToggle_mnipc_46._bordered_mnipc_56 {
+._moreToggle_1ml7m_46._bordered_1ml7m_56 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
-._moreToggleButton_mnipc_60 {
+/* Double class beats Bootstrap's `.btn` regardless of stylesheet order —
+   in scout, Bootstrap loads after this module and its 6px 12px padding
+   overflowed the fixed-height toggle bar. */
+._moreToggle_1ml7m_46 ._moreToggleButton_1ml7m_63 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -17054,7 +17057,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 /* Fills the panel so its sticky child is bounded by the panel's rect.
    pointer-events: none lets clicks pass through to the content behind;
    the sticky child re-enables pointer events on itself. */
-._inlineToggleHolder_mnipc_71 {
+._inlineToggleHolder_1ml7m_74 {
   position: absolute;
   inset: 0;
   display: flex;
@@ -17066,13 +17069,13 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   z-index: 2;
 }
 
-._inlineToggleSticky_mnipc_83 {
+._inlineToggleSticky_1ml7m_86 {
   position: sticky;
   bottom: 0.25em;
   pointer-events: auto;
 }
 
-._moreToggle_mnipc_46._blockLeft_mnipc_89 {
+._moreToggle_1ml7m_46._blockLeft_1ml7m_92 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;
@@ -18582,11 +18585,11 @@ a._citationLink_1ggvf_9:hover {
    which are neutral by default and only colorized under the readable
    variant (the Event Colors toggle); the output well is the tool-output
    fill, hairlines/border are the subtle border token. */
-._block_ze280_5 {
+._block_16fhi_5 {
   border-left: var(--inspect-tool-block-edge);
 }
 
-._standalone_ze280_9 {
+._standalone_16fhi_9 {
   border-top: 1px solid var(--bs-light-border-subtle);
   border-right: 1px solid var(--bs-light-border-subtle);
   border-bottom: 1px solid var(--bs-light-border-subtle);
@@ -18594,21 +18597,21 @@ a._citationLink_1ggvf_9:hover {
   overflow: hidden;
 }
 
-._header_ze280_17 {
+._header_16fhi_17 {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 9px 13px;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem 0 0.8rem;
   background-color: var(--inspect-tool-block-header-bg);
 }
 
-._icon_ze280_25 {
+._icon_16fhi_25 {
   flex: none;
   font-size: 13px;
   color: var(--inspect-tool-block-ink);
 }
 
-._title_ze280_31 {
+._title_16fhi_31 {
   flex: none;
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smaller);
@@ -18616,7 +18619,7 @@ a._citationLink_1ggvf_9:hover {
   color: var(--inspect-tool-block-ink);
 }
 
-._summary_ze280_39 {
+._summary_16fhi_39 {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -18627,7 +18630,7 @@ a._citationLink_1ggvf_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._pill_ze280_50 {
+._pill_16fhi_50 {
   flex: none;
   /* Right-aligned even when there is no args summary to push it over. */
   margin-left: auto;
@@ -18641,14 +18644,13 @@ a._citationLink_1ggvf_9:hover {
   padding: 1px 7px;
 }
 
-._inputZone_ze280_64 {
-  border-top: 1px solid var(--bs-light-border-subtle);
+._inputZone_16fhi_64 {
   background-color: var(--inspect-tool-block-input-bg);
-  padding: 0.5rem;
+  padding: 0 0.5rem 0.2rem 0.5rem;
   overflow-x: auto;
 }
 
-._outputWell_ze280_71 {
+._outputWell_16fhi_70 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding: 12px 15px;
@@ -18660,8 +18662,8 @@ a._citationLink_1ggvf_9:hover {
    renderers (prism code blocks, tool-call-input call-outs, tool output wells)
    would otherwise stack inside them. !important outranks the readable
    variant's higher-specificity :root[data-theme-variant] surface rules. */
-._inputZone_ze280_64 pre.tool-call-input,
-._inputZone_ze280_64 div.tool-call-input {
+._inputZone_16fhi_64 pre.tool-call-input,
+._inputZone_16fhi_64 div.tool-call-input {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -18669,13 +18671,13 @@ a._citationLink_1ggvf_9:hover {
   margin: 0 !important;
 }
 
-._inputZone_ze280_64 .tool-call-input pre[class*="language-"] {
+._inputZone_16fhi_64 .tool-call-input pre[class*="language-"] {
   margin: 0 !important;
   padding: 0 !important;
   background-color: transparent !important;
 }
 
-._outputWell_ze280_71 .tool-output {
+._outputWell_16fhi_70 .tool-output {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -19030,8 +19032,8 @@ a._citationLink_1ggvf_9:hover {
 ._simple_1mah3_95 {
   /* styles for simple display mode */
 }
-._badge_10sr6_1,
-._inline_10sr6_2 {
+._badge_15iyu_1,
+._inline_15iyu_2 {
   display: inline-flex;
   align-items: center;
   font-family: var(
@@ -19049,18 +19051,22 @@ a._citationLink_1ggvf_9:hover {
   background: var(--inspect-msg-label-bg);
   border: 1px solid var(--inspect-msg-label-border);
   color: var(--inspect-msg-label-text);
-  cursor: pointer;
   transition: background 0.12s ease;
 }
 
-._badge_10sr6_1 {
+/* Pointer + hover only when the chip actually activates something. */
+._interactive_15iyu_24 {
+  cursor: pointer;
+}
+
+._badge_15iyu_1 {
   flex: none;
   padding: 3px 8px;
   border-radius: 6px;
   user-select: none;
 }
 
-._inline_10sr6_2 {
+._inline_15iyu_2 {
   padding: 1px 6px;
   border-radius: 5px;
   white-space: nowrap;
@@ -19068,8 +19074,7 @@ a._citationLink_1ggvf_9:hover {
   vertical-align: baseline;
 }
 
-._badge_10sr6_1:hover,
-._inline_10sr6_2:hover {
+._interactive_15iyu_24:hover {
   background: var(--inspect-msg-label-bg-hover);
 }
 ._scroller_qi4v2_1 {
@@ -19320,7 +19325,7 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--bs-primary);
   filter: brightness(1.05);
 }
-._stickyWrapper_2hmlz_1 {
+._stickyWrapper_1rqn8_1 {
   position: sticky;
   top: var(--inspect-event-panel-sticky-top, 0px);
   /* Full-bleed: cancel the parent card's padding so the sticky bar
@@ -19334,43 +19339,43 @@ a._citationLink_1ggvf_9:hover {
   border-bottom: solid 1px transparent;
 }
 
-._stickyWrapper_2hmlz_1[data-useStickyObserver-stuck] {
+._stickyWrapper_1rqn8_1[data-useStickyObserver-stuck] {
   background-color: var(--bs-light);
   border-bottom-color: var(--bs-light-border-subtle);
 }
 
-._label_2hmlz_20 {
+._label_1rqn8_20 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._title_2hmlz_25 {
+._title_1rqn8_25 {
   min-width: 0;
   line-height: 1.6;
 }
 
-._titleExtra_2hmlz_30 {
+._titleExtra_1rqn8_30 {
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
   margin-left: 0.5em;
 }
 
-._navs_2hmlz_37 {
+._navs_1rqn8_37 {
   display: flex;
   align-items: baseline;
   justify-content: flex-end;
   min-width: 0;
 }
 
-._turnLabel_2hmlz_44 {
+._turnLabel_1rqn8_44 {
   margin-left: 1rem;
   margin-top: 0.2rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_2hmlz_51 {
+._card_1rqn8_51 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -19378,20 +19383,20 @@ a._citationLink_1ggvf_9:hover {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_2hmlz_59 {
+._cardContent_1rqn8_59 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_2hmlz_59._hidden_2hmlz_64 {
+._cardContent_1rqn8_59._hidden_1rqn8_64 {
   display: none;
 }
 
-._hidden_2hmlz_64 {
+._hidden_1rqn8_64 {
   display: none;
 }
 
-._copyLink_2hmlz_72 {
+._copyLink_1rqn8_72 {
   font-size: 1.2em;
   opacity: 0;
   padding-left: 0.2em;
@@ -19401,23 +19406,21 @@ a._citationLink_1ggvf_9:hover {
   margin-left: 0.25em;
 }
 
-._hover_2hmlz_82 ._copyLink_2hmlz_72 {
+._hover_1rqn8_82 ._copyLink_1rqn8_72 {
   opacity: 0.75;
 }
 
-/* The event labels look like [E7], and those square brackets sit really low.
-   Sliding them down a little looks more balanced 
-*/
-._eventLabel_2hmlz_89 {
-  transform: translateY(-1px);
+/* Extra air between the turn label and the event-number pill. */
+._eventLabel_1rqn8_87 {
+  margin-left: 0.5em;
 }
 
-._root_2hmlz_93 {
+._root_1rqn8_91 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_2hmlz_98 {
+._bottomDongle_1rqn8_96 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -19433,12 +19436,12 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._dongleIcon_2hmlz_114 {
+._dongleIcon_1rqn8_112 {
   padding-right: 0.3em;
 }
 
 @media print {
-  ._card_2hmlz_51 {
+  ._card_1rqn8_51 {
     break-inside: avoid;
   }
 }
