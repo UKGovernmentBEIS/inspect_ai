@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolDef
 
 from ._bridge import RunCodeInnerToolCall, RunCodeToolBridge
@@ -12,7 +13,7 @@ from ._bridge import RunCodeInnerToolCall, RunCodeToolBridge
 class RunCodeResult:
     """Result of a run_code execution."""
 
-    output: str
+    output: list[Content]
     error: str | None = None
     inner_tool_calls: list[RunCodeInnerToolCall] = field(default_factory=list)
 
@@ -45,7 +46,7 @@ class StubRunCodeExecutor:
             Placeholder execution result.
         """
         return RunCodeResult(
-            output="run_code execution is not implemented yet",
+            output=[ContentText(text="run_code execution is not implemented yet")]
         )
 
 
@@ -74,7 +75,7 @@ class MontyRunCodeExecutor:
             import pydantic_monty
         except ImportError:
             return RunCodeResult(
-                output="",
+                output=[],
                 error=(
                     "pydantic-monty is not installed. "
                     "Install it to use run_code execution."
@@ -95,13 +96,21 @@ class MontyRunCodeExecutor:
             output = await monty.run_async(
                 external_functions=bridge.external_functions(),
             )
+
+            contents: list[Content] = []
+
+            if output:
+                contents.append(ContentText(text=str(output)))
+
+            contents.extend(bridge.artifacts)
+
             return RunCodeResult(
-                output=str(output),
+                output=contents,
                 inner_tool_calls=bridge.calls,
             )
         except Exception as exc:
             return RunCodeResult(
-                output="",
+                output=[],
                 error=str(exc),
                 inner_tool_calls=bridge.calls,
             )

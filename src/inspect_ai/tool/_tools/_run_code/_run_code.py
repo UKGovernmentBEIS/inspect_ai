@@ -1,6 +1,10 @@
 import asyncio
 from collections.abc import Sequence
 
+from inspect_ai._util.content import (
+    Content,
+    ContentText,
+)
 from inspect_ai.tool import Tool, ToolDef, tool
 
 from ._run_code_executor import (
@@ -37,34 +41,47 @@ def _format_run_code_result(
     result: RunCodeResult,
     *,
     include_tool_call_trace: bool,
-) -> str:
+) -> list[Content]:
     """Format a run_code result for the model."""
     output = result.error if result.error else result.output
 
+    content: list[Content] = (
+        [ContentText(text=output)] if isinstance(output, str) else list(output)
+    )
+
     if not include_tool_call_trace or not result.inner_tool_calls:
-        return output
+        return content
 
-    lines = [output, "", "Inner tool calls:"]
-
+    trace_lines = ["", "Inner tool calls:"]
     for call in result.inner_tool_calls:
         status = "error" if call.error else "ok"
-        lines.append(f"- {call.name}: {status}")
+        trace_lines.append(f"- {call.name}: {status}")
         if call.error:
-            lines.append(f"  error: {call.error}")
+            trace_lines.append(f"  error: {call.error}")
 
-    return "\n".join(lines)
+    content.append(ContentText(text="\n".join(trace_lines)))
+    return content
 
 
-def _truncate_text(text: str, max_chars: int | None) -> str:
-    """Truncate text to a maximum number of characters."""
-    if max_chars is None or len(text) <= max_chars:
-        return text
-
-    suffix = f"\n\n[run_code output truncated to {max_chars} characters]"
-    if max_chars <= len(suffix):
-        return text[:max_chars]
-
-    return text[: max_chars - len(suffix)] + suffix
+def _truncate_content(content: list[Content], max_chars: int | None) -> list[Content]:
+    if max_chars is None:
+        return content
+    result: list[Content] = []
+    remaining = max_chars
+    for item in content:
+        if isinstance(item, ContentText):
+            if len(item.text) <= remaining:
+                result.append(item)
+                remaining -= len(item.text)
+            else:
+                suffix = f"... [truncated to {max_chars} chars]"
+                truncated = item.text[: remaining - len(suffix)] + suffix
+                result.append(ContentText(text=truncated))
+                remaining = 0
+                break
+        else:
+            result.append(item)
+    return result
 
 
 def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
@@ -180,7 +197,7 @@ def run_code(
         else StubRunCodeExecutor()
     )
 
-    async def execute(code: str) -> str:
+    async def execute(code: str) -> list[Content]:
         """Run Python code.
 
         Args:
@@ -195,14 +212,18 @@ def run_code(
                     timeout=timeout,
                 )
         except asyncio.TimeoutError:
-            return f"run_code execution timed out after {timeout} seconds."
+            return [
+                ContentText(
+                    text=f"run_code execution timed out after {timeout} seconds."
+                )
+            ]
 
         formatted = _format_run_code_result(
             result,
             include_tool_call_trace=include_tool_call_trace,
         )
 
-        return _truncate_text(formatted, max_output_chars)
+        return _truncate_content(formatted, max_output_chars)
 
     return ToolDef(
         execute,

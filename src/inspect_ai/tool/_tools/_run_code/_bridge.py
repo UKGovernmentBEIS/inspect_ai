@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
+from inspect_ai._util.content import (
+    Content,
+    ContentText,
+)
 from inspect_ai.tool import ToolDef
 
 
@@ -38,12 +42,40 @@ def _tool_call_arguments(
     return dict(bound.arguments)
 
 
-def _tool_message_result(message: Any) -> Any:
+def _tool_message_result(message: Any) -> list[Content]:
     """Return the model-visible result from an Inspect tool message."""
     if message.error is not None:
-        return f"{message.error.type}: {message.error.message}"
+        return [ContentText(text=f"{message.error.type}: {message.error.message}")]
 
-    return _coerce_external_function_result(message.content)
+    content = message.content
+
+    if isinstance(content, list):
+        return content
+
+    return [ContentText(text=content)]
+
+
+def _content_to_runtime_value(
+    content: list[Content],
+    artifacts: list[Content],
+) -> str:
+    """Extract text for Monty runtime, collecting non-text content as artifacts."""
+    text_parts = []
+
+    for item in content:
+        match item:
+            case ContentText():
+                # Only text is projected into the Monty runtime.
+                text_parts.append(item.text)
+            case _:
+                # All other content types are preserved as artifacts.
+                artifacts.append(item)
+
+    artifact_count = len(content) - len(text_parts)
+    if text_parts:
+        return "\n".join(text_parts)
+
+    return f"[{artifact_count} non-text artifact(s) generated]"
 
 
 @dataclass
@@ -69,6 +101,7 @@ class RunCodeToolBridge:
         self.tool_defs = tool_defs
         self.max_tool_calls = max_inner_tool_calls
         self.calls: list[RunCodeInnerToolCall] = []
+        self.artifacts: list[Content] = []
 
     def external_functions(self) -> dict[str, Callable[..., Any]]:
         """Create Monty external functions for allowlisted Inspect tools."""
@@ -82,14 +115,14 @@ class RunCodeToolBridge:
                 *args: Any,
                 _tool_def: ToolDef = tool_def,
                 **kwargs: Any,
-            ) -> Any:
+            ) -> str:
                 return await self._call_tool(_tool_def, *args, **kwargs)
 
             external_functions[tool_def.name] = call_tool
 
         return external_functions
 
-    async def _call_tool(self, tool_def: ToolDef, *args: Any, **kwargs: Any) -> Any:
+    async def _call_tool(self, tool_def: ToolDef, *args: Any, **kwargs: Any) -> str:
         if self.max_tool_calls is not None and len(self.calls) >= self.max_tool_calls:
             raise RuntimeError(
                 f"Maximum run_code inner tool calls exceeded: {self.max_tool_calls}"
@@ -103,11 +136,14 @@ class RunCodeToolBridge:
             kwargs_preview=_preview(kwargs),
         )
         self.calls.append(call)
+        artifacts_before = len(self.artifacts)
 
         try:
             result = await self._execute_inspect_tool_call(tool_def, arguments)
-            call.result_preview = _preview(result)
-            return result
+            text = _content_to_runtime_value(result, self.artifacts)
+            artifact_count = len(self.artifacts) - artifacts_before
+            call.result_preview = _preview(f"{text} | artifacts={artifact_count}")
+            return text
         except Exception as exc:
             call.error = str(exc)
             raise
@@ -116,7 +152,7 @@ class RunCodeToolBridge:
         self,
         tool_def: ToolDef,
         arguments: dict[str, Any],
-    ) -> Any:
+    ) -> list[Content]:
         """Execute an inner tool call through Inspect's normal tool path."""
         from inspect_ai.model._call_tools import execute_tools
         from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
@@ -145,7 +181,7 @@ class RunCodeToolBridge:
         ]
 
         if not tool_messages:
-            return ""
+            return [ContentText(text="")]
 
         tool_message = tool_messages[-1]
         return _tool_message_result(tool_message)
@@ -159,12 +195,3 @@ def external_functions_for_tool_defs(
     """Create Monty external functions for allowlisted Inspect tools."""
     bridge = RunCodeToolBridge(tool_defs, max_inner_tool_calls=max_inner_tool_calls)
     return bridge.external_functions()
-
-
-def _coerce_external_function_result(result: Any) -> Any:
-    """Return a Monty-compatible external function result."""
-    if result is None:
-        return None
-    if isinstance(result, str | int | float | bool | list | dict):
-        return result
-    return str(result)
