@@ -1,6 +1,5 @@
 import contextlib
 import functools
-import importlib
 import sys
 import time
 from copy import copy, deepcopy
@@ -110,6 +109,7 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
+from inspect_ai.model._assistant_internal import init_sample_assistant_internal
 from inspect_ai.model._model import (
     init_model_usage,
     init_role_usage,
@@ -2036,36 +2036,6 @@ def create_sample_semaphore(
             else DEFAULT_MAX_CONNECTIONS
         )
         return anyio.Semaphore(max_samples)
-
-
-# `importlib.util.find_spec` walks importer paths (~3 ms per call). Cache
-# at module load — package installation can't change during a process
-# lifetime, so the result is invariant. Without this, `init_sample_assistant_internal`
-# (called once per sample) was costing ~3 s per 500 samples in profiling.
-_HAS_OPENAI: bool = importlib.util.find_spec("openai") is not None
-_HAS_ANTHROPIC: bool = importlib.util.find_spec("anthropic") is not None
-
-
-def init_sample_assistant_internal() -> None:
-    if _HAS_OPENAI:
-        try:
-            from inspect_ai.model._openai_responses import (
-                init_sample_openai_assistant_internal,
-            )
-
-            init_sample_openai_assistant_internal()
-        except ImportError:
-            pass
-
-    if _HAS_ANTHROPIC:
-        try:
-            from inspect_ai.model._providers.anthropic import (
-                init_sample_anthropic_assistant_internal,
-            )
-
-            init_sample_anthropic_assistant_internal()
-        except ImportError:
-            pass
 
 
 def _eval_retry_error(

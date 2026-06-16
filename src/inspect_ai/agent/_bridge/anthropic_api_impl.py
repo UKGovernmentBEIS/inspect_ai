@@ -153,7 +153,7 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # update state if we have more messages than the last generation
-    bridge._track_state(messages, output)
+    await bridge._track_state(messages, output)
 
     # return message (use beta message type if request came from beta endpoint)
     message_class = BetaMessage if beta else Message

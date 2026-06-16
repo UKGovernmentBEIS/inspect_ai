@@ -20736,44 +20736,33 @@ a._citationLink_1ggvf_9:hover {
   flex: none;
   opacity: 0.85;
 }
-._panel_xm787_1 {
+._panel_1us8t_1 {
   margin: 0.2em 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1em;
+  row-gap: 0.3em;
+  align-items: baseline;
 }
 
-._metric_xm787_5 {
+._rowValue_1us8t_10 {
   display: flex;
-  gap: 0.5em;
+  flex-direction: column;
+  gap: 0.1em;
 }
 
-._label_xm787_10 {
-  font-weight: 600;
-  min-width: 5em;
-}
-
-._section_xm787_15 {
-  margin-top: 0.5em;
-}
-
-._sectionTitle_xm787_19 {
-  font-weight: 600;
-}
-
-._indented_xm787_23 {
-  padding-left: 1.5em;
-}
-
-._files_xm787_27 {
+._files_1us8t_16 {
   display: flex;
   flex-direction: column;
   gap: 0.1em;
   font-family: var(--bs-font-monospace);
 }
 
-._file_xm787_27 {
+._file_1us8t_16 {
   overflow-wrap: anywhere;
 }
 
-._fileOverflow_xm787_38 {
+._fileOverflow_1us8t_27 {
   font-style: italic;
   opacity: 0.7;
 }
