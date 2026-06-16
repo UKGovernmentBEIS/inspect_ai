@@ -2,12 +2,14 @@ import functools
 import json
 import os
 import re
+import time
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Any,
+    Callable,
     Iterable,
     Literal,
     Sequence,
@@ -139,7 +141,10 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import (
+    set_active_model_event_call,
+    update_active_model_event_output,
+)
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
@@ -783,8 +788,17 @@ class AnthropicAPI(ModelAPI):
                 )
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
+            model_name = self.service_model_name()
+
+            def _flush(snapshot: Message) -> None:
+                update_active_model_event_output(
+                    _partial_output_from_snapshot(snapshot, model_name)
+                )
+
             async with self.client.messages.stream(**request) as stream:
-                head_message, _ = await _capture_compaction_from_stream(stream)
+                head_message, _ = await _capture_compaction_from_stream(
+                    stream, on_snapshot=_flush
+                )
         else:
             head_message = await self.client.messages.create(**request, stream=False)
 
@@ -3623,8 +3637,62 @@ def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
     return message.model_copy(update={"content": stripped})
 
 
+_STREAM_FLUSH_MIN_INTERVAL_S = 0.1
+"""Minimum seconds between partial-output flushes to the transcript.
+
+The SDK emits a delta per token group; flushing each one would spam
+``_event_updated`` subscribers (the live-view buffer, inspect-view's poll).
+~10 Hz is enough for a smooth UI while keeping per-flush overhead
+(snapshot translation + Pydantic construction) negligible.
+"""
+
+
+def _partial_output_from_snapshot(snapshot: Message, model: str) -> ModelOutput:
+    """Cheap ``ModelOutput`` from an in-progress ``current_message_snapshot``.
+
+    Built per streaming flush, so this skips everything
+    :func:`model_output_from_message` does that is either expensive
+    (``count_tokens`` for reasoning), stateful (server-tool span recording),
+    or only meaningful on the final message (usage, stop reason,
+    pause-turn continuation). Block kinds that don't render usefully
+    mid-stream (server tool use/results, MCP, compaction, web search)
+    are dropped — the final ``model_output_from_message`` pass restores
+    them on completion.
+    """
+    content: list[Content] = []
+    tool_calls: list[ToolCall] = []
+    for block in snapshot.content:
+        if isinstance(block, TextBlock):
+            content.append(ContentText(text=block.text))
+        elif isinstance(block, ThinkingBlock):
+            content.append(
+                ContentReasoning(reasoning=block.thinking, signature=block.signature)
+            )
+        elif isinstance(block, RedactedThinkingBlock):
+            content.append(ContentReasoning(reasoning="", redacted=True))
+        elif isinstance(block, ToolUseBlock):
+            tool_calls.append(
+                ToolCall(id=block.id, function=block.name, arguments=block.input or {})
+            )
+    return ModelOutput(
+        model=model,
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=content,
+                    tool_calls=tool_calls or None,
+                    model=model,
+                    source="generate",
+                ),
+                stop_reason="unknown",
+            )
+        ],
+    )
+
+
 async def _capture_compaction_from_stream(
     stream: AsyncMessageStream,
+    on_snapshot: Callable[[Message], None] | None = None,
 ) -> tuple[Message, str | None]:
     """Consume a streaming response and capture any compaction content.
 
@@ -3635,6 +3703,11 @@ async def _capture_compaction_from_stream(
 
     Args:
         stream: The Anthropic AsyncMessageStream from messages.stream().
+        on_snapshot: Called with ``stream.current_message_snapshot`` on
+            each ``content_block_*`` event, throttled to at most once per
+            ``_STREAM_FLUSH_MIN_INTERVAL_S``. Used to publish partial
+            output to the pending ``ModelEvent`` while the response
+            arrives; ``None`` disables the per-flush callback.
 
     Returns:
         A tuple of (message, compaction_content) where message is the final
@@ -3642,6 +3715,7 @@ async def _capture_compaction_from_stream(
         is the raw content captured from compaction_delta events (or None).
     """
     compaction_content: str | None = None
+    last_flush = 0.0
 
     # Iterate through all streaming events to capture compaction_delta content
     async for event in stream:
@@ -3650,6 +3724,14 @@ async def _capture_compaction_from_stream(
             and getattr(event.delta, "type", None) == "compaction_delta"
         ):
             compaction_content = getattr(event.delta, "content", None)
+        if (
+            on_snapshot is not None
+            and getattr(event, "type", None)
+            in ("content_block_start", "content_block_delta", "content_block_stop")
+            and (now := time.monotonic()) - last_flush >= _STREAM_FLUSH_MIN_INTERVAL_S
+        ):
+            last_flush = now
+            on_snapshot(stream.current_message_snapshot)
 
     # Get the final message snapshot
     message = stream.current_message_snapshot
