@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.approval import ApprovalPolicy, approval, auto_approver
 from inspect_ai.tool import Tool, ToolDef, ToolError, run_code
 from inspect_ai.tool._tools._run_code._bridge import (
@@ -45,8 +46,8 @@ def test_run_code_accepts_empty_tools_list():
 async def test_run_code_tool_executes_stub():
     tool = run_code()
     result = await tool(code="return 1")
-    assert isinstance(result, str)
-    assert "not implemented" in result.lower()
+    assert isinstance(result, list)
+    assert "not implemented" in result[0].text.lower()
 
 
 def dummy_tool() -> Tool:
@@ -110,7 +111,7 @@ def test_run_code_description_mentions_wrapped_tool():
 
 class FakeRunCodeExecutor:
     async def execute(self, code: str) -> RunCodeResult:
-        return RunCodeResult(output=f"executed: {code}")
+        return RunCodeResult(output=[ContentText(text=f"executed: {code}")])
 
 
 @pytest.mark.anyio
@@ -119,7 +120,7 @@ async def test_run_code_uses_injected_executor():
 
     result = await tool(code="x = 1")
 
-    assert result == "executed: x = 1"
+    assert result == [ContentText(text="executed: x = 1")]
 
 
 class ErrorRunCodeExecutor:
@@ -133,7 +134,7 @@ async def test_run_code_returns_executor_error():
 
     result = await tool(code="raise Exception()")
 
-    assert result == "boom"
+    assert result == [ContentText(text="boom")]
 
 
 @pytest.mark.anyio
@@ -143,7 +144,7 @@ async def test_run_code_executes_simple_code_with_monty():
     tool = run_code(execute_code=True)
     result = await tool(code="1 + 1")
 
-    assert result == "2"
+    assert "2" in result[0].text
 
 
 @pytest.mark.anyio
@@ -153,7 +154,7 @@ async def test_run_code_reports_monty_error():
     tool = run_code(execute_code=True)
     result = await tool(code="raise Exception('boom')")
 
-    assert "boom" in result
+    assert "boom" in result[0].text
 
 
 @pytest.mark.anyio
@@ -183,7 +184,9 @@ async def test_run_code_can_call_wrapped_tool_with_monty():
 
     result = await tool(code='await dummy_tool("hello")')
 
-    assert result == "hello"
+    print(result)
+
+    assert "hello" in result[0].text
 
 
 @pytest.mark.anyio
@@ -198,7 +201,8 @@ async def test_run_code_bridge_records_inner_tool_call():
     assert bridge.calls[0].name == "dummy_tool"
     assert bridge.calls[0].args_preview == "('hello',)"
     assert bridge.calls[0].kwargs_preview == "{}"
-    assert bridge.calls[0].result_preview == "'hello'"
+    assert "hello" in bridge.calls[0].result_preview
+    assert "artifacts=0" in bridge.calls[0].result_preview
     assert bridge.calls[0].error is None
 
 
@@ -210,8 +214,8 @@ async def test_run_code_bridge_enforces_max_tool_calls():
     )
 
     external_functions = bridge.external_functions()
-
-    assert await external_functions["dummy_tool"]("first") == "first"
+    result = await external_functions["dummy_tool"]("first")
+    assert result == "first"
 
     with pytest.raises(
         RuntimeError, match="Maximum run_code inner tool calls exceeded"
@@ -268,12 +272,12 @@ await dummy_tool("second")
 """
     )
 
-    assert "Maximum run_code inner tool calls exceeded" in result
+    assert "Maximum run_code inner tool calls exceeded" in result[0].text
 
 
 def test_format_run_code_result_without_trace():
     result = RunCodeResult(
-        output="hello",
+        output=[ContentText(text="hello")],
         inner_tool_calls=[
             RunCodeInnerToolCall(
                 name="dummy_tool",
@@ -289,12 +293,12 @@ def test_format_run_code_result_without_trace():
         include_tool_call_trace=False,
     )
 
-    assert formatted == "hello"
+    assert formatted == [ContentText(text="hello")]
 
 
 def test_format_run_code_result_with_trace():
     result = RunCodeResult(
-        output="hello",
+        output=[ContentText(text="hello")],
         inner_tool_calls=[
             RunCodeInnerToolCall(
                 name="dummy_tool",
@@ -310,14 +314,14 @@ def test_format_run_code_result_with_trace():
         include_tool_call_trace=True,
     )
 
-    assert "hello" in formatted
-    assert "Inner tool calls:" in formatted
-    assert "- dummy_tool: ok" in formatted
+    assert "hello" in formatted[0].text
+    assert "Inner tool calls:" in formatted[1].text
+    assert "- dummy_tool: ok" in formatted[1].text
 
 
 def test_format_run_code_result_with_error_trace():
     result = RunCodeResult(
-        output="",
+        output=[],
         error="boom",
         inner_tool_calls=[RunCodeInnerToolCall(name="dummy_tool", error="inner boom")],
     )
@@ -327,9 +331,9 @@ def test_format_run_code_result_with_error_trace():
         include_tool_call_trace=True,
     )
 
-    assert "boom" in formatted
-    assert "- dummy_tool: error" in formatted
-    assert "inner boom" in formatted
+    assert "boom" in formatted[0].text
+    assert "- dummy_tool: error" in formatted[1].text
+    assert "inner boom" in formatted[1].text
 
 
 @pytest.mark.anyio
@@ -344,15 +348,15 @@ async def test_run_code_can_include_inner_tool_trace_with_monty():
 
     result = await tool(code='await dummy_tool("hello")')
 
-    assert "hello" in result
-    assert "Inner tool calls:" in result
-    assert "- dummy_tool: ok" in result
+    assert "hello" in result[0].text
+    assert "Inner tool calls:" in result[1].text
+    assert "- dummy_tool: ok" in result[1].text
 
 
 class SlowRunCodeExecutor:
     async def execute(self, code: str) -> RunCodeResult:
         await asyncio.sleep(1)
-        return RunCodeResult(output="finished")
+        return RunCodeResult(output=[ContentText(text="finished")])
 
 
 @pytest.mark.anyio
@@ -364,12 +368,12 @@ async def test_run_code_enforces_timeout():
 
     result = await tool(code="slow")
 
-    assert "timed out" in result
+    assert "timed out" in result[0].text
 
 
 class LargeOutputRunCodeExecutor:
     async def execute(self, code: str) -> RunCodeResult:
-        return RunCodeResult(output="x" * 100)
+        return RunCodeResult(output=[ContentText(text="x" * 100)])
 
 
 @pytest.mark.anyio
@@ -381,8 +385,8 @@ async def test_run_code_truncates_output():
 
     result = await tool(code="large")
 
-    assert len(result) <= 50
-    assert "truncated" in result
+    assert len(result[0].text) <= 50
+    assert "truncated" in result[0].text
 
 
 def test_run_code_preview_truncates_long_values():
@@ -481,8 +485,8 @@ b = await second_dummy_tool("y")
 """
     )
 
-    assert "x" in result
-    assert "second:y" in result
+    assert "x" in result[0].text
+    assert "second:y" in result[0].text
 
 
 @pytest.mark.anyio
@@ -507,11 +511,11 @@ results
 """
     )
 
-    assert "x" in result
-    assert "second:y" in result
-    assert "Inner tool calls:" in result
-    assert "dummy_tool" in result
-    assert "second_dummy_tool" in result
+    assert "x" in result[0].text
+    assert "second:y" in result[0].text
+    assert "Inner tool calls:" in result[1].text
+    assert "dummy_tool" in result[1].text
+    assert "second_dummy_tool" in result[1].text
 
 
 def test_run_code_usage_description_mentions_asyncio_gather():
@@ -617,7 +621,8 @@ async def test_run_code_bridge_uses_inspect_approval_for_inner_tool_calls():
 
     assert calls == []
     assert isinstance(result, str)
-    assert result == "approval: Automatic decision."
+    assert "approval: Automatic decision." in result
+
 
 @pytest.mark.anyio
 async def test_run_code_monty_uses_inspect_approval_for_inner_tool_calls():
@@ -657,8 +662,9 @@ async def test_run_code_monty_uses_inspect_approval_for_inner_tool_calls():
         result = await tool(code='await approval_probe_tool("secret")')
 
     assert calls == []
-    assert isinstance(result, str)
-    assert result == "approval: Automatic decision."
+    assert isinstance(result, list)
+    assert result[0].text == "approval: Automatic decision."
+
 
 @pytest.mark.anyio
 async def test_run_code_monty_runs_inner_tool_when_approval_allows_it():
@@ -698,4 +704,52 @@ async def test_run_code_monty_runs_inner_tool_when_approval_allows_it():
         result = await tool(code='await approval_probe_tool("secret")')
 
     assert calls == ["secret"]
-    assert result == "approved:secret"
+    assert result[0].text == "approved:secret"
+
+
+def image_tool() -> Tool:
+    async def execute() -> list[Content]:
+        """Return an image.
+
+        Returns:
+            Image content.
+        """
+        return [
+            ContentText(text="here is your image"),
+            ContentImage(image="data:image/png;base64,abc123"),
+        ]
+
+    return ToolDef(
+        execute,
+        name="image_tool",
+        description="Return an image.",
+    ).as_tool()
+
+
+@pytest.mark.anyio
+async def test_run_code_bridge_collects_image_artifacts():
+    bridge = RunCodeToolBridge(_tool_defs([image_tool()]))
+    external_functions = bridge.external_functions()
+
+    result = await external_functions["image_tool"]()
+
+    assert result == "here is your image"
+
+    assert len(bridge.artifacts) == 1
+    assert isinstance(bridge.artifacts[0], ContentImage)
+    assert bridge.artifacts[0].image == "data:image/png;base64,abc123"
+
+
+@pytest.mark.anyio
+async def test_run_code_artifacts_appear_in_result():
+    pytest.importorskip("pydantic_monty")
+    tool = run_code(tools=[image_tool()], execute_code=True)
+
+    result = await tool(code="await image_tool()")
+
+    assert any(
+        isinstance(item, ContentText) and "here is your image" in item.text
+        for item in result
+    )
+
+    assert any(isinstance(item, ContentImage) for item in result)
