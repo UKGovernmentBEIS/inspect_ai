@@ -27,6 +27,7 @@ from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import (
     MetricDeprecated,
     MetricProtocol,
+    MetricScores,
     SampleScore,
     Value,
     metric_scores,
@@ -45,10 +46,13 @@ from inspect_ai.util._early_stopping import EarlyStoppingSummary
 logger = logging.getLogger(__name__)
 
 
+Metrics = list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]
+
+
 @dataclass
 class ScorerInfo:
     name: str
-    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]
+    metrics: Metrics
     params: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -86,7 +90,7 @@ def eval_results(
     scores: list[dict[str, SampleScore]],
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | list[ScorerInfo] | None,
-    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
+    metrics: Metrics | None,
     scorer_names: list[str] | None = None,
     early_stopping: EarlyStoppingSummary | None = None,
     metadata: dict[str, Any] | None = None,
@@ -149,47 +153,15 @@ def eval_results(
                 score[scorer_name] for score in scores if scorer_name in score
             ]
 
-            # Group the scores by sample_id
-            resolved_reducers, use_reducer_name = resolve_reducer(reducers, scorer_info)
-            if len(resolved_reducers) == 0:
-                # Compute metrics without reduction since no reducers were
-                # explicitly specified
-                eval_scores = compute_eval_scores(
-                    resolved_scores,
-                    scorer_info.metrics,
-                    scorer_name,
-                    scorer_info,
-                    None,
-                )
-                result_scores.extend(eval_scores)
-
-            else:
-                for reducer in resolved_reducers:
-                    reducer_display_nm = (
-                        reducer_log_name(reducer) if use_reducer_name else None
-                    )
-                    reduced_scores = reduce_scores(resolved_scores, reducer=reducer)
-
-                    # record this scorer's intermediate results
-                    reduced_samples = EvalSampleReductions(
-                        scorer=scorer_name,
-                        reducer=reducer_display_nm,
-                        samples=[
-                            EvalSampleScore(**ss.score.__dict__, sample_id=ss.sample_id)
-                            for ss in reduced_scores
-                        ],
-                    )
-                    sample_reductions.append(reduced_samples)
-
-                    # Compute metrics for this scorer
-                    eval_scores = compute_eval_scores(
-                        reduced_scores,
-                        scorer_info.metrics,
-                        scorer_name,
-                        scorer_info,
-                        reducer_display_nm,
-                    )
-                    result_scores.extend(eval_scores)
+            eval_scores, reductions = compute_eval_scores_for_views(
+                resolved_scores,
+                scorer_info.metrics,
+                scorer_name,
+                scorer_info,
+                reducers,
+            )
+            result_scores.extend(eval_scores)
+            sample_reductions.extend(reductions)
 
             # build results
         results.scores = result_scores
@@ -198,15 +170,66 @@ def eval_results(
     return results, reductions
 
 
+def compute_eval_scores_for_views(
+    scores: list[SampleScore],
+    metrics: Metrics,
+    scorer_name: str,
+    scorer_info: ScorerInfo,
+    reducers: ScoreReducer | list[ScoreReducer] | None,
+) -> tuple[list[EvalScore], list[EvalSampleReductions]]:
+    result_scores: list[EvalScore] = []
+    sample_reductions: list[EvalSampleReductions] = []
+
+    if isinstance(reducers, list) and len(reducers) == 0:
+        if _has_explicit_reduced_metrics(metrics) and _has_repeated_sample_ids(scores):
+            raise ValueError(
+                f"Scorer '{scorer_info.name}' has metrics with "
+                '@metric(scores="reduced") but epoch reduction is disabled. '
+                "Configure an epochs reducer or use scores=\"auto\"/\"unreduced\"."
+            )
+        result_scores.extend(
+            compute_eval_scores(scores, metrics, scorer_name, scorer_info, None)
+        )
+        return result_scores, sample_reductions
+
+    reduced_metrics = _filter_metrics_by_scores(metrics, {"auto", "reduced"})
+    unreduced_metrics = _filter_metrics_by_scores(metrics, {"unreduced"})
+    mixed_views = reduced_metrics is not None and unreduced_metrics is not None
+
+    if reduced_metrics is not None:
+        for reducer, reducer_display_nm in _reduced_views(reducers, mixed_views):
+            reduced_scores = reduce_scores(scores, reducer=reducer)
+            sample_reductions.append(
+                EvalSampleReductions(
+                    scorer=scorer_name,
+                    reducer=reducer_display_nm,
+                    samples=[
+                        EvalSampleScore(**ss.score.__dict__, sample_id=ss.sample_id)
+                        for ss in reduced_scores
+                    ],
+                )
+            )
+            result_scores.extend(
+                compute_eval_scores(
+                    reduced_scores,
+                    reduced_metrics,
+                    scorer_name,
+                    scorer_info,
+                    reducer_display_nm,
+                )
+            )
+
+    if unreduced_metrics is not None:
+        result_scores.extend(
+            compute_eval_scores(scores, unreduced_metrics, scorer_name, scorer_info, None)
+        )
+
+    return result_scores, sample_reductions
+
+
 def compute_eval_scores(
     scores: list[SampleScore],
-    metrics: list[MetricProtocol | MetricDeprecated]
-    | dict[str, list[MetricProtocol | MetricDeprecated]]
-    | list[
-        MetricProtocol
-        | MetricDeprecated
-        | dict[str, list[MetricProtocol | MetricDeprecated]]
-    ],
+    metrics: Metrics,
     scorer_name: str,
     scorer_info: ScorerInfo,
     reducer_display_nm: str | None = None,
@@ -270,7 +293,7 @@ def _unique_scorer_names(scorers_info: list[ScorerInfo]) -> list[str]:
 
 
 def _flatten_metrics(
-    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+    metrics: Metrics,
 ) -> Iterator[Metric]:
     if isinstance(metrics, dict):
         for ms in metrics.values():
@@ -284,31 +307,56 @@ def _flatten_metrics(
                 yield m
 
 
-def resolve_reducer(
+def _filter_metrics_by_scores(
+    metrics: Metrics, modes: set[MetricScores]
+) -> Metrics | None:
+    if isinstance(metrics, dict):
+        result: dict[str, list[Metric]] = {}
+        for key, metric_list in metrics.items():
+            filtered_metrics = [m for m in metric_list if metric_scores(m) in modes]
+            if filtered_metrics:
+                result[key] = filtered_metrics
+        return result or None
+
+    result: list[Metric | dict[str, list[Metric]]] = []
+    for metric_item in metrics:
+        if isinstance(metric_item, dict):
+            filtered_dict: dict[str, list[Metric]] = {}
+            for key, metric_list in metric_item.items():
+                filtered_metrics = [m for m in metric_list if metric_scores(m) in modes]
+                if filtered_metrics:
+                    filtered_dict[key] = filtered_metrics
+            if filtered_dict:
+                result.append(filtered_dict)
+        elif metric_scores(metric_item) in modes:
+            result.append(metric_item)
+    return result or None
+
+
+def _has_explicit_reduced_metrics(metrics: Metrics) -> bool:
+    return any(metric_scores(m) == "reduced" for m in _flatten_metrics(metrics))
+
+
+def _has_repeated_sample_ids(scores: list[SampleScore]) -> bool:
+    sample_ids: set[str] = set()
+    for score in scores:
+        if score.sample_id is None:
+            continue
+        sample_id = str(score.sample_id)
+        if sample_id in sample_ids:
+            return True
+        sample_ids.add(sample_id)
+    return False
+
+
+def _reduced_views(
     reducers: ScoreReducer | list[ScoreReducer] | None,
-    scorer_info: ScorerInfo,
-) -> tuple[list[ScoreReducer], bool]:
+    name_implicit_mean: bool,
+) -> list[tuple[ScoreReducer, str | None]]:
     if reducers is None:
-        # No reducer explicitly configured. If any metric on this scorer
-        # declares ``@metric(scores="unreduced")`` (e.g. ``frequency()``),
-        # skip reduction so each epoch's score is an independent
-        # observation; otherwise default to ``mean``.
-        modes = {metric_scores(m) for m in _flatten_metrics(scorer_info.metrics)}
-        if "unreduced" in modes:
-            if "reduced" in modes:
-                warn_once(
-                    logger,
-                    f"Scorer '{scorer_info.name}' has metrics with mixed "
-                    f'@metric(scores=...) modes; using "unreduced" for all '
-                    f"of them. Configure an explicit epochs reducer to "
-                    f"override.",
-                )
-            return ([], False)
-        return ([mean_score()], False)
-    elif isinstance(reducers, list) and len(reducers) == 0:
-        return ([], True)
-    else:
-        return (reducers if isinstance(reducers, list) else [reducers], True)
+        return [(mean_score(), "mean" if name_implicit_mean else None)]
+    reducers = reducers if isinstance(reducers, list) else [reducers]
+    return [(reducer, reducer_log_name(reducer)) for reducer in reducers]
 
 
 def split_metrics(

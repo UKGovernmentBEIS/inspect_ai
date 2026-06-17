@@ -133,6 +133,51 @@ def test_evals_df_single_reducer_preserves_column_name():
     assert df.iloc[0]["score_match_accuracy"] == 0.75
 
 
+def test_evals_df_scores_with_mixed_score_views():
+    """Reduced and unreduced rows for the same scorer must not collide."""
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalMetric,
+        EvalResults,
+        EvalScore,
+        EvalSpec,
+    )
+
+    log = EvalLog(
+        status="success",
+        eval=EvalSpec(
+            created="2024-01-01T00:00:00+00:00",
+            task="t",
+            dataset=EvalDataset(),
+            model="test/model",
+            config=EvalConfig(epochs=2),
+        ),
+        results=EvalResults(
+            scores=[
+                EvalScore(
+                    name="match",
+                    scorer="match",
+                    reducer="mean",
+                    metrics={"accuracy": EvalMetric(name="accuracy", value=0.50)},
+                ),
+                EvalScore(
+                    name="match",
+                    scorer="match",
+                    reducer=None,
+                    metrics={"C": EvalMetric(name="C", value=0.50)},
+                ),
+            ]
+        ),
+    )
+
+    df = evals_df([log], quiet=True)
+    assert "score_match_mean_accuracy" in df.columns
+    assert "score_match_C" in df.columns
+    assert df.iloc[0]["score_match_mean_accuracy"] == 0.50
+    assert df.iloc[0]["score_match_C"] == 0.50
+
+
 def test_evals_df_columns():
     df = evals_df(LOGS_DIR, columns=EvalInfo + EvalModel + EvalResults + EvalTask)
     assert (

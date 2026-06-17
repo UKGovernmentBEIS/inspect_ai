@@ -380,12 +380,13 @@ def as_metric_spec(metric: Metric) -> MetricSpec:
     return MetricSpec(metric=registry_info(metric).name, args=registry_params(metric))
 
 
-MetricScores = Literal["reduced", "unreduced"]
+MetricScores = Literal["auto", "reduced", "unreduced"]
 """Epoch-reduction contract for a metric's ``scores`` input.
 
-``"reduced"`` (default): one score per sample after applying the configured
-``ScoreReducer``. ``"unreduced"``: one score per sample per epoch (each
-epoch is an independent observation).
+``"auto"`` (default): legacy behavior, using reduced scores unless reducers are
+explicitly disabled. ``"reduced"``: one score per sample after applying the
+configured ``ScoreReducer``. ``"unreduced"``: one score per sample per epoch
+(each epoch is an independent observation).
 """
 
 METRIC_SCORES = "scores"
@@ -393,7 +394,7 @@ METRIC_SCORES = "scores"
 
 def metric_scores(metric: Metric) -> MetricScores:
     """Read the declared ``scores`` mode for a metric instance."""
-    mode = registry_info(metric).metadata.get(METRIC_SCORES, "reduced")
+    mode = registry_info(metric).metadata.get(METRIC_SCORES, "auto")
     return cast(MetricScores, mode)
 
 
@@ -404,14 +405,14 @@ def metric(name: Callable[P, Metric]) -> Callable[P, Metric]: ...
 
 @overload
 def metric(
-    name: str | None = None, *, scores: MetricScores = "reduced"
+    name: str | None = None, *, scores: MetricScores = "auto"
 ) -> Callable[[Callable[P, Metric]], Callable[P, Metric]]: ...
 
 
 def metric(
     name: str | Callable[P, Metric] | None = None,
     *,
-    scores: MetricScores = "reduced",
+    scores: MetricScores = "auto",
 ) -> Callable[[Callable[P, Metric]], Callable[P, Metric]] | Callable[P, Metric]:
     r"""Decorator for registering metrics.
 
@@ -420,12 +421,12 @@ def metric(
         argument then the name of the underlying MetricType
         will be used to automatically assign a name.
       scores: Epoch-reduction contract for the metric's ``scores`` input.
-        ``"reduced"`` (default) receives one score per sample after the
-        configured ``ScoreReducer`` runs. ``"unreduced"`` receives one
-        score per sample per epoch — use this for metrics that treat each
-        epoch as an independent observation (e.g. ``frequency()``). When
-        no reducer is explicitly configured and any metric on a scorer
-        declares ``"unreduced"``, reduction is skipped for that scorer.
+        ``"auto"`` (default) preserves legacy behavior, receiving reduced
+        scores unless reducers are explicitly disabled. ``"reduced"`` requires
+        one score per sample after the configured ``ScoreReducer`` runs.
+        ``"unreduced"`` receives one score per sample per epoch — use this for
+        metrics that treat each epoch as an independent observation (e.g.
+        ``frequency()``).
 
     Examples:
       ```python
@@ -436,7 +437,7 @@ def metric(
           return metric
     ```
     """
-    metadata = {METRIC_SCORES: scores}
+    metadata = {} if scores == "auto" else {METRIC_SCORES: scores}
 
     # create_metric_wrapper:
     #  (a) Add the MetricType to the registry using the appropriately

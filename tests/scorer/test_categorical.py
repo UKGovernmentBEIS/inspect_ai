@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 
-from inspect_ai import Task, eval
+from inspect_ai import Epochs, Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log, recompute_metrics, write_eval_log
 from inspect_ai.scorer import (
@@ -123,7 +123,7 @@ def test_frequency_declares_unreduced() -> None:
 
 
 def test_metric_scores_default_reduced() -> None:
-    assert metric_scores(accuracy()) == "reduced"
+    assert metric_scores(accuracy()) == "auto"
 
 
 def test_metric_scores_survives_metric_create() -> None:
@@ -131,7 +131,7 @@ def test_metric_scores_survives_metric_create() -> None:
     m = metric_create("frequency", categories=["yes", "no"])
     assert metric_scores(m) == "unreduced"
     m2 = metric_create("accuracy")
-    assert metric_scores(m2) == "reduced"
+    assert metric_scores(m2) == "auto"
 
 
 def test_metric_decorator_kwarg_only_scores() -> None:
@@ -143,48 +143,6 @@ def test_metric_decorator_kwarg_only_scores() -> None:
         return compute
 
     assert metric_scores(my_metric()) == "unreduced"
-
-
-def test_resolve_reducer_skips_for_unreduced_metric() -> None:
-    from inspect_ai._eval.task.results import ScorerInfo, resolve_reducer
-
-    info = ScorerInfo(name="x", metrics=[*categorical(Verdict)])
-    reducers, named = resolve_reducer(None, info)
-    assert reducers == []
-    assert named is False
-
-
-def test_resolve_reducer_defaults_mean_for_reduced_metric() -> None:
-    from inspect_ai._eval.task.results import ScorerInfo, resolve_reducer
-
-    info = ScorerInfo(name="x", metrics=[accuracy()])
-    reducers, named = resolve_reducer(None, info)
-    assert len(reducers) == 1
-    assert named is False
-
-
-def test_resolve_reducer_explicit_reducer_honoured() -> None:
-    from inspect_ai._eval.task.results import ScorerInfo, resolve_reducer
-    from inspect_ai.scorer import mode_score
-
-    info = ScorerInfo(name="x", metrics=[*categorical(Verdict)])
-    reducers, named = resolve_reducer([mode_score()], info)
-    assert len(reducers) == 1
-    assert named is True
-
-
-def test_resolve_reducer_mixed_modes_warns_and_uses_unreduced(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    import logging
-
-    from inspect_ai._eval.task.results import ScorerInfo, resolve_reducer
-
-    info = ScorerInfo(name="x", metrics=[accuracy(), frequency(categories=Verdict)])
-    with caplog.at_level(logging.WARNING):
-        reducers, _ = resolve_reducer(None, info)
-    assert reducers == []
-    assert any("mixed" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +168,31 @@ def _verdict_frequency_scorer() -> Scorer:
     return score
 
 
+@scorer(metrics=[accuracy(), frequency(categories=["C", "I"])])
+def _mixed_correctness_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value="C" if state.epoch % 2 else "I")
+
+    return score
+
+
+@scorer(metrics=[frequency(categories=["C", "I"])])
+def _frequency_correctness_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value="C" if state.epoch % 2 else "I")
+
+    return score
+
+
+@scorer(metrics={"*": [accuracy(), frequency(categories=["C", "I"])]})
+def _dict_mixed_correctness_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        value = "C" if state.epoch % 2 else "I"
+        return Score(value={"a": value, "b": "I" if value == "C" else "C"})
+
+    return score
+
+
 @scorer(metrics={"sab": categorical(Sabotage), "aware": categorical(Verdict)})
 def _behaviour_scorer() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
@@ -226,6 +209,148 @@ def _metrics_snapshot(log) -> dict[str, dict[str, float]]:
         s.name: {k: round(v.value, 6) for k, v in s.metrics.items()}
         for s in log.results.scores
     }
+
+
+def _score_by_reducer(log, name: str, reducer: str | None):
+    assert log.results is not None
+    return next(
+        score
+        for score in log.results.scores
+        if score.name == name and score.reducer == reducer
+    )
+
+
+def test_mixed_metrics_use_reduced_and_unreduced_views() -> None:
+    task = Task(
+        dataset=[Sample(input="q")],
+        scorer=_mixed_correctness_scorer(),
+        epochs=2,
+    )
+    log = eval(task, model="mockllm/model", display="none")[0]
+
+    reduced = _score_by_reducer(log, "_mixed_correctness_scorer", "mean")
+    assert set(reduced.metrics) == {"accuracy"}
+    assert reduced.metrics["accuracy"].value == pytest.approx(0.5)
+    assert reduced.scored_samples == 1
+
+    unreduced = _score_by_reducer(log, "_mixed_correctness_scorer", None)
+    assert set(unreduced.metrics) == {"C", "I"}
+    assert unreduced.metrics["C"].value == pytest.approx(0.5)
+    assert unreduced.metrics["I"].value == pytest.approx(0.5)
+    assert unreduced.scored_samples == 2
+
+
+def test_frequency_uses_unreduced_view_with_explicit_reducer() -> None:
+    task = Task(
+        dataset=[Sample(input="q")],
+        scorer=_frequency_correctness_scorer(),
+        epochs=Epochs(2, "mode"),
+    )
+    log = eval(task, model="mockllm/model", display="none")[0]
+
+    score = _score_by_reducer(log, "_frequency_correctness_scorer", None)
+    assert set(score.metrics) == {"C", "I"}
+    assert score.metrics["C"].value == pytest.approx(0.5)
+    assert score.metrics["I"].value == pytest.approx(0.5)
+    assert score.scored_samples == 2
+    assert log.results is not None
+    assert all(result.reducer != "mode" for result in log.results.scores)
+
+
+def test_unreduced_metrics_run_once_with_multiple_reducers() -> None:
+    task = Task(
+        dataset=[Sample(input="q")],
+        scorer=_mixed_correctness_scorer(),
+        epochs=Epochs(2, ["mean", "max"]),
+    )
+    log = eval(task, model="mockllm/model", display="none")[0]
+
+    mean_score = _score_by_reducer(log, "_mixed_correctness_scorer", "mean")
+    max_score = _score_by_reducer(log, "_mixed_correctness_scorer", "max")
+    frequency_score = _score_by_reducer(log, "_mixed_correctness_scorer", None)
+
+    assert set(mean_score.metrics) == {"accuracy"}
+    assert mean_score.metrics["accuracy"].value == pytest.approx(0.5)
+    assert set(max_score.metrics) == {"accuracy"}
+    assert max_score.metrics["accuracy"].value == pytest.approx(1.0)
+    assert set(frequency_score.metrics) == {"C", "I"}
+    assert frequency_score.metrics["C"].value == pytest.approx(0.5)
+    assert frequency_score.metrics["I"].value == pytest.approx(0.5)
+
+
+def test_no_reducer_preserves_auto_metric_unreduced_behavior() -> None:
+    task = Task(
+        dataset=[Sample(input="q")],
+        scorer=_mixed_correctness_scorer(),
+        epochs=Epochs(2, []),
+    )
+    log = eval(task, model="mockllm/model", display="none")[0]
+
+    score = _score_by_reducer(log, "_mixed_correctness_scorer", None)
+    assert set(score.metrics) == {"accuracy", "C", "I"}
+    assert score.metrics["accuracy"].value == pytest.approx(0.5)
+    assert score.metrics["C"].value == pytest.approx(0.5)
+    assert score.metrics["I"].value == pytest.approx(0.5)
+    assert score.scored_samples == 2
+
+
+def test_no_reducer_rejects_explicit_reduced_metric_for_repeated_samples() -> None:
+    from inspect_ai._eval.task.results import (
+        ScorerInfo,
+        compute_eval_scores_for_views,
+    )
+
+    @metric(scores="reduced")
+    def reduced_count() -> Metric:
+        def compute(scores: list[SampleScore]) -> float:
+            return float(len(scores))
+
+        return compute
+
+    with pytest.raises(ValueError, match="epoch reduction is disabled"):
+        compute_eval_scores_for_views(
+            [
+                SampleScore(sample_id=1, score=Score(value="C")),
+                SampleScore(sample_id=1, score=Score(value="I")),
+            ],
+            [reduced_count()],
+            "x",
+            ScorerInfo(name="x", metrics=[reduced_count()]),
+            [],
+        )
+
+
+def test_dict_mixed_metrics_use_reduced_and_unreduced_views() -> None:
+    task = Task(
+        dataset=[Sample(input="q")],
+        scorer=_dict_mixed_correctness_scorer(),
+        epochs=2,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+
+        a_reduced = _score_by_reducer(log, "a", "mean")
+        a_unreduced = _score_by_reducer(log, "a", None)
+        assert set(a_reduced.metrics) == {"accuracy"}
+        assert a_reduced.metrics["accuracy"].value == pytest.approx(0.5)
+        assert set(a_unreduced.metrics) == {"frequency_C", "frequency_I"}
+        assert a_unreduced.metrics["frequency_C"].value == pytest.approx(0.5)
+        assert a_unreduced.metrics["frequency_I"].value == pytest.approx(0.5)
+
+        before = [
+            (s.name, s.reducer, {k: round(v.value, 6) for k, v in s.metrics.items()})
+            for s in log.results.scores
+        ]
+        path = os.path.join(log_dir, "dict-mixed.eval")
+        write_eval_log(log, path)
+        reloaded = read_eval_log(path)
+        recompute_metrics(reloaded)
+        after = [
+            (s.name, s.reducer, {k: round(v.value, 6) for k, v in s.metrics.items()})
+            for s in reloaded.results.scores
+        ]
+
+    assert before == after
 
 
 def test_categorical_recompute_round_trip() -> None:
