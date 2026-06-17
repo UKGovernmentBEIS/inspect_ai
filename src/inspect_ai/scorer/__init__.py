@@ -1,5 +1,4 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
-from inspect_ai._util.strenum import StrEnum
 
 from ._answer import AnswerPattern, answer
 from ._choice import choice
@@ -61,7 +60,6 @@ __all__ = [
     "Score",
     "ScoreEdit",
     "ScoreReducer",
-    "StrEnum",
     "ScoreReducers",
     "Scorer",
     "Target",

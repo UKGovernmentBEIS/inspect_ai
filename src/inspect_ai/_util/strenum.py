@@ -1,7 +1,7 @@
 """Backport of :class:`enum.StrEnum` for Python 3.10.
 
 On 3.11+ this re-exports the stdlib class so that
-``inspect_ai.scorer.StrEnum is enum.StrEnum`` and user-defined
+``inspect_ai.util.StrEnum is enum.StrEnum`` and user-defined
 ``enum.StrEnum`` subclasses pass ``issubclass(..., StrEnum)`` checks.
 
 The 3.10 fallback mirrors the CPython implementation: ``StrEnum`` inherits

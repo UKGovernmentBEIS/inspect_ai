@@ -17,13 +17,13 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
     Score,
     Scorer,
-    StrEnum,
     Target,
     accuracy,
     categorical,
     scorer,
 )
 from inspect_ai.solver import TaskState, generate
+from inspect_ai.util import StrEnum
 
 
 class Verdict(StrEnum):

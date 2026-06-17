@@ -11,7 +11,6 @@ from inspect_ai.scorer import (
     Metric,
     Score,
     Scorer,
-    StrEnum,
     Target,
     Value,
     accuracy,
@@ -27,6 +26,7 @@ from inspect_ai.scorer._metric import (
     metric_scores,
 )
 from inspect_ai.solver import TaskState
+from inspect_ai.util import StrEnum
 
 
 class Verdict(StrEnum):

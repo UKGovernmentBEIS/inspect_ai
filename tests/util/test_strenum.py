@@ -2,7 +2,7 @@ import json
 import sys
 from enum import auto
 
-from inspect_ai._util.strenum import StrEnum
+from inspect_ai.util import StrEnum
 
 
 class Color(StrEnum):
