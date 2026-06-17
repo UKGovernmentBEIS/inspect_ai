@@ -116,10 +116,9 @@ def categorical(categories: Categories = None) -> list[Metric]:
         @scorer(metrics={"*": categorical(Verdict)})
         def my_grader() -> Scorer: ...
 
-    When no epoch reducer is explicitly configured, epochs are not reduced
-    for a scorer with ``frequency()`` metrics: each epoch's score is treated
-    as an independent observation. An explicitly configured reducer
-    (e.g. ``Epochs(n, "mode")``) is honoured.
+    ``frequency()`` declares ``@metric(scores="unreduced")``: when epochs are
+    used, each epoch's score is treated as an independent observation even when
+    a reducer is configured for metrics that use reduced scores.
 
     Args:
        categories: The full set of possible categories (typically a
