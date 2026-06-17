@@ -37,7 +37,7 @@ else:
             return member
 
         __str__ = str.__str__
-        __format__ = str.__format__
+        __format__ = str.__format__  # type: ignore[assignment]
 
         @staticmethod
         def _generate_next_value_(  # type: ignore[override]

@@ -185,7 +185,7 @@ def compute_eval_scores_for_views(
             raise ValueError(
                 f"Scorer '{scorer_info.name}' has metrics with "
                 '@metric(scores="reduced") but epoch reduction is disabled. '
-                "Configure an epochs reducer or use scores=\"auto\"/\"unreduced\"."
+                'Configure an epochs reducer or use scores="auto"/"unreduced".'
             )
         result_scores.extend(
             compute_eval_scores(scores, metrics, scorer_name, scorer_info, None)
@@ -221,7 +221,9 @@ def compute_eval_scores_for_views(
 
     if unreduced_metrics is not None:
         result_scores.extend(
-            compute_eval_scores(scores, unreduced_metrics, scorer_name, scorer_info, None)
+            compute_eval_scores(
+                scores, unreduced_metrics, scorer_name, scorer_info, None
+            )
         )
 
     return result_scores, sample_reductions
@@ -239,9 +241,7 @@ def compute_eval_scores(
     if isinstance(metrics, list):
         ## split the metrics into the simple metrics and any dictionary
         ## metrics, to be processed independently
-        simple_metrics, dict_metrics = split_metrics(
-            cast(list[Metric | dict[str, list[Metric]]], metrics)
-        )
+        simple_metrics, dict_metrics = split_metrics(metrics)
 
         # If there is a simple list of metrics
         # just compute the metrics for this scorer
@@ -311,14 +311,14 @@ def _filter_metrics_by_scores(
     metrics: Metrics, modes: set[MetricScores]
 ) -> Metrics | None:
     if isinstance(metrics, dict):
-        result: dict[str, list[Metric]] = {}
+        dict_result: dict[str, list[Metric]] = {}
         for key, metric_list in metrics.items():
             filtered_metrics = [m for m in metric_list if metric_scores(m) in modes]
             if filtered_metrics:
-                result[key] = filtered_metrics
-        return result or None
+                dict_result[key] = filtered_metrics
+        return dict_result or None
 
-    result: list[Metric | dict[str, list[Metric]]] = []
+    list_result: list[Metric | dict[str, list[Metric]]] = []
     for metric_item in metrics:
         if isinstance(metric_item, dict):
             filtered_dict: dict[str, list[Metric]] = {}
@@ -327,10 +327,10 @@ def _filter_metrics_by_scores(
                 if filtered_metrics:
                     filtered_dict[key] = filtered_metrics
             if filtered_dict:
-                result.append(filtered_dict)
+                list_result.append(filtered_dict)
         elif metric_scores(metric_item) in modes:
-            result.append(metric_item)
-    return result or None
+            list_result.append(metric_item)
+    return list_result or None
 
 
 def _has_explicit_reduced_metrics(metrics: Metrics) -> bool:

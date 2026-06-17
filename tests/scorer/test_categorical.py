@@ -337,6 +337,7 @@ def test_dict_mixed_metrics_use_reduced_and_unreduced_views() -> None:
         assert a_unreduced.metrics["frequency_C"].value == pytest.approx(0.5)
         assert a_unreduced.metrics["frequency_I"].value == pytest.approx(0.5)
 
+        assert log.results is not None
         before = [
             (s.name, s.reducer, {k: round(v.value, 6) for k, v in s.metrics.items()})
             for s in log.results.scores
@@ -345,6 +346,7 @@ def test_dict_mixed_metrics_use_reduced_and_unreduced_views() -> None:
         write_eval_log(log, path)
         reloaded = read_eval_log(path)
         recompute_metrics(reloaded)
+        assert reloaded.results is not None
         after = [
             (s.name, s.reducer, {k: round(v.value, 6) for k, v in s.metrics.items()})
             for s in reloaded.results.scores
@@ -531,7 +533,11 @@ def test_score_repeated_append_same_scorer_recompute_round_trip() -> None:
         assert rescored.eval.scorers is not None
         assert [s.name for s in rescored.eval.scorers] == ["match", "match", "match"]
         assert rescored.results is not None
-        assert [s.name for s in rescored.results.scores] == ["match", "match1", "match2"]
+        assert [s.name for s in rescored.results.scores] == [
+            "match",
+            "match1",
+            "match2",
+        ]
         assert all(s.scored_samples == 8 for s in rescored.results.scores)
 
         before = _metrics_snapshot(rescored)
