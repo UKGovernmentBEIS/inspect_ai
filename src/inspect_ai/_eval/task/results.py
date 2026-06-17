@@ -437,7 +437,7 @@ def scorer_for_metrics(
                     )
 
                     list_metrics[name] = EvalMetric(
-                        name=name, group=group, value=float(value), params=params
+                        name=count, group=group, value=float(value), params=params
                     )
 
         # the metric is a float, str, or int
