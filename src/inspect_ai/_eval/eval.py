@@ -140,6 +140,7 @@ def eval(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -245,6 +246,7 @@ def eval(
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -331,6 +333,7 @@ def eval(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 cost_limit=cost_limit,
@@ -418,6 +421,7 @@ async def eval_async(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -506,6 +510,7 @@ async def eval_async(
         debug_errors: Raise task errors (rather than logging them) so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -596,6 +601,7 @@ async def eval_async(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 cost_limit=cost_limit,
@@ -675,6 +681,7 @@ async def _eval_async_inner(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -863,6 +870,7 @@ async def _eval_async_inner(
             score_on_error=score_on_error,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             cost_limit=cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
@@ -977,7 +985,6 @@ async def _eval_async_inner(
                         tasks=tasks,
                         parallel=parallel,
                         eval_config=eval_config,
-                        eval_sandbox=sandbox,
                         eval_checkpoint=checkpoint,
                         recorder=recorder,
                         header_only=log_header_only,
@@ -1255,7 +1262,7 @@ def eval_retry(
             Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections:
             Adaptive concurrency for Model API connections. Defaults to enabled
-            (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100).
+            (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100).
             Pass `False` to opt out (uses static concurrency), an integer `N` as
             shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency`
             to fully customize bounds and tuning (cooldown_seconds, decrease_factor,
@@ -1427,7 +1434,7 @@ async def eval_retry_async(
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
-        adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
+        adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
         checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
 
     Returns:
@@ -1551,6 +1558,7 @@ async def eval_retry_async(
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
+        turn_limit = eval_log.eval.config.turn_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
@@ -1688,6 +1696,7 @@ async def eval_retry_async(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 max_samples=max_samples,

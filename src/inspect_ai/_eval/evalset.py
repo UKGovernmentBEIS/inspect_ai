@@ -110,6 +110,7 @@ class EvalSetArgsInTaskIdentifier:
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None
     message_limit: int | None = None
     token_limit: int | None = None
+    turn_limit: int | None = None
     time_limit: int | None = None
     working_limit: int | None = None
     cost_limit: float | None = None
@@ -157,6 +158,7 @@ def eval_set(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -277,6 +279,7 @@ def eval_set(
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -397,6 +400,7 @@ def eval_set(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -567,6 +571,7 @@ def eval_set(
             solver=solver,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -1215,13 +1220,18 @@ def validate_eval_set_prerequisites(
         return all_logs
 
 
-# these generate config fields should not affect task identity
+# Runtime/transport GenerateConfig knobs that don't affect model outputs and so
+# must not affect task identity. Adding a field to GenerateConfig? See
+# test_generate_config_fields_classified — it will fail until you classify it.
 _GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
     "max_retries",
     "timeout",
     "attempt_timeout",
     "max_connections",
+    "adaptive_connections",
     "batch",
+    "cache",
+    "cache_prompt",
 }
 
 
@@ -1242,7 +1252,7 @@ def resolve_solver(
 # Version of the task_identifier computation. Bump this when the task_identifier
 # logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
 # recomputed.
-TASK_IDENTIFIER_VERSION = 1
+TASK_IDENTIFIER_VERSION = 3
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
@@ -1256,6 +1266,7 @@ def task_identifier(
         version: int | str
         message_limit: int | None
         token_limit: int | None
+        turn_limit: int | None
         time_limit: int | None
         working_limit: int | None
         cost_limit: float | None
@@ -1285,6 +1296,9 @@ def task_identifier(
             token_limit=task.task.token_limit
             if eval_set_args.token_limit is None
             else eval_set_args.token_limit,
+            turn_limit=task.task.turn_limit
+            if eval_set_args.turn_limit is None
+            else eval_set_args.turn_limit,
             time_limit=task.task.time_limit
             if eval_set_args.time_limit is None
             else eval_set_args.time_limit,
@@ -1308,6 +1322,7 @@ def task_identifier(
             version=task.eval.task_version,
             message_limit=task.eval.config.message_limit,
             token_limit=task.eval.config.token_limit,
+            turn_limit=task.eval.config.turn_limit,
             time_limit=task.eval.config.time_limit,
             working_limit=task.eval.config.working_limit,
             cost_limit=task.eval.config.cost_limit,
@@ -1345,7 +1360,20 @@ def task_identifier(
 
     # hash for model roles
     if len(model_roles):
-        additional_hash_input += to_json_safe(model_roles)
+        # base_url is excluded for symmetry with the primary model (whose
+        # base_url is not hashed) and because several providers populate it
+        # from env vars during init, which would make the identifier
+        # environment-dependent.
+        additional_hash_input += to_json_safe(
+            model_roles,
+            exclude={
+                role: {
+                    "base_url": True,
+                    "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+                }
+                for role in model_roles
+            },
+        )
 
     additional_hash_input += to_json_safe(additional_hash_fields)
 

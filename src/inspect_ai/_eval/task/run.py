@@ -1,6 +1,5 @@
 import contextlib
 import functools
-import importlib
 import sys
 import time
 from copy import copy, deepcopy
@@ -110,11 +109,12 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
+from inspect_ai.model._assistant_internal import init_sample_assistant_internal
 from inspect_ai.model._model import (
     init_model_usage,
     init_role_usage,
-    init_sample_model_usage,
-    init_sample_role_usage,
+    init_sample_model_data,
+    sample_model_fallbacks,
     sample_model_usage,
     sample_role_usage,
 )
@@ -153,6 +153,7 @@ from inspect_ai.util._limit import (
     record_sample_limit_data,
 )
 from inspect_ai.util._limit import time_limit as create_time_limit
+from inspect_ai.util._limit import turn_limit as create_turn_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox import SandboxTimeoutError
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -739,6 +740,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         score_on_error=config.score_on_error or False,
                         error_retries=[],
                         previous_attempt_errors=previous_attempt_errors,
+                        turn_limit=config.turn_limit,
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
                         semaphore=sample_semaphore,
@@ -1052,6 +1054,7 @@ async def task_run_sample(
     score_on_error: bool,
     error_retries: list[EvalRetryError],
     previous_attempt_errors: list[EvalRetryError],
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     semaphore: contextlib.AbstractAsyncContextManager[Any],
@@ -1096,8 +1099,7 @@ async def task_run_sample(
             )
 
         # initialise subtask and scoring context
-        init_sample_model_usage()
-        init_sample_role_usage()
+        init_sample_model_data()
         set_sample_state(state)
         sample_transcript_bounded, history_provider = _sample_transcript_config(
             logger, sample_id, state.epoch
@@ -1294,6 +1296,7 @@ async def task_run_sample(
                             state._token_limit,
                             state._cost_limit,
                             state._message_limit,
+                            create_turn_limit(turn_limit),
                             create_time_limit(time_limit),
                             create_working_limit(working_limit),
                         ):
@@ -1740,6 +1743,7 @@ async def task_run_sample(
             # forward on error that caused retry
             error_retries=copy(error_retries) + [retry_error],
             previous_attempt_errors=previous_attempt_errors,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
@@ -1820,6 +1824,7 @@ def create_eval_sample(
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
+        model_fallbacks=sample_model_fallbacks() or None,
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,
@@ -2067,36 +2072,6 @@ def create_sample_semaphore(
             else DEFAULT_MAX_CONNECTIONS
         )
         return anyio.Semaphore(max_samples)
-
-
-# `importlib.util.find_spec` walks importer paths (~3 ms per call). Cache
-# at module load — package installation can't change during a process
-# lifetime, so the result is invariant. Without this, `init_sample_assistant_internal`
-# (called once per sample) was costing ~3 s per 500 samples in profiling.
-_HAS_OPENAI: bool = importlib.util.find_spec("openai") is not None
-_HAS_ANTHROPIC: bool = importlib.util.find_spec("anthropic") is not None
-
-
-def init_sample_assistant_internal() -> None:
-    if _HAS_OPENAI:
-        try:
-            from inspect_ai.model._openai_responses import (
-                init_sample_openai_assistant_internal,
-            )
-
-            init_sample_openai_assistant_internal()
-        except ImportError:
-            pass
-
-    if _HAS_ANTHROPIC:
-        try:
-            from inspect_ai.model._providers.anthropic import (
-                init_sample_anthropic_assistant_internal,
-            )
-
-            init_sample_anthropic_assistant_internal()
-        except ImportError:
-            pass
 
 
 def _eval_retry_error(

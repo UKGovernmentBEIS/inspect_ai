@@ -41,7 +41,7 @@ class LimitExceededError(Exception):
     def __init__(
         self,
         type: Literal[
-            "message", "time", "working", "token", "cost", "operator", "custom"
+            "message", "time", "working", "token", "turn", "cost", "operator", "custom"
         ],
         *,
         value: float,
@@ -190,6 +190,9 @@ class SampleLimits:
     message: Limit
     """Message limit."""
 
+    turn: Limit
+    """Turn limit."""
+
     working: Limit
     """Working limit."""
 
@@ -218,6 +221,7 @@ def sample_limits() -> SampleLimits:
         token=get_root_node(token_limit_tree.get(), "token"),
         cost=get_root_node(cost_limit_tree.get(), "cost"),
         message=get_root_node(message_limit_tree.get(), "message"),
+        turn=get_root_node(turn_limit_tree.get(), "turn"),
         working=get_root_node(working_limit_tree.get(), "working"),
         time=get_root_node(time_limit_tree.get(), "time"),
     )
@@ -230,6 +234,7 @@ def record_sample_limit_data(message_usage: float) -> None:
             token=_LimitData(current_limits.token),
             cost=_LimitData(current_limits.cost),
             message=_LimitData(current_limits.message, usage=message_usage),
+            turn=_LimitData(current_limits.turn),
             working=_LimitData(current_limits.working),
             time=_LimitData(current_limits.time),
         )
@@ -401,6 +406,96 @@ def check_message_limit(count: int, raise_for_equal: bool) -> None:
     node.check(count, raise_for_equal)
 
 
+def turn_limit(limit: int | None) -> _TurnLimit:
+    """Limits the number of turns (model generations) which can be used.
+
+    A "turn" is a single top-level model generation (one call to the model
+    that produces an assistant message). This mirrors the upstream notion of
+    an agent "turn budget" — distinct from `message_limit()`, which counts all
+    messages in the conversation (user, assistant, tool, etc.).
+
+    The counter starts when the context manager is opened and ends when it is
+    closed.
+
+    These limits can be stacked.
+
+    This relies on "cooperative" checking - the model generation path calls
+    `record_turn()` once per completed generation, which also checks the limit.
+
+    When a limit is exceeded, a `LimitExceededError` is raised.
+
+    Args:
+      limit: The maximum number of turns that can be used while the context
+        manager is open. Turns used before the context manager was opened are
+        not counted. A value of None means unlimited turns.
+    """
+    return _TurnLimit(limit)
+
+
+def record_turn() -> None:
+    """Record a turn (model generation) against any active turn limits.
+
+    Records the turn for the most recent turn limit and its ancestors, then
+    checks whether any of them have been exceeded (raising
+    `LimitExceededError` if so).
+
+    No-op when turn limits are suspended (see `suspend_turn_limit()`).
+    """
+    if turn_limit_tree.is_suspended():
+        return
+    node = turn_limit_tree.get()
+    if node is None:
+        return
+    node.record()
+    node.check()
+
+
+def check_turn_limit() -> None:
+    """Check if the current turn count exceeds _any_ of the turn limits.
+
+    Within the current execution context (e.g. async task) and its parent
+    contexts only.
+
+    Note that all active turn limits are checked, not just the most recent one.
+
+    No-op when turn limits are suspended (see `suspend_turn_limit()`).
+    """
+    if turn_limit_tree.is_suspended():
+        return
+    node = turn_limit_tree.get()
+    if node is None:
+        return
+    node.check()
+
+
+def suspend_turn_limit() -> AbstractContextManager[None]:
+    """Suspend turn limit metering within a block of code.
+
+    While this context manager is open:
+
+    - Turns are not recorded against any active `turn_limit()` scope
+      (including sample-level, agent-scoped, and arbitrary block limits).
+    - Calls to `check_turn_limit()` are no-ops.
+    - This applies to any `turn_limit()` contexts opened inside the block
+      as well — suspension wins over nested limits.
+
+    Useful for running model generations whose turns should not count against
+    an agent's budget, e.g. one-shot summarization, routing, or auxiliary
+    planning calls.
+
+    Example:
+        with turn_limit(10):
+            # generations count against the 10 turn budget
+            await generate()
+            with suspend_turn_limit():
+                # generations here do not count
+                await auxiliary_generate()
+            # generations count again
+            await generate()
+    """
+    return turn_limit_tree.suspended()
+
+
 def time_limit(limit: float | None) -> _TimeLimit:
     """Limits the wall clock time which can elapse.
 
@@ -552,6 +647,7 @@ class _Tree(Generic[TNode]):
 token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
 cost_limit_tree: _Tree[_CostLimit] = _Tree("cost_limit_tree")
 message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
+turn_limit_tree: _Tree[_TurnLimit] = _Tree("turn_limit_tree")
 working_limit_tree: _Tree[_WorkingLimit] = _Tree("working_limit_tree")
 time_limit_tree: _Tree[_TimeLimit] = _Tree("time_limit_tree")
 
@@ -653,6 +749,90 @@ class _TokenLimit(Limit, _Node):
             )
             raise LimitExceededError(
                 "token", value=total, limit=self.limit, message=message, source=self
+            )
+
+
+class _TurnLimit(Limit, _Node):
+    def __init__(self, limit: int | None) -> None:
+        super().__init__()
+        self._validate_turn_limit(limit)
+        self._limit = limit
+        self._turns = 0
+
+    def __enter__(self) -> Limit:
+        super()._check_reuse()
+        turn_limit_tree.push(self)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self._pop_and_check_identity(turn_limit_tree)
+
+    @property
+    def usage(self) -> float:
+        return self._turns
+
+    @property
+    def limit(self) -> int | None:
+        """Get the configured turn limit value."""
+        return self._limit
+
+    @limit.setter
+    def limit(self, value: int | None) -> None:
+        """Update the turn limit value.
+
+        This does not trigger a check of the turn limit (which could now have
+        been exceeded).
+        """
+        self._validate_turn_limit(value)
+        self._limit = value
+
+    def record(self) -> None:
+        """Record a turn for this node and its ancestor nodes."""
+        if self.parent is not None:
+            self.parent.record()
+        self._turns += 1
+
+    def check(self) -> None:
+        """Check if this turn limit or any ancestor limits have been exceeded.
+
+        The checks occur from root to leaf. This is so that if multiple limits are
+        simultaneously exceeded, the outermost (closest to root) one raises the error,
+        preventing certain sub-agent architectures from ending up in an infinite loop.
+        """
+        if self.parent is not None:
+            self.parent.check()
+        self._check_self()
+
+    def _validate_turn_limit(self, value: int | None) -> None:
+        if value is not None and value < 0:
+            raise ValueError(
+                f"Turn limit value must be a non-negative integer or None: {value}"
+            )
+
+    def _check_self(self) -> None:
+        from inspect_ai.event._sample_limit import SampleLimitEvent
+        from inspect_ai.log._transcript import transcript
+
+        if self.limit is None:
+            return
+        if self._turns > self.limit:
+            message = (
+                f"Turn limit exceeded. value: {self._turns:,}; limit: {self.limit:,}"
+            )
+            transcript()._event(
+                SampleLimitEvent(type="turn", limit=self.limit, message=message)
+            )
+            raise LimitExceededError(
+                "turn",
+                value=self._turns,
+                limit=self.limit,
+                message=message,
+                source=self,
             )
 
 

@@ -109,7 +109,7 @@ class TestWebSearchFilteringGate:
 
     @pytest.mark.parametrize(
         "model_name",
-        ["claude-sonnet-4-0", "claude-opus-4-1", "claude-3-7-sonnet-latest"],
+        ["claude-sonnet-4-5", "claude-opus-4-1"],
     )
     def test_filtering_disabled_for_non_frontier_models(self, model_name: str):
         assert self._tool_types(self._api(model_name)) == [

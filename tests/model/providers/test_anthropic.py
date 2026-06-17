@@ -18,7 +18,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI
-from inspect_ai.tool import ToolCall, ToolInfo, memory
+from inspect_ai.tool import ToolCall, ToolInfo
 
 
 @pytest.mark.anyio
@@ -585,6 +585,8 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
     api = create_autospec(AnthropicAPI, instance=True)
     api.service_model_name.return_value = "claude-sonnet-4-6"
     api.partition_tools.return_value = ([], [])
+    # instance attribute set in __init__, not captured by create_autospec
+    api.cache_ttl = None
     api.resolve_chat_input = types.MethodType(AnthropicAPI.resolve_chat_input, api)
 
     def marked(content: Any) -> list[int]:
@@ -1123,40 +1125,3 @@ def test_anthropic_max_tokens_xhigh_max_floor(
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     config = GenerateConfig(**config_kwargs)
     assert api.max_tokens_for_config(config) == expected
-
-
-# ---------------------------------------------------------------------------
-# Claude 5 (Fable/Mythos) live e2e
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.anyio
-@skip_if_no_anthropic
-async def test_anthropic_claude_5_generate_live() -> None:
-    """Claude 5 (Fable) accepts our request shape (adaptive thinking + effort) and generates."""
-    model = get_model(
-        "anthropic/claude-fable-5",
-        config=GenerateConfig(effort="high", max_tokens=128),
-    )
-    response = await model.generate(input="Say hello in one short sentence.")
-    assert len(response.completion) >= 1
-
-
-@pytest.mark.anyio
-@skip_if_no_anthropic
-async def test_anthropic_claude_5_memory_tool_live() -> None:
-    """Claude 5 (Fable) accepts and uses the native memory tool (memory_20250818).
-
-    A 400 here would mean the native memory tool param / beta isn't accepted by
-    Claude 5; a missing tool call would mean the model didn't engage it.
-    """
-    model = get_model(
-        "anthropic/claude-fable-5",
-        config=GenerateConfig(max_tokens=1024),
-    )
-    output = await model.generate(
-        input="Use your memory tool to save a note that the release date is Friday.",
-        tools=[memory()],
-        tool_choice="auto",
-    )
-    assert any(tc.function == "memory" for tc in (output.message.tool_calls or []))

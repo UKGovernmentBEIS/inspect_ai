@@ -78,7 +78,8 @@ async def generate_completions(
         tool_choice=openai_chat_tool_choice(tool_choice)
         if len(tools) > 0
         else NOT_GIVEN,
-        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+        | (config.extra_headers or {}),
         **completion_params_completions(openai_api, config, len(tools) > 0),
     )
     if isinstance(prompt_cache_key, str):

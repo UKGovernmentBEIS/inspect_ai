@@ -1,5 +1,7 @@
 | Model | Default effort |
 |---|---|
+| anthropic/claude-fable-5 | high |
+| anthropic/claude-mythos-5 | high |
 | anthropic/claude-opus-4-6 | adaptive |
 | anthropic/claude-opus-4-7 | adaptive |
 | anthropic/claude-opus-4-8 | high |

@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from datetime import timedelta
 
-from .types import CheckpointTriggerKind
+from .types import TriggerFire
 
 
 class _TimeIntervalTrigger:
@@ -20,12 +20,19 @@ class _TimeIntervalTrigger:
         self._every_seconds = every.total_seconds()
         self._last_fire_monotonic: float | None = None
 
-    def tick(self) -> CheckpointTriggerKind | None:
+    def tick(self) -> TriggerFire | None:
         now = time.monotonic()
         if self._last_fire_monotonic is None:
             self._last_fire_monotonic = now
             return None
-        if now - self._last_fire_monotonic >= self._every_seconds:
+        elapsed = now - self._last_fire_monotonic
+        if elapsed >= self._every_seconds:
             self._last_fire_monotonic = now
-            return "time"
+            return TriggerFire(
+                "time",
+                {
+                    "every_seconds": self._every_seconds,
+                    "elapsed_seconds": round(elapsed, 3),
+                },
+            )
         return None
