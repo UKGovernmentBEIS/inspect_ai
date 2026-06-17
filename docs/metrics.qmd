@@ -146,16 +146,6 @@ def mean() -> Metric:
 
 Note that the `Score` class contains a `Value` that is a union over several scalar and collection types. As a convenience, `Score` includes a set of accessor methods to treat the value as a simpler form (e.g. above we use the `score.as_float()` accessor).
 
-Metrics can declare which score view they require when epochs are used:
-
-``` python
-@metric(scores="unreduced")
-def frequency_by_label() -> Metric:
-    ...
-```
-
-The default, `scores="auto"`, preserves legacy behavior: metrics receive reduced scores unless epoch reducers are explicitly disabled. Use `scores="reduced"` for metrics that require one score per sample, and `scores="unreduced"` for metrics that require one score per sample epoch. For example, `frequency()` declares `scores="unreduced"` because it reports the distribution of categorical outcomes across all scored observations.
-
 ## Example
 
 This task pairs a float-valued scorer with a custom `pass_rate()` metric (the fraction of samples scoring at or above a threshold), reported alongside the built-in `mean()` and `stderr()`:
@@ -298,3 +288,23 @@ def mean_score() -> ScoreReducer:
 
     return reduce
 ```
+
+### Metrics and Reducers
+
+Metrics can declare that they need unreduced scores in order to properly compute their value using `scores`. For example:
+
+``` python
+@metric(scores="unreduced")
+def frequency_by_label() -> Metric:
+    ...
+```
+
+By default `scores="auto"` so metrics receive reduced scores unless epoch reducers are explicitly disabled. Use `scores="reduced"` for metrics that require one score per sample, and `scores="unreduced"` for metrics that require one score per sample epoch.
+
+| Metric score view | Input when epochs are used |
+|-------------------|----------------------------|
+| `scores="auto"` | Reduced scores, unless epoch reducers are explicitly disabled. |
+| `scores="reduced"` | Reduced scores; requires an epoch reducer when multiple epoch scores are present. |
+| `scores="unreduced"` | Raw sample-epoch scores, one observation for each scored epoch. |
+
+For example, `frequency()` declares `scores="unreduced"` because it reports the distribution of categorical outcomes across all scored observations.
