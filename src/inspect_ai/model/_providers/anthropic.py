@@ -142,6 +142,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
 from inspect_ai.log._samples import (
+    STREAM_FLUSH_MIN_INTERVAL_S,
     set_active_model_event_call,
     update_active_model_event_output,
 )
@@ -3671,16 +3672,6 @@ def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
     return message.model_copy(update={"content": stripped})
 
 
-_STREAM_FLUSH_MIN_INTERVAL_S = 0.1
-"""Minimum seconds between partial-output flushes to the transcript.
-
-The SDK emits a delta per token group; flushing each one would spam
-``_event_updated`` subscribers (the live-view buffer, inspect-view's poll).
-~10 Hz is enough for a smooth UI while keeping per-flush overhead
-(snapshot translation + Pydantic construction) negligible.
-"""
-
-
 def _partial_output_from_snapshot(
     snapshot: Message,
     model: str,
@@ -3766,7 +3757,7 @@ async def _capture_compaction_from_stream(
         stream: The Anthropic AsyncMessageStream from messages.stream().
         on_snapshot: Called with ``stream.current_message_snapshot`` on
             each ``content_block_*`` event, throttled to at most once per
-            ``_STREAM_FLUSH_MIN_INTERVAL_S``. Used to publish partial
+            ``STREAM_FLUSH_MIN_INTERVAL_S``. Used to publish partial
             output to the pending ``ModelEvent`` while the response
             arrives; ``None`` disables the per-flush callback.
 
@@ -3789,7 +3780,7 @@ async def _capture_compaction_from_stream(
             on_snapshot is not None
             and getattr(event, "type", None)
             in ("content_block_start", "content_block_delta", "content_block_stop")
-            and (now := time.monotonic()) - last_flush >= _STREAM_FLUSH_MIN_INTERVAL_S
+            and (now := time.monotonic()) - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S
         ):
             last_flush = now
             on_snapshot(stream.current_message_snapshot)

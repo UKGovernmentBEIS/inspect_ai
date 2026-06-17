@@ -14,6 +14,7 @@ from openai.types.chat import ChatCompletion
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import (
+    STREAM_FLUSH_MIN_INTERVAL_S,
     set_active_model_event_call,
     update_active_model_event_output,
 )
@@ -129,14 +130,6 @@ async def generate_completions(
         return openai_handle_bad_request(openai_api.service_model_name(), e), model_call
 
 
-_STREAM_FLUSH_MIN_INTERVAL_S = 0.1
-"""Minimum seconds between partial-output flushes to the transcript.
-
-Mirrors the Anthropic provider's constant of the same name; ~10 Hz keeps the
-live view smooth without spamming ``_event_updated`` subscribers per chunk.
-"""
-
-
 def _partial_output_from_completion_snapshot(
     snapshot: ChatCompletion, model: str
 ) -> ModelOutput:
@@ -191,7 +184,7 @@ async def _stream_completion(
     async with client.chat.completions.stream(**request) as stream:
         async for _event in stream:
             now = time.monotonic()
-            if now - last_flush >= _STREAM_FLUSH_MIN_INTERVAL_S:
+            if now - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S:
                 last_flush = now
                 _flush(stream.current_completion_snapshot)
         return await stream.get_final_completion()

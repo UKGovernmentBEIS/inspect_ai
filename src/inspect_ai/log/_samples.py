@@ -431,6 +431,17 @@ def set_active_model_event_call(
     return model_call
 
 
+STREAM_FLUSH_MIN_INTERVAL_S = 0.1
+"""Minimum seconds between partial-output flushes to the transcript.
+
+Providers throttle their per-token SDK delta loop to this so
+``_event_updated`` subscribers (the live-view buffer, inspect-view's
+poll, workbench) are not spammed at token rate. ~10 Hz is enough for a
+smooth UI while keeping per-flush snapshot translation negligible.
+Shared across providers so they agree on cadence.
+"""
+
+
 def update_active_model_event_output(partial: "ModelOutput") -> None:
     """Publish a partial output snapshot for the in-flight generate.
 

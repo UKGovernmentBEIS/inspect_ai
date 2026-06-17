@@ -37,6 +37,7 @@ from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import (
+    STREAM_FLUSH_MIN_INTERVAL_S,
     set_active_model_event_call,
     update_active_model_event_output,
 )
@@ -261,17 +262,6 @@ def model_usage_from_response(model_response: Response) -> ModelUsage | None:
     )
 
 
-_STREAM_FLUSH_MIN_INTERVAL_S = 0.1
-"""Minimum seconds between partial-output flushes to the transcript.
-
-The Responses SSE stream emits a delta per token group; flushing each one
-would spam ``_event_updated`` subscribers (the live-view buffer,
-inspect-view's poll). ~10 Hz is enough for a smooth UI while keeping
-per-flush overhead (snapshot translation + Pydantic construction)
-negligible. Mirrors the Anthropic provider's constant of the same name.
-"""
-
-
 class _ResponseSnapshot:
     """Cheap accumulator of in-flight Responses output, keyed by output index.
 
@@ -428,7 +418,7 @@ async def _stream_response(
     async with client.responses.stream(**request) as stream:
         async for event in stream:
             if snapshot.handle_event(event) and (
-                (now := time.monotonic()) - last_flush >= _STREAM_FLUSH_MIN_INTERVAL_S
+                (now := time.monotonic()) - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S
             ):
                 last_flush = now
                 _flush()
