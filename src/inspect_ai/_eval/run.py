@@ -45,11 +45,8 @@ from inspect_ai.util._checkpoint._layout import (
 )
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
-    SandboxEnvironmentSpec,
-    SandboxEnvironmentType,
     TaskCleanup,
     TaskInit,
-    resolve_sandbox_environment,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
@@ -78,7 +75,6 @@ async def eval_run(
     tasks: list[ResolvedTask],
     parallel: int,
     eval_config: EvalConfig,
-    eval_sandbox: SandboxEnvironmentType | None,
     eval_checkpoint: CheckpointConfig | None,
     recorder: Recorder,
     header_only: bool,
@@ -119,7 +115,7 @@ async def eval_run(
     if has_sandbox and run_samples:
         cleanup = eval_config.sandbox_cleanup is not False
         shutdown_sandbox_environments = await startup_sandbox_environments(
-            resolve_sandbox_environment(eval_sandbox), tasks, eval_config, cleanup
+            tasks, eval_config, cleanup
         )
 
     # resolve solver and solver spec
@@ -194,6 +190,12 @@ async def eval_run(
                     task_eval_config.token_limit = task.token_limit
                 else:
                     task.token_limit = task_eval_config.token_limit
+
+                # sample turn limit
+                if task_eval_config.turn_limit is None:
+                    task_eval_config.turn_limit = task.turn_limit
+                else:
+                    task.turn_limit = task_eval_config.turn_limit
 
                 # sample time limit
                 if task_eval_config.time_limit is None:
@@ -829,7 +831,6 @@ def resolve_task_sample_ids(
 
 
 async def startup_sandbox_environments(
-    eval_sandbox: SandboxEnvironmentSpec | None,
     tasks: list[ResolvedTask],
     config: EvalConfig,
     cleanup: bool,
@@ -846,7 +847,7 @@ async def startup_sandbox_environments(
         )
         for sample in dataset:
             sandbox = await resolve_sandbox_for_task_and_sample(
-                eval_sandbox, task.task, sample
+                task.sandbox, task.task, sample
             )
             if sandbox is not None and sandbox not in sandboxenvs:
                 sandboxenvs.add(sandbox)
