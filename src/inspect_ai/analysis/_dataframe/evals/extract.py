@@ -21,24 +21,28 @@ def eval_log_scores_dict(
     log: EvalLog,
 ) -> list[dict[str, dict[str, int | float]]] | None:
     if log.results is not None:
-        # only disambiguate by reducer when multiple scores share a name
-        # (e.g. epochs_reducer=["mean","max"] produces one EvalScore per
-        # reducer with the same `name`). when names are unique, keep the
-        # existing `score_<name>_<metric>` column naming.
-        name_counts: dict[str, int] = {}
+        # Only disambiguate by reducer when the base score column would collide
+        # (e.g. epochs_reducer=["mean","max"] with the same metric key).
+        # Mixed reduced/unreduced views often have different metric keys, so keep
+        # the existing `score_<name>_<metric>` column names for those cases.
+        column_counts: dict[tuple[str, str], int] = {}
         for score in log.results.scores:
-            name_counts[score.name] = name_counts.get(score.name, 0) + 1
+            for metric_key in score.metrics.keys():
+                column_key = (score.name, metric_key)
+                column_counts[column_key] = column_counts.get(column_key, 0) + 1
 
-        metrics = [
-            {
-                (
+        metrics: list[dict[str, dict[str, int | float]]] = []
+        for score in log.results.scores:
+            score_metrics: dict[str, dict[str, int | float]] = {}
+            for metric_key, metric in score.metrics.items():
+                score_key = (
                     f"{score.name}_{score.reducer}"
-                    if name_counts[score.name] > 1 and score.reducer is not None
+                    if column_counts[(score.name, metric_key)] > 1
+                    and score.reducer is not None
                     else score.name
-                ): {key: metric.value for key, metric in score.metrics.items()}
-            }
-            for score in log.results.scores
-        ]
+                )
+                score_metrics.setdefault(score_key, {})[metric_key] = metric.value
+            metrics.append(score_metrics)
         return metrics
     else:
         return None
