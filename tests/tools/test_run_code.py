@@ -125,7 +125,7 @@ async def test_run_code_uses_injected_executor():
 
 class ErrorRunCodeExecutor:
     async def execute(self, code: str) -> RunCodeResult:
-        return RunCodeResult(output="", error="boom")
+        return RunCodeResult(output=[ContentText(text="")], error="boom")
 
 
 @pytest.mark.anyio

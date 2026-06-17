@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Protocol
 
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolDef
