@@ -51,3 +51,12 @@ def eval_log_headline_stderr(log: EvalLog) -> float | None:
             return headline_score.metrics["stderr"].value
 
     return None
+
+
+def eval_log_headline_metric(log: EvalLog) -> str | None:
+    if log.results is not None and len(log.results.scores) > 0:
+        headline_score = log.results.scores[0]
+        if len(headline_score.metrics) > 0:
+            return next(iter(headline_score.metrics.keys()))
+
+    return None
