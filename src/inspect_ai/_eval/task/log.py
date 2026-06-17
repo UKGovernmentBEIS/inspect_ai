@@ -540,9 +540,14 @@ class TaskLogger:
                     logger.warning("Stale eval log flush failed: %s", ex, exc_info=ex)
                     await self._arm_stale_flush_timer(generation=generation)
         finally:
-            async with self._flush_pending_lock:
-                self._stale_flush_stops.discard(stopped)
-            stopped.set()
+            # Teardown may run with the enclosing scope already cancelled. The
+            # lock acquire is a cancellation checkpoint, so without shielding it
+            # can raise and skip stopped.set() — leaving the (shielded) wait in
+            # _stop_stale_flush_timer() hung forever.
+            with anyio.CancelScope(shield=True):
+                async with self._flush_pending_lock:
+                    self._stale_flush_stops.discard(stopped)
+                stopped.set()
 
     async def log_finish(
         self,
