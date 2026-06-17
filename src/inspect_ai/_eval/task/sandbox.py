@@ -193,19 +193,18 @@ class TaskSandboxEnvironment(NamedTuple):
 
 
 async def resolve_sandbox_for_task_and_sample(
-    eval_sandbox: SandboxEnvironmentSpec | None,
+    sandbox: SandboxEnvironmentSpec | None,
     task: Task,
     sample: Sample,
 ) -> TaskSandboxEnvironment | None:
-    # resolve the task/sample sandbox first, then layer the eval-level override
-    # on top. A bare `eval_sandbox or ...` would short-circuit the per-sample
-    # resolution entirely, discarding a docker-compatible per-sample config (e.g.
-    # a per-sample ComposeConfig) when `--sandbox <provider>` is passed with no
-    # config of its own. Forwarding it keeps this path symmetric with
-    # resolve_sandbox() and resolve_task_sandbox(), which already forward
-    # docker-compatible configs across an override.
-    resolved = await resolve_sandbox(task.sandbox, sample)
-    sandbox = _apply_eval_sandbox_override(eval_sandbox, resolved)
+    # `sandbox` is the task's already-resolved sandbox (i.e. `ResolvedTask.sandbox`),
+    # which has had any eval-level override (`--sandbox <provider>`) and implicit
+    # config-file resolution applied by resolve_task_sandbox(). We layer the
+    # per-sample sandbox on top exactly as the execution path does
+    # (sandboxenv_context() -> resolve_sandbox()), so that the set of sandboxes we
+    # initialize here matches what each sample actually uses at runtime -- including
+    # docker-compatible per-sample configs (e.g. a per-sample ComposeConfig).
+    sandbox = await resolve_sandbox(sandbox, sample)
     if sandbox is not None:
         # see if there are environment variables required for init of this sample
         run_dir = task_run_dir(task)
@@ -221,32 +220,6 @@ async def resolve_sandbox_for_task_and_sample(
         )
     else:
         return None
-
-
-def _apply_eval_sandbox_override(
-    eval_sandbox: SandboxEnvironmentSpec | None,
-    resolved: SandboxEnvironmentSpec | None,
-) -> SandboxEnvironmentSpec | None:
-    # apply an eval-level sandbox override (e.g. `--sandbox <type>`) on top of the
-    # already-resolved task/sample sandbox.
-    #
-    # - no override -> use the resolved task/sample sandbox as-is.
-    # - override carries its own config -> it wins outright.
-    # - override has no config but the resolved sandbox has a docker-compatible
-    #   config AND the override type is docker-compatible -> forward that config
-    #   into the override's provider (so e.g. a per-sample ComposeConfig survives
-    #   `--sandbox k8s`). Otherwise use the override as-is.
-    if eval_sandbox is None:
-        return resolved
-    if eval_sandbox.config is not None:
-        return eval_sandbox
-    if (
-        resolved is not None
-        and is_docker_compatible_config(resolved.config)
-        and is_docker_compatible_sandbox_type(eval_sandbox.type)
-    ):
-        return SandboxEnvironmentSpec(eval_sandbox.type, resolved.config)
-    return eval_sandbox
 
 
 async def resolve_sandbox(
