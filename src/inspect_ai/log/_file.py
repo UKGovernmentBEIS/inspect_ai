@@ -357,14 +357,12 @@ async def read_eval_log_async(
         else:
             recorder_type = recorder_type_for_format(format)
 
-        if exclude_fields and "events" in exclude_fields:
-            exclude_fields = exclude_fields | {"events_data"}
+        exclude_fields = _normalize_excluded_fields(exclude_fields)
 
         log = await recorder_type.read_log(log_file, header_only, exclude_fields)
 
     if log.samples:
         log.samples = [
-            # TODO: from merge conflict, need to pass exclude_fields to _resolve_sample_for_read
             _resolve_sample_for_read(sample, resolve_attachments)
             for sample in log.samples
         ]
@@ -534,13 +532,7 @@ async def read_eval_log_sample_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    if exclude_fields:
-        if "events" not in exclude_fields:
-            # events_data is needed to resolve refs in events
-            exclude_fields = exclude_fields - {"events_data"}
-        else:
-            # no events means events_data is useless
-            exclude_fields = exclude_fields | {"events_data"}
+    exclude_fields = _normalize_excluded_fields(exclude_fields)
 
     sample = await recorder_type.read_log_sample(
         log_file, id, epoch, uuid, exclude_fields, reader
@@ -921,6 +913,17 @@ def to_overview(header: EvalLog) -> LogOverview:
         completed_at=header.stats.completed_at,
         primary_metric=primary_metric,
     )
+
+
+def _normalize_excluded_fields(exclude_fields: set[str] | None) -> set[str] | None:
+    if exclude_fields:
+        if "events" not in exclude_fields:
+            # events_data is needed to resolve refs in events
+            exclude_fields = exclude_fields - {"events_data"}
+        else:
+            # no events means events_data is useless
+            exclude_fields = exclude_fields | {"events_data"}
+    return exclude_fields
 
 
 def _resolve_sample_for_read(
