@@ -386,6 +386,54 @@ def test_in_place_mutation_reuses_first_pooled_version(
     assert _pool_contents(db) == ["version one"]
 
 
+def _call_pool_contents(db: SampleBufferDatabase) -> list[str]:
+    data = db.get_sample_data("s1", 1)
+    assert data is not None
+    return [json.loads(entry.data)["content"] for entry in data.call_pool]
+
+
+def test_call_prefix_survives_in_place_mutation_of_logged_request(
+    db: SampleBufferDatabase,
+) -> None:
+    """A logged wire request mutated in place must not corrupt later call dedup.
+
+    The call-pool prefix index retains the previous event's wire messages to
+    match the next event's shared prefix. If it retained the caller's own dict
+    objects, an eval that mutates an already-logged ``call.request`` in place
+    (e.g. playback shaping with ``log_model_api=True``) would make the next
+    event's prefix match against content that was never pooled at that
+    position, so the new content would silently never be hashed/stored — the
+    persisted pool would keep only the stale value.
+    """
+    _start_sample(db)
+
+    event1 = _make_model_event(
+        [ChatMessageUser(content="a")],
+        call_messages=[{"role": "user", "content": "a"}],
+    )
+    db.log_events([SampleEvent(id="s1", epoch=1, event=event1)])
+
+    # Mutate the *same* request dict that was just logged (the object the call
+    # index retained for prefix matching), then log a second event whose wire
+    # content matches the mutated value.
+    assert event1.call is not None
+    messages = event1.call.request["messages"]
+    assert isinstance(messages, list)
+    first = messages[0]
+    assert isinstance(first, dict)
+    first["content"] = "b"
+
+    event2 = _make_model_event(
+        [ChatMessageUser(content="b")],
+        call_messages=[{"role": "user", "content": "b"}],
+    )
+    db.log_events([SampleEvent(id="s1", epoch=1, event=event2)])
+
+    # Both "a" (event 1) and "b" (event 2) must be pooled; event 2 must not
+    # alias the stale "a" row.
+    assert sorted(_call_pool_contents(db)) == ["a", "b"]
+
+
 def test_rollback_restores_pool_indices(
     db: SampleBufferDatabase, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -44,9 +44,14 @@ Note on in-place mutation: a ``ChatMessage`` mutated after being pooled
 identity-hits on the index and resolves to its first-pooled form. This
 is consistent with the prior ``id(obj)``-cache behavior documented in
 ``_pool.py`` — mutation aliases every holder of the object, so no
-distinct prior value exists.
+distinct prior value exists. The call index has no such identity cache;
+it instead deep-copies the wire values it retains for prefix matching
+(``CallPoolIndex.set_prev``), so a caller mutating an already-condensed
+wire request in place cannot make a later event's prefix match against a
+value that was never pooled at that position.
 """
 
+import copy
 import dataclasses
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -281,6 +286,12 @@ class CallPoolIndex:
     A hash index covers the non-prefix tail so individual messages can still
     be deduplicated across events.
 
+    Memory tradeoff (deliberate): ``_prev_msgs`` keeps the previous request's
+    raw (pre-walk) content for the cheap ``_strict_eq`` prefix compare, pinning
+    ~one request per sample until the next event -- bounded, ``log_model_api``
+    only. Fingerprinting instead would free it but re-serialize the prefix
+    every event, reintroducing the O(N^2) hashing this index removed.
+
     Supports ``mark()``/``restore()`` to unwind state when a surrounding
     database transaction rolls back.
     """
@@ -348,21 +359,37 @@ class CallPoolIndex:
             self._hash_index[hash_value] = index
             self._added_hashes.append(hash_value)
 
-    def set_prev(self, msgs: Sequence[JsonValue], indices: Sequence[int]) -> None:
+    def set_prev(
+        self, msgs: Sequence[JsonValue], indices: Sequence[int], prefix_len: int = 0
+    ) -> None:
         """Record the request just condensed for prefix-matching the next one.
 
-        Copies both sequences shallowly, so callers may freely mutate the
-        sequences themselves afterwards. The copy is shallow: message
-        *values* are shared with the caller, and the next event's
-        ``match_prefix`` compares against them — mutating one in place to
-        equal new content would match the prefix against content that was
-        never pooled at that position, returning a wrong pool index.
+        Retains a deep copy of each message *value*, not the caller's own
+        objects: the next event's ``match_prefix`` compares against these, so
+        if they aliased the caller's dicts, an eval that mutates an
+        already-logged ``call.request`` in place (playback shaping with
+        ``log_model_api``) would make the next event match the prefix against
+        content that was never pooled at that position — returning a stale pool
+        index and silently dropping the new content from the pool.
+
+        Only the divergent tail (``msgs[prefix_len:]``) is deep-copied; the
+        ``prefix_len`` leading snapshots are carried over from the previous
+        call unchanged. ``match_prefix`` already proved they are ``_strict_eq``
+        to the incoming prefix, so reusing them is exact, and it keeps the
+        per-event copy cost proportional to the new messages rather than to the
+        full history (a full deep copy each event would be O(history) per
+        event). ``prefix_len`` defaults to ``0`` (copy everything), which is
+        always safe for callers that do not track the matched prefix.
 
         Args:
             msgs: Pre-walk wire-format message list.
             indices: Corresponding pool indices, parallel to ``msgs``.
+            prefix_len: Length of the leading run of ``msgs`` already known
+                (via ``match_prefix``) to equal the previously retained
+                messages; their snapshots are reused instead of re-copied.
         """
-        self._prev_msgs = list(msgs)
+        carried = self._prev_msgs[:prefix_len]
+        self._prev_msgs = carried + [copy.deepcopy(m) for m in msgs[prefix_len:]]
         self._prev_indices = list(indices)
 
     def mark(self) -> int:
@@ -478,7 +505,8 @@ def condense_model_event_with_indices(
         msgs = call.request.get(msg_key) if msg_key else None
         if msgs and isinstance(msgs, list):
             call_indices = calls.match_prefix(msgs)
-            for msg_value in msgs[len(call_indices) :]:
+            prefix_len = len(call_indices)
+            for msg_value in msgs[prefix_len:]:
                 walked_value = walk_call_message(msg_value)
                 call_hash = _pool._call_hash(walked_value)
                 call_index = calls.get_by_hash(call_hash)
@@ -486,7 +514,7 @@ def condense_model_event_with_indices(
                     call_index = add_call(call_hash, walked_value)
                 calls.add_hash(call_hash, call_index)
                 call_indices.append(call_index)
-            calls.set_prev(msgs, call_indices)
+            calls.set_prev(msgs, call_indices, prefix_len=prefix_len)
             new_request = {k: v for k, v in call.request.items() if k != msg_key}
             update["call"] = call.model_copy(
                 update={

@@ -203,6 +203,57 @@ def test_call_pool_index_set_prev_copies_input() -> None:
     assert index.match_prefix(query) == [0]
 
 
+def test_call_pool_index_set_prev_snapshots_message_values() -> None:
+    """In-place mutation of a retained wire message must not match a later event.
+
+    The retained values are what the next event's prefix is matched against;
+    if they aliased the caller's dicts, mutating one in place to equal new
+    content would match the prefix against content that was never pooled at
+    that position, returning a stale pool index for genuinely new content.
+    """
+    index = CallPoolIndex()
+    msg: dict[str, JsonValue] = {"role": "user", "content": "a"}
+    index.set_prev([msg], [0])
+    # mutate the very dict that was handed to set_prev (the object an eval
+    # mutates when it edits an already-logged call.request in place)
+    msg["content"] = "b"
+    # a new event whose content equals the mutated value must NOT match the
+    # prefix: position 0 pooled "a", not "b"
+    assert index.match_prefix([{"role": "user", "content": "b"}]) == []
+    # and the genuine re-send of the originally pooled value still matches
+    assert index.match_prefix([{"role": "user", "content": "a"}]) == [0]
+
+
+def test_call_pool_index_carry_forward_only_snapshots_divergent_tail() -> None:
+    """Carry-forward reuses prior snapshots for the matched prefix.
+
+    The hot path passes the matched prefix length so only the divergent tail
+    is snapshotted; the reused prefix snapshots stay immutable (proven by the
+    in-place-mutation guard above also holding across a carry-forward).
+    """
+    index = CallPoolIndex()
+    first: list[JsonValue] = [{"role": "user", "content": "a"}]
+    index.set_prev(first, [0])
+
+    second: list[dict[str, JsonValue]] = [
+        {"role": "user", "content": "a"},  # shared prefix (matched, carried)
+        {"role": "assistant", "content": "b"},  # divergent tail (snapshotted)
+    ]
+    prefix = index.match_prefix(second)
+    assert prefix == [0]
+    index.set_prev(second, [0, 1], prefix_len=len(prefix))
+
+    # mutating the tail dict that was just snapshotted must not leak in
+    second[1]["content"] = "c"
+    assert index.match_prefix(
+        [{"role": "user", "content": "a"}, {"role": "assistant", "content": "c"}]
+    ) == [0]
+    # the snapshotted tail value still matches its real re-send
+    assert index.match_prefix(
+        [{"role": "user", "content": "a"}, {"role": "assistant", "content": "b"}]
+    ) == [0, 1]
+
+
 # ---------------------------------------------------------------------------
 # condense_model_event_with_indices tests
 # ---------------------------------------------------------------------------
