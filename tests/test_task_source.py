@@ -289,6 +289,45 @@ def test_initial_tasks_runs_in_active_model_context() -> None:
     assert all(log.status == "success" for log in logs)
 
 
+def test_initial_tasks_parallel1_preserves_sequence_grouping() -> None:
+    # With parallel == 1 (max_tasks=1) and multiple models, a TaskSource seed of
+    # [a, b] must behave like passing [a, b] to eval(): every fan-out of `a`
+    # runs before any fan-out of `b` (sequence grouping). The live injection path
+    # would instead interleave them (a/m1, b/m1, a/m2, b/m2), so parallel==1
+    # falls through to the batch path.
+    starts: list[str] = []
+
+    @solver
+    def record(label: str) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            starts.append(label)
+            return state
+
+        return solve
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(dataset=[Sample(input="x")], solver=[record("a")], name="a"),
+                Task(dataset=[Sample(input="x")], solver=[record("b")], name="b"),
+            ]
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    logs = eval(
+        tasks=_Src(),
+        model=["mockllm/model", "mockllm/model2"],
+        max_tasks=1,
+        display="none",
+    )
+    assert len(logs) == 4
+    assert all(log.status == "success" for log in logs)
+    # all `a` executions precede all `b` executions (no interleaving)
+    assert starts == ["a", "a", "b", "b"], starts
+    assert len({log.eval.run_id for log in logs}) == 1
+
+
 def test_task_source_decorator_instance() -> None:
     # calling a @task_source-decorated function yields a tagged TaskSource that
     # eval() drives like any source

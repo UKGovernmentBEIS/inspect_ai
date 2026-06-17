@@ -1051,12 +1051,16 @@ async def _eval_async_inner(
                             )
                     return EvalLogs(results)
 
-                if task_source is not None:
+                if task_source is not None and parallel > 1:
                     # live (TaskSource-driven) run: one eval_run fed additional
                     # tasks while in progress. Injected tasks — from the source's
                     # next_tasks(), its sample/task_complete return values, or
                     # enqueue_task — start on free capacity rather than waiting
-                    # for a batch boundary.
+                    # for a batch boundary. This only helps when there is spare
+                    # capacity to fill (parallel > 1); with parallel == 1 nothing
+                    # runs concurrently, so we fall through to run_batches, which
+                    # preserves the parallel==1 sequence grouping (and still drives
+                    # the source via enqueuer.drain() / next_tasks()).
                     async def inject_next() -> list[ResolvedTask] | None:
                         more = await task_source.next_tasks()
                         return resolve_added_tasks(more) if more else None
