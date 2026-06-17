@@ -4,6 +4,7 @@ import functools
 import hashlib
 import json
 import os
+import time
 from copy import copy
 from io import BytesIO
 from logging import getLogger
@@ -78,7 +79,11 @@ from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import (
+    STREAM_FLUSH_MIN_INTERVAL_S,
+    set_active_model_event_call,
+    update_active_model_event_output,
+)
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -189,6 +194,7 @@ class GoogleGenAIAPI(ModelAPI):
         api_key: str | None,
         config: GenerateConfig = GenerateConfig(),
         api_version: str | None = None,
+        streaming: bool | Literal["auto"] = False,
         **model_args: Any,
     ) -> None:
         super().__init__(
@@ -202,8 +208,14 @@ class GoogleGenAIAPI(ModelAPI):
         # record api version
         self.api_version = api_version
 
-        # record streaming preference
-        self.streaming = bool(model_args.pop("streaming", False))
+        # record streaming preference. "auto" currently resolves to off — the
+        # google provider always hand-accumulates the stream into a final
+        # response, so the only behavioral difference streaming makes is the
+        # partial-output flushes. We leave the default off and treat "auto"
+        # the same as False until we have a reason to stream by default.
+        if streaming == "auto":
+            streaming = False
+        self.streaming = bool(streaming)
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
@@ -488,6 +500,25 @@ class GoogleGenAIAPI(ModelAPI):
         candidates_parts: dict[int, list[Part]] = {}
         last_chunk: GenerateContentResponse | None = None
 
+        last_flush = 0.0
+
+        def _flush() -> None:
+            try:
+                update_active_model_event_output(
+                    _partial_output_from_parts(model, candidates_parts.get(0, []))
+                )
+            except AssertionError:
+                # the helper's `assert event.pending` guards a core invariant
+                raise
+            except Exception:
+                # the partial-output flush is display-only — a failure here must
+                # never abort the generate; the final accumulated response is the
+                # authoritative output regardless
+                logger.warning(
+                    "google: partial-output flush failed; continuing",
+                    exc_info=True,
+                )
+
         stream = await client.aio.models.generate_content_stream(
             model=model,
             contents=contents,
@@ -507,6 +538,12 @@ class GoogleGenAIAPI(ModelAPI):
 
                     if candidate.content and candidate.content.parts:
                         candidates_parts[idx].extend(candidate.content.parts)
+
+            # publish a throttled partial-output snapshot for the primary
+            # candidate (index 0) onto the pending ModelEvent
+            if (now := time.monotonic()) - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S:
+                last_flush = now
+                _flush()
 
         if last_chunk is None:
             raise RuntimeError(
@@ -1566,6 +1603,68 @@ def _consolidate_thought_signature(
         working_reasoning_block.reasoning = base64.b64encode(signature).decode()
         working_reasoning_block.redacted = True
     return None
+
+
+def _partial_output_from_parts(model: str, parts: list[Part]) -> ModelOutput:
+    """Cheap ``ModelOutput`` from the parts accumulated so far while streaming.
+
+    Built per streaming flush, so this only translates the part kinds that
+    render usefully mid-stream — visible text, thought text, and (client)
+    function calls. It deliberately skips everything
+    :func:`completion_choice_from_candidate` does that is either expensive
+    (thought_signature consolidation, citation distribution), stateful
+    (server-tool / executable-code round-tripping), or only meaningful on the
+    final candidate (usage, stop reason). Block kinds that don't render
+    usefully mid-stream (inline media, server tools, code execution) are
+    dropped — the final non-streaming parse over the accumulated response
+    restores them on completion.
+
+    Each call constructs a fresh ``ChatMessageAssistant`` (and so a fresh
+    message ``id``) — consumers must key on the stable ``ModelEvent.uuid``
+    rather than the message id, which differs between every partial and the
+    final.
+    """
+    content: list[InspectContent] = []
+    tool_calls: list[ToolCall] = []
+    for part in parts:
+        if part.function_call is not None and part.function_call.name:
+            tool_calls.append(
+                ToolCall(
+                    id=part.function_call.id or part.function_call.name,
+                    function=part.function_call.name,
+                    arguments=part.function_call.args or {},
+                )
+            )
+        elif part.text:
+            # the stream emits text/thought one delta per part; coalesce
+            # consecutive same-kind deltas into a single block so the partial's
+            # block structure matches the merged final candidate (the live test
+            # asserts each partial's content-type tuple is a prefix of the
+            # final's).
+            if part.thought is True:
+                if content and isinstance(content[-1], ContentReasoning):
+                    content[-1].reasoning += part.text
+                else:
+                    content.append(ContentReasoning(reasoning=part.text))
+            else:
+                if content and isinstance(content[-1], ContentText):
+                    content[-1].text += part.text
+                else:
+                    content.append(ContentText(text=part.text))
+    return ModelOutput(
+        model=model,
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=content,
+                    tool_calls=tool_calls or None,
+                    model=model,
+                    source="generate",
+                ),
+                stop_reason="unknown",
+            )
+        ],
+    )
 
 
 def completion_choice_from_candidate(

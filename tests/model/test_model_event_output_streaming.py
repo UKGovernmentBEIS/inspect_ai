@@ -15,7 +15,7 @@ from inspect_ai.log._samples import (
     update_active_model_event_output,
 )
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.model import GenerateConfig, ModelOutput
+from inspect_ai.model import GenerateConfig, ModelOutput, get_model
 
 
 def _pending_model_event() -> ModelEvent:
@@ -102,3 +102,47 @@ def test_complete_overwrites_partial() -> None:
 
     assert event.output is final
     assert list(t.pending_events) == []
+
+
+async def test_mockllm_stream_chunks_emits_partials_then_terminal() -> None:
+    """End-to-end: mockllm ``stream_chunks=N`` drives N partial flushes
+    (``pending=True``) followed by exactly one terminal (``pending=None``).
+
+    This exercises the full provider path — ``Model.generate`` creating the
+    pending ``ModelEvent``, ``track_active_model_event`` wrapping the API call,
+    mockllm publishing growing-prefix partials, and ``complete()`` clearing
+    ``pending`` — without an API call."""
+    t = Transcript()
+    init_transcript(t)
+
+    completion = "Hello, world!"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", completion)],
+        stream_chunks=3,
+    )
+
+    records: list[tuple[bool, str]] = []
+    t._subscribe(
+        lambda ev: records.append((bool(ev.pending), ev.output.completion))
+        if isinstance(ev, ModelEvent)
+        else None
+    )
+
+    await model.generate("hi")
+
+    partials = [completion for pending, completion in records if pending]
+    terminal = [completion for pending, completion in records if not pending]
+
+    # the first pending record is the initial empty event recorded by
+    # _record_model_interaction; the 3 streamed partials follow it
+    streamed = [c for c in partials if c]
+    assert len(streamed) == 3, records
+    # growing prefixes that build up to the full completion
+    assert streamed == ["Hello", "Hello, wor", "Hello, world!"], streamed
+    assert all(completion.startswith(c) for c in streamed)
+
+    # exactly one terminal record, carrying the full completion, and it is last
+    assert len(terminal) == 1, records
+    assert terminal[0] == completion
+    assert not records[-1][0], "a pending partial fired after the terminal record"

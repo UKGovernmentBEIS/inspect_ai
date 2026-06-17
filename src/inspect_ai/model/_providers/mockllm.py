@@ -2,6 +2,9 @@ import json
 from collections.abc import Callable, Generator, Iterable, Iterator
 from typing import Any
 
+import anyio
+
+from inspect_ai.log._samples import update_active_model_event_output
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
@@ -43,10 +46,19 @@ class MockLLM(ModelAPI):
             [list[ChatMessage], list[ToolInfo], ToolChoice, GenerateConfig], ModelOutput
         ]
         | None = None,
+        stream_chunks: int | None = None,
         **model_args: dict[str, Any],
     ) -> None:
         super().__init__(model_name, base_url, api_key, [], config)
         self.model_args = model_args
+        # when set, each output's completion text is split into this many
+        # partial-output flushes (see generate) so streaming behavior can be
+        # exercised deterministically without an API call
+        if stream_chunks is not None and stream_chunks < 1:
+            raise ValueError(
+                f"stream_chunks must be a positive integer, got {stream_chunks}"
+            )
+        self.stream_chunks = stream_chunks
         if custom_outputs is not None:
             # Check if it's a callable function
             if isinstance(custom_outputs, Generator) or callable(custom_outputs):
@@ -91,6 +103,7 @@ class MockLLM(ModelAPI):
             output = self.outputs(input, tools, tool_choice, config)
             if _inspect.isawaitable(output):
                 output = await output
+            await self._emit_stream_chunks(output)
             model_call = ModelCall.create(request, {"content": output.completion})
             return output, model_call
 
@@ -131,5 +144,37 @@ class MockLLM(ModelAPI):
                 output_tokens=content_length,
                 total_tokens=input_tokens + content_length,
             )
+        await self._emit_stream_chunks(output)
         model_call = ModelCall.create(request, {"content": output.completion})
         return output, model_call
+
+    async def _emit_stream_chunks(self, output: ModelOutput) -> None:
+        """Emit deterministic partial-output flushes for ``stream_chunks`` mode.
+
+        When ``stream_chunks=N`` is configured, the output's completion text is
+        split into ``N`` slices and a growing-prefix partial ``ModelOutput`` is
+        published onto the pending ``ModelEvent`` after each slice (via
+        :func:`update_active_model_event_output`), with ``await anyio.sleep(0)``
+        between flushes to yield to the event loop without wall-clock delay.
+        This mirrors what real streaming providers do, so streaming subscribers
+        can be tested deterministically without an API call.
+
+        A no-op when ``stream_chunks`` is unset, the completion is empty, or
+        there is no active model event.
+        """
+        if self.stream_chunks is None:
+            return
+        completion = output.completion
+        if not completion:
+            return
+
+        n = min(self.stream_chunks, len(completion))
+        # ceil division so every character lands in some chunk and the final
+        # prefix equals the full completion
+        size = -(-len(completion) // n)
+        for i in range(n):
+            await anyio.sleep(0)
+            prefix = completion[: (i + 1) * size]
+            update_active_model_event_output(
+                ModelOutput.from_content(model=output.model, content=prefix)
+            )
