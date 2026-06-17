@@ -264,7 +264,7 @@ def resolve_reducer(
     reducers: ScoreReducer | list[ScoreReducer] | None,
 ) -> tuple[list[ScoreReducer], bool]:
     if reducers is None:
-        return ([mean_score()], False)
+        return ([mean_score()], True)
     elif isinstance(reducers, list) and len(reducers) == 0:
         return ([], True)
     else:

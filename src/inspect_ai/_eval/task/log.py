@@ -177,8 +177,12 @@ class TaskLogger:
         # throttled and was measured to be negligible at high sample counts.
         high_throughput = _is_high_throughput(total_samples)
 
-        # write defaults for unspecified config
+        # write defaults for unspecified config. Preserve epochs_reducer=None
+        # since it means "use the default reducer" rather than an explicit
+        # reducer setting.
         for name, value in eval_config_defaults().items():
+            if name == "epochs_reducer":
+                continue
             if getattr(eval_config, name, None) is None:
                 setattr(eval_config, name, value)
 

@@ -1637,6 +1637,13 @@ def test_epochs_changed_same_reducer():
         "epochs_changed should return False when default (None) matches 'mean'"
     )
 
+    # Explicit "mean" vs logged default reducer (None) should NOT be changed
+    epochs = Epochs(epochs=2, reducer="mean")
+    config = EvalConfig(epochs=2, epochs_reducer=None)
+    assert not epochs_changed(epochs, config), (
+        "epochs_changed should return False when explicit 'mean' matches logged default"
+    )
+
     # Instantiated reducer objects should also work
     epochs_obj = Epochs(epochs=2, reducer=mean_score())
     config = EvalConfig(epochs=2, epochs_reducer=["mean"])
