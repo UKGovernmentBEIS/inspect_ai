@@ -333,13 +333,10 @@ async def eval_run(
         # multiple mode is for running/displaying multiple
         # task definitions, which requires some smart scheduling
         # to ensure that we spread work among models
-        if task_retry_attempts:
-            return await run_task_retry_attempts(
-                initial_options, parallel, task_retry_attempts=task_retry_attempts
-            )
 
-        # a live (TaskSource-driven) run feeds run_multiple additional tasks
-        # while it is in progress; prepare each injected batch on the fly
+        # a live (TaskSource-driven) run feeds additional tasks while it is in
+        # progress; prepare each injected batch on the fly. Both dispatchers
+        # below accept this feed, so a TaskSource works with or without retries.
         feed: PreparedFeed | None = None
         if inject is not None:
 
@@ -358,6 +355,15 @@ async def eval_run(
         # scheduler spreads work across models and caps concurrency there,
         # so e.g. parallel==1 runs one unit at a time (model-by-model for a
         # single task definition).
+        if task_retry_attempts:
+            return await run_task_retry_attempts(
+                initial_options,
+                parallel,
+                task_retry_attempts=task_retry_attempts,
+                debug_errors=debug_errors,
+                feed=feed,
+            )
+
         return await run_multiple(
             initial_options, parallel, debug_errors=debug_errors, feed=feed
         )
@@ -412,27 +418,44 @@ def _empty_feed() -> PreparedFeed:
     return PreparedFeed(drain=drain, next=next, set_wake=set_wake)
 
 
-async def _run_task(options: TaskRunOptions) -> EvalLog | None:
+class TaskRunResult(NamedTuple):
+    log: EvalLog | None
+    """The task's log, or ``None`` if it was cancelled before producing one."""
+
+    cancel_type: CancelType
+    """How the task was cancelled (``None`` if it ran to completion)."""
+
+
+async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRunResult:
     """Run one task in its own cancel scope so cancelling it can't affect siblings.
 
-    Returns the task's :class:`EvalLog`, or ``None`` if it was cancelled before
-    producing one. Re-raises (after logging) the rare error that escapes a task —
-    e.g. a failure during the final log write.
+    Returns the task's :class:`EvalLog` (``None`` if it was cancelled before
+    producing one) together with the ``CancelType`` it was cancelled with, so a
+    caller managing retries can distinguish a retry/abort request from an
+    ordinary error. ``can_retry`` is surfaced to the task (via ``TaskCancel``) so
+    it knows whether requesting a retry will be honoured. Re-raises (after
+    logging) the rare error that escapes a task — e.g. a failure during the final
+    log write.
     """
     result: EvalLog | None = None
+    cancel_type: CancelType = None
     try:
         with trace_action(
             log, "Run Task", f"task: {options.task.name} ({options.model})"
         ):
             # a per-task group so a task cancelling itself doesn't cancel siblings
             async with anyio.create_task_group() as task_tg:
-                task_cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
+                task_cancel = TaskCancel(
+                    can_retry=can_retry, cancel_task=lambda _: None
+                )
 
                 def cancel_task(
                     type: CancelType,
                     cancel_tg: TaskGroup = task_tg,
                     tc: TaskCancel = task_cancel,
                 ) -> None:
+                    nonlocal cancel_type
+                    cancel_type = type
                     tc.cancel_type = type
                     if type:
                         cancel_tg.cancel_scope.cancel()
@@ -451,7 +474,7 @@ async def _run_task(options: TaskRunOptions) -> EvalLog | None:
             f"Task '{options.task.name}' encountered an error during finalisation: {inner_exception(ex)}"
         )
         raise
-    return result
+    return TaskRunResult(result, cancel_type)
 
 
 # multiple mode -- run multiple logical tasks with bounded, model-balanced
@@ -521,7 +544,7 @@ async def run_multiple(
                     nonlocal in_flight, cancelled
                     result: EvalLog | None = None
                     try:
-                        result = await _run_task(options)
+                        result = (await _run_task(options)).log
                     finally:
                         in_flight -= 1
                         model_counts[str(options.model)] -= 1
@@ -578,267 +601,215 @@ async def run_multiple(
 
 
 class PendingTask(NamedTuple):
+    idx: int
     options: TaskRunOptions
     retries_remaining: int
-    original_index: int
 
 
-# run multiple logical tasks with retries (requires some smart
-# scheduling to ensure that we are spreading work among models)
-# duplicates run_multiple with minor changes
-# intentionally a separate function to avoid regression risk - can replace run_multiple once fully tested
+# run multiple logical tasks with bounded, model-balanced concurrency and
+# per-task retries, optionally fed additional tasks while in progress (a live
+# TaskSource-driven run). Shares run_multiple's central-dispatch design and adds
+# retries: a task that errors (or requests a retry) is re-queued under its
+# original index — a fresh log entry, completed samples reused — until its
+# retries are exhausted. (run_multiple is the retries==0 baseline kept until this
+# path is fully proven; this function is meant to subsume it.)
 async def run_task_retry_attempts(
-    tasks: list[TaskRunOptions], parallel: int, task_retry_attempts: int
+    tasks: list[TaskRunOptions],
+    parallel: int,
+    task_retry_attempts: int,
+    debug_errors: bool = False,
+    feed: PreparedFeed | None = None,
 ) -> list[EvalLog]:
-    # track current usage of each model
-    models: Set[str] = set()
-    for task in tasks:
-        models.add(str(task.model))
-    model_counts = {model: 0 for model in models}
+    """Run tasks with bounded, model-balanced concurrency and per-task retries.
 
-    # setup pending tasks, queue, and results
-    pending_tasks: list[PendingTask] = [
-        PendingTask(options=t, retries_remaining=task_retry_attempts, original_index=i)
-        for i, t in enumerate(tasks)
+    Like :func:`run_multiple`, the set may be fixed (``feed is None``) or open (a
+    feed supplies more while the run is in progress). A task whose log comes back
+    with an error — or which requests a retry via its ``TaskCancel`` — is
+    re-queued (reusing completed samples) until ``task_retry_attempts`` is
+    exhausted; an abort or external cancellation is never retried.
+    """
+    feed = feed or _empty_feed()
+
+    # model-balancing state (grows as tasks are injected)
+    model_counts: dict[str, int] = {}
+
+    def note_models(options: list[TaskRunOptions]) -> None:
+        for t in options:
+            model_counts.setdefault(str(t.model), 0)
+
+    # pending tasks: initial tasks keep their original order and injected tasks
+    # are appended in arrival order, so results sort stably. A retry re-queues
+    # under the same index, overwriting the failed attempt's result.
+    note_models(tasks)
+    pending: list[PendingTask] = [
+        PendingTask(idx=i, options=opts, retries_remaining=task_retry_attempts)
+        for i, opts in enumerate(tasks)
     ]
+    next_index = len(tasks)
     results: dict[int, EvalLog] = {}
-    tasks_completed = 0
-    total_tasks = len(tasks)
+    in_flight = 0
+    cancelled = False
+    source_done = False
 
-    # produce/consume tasks
-    send_channel, receive_channel = anyio.create_memory_object_stream[PendingTask](
-        parallel * 2
-    )
+    # woken on each task completion and on each injection (enqueue)
+    wake = _Wake()
+    feed.set_wake(wake.set)
 
-    # find a task that keeps as many different models as possible running concurrently
-    async def enque_next_task() -> bool:
-        if tasks_completed < total_tasks:
-            # filter out models that have no pending tasks
-            models_with_pending = {
-                model
-                for model in model_counts
-                if any(str(t.options.model) == model for t in pending_tasks)
-            }
-            if not models_with_pending:
-                return False
-
-            # among those models, pick one with the least usage
-            model = min(models_with_pending, key=lambda m: model_counts[m])
-
-            # now we know there's at least one pending task for this model so it's safe to pick it
-            next_pending = next(
-                t for t in pending_tasks if str(t.options.model) == model
+    def add(options: list[TaskRunOptions]) -> None:
+        nonlocal next_index
+        note_models(options)
+        pending.extend(
+            PendingTask(
+                idx=next_index + i, options=opts, retries_remaining=task_retry_attempts
             )
-            pending_tasks.remove(next_pending)
-            model_counts[str(next_pending.options.model)] += 1
-            with trace_action(
-                log,
-                "Enque Task",
-                f"task: {next_pending.options.task.name} ({next_pending.options.model})",
-            ):
-                await send_channel.send(next_pending)
-            return True
-        else:
-            return False
+            for i, opts in enumerate(options)
+        )
+        next_index += len(options)
+        display().update_task_count(len(options))
 
-    async def worker() -> None:
-        try:
-            nonlocal tasks_completed
-            task_seq = 0
-            async for pending_task in receive_channel:
-                task_options = pending_task.options
-                result: EvalLog | None = None
-                # Get the original index of this task
-                original_index = pending_task.original_index
-                cancel_type: CancelType = None
-                task_seq += 1
+    def pick_balanced() -> PendingTask:
+        # among models that have pending tasks, pick the least-used one (keeps as
+        # many different models running concurrently as possible)
+        models_with_pending = {str(p.options.model) for p in pending}
+        model = min(models_with_pending, key=lambda m: model_counts[m])
+        item = next(p for p in pending if str(p.options.model) == model)
+        pending.remove(item)
+        return item
 
-                # run the task
-                try:
-                    with trace_action(
-                        log,
-                        "Run Task",
-                        f"task: {task_options.task.name} ({task_options.model})",
-                    ):
-                        async with anyio.create_task_group() as tg:
-                            # Create a factory function that captures the current
-                            # task_options. Otherwise, we suffer from Python's
-                            # late/by reference binding behavior.
-                            # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
-
-                            task_cancel = TaskCancel(
-                                can_retry=pending_task.retries_remaining > 0,
-                                cancel_task=lambda _: None,
-                            )
-
-                            def cancel_task(
-                                type: CancelType,
-                                cancel_tg: TaskGroup = tg,
-                                seq: int = task_seq,
-                                tc: TaskCancel = task_cancel,
-                            ) -> None:
-                                nonlocal cancel_type, task_seq
-                                if seq != task_seq:  # noqa: B023
-                                    log.info(
-                                        f"Ignoring stale cancel callback (seq {seq} != current {task_seq})"  # noqa: B023
-                                    )
-                                    return
-                                cancel_type = type
-                                tc.cancel_type = type
-                                if type:
-                                    cancel_tg.cancel_scope.cancel()
-
-                            task_cancel.cancel_task = cancel_task
-
-                            def create_task_runner(
-                                options: TaskRunOptions = task_options,
-                                idx: int = original_index,
-                                task_cancel: TaskCancel = task_cancel,
-                            ) -> Callable[[], Awaitable[None]]:
-                                async def run_task() -> None:
-                                    nonlocal result
-                                    result = await task_run(
-                                        options, task_cancel=task_cancel
-                                    )
-                                    results[idx] = result
-
-                                return run_task
-
-                            tg.start_soon(create_task_runner())
-
-                except Exception as ex:
-                    # errors generally don't escape from tasks (the exception being if an error
-                    # occurs during the final write of the log)
-                    log.error(
-                        f"Task '{task_options.task.name}' encountered an error during finalisation: {inner_exception(ex)}"
-                    )
-                    raise
-
-                # tracking
-                model_counts[str(task_options.model)] -= 1
-
-                retry = False
-                if not result:
-                    tasks_completed += 1
-                    break
-                elif result.status == "cancelled":
-                    # external cancellation (ctrl+c) - stop the worker
-                    tasks_completed += 1
-                    break
-                elif cancel_type == "retry":
-                    log.info(
-                        f"Task '{task_options.task.name}' was cancelled with retry requested — {pending_task.retries_remaining} retries remaining"
-                    )
-                    retry = True
-                elif cancel_type == "abort":
-                    log.info(
-                        f"Task '{task_options.task.name}' was cancelled with abort requested"
-                    )
-                # retry on error if retries remain
-                elif result.status == "error":
-                    retry = True
-
-                retry = retry and pending_task.retries_remaining > 0
-                if not retry:
-                    tasks_completed += 1
-                else:
-                    # build sample_source from the failed log so completed
-                    # samples are reused on retry (mirrors legacy eval_set retry)
-                    failed_log_info = EvalLogInfo(
-                        name=task_options.logger.location,
-                        type="file",
-                        size=0,
-                        mtime=None,
-                        task=task_options.task.name,
-                        task_id=task_options.logger.eval.task_id,
-                        suffix=None,
-                    )
-                    sample_source = eval_log_sample_source(
-                        result,
-                        failed_log_info,
-                        task_options.task.dataset,
-                        eval_checkpoints_dir_from_config(
-                            task_options.logger.location,
-                            task_options.checkpoint,
-                            task_options.eval_checkpoint,
-                        ),
-                    )
-
-                    # reinit logger for a fresh eval entry
-                    await task_options.logger.reinit()
-
-                    retry_attempt = (
-                        task_retry_attempts - pending_task.retries_remaining + 1
-                    )
-                    retry_display_name = (
-                        f"{task_options.task.name} "
-                        f"(retry {retry_attempt} of {task_retry_attempts})"
-                    )
-                    retry_options = replace(
-                        task_options,
-                        sample_source=sample_source,
-                        display_name=retry_display_name,
-                    )
-                    retry_pending = PendingTask(
-                        options=retry_options,
-                        retries_remaining=pending_task.retries_remaining - 1,
-                        original_index=original_index,
-                    )
-                    pending_tasks.append(retry_pending)
-                    log.info(
-                        f"Retrying task '{task_options.task.name}' ({task_options.model}) "
-                        f"— {retry_pending.retries_remaining} retries remaining"
-                    )
-
-                # check if there are more tasks to process
-                if tasks_completed < total_tasks:
-                    await enque_next_task()
-                elif tasks_completed == total_tasks:
-                    # all tasks are complete, close the stream
-                    try:
-                        await send_channel.aclose()
-                    except anyio.ClosedResourceError:
-                        # another worker might have already closed it
-                        pass
-        except anyio.EndOfStream:
-            pass
-
-    # with task display
     async with display().task_screen(task_specs(tasks), parallel=True) as screen:
-        # init screen
         init_task_screen(screen)
-
-        # Use anyio task group instead of manual task management
         try:
             async with anyio.create_task_group() as tg:
-                # computer number of workers (never more than total_tasks)
-                num_workers = min(parallel, total_tasks)
 
-                # start worker tasks
-                for _ in range(num_workers):
-                    tg.start_soon(worker)
+                async def run_one(item: PendingTask) -> None:
+                    nonlocal in_flight, cancelled
+                    options = item.options
+                    run = await _run_task(options, can_retry=item.retries_remaining > 0)
+                    result = run.log
 
-                # enqueue initial set of tasks
-                for _ in range(num_workers):
-                    await enque_next_task()
+                    # decide whether to retry: on an error or an explicit retry
+                    # request, but never on an abort or external (ctrl+c)
+                    # cancellation (which ends the whole run)
+                    retry = False
+                    if result is None or result.status == "cancelled":
+                        cancelled = True
+                    elif run.cancel_type == "retry":
+                        log.info(
+                            f"Task '{options.task.name}' was cancelled with retry "
+                            f"requested — {item.retries_remaining} retries remaining"
+                        )
+                        retry = True
+                    elif run.cancel_type == "abort":
+                        log.info(
+                            f"Task '{options.task.name}' was cancelled with abort requested"
+                        )
+                    elif result.status == "error":
+                        retry = True
+                    retry = retry and item.retries_remaining > 0
+
+                    # build the requeued task before releasing the in-flight slot:
+                    # reinit is async, and were the slot freed first the dispatcher
+                    # could observe an idle run mid-reinit and finish early
+                    retry_item: PendingTask | None = None
+                    if retry and result is not None:
+                        # build sample_source from the failed log so completed
+                        # samples are reused on retry (mirrors legacy eval_set retry)
+                        failed_log_info = EvalLogInfo(
+                            name=options.logger.location,
+                            type="file",
+                            size=0,
+                            mtime=None,
+                            task=options.task.name,
+                            task_id=options.logger.eval.task_id,
+                            suffix=None,
+                        )
+                        sample_source = eval_log_sample_source(
+                            result,
+                            failed_log_info,
+                            options.task.dataset,
+                            eval_checkpoints_dir_from_config(
+                                options.logger.location,
+                                options.checkpoint,
+                                options.eval_checkpoint,
+                            ),
+                        )
+
+                        # reinit logger for a fresh eval entry
+                        await options.logger.reinit()
+
+                        retry_attempt = task_retry_attempts - item.retries_remaining + 1
+                        retry_display_name = (
+                            f"{options.task.name} "
+                            f"(retry {retry_attempt} of {task_retry_attempts})"
+                        )
+                        retry_item = PendingTask(
+                            idx=item.idx,
+                            options=replace(
+                                options,
+                                sample_source=sample_source,
+                                display_name=retry_display_name,
+                            ),
+                            retries_remaining=item.retries_remaining - 1,
+                        )
+
+                    # finalize atomically (no awaits below) so the dispatcher sees
+                    # a consistent (in_flight, pending) snapshot
+                    in_flight -= 1
+                    model_counts[str(options.model)] -= 1
+                    if result is not None:
+                        results[item.idx] = result
+                    if retry_item is not None:
+                        pending.append(retry_item)
+                        log.info(
+                            f"Retrying task '{options.task.name}' ({options.model}) "
+                            f"— {retry_item.retries_remaining} retries remaining"
+                        )
+                    wake.set()
+
+                while True:
+                    # pick up tasks buffered since the last cycle (non-blocking)
+                    injected = await feed.drain()
+                    if injected:
+                        add(injected)
+
+                    # dispatch up to the concurrency cap (model-balanced)
+                    while not cancelled and in_flight < parallel and pending:
+                        item = pick_balanced()
+                        model_counts[str(item.options.model)] += 1
+                        in_flight += 1
+                        tg.start_soon(run_one, item)
+
+                    if cancelled:
+                        break
+
+                    # work still queued or running (incl. pending retries): wait
+                    # for a completion or a new injection, then re-evaluate
+                    if pending or in_flight > 0:
+                        await wake.wait()
+                        continue
+
+                    # fully idle: ask the source for more (may block) and finish
+                    # when it is exhausted
+                    if source_done:
+                        break
+                    more = await feed.next()
+                    if more is None:
+                        source_done = True
+                    else:
+                        add(more)
+        # exceptions can escape when debug_errors is True and that's okay
+        except ExceptionGroup as ex:
+            if debug_errors:
+                raise ex.exceptions[0]
+            else:
+                raise
         except anyio.get_cancelled_exc_class():
             pass
         finally:
-            # Always ensure channels are closed
-            try:
-                await send_channel.aclose()
-            except anyio.ClosedResourceError:
-                pass
-
-            try:
-                await receive_channel.aclose()
-            except anyio.ClosedResourceError:
-                pass
-
             clear_task_screen()
 
-        # Return results ordered by original task index
-        return [v for k, v in sorted(results.items())]
+    # sort results by index and return just the values
+    return [v for _, v in sorted(results.items())]
 
 
 def resolve_task_sample_ids(

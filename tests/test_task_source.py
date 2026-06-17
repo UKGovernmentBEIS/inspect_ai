@@ -193,7 +193,7 @@ def test_factory_task_complete_returning_tasks() -> None:
     assert sorted(log.eval.task for log in logs) == ["gen0", "gen1"]
 
 
-async def test_live_injection_runs_concurrently_with_in_flight_task() -> None:
+async def _run_live_injection(**eval_kwargs: object) -> tuple[list[EvalLog], list[str]]:
     # Discriminates live injection from batch-at-a-time: a task injected mid-run
     # must start while another task is still in flight. Here "blocker" parks
     # until "injected" releases it, and "injected" is only enqueued (by
@@ -246,13 +246,27 @@ async def test_live_injection_runs_concurrently_with_in_flight_task() -> None:
             return None
 
     init_display_type("none")
-    logs = await eval_async(tasks=_Src(), model="mockllm/model", max_tasks=2)
+    logs = await eval_async(
+        tasks=_Src(), model="mockllm/model", max_tasks=2, **eval_kwargs
+    )
 
     assert sorted(log.eval.task for log in logs) == ["blocker", "injected", "injector"]
     assert len({log.eval.run_id for log in logs}) == 1
     # blocker only reaches its end if the injected task ran while it was blocked
     assert "blocker-end" in order
     assert all(log.status == "success" for log in logs)
+    return logs, order
+
+
+async def test_live_injection_runs_concurrently_with_in_flight_task() -> None:
+    await _run_live_injection()
+
+
+async def test_live_injection_works_with_task_retry_attempts() -> None:
+    # task_retry_attempts routes through run_task_retry_attempts (the recommended
+    # path). The TaskSource feed must still be honoured there — without it the
+    # injected task never runs and the blocker hangs until fail_after fires.
+    await _run_live_injection(task_retry_attempts=1)
 
 
 def test_task_source_decorator_instance() -> None:
