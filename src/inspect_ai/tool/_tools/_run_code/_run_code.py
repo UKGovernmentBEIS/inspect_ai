@@ -134,9 +134,10 @@ def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
     if tool_defs:
         lines.extend(
             [
-                "You may call the allowlisted Inspect tools below as async functions.",
-                "Use `await` when calling these tools.",
-                "You may use `asyncio.gather(...)` to run multiple tool calls concurrently.",
+                "You may call the allowlisted tools listed below, but ONLY from within the Python code passed to run_code.",
+                "Do NOT call them directly as regular tools — they are only available inside the Python execution environment.",
+                "",
+                "Use `await` when calling these tools, or `asyncio.gather(...)` to run multiple calls concurrently.",
                 "",
                 "Example:",
                 "```python",
