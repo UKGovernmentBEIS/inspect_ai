@@ -148,6 +148,19 @@ def test_read_sample_with_exclude_fields():
     assert not sample.events
 
 
+def test_read_log_with_exclude_fields():
+    eval_log_file = os.path.join(
+        "tests", "log", "test_eval_log", "log_read_sample.eval"
+    )
+    log = read_eval_log(eval_log_file, exclude_fields={"store", "events"})
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.id == 1
+    assert sample.input is not None
+    assert not sample.store
+    assert not sample.events
+
+
 def test_log_location():
     json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     check_log_location(json_log_file)

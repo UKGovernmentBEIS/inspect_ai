@@ -101,12 +101,16 @@ class Recorder(abc.ABC):
         cls,
         location: str,
         header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog: ...
 
     @classmethod
     @abc.abstractmethod
     async def read_log_bytes(
-        cls, log_bytes: IO[bytes], header_only: bool = False
+        cls,
+        log_bytes: IO[bytes],
+        header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog: ...
 
     @classmethod

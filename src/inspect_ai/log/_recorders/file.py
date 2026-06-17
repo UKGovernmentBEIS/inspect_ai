@@ -88,7 +88,13 @@ class FileRecorder(Recorder):
                 f"Sample id {id} for epoch {epoch} not found in log {location}"
             )
         else:
-            return eval_sample
+            if exclude_fields:
+                data = eval_sample.model_dump(mode="json")
+                for field in exclude_fields:
+                    data.pop(field, None)
+                return EvalSample.model_validate(data)
+            else:
+                return eval_sample
 
     @classmethod
     @override
