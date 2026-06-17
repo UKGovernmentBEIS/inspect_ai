@@ -83,6 +83,39 @@ def test_enqueue_task_chains_across_batches() -> None:
     assert len({log.eval.run_id for log in logs}) == 1
 
 
+def test_enqueue_task_does_not_leak_active_model() -> None:
+    # enqueue_task() resolves the added task against every model in the run,
+    # calling init_active_model() per model. That resolution must not leak into
+    # the caller: a solver running under one model must still see that model via
+    # get_model() after enqueuing. Two models make the leak observable — the
+    # resolution loop would otherwise leave the *last* model active.
+    from inspect_ai.model import get_model
+
+    mismatches: list[tuple[str, str]] = []
+
+    @solver
+    def enqueue_and_check():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            before = str(get_model())
+            enqueue_task(child())
+            after = str(get_model())
+            if before != after:
+                mismatches.append((before, after))
+            return state
+
+        return solve
+
+    parent = Task(
+        dataset=[Sample(input="hi", target="ok")],
+        solver=[enqueue_and_check()],
+        name="parent",
+    )
+
+    logs = eval(parent, model=["mockllm/model", "mockllm/model2"], display="none")
+    assert mismatches == [], f"active model leaked after enqueue_task: {mismatches}"
+    assert all(log.status == "success" for log in logs)
+
+
 def test_enqueue_task_outside_run_raises() -> None:
     with pytest.raises(RuntimeError, match="while an eval is running"):
         enqueue_task(child())

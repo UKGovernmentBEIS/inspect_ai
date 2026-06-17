@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 from contextlib import nullcontext
-from contextvars import Token
+from contextvars import Token, copy_context
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -1136,15 +1136,28 @@ def _resolve_enqueued_tasks(
     consistently with the run. Raises ``ValueError`` if the tasks can't be
     resolved.
     """
-    resolved_roles = resolve_model_roles(model_roles)
-    resolved: list[ResolvedTask] = []
-    for m in models:
-        init_active_model(m, config)
-        resolved.extend(
-            resolve_tasks(
-                tasks, {}, m, resolved_roles, sandbox, sample_shuffle, checkpoint
+
+    def resolve() -> list[ResolvedTask]:
+        resolved_roles = resolve_model_roles(model_roles)
+        resolved: list[ResolvedTask] = []
+        for m in models:
+            init_active_model(m, config)
+            resolved.extend(
+                resolve_tasks(
+                    tasks, {}, m, resolved_roles, sandbox, sample_shuffle, checkpoint
+                )
             )
-        )
+        return resolved
+
+    # Resolve in an isolated (copied) context. Unlike the up-front
+    # eval_resolve_tasks (which runs once in the eval context before samples
+    # fork), this runs synchronously wherever enqueue_task() is called — which
+    # may be inside a running solver / scorer / tool, or a sample/task_complete
+    # callback. init_active_model() mutates the active-model and active
+    # generate-config ContextVars, so running it in the caller's context would
+    # swap that sample's active model out from under it; the copy keeps those
+    # mutations local to resolution.
+    resolved = copy_context().run(resolve)
     if not resolved:
         raise ValueError("No tasks to enqueue (resolution produced none).")
     resolve_model_costs(resolved, cost_limit)
