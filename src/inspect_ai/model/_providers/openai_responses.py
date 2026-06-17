@@ -414,6 +414,8 @@ async def _stream_response(
     def _flush() -> None:
         try:
             update_active_model_event_output(snapshot.partial_output(model_name))
+        except AssertionError:
+            raise  # the helper's `assert event.pending` guards a core invariant
         except Exception:
             # the partial-output flush is display-only — a failure here must
             # never abort the generate; the final Response parse produces the

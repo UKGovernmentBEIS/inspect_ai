@@ -810,6 +810,11 @@ class AnthropicAPI(ModelAPI):
                             prior_tool_calls=prior_tool_calls,
                         )
                     )
+                except AssertionError:
+                    # the `assert event.pending` in the helper guards a
+                    # core invariant (ACP mapper depends on it) — surface
+                    # that, don't swallow it with the display-only catch
+                    raise
                 except Exception:
                     # the partial-output flush is display-only — a failure
                     # here must never abort the generate; the final
@@ -3680,8 +3685,8 @@ def _partial_output_from_snapshot(
     snapshot: Message,
     model: str,
     *,
-    prior_content: list[Content] = [],
-    prior_tool_calls: list[ToolCall] = [],
+    prior_content: list[Content] | None = None,
+    prior_tool_calls: list[ToolCall] | None = None,
 ) -> ModelOutput:
     """Cheap ``ModelOutput`` from an in-progress ``current_message_snapshot``.
 
@@ -3704,8 +3709,8 @@ def _partial_output_from_snapshot(
     rather than the message id, which differs between every partial and
     the final.
     """
-    content: list[Content] = list(prior_content)
-    tool_calls: list[ToolCall] = list(prior_tool_calls)
+    content: list[Content] = list(prior_content or ())
+    tool_calls: list[ToolCall] = list(prior_tool_calls or ())
     for block in snapshot.content:
         if isinstance(block, TextBlock):
             content.append(ContentText(text=block.text))

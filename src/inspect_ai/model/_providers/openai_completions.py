@@ -177,6 +177,8 @@ async def _stream_completion(
             update_active_model_event_output(
                 _partial_output_from_completion_snapshot(snapshot, model_name)
             )
+        except AssertionError:
+            raise  # the helper's `assert event.pending` guards a core invariant
         except Exception:
             # the partial-output flush is display-only — a failure here must
             # never abort the generate; the final completion parse produces the
