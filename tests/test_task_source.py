@@ -269,6 +269,26 @@ async def test_live_injection_works_with_task_retry_attempts() -> None:
     await _run_live_injection(task_retry_attempts=1)
 
 
+def test_initial_tasks_runs_in_active_model_context() -> None:
+    # initial_tasks() must run inside the initialized model/role context, like a
+    # @task factory resolved by eval(). Before the seed was produced there,
+    # get_model() with no args raised "No model specified" / saw stale context.
+    seen: list[str] = []
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            seen.append(str(get_model()))
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", display="none")
+    assert seen == ["mockllm/model"]
+    assert [log.eval.task for log in logs] == ["seed"]
+    assert all(log.status == "success" for log in logs)
+
+
 def test_task_source_decorator_instance() -> None:
     # calling a @task_source-decorated function yields a tagged TaskSource that
     # eval() drives like any source

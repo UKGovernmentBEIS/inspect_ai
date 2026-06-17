@@ -92,7 +92,7 @@ from inspect_ai.util._notify import build_apprise, init_apprise
 from .context import init_eval_context
 from .loader import resolve_task_source, resolve_tasks
 from .run import TaskInjection, eval_run
-from .task import Epochs, PreviousTask
+from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
     TaskEnqueuer,
     clear_task_enqueuer,
@@ -762,9 +762,10 @@ async def _eval_async_inner(
         # other task form resolves directly.
         task_source = resolve_task_source(tasks, task_args)
 
-        # resolve tasks
+        # resolve tasks (a TaskSource seeds the run from initial_tasks(),
+        # resolved inside eval_resolve_tasks' initialized model/role context)
         resolved_tasks, approval = eval_resolve_tasks(
-            task_source.initial_tasks() if task_source is not None else tasks,
+            tasks,
             task_args,
             model,
             model_roles,
@@ -774,6 +775,7 @@ async def _eval_async_inner(
             sample_shuffle,
             checkpoint,
             notification,
+            task_source=task_source,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -1778,6 +1780,7 @@ def eval_resolve_tasks(
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
     notification: bool | str | None = None,
+    task_source: TaskSource | None = None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
@@ -1790,11 +1793,23 @@ def eval_resolve_tasks(
     active_display = active_task_display()
     with active_display.suspend_task_app() if active_display else nullcontext():
         resolved_tasks: list[ResolvedTask] = []
+        # A TaskSource's seed comes from initial_tasks() rather than `tasks`;
+        # produce it once, here, so it runs inside the same initialized
+        # model/role context as normal task creation (a seed that calls
+        # get_model() then behaves like a @task factory resolved here). The
+        # same seed tasks are then fanned out across all models below.
+        seed: list[Task] | None = None
         for m in models:
             init_active_model(m, config)
+            if task_source is not None:
+                if seed is None:
+                    seed = task_source.initial_tasks()
+                batch: Tasks = seed
+            else:
+                batch = tasks
             resolved_tasks.extend(
                 resolve_tasks(
-                    tasks,
+                    batch,
                     task_args,
                     m,
                     resolved_model_roles,
