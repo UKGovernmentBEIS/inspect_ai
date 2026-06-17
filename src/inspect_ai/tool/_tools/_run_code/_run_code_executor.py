@@ -77,7 +77,7 @@ class MontyRunCodeExecutor:
                 output="",
                 error=(
                     "pydantic-monty is not installed. "
-                    "Install it to use run_code execution."
+                    "Install inspect-ai[code-mode] to use run_code execution."
                 ),
             )
 
