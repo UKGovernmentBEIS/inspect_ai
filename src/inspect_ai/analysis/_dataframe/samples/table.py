@@ -111,7 +111,6 @@ def samples_df(
        exclude_fields: Set of EvalSample field names to skip when loading
           samples (e.g. {"messages", "events", "store", "attachments"}).
 
-
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.
        For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
