@@ -193,7 +193,9 @@ def test_factory_task_complete_returning_tasks() -> None:
     assert sorted(log.eval.task for log in logs) == ["gen0", "gen1"]
 
 
-async def _run_live_injection(**eval_kwargs: object) -> tuple[list[EvalLog], list[str]]:
+async def _run_live_injection(
+    task_retry_attempts: int = 0,
+) -> tuple[list[EvalLog], list[str]]:
     # Discriminates live injection from batch-at-a-time: a task injected mid-run
     # must start while another task is still in flight. Here "blocker" parks
     # until "injected" releases it, and "injected" is only enqueued (by
@@ -247,7 +249,10 @@ async def _run_live_injection(**eval_kwargs: object) -> tuple[list[EvalLog], lis
 
     init_display_type("none")
     logs = await eval_async(
-        tasks=_Src(), model="mockllm/model", max_tasks=2, **eval_kwargs
+        tasks=_Src(),
+        model="mockllm/model",
+        max_tasks=2,
+        task_retry_attempts=task_retry_attempts,
     )
 
     assert sorted(log.eval.task for log in logs) == ["blocker", "injected", "injector"]
