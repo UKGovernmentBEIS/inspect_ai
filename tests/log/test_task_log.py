@@ -152,7 +152,6 @@ async def test_eval_run_cleans_initialized_loggers_when_setup_fails(
             tasks=resolved_tasks,
             parallel=1,
             eval_config=EvalConfig(log_realtime=True),
-            eval_sandbox=None,
             eval_checkpoint=None,
             recorder=cast(Recorder, object()),
             header_only=False,
