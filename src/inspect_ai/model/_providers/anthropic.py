@@ -750,12 +750,20 @@ class AnthropicAPI(ModelAPI):
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
+        _prior_partial_content: list[Content] | None = None,
+        _prior_partial_tool_calls: list[ToolCall] | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
 
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
+
+        ``_prior_partial_content`` / ``_prior_partial_tool_calls`` carry the
+        already-streamed content from earlier continuations into the tail's
+        partial-output flushes, so the live ``ModelEvent.output`` snapshot
+        stays a monotone-growing prefix of the final merged output across a
+        pause_turn boundary instead of resetting to tail-only content.
         """
         if pending_tool_uses is None:
             pending_tool_uses = dict()
@@ -789,11 +797,28 @@ class AnthropicAPI(ModelAPI):
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
             model_name = self.service_model_name()
+            prior_content = _prior_partial_content or []
+            prior_tool_calls = _prior_partial_tool_calls or []
 
             def _flush(snapshot: Message) -> None:
-                update_active_model_event_output(
-                    _partial_output_from_snapshot(snapshot, model_name)
-                )
+                try:
+                    update_active_model_event_output(
+                        _partial_output_from_snapshot(
+                            snapshot,
+                            model_name,
+                            prior_content=prior_content,
+                            prior_tool_calls=prior_tool_calls,
+                        )
+                    )
+                except Exception:
+                    # the partial-output flush is display-only — a failure
+                    # here must never abort the generate; the final
+                    # model_output_from_message() pass produces the
+                    # authoritative output regardless
+                    logger.warning(
+                        "anthropic: partial-output flush failed; continuing",
+                        exc_info=True,
+                    )
 
             async with self.client.messages.stream(**request) as stream:
                 head_message, _ = await _capture_compaction_from_stream(
@@ -830,6 +855,10 @@ class AnthropicAPI(ModelAPI):
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
+                _prior_partial_content=(_prior_partial_content or [])
+                + _content_list(head_model_output.message.content),
+                _prior_partial_tool_calls=(_prior_partial_tool_calls or [])
+                + (head_model_output.message.tool_calls or []),
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -3647,7 +3676,13 @@ The SDK emits a delta per token group; flushing each one would spam
 """
 
 
-def _partial_output_from_snapshot(snapshot: Message, model: str) -> ModelOutput:
+def _partial_output_from_snapshot(
+    snapshot: Message,
+    model: str,
+    *,
+    prior_content: list[Content] = [],
+    prior_tool_calls: list[ToolCall] = [],
+) -> ModelOutput:
     """Cheap ``ModelOutput`` from an in-progress ``current_message_snapshot``.
 
     Built per streaming flush, so this skips everything
@@ -3658,21 +3693,42 @@ def _partial_output_from_snapshot(snapshot: Message, model: str) -> ModelOutput:
     mid-stream (server tool use/results, MCP, compaction, web search)
     are dropped — the final ``model_output_from_message`` pass restores
     them on completion.
+
+    ``prior_content`` / ``prior_tool_calls`` are prepended so that, across
+    pause_turn continuations, the partial remains a monotone-growing
+    prefix of the eventual merged output instead of resetting to the
+    current continuation's content only.
+
+    Each call constructs a fresh ``ChatMessageAssistant`` and so a fresh
+    message ``id`` — consumers must key on the stable ``ModelEvent.uuid``
+    rather than the message id, which differs between every partial and
+    the final.
     """
-    content: list[Content] = []
-    tool_calls: list[ToolCall] = []
+    content: list[Content] = list(prior_content)
+    tool_calls: list[ToolCall] = list(prior_tool_calls)
     for block in snapshot.content:
         if isinstance(block, TextBlock):
             content.append(ContentText(text=block.text))
         elif isinstance(block, ThinkingBlock):
             content.append(
-                ContentReasoning(reasoning=block.thinking, signature=block.signature)
+                ContentReasoning(
+                    reasoning=block.thinking, signature=block.signature or None
+                )
             )
         elif isinstance(block, RedactedThinkingBlock):
             content.append(ContentReasoning(reasoning="", redacted=True))
         elif isinstance(block, ToolUseBlock):
             tool_calls.append(
-                ToolCall(id=block.id, function=block.name, arguments=block.input or {})
+                ToolCall(
+                    id=block.id,
+                    function=block.name,
+                    # the SDK incrementally parses input via jiter
+                    # partial-mode; for object-root schemas (which is all
+                    # Anthropic tools) it is always a dict, but guard
+                    # anyway so a malformed/array-root input never crashes
+                    # the display-only flush path
+                    arguments=block.input if isinstance(block.input, dict) else {},
+                )
             )
     return ModelOutput(
         model=model,
