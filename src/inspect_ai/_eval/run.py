@@ -377,8 +377,12 @@ async def eval_run(
         )
 
     except BaseException:
-        for task_options in prepared_options:
-            await task_options.logger.cleanup()
+        # cleanup() awaits any in-flight stale flush to stop; shield so that a
+        # cancellation triggering this handler doesn't interrupt that wait and
+        # leave realtime flush timers running against torn-down logging state.
+        with anyio.CancelScope(shield=True):
+            for task_options in prepared_options:
+                await task_options.logger.cleanup()
         raise
 
     finally:

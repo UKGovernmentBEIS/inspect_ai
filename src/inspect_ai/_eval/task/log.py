@@ -255,7 +255,6 @@ class TaskLogger:
         self._flush_lock = anyio.Lock()
         self._flush_pending_lock = anyio.Lock()
         self._stale_flush_cancel_scope: anyio.CancelScope | None = None
-        self._stale_flush_stopped: anyio.Event | None = None
         self._stale_flush_stops: set[anyio.Event] = set()
         self._stale_flush_generation = 0
         self._stale_flush_interval = _STALE_FLUSH_INTERVAL
@@ -481,7 +480,6 @@ class TaskLogger:
             stopped = anyio.Event()
             current_generation = self._stale_flush_generation
             self._stale_flush_cancel_scope = cancel_scope
-            self._stale_flush_stopped = stopped
             self._stale_flush_stops.add(stopped)
 
         try:
@@ -495,7 +493,6 @@ class TaskLogger:
             async with self._flush_pending_lock:
                 if self._stale_flush_cancel_scope is cancel_scope:
                     self._stale_flush_cancel_scope = None
-                    self._stale_flush_stopped = None
                 self._stale_flush_stops.discard(stopped)
             stopped.set()
             raise
@@ -506,7 +503,6 @@ class TaskLogger:
             if self._stale_flush_cancel_scope is not None:
                 self._stale_flush_cancel_scope.cancel()
                 self._stale_flush_cancel_scope = None
-                self._stale_flush_stopped = None
             stopped_events = list(self._stale_flush_stops)
 
         for stopped in stopped_events:
@@ -524,7 +520,6 @@ class TaskLogger:
         async with self._flush_pending_lock:
             if self._stale_flush_cancel_scope is cancel_scope:
                 self._stale_flush_cancel_scope = None
-                self._stale_flush_stopped = None
 
     async def _stale_flush_after_delay(
         self,
