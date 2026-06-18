@@ -216,6 +216,9 @@ class ModelAPI(abc.ABC):
         self.model_name = model_name
         self.base_url = base_url
         self.api_key = api_key
+        # original explicit key, re-offered to hooks on re-init (since self.api_key gets
+        # overwritten with the resolved value). See _apply_api_key_overrides.
+        self._original_api_key = api_key
         self.api_key_vars = api_key_vars
         self._apply_api_key_overrides()
 
@@ -226,7 +229,10 @@ class ModelAPI(abc.ABC):
             # an explicitly set self.api_key (note this can also be set by subclasses)
             # takes precedence over the environment, so offer that value to the hook
             if self.api_key is not None:
-                override = override_api_key(key, self.api_key)
+                # re-resolve from the original explicit key when we have one, not from a
+                # value we previously overrode in place (which on re-init would be the
+                # hook's own prior output)
+                override = override_api_key(key, self._original_api_key or self.api_key)
                 if override is not None:
                     self.api_key = override
             # otherwise look it up in the environment and override it in

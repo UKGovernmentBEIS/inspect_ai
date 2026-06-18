@@ -222,6 +222,55 @@ def test_env_override_reresolves_from_original_arn(
         del _registry["modelapi:mockarn"]
 
 
+def test_explicit_key_override_reresolves_from_original_arn(
+    monkeypatch: pytest.MonkeyPatch, mock_arn_resolver_hook: MockArnResolverHook
+):
+    """An explicitly-supplied api key re-resolves from the original value.
+
+    The same re-resolution guarantee as the env-var path, but for the
+    `api_key=` argument: re-initialization must re-offer the original ARN to the
+    hook, not the resolved key we previously wrote into self.api_key.
+    """
+    # ensure the explicit key is the only source (nothing in the environment)
+    monkeypatch.delenv("TEST_API_KEY", raising=False)
+
+    @modelapi(name="mockarnexplicit")
+    def mockarnexplicit() -> type[ModelAPI]:
+        return Mock401API
+
+    try:
+        # initial construction resolves the explicitly-supplied ARN
+        model = get_model(
+            "mockarnexplicit/test",
+            api_key=MockArnResolverHook.ARN,
+            memoize=False,
+        )
+        provider = model.api
+        assert isinstance(provider, Mock401API)
+        assert provider.api_key == "resolved-key-1"
+
+        # re-initialization (as happens on a 401) must hand the hook the ARN
+        # again — not the resolved key now sitting in self.api_key
+        provider.initialize()
+        assert provider.api_key == "resolved-key-2"
+
+        # a later, separately-constructed model also re-resolves the ARN
+        model2 = get_model(
+            "mockarnexplicit/test",
+            api_key=MockArnResolverHook.ARN,
+            memoize=False,
+        )
+        assert model2.api.api_key == "resolved-key-3"
+        assert model2.api is not provider
+
+        # the hook only ever saw the original ARN, never a resolved key
+        assert set(mock_arn_resolver_hook.seen_values) == {MockArnResolverHook.ARN}
+        assert mock_arn_resolver_hook.call_count == 3
+    finally:
+        # Remove the model provider from the registry to avoid conflicts in other tests.
+        del _registry["modelapi:mockarnexplicit"]
+
+
 class MockOwnSourceHook(Hooks):
     """Supplies credentials from its own source (e.g. OAuth/vault).
 
