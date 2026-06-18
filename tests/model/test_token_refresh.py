@@ -1,3 +1,4 @@
+import os
 from collections.abc import Generator
 
 import pytest
@@ -78,12 +79,14 @@ class MockRefreshTokenHook(Hooks):
     def __init__(self) -> None:
         self.call_count = 0
         self.provided_tokens: list[str] = []
+        self.seen_values: list[str] = []
 
     def override_api_key(self, data: ApiKeyOverride) -> str | None:
         """Provide incrementing token values."""
         if data.env_var_name != "TEST_API_KEY":
             return None
 
+        self.seen_values.append(data.value)
         self.call_count += 1
         token = f"token-{self.call_count}"
         self.provided_tokens.append(token)
@@ -140,6 +143,33 @@ def test_reactive_token_refresh_on_401(mock_refresh_token_hook: MockRefreshToken
         del _registry["modelapi:mock401"]
 
 
+def test_explicit_empty_key_is_reoffered_on_refresh(
+    monkeypatch: pytest.MonkeyPatch, mock_refresh_token_hook: MockRefreshTokenHook
+):
+    monkeypatch.delenv("TEST_API_KEY", raising=False)
+
+    @modelapi(name="mockemptyexplicit")
+    def mockemptyexplicit() -> type[ModelAPI]:
+        return Mock401API
+
+    try:
+        model = get_model(
+            "mockemptyexplicit/test",
+            api_key="",
+            memoize=False,
+        )
+        provider = model.api
+        assert isinstance(provider, Mock401API)
+        assert provider.api_key == "token-1"
+
+        provider.initialize()
+
+        assert provider.api_key == "token-2"
+        assert mock_refresh_token_hook.seen_values == ["", ""]
+    finally:
+        del _registry["modelapi:mockemptyexplicit"]
+
+
 class MockArnResolverHook(Hooks):
     """Resolves a secret-manager ARN to an incrementing real key.
 
@@ -149,6 +179,7 @@ class MockArnResolverHook(Hooks):
     """
 
     ARN = "arn:aws:secretsmanager:us-east-1:secret:openai"
+    SECOND_ARN = "arn:aws:secretsmanager:us-east-1:secret:openai-staging"
 
     def __init__(self) -> None:
         self.call_count = 0
@@ -158,10 +189,55 @@ class MockArnResolverHook(Hooks):
         if data.env_var_name != "TEST_API_KEY":
             return None
         self.seen_values.append(data.value)
-        if data.value != self.ARN:
+        if data.value not in (self.ARN, self.SECOND_ARN):
             return None
         self.call_count += 1
         return f"resolved-key-{self.call_count}"
+
+
+class MockEnvCopyAPI(Mock401API):
+    """Provider that copies its resolved environment key into self.api_key."""
+
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
+        **model_args,
+    ):
+        super().__init__(
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            config=config,
+            **model_args,
+        )
+        if self.api_key is None:
+            self.api_key = os.environ["TEST_API_KEY"]
+        self.initialize()
+
+
+class MockSubclassKeyAPI(Mock401API):
+    """Extension-provider shape that assigns an API key after super init."""
+
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
+        **model_args,
+    ):
+        super().__init__(
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            config=config,
+            **model_args,
+        )
+        self.api_key = MockArnResolverHook.ARN
+        self.initialize()
 
 
 @pytest.fixture
@@ -187,8 +263,6 @@ def test_env_override_reresolves_from_original_arn(
     They must not re-resolve from the previously-resolved key written back
     into os.environ.
     """
-    import os
-
     monkeypatch.setenv("TEST_API_KEY", MockArnResolverHook.ARN)
 
     @modelapi(name="mockarn")
@@ -220,6 +294,134 @@ def test_env_override_reresolves_from_original_arn(
     finally:
         # Remove the model provider from the registry to avoid conflicts in other tests.
         del _registry["modelapi:mockarn"]
+
+
+def test_env_override_updates_provider_copy_across_instances(
+    monkeypatch: pytest.MonkeyPatch, mock_arn_resolver_hook: MockArnResolverHook
+):
+    """An older provider copy refreshes after a newer model rotates the env key."""
+    monkeypatch.setenv("TEST_API_KEY", MockArnResolverHook.ARN)
+
+    @modelapi(name="mockenvcopy")
+    def mockenvcopy() -> type[ModelAPI]:
+        return MockEnvCopyAPI
+
+    try:
+        model_a = get_model("mockenvcopy/test", memoize=False)
+        provider_a = model_a.api
+        assert isinstance(provider_a, MockEnvCopyAPI)
+        assert provider_a.api_key == "resolved-key-2"
+
+        model_b = get_model("mockenvcopy/test", memoize=False)
+        provider_b = model_b.api
+        assert isinstance(provider_b, MockEnvCopyAPI)
+        assert provider_b.api_key == "resolved-key-4"
+
+        # model_a still holds resolved-key-2 while the process environment and model_b
+        # have advanced to resolved-key-4. It must still recover the ARN and update its
+        # copied key on refresh.
+        provider_a.initialize()
+
+        assert provider_a.api_key == "resolved-key-5"
+        assert os.environ["TEST_API_KEY"] == "resolved-key-5"
+        assert mock_arn_resolver_hook.seen_values == [MockArnResolverHook.ARN] * 5
+    finally:
+        del _registry["modelapi:mockenvcopy"]
+
+
+def test_subclass_assigned_api_key_retains_its_source(
+    monkeypatch: pytest.MonkeyPatch, mock_arn_resolver_hook: MockArnResolverHook
+):
+    """A provider-assigned non-environment key re-resolves from its first value."""
+    monkeypatch.delenv("TEST_API_KEY", raising=False)
+
+    @modelapi(name="mocksubclasskey")
+    def mocksubclasskey() -> type[ModelAPI]:
+        return MockSubclassKeyAPI
+
+    try:
+        model = get_model("mocksubclasskey/test", memoize=False)
+        provider = model.api
+        assert isinstance(provider, MockSubclassKeyAPI)
+        assert provider.api_key == "resolved-key-1"
+
+        provider.initialize()
+
+        assert provider.api_key == "resolved-key-2"
+        assert mock_arn_resolver_hook.seen_values == [
+            "",
+            MockArnResolverHook.ARN,
+            MockArnResolverHook.ARN,
+        ]
+    finally:
+        del _registry["modelapi:mocksubclasskey"]
+
+
+def test_env_override_adopts_external_environment_change(
+    monkeypatch: pytest.MonkeyPatch, mock_arn_resolver_hook: MockArnResolverHook
+):
+    """A live value not written by Inspect becomes the new environment source."""
+    from inspect_ai.model._model import _api_key_env_overrides
+
+    monkeypatch.setenv("TEST_API_KEY", MockArnResolverHook.ARN)
+
+    @modelapi(name="mockenvchange")
+    def mockenvchange() -> type[ModelAPI]:
+        return MockEnvCopyAPI
+
+    try:
+        model = get_model("mockenvchange/test", memoize=False)
+        provider = model.api
+        assert isinstance(provider, MockEnvCopyAPI)
+        assert provider.api_key == "resolved-key-2"
+
+        monkeypatch.setenv("TEST_API_KEY", MockArnResolverHook.SECOND_ARN)
+        provider.initialize()
+
+        assert mock_arn_resolver_hook.seen_values[-1] == MockArnResolverHook.SECOND_ARN
+        assert provider.api_key == "resolved-key-3"
+        assert _api_key_env_overrides["TEST_API_KEY"].source == (
+            MockArnResolverHook.SECOND_ARN
+        )
+
+        # If the replacement is already a usable credential and the hook declines it,
+        # use that live value directly and leave no stale source/current association.
+        monkeypatch.setenv("TEST_API_KEY", "direct-api-key")
+        provider.initialize()
+
+        assert mock_arn_resolver_hook.seen_values[-1] == "direct-api-key"
+        assert provider.api_key == "direct-api-key"
+        assert "TEST_API_KEY" not in _api_key_env_overrides
+    finally:
+        del _registry["modelapi:mockenvchange"]
+
+
+def test_env_override_state_is_bounded_by_environment_variables(
+    monkeypatch: pytest.MonkeyPatch, mock_arn_resolver_hook: MockArnResolverHook
+):
+    """Repeated refreshes replace one env-var state entry rather than accumulating."""
+    from inspect_ai.model._model import _api_key_env_overrides
+
+    monkeypatch.setenv("TEST_API_KEY", MockArnResolverHook.ARN)
+
+    @modelapi(name="mockbounded")
+    def mockbounded() -> type[ModelAPI]:
+        return Mock401API
+
+    try:
+        model = get_model("mockbounded/test", memoize=False)
+        provider = model.api
+        assert isinstance(provider, Mock401API)
+
+        for _ in range(50):
+            provider.initialize()
+
+        assert list(_api_key_env_overrides) == ["TEST_API_KEY"]
+        state = _api_key_env_overrides["TEST_API_KEY"]
+        assert state.source == MockArnResolverHook.ARN
+        assert state.current == "resolved-key-51"
+    finally:
+        del _registry["modelapi:mockbounded"]
 
 
 def test_explicit_key_override_reresolves_from_original_arn(
@@ -313,8 +515,6 @@ def test_override_supplies_credentials_when_no_env_key(
     The hook is invoked even when no api key exists in the environment, and its
     credential is refreshed on re-initialization.
     """
-    import os
-
     # ensure there is no api key anywhere in the environment
     monkeypatch.delenv("TEST_API_KEY", raising=False)
 
@@ -336,6 +536,7 @@ def test_override_supplies_credentials_when_no_env_key(
         # re-initialization (as happens on a 401) refreshes the credential
         provider.initialize()
         assert provider.api_key == "own-source-token-2"
+        assert mock_own_source_hook.seen_values == ["", ""]
     finally:
         # Remove the model provider from the registry to avoid conflicts in other tests.
         del _registry["modelapi:mockownsource"]

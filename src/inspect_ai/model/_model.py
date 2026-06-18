@@ -216,41 +216,111 @@ class ModelAPI(abc.ABC):
         self.model_name = model_name
         self.base_url = base_url
         self.api_key = api_key
-        # original explicit key, re-offered to hooks on re-init (since self.api_key gets
-        # overwritten with the resolved value). See _apply_api_key_overrides.
-        self._original_api_key = api_key
+        # Stable non-environment source, initially an explicit constructor key. A
+        # subclass may also populate self.api_key from its own source after super init;
+        # _apply_api_key_overrides captures that value on its first re-initialization.
+        self._api_key_source = api_key
+        self._api_key_source_is_set = api_key is not None
+        self._api_key_env_values: dict[str, str] = {}
+        self._api_key_without_env_value: str | None = None
         self.api_key_vars = api_key_vars
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
         from inspect_ai.hooks._hooks import has_api_key_override, override_api_key
 
+        api_key_uses_env = self.api_key is not None and self.api_key in (
+            self._api_key_env_values.values()
+        )
+        api_key_uses_no_env_override = (
+            self._api_key_without_env_value is not None
+            and self.api_key == self._api_key_without_env_value
+        )
+
+        # Preserve the existing extension-provider behavior where a subclass assigns
+        # self.api_key from its own source after super().__init__(). Capture that source
+        # once, while excluding values that Inspect itself supplied from an environment
+        # variable or from the no-environment hook path.
+        if (
+            not self._api_key_source_is_set
+            and self.api_key is not None
+            and not api_key_uses_env
+            and not api_key_uses_no_env_override
+        ):
+            self._api_key_source = self.api_key
+            self._api_key_source_is_set = True
+
+        # A stable non-environment key always resolves from its original source,
+        # including an empty string.
+        if self._api_key_source_is_set:
+            assert self._api_key_source is not None
+            api_key = self._api_key_source
+            for key in self.api_key_vars:
+                override = override_api_key(key, self._api_key_source)
+                if override is not None:
+                    api_key = override
+            self.api_key = api_key
+            return
+
         for key in self.api_key_vars:
-            # an explicitly set self.api_key (which can be set by at initialisation, by
-            # subclasses and by hooks when no env var is matched) takes precedence over
-            # the environment, so offer that value to the hook.
-            if self.api_key is not None:
-                # re-resolve from the original explicit key when we have one, not from a
-                # value we previously overrode in place (which on re-init would be the
-                # hook's own prior output)
-                override = override_api_key(key, self._original_api_key or self.api_key)
+            # Providers may copy an environment credential into self.api_key. Remember
+            # whether this model's current value came from this particular env var so it
+            # can be updated even if another model has since refreshed the process-wide
+            # environment value.
+            previous_model_value = self._api_key_env_values.get(key)
+            api_key_uses_env_value = (
+                previous_model_value is not None
+                and self.api_key == previous_model_value
+            ) or (
+                self._api_key_without_env_value is not None
+                and self.api_key == self._api_key_without_env_value
+            )
+
+            live_value = os.environ.get(key)
+            state = _api_key_env_overrides.get(key)
+            source: str | None
+
+            if state is not None and live_value == state.current:
+                # The live value is the credential Inspect most recently wrote, so
+                # resolve again from the source it replaced.
+                source = state.source
+            else:
+                # The variable is absent or was changed outside this state manager.
+                # Treat the live value as a new source and discard the stale association.
+                source = live_value
+                _api_key_env_overrides.pop(key, None)
+
+            if source is not None:
+                override = override_api_key(key, source)
+                current: str | None
+                if override is not None:
+                    current = override
+                    os.environ[key] = current
+                    _api_key_env_overrides[key] = _ApiKeyEnvOverride(
+                        source=source, current=current
+                    )
+                else:
+                    # If the hook declines to override a value previously written by
+                    # Inspect, continue using that live credential. Otherwise the live
+                    # value itself is the current credential.
+                    current = live_value
+
+                assert current is not None
+                self._api_key_env_values[key] = current
+                if api_key_uses_env_value:
+                    self.api_key = current
+                    self._api_key_without_env_value = None
+
+            # When a hook is registered but no API key exists anywhere, still call the
+            # hook so it can provide credentials from its own source (e.g. OAuth tokens,
+            # vault, etc.). Preserve the existing behavior of keeping this value only on
+            # the model rather than creating an environment variable.
+            elif has_api_key_override():
+                self._api_key_env_values.pop(key, None)
+                override = override_api_key(key, "")
                 if override is not None:
                     self.api_key = override
-            # otherwise look it up in the environment and override it in place (so
-            # downstream provider SDKs read the resolved value)
-            else:
-                value = _get_original_api_key_env_value(key)
-                if value is not None:
-                    override = override_api_key(key, value)
-                    if override is not None:
-                        os.environ[key] = override
-                # When a hook is registered but no API key exists anywhere,
-                # still call the hook so it can provide credentials from its
-                # own source (e.g. OAuth tokens, vault, etc.)
-                elif has_api_key_override():
-                    override = override_api_key(key, "")
-                    if override is not None:
-                        self.api_key = override
+                    self._api_key_without_env_value = override
 
     def initialize(self) -> None:
         """Reinitialize the model API client.
@@ -2490,26 +2560,15 @@ def sample_total_cost() -> float:
     )
 
 
-# Original (pre-override) values of api-key environment variables. Captured the
-# first time we override each var (e.g. "OPENAI_API_KEY": "arn:aws:..."). Overrides are
-# always resolved from these originals rather than from the live environment. os.environ
-# is overwritten with the *resolved* key so downstream provider SDKs (which read keys
-# straight from the environment) pick it up. That write would otherwise destroy the
-# original value — e.g. a secret-manager ARN that the override hook needs in order to
-# re-resolve credentials when the model is re-initialized (on a 401) or when a later
-# model is constructed.
-_original_api_key_env: dict[str, str | None] = {}
+@dataclasses.dataclass(frozen=True)
+class _ApiKeyEnvOverride:
+    """Source and current credential for an overridden API-key environment var."""
+
+    source: str
+    current: str
 
 
-def _get_original_api_key_env_value(env_var: str) -> str | None:
-    """Return the original, pre-override value of an api-key env var.
-
-    Sets the value if it hasn't been set yet.
-
-    Captured on first access: at that moment os.environ still holds the user's
-    original value, because a var is only ever overwritten *after* it has been
-    snapshotted here.
-    """
-    if env_var not in _original_api_key_env:
-        _original_api_key_env[env_var] = os.environ.get(env_var)
-    return _original_api_key_env[env_var]
+# Environment credentials are process-global, so retain one source/current association
+# per variable that Inspect has actually overwritten. The current value is replaced on
+# refresh; previously emitted credentials are not retained.
+_api_key_env_overrides: dict[str, _ApiKeyEnvOverride] = {}
