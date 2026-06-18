@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Checkpointing: Added support for periodically saving sample state so long-running evals can resume mid-sample after a crash. Enable with `--checkpoint` or the `checkpoint` arg to `eval()`/`eval_set()`/`eval_retry()`.
 - MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
 - MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
 - MCP: Fix in-sandbox stdio MCP servers hanging on large tool responses.

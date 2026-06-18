@@ -406,7 +406,6 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         default=None,
         help=CHECKPOINT_HELP,
         envvar="INSPECT_EVAL_CHECKPOINT",
-        hidden=True,
     )
     @click.option(
         "--acp-server",
@@ -2245,7 +2244,6 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=CHECKPOINT_HELP
     + " For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval.",
     envvar="INSPECT_EVAL_CHECKPOINT",
-    hidden=True,
 )
 @scanner_options
 @common_options
