@@ -38,7 +38,7 @@ class _Generations(TaskSource):
     def initial_tasks(self) -> list[Task]:
         return [_task("gen0")]
 
-    async def sample_complete(self, sample: EvalSample) -> None:
+    async def sample_complete(self, sample: EvalSample, task: Task) -> None:
         self.samples_seen += 1
 
     async def task_complete(self, log: EvalLog) -> None:
@@ -91,7 +91,7 @@ def test_sample_complete_fires_per_sample_before_task() -> None:
                 )
             ]
 
-        async def sample_complete(self, sample: EvalSample) -> None:
+        async def sample_complete(self, sample: EvalSample, task: Task) -> None:
             self.events.append("sample")
 
         async def task_complete(self, log: EvalLog) -> None:
@@ -103,6 +103,28 @@ def test_sample_complete_fires_per_sample_before_task() -> None:
     obs = _Observer()
     eval(tasks=obs, model="mockllm/model", display="none")
     assert obs.events == ["sample", "sample", "sample", "task"]
+
+
+def test_sample_complete_receives_owning_task() -> None:
+    # sample_complete is handed the Task the sample ran under (the sample alone
+    # doesn't identify its task), so a source can route follow-ups by task.
+    seen: list[tuple[str, str]] = []
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(dataset=[Sample(input="x")], solver=[generate()], name="a"),
+                Task(dataset=[Sample(input="x")], solver=[generate()], name="b"),
+            ]
+
+        async def sample_complete(self, sample: EvalSample, task: Task) -> None:
+            seen.append((task.name, str(sample.input)))
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    eval(tasks=_Src(), model="mockllm/model", display="none")
+    assert sorted(name for name, _ in seen) == ["a", "b"]
 
 
 def test_task_source_factory_seed_and_callbacks() -> None:
@@ -119,7 +141,7 @@ def test_task_source_factory_seed_and_callbacks() -> None:
             return [_task(name)]
         return None
 
-    async def on_sample(sample: EvalSample) -> None:
+    async def on_sample(sample: EvalSample, task: Task) -> None:
         nonlocal samples_seen
         samples_seen += 1
 

@@ -62,12 +62,16 @@ class TaskSource:
         """
         return None
 
-    async def sample_complete(self, sample: "EvalSample") -> list["Task"] | None:
+    async def sample_complete(
+        self, sample: "EvalSample", task: "Task"
+    ) -> list["Task"] | None:
         """A sample finished — observe it and optionally return follow-up tasks.
 
-        Return a list of tasks to add to the run (equivalent to calling
-        ``enqueue_task`` with them): they run after the current batch, before the
-        next ``next_tasks()``. Return ``None`` (the default) to add nothing.
+        ``sample`` is the completed sample and ``task`` is the task it ran under
+        (the sample alone doesn't identify its task). Return a list of tasks to
+        add to the run (equivalent to calling ``enqueue_task`` with them): they
+        run after the current batch, before the next ``next_tasks()``. Return
+        ``None`` (the default) to add nothing.
         """
         return None
 
@@ -85,7 +89,9 @@ class TaskSource:
         initial_tasks: list["Task"],
         *,
         next_tasks: Callable[[], Awaitable[list["Task"] | None]] | None = None,
-        sample_complete: Callable[["EvalSample"], Awaitable[list["Task"] | None]]
+        sample_complete: Callable[
+            ["EvalSample", "Task"], Awaitable[list["Task"] | None]
+        ]
         | None = None,
         task_complete: Callable[["EvalLog"], Awaitable[list["Task"] | None]]
         | None = None,
@@ -127,7 +133,9 @@ class _CallableTaskSource(TaskSource):
         self,
         initial_tasks: list["Task"],
         next_tasks: Callable[[], Awaitable[list["Task"] | None]] | None,
-        sample_complete: Callable[["EvalSample"], Awaitable[list["Task"] | None]]
+        sample_complete: Callable[
+            ["EvalSample", "Task"], Awaitable[list["Task"] | None]
+        ]
         | None,
         task_complete: Callable[["EvalLog"], Awaitable[list["Task"] | None]] | None,
     ) -> None:
@@ -144,9 +152,11 @@ class _CallableTaskSource(TaskSource):
             return await self._next_tasks()
         return None
 
-    async def sample_complete(self, sample: "EvalSample") -> list["Task"] | None:
+    async def sample_complete(
+        self, sample: "EvalSample", task: "Task"
+    ) -> list["Task"] | None:
         if self._sample_complete is not None:
-            return await self._sample_complete(sample)
+            return await self._sample_complete(sample, task)
         return None
 
     async def task_complete(self, log: "EvalLog") -> list["Task"] | None:

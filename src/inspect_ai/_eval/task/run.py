@@ -708,6 +708,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         return sample, state
 
                     return await task_run_sample(
+                        task=task,
                         task_name=task.name,
                         log_location=profile.log_location,
                         create_sample_state=create_sample_state,
@@ -1024,6 +1025,7 @@ def _sample_usage(state: TaskState) -> dict[str, int]:
 
 async def task_run_sample(
     *,
+    task: Task,
     task_name: str,
     log_location: str,
     create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
@@ -1691,7 +1693,7 @@ async def task_run_sample(
                     # completes, so it can react in real time (and add tasks)
                     if task_source is not None:
                         _enqueue_source_tasks(
-                            await task_source.sample_complete(eval_sample)
+                            await task_source.sample_complete(eval_sample, task)
                         )
 
     # error that should be retried (we do this outside of the above scope so that we can
@@ -1713,6 +1715,7 @@ async def task_run_sample(
 
         # recurse w/ tick down of retry_on_error and append of error to error_retries
         return await task_run_sample(
+            task=task,
             task_name=task_name,
             log_location=log_location,
             create_sample_state=create_sample_state,

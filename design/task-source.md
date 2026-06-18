@@ -42,7 +42,7 @@ with no-op defaults:
 class TaskSource:
     def initial_tasks(self) -> list[Task]: ...                          # sync seed (immediate)
     async def next_tasks(self) -> list[Task] | None: ...                # async; None ends run
-    async def sample_complete(self, sample: EvalSample) -> list[Task] | None: ...  # observe + add
+    async def sample_complete(self, sample: EvalSample, task: Task) -> list[Task] | None: ...  # observe + add
     async def task_complete(self, log: EvalLog) -> list[Task] | None: ...          # observe + add
 ```
 
@@ -85,7 +85,7 @@ eval() / eval_async()              tasks=<TaskSource>
         while pending is not None:
             run_batch(pending)            ─► eval_run ─► task_run / task_run_sample
                                                  │            │
-                                                 │            └─ sample_complete(sample) ─┐ (per sample)
+                                                 │            └─ sample_complete(sample, task) ─┐ (per sample)
                                                  └─ task_complete(log) ──────────────────┤ (per task)
                                                           returned tasks ─► enqueuer ◄────┘
             if cancelled: break
@@ -107,7 +107,7 @@ Key locations:
   `task_run`.
 - **Notification firing** — in
   [task/run.py](../src/inspect_ai/_eval/task/run.py): `task_run_sample` calls
-  `task_source.sample_complete(eval_sample)` right after `emit_sample_end` (so
+  `task_source.sample_complete(eval_sample, task)` right after `emit_sample_end` (so
   it fires **per sample**, not batched at task end), and `task_run` calls
   `task_source.task_complete(eval_log)` just before returning the log. Whatever
   a callback **returns** is passed to `_enqueue_source_tasks`, which pushes it
