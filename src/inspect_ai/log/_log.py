@@ -151,6 +151,9 @@ class EvalConfig(BaseModel):
     token_limit: int | None = Field(default=None)
     """Maximum tokens usage per sample."""
 
+    turn_limit: int | None = Field(default=None)
+    """Maximum turns (model generations) per sample."""
+
     time_limit: int | None = Field(default=None)
     """Maximum clock time per sample."""
 
@@ -235,7 +238,15 @@ class EvalConfig(BaseModel):
 
 
 EvalSampleLimitType = Literal[
-    "context", "time", "working", "message", "token", "cost", "operator", "custom"
+    "context",
+    "time",
+    "working",
+    "message",
+    "token",
+    "turn",
+    "cost",
+    "operator",
+    "custom",
 ]
 
 
