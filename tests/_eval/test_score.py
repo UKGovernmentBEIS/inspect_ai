@@ -548,3 +548,75 @@ async def test_score_preserves_model_usage_in_score_event():
     assert score_events[0].model_usage == sample_model_usage
     assert score_events[0].scorer == "simple_scorer"
     assert score_events[0].scorer_args == {"threshold": 0.75}
+
+
+async def test_score_restores_sample_timelines():
+    """Re-scoring should expose stored ``sample.timelines`` to scorers.
+
+    During a live eval, solvers populate ``transcript().timelines`` via
+    ``add_timeline()``; those timelines are persisted to ``sample.timelines``.
+    When re-scoring a completed log, ``_run_score_task`` rebuilds the
+    transcript from ``sample.events`` — this verifies it also restores
+    ``sample.timelines`` so timeline-dependent scorers (e.g.
+    ``inspect_scout.@scanner(timeline=True)``) work on re-score.
+    """
+    from inspect_ai._eval.score import _run_score_task
+    from inspect_ai.event import Timeline, TimelineSpan
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+    from inspect_ai.log._transcript import transcript
+
+    stored = Timeline(
+        name="target", description="", root=TimelineSpan(id="root-span", name="root")
+    )
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input="x",
+        target="y",
+        messages=[ChatMessageUser(role="user", content="x")],
+        output=ModelOutput(
+            choices=[ChatCompletionChoice(message=ChatMessageAssistant(content="y"))]
+        ),
+        timelines=[stored],
+    )
+    log_header = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="t",
+            task_id="t",
+            run_id="r",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="t", steps=[EvalPlanStep(solver="generate")], config=GenerateConfig()
+        ),
+    )
+
+    seen: list[str] = []
+
+    @scorer(metrics=[accuracy()])
+    def timeline_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            seen.extend(tl.name for tl in transcript().timelines)
+            return Score(value=1.0)
+
+        return score
+
+    await _run_score_task(
+        log_header=log_header,
+        sample=sample,
+        scorers=[timeline_scorer()],
+        action="append",
+    )
+    assert seen == ["target"]
