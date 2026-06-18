@@ -19,6 +19,7 @@ from inspect_ai._util.registry import (
 
 from .task import Task
 from .task.constants import TASK_ALL_PARAMS_ATTR, TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+from .task.task_source import TaskSource
 
 MODEL_PARAM = "model"
 
@@ -167,5 +168,139 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
         # The decorator was used with arguments: @task(name="foo")
         def decorator(func: TaskType) -> TaskType:
             return create_task_wrapper(func)
+
+        return decorator
+
+
+TaskSourceType = TypeVar("TaskSourceType", bound=Callable[..., TaskSource])
+
+
+def task_source_register(
+    task_source: TaskSourceType,
+    name: str,
+    attribs: dict[str, Any],
+    params: list[str],
+) -> TaskSourceType:
+    r"""Register a task source (function that returns a `TaskSource`)."""
+    registry_add(
+        task_source,
+        RegistryInfo(
+            type="task_source",
+            name=name,
+            metadata=dict(attribs=attribs, params=params),
+        ),
+    )
+    return task_source
+
+
+def task_source_create(name: str, **kwargs: Any) -> TaskSource:
+    r"""Create a `TaskSource` based on its registered name.
+
+    Args:
+        name: Name of the registered task source.
+        **kwargs: Optional creation arguments (matched against the source's
+            parameters; unused params warn, mirroring `task_create`).
+
+    Returns:
+        A `TaskSource` instance with registry info attached.
+    """
+    source = registry_lookup("task_source", name)
+    if not source:
+        raise PrerequisiteError(f"Task source named '{name}' not found.")
+    info = registry_info(source)
+    params: list[str] = info.metadata["params"]
+    args: dict[str, Any] = {}
+    for param in kwargs.keys():
+        if param in params or "kwargs" in params:
+            args[param] = kwargs[param]
+        else:
+            logger.warning(f"param '{param}' not used by task source '{name}'")
+    # call the registered wrapper directly (it tags the instance with registry
+    # info); registry_create only invokes factories whose return-type name
+    # matches the registry type, which "task_source" / TaskSource does not
+    return cast(Callable[..., TaskSource], source)(**args)
+
+
+@overload
+def task_source(func: TaskSourceType) -> TaskSourceType: ...
+
+
+@overload
+def task_source(
+    *, name: str | None = ..., **attribs: Any
+) -> Callable[[TaskSourceType], TaskSourceType]: ...
+
+
+def task_source(*args: Any, name: str | None = None, **attribs: Any) -> Any:
+    r"""Decorator for registering task sources.
+
+    Mirrors `@task`: registers a function that returns a `TaskSource` so it can
+    be referenced and loaded by name (e.g. `eval("file.py@my_source")` or
+    `inspect eval file.py@my_source -T arg=value`) and parameterized.
+
+    Args:
+      *args: Function returning `TaskSource` targeted by a plain decorator
+        without attributes (e.g. `@task_source`).
+      name: Optional name for the source (defaults to the function name).
+      **attribs: Additional task source attributes.
+
+    Returns:
+        The registered task source wrapper.
+    """
+
+    def create_task_source_wrapper(source_type: TaskSourceType) -> TaskSourceType:
+        source_name = registry_name(
+            source_type, name or getattr(source_type, "__name__")
+        )
+        params = list(inspect.signature(source_type).parameters.keys())
+
+        @wraps(source_type)
+        def wrapper(*w_args: Any, **w_kwargs: Any) -> TaskSource:
+            source_instance = source_type(*w_args, **w_kwargs)
+
+            # tag the source with registry information
+            registry_tag(
+                source_type,
+                source_instance,
+                RegistryInfo(
+                    type="task_source",
+                    name=source_name,
+                    metadata=dict(attribs=attribs, params=params),
+                ),
+                *w_args,
+                **w_kwargs,
+            )
+
+            # extract all params including defaults
+            named_params = extract_named_params(source_type, True, *w_args, **w_kwargs)
+            setattr(source_instance, TASK_ALL_PARAMS_ATTR, named_params)
+
+            # for a local (non-package) module, record the source file / run dir
+            if get_installed_package_name(source_type) is None:
+                module = inspect.getmodule(source_type)
+                if module and hasattr(module, "__file__") and module.__file__:
+                    file = Path(getattr(module, "__file__"))
+                    setattr(source_instance, TASK_FILE_ATTR, file.as_posix())
+                    setattr(source_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+
+            return source_instance
+
+        # functools.wraps overrides the return annotation, so set it again
+        wrapper.__annotations__["return"] = TaskSource
+
+        return task_source_register(
+            task_source=cast(TaskSourceType, wrapper),
+            name=source_name,
+            attribs=attribs,
+            params=params,
+        )
+
+    if args:
+        # used without arguments: @task_source
+        return create_task_source_wrapper(args[0])
+    else:
+        # used with arguments: @task_source(name="foo")
+        def decorator(func: TaskSourceType) -> TaskSourceType:
+            return create_task_source_wrapper(func)
 
         return decorator
