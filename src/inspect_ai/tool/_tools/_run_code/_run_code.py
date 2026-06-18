@@ -69,18 +69,22 @@ def _truncate_content(content: list[Content], max_chars: int | None) -> list[Con
     result: list[Content] = []
     remaining = max_chars
     for item in content:
-        if isinstance(item, ContentText):
-            if len(item.text) <= remaining:
-                result.append(item)
-                remaining -= len(item.text)
-            else:
-                suffix = f"... [truncated to {max_chars} chars]"
-                truncated = item.text[: remaining - len(suffix)] + suffix
-                result.append(ContentText(text=truncated))
-                remaining = 0
-                break
-        else:
+        if not isinstance(item, ContentText):
             result.append(item)
+            continue
+        if remaining <= 0:
+            continue
+        if len(item.text) <= remaining:
+            result.append(item)
+            remaining -= len(item.text)
+            continue
+        suffix = f"... [truncated to {max_chars} chars]"
+        if remaining > len(suffix):
+            text = item.text[: remaining - len(suffix)] + suffix
+        else:
+            text = item.text[:remaining]
+        result.append(ContentText(text=text))
+        remaining = 0
     return result
 
 

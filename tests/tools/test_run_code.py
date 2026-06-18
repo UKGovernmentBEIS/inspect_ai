@@ -18,6 +18,7 @@ from inspect_ai.tool._tools._run_code._run_code import (
     _tool_defs,
     _tool_interface_description,
     _tool_signature,
+    _truncate_content,
 )
 from inspect_ai.tool._tools._run_code._run_code_executor import RunCodeResult
 
@@ -155,6 +156,23 @@ async def test_run_code_reports_monty_error():
     result = await tool(code="raise Exception('boom')")
 
     assert "boom" in result[0].text
+
+
+@pytest.mark.anyio
+async def test_run_code_returns_falsy_results():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(execute_code=True)
+
+    for code, expected in [
+        ("0", "0"),
+        ("1 - 1", "0"),
+        ("False", "False"),
+        ("[]", "[]"),
+    ]:
+        result = await tool(code=code)
+        assert result
+        assert result[0].text == expected
 
 
 @pytest.mark.anyio
@@ -387,6 +405,33 @@ async def test_run_code_truncates_output():
 
     assert len(result[0].text) <= 50
     assert "truncated" in result[0].text
+
+
+def test_truncate_content_preserves_trailing_image():
+    content = [
+        ContentText(text="x" * 100),
+        ContentImage(image="data:image/png;base64,AAAA"),
+    ]
+
+    result = _truncate_content(content, max_chars=10)
+
+    assert any(isinstance(item, ContentImage) for item in result)
+
+
+def test_truncate_content_stays_within_limit_across_text_blocks():
+    content = [ContentText(text="a" * 30), ContentText(text="b" * 30)]
+
+    result = _truncate_content(content, max_chars=30)
+
+    total = sum(len(item.text) for item in result if isinstance(item, ContentText))
+    assert total <= 30
+
+
+def test_truncate_content_handles_max_chars_below_suffix():
+    result = _truncate_content([ContentText(text="a" * 100)], max_chars=5)
+
+    total = sum(len(item.text) for item in result if isinstance(item, ContentText))
+    assert total <= 5
 
 
 def test_run_code_preview_truncates_long_values():
