@@ -10,6 +10,7 @@
 - Inspect View: Fix log-list grid columns snapping back to default widths while data loads
 - Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
 - Inspect View:  Improve tool input density
+- Scorer: `mean()` now maps `Value` to float via `value_to_float()` like the other built-in metrics (and accepts a `to_float` argument), so a scorer that emits the framework's `CORRECT`/`INCORRECT`/`PARTIAL`/`NOANSWER` labels no longer crashes `mean()` with `ValueError` at metric time.
 
 ## 0.3.240 (15 June 2026)
 

@@ -26,6 +26,7 @@ from inspect_ai.scorer._metric import (
     MetricProtocol,
     SampleScore,
     metric_create,
+    value_to_float,
 )
 from inspect_ai.scorer._metrics import grouped
 from inspect_ai.scorer._metrics.std import stderr
@@ -375,6 +376,43 @@ def test_stderr():
     metric = stderr()
     se = metric([SampleScore(score=Score(value=i)) for i in range(10)])
     assert round(se, 3) == 0.957
+
+
+def test_mean_numeric():
+    metric = mean()
+    result = metric([SampleScore(score=Score(value=i)) for i in range(10)])
+    assert result == 4.5
+
+
+def test_mean_label_vocabulary():
+    # Regression: mean() previously used Score.as_float(), which calls
+    # float("C") and raises ValueError on the framework's own CORRECT /
+    # INCORRECT / PARTIAL / NOANSWER labels -- even though accuracy() (and
+    # std/var/stderr) map them via value_to_float(). A scorer emitting these
+    # labels with [accuracy(), mean()] attached would crash at metric time.
+    # mean() now shares the same value-to-float vocabulary as its siblings.
+    metric = mean()
+    result = metric(
+        [
+            SampleScore(score=Score(value="C")),
+            SampleScore(score=Score(value="I")),
+            SampleScore(score=Score(value="P")),
+            SampleScore(score=Score(value="N")),
+        ]
+    )
+    # C=1.0, I=0, P=0.5, N=0 -> mean 0.375
+    assert result == 0.375
+
+
+def test_mean_custom_to_float():
+    metric = mean(to_float=value_to_float(correct="win"))
+    result = metric(
+        [
+            SampleScore(score=Score(value="win")),
+            SampleScore(score=Score(value="win")),
+        ]
+    )
+    assert result == 1.0
 
 
 def test_clustered_stderr():
