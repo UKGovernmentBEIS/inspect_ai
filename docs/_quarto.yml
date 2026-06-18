@@ -119,7 +119,8 @@ inspect-docs:
         - href: setting-limits.qmd
         - href: control-channel.qmd
         - href: early-stopping.qmd
-        - href: tracing.qmd   
+        - href: task-source.qmd
+        - href: tracing.qmd
     - text: Analysis
       href: analysis.qmd
       contents:

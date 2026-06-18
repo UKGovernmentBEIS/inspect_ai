@@ -14,6 +14,7 @@ from inspect_ai._eval.task import (
     TaskSource,
     task_with,
 )
+from inspect_ai._eval.task.enqueue import enqueue_task
 from inspect_ai._eval.task.scan import ScannerConfig, Scanners
 from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.constants import PKG_NAME
@@ -48,5 +49,6 @@ __all__ = [
     "task",
     "task_source",
     "task_with",
+    "enqueue_task",
     "view",
 ]
