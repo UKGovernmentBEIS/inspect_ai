@@ -188,3 +188,11 @@ class ApiKeyFetcher(Hooks):
 def fetch_aws_secret(aws_arn: str) -> str:
     ...
 ```
+
+When a non-empty source such as a secret ARN is overridden, Inspect uses that
+source rather than the rotating credential to scope the model's connection
+pool. This keeps adaptive concurrency state stable across credential refreshes
+and model instances.
+
+When no non-empty source is available, Inspect continues to scope connection
+pooling by the current credential.

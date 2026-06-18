@@ -222,6 +222,7 @@ class ModelAPI(abc.ABC):
         self._api_key_source = api_key
         self._api_key_source_is_set = api_key is not None
         self._api_key_env_values: dict[str, str] = {}
+        self._api_key_env_sources: dict[str, str] = {}
         self._api_key_without_env_value: str | None = None
         self.api_key_vars = api_key_vars
         self._apply_api_key_overrides()
@@ -297,7 +298,8 @@ class ModelAPI(abc.ABC):
                     current = override
                     os.environ[key] = current
                     _api_key_env_overrides[key] = _ApiKeyEnvOverride(
-                        source=source, current=current
+                        source=source,
+                        current=current,
                     )
                 else:
                     # If the hook declines to override a value previously written by
@@ -307,6 +309,7 @@ class ModelAPI(abc.ABC):
 
                 assert current is not None
                 self._api_key_env_values[key] = current
+                self._api_key_env_sources[key] = source
                 if api_key_uses_env_value:
                     self.api_key = current
                     self._api_key_without_env_value = None
@@ -317,6 +320,7 @@ class ModelAPI(abc.ABC):
             # the model rather than creating an environment variable.
             elif has_api_key_override():
                 self._api_key_env_values.pop(key, None)
+                self._api_key_env_sources.pop(key, None)
                 override = override_api_key(key, "")
                 if override is not None:
                     self.api_key = override
@@ -484,6 +488,23 @@ class ModelAPI(abc.ABC):
     def connection_key(self) -> str:
         """Scope for enforcement of max_connections."""
         return "default"
+
+    def api_key_connection_scope(self) -> str | None:
+        """Stable API-key-derived scope for connection pooling."""
+        source_is_set = cast(bool, getattr(self, "_api_key_source_is_set", False))
+        if source_is_set:
+            source = cast(str | None, getattr(self, "_api_key_source", None))
+            api_key = cast(str | None, getattr(self, "api_key", None))
+            return source or api_key
+
+        api_key = cast(str | None, getattr(self, "api_key", None))
+        env_values = cast(dict[str, str], getattr(self, "_api_key_env_values", {}))
+        env_sources = cast(dict[str, str], getattr(self, "_api_key_env_sources", {}))
+        for key, value in env_values.items():
+            if api_key == value:
+                return env_sources.get(key) or value
+
+        return api_key
 
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
         """Whether compaction should add `redacted_reasoning_tokens` to its input estimate.

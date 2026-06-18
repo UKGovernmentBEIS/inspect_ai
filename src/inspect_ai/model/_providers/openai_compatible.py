@@ -333,7 +333,7 @@ class OpenAICompatibleAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.api_key_connection_scope()}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:

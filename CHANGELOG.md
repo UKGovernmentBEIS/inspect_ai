@@ -15,6 +15,7 @@
 - Control Channel: `inspect ctl tasks` now reports keep-alive status (`on` / `off` / `mixed`) and a new `inspect ctl keep` command (backed by `POST /keep`) latches keep-alive on a running process so it parks after its eval.
 - Hooks: Add `on_model_retry` hook, fired before each model retry backoff with the model name, attempt number, and upcoming `wait_time` (useful for surfacing time spent in rate limiting and other retries).
 - Hooks: `override_api_key` hooks are now always passed the original API key value (from the env var or the explicit `api_key` argument) rather than a previously-overridden value, so hooks that resolve short-lived credentials can re-resolve on every (re)initialization.
+- Models: Connection pooling for overridden API keys now uses the stable original key source when available rather than a rotating credential.
 - Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
 - Inspect View: Fix log-list grid columns snapping back to default widths while data loads
 - Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.

@@ -74,6 +74,9 @@ class Mock401API(ModelAPI):
         """Retry on our mock 401 exception."""
         return isinstance(ex, Mock401Exception)
 
+    def connection_key(self) -> str:
+        return f"{self.api_key_connection_scope()}:{self.model_name}"
+
 
 class MockRefreshTokenHook(Hooks):
     def __init__(self) -> None:
@@ -170,6 +173,41 @@ def test_explicit_empty_key_is_reoffered_on_refresh(
         del _registry["modelapi:mockemptyexplicit"]
 
 
+def test_original_source_scopes_connection_key(
+    monkeypatch: pytest.MonkeyPatch, mock_refresh_token_hook: MockRefreshTokenHook
+):
+    """Plain-string hooks pool by their stable non-empty source."""
+    monkeypatch.delenv("TEST_API_KEY", raising=False)
+
+    @modelapi(name="mocksourcepool")
+    def mocksourcepool() -> type[ModelAPI]:
+        return Mock401API
+
+    try:
+        model_a = get_model(
+            "mocksourcepool/test",
+            api_key="stable-source",
+            memoize=False,
+        )
+        model_b = get_model(
+            "mocksourcepool/test",
+            api_key="stable-source",
+            memoize=False,
+        )
+
+        assert model_a.api.api_key == "token-1"
+        assert model_b.api.api_key == "token-2"
+        assert model_a.api.connection_key() == "stable-source:test"
+        assert model_b.api.connection_key() == "stable-source:test"
+
+        model_a.api.initialize()
+
+        assert model_a.api.api_key == "token-3"
+        assert model_a.api.connection_key() == "stable-source:test"
+    finally:
+        del _registry["modelapi:mocksourcepool"]
+
+
 class MockArnResolverHook(Hooks):
     """Resolves a secret-manager ARN to an incrementing real key.
 
@@ -240,6 +278,38 @@ class MockSubclassKeyAPI(Mock401API):
         self.initialize()
 
 
+class MockMultiEnvAPI(Mock401API):
+    """Provider that canonically selects one of multiple overridden env vars."""
+
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
+        **model_args,
+    ):
+        ModelAPI.__init__(
+            self,
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            api_key_vars=["PRIMARY_API_KEY", "SECONDARY_API_KEY"],
+            config=config,
+        )
+        self.api_key = os.environ["PRIMARY_API_KEY"]
+        self.fail_count = model_args.get("fail_count", 0)
+        self.call_count = 0
+        self.initialize_count = 0
+
+
+class MockMultiEnvHook(Hooks):
+    def override_api_key(self, data: ApiKeyOverride) -> str | None:
+        if data.env_var_name not in ("PRIMARY_API_KEY", "SECONDARY_API_KEY"):
+            return None
+        return f"token-for-{data.env_var_name}"
+
+
 @pytest.fixture
 def mock_arn_resolver_hook() -> Generator[MockArnResolverHook, None, None]:
     @hooks("test_arn_resolver", description="Test ARN resolver hook")
@@ -253,6 +323,20 @@ def mock_arn_resolver_hook() -> Generator[MockArnResolverHook, None, None]:
     finally:
         # Remove the hook from the registry to avoid conflicts in other tests.
         del _registry["hooks:test_arn_resolver"]
+
+
+@pytest.fixture
+def mock_multi_env_hook() -> Generator[MockMultiEnvHook, None, None]:
+    @hooks("test_multi_env", description="Test multi-env override hook")
+    def get_hook() -> type[MockMultiEnvHook]:
+        return MockMultiEnvHook
+
+    hook = registry_lookup("hooks", "test_multi_env")
+    assert isinstance(hook, MockMultiEnvHook)
+    try:
+        yield hook
+    finally:
+        del _registry["hooks:test_multi_env"]
 
 
 def test_env_override_reresolves_from_original_arn(
@@ -316,6 +400,8 @@ def test_env_override_updates_provider_copy_across_instances(
         provider_b = model_b.api
         assert isinstance(provider_b, MockEnvCopyAPI)
         assert provider_b.api_key == "resolved-key-4"
+        assert provider_a.connection_key() == (f"{MockArnResolverHook.ARN}:test")
+        assert provider_b.connection_key() == (f"{MockArnResolverHook.ARN}:test")
 
         # model_a still holds resolved-key-2 while the process environment and model_b
         # have advanced to resolved-key-4. It must still recover the ARN and update its
@@ -324,6 +410,7 @@ def test_env_override_updates_provider_copy_across_instances(
 
         assert provider_a.api_key == "resolved-key-5"
         assert os.environ["TEST_API_KEY"] == "resolved-key-5"
+        assert provider_a.connection_key() == (f"{MockArnResolverHook.ARN}:test")
         assert mock_arn_resolver_hook.seen_values == [MockArnResolverHook.ARN] * 5
     finally:
         del _registry["modelapi:mockenvcopy"]
@@ -355,6 +442,26 @@ def test_subclass_assigned_api_key_retains_its_source(
         ]
     finally:
         del _registry["modelapi:mocksubclasskey"]
+
+
+def test_pooling_scope_follows_provider_selected_environment_key(
+    monkeypatch: pytest.MonkeyPatch, mock_multi_env_hook: MockMultiEnvHook
+):
+    """An irrelevant candidate override cannot replace the active pooling scope."""
+    monkeypatch.setenv("PRIMARY_API_KEY", "primary-source")
+    monkeypatch.setenv("SECONDARY_API_KEY", "secondary-source")
+
+    @modelapi(name="mockmultienv")
+    def mockmultienv() -> type[ModelAPI]:
+        return MockMultiEnvAPI
+
+    try:
+        model = get_model("mockmultienv/test", memoize=False)
+
+        assert model.api.api_key == "token-for-PRIMARY_API_KEY"
+        assert model.api.connection_key() == "primary-source:test"
+    finally:
+        del _registry["modelapi:mockmultienv"]
 
 
 def test_env_override_adopts_external_environment_change(
@@ -529,6 +636,7 @@ def test_override_supplies_credentials_when_no_env_key(
         provider = model.api
         assert isinstance(provider, Mock401API)
         assert provider.api_key == "own-source-token-1"
+        assert provider.connection_key() == "own-source-token-1:test"
         assert mock_own_source_hook.seen_values == [""]
         # nothing is written back to the environment in this branch
         assert "TEST_API_KEY" not in os.environ
@@ -536,6 +644,7 @@ def test_override_supplies_credentials_when_no_env_key(
         # re-initialization (as happens on a 401) refreshes the credential
         provider.initialize()
         assert provider.api_key == "own-source-token-2"
+        assert provider.connection_key() == "own-source-token-2:test"
         assert mock_own_source_hook.seen_values == ["", ""]
     finally:
         # Remove the model provider from the registry to avoid conflicts in other tests.
