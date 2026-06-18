@@ -185,7 +185,6 @@ def test_checkpoint_resume_restores_assistant_internal(
        replaying history never re-records them, so they're present only if
        restore put them back into the live assistant-internal state.
     """
-    monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
     crash_file = tmp_path / "crashed.txt"
     monkeypatch.setenv(CRASH_FILE_ENV, str(crash_file))
 
@@ -236,7 +235,6 @@ def test_checkpoint_resume_restores_assistant_internal(
 def test_checkpoint_resume_rehydrated_event_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
     # Crash count (host file) + target are inherited by the child processes.
     cancel_file = tmp_path / "cancels.txt"
     monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
