@@ -509,3 +509,33 @@ def test_base_exception_finalizes_sync_worker_state(
 
     assert shared_db._sync_thread is None
     assert shared_db._sync_pending is False
+
+
+def test_set_sync_interval_retunes_shared_sync(
+    shared_db: SampleBufferDatabase,
+) -> None:
+    assert shared_db.log_shared == 30
+
+    assert shared_db.set_sync_interval(5) is True
+    assert shared_db.log_shared == 5
+    assert shared_db._sync_filestore is not None
+    assert shared_db._sync_filestore.update_interval == 5
+
+    # clamped to a minimum of 1 second
+    assert shared_db.set_sync_interval(0) is True
+    assert shared_db.log_shared == 1
+
+
+def test_set_sync_interval_noop_without_shared_sync(tmp_path: Path) -> None:
+    # a buffer opened without `log_shared` has no shared filestore to retune
+    db = SampleBufferDatabase(
+        location=str(tmp_path / "local.eval"),
+        create=True,
+        db_dir=tmp_path / "db",
+    )
+    try:
+        assert db.log_shared is None
+        assert db.set_sync_interval(5) is False
+        assert db.log_shared is None
+    finally:
+        db.cleanup()

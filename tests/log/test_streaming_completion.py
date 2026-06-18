@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
+import anyio
 import pytest
 
 from inspect_ai._eval.task.log import TaskLogger
@@ -308,6 +309,7 @@ async def _log_sample_with_buffer(
 class _TaskLoggerShim(TaskLogger):
     def __init__(self, buffer_db: SampleBufferDatabase) -> None:
         self._buffer_db = buffer_db
+        self._flush_lock = anyio.Lock()
 
 
 @pytest.mark.anyio

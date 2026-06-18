@@ -73,6 +73,33 @@ if TYPE_CHECKING:
     # lazily on first control request (see ``DeferredSampleStats``).
     DeferredStatsProvider = Callable[[], Awaitable["DeferredSampleStats"]]
 
+    # Async directive that flushes the eval's buffered completed samples to the
+    # (possibly remote) log, returning the number written.
+    FlushProvider = Callable[[], Awaitable[int]]
+
+    # Get/set accessor for the eval's sample-buffer parameters. Called with
+    # ``(None, None)`` it reads; with values it updates ``log_buffer`` /
+    # ``log_shared`` and returns the resulting config.
+    BufferProvider = Callable[[int | None, int | None], "BufferConfig"]
+
+
+class BufferConfig(NamedTuple):
+    """A running eval's sample-buffer parameters (see ``inspect ctl buffer``).
+
+    Reported by the buffer directive and, when set values are supplied,
+    re-reported after the update.
+    """
+
+    log_buffer: int
+    """Completed samples buffered before a write to the (possibly remote) log."""
+
+    pending: int
+    """Completed samples currently buffered, not yet written to the log."""
+
+    log_shared: int | None
+    """Shared-log sync interval in seconds, or ``None`` when realtime logging
+    (and thus the shared-log sync) is off."""
+
 
 class DeferredSampleStats(NamedTuple):
     """Summaries-derived stats for a reused eval, resolved lazily.
@@ -168,6 +195,17 @@ class EvalState:
     ``None`` for reused/synthetic evals; returns ``None`` once the buffer
     is torn down."""
 
+    flush_provider: FlushProvider | None = None
+    """Directive that flushes the eval's buffered completed samples to the
+    (possibly remote) log on demand (``inspect ctl flush`` / ``POST
+    /evals/<id>/flush``). ``None`` for reused/synthetic evals (nothing to
+    flush); detached on retry alongside the other live providers."""
+
+    buffer_provider: BufferProvider | None = None
+    """Get/set accessor for the eval's sample-buffer parameters (``inspect ctl
+    buffer`` / ``GET``+``POST /evals/<id>/buffer``). ``None`` for
+    reused/synthetic evals; detached on retry."""
+
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
     (:class:`DeferredSampleStats`). Resolved once — on the first
@@ -257,6 +295,8 @@ def register_eval(
     summaries_provider: SummariesProvider | None = None,
     sample_provider: SampleProvider | None = None,
     events_provider: EventsProvider | None = None,
+    flush_provider: FlushProvider | None = None,
+    buffer_provider: BufferProvider | None = None,
     sample_ids: list[str | int] | None = None,
     epochs: int = 1,
     run_id: str | None = None,
@@ -282,6 +322,8 @@ def register_eval(
             summaries_provider=summaries_provider,
             sample_provider=sample_provider,
             events_provider=events_provider,
+            flush_provider=flush_provider,
+            buffer_provider=buffer_provider,
             sample_ids=sample_ids or [],
             epochs=epochs,
             run_id=run_id,
@@ -466,6 +508,8 @@ def detach_eval_providers(eval_id: str) -> None:
             state.summaries_provider = None
             state.sample_provider = None
             state.events_provider = None
+            state.flush_provider = None
+            state.buffer_provider = None
 
 
 def finalize_eval(eval_id: str) -> None:

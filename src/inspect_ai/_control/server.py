@@ -34,6 +34,7 @@ from typing import Any, AsyncIterator, NamedTuple
 
 import anyio
 
+from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
 from inspect_ai._control.state import (
@@ -316,6 +317,52 @@ class ControlServer:
                     content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
                 )
             return page
+
+        # Flush the eval's buffered completed samples to the (possibly remote,
+        # eg. S3) log now, so they're readable without waiting for the flush
+        # buffer to fill. Idempotent — a flush with nothing pending writes
+        # nothing and reports `flushed: 0`.
+        @app.post("/evals/{eval_id}/flush")
+        async def flush_samples(eval_id: str) -> Any:
+            result = await flush_eval_samples(eval_id)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"eval {eval_id} not found or not flushable"},
+                )
+            return result
+
+        # Read the eval's sample-buffer parameters. The companion POST applies
+        # changes; GET is a pure read (no side effects).
+        @app.get("/evals/{eval_id}/buffer")
+        async def get_buffer(eval_id: str) -> Any:
+            result = await eval_buffer_config(eval_id)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"eval {eval_id} not found"},
+                )
+            return result
+
+        # Update the eval's sample-buffer parameters. `log_buffer` (completed
+        # samples buffered before a log write) and `log_shared` (shared-log
+        # sync interval, seconds) are optional query params — omitting both
+        # makes this a read, like GET. Returns the resulting config.
+        @app.post("/evals/{eval_id}/buffer")
+        async def set_buffer(
+            eval_id: str,
+            log_buffer: int | None = None,
+            log_shared: int | None = None,
+        ) -> Any:
+            result = await eval_buffer_config(
+                eval_id, log_buffer=log_buffer, log_shared=log_shared
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"eval {eval_id} not found"},
+                )
+            return result
 
         # Latches keep-alive OFF for the process (the inverse of /keep) and
         # wakes the park: a parked process exits, and a release received while

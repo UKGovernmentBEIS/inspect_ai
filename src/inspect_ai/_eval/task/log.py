@@ -2,6 +2,7 @@ import logging
 from importlib import metadata as importlib_metadata
 from typing import TYPE_CHECKING, Any, cast
 
+import anyio
 from shortuuid import uuid
 
 from inspect_ai._display.core.display import TaskDisplayMetric
@@ -62,6 +63,7 @@ from inspect_ai.viewer import ViewerConfig
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from inspect_ai._control.eval_state import BufferConfig
     from inspect_ai.log._recorders.buffer.history import SampleHistory
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
@@ -243,6 +245,12 @@ class TaskLogger:
             eval_config.log_buffer = self.flush_buffer
         self.flush_pending: list[tuple[str | int, int]] = []
 
+        # serializes log flushes so an on-demand `flush_samples()` (control
+        # channel) can't interleave with the buffer-full flush in
+        # `_finalize_sample` — both run on the eval loop and both await the
+        # recorder, so without this they could double-write / race the clear.
+        self._flush_lock = anyio.Lock()
+
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
 
@@ -406,15 +414,68 @@ class TaskLogger:
         if flush:
             self.flush_pending.append((sample.id, sample.epoch))
             if len(self.flush_pending) >= self.flush_buffer:
-                await self.recorder.flush(self.eval)
-
-                if self._buffer_db is not None:
-                    self._buffer_db.remove_samples(self.flush_pending)
-
-                self.flush_pending.clear()
+                await self._flush_to_log()
 
         if sample.error is None:
             self._samples_completed += 1
+
+    async def _flush_to_log(self) -> int:
+        """Write the buffered completed samples to the log and clear the buffer.
+
+        Flushes whatever is in ``flush_pending`` to the (possibly remote, eg.
+        S3) log via the recorder, removes those samples from the realtime
+        buffer database, and clears the pending list. Returns the number of
+        samples written (0 if none were pending). Serialized via
+        :attr:`_flush_lock`.
+        """
+        async with self._flush_lock:
+            if not self.flush_pending:
+                return 0
+            await self.recorder.flush(self.eval)
+            flushed = len(self.flush_pending)
+            if self._buffer_db is not None:
+                self._buffer_db.remove_samples(self.flush_pending)
+            self.flush_pending.clear()
+            return flushed
+
+    async def flush_samples(self) -> int:
+        """Write all buffered completed samples to the log immediately.
+
+        Completed samples normally accumulate until ``log_buffer`` of them
+        queue up before a (possibly remote) write. This forces that write now —
+        so the samples become readable in the log without waiting for the
+        buffer to fill — and returns the number of samples written (0 if none
+        were pending). Handed to the control channel via ``register_eval`` so
+        ``inspect ctl flush`` can push a long-running eval's results out to S3
+        on demand.
+        """
+        return await self._flush_to_log()
+
+    def buffer_config(
+        self, log_buffer: int | None = None, log_shared: int | None = None
+    ) -> "BufferConfig":
+        """Get (and optionally update) this eval's sample-buffer parameters.
+
+        With both arguments ``None`` this is a pure read. ``log_buffer`` sets
+        the number of completed samples to buffer before a log write (clamped
+        to a minimum of 1); ``log_shared`` retunes the shared-log sync interval
+        in seconds (a no-op when realtime logging — and thus the buffer
+        database — is off). Returns the resulting configuration. Handed to the
+        control channel via ``register_eval`` for ``inspect ctl buffer``.
+        """
+        from inspect_ai._control.eval_state import BufferConfig
+
+        if log_buffer is not None:
+            self.flush_buffer = max(1, log_buffer)
+        if log_shared is not None and self._buffer_db is not None:
+            self._buffer_db.set_sync_interval(log_shared)
+        return BufferConfig(
+            log_buffer=self.flush_buffer,
+            pending=len(self.flush_pending),
+            log_shared=self._buffer_db.log_shared
+            if self._buffer_db is not None
+            else None,
+        )
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         if self._buffer_db is not None:

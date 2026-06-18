@@ -9,8 +9,10 @@ tasks, with a keep-alive status footer), ``samples`` (a task's samples),
 ``sample`` (one sample's error detail), ``errors`` (errored / retried samples),
 ``events`` (a sample's transcript events), ``keep`` (make a running process
 park after its eval finishes), and ``release`` (let a kept-alive process exit).
-The state-mutating directives (cancel / drain / requeue / modify-limits) are
-planned but not yet available.
+The buffer directives ``flush`` (write buffered samples to the log now) and
+``buffer`` (view / change the sample-buffer params) are also available. The
+remaining state-mutating directives (cancel / drain / requeue / modify-limits)
+are planned but not yet available.
 """
 
 from __future__ import annotations
@@ -38,9 +40,11 @@ def ctl_command() -> None:
     Commands: ``tasks`` (running tasks + keep-alive status), ``samples`` /
     ``sample`` / ``errors`` (an eval's samples), ``events`` (a sample's
     transcript), ``keep`` (park a process after its eval finishes), ``release``
-    (let a kept-alive process exit). All are read-only except ``keep`` /
-    ``release`` — state-mutating directives (cancel, drain, modify limits)
-    are planned but not yet available.
+    (let a kept-alive process exit), ``flush`` (write an eval's buffered samples
+    to the log now), ``buffer`` (view / change the sample-buffer params). All
+    are read-only except ``keep`` / ``release`` / ``flush`` / ``buffer`` —
+    further state-mutating directives (cancel, drain, modify limits) are planned
+    but not yet available.
 
     Each command operates on a live Inspect eval via the control
     channel — the HTTP server every running ``inspect eval`` process
@@ -409,6 +413,118 @@ def release_command(pid: int | None) -> None:
     click.echo(f"Release requested for pid {target.pid}.")
 
 
+@ctl_command.command("flush")
+@click.argument("task", required=False)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the `{flushed}` result).",
+)
+def flush_command(task: str | None, as_json: bool) -> None:
+    """Flush a running eval's buffered samples to the log now.
+
+    Completed samples are buffered and written to the (possibly remote, eg. S3)
+    log only once the flush buffer fills. This forces that write immediately, so
+    the samples become readable / analyzable in the log without waiting. Safe to
+    repeat — a flush with nothing pending writes nothing.
+
+    TASK selects the task as in `inspect ctl samples`.
+    """
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task)
+    result = _post_flush(target["socket_path"], target["eval_id"])
+
+    if as_json:
+        click.echo(json_lib.dumps(result, indent=2))
+        return
+
+    flushed = int(result.get("flushed", 0) or 0)
+    click.echo(_task_header(target))
+    if flushed:
+        click.echo(
+            f"\nFlushed {flushed} sample{'' if flushed == 1 else 's'} to the log."
+        )
+    else:
+        click.echo("\nNo buffered samples to flush.")
+
+
+@ctl_command.command("buffer")
+@click.argument("task", required=False)
+@click.option(
+    "--samples",
+    "log_buffer",
+    type=int,
+    default=None,
+    help=(
+        "Set the number of completed samples to buffer before writing to the "
+        "log (lower it to write to S3 more often)."
+    ),
+)
+@click.option(
+    "--shared",
+    "log_shared",
+    type=int,
+    default=None,
+    help="Set the shared-log event sync interval, in seconds.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the buffer config).",
+)
+def buffer_command(
+    task: str | None,
+    log_buffer: int | None,
+    log_shared: int | None,
+    as_json: bool,
+) -> None:
+    """View or change a running eval's sample-buffer parameters.
+
+    With no options, shows the current config. Pass `--samples N` to change how
+    many completed samples buffer before a write to the log (use it with
+    `inspect ctl flush` to control how promptly results reach S3), and/or
+    `--shared S` to retune the shared-log event sync interval in seconds.
+
+    TASK selects the task as in `inspect ctl samples`.
+    """
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task)
+    changing = log_buffer is not None or log_shared is not None
+    config = _fetch_buffer_config(
+        target["socket_path"],
+        target["eval_id"],
+        log_buffer=log_buffer,
+        log_shared=log_shared,
+        set_values=changing,
+    )
+
+    if as_json:
+        click.echo(json_lib.dumps(config, indent=2))
+        return
+
+    click.echo(_task_header(target))
+    click.echo()
+    _print_buffer_config(config, changed=changing)
+
+
 def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
     """Pick the single process a ``keep`` / ``release`` targets, or exit.
 
@@ -646,6 +762,81 @@ def _fetch_sample_events(
         click.echo(f"Failed to read events: {_error_detail(exc)}", err=True)
         raise click.exceptions.Exit(code=1) from exc
     return page if isinstance(page, dict) else {}
+
+
+def _post_flush(socket_path: str, eval_id: str) -> dict[str, Any]:
+    """Ask one control server to flush an eval's buffered samples to the log."""
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        # A remote (eg. S3) log write can take a while — allow more time than
+        # the read endpoints' 5s.
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=30.0
+        ) as client:
+            response = client.post(f"/evals/{eval_id}/flush")
+            if response.status_code == 404:
+                click.echo(
+                    f"Eval '{eval_id}' is not flushable — it has no realtime "
+                    "buffer or has already finished.",
+                    err=True,
+                )
+                raise click.exceptions.Exit(code=1)
+            response.raise_for_status()
+            result = response.json()
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        click.echo(f"Failed to flush eval {eval_id}: {_error_detail(exc)}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
+    return result if isinstance(result, dict) else {}
+
+
+def _fetch_buffer_config(
+    socket_path: str,
+    eval_id: str,
+    *,
+    log_buffer: int | None,
+    log_shared: int | None,
+    set_values: bool,
+) -> dict[str, Any]:
+    """Read (``set_values=False``) or update an eval's sample-buffer config."""
+    params: dict[str, Any] = {}
+    if log_buffer is not None:
+        params["log_buffer"] = log_buffer
+    if log_shared is not None:
+        params["log_shared"] = log_shared
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            path = f"/evals/{eval_id}/buffer"
+            response = (
+                client.post(path, params=params) if set_values else client.get(path)
+            )
+            if response.status_code == 404:
+                click.echo(
+                    f"Eval '{eval_id}' not found — it may have finished.", err=True
+                )
+                raise click.exceptions.Exit(code=1)
+            response.raise_for_status()
+            config = response.json()
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        click.echo(
+            f"Failed to read buffer config for eval {eval_id}: {_error_detail(exc)}",
+            err=True,
+        )
+        raise click.exceptions.Exit(code=1) from exc
+    return config if isinstance(config, dict) else {}
+
+
+def _print_buffer_config(config: dict[str, Any], *, changed: bool) -> None:
+    """Render an eval's sample-buffer config as a short labelled block."""
+    click.echo("updated buffer config:" if changed else "buffer config:")
+    click.echo(f"  log buffer:   {config.get('log_buffer')} samples")
+    click.echo(f"  pending:      {config.get('pending')} buffered (not yet written)")
+    log_shared = config.get("log_shared")
+    click.echo(
+        f"  shared sync:  {f'{log_shared}s' if log_shared is not None else 'off'}"
+    )
 
 
 def _print_events(page: dict[str, Any]) -> None:

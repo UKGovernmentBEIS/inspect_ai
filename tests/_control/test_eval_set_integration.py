@@ -1088,6 +1088,90 @@ def test_ctl_samples_recorder_ahead_of_disk(short_data_dir: Path) -> None:
     )
 
 
+def test_ctl_flush_writes_buffered_samples_and_buffer_config(
+    short_data_dir: Path,
+) -> None:
+    """`flush` pushes buffered samples to disk; `buffer` reads/sets the params.
+
+    With 9 samples and the default `.eval` flush_buffer of 3, completing 2 (the
+    rest held) leaves them buffered in the recorder and not yet on disk. The
+    flush directive writes them out — so a direct read of the on-disk log now
+    sees them — and reports the count. While parked we also exercise the buffer
+    directive end to end (read the live config off the running `TaskLogger`,
+    then lower the flush buffer) to pin the provider wiring.
+    """
+    from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
+
+    @task
+    def task_nine() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in range(1, 10)],
+            solver=[gate()],
+            name="task_nine",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return (
+            bool(evals)
+            and evals[0]["samples"]["completed"] == 2
+            and evals[0]["samples"]["in_flight"] == 7
+        )
+
+    async def capture() -> dict:
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        entry = (await current_eval_summaries(0.0))[0]
+        eval_id = entry["eval_id"]
+        location = next(s.log_location for s in get_eval_states() if s.log_location)
+
+        async def on_disk_completed() -> set:
+            try:
+                summaries = await read_eval_log_sample_summaries_async(location)
+            except (OSError, ValueError):
+                return set()
+            return {s.id for s in summaries if s.completed}
+
+        before = await on_disk_completed()
+        config_before = await eval_buffer_config(eval_id)
+        flushed = await flush_eval_samples(eval_id)
+        after = await on_disk_completed()
+        # a second flush with nothing newly completed is a no-op
+        flushed_again = await flush_eval_samples(eval_id)
+        # lower the flush buffer via the buffer directive
+        config_after = await eval_buffer_config(eval_id, log_buffer=1)
+        return {
+            "before": before,
+            "flushed": flushed,
+            "after": after,
+            "flushed_again": flushed_again,
+            "config_before": config_before,
+            "config_after": config_after,
+        }
+
+    with probe(ready, capture, park=lambda sid: int(sid) not in (1, 2)) as p:
+        eval_set(
+            tasks=[task_nine()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=9,
+        )
+
+    assert p.result is not None, "never reached 2-completed + 7-running"
+    assert p.result["before"] == set(), "samples should be buffered, not on disk yet"
+    assert p.result["flushed"] == {"flushed": 2}
+    assert {1, 2} <= p.result["after"], "flushed samples should now be on disk"
+    assert p.result["flushed_again"] == {"flushed": 0}
+
+    # buffer directive: default flush buffer for 9 `.eval` samples is 3
+    assert p.result["config_before"]["log_buffer"] == 3
+    assert p.result["config_after"]["log_buffer"] == 1
+
+
 def test_ctl_samples_shows_score_for_single_scorer(short_data_dir: Path) -> None:
     """A completed sample's score is surfaced (summary field + CLI column)."""
     from inspect_ai.scorer import Score, Target, accuracy, scorer

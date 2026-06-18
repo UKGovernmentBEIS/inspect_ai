@@ -8,7 +8,7 @@ This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though 
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
-> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl tasks` / `samples` / `sample` / `errors` / `events` / `release` commands, and the `--ctl-server` flag (on by default; `false` disables, `keep-alive` parks the process after the eval). **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** (in progress) adds the state-mutating directives — starting with adding a task to a running eval, then cancel / drain / requeue / modify-limits; **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
+> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl tasks` / `samples` / `sample` / `errors` / `events` / `release` commands, and the `--ctl-server` flag (on by default; `false` disables, `keep-alive` parks the process after the eval). **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** (in progress) adds the state-mutating directives — the buffer directives (`flush` / `buffer`) are shipped; adding a task to a running eval, then cancel / drain / requeue / modify-limits follow; **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
 
 ## Goals
 
@@ -84,7 +84,9 @@ inspect ctl events TASK SID [EPOCH]         # one sample's transcript events (cu
                                             #   --since CURSOR / --tail N / --type / --full / --since-time / --until
                                             #   (-f / --follow push is phase 4)
 
-# phase 3 (directives) — first up: add a task
+# phase 3 (directives)
+inspect ctl flush [TASK]                    # write a running eval's buffered samples to the log now
+inspect ctl buffer [TASK] [--samples N] [--shared S]  # view / change the sample-buffer params
 inspect ctl add TASK [--model M] [-T k=v] [--dry-run]  # add a task to a running --ctl-server=keep-alive eval
 inspect ctl cancel <eval-id> [--force]      # cancel an eval (current sample drains; scoring runs)
 inspect ctl cancel-sample <eval-id> <sid>   # cancel one sample
@@ -232,6 +234,8 @@ Phase annotations reflect the [Implementation](#implementation) plan; phases 1�
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | `GET /evals/<id>/samples/<sid>/events` (SSE) | 4 |
 | Eval-wide transcript fan-in (push only) | `GET /evals/<id>/samples/events` (SSE) | 4 |
+| Flush buffered samples to the log | `POST /evals/<id>/flush` | 3 ✅ |
+| Read / set sample-buffer params | `GET`+`POST /evals/<id>/buffer` | 3 ✅ |
 | Add a task to a running eval | `POST /evals` (task spec → new sibling eval under this run) | 3 |
 | Cancel eval | `POST /evals/<id>/cancel` | 3 |
 | Drain | `POST /evals/<id>/drain` | 3 |
@@ -597,6 +601,15 @@ Unlocks watchdog agents (cursored polling). Live-render TUIs follow once phase-4
 ### Phase 3 — modification (direct) methods
 
 The first endpoints that **mutate the run**, each idempotent and supporting `?dry_run=true` / `--dry-run` from day one. The first directive built is **adding a task to a running eval**; the rest (cancel / drain / requeue / modify-limits) follow. The Security model's "future hardening" (SO_PEERCRED UID check, self-targeting guard) lands with this phase, since it introduces the first state-mutating writes.
+
+#### Flush buffered samples + tune buffer params (shipped)
+
+Two small, naturally-idempotent buffer directives shipped ahead of the larger phase-3 work, motivated by long S3-backed runs whose completed samples sit in the local flush buffer (and aren't analyzable in the log) until enough queue up to trigger a write:
+
+- **`POST /evals/<id>/flush`** (CLI: `inspect ctl flush [TASK]`) writes the eval's currently-buffered completed samples to the (possibly remote) log immediately — `recorder.flush()` followed by removing those samples from the realtime buffer database — and reports the count written. Idempotent: a flush with nothing pending writes nothing and reports `flushed: 0`.
+- **`GET`/`POST /evals/<id>/buffer`** (CLI: `inspect ctl buffer [TASK] [--samples N] [--shared S]`) reads (`GET`) or retunes (`POST`) the eval's sample-buffer params: `log_buffer` (completed samples buffered before a log write) and `log_shared` (the shared-log event sync interval, seconds). Lowering `log_buffer` makes subsequent results reach the log sooner without an explicit flush.
+
+Both reach the live eval through providers the runner attaches to the process-global `EvalState` (`flush_provider` / `buffer_provider`, alongside `summaries_provider` / `sample_provider` / `events_provider`), so the control layer never re-derives the buffer's location; they're detached on retry like the other live providers. The on-demand flush is serialized (an `anyio.Lock` on the `TaskLogger`) against the buffer-full flush that sample completion triggers, so the two can't double-write or race the pending-list clear.
 
 #### Add a task to a running eval
 

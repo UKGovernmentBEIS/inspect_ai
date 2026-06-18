@@ -1026,6 +1026,31 @@ class SampleBufferDatabase(SampleBuffer):
             if write:
                 self._sync()
 
+    def set_sync_interval(self, seconds: int) -> bool:
+        """Change the interval for syncing buffered events to the shared log dir.
+
+        Only meaningful when this buffer is syncing to a shared (eg. S3) log
+        directory — i.e. it was opened with a ``log_shared`` interval. Lowering
+        the interval makes in-progress sample events appear in the shared log
+        sooner; raising it reduces remote-write frequency. The running sync
+        worker picks up the new interval on its next wake-up.
+
+        Args:
+            seconds: New sync interval, in seconds (clamped to a minimum of 1).
+
+        Returns:
+            True if the interval was updated, False if this buffer has no
+            shared-log sync configured (nothing to retune).
+        """
+        if self.log_shared is None or self._sync_filestore is None:
+            return False
+        with self._sync_lock:
+            self.log_shared = max(1, seconds)
+            self._sync_filestore.update_interval = self.log_shared
+            # wake the worker so it recomputes its wait against the new interval
+            self._sync_wakeup.notify_all()
+        return True
+
     def _sync(self) -> None:
         sync_filestore = self._sync_filestore
         if self.log_shared is None or sync_filestore is None:
