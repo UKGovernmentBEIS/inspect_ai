@@ -81,12 +81,19 @@ def resolve_tasks(
     eval_checkpoint: CheckpointConfig | None = None,
 ) -> list[ResolvedTask]:
     # A TaskSource drives a run dynamically and is handled by eval() (which
-    # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete
-    # task list, so it can't be resolved here (e.g. when passed to eval_set).
-    if isinstance(tasks, TaskSource):
+    # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete,
+    # resumable task list, so it can't be used here (eval_set / eval_retry /
+    # score). Detect both a passed instance and a spec/name that refers to one
+    # so the CLI (`inspect eval-set file.py@source`) gets the same clear error
+    # rather than a confusing "task not found".
+    if refers_to_task_source(tasks):
         raise ValueError(
-            "A TaskSource can only be passed to eval(); it isn't supported here "
-            "(e.g. eval_set / eval_retry / score)."
+            "A TaskSource is only supported by `eval()` / `inspect eval`. "
+            "eval_set, eval_retry, and score require a fixed, resumable set of "
+            "tasks, but a TaskSource generates tasks dynamically (via "
+            "next_tasks() / sample_complete) that have no stable identity to "
+            "track, retry, or resume. Run a TaskSource-driven eval with "
+            "`inspect eval` instead."
         )
 
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
@@ -158,6 +165,44 @@ def resolve_tasks(
 
     # done! let's load the tasks
     return as_resolved_tasks(load_tasks(cast(list[str] | None, tasks), task_args))
+
+
+def refers_to_task_source(tasks: Tasks) -> bool:
+    """Whether `tasks` is, or refers to, a `TaskSource` — without creating it.
+
+    Mirrors :func:`resolve_task_source`'s detection (instance, `@task_source`
+    function, registered name, or `file.py@name` spec) but stops short of
+    instantiating the source. Used to reject a `TaskSource` where it isn't
+    supported (eval_set / eval_retry / score) without paying its (potentially
+    expensive) construction just to raise an error.
+    """
+    if isinstance(tasks, list):
+        if len(tasks) != 1:
+            return False
+        tasks = tasks[0]
+    if isinstance(tasks, TaskSource):
+        return True
+    if callable(tasks):
+        return is_registry_object(tasks) and registry_info(tasks).type == "task_source"
+    if isinstance(tasks, str):
+        if registry_lookup("task_source", tasks) is not None:
+            return True
+        file, name = split_spec(tasks)
+        if name is not None:
+            task_path = Path(file)
+            if task_path.suffix == ".py" and task_path.exists():
+                try:
+                    has_source = code_has_decorator(
+                        task_path.read_text(encoding="utf-8"), "task_source"
+                    )
+                except OSError:
+                    return False
+                if has_source:
+                    # load the module so its `@task_source` registers, then
+                    # confirm `name` is the source (not a `@task` in the same file)
+                    load_file_tasks(task_path.absolute())
+                    return registry_lookup("task_source", name) is not None
+    return False
 
 
 def resolve_task_source(tasks: Tasks, task_args: dict[str, Any]) -> TaskSource | None:

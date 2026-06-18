@@ -407,7 +407,17 @@ def test_task_source_load_from_file(tmp_path: Path) -> None:
 
 
 def test_task_source_rejected_outside_eval() -> None:
-    # a TaskSource isn't a concrete task list — resolving one (e.g. via eval_set)
-    # is a clear error
-    with pytest.raises(ValueError, match="only be passed to eval"):
+    # a TaskSource isn't a concrete, resumable task list — resolving one (e.g.
+    # via eval_set / eval_retry / score) is a clear error that points to eval()
+    with pytest.raises(ValueError, match="only supported by `eval"):
         resolve_tasks(_Generations(1), {}, get_model("mockllm/model"), None, None, None)
+
+
+def test_task_source_name_rejected_outside_eval() -> None:
+    # the same clear error fires for a spec/name that *refers* to a source (the
+    # CLI path, e.g. `inspect eval-set file.py@source`) — not a confusing
+    # "task not found"
+    with pytest.raises(ValueError, match="only supported by `eval"):
+        resolve_tasks(
+            "decorated_generations", {}, get_model("mockllm/model"), None, None, None
+        )
