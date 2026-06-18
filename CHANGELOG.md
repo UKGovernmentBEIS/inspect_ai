@@ -7,6 +7,7 @@
 - Sandbox: Preserve docker-compatible per-sample sandbox config (e.g. a per-sample `ComposeConfig`) when an eval-level sandbox override (`--sandbox <provider>`) is passed without its own config.
 - Limits: Added `turn_limit()` which tracks total generations.
 - Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
+- Inspect View: Parse task/task_id from filenames with a prefix before the ISO timestamp (e.g. copied logs like `[ext] 2025-...`) and cache header-derived info by (path, mtime, size), instead of re-reading headers on every listing (`/api/logs` on a 1418-file dir: 2.1s -> 0.04s).
 - Inspect View: Fix log-list grid columns snapping back to default widths while data loads
 - Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
 - Inspect View:  Improve tool input density

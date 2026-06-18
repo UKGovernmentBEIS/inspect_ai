@@ -551,6 +551,35 @@ def test_api_log_bytes(view_client: ViewTestClient) -> None:
     assert len(resp.content) == 100
 
 
+def test_api_log_bytes_large_range_fast(view_client: ViewTestClient) -> None:
+    # Regression test: a BytesIO body handed to StreamingResponse is iterated
+    # line by line (random binary has a newline every ~256 bytes), sending
+    # each fragment through a threadpool hop — measured ~3.3s for this 4MB
+    # range; served as a plain Response it takes ~40ms. The 1s bound leaves
+    # >3x margin on the failing side and >20x on the passing side.
+    import random
+    import time
+
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    data = random.Random(0).randbytes(4 * 1024 * 1024)
+    (view_client.log_dir / fname).write_bytes(data)
+
+    start = time.monotonic()
+    resp = view_client.request(
+        "GET",
+        view_client.log_url("log-bytes", fname) + f"?start=0&end={len(data) - 1}",
+    )
+    elapsed = time.monotonic() - start
+
+    resp.raise_for_status()
+    assert resp.content == data
+    assert resp.headers.get("content-length") == str(len(data))
+    assert elapsed < 1.0, (
+        f"4MB range read took {elapsed:.2f}s (~40ms expected, ~3.3s if the "
+        f"line-iteration regression returns; 1s bound leaves >3x margin)"
+    )
+
+
 def test_api_log_download(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)

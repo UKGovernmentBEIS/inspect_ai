@@ -1,5 +1,6 @@
 import os
 import re
+from collections import OrderedDict
 from functools import partial
 from logging import getLogger
 from pathlib import Path
@@ -715,9 +716,15 @@ async def log_files_from_ls_async(
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
-# Native Inspect filenames always start with a full ISO timestamp
-# (date + T + HH[:-]MM[:-]SS); anything shorter must use the header fallback.
-_timestamp_prefix_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}")
+# Native Inspect filenames start with a full ISO timestamp (date + T +
+# HH[:-]MM[:-]SS). Tools that copy logs may prepend a bracketed tag (e.g.
+# "[ext] 2025-..."), so also accept a single leading "[...]" prefix. Anchored
+# at the start (matched with .match): a timestamp embedded later in a custom
+# name (e.g. "backup-2025-...") must NOT masquerade as native, or we would
+# silently parse the wrong task from the filename instead of the header.
+_timestamp_prefix_re = re.compile(
+    r"(?:\[[^\]]*\]\s*)?\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}"
+)
 
 
 def is_log_file(file: str, extensions: list[str]) -> bool:
@@ -756,6 +763,43 @@ def _try_parse_filename(
     task_id = part3[0]
     suffix = part3[1] if len(part3) > 1 else None
     return task, task_id, suffix
+
+
+# Cache header-derived (task, task_id, suffix) so repeated directory
+# listings don't re-read headers for files whose names lack a timestamp.
+# Keyed by (name, mtime, size, etag): a rewritten file changes mtime/size,
+# and on remote stores with coarse mtime (S3 LastModified is 1s) the etag is
+# a content validator that catches a same-second, same-size overwrite the
+# mtime alone would miss. Local files have no etag but nanosecond mtime.
+_HeaderCacheKey = tuple[str, float | None, int, str | None]
+_HeaderInfo = tuple[str | None, str | None, str | None]
+_header_info_cache: "OrderedDict[_HeaderCacheKey, _HeaderInfo]" = OrderedDict()
+_HEADER_INFO_CACHE_MAX = 25000
+
+
+def _header_cache_key(info: FileInfo) -> _HeaderCacheKey | None:
+    # without an mtime there is no way to detect a rewritten file
+    if info.mtime is None:
+        return None
+    return (info.name, info.mtime, info.size, info.etag)
+
+
+def _header_cache_get(info: FileInfo) -> _HeaderInfo | None:
+    key = _header_cache_key(info)
+    if key is None:
+        return None
+    return _header_info_cache.get(key)
+
+
+def _header_cache_put(info: FileInfo, value: _HeaderInfo) -> None:
+    key = _header_cache_key(info)
+    if key is None:
+        return
+    _header_info_cache[key] = value
+    # evict oldest entries rather than wiping the whole cache, so a directory
+    # with more files than the cap doesn't thrash (full re-read) every listing
+    while len(_header_info_cache) > _HEADER_INFO_CACHE_MAX:
+        _header_info_cache.popitem(last=False)
 
 
 def _try_read_header(
@@ -808,7 +852,15 @@ def log_file_info(info: FileInfo) -> "EvalLogInfo":
     parts = _filename_parts(info)
     task, task_id, suffix = _try_parse_filename(parts)
     if task is None:
-        task, task_id, suffix = _try_read_header(info.name)
+        cached = _header_cache_get(info)
+        if cached is not None:
+            task, task_id, suffix = cached
+        else:
+            task, task_id, suffix = _try_read_header(info.name)
+            # cache successes only: a transient read failure must not
+            # stick until the file's mtime happens to change
+            if task is not None:
+                _header_cache_put(info, (task, task_id, suffix))
     return _build_log_info(info, task, task_id, suffix)
 
 
@@ -816,7 +868,15 @@ async def log_file_info_async(info: FileInfo) -> "EvalLogInfo":
     parts = _filename_parts(info)
     task, task_id, suffix = _try_parse_filename(parts)
     if task is None:
-        task, task_id, suffix = await _try_read_header_async(info.name)
+        cached = _header_cache_get(info)
+        if cached is not None:
+            task, task_id, suffix = cached
+        else:
+            task, task_id, suffix = await _try_read_header_async(info.name)
+            # cache successes only: a transient read failure must not
+            # stick until the file's mtime happens to change
+            if task is not None:
+                _header_cache_put(info, (task, task_id, suffix))
     return _build_log_info(info, task, task_id, suffix)
 
 

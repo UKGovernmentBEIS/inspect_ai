@@ -116,6 +116,25 @@ class TestLogFileInfoNativeParse:
         assert result.task == "mytask"
         assert result.task_id == "abc123"
 
+    def test_prefixed_timestamp_filename(self, monkeypatch):
+        """Bracket-prefixed timestamps (e.g. copied logs) skip the header read."""
+        import inspect_ai.log._file as file_mod
+
+        called = {"n": 0}
+
+        def boom(name):
+            called["n"] += 1
+            return None, None, None
+
+        monkeypatch.setattr(file_mod, "_try_read_header", boom)
+        info = _make_fileinfo(
+            "/logs/[ext] 2026-03-15T11-51-45+00-00_mytask_abc123.eval"
+        )
+        result = log_file_info(info)
+        assert called["n"] == 0  # parsed from name, no header read
+        assert result.task == "mytask"
+        assert result.task_id == "abc123"
+
 
 class TestLogFileInfoHeaderFallback:
     """Custom filenames (no ISO timestamp prefix) trigger header reading."""
@@ -145,6 +164,22 @@ class TestLogFileInfoHeaderFallback:
         result = log_file_info(info)
         assert result.task == "numeric_test"
         assert result.task_id == "num_id"
+
+    def test_embedded_timestamp_in_custom_name_uses_header(self, tmp_path):
+        """A timestamp embedded mid-name must NOT be parsed as a native name.
+
+        `backup-2025-...T..._results_x.eval` has an ISO timestamp after a "-"
+        boundary inside the first segment. It must fall back to the header
+        (task from the file), not silently take `results` from the filename.
+        """
+        header = _make_full_header(task="real_task", task_id="real_id")
+        eval_path = tmp_path / "backup-2025-01-01T00-00-00_results_x.eval"
+        _make_eval_zip(str(eval_path), header)
+
+        info = _make_fileinfo(str(eval_path), size=os.path.getsize(eval_path))
+        result = log_file_info(info)
+        assert result.task == "real_task"
+        assert result.task_id == "real_id"
 
     def test_hour_only_timestamp_not_native(self, tmp_path):
         """Truncated ISO prefix (YYYY-MM-DDTHH only) must not take the fast path."""
@@ -180,6 +215,120 @@ class TestLogFileInfoHeaderFallback:
         assert result.task == "onlytask"
         # EvalSpec.task_id has Field(default_factory=str) -> defaults to ""
         assert result.task_id == ""
+
+    def test_header_info_cached_across_calls(self, tmp_path, monkeypatch):
+        """Repeated listings reuse the cached header info for unchanged files."""
+        import inspect_ai.log._file as file_mod
+
+        file_mod._header_info_cache.clear()
+
+        header = _make_full_header(task="cached_task", task_id="cached_id")
+        eval_path = tmp_path / "cache_test.eval"
+        _make_eval_zip(str(eval_path), header)
+
+        calls = {"n": 0}
+        orig = file_mod._try_read_header
+
+        def counting(name):
+            calls["n"] += 1
+            return orig(name)
+
+        monkeypatch.setattr(file_mod, "_try_read_header", counting)
+
+        info = _make_fileinfo(str(eval_path), size=os.path.getsize(eval_path))
+        r1 = log_file_info(info)
+        r2 = log_file_info(info)
+        assert calls["n"] == 1
+        assert r1.task == r2.task == "cached_task"
+
+        # changed mtime invalidates the cache entry
+        info2 = FileInfo(
+            name=info.name, type="file", size=info.size, mtime=info.mtime + 1
+        )
+        log_file_info(info2)
+        assert calls["n"] == 2
+
+    def test_etag_distinguishes_same_mtime_size_overwrite(self, monkeypatch):
+        """A same-mtime, same-size overwrite with a new etag must re-read.
+
+        On S3 (LastModified is 1s-resolution), a fixed path like `latest.eval`
+        can be overwritten within one second by a different eval of the same
+        byte size. Without the etag in the key the stale task would be served
+        for the process lifetime; the etag is a content validator.
+        """
+        import inspect_ai.log._file as file_mod
+
+        file_mod._header_info_cache.clear()
+
+        calls = {"n": 0}
+
+        def fake_read(name):
+            calls["n"] += 1
+            return f"task{calls['n']}", f"id{calls['n']}", None
+
+        monkeypatch.setattr(file_mod, "_try_read_header", fake_read)
+
+        base = dict(
+            name="s3://bucket/latest.eval",
+            type="file",
+            size=1000,
+            mtime=1710000000.0,
+        )
+        r1 = log_file_info(FileInfo(**base, etag="etag-aaa"))
+        assert r1.task == "task1"
+
+        # new content (new etag), identical name/mtime/size -> must re-read
+        r2 = log_file_info(FileInfo(**base, etag="etag-bbb"))
+        assert calls["n"] == 2
+        assert r2.task == "task2"
+
+        # unchanged etag -> cache hit, no further read
+        r3 = log_file_info(FileInfo(**base, etag="etag-bbb"))
+        assert calls["n"] == 2
+        assert r3.task == "task2"
+
+    def test_cache_evicts_oldest_instead_of_full_wipe(self, monkeypatch):
+        """Exceeding the cap evicts only the oldest entry, not the whole cache.
+
+        A full wipe at the cap makes a directory larger than the cap re-read
+        every header on every listing (thundering herd); FIFO eviction keeps
+        the most-recent entries warm and still serving hits.
+        """
+        import inspect_ai.log._file as file_mod
+
+        file_mod._header_info_cache.clear()
+        monkeypatch.setattr(file_mod, "_HEADER_INFO_CACHE_MAX", 3)
+
+        reads = {"n": 0}
+
+        def counting(name):
+            reads["n"] += 1
+            return "t", "i", None
+
+        monkeypatch.setattr(file_mod, "_try_read_header", counting)
+
+        def info(i):
+            return FileInfo(name=f"/x/f{i}.eval", type="file", size=1, mtime=float(i))
+
+        for i in range(3):
+            log_file_info(info(i))
+        assert len(file_mod._header_info_cache) == 3
+        assert reads["n"] == 3
+
+        # one more past the cap: oldest (f0) evicted, cache stays bounded
+        log_file_info(info(3))
+        assert len(file_mod._header_info_cache) == 3
+        assert reads["n"] == 4
+        names = [key[0] for key in file_mod._header_info_cache]
+        assert "/x/f0.eval" not in names
+        assert "/x/f3.eval" in names
+
+        # the surviving recent entry still serves a hit (no re-read) ...
+        log_file_info(info(3))
+        assert reads["n"] == 4
+        # ... while the evicted entry must be re-read
+        log_file_info(info(0))
+        assert reads["n"] == 5
 
     def test_determinism(self, tmp_path):
         """Calling log_file_info twice on same file returns identical results."""
