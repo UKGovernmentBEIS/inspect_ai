@@ -2190,7 +2190,7 @@ def combine_messages(
         )
 
 
-def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
     from inspect_ai._util.retry import retry_error_summary, sample_context_prefix
 
     prefix = sample_context_prefix()
@@ -2200,6 +2200,15 @@ def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
         level,
         f"{prefix}-> {model_name} retry {retry_state.attempt_number} "
         f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}",
+    )
+
+    # notify hooks of the retry (useful for surfacing time spent in rate limiting)
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    await emit_model_retry(
+        model_name=model_name,
+        attempt=retry_state.attempt_number,
+        wait_time=retry_state.upcoming_sleep,
     )
 
 
