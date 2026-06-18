@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Checkpointing: Periodically checkpoint sample state for resilience against unexpected termination (infrastructure failure, out of memory, etc.), with automatic mid-sample resume on retry. Enable with the `--checkpoint` CLI option (for `eval`, `eval-set`, and `eval-retry`) or the `checkpoint` argument to `eval()`/`eval_set()`/`eval_retry()`. Built-in agents (`react()`, `deepagent()`) support checkpointing natively; see the Checkpointing docs to add support to custom agents.
 - MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
 - MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
 - MCP: Fix in-sandbox stdio MCP servers hanging on large tool responses.

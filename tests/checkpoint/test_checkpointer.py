@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -960,13 +959,6 @@ def _patch_restic(tmp_path: Path) -> Iterator[None]:
         yield
 
 
-@contextmanager
-def _patch_checkpointing_enabled() -> Iterator[None]:
-    """Set INSPECT_CHECKPOINTING=1 so `build_impl()` runs its real path."""
-    with patch.dict(os.environ, {"INSPECT_CHECKPOINTING": "1"}):
-        yield
-
-
 @pytest.fixture
 def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
     """Active sample fixture; redirects on-disk writes under tmp_path."""
@@ -977,7 +969,6 @@ def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
         _patch_cache_dir(tmp_path),
         _patch_restic(tmp_path),
         _patch_sample_runtime([]),
-        _patch_checkpointing_enabled(),
     ):
         yield fake
 
