@@ -699,7 +699,7 @@ def test_ctl_reused_log_eval_reports_usage(short_data_dir: Path) -> None:
 def test_keep_alive_park_entered_with_completed_state(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``ctl_server="keep-alive"`` enters the park, eval reported completed.
+    """``ctl_server="keep"`` enters the park, eval reported completed.
 
     The park itself (block until ``POST /release``) is unit-tested in
     ``test_server.py`` via ``wait_for_shutdown_async``; here we pin the
@@ -732,7 +732,7 @@ def test_keep_alive_park_entered_with_completed_state(
         log_dir=log_dir,
         model="mockllm/model",
         retry_attempts=0,
-        ctl_server="keep-alive",
+        ctl_server="keep",
     )
     assert ok
 
@@ -748,7 +748,7 @@ def test_keep_alive_park_entered_with_completed_state(
 def test_keep_alive_works_when_all_logs_reused(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``ctl_server="keep-alive"`` parks even when every task is reused.
+    """``ctl_server="keep"`` parks even when every task is reused.
 
     ``try_eval`` used to early-return at "no tasks to run" when every requested
     task had a prior success — skipping the inner ``eval()`` call where the
@@ -792,7 +792,7 @@ def test_keep_alive_works_when_all_logs_reused(
         log_dir=log_dir,
         model="mockllm/model",
         retry_attempts=0,
-        ctl_server="keep-alive",
+        ctl_server="keep",
     )
     assert ok
 
@@ -803,10 +803,71 @@ def test_keep_alive_works_when_all_logs_reused(
         assert entry["status"] == "completed"
 
 
+def test_runtime_keep_parks_eval_set_launched_without_flag(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A runtime `inspect ctl keep` parks an eval-set started without the flag.
+
+    Launched without ``ctl_server="keep"`` the process would normally exit
+    when the run finishes. Latching keep-alive during the run (what ``POST
+    /keep`` does) must flip it to park instead — the eval-set gates its park on
+    the latch, not just the launch flag. We simulate the mid-run request by
+    latching just before the park decision, and assert the park is entered.
+    """
+    from inspect_ai._control.server import (
+        request_keep_alive,
+        reset_keep_alive,
+    )
+    from inspect_ai.hooks import _hooks as hooks_mod
+
+    @task
+    def task_quick() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[generate()],
+            name="task_quick",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    captured: dict[str, bool] = {}
+
+    async def spy(eval_set_id: str) -> None:
+        captured["parked"] = True
+
+    monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
+
+    # Stand in for a `POST /keep` arriving during the run: the real end-event
+    # emit fires immediately before the park gate (and evalset imports it
+    # locally from inspect_ai.hooks._hooks), so latching here lands the request
+    # in the same window a runtime `keep` would.
+    real_emit = hooks_mod.emit_eval_set_end
+
+    async def emit_and_keep(eval_set_id: str, log_dir: str) -> None:
+        request_keep_alive()
+        await real_emit(eval_set_id, log_dir)
+
+    monkeypatch.setattr(hooks_mod, "emit_eval_set_end", emit_and_keep)
+
+    try:
+        ok, _ = eval_set(
+            tasks=[task_quick()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            # deliberately NOT keep-alive — the runtime keep must still park
+        )
+        assert ok
+        assert captured.get("parked"), "runtime keep did not enter the park"
+    finally:
+        reset_keep_alive()
+
+
 def test_keep_alive_with_retry_immediate_false_is_rejected(
     short_data_dir: Path,
 ) -> None:
-    """``ctl_server="keep-alive"`` + ``retry_immediate=False`` raises PrerequisiteError.
+    """``ctl_server="keep"`` + ``retry_immediate=False`` raises PrerequisiteError.
 
     The control server lives for one ``eval()`` call; ``retry_immediate=False``
     makes multiple short-lived ``eval()`` calls via tenacity, so there's no
@@ -825,16 +886,14 @@ def test_keep_alive_with_retry_immediate_false_is_rejected(
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    with pytest.raises(
-        PrerequisiteError, match="--ctl-server=keep-alive is incompatible"
-    ):
+    with pytest.raises(PrerequisiteError, match="--ctl-server=keep is incompatible"):
         eval_set(
             tasks=[task_quick()],
             log_dir=log_dir,
             model="mockllm/model",
             retry_attempts=0,
             retry_immediate=False,
-            ctl_server="keep-alive",
+            ctl_server="keep",
         )
 
 
