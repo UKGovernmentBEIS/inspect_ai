@@ -60,7 +60,7 @@ from inspect_ai.scorer._reducer import (
     create_reducers,
     reducer_log_names,
 )
-from inspect_ai.scorer._scorer import ScorerSpec, unique_scorer_name
+from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_name
 from inspect_ai.solver import TaskState
 from inspect_ai.util._display import (
     DisplayType,
@@ -70,6 +70,7 @@ from inspect_ai.util._display import (
 from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME, span
 from inspect_ai.util._store import init_subtask_store
 
+from .task.log import resolve_eval_scorers
 from .task.results import ScorerInfo, eval_results
 
 ScoreAction = Literal["append", "overwrite"]
@@ -320,6 +321,13 @@ async def score_async(
             metadata=log.results.metadata if log.results else None,
         )
 
+        # Update log.eval.scorers to reflect the scorers actually applied so
+        # that subsequent recompute_metrics() (which derives ScorerInfo from
+        # this header list) operates on the right entries.
+        applied_eval_scorers = (
+            resolve_eval_scorers([as_scorer_spec(s) for s in resolved_scorers]) or []
+        )
+
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
@@ -327,10 +335,12 @@ async def score_async(
         if action == "overwrite" or log.results is None:
             # Completely replace the results with the new results
             log.results = results
+            log.eval.scorers = applied_eval_scorers
         else:
             # Only update the results with the new scores, leaving the rest
             # of the results as they were
             log.results.scores.extend(results.scores)
+            log.eval.scorers = (log.eval.scorers or []) + applied_eval_scorers
 
     return log
 
