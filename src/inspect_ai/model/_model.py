@@ -226,8 +226,9 @@ class ModelAPI(abc.ABC):
         from inspect_ai.hooks._hooks import has_api_key_override, override_api_key
 
         for key in self.api_key_vars:
-            # an explicitly set self.api_key (note this can also be set by subclasses)
-            # takes precedence over the environment, so offer that value to the hook
+            # an explicitly set self.api_key (which can be set by at initialisation, by
+            # subclasses and by hooks when no env var is matched) takes precedence over
+            # the environment, so offer that value to the hook.
             if self.api_key is not None:
                 # re-resolve from the original explicit key when we have one, not from a
                 # value we previously overrode in place (which on re-init would be the
@@ -235,8 +236,8 @@ class ModelAPI(abc.ABC):
                 override = override_api_key(key, self._original_api_key or self.api_key)
                 if override is not None:
                     self.api_key = override
-            # otherwise look it up in the environment and override it in
-            # place (so downstream provider SDKs read the resolved value)
+            # otherwise look it up in the environment and override it in place (so
+            # downstream provider SDKs read the resolved value)
             else:
                 value = _get_original_api_key_env_value(key)
                 if value is not None:
