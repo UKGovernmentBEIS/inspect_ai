@@ -12,8 +12,9 @@ from anyio.abc import TaskGroup
 from inspect_ai._control.eval_state import clear_all_eval_states
 from inspect_ai._control.server import (
     control_server,
-    release_requested,
-    reset_release_requested,
+    keep_alive_intent,
+    request_keep_alive,
+    reset_keep_alive,
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
@@ -187,7 +188,7 @@ def eval(
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -460,7 +461,7 @@ async def eval_async(
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -551,10 +552,12 @@ async def eval_async(
     # have already initialized
     resolve_ctl_server(ctl_server)
 
-    # clear any release latch left by a prior run in this process (we run
-    # before this run's control server binds, so a release received during
-    # the run still latches)
-    reset_release_requested()
+    # clear a stale keep-alive intent left by a prior run in this process —
+    # but only for a standalone eval. When nested in an eval-set (eval_set_id
+    # set), eval_set() owns the intent: it sets it BEFORE this inner eval()
+    # runs to advertise the impending park, so resetting here would erase it.
+    if eval_set_id is None:
+        reset_keep_alive()
 
     result: list[EvalLog] | None = None
 
@@ -924,9 +927,16 @@ async def _eval_async_inner(
         # control channel coming up. See design/control-channel.md
         # "Implementation notes".
         #
-        ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+        ctl = resolve_ctl_server(ctl_server)
+        # Advertise keep-alive via the process-global latch (the single source
+        # of truth the control server reports and the park gates on). A runtime
+        # `POST /keep` sets the same latch. An eval-set demotes its inner eval()
+        # to a plain on/off server and owns the latch itself, so ctl.keep_alive
+        # is only ever set here for a standalone eval.
+        if ctl.keep_alive:
+            request_keep_alive()
         async with (
-            control_server(run_id=run_id, enabled=ctl_enabled) as _ctl_server,
+            control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
         ):
             with scan_cm:
@@ -995,10 +1005,12 @@ async def _eval_async_inner(
             # servers are still up so `inspect ctl` can read state and
             # request shutdown. (Standalone eval parks here, inside the
             # task display; eval-set instead parks after the display has
-            # closed.) EvalStates are cleared at the run boundary below.
-            # a release received while the eval was still running latches
-            # ("exit when done") — skip the park (and its notice) entirely
-            if ctl_keep_alive and _ctl_server is not None and not release_requested():
+            # closed — so this gate is scoped to standalone via eval_set_id.)
+            # The intent covers the launch flag and runtime `POST /keep` /
+            # `/release` (last-write-wins). EvalStates are cleared at the run
+            # boundary below. Intent off (never asked, or a release won the
+            # last word) skips the park and its notice entirely.
+            if eval_set_id is None and keep_alive_intent() and _ctl_server is not None:
                 import rich
 
                 rich.get_console().print(
@@ -1124,7 +1136,7 @@ def eval_retry(
         score_display: Show scoring metrics in realtime (defaults to True)
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -1302,7 +1314,7 @@ async def eval_retry_async(
         score_display: Show scoring metrics in realtime (defaults to True)
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
