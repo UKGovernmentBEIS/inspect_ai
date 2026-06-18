@@ -110,6 +110,7 @@ def samples_df(
           for terminal environments, and `True` for notebooks.
        exclude_fields: Set of EvalSample field names to skip when loading
           samples (e.g. {"messages", "events", "store", "attachments"}).
+          Ignored for .json format logs (only applies to .eval logs).
 
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.

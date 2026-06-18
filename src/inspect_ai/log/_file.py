@@ -282,8 +282,8 @@ def read_eval_log(
           (defaults to 'auto' based on `log_file` extension).
        exclude_fields: Set of EvalSample field names to skip when loading
           samples (e.g. {"messages", "events", "store", "attachments"}).
-          Only applies to .eval format files. Has no effect when
-          header_only is True or when log_file is an IO[bytes] stream.
+          Ignored for .json format logs (only applies to .eval logs). Has no
+          effect when header_only is True or when log_file is an IO[bytes] stream.
 
     Returns:
        EvalLog object read from file.
@@ -324,8 +324,8 @@ async def read_eval_log_async(
           (defaults to 'auto' based on `log_file` extension).
        exclude_fields: Set of EvalSample field names to skip when loading
           samples (e.g. {"messages", "events", "store", "attachments"}).
-          Only applies to .eval format files. Has no effect when
-          header_only is True or when log_file is an IO[bytes] stream.
+          Ignored for .json format logs (only applies to .eval logs). Has no
+          effect when header_only is True or when log_file is an IO[bytes] stream.
 
     Returns:
        EvalLog object read from file.
@@ -441,6 +441,7 @@ def read_eval_log_sample(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful when reading large samples with fields like
           'store' or 'attachments' that aren't needed.
+          Ignored for .json format logs (only applies to .eval logs).
 
     Returns:
        EvalSample object read from file.
@@ -505,6 +506,7 @@ async def read_eval_log_sample_async(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful when reading large samples with fields like
           'store' or 'attachments' that aren't needed.
+          Ignored for .json format logs (only applies to .eval logs).
        reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
@@ -619,6 +621,7 @@ def read_eval_log_samples(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful when reading large samples with fields like
           'store' or 'attachments' that aren't needed.
+          Ignored for .json format logs (only applies to .eval logs).
 
     Returns:
        Generator of EvalSample objects in the log file.
