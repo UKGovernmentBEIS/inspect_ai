@@ -18,8 +18,10 @@ from inspect_ai.util._limit import (
     message_limit,
     sample_limits,
     suspend_token_limit,
+    suspend_turn_limit,
     time_limit,
     token_limit,
+    turn_limit,
     working_limit,
 )
 
@@ -155,7 +157,9 @@ __all__ = [
     "background",
     "cost_limit",
     "suspend_token_limit",
+    "suspend_turn_limit",
     "token_limit",
+    "turn_limit",
     "time_limit",
     "working_limit",
     "trace_action",

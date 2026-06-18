@@ -94,7 +94,7 @@ async def inspect_completions_api_request(
         messages.append(c_message)
 
     # update state if we have more messages than the last generation
-    bridge._track_state(messages, output)
+    await bridge._track_state(messages, output)
 
     # inspect completion to openai completion
     return ChatCompletion(
