@@ -204,6 +204,18 @@ def mock_s3():
             os.environ[key] = value
 
 
+@pytest.fixture(autouse=True)
+def _reset_model_api_key_env_snapshot():
+    # inspect_ai.model._model's _original_api_key_env is process-global and
+    # first-touch-wins, so clear it around every test to prevent a value captured in one
+    # test from leaking into another.
+    from inspect_ai.model._model import _original_api_key_env
+
+    _original_api_key_env.clear()
+    yield
+    _original_api_key_env.clear()
+
+
 def pytest_sessionfinish(session, exitstatus):
     # When running under pytest-xdist, this hook fires once per worker as well
     # as on the controller. Letting every worker race to uninstall the test

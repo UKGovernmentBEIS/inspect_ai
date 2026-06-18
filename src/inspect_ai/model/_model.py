@@ -222,19 +222,17 @@ class ModelAPI(abc.ABC):
     def _apply_api_key_overrides(self) -> None:
         from inspect_ai.hooks._hooks import has_api_key_override, override_api_key
 
-        # apply api key override
-        api_key = self.api_key
         for key in self.api_key_vars:
-            # if there is an explicit api_key passed then it
-            # overrides anything in the environment so use it
-            if api_key is not None:
-                override = override_api_key(key, api_key)
+            # an explicitly set self.api_key (note this can also be set by subclasses)
+            # takes precedence over the environment, so offer that value to the hook
+            if self.api_key is not None:
+                override = override_api_key(key, self.api_key)
                 if override is not None:
-                    api_key = override
-            # otherwise look it up in the environment and
-            # override it if it has a value
+                    self.api_key = override
+            # otherwise look it up in the environment and override it in
+            # place (so downstream provider SDKs read the resolved value)
             else:
-                value = os.environ.get(key, None)
+                value = _get_original_api_key_env_value(key)
                 if value is not None:
                     override = override_api_key(key, value)
                     if override is not None:
@@ -245,10 +243,7 @@ class ModelAPI(abc.ABC):
                 elif has_api_key_override():
                     override = override_api_key(key, "")
                     if override is not None:
-                        api_key = override
-
-        # set any explicitly specified api key
-        self.api_key = api_key
+                        self.api_key = override
 
     def initialize(self) -> None:
         """Reinitialize the model API client.
@@ -2486,3 +2481,28 @@ def sample_total_cost() -> float:
         for usage in sample_model_usage().values()
         if usage.total_cost is not None
     )
+
+
+# Original (pre-override) values of api-key environment variables. Captured the
+# first time we override each var (e.g. "OPENAI_API_KEY": "arn:aws:..."). Overrides are
+# always resolved from these originals rather than from the live environment. os.environ
+# is overwritten with the *resolved* key so downstream provider SDKs (which read keys
+# straight from the environment) pick it up. That write would otherwise destroy the
+# original value — e.g. a secret-manager ARN that the override hook needs in order to
+# re-resolve credentials when the model is re-initialized (on a 401) or when a later
+# model is constructed.
+_original_api_key_env: dict[str, str | None] = {}
+
+
+def _get_original_api_key_env_value(env_var: str) -> str | None:
+    """Return the original, pre-override value of an api-key env var.
+
+    Sets the value if it hasn't been set yet.
+
+    Captured on first access: at that moment os.environ still holds the user's
+    original value, because a var is only ever overwritten *after* it has been
+    snapshotted here.
+    """
+    if env_var not in _original_api_key_env:
+        _original_api_key_env[env_var] = os.environ.get(env_var)
+    return _original_api_key_env[env_var]

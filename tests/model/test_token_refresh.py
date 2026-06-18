@@ -138,3 +138,85 @@ def test_reactive_token_refresh_on_401(mock_refresh_token_hook: MockRefreshToken
     finally:
         # Remove the provider from the registry to avoid conflicts in other tests.
         del _registry["modelapi:mock401"]
+
+
+class MockArnResolverHook(Hooks):
+    """Resolves a secret-manager ARN to an incrementing real key.
+
+    Unlike MockRefreshTokenHook, this hook's output *depends on its input* — it
+    only resolves when handed the original ARN. It therefore breaks if the
+    original value is clobbered by a previous resolution.
+    """
+
+    ARN = "arn:aws:secretsmanager:us-east-1:secret:openai"
+
+    def __init__(self) -> None:
+        self.call_count = 0
+        self.seen_values: list[str] = []
+
+    def override_api_key(self, data: ApiKeyOverride) -> str | None:
+        if data.env_var_name != "TEST_API_KEY":
+            return None
+        self.seen_values.append(data.value)
+        if data.value != self.ARN:
+            return None
+        self.call_count += 1
+        return f"resolved-key-{self.call_count}"
+
+
+@pytest.fixture
+def mock_arn_resolver_hook() -> Generator[MockArnResolverHook, None, None]:
+    @hooks("test_arn_resolver", description="Test ARN resolver hook")
+    def get_hook() -> type[MockArnResolverHook]:
+        return MockArnResolverHook
+
+    hook = registry_lookup("hooks", "test_arn_resolver")
+    assert isinstance(hook, MockArnResolverHook)
+    try:
+        yield hook
+    finally:
+        # Remove the hook from the registry to avoid conflicts in other tests.
+        del _registry["hooks:test_arn_resolver"]
+
+
+def test_env_override_reresolves_from_original_arn(
+    monkeypatch: pytest.MonkeyPatch, mock_arn_resolver_hook: MockArnResolverHook
+):
+    """Env-var overrides re-resolve from the original value.
+
+    They must not re-resolve from the previously-resolved key written back
+    into os.environ.
+    """
+    import os
+
+    monkeypatch.setenv("TEST_API_KEY", MockArnResolverHook.ARN)
+
+    @modelapi(name="mockarn")
+    def mockarn() -> type[ModelAPI]:
+        return Mock401API
+
+    try:
+        # initial construction resolves the ARN and writes the resolved key
+        # back to os.environ for downstream SDKs
+        model = get_model("mockarn/test", memoize=False)
+        provider = model.api
+        assert isinstance(provider, Mock401API)
+        assert provider.api_key is None  # env-var path leaves api_key unset
+        assert os.environ["TEST_API_KEY"] == "resolved-key-1"
+
+        # re-initialization (as happens on a 401) must hand the hook the ARN
+        # again — not the already-resolved key now sitting in os.environ
+        provider.initialize()
+        assert os.environ["TEST_API_KEY"] == "resolved-key-2"
+
+        # a later, separately-constructed model must also re-resolve the ARN
+        model2 = get_model("mockarn/test", memoize=False)
+        assert os.environ["TEST_API_KEY"] == "resolved-key-3"
+        assert model2.api is not provider
+
+        # the hook only ever saw the original ARN, never a resolved key
+        assert set(mock_arn_resolver_hook.seen_values) == {MockArnResolverHook.ARN}
+        assert mock_arn_resolver_hook.call_count == 3
+    finally:
+        # Remove the model provider from the registry to avoid conflicts in other tests.
+        del _registry["modelapi:mockarn"]
