@@ -117,16 +117,16 @@ Events for samples that have already completed are also readable — they are se
 A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The `--ctl-server` option controls this:
 
 ```bash
-inspect eval ctf.py --ctl-server=keep-alive
+inspect eval ctf.py --ctl-server=keep
 ```
 
-With `keep-alive`, the process stays running after the eval finishes — its state remains queryable via `inspect ctl` and its logs are fully written — until you release it:
+With `keep`, the process stays running after the eval finishes — its state remains queryable via `inspect ctl` and its logs are fully written — until you release it:
 
 ```bash
 inspect ctl release
 ```
 
-If more than one process is parked, `release` lists their pids and you disambiguate with `--pid`. Release also works ahead of time: issued while the eval is still running, it means "exit when done" — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). From Python, pass `ctl_server="keep-alive"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
+If more than one process is parked, `release` lists their pids and you disambiguate with `--pid`. Release also works ahead of time: issued while the eval is still running, it means "exit when done" — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). `keep` and `release` are last-write-wins, so a `keep` issued after a `release` (while the eval is still running) restores the park. From Python, pass `ctl_server="keep"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
 
 ## Disabling the Control Server
 
