@@ -158,6 +158,23 @@ async def test_run_code_reports_monty_error():
 
 
 @pytest.mark.anyio
+async def test_run_code_returns_falsy_results():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(execute_code=True)
+
+    for code, expected in [
+        ("0", "0"),
+        ("1 - 1", "0"),
+        ("False", "False"),
+        ("[]", "[]"),
+    ]:
+        result = await tool(code=code)
+        assert result
+        assert result[0].text == expected
+
+
+@pytest.mark.anyio
 async def test_external_functions_call_wrapped_tool():
     tool_defs = _tool_defs([dummy_tool()])
     external_functions = external_functions_for_tool_defs(tool_defs)

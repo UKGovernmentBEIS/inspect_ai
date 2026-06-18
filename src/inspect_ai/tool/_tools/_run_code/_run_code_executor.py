@@ -99,7 +99,7 @@ class MontyRunCodeExecutor:
 
             contents: list[Content] = []
 
-            if output:
+            if output is not None:
                 contents.append(ContentText(text=str(output)))
 
             contents.extend(bridge.artifacts)
