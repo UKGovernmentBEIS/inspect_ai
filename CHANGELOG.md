@@ -10,6 +10,7 @@
 - Inspect View: Fix log-list grid columns snapping back to default widths while data loads
 - Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
 - Inspect View:  Improve tool input density
+- Log: `read_eval_log`, `read_eval_log_async`, and `samples_df` now accept `exclude_fields` for more memory-efficient loading of large samples.
 
 ## 0.3.240 (15 June 2026)
 
