@@ -17313,6 +17313,99 @@ li > ul {
 ._copyButton_1goi8_1:hover {
   opacity: 0.75;
 }
+._backdrop_1hn8l_1 {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.36);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  /* Above app chrome: Bootstrap's sticky-top navbar is 1020 and fixed
+     elements are 1030, so a modal must clear those (matches the standard
+     Bootstrap modal layer). */
+  z-index: 1050;
+}
+
+._modal_1hn8l_15 {
+  background: var(--vscode-editor-background);
+  border: 1px solid
+    var(--vscode-widget-border, var(--vscode-editorWidget-border));
+  border-radius: 4px;
+  box-shadow: 0 4px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+  max-width: 450px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+._header_1hn8l_28 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid
+    var(--vscode-widget-border, var(--vscode-editorWidget-border));
+}
+
+._title_1hn8l_37 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+._closeButton_1hn8l_44 {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+._closeButton_1hn8l_44:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  border-radius: 4px;
+}
+
+._body_1hn8l_60 {
+  padding: 16px;
+  color: var(--vscode-foreground);
+  font-size: 13px;
+}
+
+._overflowAuto_1hn8l_66 {
+  overflow-y: auto;
+}
+
+._overflowHidden_1hn8l_70 {
+  overflow: hidden;
+}
+
+._overflowScroll_1hn8l_74 {
+  overflow: scroll;
+}
+
+._overflowVisible_1hn8l_78 {
+  overflow: visible;
+}
+
+._noPadding_1hn8l_82 {
+  padding: 0;
+}
+
+._footer_1hn8l_86 {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid
+    var(--vscode-widget-border, var(--vscode-editorWidget-border));
+}
 .json-panel {
   width: 100%;
   padding: 0.5em;
@@ -17615,6 +17708,55 @@ li > ul {
   background-color: var(--bs-body-bg);
   overflow-y: auto;
   scrollbar-width: thin;
+}
+._rail_1llfi_1 {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 0.25rem;
+}
+
+._item_1llfi_9 {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.5rem 0.25rem;
+  color: var(--bs-secondary-color);
+  border-left: 2px solid transparent;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+._item_1llfi_9:hover:not(:disabled) {
+  color: var(--bs-body-color);
+  background-color: var(--bs-tertiary-bg);
+}
+
+._item_1llfi_9:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+._itemActive_1llfi_35 {
+  color: var(--bs-body-color);
+  border-left-color: var(--bs-primary);
+  background-color: var(--bs-tertiary-bg);
+}
+
+._icon_1llfi_41 {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+._label_1llfi_46 {
+  text-align: center;
+  line-height: 1.1;
 }
 ._rootControl_1d1i3_1 {
   background-color: var(--bs-body-bg);
@@ -22931,55 +23073,6 @@ a._citationLink_1ggvf_9:hover {
     break-inside: avoid;
   }
 }
-._rail_1llfi_1 {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  width: 100%;
-  gap: 0.25rem;
-}
-
-._item_1llfi_9 {
-  all: unset;
-  box-sizing: border-box;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0.5rem 0.25rem;
-  color: var(--bs-secondary-color);
-  border-left: 2px solid transparent;
-  transition:
-    color 120ms ease,
-    background-color 120ms ease;
-}
-
-._item_1llfi_9:hover:not(:disabled) {
-  color: var(--bs-body-color);
-  background-color: var(--bs-tertiary-bg);
-}
-
-._item_1llfi_9:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-
-._itemActive_1llfi_35 {
-  color: var(--bs-body-color);
-  border-left-color: var(--bs-primary);
-  background-color: var(--bs-tertiary-bg);
-}
-
-._icon_1llfi_41 {
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
-._label_1llfi_46 {
-  text-align: center;
-  line-height: 1.1;
-}
 ._tabControls_fvnsu_1 {
   position: sticky;
   z-index: 1001;
@@ -24245,81 +24338,6 @@ pre._value_8citi_25 {
   outline: 2px solid var(--bs-border-color);
   outline-offset: 1px;
 }
-._modal_8i1ew_1 {
-  margin-left: auto;
-  margin-right: auto;
-  display: flex;
-  flex: 1 1 auto;
-  justify-content: center;
-  max-width: 90vw;
-  margin-top: 3rem;
-  border-radius: var(--bs-border-radius);
-  position: relative;
-  z-index: 1050;
-}
-
-/* Even vertical whitespace above and below the title across every
-   Modal consumer (tags, metadata, scoring detail, …). An earlier
-   `height: 2em` rule clamped the header below its natural padding-
-   based height; the title still rendered, but how much of the
-   padding survived varied by CSS load order, so some surfaces ended
-   up visibly tighter than others. Setting padding explicitly removes
-   that dependency. */
-._header_8i1ew_21 {
-  padding-top: 1rem;
-  padding-bottom: 1rem;
-}
-
-._modalTitle_8i1ew_26 {
-  font-weight: 600;
-}
-
-._btnClose_8i1ew_30 {
-  height: 0.8em;
-  width: 0.8em;
-}
-
-/* Backdrop styling for the glass effect */
-._backdrop_8i1ew_36 {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: var(--inspect-glass-color);
-  opacity: var(--inspect-glass-opacity);
-
-  z-index: 1040;
-}
-
-._overflowVisible_8i1ew_48 {
-  overflow: visible;
-}
-
-._overflowHidden_8i1ew_52 {
-  overflow: hidden;
-}
-
-._overflowScroll_8i1ew_56 {
-  overflow: scroll;
-}
-
-._overflowAuto_8i1ew_60 {
-  overflow: auto;
-}
-
-._noPadding_8i1ew_64 {
-  padding: 0;
-}
-
-/* Used when a custom footer node is supplied via the `footer` prop —
-   provides the consistent padding for consumer-supplied buttons.
-   Background is left to the modal-content default (white) so this
-   footer matches other modals across the viewer rather than getting
-   the tinted rail look. */
-._footerSlot_8i1ew_73 {
-  padding: 0.75rem 1.125rem;
-}
 ._textarea_8mbr9_1 {
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
@@ -25139,7 +25157,7 @@ pre._value_8citi_25 {
 ._label_12472_14 {
   margin-left: 0.4em;
 }
-._container_w43k4_1 {
+._container_1jo7v_1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -25149,7 +25167,7 @@ pre._value_8citi_25 {
   min-height: 1.75rem;
 }
 
-._left_w43k4_11 {
+._left_1jo7v_11 {
   display: flex;
   align-items: baseline;
   gap: 0.4rem;
@@ -25157,18 +25175,18 @@ pre._value_8citi_25 {
   overflow: hidden;
 }
 
-._task_w43k4_19 {
+._task_1jo7v_19 {
   font-weight: 600;
   flex: 0 0 auto;
 }
 
-._model_w43k4_24 {
+._model_1jo7v_24 {
   opacity: 0.75;
   min-width: 0;
   flex: 1 1 auto;
 }
 
-._right_w43k4_30 {
+._right_1jo7v_30 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -25176,49 +25194,46 @@ pre._value_8citi_25 {
   white-space: nowrap;
 }
 
-._inlineMetrics_w43k4_38 {
+._inlineMetrics_1jo7v_38 {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
 }
 
-._inlineMetric_w43k4_38 {
+._inlineMetric_1jo7v_38 {
   display: inline-flex;
   align-items: baseline;
   gap: 0.3rem;
 }
 
-._inlineMetricLabel_w43k4_50 {
+._inlineMetricLabel_1jo7v_50 {
   opacity: 0.7;
 }
 
-._inlineMetricValue_w43k4_54 {
+._inlineMetricValue_1jo7v_54 {
   font-weight: 600;
 }
 
-._statusBadge_w43k4_58 {
+._statusBadge_1jo7v_58 {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
 }
 
-._statusIcon_w43k4_64 {
+._statusIcon_1jo7v_64 {
   font-size: 1em;
 }
 
-._statusCount_w43k4_68 {
+._statusCount_1jo7v_68 {
   opacity: 0.7;
 }
 
-._scoringDetailModal_w43k4_72 .modal-dialog {
-  max-width: min(1000px, 90vw);
-}
-
-._scoringDetailModal_w43k4_72 .modal-content {
+/* Shrink the dialog to the grid's natural width, capped by the modal's
+   `width` prop (the grid scrolls internally beyond that). */
+._scoringDetailModal_1jo7v_74 {
   width: fit-content;
-  max-width: 100%;
 }
-._simpleMetricsRows_13tuz_1 {
+._simpleMetricsRows_z2l7l_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -25229,7 +25244,7 @@ pre._value_8citi_25 {
   overflow: scroll;
 }
 
-._multiMetricsRows_13tuz_12 {
+._multiMetricsRows_z2l7l_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -25243,14 +25258,14 @@ pre._value_8citi_25 {
   align-items: baseline;
 }
 
-._verticalMetricReducer_13tuz_26 {
+._verticalMetricReducer_z2l7l_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_13tuz_33 {
+._verticalMetricName_z2l7l_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -25258,35 +25273,35 @@ pre._value_8citi_25 {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_13tuz_41 {
+._verticalMetricValue_z2l7l_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_13tuz_46 {
+._multiScorer_z2l7l_46 {
   padding-left: 0;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_13tuz_53 {
+._multiScorerIndent_z2l7l_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_13tuz_57 {
+._multiScorerReducer_z2l7l_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_13tuz_63 {
+._multiScorerLabel_z2l7l_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_13tuz_69 {
+._multiScorerValue_z2l7l_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -25295,12 +25310,12 @@ pre._value_8citi_25 {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_13tuz_78 {
+._multiScorerValueContent_z2l7l_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_13tuz_83 {
+._multiScoreMetricGrid_z2l7l_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
@@ -25308,104 +25323,128 @@ pre._value_8citi_25 {
   justify-content: center;
 }
 
-._moreButton_13tuz_91 {
+._moreButton_z2l7l_91 {
   margin-top: 0.25em;
   padding-right: 0;
   padding-bottom: 0;
 }
 
-._metricsSummary_13tuz_97 {
+._metricsSummary_z2l7l_97 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   margin-bottom: 0.35em;
 }
 
-._scoringDetailModal_13tuz_104 .modal-dialog {
-  max-width: min(1000px, 90vw);
-}
-
 /* Let the dialog shrink to the grid's natural width instead of always
-   stretching to the max-width. The grid container sizes itself from the
-   sum of column widths; modal-content honours that. */
-._scoringDetailModal_13tuz_104 .modal-content {
+   stretching to the max-width (set via the modal's `width` prop). The grid
+   container sizes itself from the sum of column widths; the dialog honours
+   that and caps at the prop's max-width. */
+._scoringDetailModal_z2l7l_108 {
   width: fit-content;
-  max-width: 100%;
 }
-._gridContainer_2wkq3_1 {
+._gridContainer_v19e7_1 {
   max-width: 100%;
   max-height: 60vh;
   overflow: auto;
-  scrollbar-gutter: stable;
+  padding: 0;
+}
+
+/* Title-region summary card: size to content, no inner scroll/padding. */
+._cardContainer_v19e7_9 {
+  max-width: 100%;
+  overflow: visible;
+}
+
+/* Inline card sits on the results panel — let the whole grid show through so
+   it blends with its surroundings rather than painting its own surface. Every
+   chrome layer (root wrapper, header, body, sticky/floating rails) paints its
+   own opaque fill, so each has to be cleared. */
+._cardContainer_v19e7_9 .ag-root-wrapper,
+._cardContainer_v19e7_9 .ag-header,
+._cardContainer_v19e7_9 .ag-body,
+._cardContainer_v19e7_9 .ag-floating-top,
+._cardContainer_v19e7_9 .ag-floating-bottom,
+._cardContainer_v19e7_9 .ag-sticky-top,
+._cardContainer_v19e7_9 .ag-sticky-bottom,
+._cardContainer_v19e7_9 .ag-row,
+._cardContainer_v19e7_9 .ag-cell {
+  background-color: transparent;
+}
+
+._gridContainer_v19e7_1 .ag-cell,
+._cardContainer_v19e7_9 .ag-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cells aren't interactive — clicking does nothing — so don't imply otherwise
+   with a pointer cursor or hover surface. */
+._gridContainer_v19e7_1 .ag-cell,
+._cardContainer_v19e7_9 .ag-cell,
+._gridContainer_v19e7_1 .ag-row-hover,
+._cardContainer_v19e7_9 .ag-row-hover {
+  cursor: default;
+}
+
+._gridContainer_v19e7_1 .ag-row-hover,
+._gridContainer_v19e7_1 .ag-row-hover .ag-cell,
+._cardContainer_v19e7_9 .ag-row-hover,
+._cardContainer_v19e7_9 .ag-row-hover .ag-cell {
+  background-color: transparent;
+}
+
+/* Scorer column reads as the row label — a touch heavier + higher contrast. */
+.ag-cell._firstCell_v19e7_52 {
+  font-weight: 500;
+  color: var(--bs-emphasis-color);
+}
+
+._gridContainer_v19e7_1 .ag-layout-auto-height .ag-center-cols-viewport,
+._cardContainer_v19e7_9 .ag-layout-auto-height .ag-center-cols-viewport {
+  min-height: unset;
+}
+
+/* Hide ag-grid's reserved horizontal-scroll strip — otherwise it leaves empty
+   space below the rows (most visible in the short title-region card). */
+._gridContainer_v19e7_1 .ag-body-horizontal-scroll.ag-scrollbar-invisible,
+._cardContainer_v19e7_9 .ag-body-horizontal-scroll.ag-scrollbar-invisible {
+  display: none;
 }
 
 /* Breathing room at the edges so values don't sit flush with the modal border
    (and so the last column doesn't get overlapped by the vertical scroll bar).
    The extra specificity via `:global(.ag-cell)` / `:global(.ag-header-cell)`
    is needed to win against ag-grid's built-in theme padding. */
-.ag-cell._firstCell_2wkq3_12,
-.ag-header-cell._firstHeader_2wkq3_13 {
+.ag-cell._firstCell_v19e7_52,
+.ag-header-cell._firstHeader_v19e7_74 {
   padding-left: 1rem;
 }
 
-.ag-cell._lastCell_2wkq3_17,
-.ag-header-cell._lastHeader_2wkq3_18 {
+.ag-cell._lastCell_v19e7_78,
+.ag-header-cell._lastHeader_v19e7_79 {
   padding-right: 0.5rem;
+}
+
+.ag-header-group-cell._groupHeader_v19e7_83
+  .ag-header-group-cell-label {
+  justify-content: center;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.ag-header-cell._noGroupBorder_v19e7_90 {
+  border-top-color: transparent;
+}
+
+._groupGrid_v19e7_94 + ._groupGrid_v19e7_94 {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: solid 1px var(--bs-light-border-subtle);
 }
 ._unscoredSamples_1h85z_1 {
   margin-left: 0.2rem;
   margin-right: 0.2rem;
   cursor: pointer;
-}
-._table_12koy_1 {
-  margin-bottom: 0;
-}
-
-._scorer_12koy_5,
-._value_12koy_6 {
-  padding-top: 0.2em !important;
-  padding-bottom: 0.2em !important;
-}
-
-._label_12koy_11,
-._value_12koy_6 {
-  text-align: center;
-  padding-left: 1em;
-  padding-right: 1em;
-}
-
-._label_12koy_11 {
-  font-weight: 400;
-  padding-left: 1em;
-  padding-right: 1em;
-}
-
-._scorer_12koy_5 {
-  font-weight: 400;
-}
-
-._groupSeparator_12koy_28 {
-  padding-top: 2em;
-  border-bottom: hidden;
-}
-
-._tableBody_12koy_33 {
-  border-top-color: var(--bs-light-border-subtle);
-}
-
-thead,
-thead tr,
-thead td,
-thead th {
-  border: none !important;
-  padding: 0 !important;
-}
-
-._tableSeparator_12koy_45,
-._tableSeparator_12koy_45 tr,
-._tableSeparator_12koy_45 td,
-._tableSeparator_12koy_45 th {
-  border: none !important;
 }
 ._downloadLogButton_fi3zx_1 {
   border: none;
