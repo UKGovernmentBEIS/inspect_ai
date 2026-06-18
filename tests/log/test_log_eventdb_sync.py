@@ -9,7 +9,14 @@ from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
     sync_to_filestore,
 )
-from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
+from inspect_ai.log._recorders.buffer.filestore import (
+    Manifest,
+    SampleBufferFilestore,
+    SampleManifest,
+    SampleSegment,
+    Segment,
+    sample_segment_id,
+)
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
 
@@ -129,7 +136,7 @@ def test_sync_multiple_samples(
     # Each sample references that single segment
     seg_id = manifest.segments[0].id
     for sm in manifest.samples:
-        assert seg_id in sm.segments
+        assert seg_id in {sample_segment_id(segment) for segment in sm.segments}
 
     # Filestore get_sample_data => each sample has its event
     data_a = filestore.get_sample_data("A", 1)
@@ -137,6 +144,77 @@ def test_sync_multiple_samples(
     assert data_a and data_b
     assert len(data_a.events) == 1
     assert len(data_b.events) == 1
+
+
+def test_pending_segments_use_per_sample_maxima(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+
+    db.start_sample(EvalSampleSummary(id="a", epoch=1, input="in", target="out"))
+    db.start_sample(EvalSampleSummary(id="b", epoch=1, input="in", target="out"))
+    db.log_events(
+        [
+            SampleEvent(id="a", epoch=1, event=InfoEvent(data="a-one")),
+            SampleEvent(id="b", epoch=1, event=InfoEvent(data="b-one")),
+            SampleEvent(id="b", epoch=1, event=InfoEvent(data="b-two")),
+        ]
+    )
+
+    sync_to_filestore(db, filestore)
+    manifest = filestore.read_manifest()
+
+    assert manifest is not None
+    assert len(manifest.segments) == 1
+    assert manifest.segments[0].last_event_id == 3
+
+    sample_a = next(s for s in manifest.samples if s.summary.id == "a")
+    sample_b = next(s for s in manifest.samples if s.summary.id == "b")
+    assert sample_a.segments == [
+        SampleSegment(id=1, last_event_id=1, last_attachment_id=0)
+    ]
+    assert sample_b.segments == [
+        SampleSegment(id=1, last_event_id=3, last_attachment_id=0)
+    ]
+
+    pending = filestore.get_pending_segments("a", 1, after_event_id=1)
+
+    assert pending is not None
+    assert pending.segments == []
+
+
+def test_sync_continues_from_legacy_integer_segments(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+
+    db.start_sample(EvalSampleSummary(id="a", epoch=1, input="in", target="out"))
+    db.log_events([SampleEvent(id="a", epoch=1, event=InfoEvent(data="old"))])
+
+    legacy_manifest = Manifest(
+        samples=[
+            SampleManifest(
+                summary=EvalSampleSummary(id="a", epoch=1, input="in", target="out"),
+                segments=[1],
+            )
+        ],
+        segments=[Segment(id=1, last_event_id=1, last_attachment_id=0)],
+    )
+    filestore.write_manifest(legacy_manifest)
+
+    db.log_events([SampleEvent(id="a", epoch=1, event=InfoEvent(data="new"))])
+    sync_to_filestore(db, filestore)
+    manifest = filestore.read_manifest()
+
+    assert manifest is not None
+    sample = manifest.samples[0]
+    assert sample.segments == [
+        1,
+        SampleSegment(id=2, last_event_id=2, last_attachment_id=0),
+    ]
+    assert [
+        event.event["data"] for event in filestore.read_segment_data(2, "a", 1).events
+    ] == ["new"]
 
 
 def test_sync_removed_sample(
