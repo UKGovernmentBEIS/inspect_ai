@@ -4,7 +4,7 @@ The flag uses :func:`ctl_server_flag_callback` so the parsed value is a
 ``bool | str | None`` union that maps cleanly into the ``ctl_server``
 parameter on ``eval()`` / ``eval_set()`` / ``eval_retry()``: ``None``
 (omitted) and ``True`` mean default-on, ``False`` disables the control
-endpoint, ``"keep-alive"`` additionally parks the process after the eval.
+endpoint, ``"keep"`` additionally parks the process after the eval.
 """
 
 import click
@@ -61,9 +61,14 @@ def test_explicit_false_disables() -> None:
     assert _parsed(["--ctl-server=false"]) is False
 
 
-def test_keep_alive_value() -> None:
-    """`--ctl-server=keep-alive` → "keep-alive" (on + park after the eval)."""
-    assert _parsed(["--ctl-server=keep-alive"]) == "keep-alive"
+def test_keep_value() -> None:
+    """`--ctl-server=keep` → "keep" (on + park after the eval)."""
+    assert _parsed(["--ctl-server=keep"]) == "keep"
+
+
+def test_keep_alive_legacy_alias() -> None:
+    """`--ctl-server=keep-alive` still resolves, normalizing to "keep"."""
+    assert _parsed(["--ctl-server=keep-alive"]) == "keep"
 
 
 def test_unknown_value_rejected() -> None:
@@ -73,12 +78,12 @@ def test_unknown_value_rejected() -> None:
         _build_cmd(), ["--ctl-server=keepalive"], standalone_mode=False
     )
     assert isinstance(result.exception, click.BadParameter)
-    assert "keep-alive" in result.exception.message
+    assert "keep" in result.exception.message
 
 
-def test_env_var_keep_alive() -> None:
-    """`INSPECT_EVAL_CTL_SERVER=keep-alive` env var → "keep-alive"."""
-    assert _parsed([], env={"INSPECT_EVAL_CTL_SERVER": "keep-alive"}) == "keep-alive"
+def test_env_var_keep() -> None:
+    """`INSPECT_EVAL_CTL_SERVER=keep` env var → "keep"."""
+    assert _parsed([], env={"INSPECT_EVAL_CTL_SERVER": "keep"}) == "keep"
 
 
 def test_env_var_false() -> None:
@@ -104,7 +109,7 @@ def test_cli_and_python_api_accept_the_same_values() -> None:
 
     from inspect_ai._control.server import resolve_ctl_server
 
-    for value in ("true", "yes", "1", "false", "no", "0", "keep-alive"):
+    for value in ("true", "yes", "1", "false", "no", "0", "keep-alive", "keep"):
         parsed = cast("bool | str | None", _parsed([f"--ctl-server={value}"]))
         # the CLI's parsed value round-trips through the resolver...
         enabled, keep_alive = resolve_ctl_server(parsed)
