@@ -27,8 +27,9 @@ from inspect_ai._control.eval_state import (
 )
 from inspect_ai._control.server import (
     control_server,
-    release_requested,
-    reset_release_requested,
+    keep_alive_intent,
+    request_keep_alive,
+    reset_keep_alive,
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
@@ -110,6 +111,7 @@ class EvalSetArgsInTaskIdentifier:
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None
     message_limit: int | None = None
     token_limit: int | None = None
+    turn_limit: int | None = None
     time_limit: int | None = None
     working_limit: int | None = None
     cost_limit: float | None = None
@@ -157,6 +159,7 @@ def eval_set(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -224,12 +227,12 @@ def eval_set(
             persisted in the original log's `EvalConfig.acp_server`.
         ctl_server: Control-channel server for this eval-set process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval-set finishes so external
             clients (the `inspect ctl` CLI, scripted agents, TUIs) can still
             query state and read results — exit via `inspect ctl release`
             (or `POST /release`). Requires `retry_immediate=True` (the
-            default) for the `"keep-alive"` value.
+            default) for the `"keep"` value.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -277,6 +280,7 @@ def eval_set(
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -334,7 +338,7 @@ def eval_set(
             "no task-level retries will be performed."
         )
 
-    # --ctl-server=keep-alive requires retry_immediate=True (the default).
+    # --ctl-server=keep requires retry_immediate=True (the default).
     # In retry_immediate=False mode eval-set makes multiple eval() calls
     # via tenacity, each with its own short-lived control server —
     # the keep-alive park would need to live OUTSIDE any single
@@ -343,18 +347,25 @@ def eval_set(
     # lifecycle aligned with eval()"). Refuse the combination
     # explicitly rather than silently giving a broken keep-alive
     # experience.
-    ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
-    # clear any release latch left by a prior run in this process; needed
-    # here as well as in eval_async because the all-reused short-circuit
+    ctl = resolve_ctl_server(ctl_server)
+    # clear a stale keep-alive intent left by a prior run in this process;
+    # needed here as well as in eval_async because the all-reused short-circuit
     # parks without ever calling eval()
-    reset_release_requested()
-    if ctl_keep_alive and retry_immediate is False:
+    reset_keep_alive()
+    if ctl.keep_alive and retry_immediate is False:
         raise PrerequisiteError(
-            "--ctl-server=keep-alive is incompatible with retry_immediate=False "
+            "--ctl-server=keep is incompatible with retry_immediate=False "
             "(the legacy batch-retry mode tears down the control "
             "surface between attempts). Use --retry-immediate (the "
-            "default) or drop the keep-alive value."
+            "default) or drop the keep value."
         )
+    # The eval-set owns the latch: set it now (after the rejection check),
+    # before the inner eval() binds its (plain on/off) control server, so that
+    # server reports keep-alive for the run and the inner eval() (eval_set_id
+    # set) leaves the latch alone rather than resetting it. The park below reads
+    # the same latch, so a runtime `POST /keep` during the run is honoured too.
+    if ctl.keep_alive:
+        request_keep_alive()
 
     # helper function to run a set of evals
     def run_eval(
@@ -397,6 +408,7 @@ def eval_set(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -422,7 +434,7 @@ def eval_set(
             # Demoted to a plain on/off: eval-set owns the keep-alive park
             # itself (after the display closes), so the inner eval() must
             # not park inside the task display. See the park below.
-            ctl_server=ctl_enabled,
+            ctl_server=ctl.enabled,
             **kwargs,
         )
 
@@ -567,6 +579,7 @@ def eval_set(
             solver=solver,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -724,8 +737,11 @@ def eval_set(
         run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
 
         # park last of all — display closed and summary printed, so the
-        # keep-alive notice lands in the console (not the live display pane)
-        if ctl_keep_alive:
+        # keep-alive notice lands in the console (not the live display pane).
+        # Gate on the intent (not just the launch flag) so a runtime `inspect
+        # ctl keep` during the run also parks; intent reflects the last-write
+        # of any keep / release received during the run.
+        if keep_alive_intent():
             run_coroutine(_keep_alive_park(eval_set_id))
 
         # return status + results
@@ -769,7 +785,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
     that normally publishes state never fires for them. Without an
     explicit registration here, ``inspect ctl tasks`` would show zero
     entries for an eval-set whose tasks all came from prior logs —
-    confusing for an agent driving an eval-set under ``--ctl-server=keep-alive``
+    confusing for an agent driving an eval-set under ``--ctl-server=keep``
     that expects to see what the eval-set returned.
 
     Registration uses only the already-parsed headers (eval-set read them
@@ -870,11 +886,11 @@ async def _keep_alive_park(eval_set_id: str) -> None:
     :func:`_register_reused_logs`); ``eval_set`` clears them at the run
     boundary once this returns.
 
-    A release received while the run was still in flight latches ("exit
-    when done") — the run's server is gone by the time this park binds its
-    fresh one, so the latch is the only carrier of that request.
+    A release received while the run was still in flight wins ("exit when
+    done") — the run's server is gone by the time this park binds its fresh
+    one, so the module-level intent is the only carrier of that request.
     """
-    if release_requested():
+    if not keep_alive_intent():
         return
     async with control_server(run_id=eval_set_id) as ctl_server:
         if ctl_server is None:
@@ -1116,17 +1132,19 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     # number of epochs differs (changed)
     elif epochs.epochs != config.epochs:
         return True
-    # default to mean reducer should match (not changed)
-    if epochs.reducer is None and config.epochs_reducer == ["mean"]:
-        return False
-    # different reducer list (changed)
-    elif [reducer_log_name(r) for r in (epochs.reducer or [])] != [
-        r for r in (config.epochs_reducer or [])
-    ]:
-        return True
-    # fall through (not changed)
-    else:
-        return False
+
+    # compare reducers, treating the unrecorded default (None) and an
+    # explicit ["mean"] as equivalent (older logs recorded ["mean"] for
+    # the default before it was dropped from eval_config_defaults()).
+    def canonical(r: list[str] | None) -> list[str] | None:
+        return None if r is None or r == ["mean"] else r
+
+    requested = (
+        [reducer_log_name(r) for r in epochs.reducer]
+        if epochs.reducer is not None
+        else None
+    )
+    return canonical(requested) != canonical(config.epochs_reducer)
 
 
 # cleanup logs that aren't the latest
@@ -1247,7 +1265,7 @@ def resolve_solver(
 # Version of the task_identifier computation. Bump this when the task_identifier
 # logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
 # recomputed.
-TASK_IDENTIFIER_VERSION = 2
+TASK_IDENTIFIER_VERSION = 3
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
@@ -1261,6 +1279,7 @@ def task_identifier(
         version: int | str
         message_limit: int | None
         token_limit: int | None
+        turn_limit: int | None
         time_limit: int | None
         working_limit: int | None
         cost_limit: float | None
@@ -1290,6 +1309,9 @@ def task_identifier(
             token_limit=task.task.token_limit
             if eval_set_args.token_limit is None
             else eval_set_args.token_limit,
+            turn_limit=task.task.turn_limit
+            if eval_set_args.turn_limit is None
+            else eval_set_args.turn_limit,
             time_limit=task.task.time_limit
             if eval_set_args.time_limit is None
             else eval_set_args.time_limit,
@@ -1313,6 +1335,7 @@ def task_identifier(
             version=task.eval.task_version,
             message_limit=task.eval.config.message_limit,
             token_limit=task.eval.config.token_limit,
+            turn_limit=task.eval.config.turn_limit,
             time_limit=task.eval.config.time_limit,
             working_limit=task.eval.config.working_limit,
             cost_limit=task.eval.config.cost_limit,

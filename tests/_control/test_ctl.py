@@ -5,7 +5,12 @@ from typing import Any
 import click
 import pytest
 
-from inspect_ai._cli.ctl import _print_samples_table, _resolve_target_eval
+from inspect_ai._cli.ctl import (
+    _print_keep_alive_footer,
+    _print_samples_table,
+    _resolve_target_eval,
+    _resolve_target_server,
+)
 
 
 def _summary(task_id: str, task: str) -> dict[str, str]:
@@ -324,3 +329,95 @@ def test_print_events_empty_and_done(capsys: pytest.CaptureFixture[str]) -> None
     assert "(no events)" in out
     assert "done" in out
     assert "next:" not in out  # a done stream offers no resume cursor
+
+
+def test_keep_alive_footer_on_when_all_tasks_keep_alive(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    summaries = [{"keep_alive": True}, {"keep_alive": True}]
+    _print_keep_alive_footer(summaries)
+    assert "keep-alive: on" in capsys.readouterr().out
+
+
+def test_keep_alive_footer_off_hints_keep_command(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    summaries = [{"keep_alive": False}, {"keep_alive": False}]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "keep-alive: off" in out
+    # off everywhere → hint at the command that turns it on
+    assert "inspect ctl keep" in out
+
+
+def test_keep_alive_footer_off_when_field_absent(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # An older server may omit keep_alive entirely — treated as off.
+    _print_keep_alive_footer([{}, {}])
+    assert "keep-alive: off" in capsys.readouterr().out
+
+
+def test_keep_alive_footer_mixed_reports_counts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    summaries = [{"keep_alive": True}, {"keep_alive": False}, {"keep_alive": False}]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "keep-alive: mixed" in out
+    assert "1/3 on" in out
+
+
+class _FakeServer:
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.socket_path = f"/tmp/{pid}.sock"
+
+
+def test_resolve_target_server_defaults_to_sole_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_FakeServer(7)]
+    )
+    assert _resolve_target_server(None).pid == 7
+
+
+def test_resolve_target_server_matches_pid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    servers = [_FakeServer(7), _FakeServer(8)]
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: servers)
+    assert _resolve_target_server(8).pid == 8
+
+
+def test_resolve_target_server_ambiguous_exits(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    servers = [_FakeServer(7), _FakeServer(8)]
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: servers)
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_target_server(None)
+    err = capsys.readouterr().err
+    assert "Multiple inspect processes" in err
+    assert "7" in err and "8" in err
+
+
+def test_resolve_target_server_unknown_pid_exits(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_FakeServer(7)]
+    )
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_target_server(99)
+    assert "No running inspect process with pid 99" in capsys.readouterr().err
+
+
+def test_resolve_target_server_none_running_exits(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_target_server(None)
+    assert "No running inspect processes found" in capsys.readouterr().err

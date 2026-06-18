@@ -19,6 +19,50 @@ def test_eval_epochs_sample_count():
     assert len(log.samples) == 6  # 2 samples * 3 epochs
 
 
+def _peak_model_concurrency(max_tasks: int | None) -> int:
+    """Run one task against two models and return the peak concurrent models.
+
+    A `record` solver brackets its work with enter/exit markers; the peak depth
+    of overlapping enter/exit pairs is how many models ran at once.
+    """
+    import anyio
+
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    events: list[str] = []
+
+    @solver
+    def record():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            events.append("enter")
+            await anyio.sleep(0.2)
+            events.append("exit")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="x", target="y")], solver=[record()], name="t")
+    eval(
+        task,
+        model=["mockllm/model", "mockllm/model2"],
+        max_tasks=max_tasks,
+        display="none",
+    )
+
+    depth = peak = 0
+    for e in events:
+        depth += 1 if e == "enter" else -1
+        peak = max(peak, depth)
+    return peak
+
+
+def test_max_tasks_bounds_concurrent_models_single_task():
+    # Regression for #4195: a single task definition fanned across models must
+    # honor max_tasks. max_tasks=1 runs model-by-model; unset runs them all.
+    assert _peak_model_concurrency(max_tasks=1) == 1
+    assert _peak_model_concurrency(max_tasks=None) == 2
+
+
 @pytest.mark.anyio
 async def test_no_concurrent_eval_async():
     tasks = [
