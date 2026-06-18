@@ -27,6 +27,10 @@ def accuracy(to_float: ValueToFloat = value_to_float()) -> Metric:
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        if not scores:
+            # No scores to average; return 0 rather than dividing by zero,
+            # mirroring the insufficient-data guards in std()/var().
+            return 0.0
         total = 0.0
         for item in scores:
             total += to_float(item.score.value)

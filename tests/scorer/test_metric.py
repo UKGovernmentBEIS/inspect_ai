@@ -285,6 +285,12 @@ def metric_create_assert(name: str, **kwargs: Any) -> None:
     assert metric([]) == 1
 
 
+def test_accuracy_handles_empty_scores() -> None:
+    # An empty score list must not raise; mirror the std()/var() convention of
+    # returning 0 for insufficient data instead of a ZeroDivisionError.
+    assert accuracy()([]) == 0.0
+
+
 @metric
 def nested_dict_metric(correct: str = "C") -> Metric:
     def metric(scores: list[SampleScore]) -> Value:
