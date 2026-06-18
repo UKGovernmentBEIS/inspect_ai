@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Control Channel: `inspect ctl tasks` now reports keep-alive status (`on` / `off` / `mixed`) and a new `inspect ctl keep` command (backed by `POST /keep`) latches keep-alive on a running process so it parks after its eval.
 - MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
 - MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
 - MCP: Fix in-sandbox stdio MCP servers hanging on large tool responses.
