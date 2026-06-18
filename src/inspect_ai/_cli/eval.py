@@ -439,10 +439,10 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "Control-channel server for this eval process (default: enabled "
             "on an AF_UNIX socket — the endpoint the `inspect ctl` CLI, "
             "scripted agents, and TUIs query). Pass `false` to disable it. "
-            "Pass `keep-alive` to also keep the process running after the "
-            "eval finishes so its state and results stay readable; the "
-            "process exits when `inspect ctl release` is run (or POST "
-            "/release is sent to the control endpoint). Without `keep-alive` "
+            "Pass `keep` to also keep the process running "
+            "after the eval finishes so its state and results stay readable; "
+            "the process exits when `inspect ctl release` is run (or POST "
+            "/release is sent to the control endpoint). Without `keep` "
             "the process exits as soon as the eval body returns, taking the "
             "control surface with it."
         ),
@@ -2197,10 +2197,10 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     callback=ctl_server_flag_callback,
     help=(
         "Control-channel server for the retried eval's process (default: "
-        "enabled). Pass `false` to disable it; pass `keep-alive` to keep "
-        "the process running after the retried eval finishes so external "
-        "clients (the `inspect ctl` CLI, scripted agents) can still query "
-        "its state. Run `inspect ctl release` to release."
+        "enabled). Pass `false` to disable it; pass `keep` "
+        "to keep the process running after the retried eval finishes so "
+        "external clients (the `inspect ctl` CLI, scripted agents) can still "
+        "query its state. Run `inspect ctl release` to release."
     ),
     envvar="INSPECT_EVAL_CTL_SERVER",
 )

@@ -5,10 +5,11 @@ eval via the per-process control server's HTTP endpoints. See
 ``design/control-channel.md`` for the design.
 
 Implemented (read surface + keep-alive): ``tasks`` (enumerate running
-tasks), ``samples`` (a task's samples), ``sample`` (one sample's error detail),
-``errors`` (errored / retried samples), ``events`` (a sample's transcript
-events), and ``release`` (let a ``--ctl-server=keep-alive`` process exit). The
-state-mutating directives (cancel / drain / requeue / modify-limits) are
+tasks, with a keep-alive status footer), ``samples`` (a task's samples),
+``sample`` (one sample's error detail), ``errors`` (errored / retried samples),
+``events`` (a sample's transcript events), ``keep`` (make a running process
+park after its eval finishes), and ``release`` (let a kept-alive process exit).
+The state-mutating directives (cancel / drain / requeue / modify-limits) are
 planned but not yet available.
 """
 
@@ -17,6 +18,7 @@ from __future__ import annotations
 import json as json_lib
 from collections.abc import Sequence
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, NoReturn
 
 import click
@@ -31,11 +33,12 @@ from inspect_ai._control.discovery import (
 
 @click.group("ctl")
 def ctl_command() -> None:
-    """Read the state of running evals and release kept-alive processes.
+    """Read the state of running evals and manage kept-alive processes.
 
-    Commands: ``tasks`` (running tasks), ``samples`` / ``sample`` / ``errors``
-    (an eval's samples), ``events`` (a sample's transcript), ``release``
-    (let a ``--ctl-server=keep-alive`` process exit). All are read-only except
+    Commands: ``tasks`` (running tasks + keep-alive status), ``samples`` /
+    ``sample`` / ``errors`` (an eval's samples), ``events`` (a sample's
+    transcript), ``keep`` (park a process after its eval finishes), ``release``
+    (let a kept-alive process exit). All are read-only except ``keep`` /
     ``release`` — state-mutating directives (cancel, drain, modify limits)
     are planned but not yet available.
 
@@ -44,7 +47,7 @@ def ctl_command() -> None:
     binds by default.
 
     A process exits when its eval finishes; launch with ``inspect eval
-    --ctl-server=keep-alive`` to keep it inspectable (and its results
+    --ctl-server=keep`` to keep it inspectable (and its results
     readable) here until you run ``inspect ctl release``.
     """
     return None
@@ -53,13 +56,13 @@ def ctl_command() -> None:
 def _echo_no_running_evals() -> None:
     """Print the 'nothing to show' message shared by the read commands.
 
-    Surfaces ``--ctl-server=keep-alive`` here because this fires exactly
+    Surfaces ``--ctl-server=keep`` here because this fires exactly
     when a user is confused that a just-finished eval isn't listed — its
     process has already exited unless it was launched to park.
     """
     click.echo(
         f"No running evals found in {discovery_dir()}.\n"
-        "Start an eval with `inspect eval <task>` — add `--ctl-server=keep-alive` "
+        "Start an eval with `inspect eval <task>` — add `--ctl-server=keep` "
         "to keep the process inspectable after the eval finishes."
     )
 
@@ -86,6 +89,7 @@ def tasks_command(as_json: bool) -> None:
         return
 
     _print_human_table(summaries)
+    _print_keep_alive_footer(summaries)
 
 
 @ctl_command.command("samples")
@@ -338,6 +342,41 @@ def events_command(
     _print_events(page)
 
 
+@ctl_command.command("keep")
+@click.option(
+    "--pid",
+    type=int,
+    default=None,
+    help=(
+        "PID of the inspect process to keep alive. Required if more than one "
+        "process is currently running."
+    ),
+)
+def keep_command(pid: int | None) -> None:
+    """Keep a running inspect process alive after its eval finishes.
+
+    Posts to the process's control endpoint /keep route, latching keep-alive:
+    the process parks after the eval finishes (until `inspect ctl release` or
+    Ctrl+C) instead of exiting. The inverse of `release`. Use it to make a
+    process you launched WITHOUT `--ctl-server=keep` inspectable — its
+    state readable, its log final — after the eval completes.
+
+    Issued while the eval is still running, it takes effect when the eval
+    finishes; the keep-alive status shown by `inspect ctl tasks` flips to on.
+    `keep` and `release` are last-write-wins, so a `keep` issued after a
+    `release` (while the eval is still running) is the last word and restores
+    the park.
+    """
+    target = _resolve_target_server(pid)
+    try:
+        _post_to_server(target.socket_path, "/keep")
+    except (httpx.HTTPError, OSError) as exc:
+        click.echo(f"Failed to set keep-alive for pid {target.pid}: {exc}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
+
+    click.echo(f"Keep-alive requested for pid {target.pid}.")
+
+
 @ctl_command.command("release")
 @click.option(
     "--pid",
@@ -349,15 +388,33 @@ def events_command(
     ),
 )
 def release_command(pid: int | None) -> None:
-    """Release a lingering --ctl-server=keep-alive process so it can exit.
+    """Release a lingering --ctl-server=keep process so it can exit.
 
     Posts to the process's control endpoint /release route, letting a parked
-    process exit. Release latches: issued while the eval is still running,
-    it means "exit when done" — the process skips the keep-alive park and
-    exits as soon as the eval finishes.
+    process exit. Issued while the eval is still running it means "exit when
+    done" — the process skips the keep-alive park and exits as soon as the
+    eval finishes — unless a later `keep` overrides it (`keep` and `release`
+    are last-write-wins).
 
     Does NOT cancel a running eval — it has no effect on in-flight samples
     (cancelling a running eval is a later-phase directive, not yet available).
+    """
+    target = _resolve_target_server(pid)
+    try:
+        _post_to_server(target.socket_path, "/release")
+    except (httpx.HTTPError, OSError) as exc:
+        click.echo(f"Failed to release pid {target.pid}: {exc}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
+
+    click.echo(f"Release requested for pid {target.pid}.")
+
+
+def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
+    """Pick the single process a ``keep`` / ``release`` targets, or exit.
+
+    With ``--pid`` the matching process is used (error if none matches);
+    without it, the sole running process is the default, and an ambiguous
+    set (more than one) errors with the candidate pids.
     """
     servers = list_discovered_servers()
     if not servers:
@@ -369,30 +426,27 @@ def release_command(pid: int | None) -> None:
         if not matching:
             click.echo(f"No running inspect process with pid {pid}.", err=True)
             raise click.exceptions.Exit(code=1)
-        target = matching[0]
-    elif len(servers) == 1:
-        target = servers[0]
-    else:
-        pids = ", ".join(str(s.pid) for s in servers)
-        click.echo(
-            f"Multiple inspect processes are running (pids: {pids}). "
-            "Pass --pid to disambiguate.",
-            err=True,
-        )
-        raise click.exceptions.Exit(code=1)
+        return matching[0]
+    if len(servers) == 1:
+        return servers[0]
 
-    try:
-        transport = httpx.HTTPTransport(uds=str(target.socket_path))
-        with httpx.Client(
-            transport=transport, base_url="http://localhost", timeout=5.0
-        ) as client:
-            response = client.post("/release")
-            response.raise_for_status()
-    except (httpx.HTTPError, OSError) as exc:
-        click.echo(f"Failed to release pid {target.pid}: {exc}", err=True)
-        raise click.exceptions.Exit(code=1) from exc
+    pids = ", ".join(str(s.pid) for s in servers)
+    click.echo(
+        f"Multiple inspect processes are running (pids: {pids}). "
+        "Pass --pid to disambiguate.",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1)
 
-    click.echo(f"Release requested for pid {target.pid}.")
+
+def _post_to_server(socket_path: Path, path: str) -> None:
+    """POST to a control server's ``path`` over its AF_UNIX socket."""
+    transport = httpx.HTTPTransport(uds=str(socket_path))
+    with httpx.Client(
+        transport=transport, base_url="http://localhost", timeout=5.0
+    ) as client:
+        response = client.post(path)
+        response.raise_for_status()
 
 
 def _fetch_summaries(
@@ -756,6 +810,25 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         headers_list.append("attempts")
 
     _render_table(tuple(headers_list), rows)
+
+
+def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
+    """Print a one-line keep-alive status footer below the tasks table.
+
+    Keep-alive is a per-process property — every task a process hosts shares
+    it — so across all running tasks it's ``on`` (all park after their eval),
+    ``off`` (none do), or ``mixed``. When it's off everywhere, hint at
+    ``inspect ctl keep``, which turns it on for a running process.
+    """
+    flags = [bool(s.get("keep_alive")) for s in summaries]
+    click.echo()
+    if all(flags):
+        click.echo("keep-alive: on")
+    elif not any(flags):
+        click.echo("keep-alive: off  ·  set with `inspect ctl keep`")
+    else:
+        on = sum(flags)
+        click.echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
 
 
 def _task_header(target: dict[str, Any]) -> str:
