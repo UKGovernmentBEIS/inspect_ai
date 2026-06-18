@@ -220,3 +220,73 @@ def test_env_override_reresolves_from_original_arn(
     finally:
         # Remove the model provider from the registry to avoid conflicts in other tests.
         del _registry["modelapi:mockarn"]
+
+
+class MockOwnSourceHook(Hooks):
+    """Supplies credentials from its own source (e.g. OAuth/vault).
+
+    Returns an incrementing token regardless of input, so it can provide a key
+    even when none exists in the environment at all.
+    """
+
+    def __init__(self) -> None:
+        self.call_count = 0
+        self.seen_values: list[str] = []
+
+    def override_api_key(self, data: ApiKeyOverride) -> str | None:
+        if data.env_var_name != "TEST_API_KEY":
+            return None
+        self.seen_values.append(data.value)
+        self.call_count += 1
+        return f"own-source-token-{self.call_count}"
+
+
+@pytest.fixture
+def mock_own_source_hook() -> Generator[MockOwnSourceHook, None, None]:
+    @hooks("test_own_source", description="Test own-source credential hook")
+    def get_hook() -> type[MockOwnSourceHook]:
+        return MockOwnSourceHook
+
+    hook = registry_lookup("hooks", "test_own_source")
+    assert isinstance(hook, MockOwnSourceHook)
+    try:
+        yield hook
+    finally:
+        # Remove the hook from the registry to avoid conflicts in other tests.
+        del _registry["hooks:test_own_source"]
+
+
+def test_override_supplies_credentials_when_no_env_key(
+    monkeypatch: pytest.MonkeyPatch, mock_own_source_hook: MockOwnSourceHook
+):
+    """A registered hook supplies credentials with no env key.
+
+    The hook is invoked even when no api key exists in the environment, and its
+    credential is refreshed on re-initialization.
+    """
+    import os
+
+    # ensure there is no api key anywhere in the environment
+    monkeypatch.delenv("TEST_API_KEY", raising=False)
+
+    @modelapi(name="mockownsource")
+    def mockownsource() -> type[ModelAPI]:
+        return Mock401API
+
+    try:
+        # there is no env value to resolve, so the hook is invoked with an empty
+        # string and supplies the credential from its own source
+        model = get_model("mockownsource/test", memoize=False)
+        provider = model.api
+        assert isinstance(provider, Mock401API)
+        assert provider.api_key == "own-source-token-1"
+        assert mock_own_source_hook.seen_values == [""]
+        # nothing is written back to the environment in this branch
+        assert "TEST_API_KEY" not in os.environ
+
+        # re-initialization (as happens on a 401) refreshes the credential
+        provider.initialize()
+        assert provider.api_key == "own-source-token-2"
+    finally:
+        # Remove the model provider from the registry to avoid conflicts in other tests.
+        del _registry["modelapi:mockownsource"]
