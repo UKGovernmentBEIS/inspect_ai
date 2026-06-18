@@ -45,6 +45,7 @@
 - [Using Agents](https://inspect.aisi.org.uk/agents.html.md): Agents combine planning, memory, and tool usage to pursue complex, longer horizon tasks.
 - [ReAct Agent](https://inspect.aisi.org.uk/react-agent.html.md): Using and customizing the built-in ReAct agent.
 - [Deep Agent](https://inspect.aisi.org.uk/deepagent.html.md): Using and customizing the built-in deep agent with subagent delegation, memory, and planning.
+- [Checkpointing](https://inspect.aisi.org.uk/checkpointing.html.md)
 - [Intervention](https://inspect.aisi.org.uk/intervention.html.md)
 - [Multi Agent](https://inspect.aisi.org.uk/multi-agent.html.md): Composing agents together in multi-agent architectures.
 - [Custom Agents](https://inspect.aisi.org.uk/agent-custom.html.md): APIs for creating custom agents.
@@ -68,6 +69,7 @@
 - [Setting Limits](https://inspect.aisi.org.uk/setting-limits.html.md): Setting time, message, token, and cost limits on evaluation tasks, samples, and agent execution.
 - [Control Channel](https://inspect.aisi.org.uk/control-channel.html.md): Observe running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, and keep-alive.
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md): The early stopping API for ending tasks early based on previously scored samples.
+- [Task Sources](https://inspect.aisi.org.uk/task-source.html.md): Generate an eval's tasks dynamically from code — a seed plus result-driven follow-ups — while the eval runs.
 - [Tracing](https://inspect.aisi.org.uk/tracing.html.md): Advanced execution tracing tools for diagnosing runtime issues.
 
 ## Analysis

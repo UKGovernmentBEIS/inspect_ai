@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Fallbacks – Inspect</title>
+<title>Task Sources – Inspect</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -68,8 +68,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./multimodal.html" rel="next">
-<link href="./compaction.html" rel="prev">
+<link href="./tracing.html" rel="next">
+<link href="./early-stopping.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -226,7 +226,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./fallbacks.html">Fallbacks</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./running.html">Running</a></li><li class="breadcrumb-item"><a href="./task-source.html">Task Sources</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -316,13 +316,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
  <span class="menu-text">Models</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./models.html" class="sidebar-item-text sidebar-link">
@@ -355,7 +355,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./fallbacks.html" class="sidebar-item-text sidebar-link active">
+  <a href="./fallbacks.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Fallbacks</span></a>
   </div>
 </li>
@@ -554,11 +554,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="sidebar-item-container"> 
             <a href="./running.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Running</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -597,7 +597,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./task-source.html" class="sidebar-item-text sidebar-link">
+  <a href="./task-source.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Task Sources</span></a>
   </div>
 </li>
@@ -708,23 +708,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#basic-usage" id="toc-basic-usage" class="nav-link" data-scroll-target="#basic-usage">Basic Usage</a></li>
-  <li><a href="#refusals" id="toc-refusals" class="nav-link" data-scroll-target="#refusals">Refusals</a></li>
-  <li><a href="#fallback-logging" id="toc-fallback-logging" class="nav-link" data-scroll-target="#fallback-logging">Fallback Logging</a>
-  <ul class="collapse">
-  <li><a href="#costs" id="toc-costs" class="nav-link" data-scroll-target="#costs">Costs</a></li>
-  </ul></li>
-  <li><a href="#viewer" id="toc-viewer" class="nav-link" data-scroll-target="#viewer">Viewer</a></li>
-  <li><a href="#fallback-scanning" id="toc-fallback-scanning" class="nav-link" data-scroll-target="#fallback-scanning">Fallback Scanning</a></li>
+  <li><a href="#defining-a-source" id="toc-defining-a-source" class="nav-link" data-scroll-target="#defining-a-source">Defining a source</a></li>
+  <li><a href="#returning-follow-up-tasks" id="toc-returning-follow-up-tasks" class="nav-link" data-scroll-target="#returning-follow-up-tasks">Returning follow-up tasks</a></li>
+  <li><a href="#sources-from-callbacks" id="toc-sources-from-callbacks" class="nav-link" data-scroll-target="#sources-from-callbacks">Sources from callbacks</a></li>
+  <li><a href="#the-task_source-decorator" id="toc-the-task_source-decorator" class="nav-link" data-scroll-target="#the-task_source-decorator">The <span class="citation" data-cites="task_source">@task_source</span> decorator</a></li>
+  <li><a href="#adding-tasks-imperatively" id="toc-adding-tasks-imperatively" class="nav-link" data-scroll-target="#adding-tasks-imperatively">Adding tasks imperatively</a></li>
+  <li><a href="#concurrency" id="toc-concurrency" class="nav-link" data-scroll-target="#concurrency">Concurrency</a></li>
   </ul>
 </nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./fallbacks.html">Fallbacks</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./running.html">Running</a></li><li class="breadcrumb-item"><a href="./task-source.html">Task Sources</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Fallbacks</h1>
+<h1 class="title">Task Sources</h1>
 </div>
 
 
@@ -741,157 +739,139 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="overview" class="level2">
-<h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Claude 5 models include safety classifiers that can decline a request. A decline need not be an error: the API returns a normal response with a refusal stop reason (surfaced by Inspect as <code>stop_reason="content_filter"</code>), and the same request can usually still be served by another Claude model.</p>
-<p>The <code>fallback_models</code> generation option enables this automatically. When the requested model’s classifiers decline, the request is retried on one or more fallback models (tried in order) within the same request, using Anthropic’s <a href="https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback">server-side fallback</a>. Inspect records which model served each generation.</p>
-<div class="callout callout-style-simple callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
-<div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Note</span>API Compatibility
+<div class="callout-body-container">
+<p>Task sources require the development version of Inspect, which you can install from GitHub:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
-<div class="callout-body-container callout-body">
-<p>Fallbacks apply only to the first-party Anthropic Claude API (they are ignored, with a warning, on Bedrock, Vertex, and Azure and with <a href="./models-batch.html">batch mode</a>) and only to Claude 5 and later requested models. Each fallback target must be one of the requested model’s permitted targets, published as <code>allowed_fallback_models</code> on the model’s <a href="https://platform.claude.com/docs/en/api/models/list">Models API</a> entry (currently <code>claude-opus-4-8</code> is the only permitted target for <code>claude-fable-5</code>).</p>
 </div>
-</div>
-</section>
-<section id="basic-usage" class="level2">
-<h2 class="anchored" data-anchor-id="basic-usage">Basic Usage</h2>
-<p>Specify one or more fallback models (up to three, tried in order) with the <code>--fallback-models</code> CLI option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> anthropic/claude-fable-5 <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--fallback-models</span> claude-opus-4-8</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Or from Python (like all generate config, <code>fallback_models</code> can be specified at the eval, task, or model level):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ctf.py"</span>,</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"anthropic/claude-fable-5"</span>,</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    fallback_models<span class="op">=</span>[<span class="st">"claude-opus-4-8"</span>],</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Only a safety classifier decline triggers the fallback. If every model in the chain declines, the final refusal is returned (<code>stop_reason="content_filter"</code>).</p>
-</section>
-<section id="refusals" class="level2">
-<h2 class="anchored" data-anchor-id="refusals">Refusals</h2>
-<p>Without fallbacks configured (or when every fallback also declines), the refusal is surfaced on the model output: <code>stop_reason</code> is <code>"content_filter"</code> and <code>stop_details</code> carries the structured refusal detail:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>type</code></td>
-<td><code>"refusal"</code> for classifier declines.</td>
-</tr>
-<tr class="even">
-<td><code>category</code></td>
-<td>Policy area that triggered the classifier (e.g.&nbsp;<code>"cyber"</code>, <code>"bio"</code>, <code>"reasoning_extraction"</code>). May be <code>None</code> when the refusal maps to no named category.</td>
-</tr>
-<tr class="odd">
-<td><code>explanation</code></td>
-<td>Human readable description (display it, don’t parse it).</td>
-</tr>
-<tr class="even">
-<td><code>categories</code></td>
-<td>All triggering categories (list of <code>StopCategory</code>).</td>
-</tr>
-</tbody>
-</table>
-<p>When a fallback serves a request, the API does not report the declining attempt’s refusal category (the declined attempt is unbilled and only its token counts appear in the response diagnostics). Refusal categories are available only on responses that actually ended in a refusal.</p>
-</section>
-<section id="fallback-logging" class="level2">
-<h2 class="anchored" data-anchor-id="fallback-logging">Fallback Logging</h2>
-<p>When a fallback serves a generation, Inspect records it on the model output, in the message content, and in a per-sample rollup.</p>
-<p>On the model output, <code>ModelOutput.model</code> reports the model that actually produced the response, and <code>ModelOutput.fallback</code> records the handoff as a <code>ModelFallback</code>:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>model</code></td>
-<td>Model that was originally requested.</td>
-</tr>
-<tr class="even">
-<td><code>fallback_model</code></td>
-<td>Model that served the request.</td>
-</tr>
-<tr class="odd">
-<td><code>count</code></td>
-<td>Number of generate calls (always 1 on a single output; aggregated in the sample rollup).</td>
-</tr>
-<tr class="even">
-<td><code>metadata</code></td>
-<td>Provider diagnostics. For Anthropic, the <code>handoffs</code> chain and the per-attempt <code>usage.iterations</code> billing record.</td>
-</tr>
-</tbody>
-</table>
-<p>The assistant message also carries a content marker at the point of the handoff, which is what allows Inspect to replay fallen-back conversations on subsequent turns.</p>
-<p>At the sample level, <code>EvalSample.model_fallbacks</code> (and sample summaries) aggregate the fallbacks that occurred during the sample (across solvers, subagents, and scorers) as a list of <code>ModelFallback</code> entries keyed by requested and serving model. The rollup is also available in <a href="./dataframe.html">dataframes</a>: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> includes a <code>fallbacks</code> column with the total count, and the full detail is available via a custom column:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> SampleColumn, SampleSummary, samples_df</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> samples_df(</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"logs"</span>,</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>SampleSummary <span class="op">+</span> [</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        SampleColumn(<span class="st">"model_fallbacks"</span>, path<span class="op">=</span><span class="st">"model_fallbacks"</span>)</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>df[df.fallbacks <span class="op">&gt;</span> <span class="dv">0</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<section id="costs" class="level3">
-<h3 class="anchored" data-anchor-id="costs">Costs</h3>
-<p>Cost estimation (including the <code>cost_limit</code> option) prices fallen-back requests at the requested model’s rates, as if no refusal had occurred. This keeps estimated costs comparable across samples, and is conservative for <code>cost_limit</code> since fallback targets are cheaper than the requested model (Anthropic bills each attempt at the rates of the model that ran it, and declined attempts that produced no output are unbilled). If you need actual-spend accounting, the per-attempt billing record is preserved in <code>ModelFallback.metadata["iterations"]</code> on each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#modelevent">ModelEvent</a></span>’s output.</p>
-</section>
-</section>
-<section id="viewer" class="level2">
-<h2 class="anchored" data-anchor-id="viewer">Viewer</h2>
-<p>The viewer surfaces fallbacks in several places:</p>
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
+<p>The <code>tasks</code> argument to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> is normally static: you pass a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> (or list of tasks) and the run executes those. A <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span> generates tasks dynamically instead — a seed plus follow-ups that depend on results — all under one run id.</p>
+<p>Use it when the next tasks to run depend on the results of the previous ones:</p>
 <ul>
-<li><p>The samples list includes a <em>Fallbacks</em> column (shown when any sample has fallbacks) with the total count per sample. The <code>has_fallbacks</code> and <code>fallbacks</code> variables are available for <a href="./log-viewer.html">filtering</a> (e.g.&nbsp;<code>has_fallbacks</code> or <code>fallbacks &gt; 2</code>).</p></li>
-<li><p>The sample header annotates the model, e.g.&nbsp;<code>anthropic/claude-fable-5 (fallback → claude-opus-4-8)</code>.</p></li>
-<li><p>In the transcript, fallen-back model calls carry a <code>fallback → &lt;model&gt;</code> badge in their title bar, and a marker appears in the assistant message content at the point of the handoff.</p></li>
+<li>Reinforcement-learning or curriculum loops that generate follow-ups from a batch’s scores.</li>
+<li>Open-ended generation that runs until some external condition stops it.</li>
+<li>Adaptive evaluation that branches the task set based on model performance.</li>
 </ul>
-<p>The task display shown while an eval is running (and the <code>inspect acp</code> session view) annotate the model the same way.</p>
+<p>A <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span> is just a value the <code>tasks</code> parameter accepts, so there is no separate argument.</p>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Task sources are supported by <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> / <code>eval_async()</code> (and <code>inspect eval</code>) only. <code>eval_set</code>, <code>eval_retry</code>, and <code>score</code> require a fixed, resumable set of tasks and raise an error if passed one.</p>
+</div>
+</div>
+</div>
 </section>
-<section id="fallback-scanning" class="level2">
-<h2 class="anchored" data-anchor-id="fallback-scanning">Fallback Scanning</h2>
-<p>Scanners from <a href="https://meridianlabs-ai.github.io/inspect_scout/">Inspect Scout</a> can locate fallbacks in a set of logs. The scanner below emits a result for each generation served by a fallback model, with the handoff as the value, an explanation noting the refusal followed by the served message content, and a reference to the originating event:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.event <span class="im">import</span> ModelEvent</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_scout <span class="im">import</span> Reference, Result, Scanner, scanner</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<section id="defining-a-source" class="level2">
+<h2 class="anchored" data-anchor-id="defining-a-source">Defining a source</h2>
+<p>Subclass <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span> and override the methods you need (the defaults are no-ops):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, TaskSource</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> EvalLog, EvalSample</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MySource(TaskSource):</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> initial_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Task]:</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Seed tasks to run first (synchronous)."""</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> next_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""The next batch, or None when the run is complete."""</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> sample_complete(</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, sample: EvalSample, task: Task</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Observe a finished sample; optionally return follow-up tasks."""</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> task_complete(<span class="va">self</span>, log: EvalLog) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Observe a finished task; optionally return follow-up tasks."""</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Pass an instance as <code>tasks</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(MySource(), model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, limit<span class="op">=</span><span class="dv">10</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>initial_tasks()</code> is synchronous and returns the seed. It is resolved up front like any task list, so it must return immediately rather than <code>await</code>. <code>next_tasks()</code> is async, called after each batch completes, and may block (for example, awaiting external input); return <code>None</code> to end the run.</p>
+<p>Each task gets its own <code>eval_id</code>, <code>task_id</code>, and log file; all share one run id.</p>
+</section>
+<section id="returning-follow-up-tasks" class="level2">
+<h2 class="anchored" data-anchor-id="returning-follow-up-tasks">Returning follow-up tasks</h2>
+<p><code>sample_complete</code> and <code>task_complete</code> fire as work completes. Besides observing results, they can return tasks to add to the run, which run after the current batch. <code>sample_complete</code> also receives the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> the sample ran under (the sample alone doesn’t identify its task):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Curriculum(TaskSource):</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> initial_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Task]:</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> [easy_task()]</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="at">@scanner</span>(events<span class="op">=</span>[<span class="st">"model"</span>])</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_fallbacks() <span class="op">-&gt;</span> Scanner[ModelEvent]:</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Find generations served by a fallback model."""</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> scan(event: ModelEvent) <span class="op">-&gt;</span> Result:</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        fallback <span class="op">=</span> event.output.fallback</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> fallback <span class="kw">is</span> <span class="va">None</span>:</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> Result(value<span class="op">=</span><span class="va">None</span>)</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Result(</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>            value<span class="op">=</span><span class="ss">f"</span><span class="sc">{</span>fallback<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> → </span><span class="sc">{</span>fallback<span class="sc">.</span>fallback_model<span class="sc">}</span><span class="ss">"</span>,</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>            explanation<span class="op">=</span><span class="ss">f"</span><span class="sc">{</span>fallback<span class="sc">.</span>model<span class="sc">}</span><span class="ss"> refused this request: "</span></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> event.output.message.text,</span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>            references<span class="op">=</span>[Reference(<span class="bu">type</span><span class="op">=</span><span class="st">"event"</span>, <span class="bu">id</span><span class="op">=</span>event.uuid <span class="kw">or</span> <span class="st">""</span>)],</span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> scan</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> task_complete(<span class="va">self</span>, log: EvalLog) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># advance only if the model passed</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        accuracy <span class="op">=</span> log.results.scores[<span class="dv">0</span>].metrics[<span class="st">"accuracy"</span>].value</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> accuracy <span class="op">&gt;=</span> <span class="fl">0.8</span>:</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> [harder_task()]</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>A source that returns follow-ups from these callbacks needs no <code>next_tasks()</code>: the run ends when the callbacks return nothing and <code>next_tasks()</code> returns <code>None</code>. Use <code>next_tasks()</code> for the blocking case a per-result callback can’t express.</p>
+</section>
+<section id="sources-from-callbacks" class="level2">
+<h2 class="anchored" data-anchor-id="sources-from-callbacks">Sources from callbacks</h2>
+<p><code>TaskSource.from_tasks()</code> builds a source from a seed and optional callbacks, without subclassing:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> TaskSource</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>scores: <span class="bu">list</span>[<span class="bu">float</span>] <span class="op">=</span> []</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_task(log):</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    scores.append(log.results.scores[<span class="dv">0</span>].metrics[<span class="st">"accuracy"</span>].value)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [next_task()] <span class="cf">if</span> <span class="bu">sum</span>(scores) <span class="op">/</span> <span class="bu">len</span>(scores) <span class="op">&lt;</span> <span class="fl">0.9</span> <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>source <span class="op">=</span> TaskSource.from_tasks([seed_task()], task_complete<span class="op">=</span>on_task)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(source, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None, task_complete=None)</code> delegates to the callables. Omitting <code>next_tasks</code> and returning nothing from the callbacks stops after the seed.</p>
+</section>
+<section id="the-task_source-decorator" class="level2">
+<h2 class="anchored" data-anchor-id="the-task_source-decorator">The <span class="citation" data-cites="task_source">@task_source</span> decorator</h2>
+<p><code>@task_source</code> registers a named, parameterized source, like <code>@task</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> TaskSource, task_source</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="at">@task_source</span>(name<span class="op">=</span><span class="st">"curriculum"</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> curriculum(target: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.8</span>) <span class="op">-&gt;</span> TaskSource:</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> advance(log):</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        accuracy <span class="op">=</span> log.results.scores[<span class="dv">0</span>].metrics[<span class="st">"accuracy"</span>].value</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> [harder_task()] <span class="cf">if</span> accuracy <span class="op">&gt;=</span> target <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> TaskSource.from_tasks([easy_task()], task_complete<span class="op">=</span>advance)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Run it from the CLI like a task, including <code>-T</code> arguments and a <code>file.py@name</code> spec:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval curriculum.py@curriculum <span class="at">-T</span> target=0.9 <span class="at">--model</span> openai/gpt-4o</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> accepts a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span> instance, a <code>@task_source</code> function, a registered name, or a <code>file.py@name</code> spec.</p>
+</section>
+<section id="adding-tasks-imperatively" class="level2">
+<h2 class="anchored" data-anchor-id="adding-tasks-imperatively">Adding tasks imperatively</h2>
+<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#enqueue_task">enqueue_task()</a></span> adds tasks to the current run from any code — a solver, scorer, or tool — not only a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> enqueue_task</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> Generate, TaskState, solver</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> spawn_followup():</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        enqueue_task(followup_task())</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Enqueued tasks run under the current run id, resolved against the run’s models and config, and share a buffer with tasks returned from <code>sample_complete</code> / <code>task_complete</code>. <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#enqueue_task">enqueue_task()</a></span> raises if no eval is running.</p>
+</section>
+<section id="concurrency" class="level2">
+<h2 class="anchored" data-anchor-id="concurrency">Concurrency</h2>
+<p>A <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span> run is live: a task added mid-run starts as soon as there is free capacity, rather than waiting for a batch boundary.</p>
+<p>Capacity is bounded by <code>max_tasks</code> (the number of concurrent task × model units). If the seed fills every slot, a follow-up waits until a slot frees, so to run follow-ups alongside the seed, set <code>max_tasks</code> above the number of seed units. A seed of two tasks across two models is four units, so <code>--max-tasks 6</code> leaves room:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval curriculum.py@curriculum <span class="at">--max-tasks</span> 6 <span class="at">--model</span> openai/gpt-4o,openai/gpt-4o-mini</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>With the default <code>max_tasks</code> (the model count), follow-ups run after a seed task finishes rather than alongside it. See <a href="./parallelism.html">Parallelism</a> for more on <code>max_tasks</code>.</p>
 
 
 </section>
@@ -1411,13 +1391,13 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./compaction.html" class="pagination-link" aria-label="Compaction">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Compaction</span>
+      <a href="./early-stopping.html" class="pagination-link" aria-label="Early Stopping">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Early Stopping</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./multimodal.html" class="pagination-link" aria-label="Multimodal">
-        <span class="nav-page-text">Multimodal</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./tracing.html" class="pagination-link" aria-label="Tracing">
+        <span class="nav-page-text">Tracing</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

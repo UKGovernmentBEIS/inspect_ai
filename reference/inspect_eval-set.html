@@ -1059,6 +1059,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#modelretry" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelRetry</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.hooks.html#evalsetstart" class="sidebar-item-text sidebar-link">
  <span class="menu-text">EvalSetStart</span></a>
   </div>
@@ -2004,6 +2010,18 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#tasksource" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskSource</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#enqueue_task" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">enqueue_task</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.html#scanners" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scanners</span></a>
   </div>
@@ -2024,6 +2042,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
  <span class="menu-text">task</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#task_source" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">task_source</span></a>
   </div>
 </li>
       </ul>
@@ -2119,6 +2143,24 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#accuracy" class="sidebar-item-text sidebar-link">
  <span class="menu-text">accuracy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#categorical" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">categorical</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#frequency" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">frequency</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#grouped" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">grouped</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3080,6 +3122,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#strenum" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StrEnum</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#jsontype" class="sidebar-item-text sidebar-link">
  <span class="menu-text">JSONType</span></a>
   </div>
@@ -3610,123 +3658,135 @@ ul.task-list li input[type="checkbox"] {
 <td><code>False</code></td>
 </tr>
 <tr class="odd">
+<td><code>--checkpoint</code></td>
+<td>text</td>
+<td>Periodically checkpoint sample state so the eval can be resumed via <code>inspect eval retry</code>. Specify –checkpoint for the default (every 500k tokens), –checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / <a href="turn:N" class="uri">turn:N</a> / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig.</td>
+<td>None</td>
+</tr>
+<tr class="even">
 <td><code>--acp-server</code></td>
 <td>text</td>
 <td>Expose this eval via an Agent Client Protocol server for various clients (e.g.&nbsp;the <code>inspect acp</code> command). Bare flag enables a default AF_UNIX socket; pass an integer to bind a TCP loopback port (e.g.&nbsp;<code>--acp-server=4444</code>); pass <code>host:port</code> to bind on a specific interface (e.g.&nbsp;<code>--acp-server=0.0.0.0:4444</code>); pass a filesystem path for a custom UNIX socket. When this flag is set, all human-in-the-loop interactions (<code>approver: human</code> and the <code>ask_user</code> tool) route exclusively through attached ACP clients; the in-proc Textual panel and console handlers are bypassed. If no client is connected when an interaction fires, the eval parks until one attaches.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--ctl-server</code></td>
 <td>text</td>
-<td>Control-channel server for this eval process (default: enabled on an AF_UNIX socket — the endpoint the <code>inspect ctl</code> CLI, scripted agents, and TUIs query). Pass <code>false</code> to disable it. Pass <code>keep-alive</code> to also keep the process running after the eval finishes so its state and results stay readable; the process exits when <code>inspect ctl release</code> is run (or POST /release is sent to the control endpoint). Without <code>keep-alive</code> the process exits as soon as the eval body returns, taking the control surface with it.</td>
+<td>Control-channel server for this eval process (default: enabled on an AF_UNIX socket — the endpoint the <code>inspect ctl</code> CLI, scripted agents, and TUIs query). Pass <code>false</code> to disable it. Pass <code>keep</code> to also keep the process running after the eval finishes so its state and results stay readable; the process exits when <code>inspect ctl release</code> is run (or POST /release is sent to the control endpoint). Without <code>keep</code> the process exits as soon as the eval body returns, taking the control surface with it.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--limit</code></td>
 <td>text</td>
 <td>Limit samples to evaluate e.g.&nbsp;10 or 10-20</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--sample-id</code></td>
 <td>text</td>
 <td>Evaluate specific sample(s) (comma separated list of ids)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--sample-shuffle</code></td>
 <td>text</td>
 <td>Shuffle order of samples (pass a seed to make the order deterministic)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--epochs</code></td>
 <td>integer</td>
 <td>Number of times to repeat dataset (defaults to 1)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--epochs-reducer</code></td>
 <td>text</td>
 <td>Method for reducing per-epoch sample scores into a single score. Built in reducers include ‘mean’, ‘median’, ‘mode’, ‘max’, and ‘at_least_{n}’.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-epochs-reducer</code></td>
 <td>boolean</td>
 <td>Do not reduce per-epoch sample scores.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-connections</code></td>
 <td>integer</td>
 <td>Maximum number of concurrent connections to Model API (defaults to 10)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--adaptive-connections</code></td>
 <td>text</td>
 <td>Adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback (default: enabled, with min=10, start=20, max=100). Pass <code>false</code> to opt out, an integer N for a custom max (e.g.&nbsp;<code>200</code>), or bounds as <code>min-max</code> (e.g.&nbsp;<code>4-80</code>) or <code>min-start-max</code> (e.g.&nbsp;<code>4-20-80</code>). Explicit <code>--max-connections</code> and <code>--batch</code> take precedence.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-retries</code></td>
 <td>integer</td>
 <td>Maximum number of times to retry model API requests (defaults to unlimited)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--timeout</code></td>
 <td>integer</td>
 <td>Model API request timeout in seconds (defaults to no timeout)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--attempt-timeout</code></td>
 <td>integer</td>
 <td>Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-samples</code></td>
 <td>integer</td>
 <td>Maximum number of samples to run in parallel (default is running all samples in parallel)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-dataset-memory</code></td>
 <td>integer range (<code>0</code> and above)</td>
 <td>Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-tasks</code></td>
 <td>integer</td>
 <td>Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-subprocesses</code></td>
 <td>integer</td>
 <td>Maximum number of subprocesses to run in parallel (default is os.cpu_count())</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-sandboxes</code></td>
 <td>integer</td>
 <td>Maximum number of sandboxes (per-provider) to run in parallel.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--message-limit</code></td>
 <td>integer</td>
 <td>Limit on total messages used for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--token-limit</code></td>
 <td>integer</td>
 <td>Limit on total tokens used for each sample.</td>
+<td>None</td>
+</tr>
+<tr class="even">
+<td><code>--turn-limit</code></td>
+<td>integer</td>
+<td>Limit on total turns (model generations) used for each sample.</td>
 <td>None</td>
 </tr>
 <tr class="odd">

@@ -467,6 +467,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./checkpointing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Checkpointing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./intervention.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Intervention</span></a>
   </div>
@@ -591,6 +597,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./task-source.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Task Sources</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./tracing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tracing</span></a>
   </div>
@@ -705,6 +717,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#built-in-reducers" id="toc-built-in-reducers" class="nav-link" data-scroll-target="#built-in-reducers">Built-in Reducers</a></li>
   <li><a href="#custom-reducers" id="toc-custom-reducers" class="nav-link" data-scroll-target="#custom-reducers">Custom Reducers</a></li>
+  <li><a href="#metrics-and-reducers" id="toc-metrics-and-reducers" class="nav-link" data-scroll-target="#metrics-and-reducers">Metrics and Reducers</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -763,11 +776,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Standard error of the mean.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#bootstrap_stderr">bootstrap_stderr()</a></span></p>
 <p>Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the <code>num_samples</code> option).</p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span></p>
+<p>Frequency of each distinct categorical score value. By default this reports proportions over scored observations; pass <code>normalize=False</code> to report counts. If a task uses epochs, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span> receives unreduced epoch scores, so each scored sample epoch is an observation.</p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#categorical">categorical()</a></span></p>
+<p>Convenience helper for categorical scorers. Returns <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span> with optional declared categories, typically from a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#strenum">StrEnum</a></span>, so zero-count categories are included and metrics can be recomputed from logs.</p></li>
 </ul>
 </section>
 <section id="metric-grouping" class="level2">
 <h2 class="anchored" data-anchor-id="metric-grouping">Metric Grouping</h2>
-<p>The <code>grouped()</code> function applies a given metric to subgroups of samples defined by a key in sample <code>metadata</code>, creating a separate metric for each group along with an <code>"all"</code> metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#grouped">grouped()</a></span> function applies a given metric to subgroups of samples defined by a key in sample <code>metadata</code>, creating a separate metric for each group along with an <code>"all"</code> metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.</p>
 <p>For example, let’s say you wanted to create a separate accuracy metric for each distinct “category” variable defined in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> metadata:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gpqa():</span>
@@ -878,8 +895,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="reducing-epochs" class="level2">
 <h2 class="anchored" data-anchor-id="reducing-epochs">Reducing Epochs</h2>
-<p>If a task is run over more than one <code>epoch</code>, multiple scores will be generated for each sample. These scores are then <em>reduced</em> to a single score representing the score for the sample across all the epochs.</p>
-<p>By default, this is done by taking the mean of all sample scores, but you may specify other strategies for reducing the samples by passing an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#epochs">Epochs</a></span>, which includes both a count and one or more reducers to combine sample scores with. For example:</p>
+<p>If a task is run over more than one <code>epoch</code>, multiple scores will be generated for each sample. Metrics normally operate on a reduced score view, where epoch scores for each sample are combined into a single score.</p>
+<p>By default, the reduced view is built with <code>mean</code>. You may specify other strategies by passing an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#epochs">Epochs</a></span>, which includes both a count and one or more reducers to combine sample scores with. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gpqa():</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -898,6 +915,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        ...</span>
 <span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>        epochs<span class="op">=</span>Epochs(<span class="dv">5</span>, [<span class="st">"at_least_2"</span>, <span class="st">"at_least_5"</span>]),</span>
 <span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Some metrics require unreduced epoch scores. These metrics run once over the raw sample-epoch scores, even when an explicit reducer is configured:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), frequency()])</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_scorer() <span class="op">-&gt;</span> Scorer:</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>With <code>epochs=Epochs(5, "mode")</code>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#accuracy">accuracy()</a></span> receives one mode-reduced score per sample, while <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span> receives all scored sample-epoch values. With multiple reducers, reduced metrics run once for each reducer and unreduced metrics run once.</p>
+<p>If you disable reducers with <code>Epochs(n, [])</code> or <code>--no-epochs-reducer</code>, legacy <code>scores="auto"</code> metrics receive unreduced sample-epoch scores, preserving existing behavior. Metrics that explicitly declare <code>scores="reduced"</code> require a reducer when multiple epochs are present.</p>
 <section id="built-in-reducers" class="level3">
 <h3 class="anchored" data-anchor-id="built-in-reducers">Built-in Reducers</h3>
 <p>Inspect includes several built in reducers which are summarised below.</p>
@@ -960,24 +983,59 @@ Note
 <section id="custom-reducers" class="level3">
 <h3 class="anchored" data-anchor-id="custom-reducers">Custom Reducers</h3>
 <p>You can also add your own reducer with <code>@score_reducer</code> decorated functions. Here’s a somewhat simplified version of the code for the <code>mean</code> reducer:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> statistics</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> (</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    Score, ScoreReducer, score_reducer, value_to_float</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"mean"</span>)</span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean_score() <span class="op">-&gt;</span> ScoreReducer:</span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    to_float <span class="op">=</span> value_to_float()</span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="bu">reduce</span>(scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Score:</span>
-<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Compute a mean value of all scores."""</span></span>
-<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>        values <span class="op">=</span> [to_float(score.value) <span class="cf">for</span> score <span class="kw">in</span> scores]</span>
-<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>        mean_value <span class="op">=</span> statistics.mean(values)</span>
-<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Score(value<span class="op">=</span>mean_value)</span>
-<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">reduce</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> statistics</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> (</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    Score, ScoreReducer, score_reducer, value_to_float</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"mean"</span>)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean_score() <span class="op">-&gt;</span> ScoreReducer:</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    to_float <span class="op">=</span> value_to_float()</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="bu">reduce</span>(scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Score:</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Compute a mean value of all scores."""</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>        values <span class="op">=</span> [to_float(score.value) <span class="cf">for</span> score <span class="kw">in</span> scores]</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>        mean_value <span class="op">=</span> statistics.mean(values)</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Score(value<span class="op">=</span>mean_value)</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">reduce</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="metrics-and-reducers" class="level3">
+<h3 class="anchored" data-anchor-id="metrics-and-reducers">Metrics and Reducers</h3>
+<p>Metrics can declare that they need unreduced scores in order to properly compute their value using <code>scores</code>. For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span>(scores<span class="op">=</span><span class="st">"unreduced"</span>)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> frequency_by_label() <span class="op">-&gt;</span> Metric:</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>By default <code>scores="auto"</code> so metrics receive reduced scores unless epoch reducers are explicitly disabled. Use <code>scores="reduced"</code> for metrics that require one score per sample, and <code>scores="unreduced"</code> for metrics that require one score per sample epoch.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 40%">
+<col style="width: 59%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Metric score view</th>
+<th>Input when epochs are used</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>scores="auto"</code></td>
+<td>Reduced scores, unless epoch reducers are explicitly disabled.</td>
+</tr>
+<tr class="even">
+<td><code>scores="reduced"</code></td>
+<td>Reduced scores; requires an epoch reducer when multiple epoch scores are present.</td>
+</tr>
+<tr class="odd">
+<td><code>scores="unreduced"</code></td>
+<td>Raw sample-epoch scores, one observation for each scored epoch.</td>
+</tr>
+</tbody>
+</table>
+<p>For example, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span> declares <code>scores="unreduced"</code> because it reports the distribution of categorical outcomes across all scored observations.</p>
 
 
 </section>

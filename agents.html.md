@@ -16,7 +16,7 @@ Agents combine planning, memory, and tool usage to pursue more complex, tasks (e
 
 6.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
 
-Inspect also includes features suited to more complex agent evaluations including [Intervention](./intervention.html.md) to enable communication with running agents, and [Limits](./agent-custom.html.md#agent-limits) to set token, message, and time limits for agent execution.
+Inspect also includes features suited to more complex agent evaluations including [Checkpointing](./checkpointing.html.md) to recover from failures, [Intervention](./intervention.html.md) to enable communication with running agents, and [Limits](./agent-custom.html.md#agent-limits) to set token, message, and time limits for agent execution.
 
 Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct Agent, Deep Agent, custom agents, and multi-agent systems.
 
@@ -157,7 +157,7 @@ See these additional articles to learn more about creating agent evaluations wit
 
 - [Deep Agent](./deepagent.html.md) describes a batteries-included agent for long-horizon tasks.
 
-&nbsp;
+- [Checkpointing](./checkpointing.html.md) covers the ability to save and restore agent state for recovery from infrastructure or other unexpected errors.
 
 - [Intervention](./intervention.html.md) details features that support creating evaluations with a human in the loop.
 

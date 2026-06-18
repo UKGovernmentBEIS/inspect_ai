@@ -121,8 +121,8 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 | `--limit` | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`) |
 | `--sample-id` | Evaluate a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
 | `--epochs` | Number of times to repeat each sample (defaults to 1) |
-| `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, `pass_at_{k}`, and `pass_k_{k}`. |
-| `--no-epochs-reducer` | Do not reduce epochs across samples (compute metrics across all samples and epochs together). |
+| `--epochs-reducer` | Method for building the reduced score view from per-epoch sample scores. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, `pass_at_{k}`, and `pass_k_{k}`. Metrics that require unreduced scores still receive raw sample-epoch scores. |
+| `--no-epochs-reducer` | Do not build a reduced score view. Legacy metrics compute across all sample-epoch scores. |
 
 ## Parallelism
 

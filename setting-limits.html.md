@@ -4,7 +4,7 @@
 
 In open-ended model conversations (for example, an agent evaluation with tool usage) it’s possible that a model will get “stuck” attempting to perform a task with no realistic prospect of completing it. Further, sometimes models will call commands in a sandbox that take an extremely long time (or worst case, hang indefinitely).
 
-For this type of evaluation it’s normally a good idea to set limits on some combination of total time, total messages, tokens used, and/or cost. This article covers:
+For this type of evaluation it’s normally a good idea to set limits on some combination of total time, total messages, turns, tokens used, and/or cost. This article covers:
 
 1.  [Sample Limits](#sample-limits) — limits applied to individual samples within a task.
 2.  [Scoped Limits](#scoped-limits) — limits applied to arbitrary blocks of code.
@@ -125,6 +125,32 @@ def intercode_ctf():
 > **IMPORTANT: Important**
 >
 > It’s important to note that the `token_limit` is for all tokens used within the execution of a sample. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
+
+### Turn Limit
+
+A “turn” is a single model generation (one call to the model that produces an assistant message). Turn limits are distinct from message limits, which count *all* messages in the conversation (user, assistant, and tool messages). One turn often results in several messages (e.g. an assistant message plus the tool messages from its tool calls).
+
+A turn is recorded once per top-level [generate()](./reference/inspect_ai.solver.html.md#generate) call (after retries and fallbacks have resolved, and including cache hits). Generations made via `model.compact()` do not count as turns. Turn limits are checked whenever a turn is recorded.
+
+Here we set a `turn_limit` of 300 for each sample within a task:
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=120)]),
+            generate(),
+        ],
+        turn_limit=300,
+        scorer=includes(),
+        sandbox="docker",
+    )
+```
+
+This limits the agent to 300 model generations before it is forced to give up. As with other sample limits, whatever `output` happens to be in the [TaskState](./reference/inspect_ai.solver.html.md#taskstate) at that point will be scored.
 
 ### Cost Limit
 
@@ -381,6 +407,35 @@ with token_limit(10_000):
 ```
 
 Unlike `with token_limit(None):`, which only suppresses the innermost limit’s check, [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit) fully disables both recording and checking across all active token limits for the duration of the block.
+
+### Turn Limit
+
+A “turn” is a single model generation (one call to the model that produces an assistant message). Turn limits are distinct from message limits, which count *all* messages in the conversation (user, assistant, and tool messages). One turn often results in several messages (e.g. an assistant message plus the tool messages from its tool calls).
+
+A turn is recorded once per top-level [generate()](./reference/inspect_ai.solver.html.md#generate) call (after retries and fallbacks have resolved, and including cache hits). Generations made via `model.compact()` do not count as turns. Turn limits are checked whenever a turn is recorded.
+
+To limit the total number of turns (model generations) which can be used in a block of code:
+
+``` python
+@agent
+def myagent(turns: int = 300) -> Agent:
+    async def execute(state: AgentState):
+
+        with turn_limit(turns):
+            # a LimitExceededError will be raised if the limit is exceeded
+            ...
+```
+
+Like token limits, turn limits can be stacked — a generation counts towards all open turn limits. To run generations that should not count against any active turn limit, use `suspend_turn_limit()`:
+
+``` python
+with turn_limit(10):
+    await generate()  # counts against the 10 turn budget
+    with suspend_turn_limit():
+        # generations here are not metered against the 10 turn limit
+        await auxiliary_generate()
+    await generate()  # counts again
+```
 
 ### Cost Limit
 

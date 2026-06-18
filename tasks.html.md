@@ -680,17 +680,17 @@ Here are the `eval.yaml` definitions for several Hugging Face datasets:
 
 A dataset’s `eval.yaml` file defines a list of tasks. Here are the fields that can be included in a task definition and how they are used in constructing [Task](./reference/inspect_ai.html.md#task) instances:
 
-| Field             | Default   | Usage                       |
-|-------------------|-----------|-----------------------------|
-| `config`          | “default” | `hf_dataset(name)`          |
-| `split`           | “test”    | `hf_dataset(split)`         |
-| `field_spec`      | None      | `hf_dataset(sample_fields)` |
-| `shuffle_choices` | None      | `dataset.shuffle_choices()` |
-| `epochs`          | 1         | `Epochs(epochs)`            |
-| `epoch_reducer`   | “mean”    | `Epochs(epoch_reducer)`     |
-| `solvers`         | None      | `Task(solver)`              |
-| `scorer`          | None      | `Task(scorer)`              |
-| `id`              | None      | `hf/org/dataset/name`       |
+| Field             | Default       | Usage                       |
+|-------------------|---------------|-----------------------------|
+| `config`          | “default”     | `hf_dataset(name)`          |
+| `split`           | “test”        | `hf_dataset(split)`         |
+| `field_spec`      | None          | `hf_dataset(sample_fields)` |
+| `shuffle_choices` | None          | `dataset.shuffle_choices()` |
+| `epochs`          | 1             | `Epochs(epochs)`            |
+| `epoch_reducer`   | implicit mean | `Epochs(epoch_reducer)`     |
+| `solvers`         | None          | `Task(solver)`              |
+| `scorer`          | None          | `Task(scorer)`              |
+| `id`              | None          | `hf/org/dataset/name`       |
 
 - `field_spec.choices` can be either a single string (the key for one field in each record) or a list of strings (multiple fields, whose values will form the choices list for each sample).
 - `field_spec.target` can be:

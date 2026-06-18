@@ -467,6 +467,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./checkpointing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Checkpointing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./intervention.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Intervention</span></a>
   </div>
@@ -587,6 +593,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./early-stopping.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Early Stopping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./task-source.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Task Sources</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1044,11 +1056,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>--epochs-reducer</code></td>
-<td>Method for reducing per-epoch sample scores into a single score. Built in reducers include <code>mean</code>, <code>median</code>, <code>mode</code>, <code>max</code>, <code>at_least_{n}</code>, <code>pass_at_{k}</code>, and <code>pass_k_{k}</code>.</td>
+<td>Method for building the reduced score view from per-epoch sample scores. Built in reducers include <code>mean</code>, <code>median</code>, <code>mode</code>, <code>max</code>, <code>at_least_{n}</code>, <code>pass_at_{k}</code>, and <code>pass_k_{k}</code>. Metrics that require unreduced scores still receive raw sample-epoch scores.</td>
 </tr>
 <tr class="odd">
 <td><code>--no-epochs-reducer</code></td>
-<td>Do not reduce epochs across samples (compute metrics across all samples and epochs together).</td>
+<td>Do not build a reduced score view. Legacy metrics compute across all sample-epoch scores.</td>
 </tr>
 </tbody>
 </table>
