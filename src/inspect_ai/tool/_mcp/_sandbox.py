@@ -31,6 +31,11 @@ from ._context import MCPServerContext
 
 logger = getLogger(__name__)
 
+# Default per-request timeout (seconds) applied when a sandbox MCP server is
+# created without an explicit `timeout`. Shared so the in-sandbox transport
+# timeout and the host-side MCP read timeout normalize to the same value.
+DEFAULT_SANDBOX_TIMEOUT = 180
+
 # Upper bound (seconds) on the best-effort server shutdown performed during
 # `sandbox_client` teardown. Kept short and independent of the per-request
 # timeout so a slow/broken transport cannot stall teardown.
@@ -48,9 +53,9 @@ async def sandbox_client(  # type: ignore
     *,
     sandbox_name: str | None = None,
     errlog: TextIO = sys.stderr,
-    timeout: int | None = None,  # default 180 seconds
+    timeout: int | None = None,  # default DEFAULT_SANDBOX_TIMEOUT seconds
 ) -> MCPServerContext:  # type: ignore
-    timeout = timeout or 180
+    timeout = timeout or DEFAULT_SANDBOX_TIMEOUT
     sandbox_environment = await sandbox_with_injected_tools(sandbox_name=sandbox_name)
 
     # Create transport for all RPC calls

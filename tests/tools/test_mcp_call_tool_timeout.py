@@ -14,10 +14,18 @@ is notified rather than the sample erroring out.
 import anyio
 import httpx
 import pytest
-from mcp.shared.exceptions import McpError
 
-from inspect_ai.tool import ToolError
-from inspect_ai.tool._mcp._local import MCPServerLocalSession
+pytest.importorskip("mcp")  # mcp is a dev-only dependency
+
+from mcp.shared.exceptions import McpError  # noqa: E402
+
+from inspect_ai.tool import ToolError  # noqa: E402
+from inspect_ai.tool._mcp._local import (  # noqa: E402
+    MCPServerLocal,
+    MCPServerLocalSession,
+    create_server_sandbox,
+)
+from inspect_ai.tool._mcp._sandbox import DEFAULT_SANDBOX_TIMEOUT  # noqa: E402
 
 
 class _NeverRespondsSession:
@@ -74,6 +82,19 @@ async def test_call_tool_times_out_instead_of_hanging():
     # RuntimeError that exception_for_rpc_response_error produces for an
     # unrecognized code (which would error the sample instead).
     assert "timed out" in str(ei.value).lower()
+
+
+def test_create_server_sandbox_bounds_host_read_timeout_by_default():
+    # A default (timeout=None) sandbox server must still get a finite host-side
+    # read timeout, otherwise a lost transport response deadlocks the call.
+    server = create_server_sandbox(name="srv", command="cmd")
+    assert isinstance(server, MCPServerLocal)
+    assert server._timeout == DEFAULT_SANDBOX_TIMEOUT
+
+    # An explicit timeout is threaded through unchanged.
+    server = create_server_sandbox(name="srv", command="cmd", timeout=42)
+    assert isinstance(server, MCPServerLocal)
+    assert server._timeout == 42
 
 
 @pytest.fixture

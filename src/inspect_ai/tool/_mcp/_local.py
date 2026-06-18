@@ -38,7 +38,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._anyio import inner_exception
 
 from ._context import MCPServerContext
-from ._sandbox import sandbox_client
+from ._sandbox import DEFAULT_SANDBOX_TIMEOUT, sandbox_client
 from ._types import MCPServer
 from .sampling import as_inspect_content_list, sampling_fn
 
@@ -418,6 +418,12 @@ def create_server_sandbox(
     sandbox: str | None = None,
     timeout: int | None = None,
 ) -> MCPServer:
+    # Normalize the default once so the in-sandbox transport timeout and the
+    # host-side MCP read timeout share one effective value. Passing the raw
+    # `None` through would leave the host read timeout unbounded (the transport
+    # would still default internally), so a default `mcp_server_sandbox()` call
+    # could deadlock if the transport response is lost.
+    effective_timeout = timeout if timeout is not None else DEFAULT_SANDBOX_TIMEOUT
     # TODO: Confirm the lifetime concepts. By the time a request makes it to the
     # sandbox, it's going to need both a session id and a server "name".
     return MCPServerLocal(
@@ -429,11 +435,11 @@ def create_server_sandbox(
                 env=env,
             ),
             sandbox_name=sandbox,
-            timeout=timeout,
+            timeout=effective_timeout,
         ),
         name=name,
         events=False,
-        timeout=timeout,
+        timeout=effective_timeout,
     )
 
 
