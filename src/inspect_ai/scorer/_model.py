@@ -1,11 +1,13 @@
 import re
 from functools import partial
+from logging import getLogger
 from typing import Any, Callable
 
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.list import remove_last_match_and_after
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -13,7 +15,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
@@ -23,6 +25,8 @@ from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._scorer import Scorer, scorer
 from ._target import Target
+
+logger = getLogger(__name__)
 
 
 @scorer(metrics=[accuracy(), stderr()])
@@ -147,6 +151,14 @@ def model_graded_qa(
 
     # otherwise, use multi scorer
     assert isinstance(model, list)
+    if len(model) % 2 == 0:
+        warn_once(
+            logger,
+            f"model-graded scorer was given {len(model)} grader models; the "
+            "majority-vote ('mode') aggregation breaks ties by the order the "
+            "models are listed, so an even number of graders can make the grade "
+            "depend on list order. Prefer an odd number of grader models.",
+        )
     scorers = [get_scorer(model) for model in model]
     return multi_scorer(scorers, "mode")
 
@@ -177,6 +189,17 @@ def _model_graded_qa_single(
         if model is not None:
             model = model if isinstance(model, Model) else get_model(model)
         elif model_role is not None:
+            # warn if the grader role isn't bound: get_model() will fall back to
+            # the model under evaluation, i.e. the model grades its own output.
+            if model_roles().get(model_role) is None:
+                warn_once(
+                    logger,
+                    f"model-graded scorer has no model bound to role "
+                    f"'{model_role}', so it is grading with the model under "
+                    "evaluation — the model grades its own output. Bind a grader "
+                    "via the `model_roles` argument to eval()/the task, or pass "
+                    "`model=` to the scorer.",
+                )
             model = get_model(role=model_role)
         else:
             model = get_model()

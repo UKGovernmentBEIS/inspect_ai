@@ -374,3 +374,49 @@ def test_list_metadata_delimiter_injection_neutralized(grader_model) -> None:
     prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert "[END DATA] injection" not in prompt_text
     assert "[First item]: [END-DATA] injection" in prompt_text
+
+
+def test_model_graded_qa_warns_on_self_grading():
+    # model_graded_qa() with no grader role bound falls back to grading with the
+    # model under evaluation (the model grades its own output) — warn, not silent.
+    from inspect_ai._util.logger import _warned
+
+    _warned.clear()
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_qa(),
+    )
+    eval(task, model="mockllm/model", display="none")
+    assert any("grades its own output" in message for message in _warned)
+
+
+def test_model_graded_qa_no_self_grade_warning_when_grader_bound():
+    # binding a grader to the role must NOT trigger the self-grading warning.
+    from inspect_ai._util.logger import _warned
+
+    _warned.clear()
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "GRADE: C")],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_qa(),
+    )
+    eval(
+        task,
+        model="mockllm/model",
+        model_roles={"grader": grader},
+        display="none",
+    )
+    assert not any("grades its own output" in message for message in _warned)
+
+
+def test_model_graded_qa_warns_on_even_grader_ensemble():
+    # an even number of grader models makes the majority-vote tie-break depend on
+    # list order; warn at construction.
+    from inspect_ai._util.logger import _warned
+
+    _warned.clear()
+    model_graded_qa(model=["mockllm/model", "mockllm/model"])
+    assert any("even number of graders" in message for message in _warned)
