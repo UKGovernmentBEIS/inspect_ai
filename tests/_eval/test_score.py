@@ -550,6 +550,116 @@ async def test_score_preserves_model_usage_in_score_event():
     assert score_events[0].scorer_args == {"threshold": 0.75}
 
 
+@pytest.mark.anyio
+async def test_score_resolves_attachments_for_scorer_state_and_transcript():
+    from inspect_ai._eval.score import _run_score_task
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+    from inspect_ai.log._transcript import transcript
+
+    input_ref = "attachment://input-ref"
+    message_ref = "attachment://message-ref"
+    event_ref = "attachment://event-ref"
+
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input=[ChatMessageUser(content=input_ref)],
+        target="target",
+        messages=[ChatMessageUser(content=message_ref)],
+        output=ModelOutput(
+            choices=[ChatCompletionChoice(message=ChatMessageAssistant(content="done"))]
+        ),
+        events=[
+            ModelEvent(
+                model="mockllm/model",
+                role="assistant",
+                input=[ChatMessageUser(content=event_ref)],
+                output=ModelOutput(
+                    choices=[
+                        ChatCompletionChoice(
+                            message=ChatMessageAssistant(content="done")
+                        )
+                    ]
+                ),
+                tools=[],
+                tool_choice="none",
+                config=GenerateConfig(),
+            )
+        ],
+        attachments={
+            "input-ref": "resolved input",
+            "message-ref": "resolved message",
+            "event-ref": "resolved event",
+        },
+    )
+    log_header = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="t",
+            task_id="t",
+            run_id="r",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="t", steps=[EvalPlanStep(solver="generate")], config=GenerateConfig()
+        ),
+    )
+
+    seen: dict[str, str] = {}
+
+    @scorer(metrics=[accuracy()])
+    def attachment_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            assert isinstance(state.input, list)
+            seen["input"] = state.input[0].text
+            seen["messages"] = state.messages[0].text
+
+            model_events = [
+                event
+                for event in transcript().events
+                if isinstance(event, ModelEvent)
+            ]
+            seen["transcript"] = model_events[0].input[0].text
+            return Score(value=1.0)
+
+        return score
+
+    await _run_score_task(
+        log_header=log_header,
+        sample=sample,
+        scorers=[attachment_scorer()],
+        action="append",
+    )
+
+    assert seen == {
+        "input": "resolved input",
+        "messages": "resolved message",
+        "transcript": "resolved event",
+    }
+
+    assert isinstance(sample.input, list)
+    assert sample.input[0].content == input_ref
+    assert sample.messages[0].content == message_ref
+    assert isinstance(sample.events[0], ModelEvent)
+    assert sample.events[0].input[0].content == event_ref
+    assert sample.attachments == {
+        "input-ref": "resolved input",
+        "message-ref": "resolved message",
+        "event-ref": "resolved event",
+    }
+
+
 async def test_score_restores_sample_timelines():
     """Re-scoring should expose stored ``sample.timelines`` to scorers.
 
