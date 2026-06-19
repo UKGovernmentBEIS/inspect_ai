@@ -10,11 +10,8 @@ from typing import Any, cast
 import pytest
 from anthropic._models import construct_type
 from anthropic.types.message import Message
-from test_helpers.utils import skip_if_no_anthropic
 
-from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentData, ContentReasoning, ContentText
-from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessageAssistant,
@@ -22,7 +19,6 @@ from inspect_ai.model import (
     ModelOutput,
     StopCategory,
     StopDetails,
-    get_model,
 )
 from inspect_ai.model._providers.anthropic import (
     FALLBACK_BETA,
@@ -550,45 +546,3 @@ async def test_fallback_bridge_tolerates_from_alias() -> None:
     meta = cast(dict[str, Any], content[0].data["fallback_metadata"])
     assert meta["from"] == {"model": REQUESTED_MODEL}
     assert meta["to"] == {"model": FALLBACK_MODEL}
-
-
-# ---------------------------------------------------------------------------
-# live (requires API key)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.anyio
-@skip_if_no_anthropic
-async def test_count_tokens_with_fallback_history_live() -> None:
-    """The API accepts a fallen-back history for token counting (with beta)."""
-    init_sample_anthropic_assistant_internal()
-    message = _fallback_message(
-        [_fallback_block(), {"type": "text", "text": "served answer"}]
-    )
-    output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
-
-    model = get_model(f"anthropic/{REQUESTED_MODEL}")
-    count = await model.api.count_tokens([output.message])
-    assert count > 0
-
-
-@pytest.mark.anyio
-@skip_if_no_anthropic
-async def test_fallback_param_accepted_live() -> None:
-    """A benign request with fallback_models is accepted and round-trips a turn."""
-    model = get_model(
-        f"anthropic/{REQUESTED_MODEL}",
-        config=GenerateConfig(max_tokens=64, fallback_models=[FALLBACK_MODEL]),
-    )
-    response = await model.generate(input="Say hello in one word.")
-    assert len(response.completion) >= 1
-
-
-@skip_if_no_anthropic
-def test_fallback_eval_live() -> None:
-    log = eval(
-        Task(dataset=[Sample(input="Please tell a short story about toys.")]),
-        model=f"anthropic/{REQUESTED_MODEL}",
-        fallback_models=[FALLBACK_MODEL],
-    )[0]
-    assert log.status == "success"

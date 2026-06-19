@@ -4,6 +4,7 @@ import logging
 from typing import Iterator
 from unittest.mock import MagicMock, patch
 
+import anyio
 import pytest
 
 from inspect_ai._util.constants import HTTP
@@ -97,7 +98,7 @@ class TestLogModelRetry:
             caplog.at_level(HTTP),
             patch("inspect_ai.log._samples.sample_active", return_value=mock_sample),
         ):
-            log_model_retry("openai/gpt-4o", state)
+            anyio.run(log_model_retry, "openai/gpt-4o", state)
 
         msg = caplog.records[0].message
         assert "[Abc12xY mmlu/42/1 openai/gpt-4o]" in msg

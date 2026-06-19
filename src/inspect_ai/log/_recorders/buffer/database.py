@@ -50,8 +50,10 @@ from .filestore import (
     Manifest,
     SampleBufferFilestore,
     SampleManifest,
+    SampleSegment,
     Segment,
     SegmentFile,
+    sample_segment_cursor,
 )
 from .types import (
     AttachmentData,
@@ -814,6 +816,11 @@ class SampleBufferDatabase(SampleBuffer):
 
         for attempt in range(max_retries):
             try:
+                # Re-create the parent directory immediately before connecting
+                # (writable connections only).
+                if not self._read_only:
+                    self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
                 # mode=ro can never (re-)create the file: a connect after
                 # the database was deleted raises OperationalError rather
                 # than leaving an empty database behind
@@ -883,7 +890,17 @@ class SampleBufferDatabase(SampleBuffer):
                 if conn is not None:
                     conn.close()
                     conn = None
-                if "locked" in str(e) and attempt < max_retries - 1:
+                # "locked" is always transient. "unable to open database file"
+                # is retryable only for writable connections: it usually means a
+                # sibling rmdir'd our shared log directory, which the mkdir above
+                # re-creates on the next attempt. For read_only connections it is
+                # the intended "buffer is gone" signal and must propagate so
+                # callers can degrade (see _control/events.py).
+                msg = str(e)
+                retryable = "locked" in msg or (
+                    not self._read_only and "unable to open database file" in msg
+                )
+                if retryable and attempt < max_retries - 1:
                     time.sleep(retry_delay * (2**attempt))
                     continue
                 raise
@@ -1495,13 +1512,16 @@ def sync_to_filestore(
     sample_manifests: list[SampleManifest] = []
     for sample in samples.samples:
         # lookup sample segments in the existing manifest
-        segments: list[int] = next(
-            (
-                s.segments
-                for s in manifest.samples
-                if s.summary.id == sample.id and s.summary.epoch == sample.epoch
-            ),
-            [],
+        # Copy before appending the next segment below.
+        segments = list(
+            next(
+                (
+                    s.segments
+                    for s in manifest.samples
+                    if s.summary.id == sample.id and s.summary.epoch == sample.epoch
+                ),
+                [],
+            )
         )
         # add to manifests
         sample_manifests.append(SampleManifest(summary=sample, segments=segments))
@@ -1536,8 +1556,8 @@ def sync_to_filestore(
         after_attachment_id = 0
         after_message_pool_id = 0
         after_call_pool_id = 0
-        for seg_id in manifest_sample.segments:
-            seg = segment_by_id.get(seg_id)
+        for sample_segment in manifest_sample.segments:
+            seg = sample_segment_cursor(sample_segment, segment_by_id)
             if seg is not None:
                 after_event_id = max(after_event_id, seg.last_event_id)
                 after_attachment_id = max(after_attachment_id, seg.last_attachment_id)
@@ -1562,6 +1582,13 @@ def sync_to_filestore(
             or len(sample_data.message_pool) > 0
             or len(sample_data.call_pool) > 0
         ):
+            (
+                segment_last_event_id,
+                segment_last_attachment_id,
+                segment_last_message_pool_id,
+                segment_last_call_pool_id,
+            ) = maximum_ids(0, 0, 0, 0, sample_data)
+
             # add to segment file
             segment_files.append(
                 SegmentFile(
@@ -1571,21 +1598,23 @@ def sync_to_filestore(
                 )
             )
             # update manifest
-            manifest_sample.segments.append(segment_id)
+            manifest_sample.segments.append(
+                SampleSegment(
+                    id=segment_id,
+                    last_event_id=segment_last_event_id,
+                    last_attachment_id=segment_last_attachment_id,
+                    last_message_pool_id=segment_last_message_pool_id,
+                    last_call_pool_id=segment_last_call_pool_id,
+                )
+            )
 
             # update maximums
-            (
-                last_event_id,
-                last_attachment_id,
-                last_message_pool_id,
-                last_call_pool_id,
-            ) = maximum_ids(
-                last_event_id,
-                last_attachment_id,
-                last_message_pool_id,
-                last_call_pool_id,
-                sample_data,
+            last_event_id = max(last_event_id, segment_last_event_id)
+            last_attachment_id = max(last_attachment_id, segment_last_attachment_id)
+            last_message_pool_id = max(
+                last_message_pool_id, segment_last_message_pool_id
             )
+            last_call_pool_id = max(last_call_pool_id, segment_last_call_pool_id)
 
     # write the segment file and update the manifest
     if len(segment_files) > 0:
@@ -1611,6 +1640,7 @@ def maximum_ids(
     call_pool_id: int,
     sample_data: SampleData,
 ) -> tuple[int, int, int, int]:
+    # SampleData lists must be ordered by row id; latest_only event lists are not.
     if sample_data.events:
         event_id = max(event_id, sample_data.events[-1].id)
     if sample_data.attachments:

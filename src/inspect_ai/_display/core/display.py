@@ -172,3 +172,12 @@ class Display(Protocol):
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
 
     def display_counter(self, caption: str, value: str) -> None: ...
+
+    def update_task_count(self, n: int) -> None:
+        """Add ``n`` to the displayed total task count.
+
+        Called when tasks are injected into a live (TaskSource-driven) run so
+        the "completed / total" denominator reflects the growing set. No-op by
+        default; displays that show a total override this.
+        """
+        return None

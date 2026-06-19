@@ -2,13 +2,40 @@
 
 - Model API: New `openai-api-completions` provider for the legacy `/v1/completions` endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with `vllm-completions`.
 - Model API: `openai-api-completions` and `vllm-completions` accept pre-tokenized prompts via `ChatMessage.metadata["prompt_token_ids"]`.
+- Task Sources: Drive a running eval from code with `TaskSource` — a seed (`initial_tasks()`) plus result-driven follow-ups (return tasks from `sample_complete`/`task_complete`, or pull the next batch from `next_tasks()`), all under one run id. Register and parameterize with `@task_source` (load by name or `file.py@name`), or add tasks imperatively from a solver/scorer/tool with `enqueue_task()`. Supported by `eval()` (not `eval_set`/`eval_retry`/`score`).
+- Checkpointing: Added support for periodically saving sample state so long-running evals can resume mid-sample after a crash. Enable with `--checkpoint` or the `checkpoint` arg to `eval()`/`eval_set()`/`eval_retry()`.
+- MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
+- MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
+- MCP: Fix in-sandbox stdio MCP servers hanging on large tool responses.
+- MCP: Bound sandbox MCP `call_tool` with `read_timeout_seconds` so a lost response surfaces to the model as a tool timeout error instead of deadlocking the tool call.
+- Scoring: Restore sample.timelines into transcript on re-score.
+- Scoring: `mean()` now maps `Value` to float via `value_to_float()` like the other built-in metrics.
+- Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs
+- Eval Log: `read_eval_log`, `read_eval_log_async`, and `samples_df` now accept `exclude_fields` for more memory-efficient loading of large samples.
+- Sandbox: Preserve docker-compatible per-sample sandbox config (e.g. a per-sample `ComposeConfig`) when an eval-level sandbox override (`--sandbox <provider>`) is passed without its own config.
+- Mistral: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the conversation-api path honored it).
+- Limits: Added `turn_limit()` which tracks total generations.
+- Control Channel: `inspect ctl tasks` now reports keep-alive status (`on` / `off` / `mixed`) and a new `inspect ctl keep` command (backed by `POST /keep`) latches keep-alive on a running process so it parks after its eval.
+- Hooks: Add `on_model_retry` hook, fired before each model retry backoff with the model name, attempt number, and upcoming `wait_time` (useful for surfacing time spent in rate limiting and other retries).
+- Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
+- Inspect View: Fix log-list grid columns snapping back to default widths while data loads
+- Inspect View: Fix transcript deep links across timelines, approvals, collapsed regions, and lanes; add event label pills.
+- Inspect View:  Improve tool input density
+- Log: `read_eval_log`, `read_eval_log_async`, and `samples_df` now accept `exclude_fields` for more memory-efficient loading of large samples.
+- Bugfix: Fix direct multi_scorer task usage.
+- Bugfix: `subprocess()` no longer deadlocks on timeout/cancel when asyncio's child watcher misses the process exit (observed under heavy `docker compose exec` load); the shielded post-kill `process.wait()` is now bounded.
+
+## 0.3.240 (15 June 2026)
+
 - Anthropic: Support for server-side refusal fallback via the `fallback_models` generate config (Claude 5+ on the first-party Anthropic API).
 - Anthropic: `cache_ttl` model arg for specifying the prompt cache TTL ("5m" or "1h").
 - Anthropic: Support for web search dynamic filtering on Claude 4.6 and later models.
 - Anthropic: Raise a clear error when `reasoning_tokens` is set on Claude 4.7+ or Claude 5 (which removed the `budget_tokens` control); use `reasoning_effort` instead.
 - OpenAI: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the responses and OpenAI-compatible paths honored it).
+- OpenAI: Preserve Responses API `NamespaceToolParam` grouping through agent bridge.
 - SageMaker: Fix streaming handler dropping reasoning tokens from thinking models.
 - Model API: Record model fallbacks as a typed `ModelOutput.fallback` and roll them up per-sample on `EvalSample.model_fallbacks` (and sample summaries); expose a `fallbacks` count column in `samples_df()`.
+- Agent Bridge: Preserve `NamespaceToolParam` grouping through to the OpenAI Responses API.
 - Adaptive Connections: Raise the default minimum from 4 to 10.
 - Control Channel: `inspect eval` / `inspect eval-set` now bind a per-process control server (AF_UNIX, default on) exposing a read surface for the live run. New `inspect ctl` commands let another process (CLI, scripts, agents) observe a running eval / eval-set.
 - Transcript: Reuse a persistent per-thread SQLite connection in the realtime sample buffer database.
@@ -18,13 +45,16 @@
 - Agent Bridge: Preserve `source="operator"` provenance on operator-injected messages.
 - Task Display: Update log/plain progress after errors.
 - Eval Logs: Support for writing to Hugging Face Storage Buckets.
+- Inspect View: Pending sample buffers now store per-sample segment cursors to avoid repeatedly streaming co-batched segments after a sample reaches its own cursor. In-progress buffers written by this version may not be readable by older Inspect versions until the eval finishes and the ephemeral buffer is removed.
 - Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle instead of a single StaticX executable.
+- Sandbox: `self_check` now verifies that non-ASCII (UTF-8) command output round-trips correctly on `exec` stdout/stderr.
 - S3: Retry when requests have stale signatures.
 - Inspect View: Display model fallbacks (samples grid column, `has_fallbacks`/`fallbacks` filter variables, sample header, transcript fallback marker and model-event badge).
 - Inspect View: Fix occasional intermittent hang while attempting to navigate to sample
 - Inspect View: Improve server side tool rendering transcripts and messages
 - Inspect View: Fix stuck completed streaming samples
-- Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects
+- Bugfix: Fix sample summary thinning mutating shared `ChatMessage` objects.
+- Bugfix: Fix a rare `OperationalError: unable to open database file` when concurrent evals share a log directory.
 
 ## 0.3.239 (09 June 2026)
 

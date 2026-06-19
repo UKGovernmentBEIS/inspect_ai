@@ -44,7 +44,9 @@ from inspect_ai.event._tree import (
 from inspect_ai.log import (
     EvalLog,
 )
+from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
+from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
@@ -58,7 +60,7 @@ from inspect_ai.scorer._reducer import (
     create_reducers,
     reducer_log_names,
 )
-from inspect_ai.scorer._scorer import ScorerSpec, unique_scorer_name
+from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_name
 from inspect_ai.solver import TaskState
 from inspect_ai.util._display import (
     DisplayType,
@@ -68,6 +70,7 @@ from inspect_ai.util._display import (
 from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME, span
 from inspect_ai.util._store import init_subtask_store
 
+from .task.log import resolve_eval_scorers
 from .task.results import ScorerInfo, eval_results
 
 ScoreAction = Literal["append", "overwrite"]
@@ -318,6 +321,13 @@ async def score_async(
             metadata=log.results.metadata if log.results else None,
         )
 
+        # Update log.eval.scorers to reflect the scorers actually applied so
+        # that subsequent recompute_metrics() (which derives ScorerInfo from
+        # this header list) operates on the right entries.
+        applied_eval_scorers = (
+            resolve_eval_scorers([as_scorer_spec(s) for s in resolved_scorers]) or []
+        )
+
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
@@ -325,10 +335,12 @@ async def score_async(
         if action == "overwrite" or log.results is None:
             # Completely replace the results with the new results
             log.results = results
+            log.eval.scorers = applied_eval_scorers
         else:
             # Only update the results with the new scores, leaving the rest
             # of the results as they were
             log.results.scores.extend(results.scores)
+            log.eval.scorers = (log.eval.scorers or []) + applied_eval_scorers
 
     return log
 
@@ -370,8 +382,19 @@ async def _run_score_task(
     init_task_context(model, model_roles)
     init_subtask_store(state.store)
 
+    # resolve attachment:// refs so scorers see real content rather than
+    # opaque hashes; rebind timelines to the resolved event objects. Done
+    # per-sample so peak memory is bounded by concurrency, not sample count.
+    if sample.attachments:
+        sample = resolve_sample_attachments(sample)
+        sample = rebind_sample_timelines(sample)
+
     # load a copy of the current sample events into the transcript
     init_transcript(Transcript([*sample.events], log_model_api=False, bounded=False))
+    # restore stored timelines so timeline-dependent scorers (e.g. scout
+    # @scanner(timeline=True), petri's audit_judge) work on re-score
+    for tl in sample.timelines or []:
+        transcript().add_timeline(tl)
 
     if state.scores is None:
         state.scores = {}
