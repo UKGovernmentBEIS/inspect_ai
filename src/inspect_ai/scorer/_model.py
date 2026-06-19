@@ -208,10 +208,14 @@ def _model_graded_qa_single(
         result = await model.generate([scoring_prompt])
 
         # extract the grade
+        default_grade_pattern = grade_pattern is None
         match = re.search(grade_pattern or DEFAULT_GRADE_PATTERN, result.completion)
         if match:
+            value = match.group(1)
+            if default_grade_pattern:
+                value = value.upper()
             return Score(
-                value=match.group(1),
+                value=value,
                 answer=state.output.completion,
                 explanation=result.completion,
                 metadata=dict(
@@ -291,14 +295,20 @@ First, write out in a step by step manner your reasoning about the criterion to 
 """
 
 
-DEFAULT_GRADE_PATTERN = r"(?is).*GRADE\s*:\s*([CPI])"
+_GRADE_SPACING = r"[\s\u200b\u200c\u200d\ufeff\u2060]*"
+
+DEFAULT_GRADE_PATTERN = (
+    rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}([CPI])"
+)
 """Regex to extract the grade from the COT above.
 
 The leading greedy ``.*`` (with DOTALL) ensures ``re.search`` binds to the
 *last* ``GRADE: X`` in the grader output — the instructions tell the grader
 to end with the grade, so earlier mentions (e.g. echoed in chain-of-thought
-or injected via the submission) must not win. No end-of-string anchor is
-used so that trailing text after the grade line does not suppress the match.
+or injected via the submission) must not win. The ``GRADE`` token is bounded so
+ordinary prose like ``downgrade:`` cannot be mistaken for a verdict. No
+end-of-string anchor is used so that trailing text after the grade line does
+not suppress the match.
 """
 
 

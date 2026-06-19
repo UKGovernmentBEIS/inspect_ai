@@ -257,6 +257,16 @@ def test_neutralize_structural_delimiters(raw: str, expected: str) -> None:
             "C",
             id="last_grade_across_lines_wins",
         ),
+        pytest.param(
+            "GRADE: C. No reason to downgrade: insufficient grounds.",
+            "C",
+            id="ignore_grade_suffix_in_prose",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u200bC",
+            "C",
+            id="zero_width_before_final_grade",
+        ),
         pytest.param("grade: p", "p", id="case_insensitive"),
     ],
 )
@@ -267,6 +277,52 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
     match = re.search(DEFAULT_GRADE_PATTERN, grader_output)
     assert match is not None, f"no grade found in {grader_output!r}"
     assert match.group(1) == expected
+
+
+@pytest.mark.parametrize(
+    "grader_output",
+    [
+        pytest.param(
+            "GRADE: C. No reason to downgrade: insufficient grounds.",
+            id="ignore_grade_suffix_in_prose",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u200bC",
+            id="zero_width_before_final_grade",
+        ),
+        pytest.param("The answer is right. grade: c", id="normalize_lowercase_grade"),
+    ],
+)
+def test_model_graded_default_grade_parsing_scores_correct_verdict(
+    grader_output: str,
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=grader_output)])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is the capital of France?", target="Paris")],
+        scorer=model_graded_qa(model=grader_model),
+    )
+    log = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", [ContentText(text="Paris")])
+            ],
+        ),
+        display="none",
+    )[0]
+
+    assert log.samples
+    assert log.results
+    assert log.samples[0].scores
+    score = log.samples[0].scores["model_graded_qa"]
+    assert score.value == "C"
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
 
 
 def test_neutralize_structural_delimiters_is_idempotent() -> None:
