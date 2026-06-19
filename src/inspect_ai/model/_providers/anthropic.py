@@ -2497,7 +2497,15 @@ async def assistant_message_blocks(
         elif block_param["type"] == "compaction":
             blocks.append(BetaCompactionBlock.model_validate(block_param))
         elif block_param["type"] == "fallback":
-            blocks.append(BetaFallbackBlock.model_validate(block_param))
+            # BetaFallbackBlock requires a server-side refusal `trigger` (added in
+            # anthropic 0.110.0); inspect only round-trips `from`/`to`, so
+            # synthesize one when the param doesn't carry it -- mirroring the
+            # server_tool_use "synthesize a default caller" pattern above.
+            blocks.append(
+                BetaFallbackBlock.model_validate(
+                    {"trigger": {"type": "refusal"}, **block_param}
+                )
+            )
         else:
             logger.warning(
                 f"Unexpecxted assistant message block type: {block_param['type']}"
@@ -3221,6 +3229,10 @@ def content_and_tool_calls_from_assistant_content_blocks(
                 fb = dict(block)
                 if "from_" in fb and "from" not in fb:
                     fb["from"] = fb.pop("from_")
+                # BetaFallbackBlock requires a server-side refusal `trigger`
+                # (added in anthropic 0.110.0); scaffold-echoed history doesn't
+                # carry it, so synthesize one. inspect never reads `trigger`.
+                fb.setdefault("trigger", {"type": "refusal"})
                 content_blocks.append(BetaFallbackBlock.model_validate(fb))
             else:
                 content_blocks.append(content_block_adapter.validate_python(block))
