@@ -429,8 +429,8 @@ async def _run_score_task(
                             scorer_args=registry_params(scorer)
                             if has_registry_params(scorer)
                             else None,
-                            model_usage=sample.model_usage or None,
-                            role_usage=sample.role_usage or None,
+                            model_usage=resolved_sample.model_usage or None,
+                            role_usage=resolved_sample.role_usage or None,
                         )
                     )
 

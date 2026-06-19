@@ -626,9 +626,7 @@ async def test_score_resolves_attachments_for_scorer_state_and_transcript():
             seen["messages"] = state.messages[0].text
 
             model_events = [
-                event
-                for event in transcript().events
-                if isinstance(event, ModelEvent)
+                event for event in transcript().events if isinstance(event, ModelEvent)
             ]
             seen["transcript"] = model_events[0].input[0].text
             return Score(value=1.0)
