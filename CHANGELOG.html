@@ -449,6 +449,7 @@ ul.task-list li input[type="checkbox"] {
 <li>MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g.&nbsp;<code>notifications/tools/list_changed</code> from a server that advertises <code>listChanged</code>).</li>
 <li>MCP: Make sandbox MCP server shutdown best-effort during <code>sandbox_client</code> teardown so a slow or failing <code>mcp_kill_server</code> no longer escapes the task group as a masking “Attempted to exit a cancel scope” error.</li>
 <li>MCP: Fix in-sandbox stdio MCP servers hanging on large tool responses.</li>
+<li>MCP: Bound sandbox MCP <code>call_tool</code> with <code>read_timeout_seconds</code> so a lost response surfaces to the model as a tool timeout error instead of deadlocking the tool call.</li>
 <li>Scoring: Restore sample.timelines into transcript on re-score.</li>
 <li>Scoring: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#mean">mean()</a></span> now maps <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#value">Value</a></span> to float via <code>value_to_float()</code> like the other built-in metrics.</li>
 <li>Eval Set: <code>task_identifier</code> now excludes runtime-only <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> fields from <code>model_roles</code> configs</li>
