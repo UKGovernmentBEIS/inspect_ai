@@ -403,3 +403,44 @@ class TestResultCaching:
         assert after.cost is not None
         assert after.cost.input == 1.0
         assert after.cost.output == 2.0
+
+
+class TestRecordCostPrecedence:
+    """record_and_check_model_usage prefers a provider-reported total_cost."""
+
+    def test_preset_total_cost_is_not_overwritten_by_db_estimate(self):
+        """A provider-set total_cost wins over the local per-token estimate."""
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelUsage
+
+        set_model_cost(
+            "anthropic/claude-sonnet-4",
+            ModelCost(
+                input=3.0, output=15.0, input_cache_write=0.0, input_cache_read=0.0
+            ),
+        )
+
+        usage = ModelUsage(
+            input_tokens=1000, output_tokens=1000, total_tokens=2000, total_cost=0.999
+        )
+        record_and_check_model_usage("anthropic/claude-sonnet-4", usage)
+
+        # DB estimate would be 1000*3/1e6 + 1000*15/1e6 = 0.018; the preset wins.
+        assert usage.total_cost == 0.999
+
+    def test_unset_total_cost_falls_back_to_db_estimate(self):
+        """With no reported cost, the local pricing DB still computes one."""
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelUsage
+
+        set_model_cost(
+            "anthropic/claude-sonnet-4",
+            ModelCost(
+                input=3.0, output=15.0, input_cache_write=0.0, input_cache_read=0.0
+            ),
+        )
+
+        usage = ModelUsage(input_tokens=1000, output_tokens=1000, total_tokens=2000)
+        record_and_check_model_usage("anthropic/claude-sonnet-4", usage)
+
+        assert usage.total_cost == pytest.approx(0.018)

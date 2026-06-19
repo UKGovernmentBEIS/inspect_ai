@@ -2342,9 +2342,13 @@ def record_and_check_model_usage(
     # compute cost and set on usage before recording (so ModelUsage.__add__
     # accumulates it in the per-model usage dicts)
     info = get_model_info(model)
-    total_cost: float | None = None
+    # A provider may have already populated total_cost from the actual billed
+    # cost on the API response (e.g. OpenRouter returns `usage.cost`). Prefer
+    # that authoritative value over the local per-token estimate; only fall
+    # back to the pricing database when no reported cost is available.
+    total_cost: float | None = usage.total_cost
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
-    if info is not None and info.cost is not None:
+    if total_cost is None and info is not None and info.cost is not None:
         total_cost = compute_model_cost(info.cost, usage)
         usage.total_cost = total_cost
 

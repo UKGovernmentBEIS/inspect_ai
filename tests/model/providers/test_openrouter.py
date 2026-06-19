@@ -11,6 +11,7 @@ from inspect_ai.model._providers.openrouter import (
     OpenRouterAPI,
     _add_anthropic_cache_markers,
     _apply_cache_creation_usage,
+    _apply_reported_cost,
 )
 
 EPHEMERAL: dict[str, str] = {"type": "ephemeral"}
@@ -291,6 +292,84 @@ def test_apply_cache_creation_usage_noop_when_no_call() -> None:
     assert output.usage is not None
     assert output.usage.input_tokens_cache_write is None
     assert output.usage.input_tokens == 500
+
+
+def test_apply_reported_cost_reads_cost() -> None:
+    """Non-BYOK: `cost` alone is the full spend (upstream cost absent)."""
+    output = _make_output()
+    call = ModelCall(
+        request={}, response={"usage": {"prompt_tokens": 500, "cost": 0.0123}}
+    )
+
+    _apply_reported_cost(output, call)
+
+    assert output.usage is not None
+    assert output.usage.total_cost == 0.0123
+
+
+def test_apply_reported_cost_sums_upstream_for_byok() -> None:
+    """BYOK: true spend is `cost` (OpenRouter fee) + upstream inference cost."""
+    output = _make_output()
+    call = ModelCall(
+        request={},
+        response={
+            "usage": {
+                "cost": 0.001,
+                "cost_details": {"upstream_inference_cost": 0.05},
+            }
+        },
+    )
+
+    _apply_reported_cost(output, call)
+
+    assert output.usage is not None
+    assert output.usage.total_cost == pytest.approx(0.051)
+
+
+def test_apply_reported_cost_ignores_null_upstream() -> None:
+    """Non-BYOK responses carry cost_details with a null upstream cost."""
+    output = _make_output()
+    call = ModelCall(
+        request={},
+        response={
+            "usage": {"cost": 0.02, "cost_details": {"upstream_inference_cost": None}},
+        },
+    )
+
+    _apply_reported_cost(output, call)
+
+    assert output.usage is not None
+    assert output.usage.total_cost == 0.02
+
+
+def test_apply_reported_cost_noop_when_cost_missing() -> None:
+    output = _make_output()
+    call = ModelCall(request={}, response={"usage": {"prompt_tokens": 500}})
+
+    _apply_reported_cost(output, call)
+
+    assert output.usage is not None
+    assert output.usage.total_cost is None
+
+
+def test_apply_reported_cost_noop_when_no_call() -> None:
+    output = _make_output()
+
+    _apply_reported_cost(output, None)
+
+    assert output.usage is not None
+    assert output.usage.total_cost is None
+
+
+def test_apply_reported_cost_rejects_bool_cost() -> None:
+    """Bool is a subclass of int; a stray True must not be read as cost 1.0."""
+    output = _make_output()
+    call = ModelCall(request={}, response={"usage": {"cost": True}})
+
+    _apply_reported_cost(output, call)
+
+    assert output.usage is not None
+    assert output.usage.total_cost is None
 
 
 @pytest.mark.anyio
