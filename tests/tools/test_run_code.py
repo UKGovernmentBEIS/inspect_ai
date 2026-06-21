@@ -149,13 +149,27 @@ async def test_run_code_executes_simple_code_with_monty():
 
 
 @pytest.mark.anyio
-async def test_run_code_reports_monty_error():
+async def test_run_code_raises_tool_error_on_monty_syntax_error():
     pytest.importorskip("pydantic_monty")
 
     tool = run_code(execute_code=True)
-    result = await tool(code="raise Exception('boom')")
 
-    assert "boom" in result[0].text
+    with pytest.raises(ToolError) as exc_info:
+        await tool(code="def foo(:")
+
+    assert "parameter" in str(exc_info.value).lower()
+
+
+@pytest.mark.anyio
+async def test_run_code_raises_tool_error_on_monty_runtime_error():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(execute_code=True)
+
+    with pytest.raises(ToolError) as exc_info:
+        await tool(code="1/0")
+
+    assert "ZeroDivisionError" in str(exc_info.value)
 
 
 @pytest.mark.anyio
