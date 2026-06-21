@@ -198,6 +198,16 @@ class EvalState:
     eval is still running. Used by the control endpoint to surface
     completion to agents without forcing them to derive it from counters."""
 
+    started_at: float | None = None
+    """Earliest observed sample-start time, tracked as a running minimum.
+
+    Pinned here rather than recomputed from ``active_samples`` on every read
+    so the eval's reported start stays fixed at its first sample's start. The
+    live set only holds *currently active* samples, so a pure min over it
+    creeps forward as early samples finish and leave ``active_samples`` (see
+    ``_build_summary``). ``None`` until the first sample with a known start is
+    observed; stays ``None`` for reused/synthetic evals (no live samples)."""
+
     will_retry: bool = False
     """Whether a failure of this attempt will be retried (task-level).
 
