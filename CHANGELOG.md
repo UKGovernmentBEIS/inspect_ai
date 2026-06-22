@@ -1,7 +1,7 @@
-## Unreleased
+## 0.3.241 (22 June 2026)
 
-- Task Sources: Drive a running eval from code with `TaskSource` — a seed (`initial_tasks()`) plus result-driven follow-ups (return tasks from `sample_complete`/`task_complete`, or pull the next batch from `next_tasks()`), all under one run id. Register and parameterize with `@task_source` (load by name or `file.py@name`), or add tasks imperatively from a solver/scorer/tool with `enqueue_task()`. Supported by `eval()` (not `eval_set`/`eval_retry`/`score`).
-- Checkpointing: Added support for periodically saving sample state so long-running evals can resume mid-sample after a crash. Enable with `--checkpoint` or the `checkpoint` arg to `eval()`/`eval_set()`/`eval_retry()`.
+- Task Sources: Drive a running eval from code with `TaskSource`.
+- Checkpointing: Added support for periodically saving sample state so long-running evals can resume mid-sample after a crash.
 - MCP: Fix in-sandbox stdio MCP servers hanging when the server emits unsolicited notifications (e.g. `notifications/tools/list_changed` from a server that advertises `listChanged`).
 - MCP: Make sandbox MCP server shutdown best-effort during `sandbox_client` teardown so a slow or failing `mcp_kill_server` no longer escapes the task group as a masking "Attempted to exit a cancel scope" error.
 - MCP: Fix in-sandbox stdio MCP servers hanging on large tool responses.
