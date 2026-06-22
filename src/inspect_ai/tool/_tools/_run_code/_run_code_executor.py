@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from inspect_ai._util.content import Content, ContentText
-from inspect_ai.tool import ToolDef
+from inspect_ai.tool import ToolDef, ToolError
 
 from ._bridge import RunCodeInnerToolCall, RunCodeToolBridge
 
@@ -73,6 +73,7 @@ class MontyRunCodeExecutor:
         """
         try:
             import pydantic_monty
+            from pydantic_monty import MontyError
         except ImportError:
             return RunCodeResult(
                 output=[],
@@ -108,6 +109,8 @@ class MontyRunCodeExecutor:
                 output=contents,
                 inner_tool_calls=bridge.calls,
             )
+        except MontyError as exc:
+            raise ToolError(str(exc))
         except Exception as exc:
             return RunCodeResult(
                 output=[],
