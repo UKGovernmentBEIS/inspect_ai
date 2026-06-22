@@ -629,13 +629,11 @@ async def test_exec_input_large(sandbox_env: SandboxEnvironment) -> None:
 
 
 async def test_exec_large_command(sandbox_env: SandboxEnvironment) -> None:
-    # The command analogue of test_exec_input_large: catches size limits in the
-    # command itself (argv / wrapper-script transport), not stdin. Built from
-    # many medium arguments rather than one giant one: a single argv element is
-    # capped at MAX_ARG_STRLEN (128 KiB on Linux) even though total ARG_MAX is
-    # ~2 MiB, so one ~1 MiB argument fails with E2BIG on execve-based sandboxes.
-    # `printf %s` cycles its format over every argument, so stdout is the chunks
-    # concatenated with no separators or trailing newline.
+    # Command analogue of test_exec_input_large: stresses the argv/command
+    # transport, not stdin. Many medium args rather than one giant one — a single
+    # argv element is capped at MAX_ARG_STRLEN (128 KiB) regardless of ARG_MAX, so
+    # a ~1 MiB arg fails with E2BIG. printf %s cycles over every arg, so stdout is
+    # the args concatenated.
     chunk = "x" * (64 * 1024)
     n = 16  # ~1 MiB total argv, under a typical 2 MiB ARG_MAX
     result = await sandbox_env.exec(["printf", "%s", *([chunk] * n)])
