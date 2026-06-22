@@ -56,6 +56,7 @@
 - Log: `read_eval_log`, `read_eval_log_async`, and `samples_df` now accept `exclude_fields` for more memory-efficient loading of large samples.
 - Bugfix: Fix direct multi_scorer task usage.
 - Bugfix: `subprocess()` no longer deadlocks on timeout/cancel when asyncio's child watcher misses the process exit (observed under heavy `docker compose exec` load); the shielded post-kill `process.wait()` is now bounded.
+- Eval Logs: Populate `EvalSpec.revision` from a task's package metadata (PEP 610 `direct_url.json`) when the task was installed from a git URL, so pip-installed / remotely-executed tasks record the exact commit they ran. Falls back to the working-directory git context as before.
 
 ## 0.3.240 (15 June 2026)
 
