@@ -1,3 +1,7 @@
+## Unreleased
+
+- Control Channel: `inspect ctl` reads now use a 15s timeout and retry a busy eval up to 8 times (printing a status on each timeout) before failing with a non-zero exit, instead of silently dropping a momentarily-unresponsive eval from the listing.
+
 ## 0.3.241 (22 June 2026)
 
 - Task Sources: Drive a running eval from code with `TaskSource`.
@@ -15,7 +19,6 @@
 - Anthropic: Synthesize a refusal `trigger` when validating fallback blocks from message history, fixing a `ValidationError` with `anthropic>=0.110.0` (which made `trigger` a required field on `BetaFallbackBlock`).
 - Limits: Added `turn_limit()` which tracks total generations.
 - Control Channel: `inspect ctl tasks` now reports keep-alive status (`on` / `off` / `mixed`) and a new `inspect ctl keep` command (backed by `POST /keep`) latches keep-alive on a running process so it parks after its eval.
-- Control Channel: `inspect ctl` reads now use a 15s timeout and retry a busy eval up to 8 times (printing a status on each timeout) before failing with a non-zero exit, instead of silently dropping a momentarily-unresponsive eval from the listing.
 - Hooks: Add `on_model_retry` hook, fired before each model retry backoff with the model name, attempt number, and upcoming `wait_time` (useful for surfacing time spent in rate limiting and other retries).
 - Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
 - Inspect View: Fix log-list grid columns snapping back to default widths while data loads
