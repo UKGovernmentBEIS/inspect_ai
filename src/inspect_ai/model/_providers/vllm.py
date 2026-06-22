@@ -247,6 +247,14 @@ class VLLMAPI(OpenAICompatibleAPI):
                 await anyio.to_thread.run_sync(self._resolve_server)
         await self._register_context_window()
 
+    def _server_root(self) -> str:
+        """Base URL with any trailing ``/v1`` removed.
+
+        ``base_url`` may or may not include ``/v1``; callers append the path
+        they need (``/tokenize`` at the root, ``/v1/models`` under ``/v1``).
+        """
+        return str(self.base_url).rstrip("/").removesuffix("/v1")
+
     async def _register_context_window(self) -> None:
         """Register the server's ``max_model_len`` (from ``/v1/models``) as the context window.
 
@@ -255,43 +263,48 @@ class VLLMAPI(OpenAICompatibleAPI):
         """
         if self._context_window_registered:
             return
-        self._context_window_registered = True
-        try:
-            base = str(self.base_url).rstrip("/").removesuffix("/v1")
-            headers: dict[str, str] = {}
-            if self.api_key:
-                headers["Authorization"] = f"Bearer {self.api_key}"
-            resp = await self.http_client.get(
-                f"{base}/v1/models", headers=headers, timeout=30.0
-            )
-            resp.raise_for_status()
-            max_model_len = _server_context_length(
-                resp.json(),
-                [self.service_model_name(), self.base_model, self.model_name],
-            )
-            if max_model_len:
-                name = self.input_tokens_name()
-                existing = get_model_info(name)
-                previous = existing.context_length if existing is not None else None
-                info = (
-                    existing.model_copy(update={"context_length": max_model_len})
-                    if existing is not None
-                    else ModelInfo(context_length=max_model_len)
+        # Under the lock with a double-check so concurrent generate() calls
+        # don't each fetch /v1/models or race on set_model_info.
+        async with self._server._init_lock:
+            if self._context_window_registered:
+                return
+            self._context_window_registered = True
+            try:
+                headers: dict[str, str] = {}
+                if self.api_key:
+                    headers["Authorization"] = f"Bearer {self.api_key}"
+                resp = await self.http_client.get(
+                    f"{self._server_root()}/v1/models", headers=headers, timeout=30.0
                 )
-                set_model_info(name, info)
-                if previous is not None and previous != max_model_len:
-                    logger.info(
-                        f"vLLM server reports max_model_len={max_model_len} for "
-                        f"{name}; using it as the context window "
-                        f"(catalog had {previous})."
+                resp.raise_for_status()
+                max_model_len = _server_context_length(
+                    resp.json(), [self.service_model_name()]
+                )
+                if max_model_len:
+                    name = self.input_tokens_name()
+                    existing = get_model_info(name)
+                    previous = existing.context_length if existing is not None else None
+                    info = (
+                        existing.model_copy(update={"context_length": max_model_len})
+                        if existing is not None
+                        else ModelInfo(context_length=max_model_len)
                     )
-                else:
-                    logger.debug(
-                        f"Registered context window {max_model_len} for {name} "
-                        f"from vLLM /v1/models."
-                    )
-        except Exception as ex:
-            logger.debug(f"Could not read context window from vLLM /v1/models: {ex}")
+                    set_model_info(name, info)
+                    if previous is not None and previous != max_model_len:
+                        logger.info(
+                            f"vLLM server reports max_model_len={max_model_len} for "
+                            f"{name}; using it as the context window "
+                            f"(catalog had {previous})."
+                        )
+                    else:
+                        logger.debug(
+                            f"Registered context window {max_model_len} for {name} "
+                            f"from vLLM /v1/models."
+                        )
+            except Exception as ex:
+                logger.debug(
+                    f"Could not read context window from vLLM /v1/models: {ex}"
+                )
 
     def _start_server(
         self,
@@ -429,12 +442,11 @@ class VLLMAPI(OpenAICompatibleAPI):
             List of token IDs.
         """
         await self._ensure_server_started()
-        base = str(self.base_url).rstrip("/").removesuffix("/v1")
         headers: dict[str, str] = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         resp = await self.http_client.post(
-            f"{base}/tokenize",
+            f"{self._server_root()}/tokenize",
             json={
                 "model": self.service_model_name(),
                 "prompt": text,
