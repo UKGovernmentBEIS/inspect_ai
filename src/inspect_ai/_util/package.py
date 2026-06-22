@@ -1,10 +1,15 @@
 import importlib.util
 import inspect
 import json
+import os
 import site
 import sys
 from functools import lru_cache
-from importlib.metadata import Distribution, PackageNotFoundError
+from importlib.metadata import (
+    Distribution,
+    PackageNotFoundError,
+    packages_distributions,
+)
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -95,7 +100,7 @@ class DirectUrl(BaseModel):
 
 @lru_cache(maxsize=None)
 def get_package_direct_url(package: str) -> DirectUrl | None:
-    """Retrieve the PEP 610 direct_url.json
+    """Retrieve the PEP 610 direct_url.json for an installed distribution.
 
     `direct_url.json` is a metadata file created by pip (and other Python package
     installers) in the .dist-info directory of installed packages. It's defined by
@@ -114,14 +119,62 @@ def get_package_direct_url(package: str) -> DirectUrl | None:
         distribution = Distribution.from_name(package)
     except (ValueError, PackageNotFoundError):
         return None
+    return get_distribution_direct_url(distribution)
 
+
+def get_distribution_direct_url(distribution: Distribution) -> DirectUrl | None:
+    """Parse the PEP 610 direct_url.json of an installed distribution (if any)."""
     if (json_text := distribution.read_text("direct_url.json")) is None:
         return None
-
     try:
         return DirectUrl.model_validate_json(json_text)
     except (json.JSONDecodeError, ValueError):
         return None
+
+
+def get_distribution_for_object(obj: Any) -> Distribution | None:
+    """Find the installed distribution that provides `obj`'s defining module.
+
+    Unlike `get_installed_package_name` (which returns the top-level *import*
+    package name), this returns the actual installed *distribution*. It handles
+    namespace packages whose import name is shared across several distributions
+    (e.g. a uv workspace where each task is its own distribution under a shared
+    `foo` namespace) by locating the distribution whose installed files include
+    the object's module file.
+    """
+    module_name = getattr(obj, "__module__", None)
+    if not module_name:
+        return None
+    try:
+        spec = importlib.util.find_spec(module_name)
+    except (ImportError, AttributeError, ValueError):
+        return None
+    if spec is None or spec.origin is None:
+        return None
+
+    # Fast path: a distribution named like the top-level import package
+    # (the common case where import name == distribution name).
+    top_level = module_name.split(".")[0]
+    try:
+        return Distribution.from_name(top_level)
+    except PackageNotFoundError:
+        pass
+
+    # Namespace package / name mismatch: among the distributions that provide
+    # the top-level import name, find the one whose files include this module.
+    origin = os.path.realpath(spec.origin)
+    for dist_name in packages_distributions().get(top_level, []):
+        try:
+            distribution = Distribution.from_name(dist_name)
+        except PackageNotFoundError:
+            continue
+        for file in distribution.files or []:
+            try:
+                if os.path.realpath(str(file.locate())) == origin:
+                    return distribution
+            except Exception:
+                continue
+    return None
 
 
 def package_is_installed_editable(package: str) -> bool:

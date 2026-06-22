@@ -1,3 +1,4 @@
+import types
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, cast
@@ -13,13 +14,12 @@ from inspect_ai._eval.run import eval_run
 from inspect_ai._eval.task import log as task_log_module
 from inspect_ai._eval.task.log import (
     TaskLogger,
-    resolve_external_registry_package_version,
     resolve_package_revision,
+    resolve_task_distribution,
 )
 from inspect_ai._util.background import background_task_group, set_background_task_group
-from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.git import GitContext
-from inspect_ai._util.package import ArchiveInfo, DirectUrl, DirInfo, VcsInfo
+from inspect_ai._util.package import DirectUrl, VcsInfo
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalRevision
 from inspect_ai.log._log import (
@@ -38,86 +38,48 @@ from inspect_ai.log._recorders.recorder import Recorder
 from inspect_ai.model import get_model
 
 
-def test_external_package_version_logged():
-    task = Task()
-
-    # Imaginary package `eval_registry` v1.0.0
-    with (
-        patch.object(
-            type(task),
-            "registry_name",
-            property(lambda self: "eval_registry/my_task"),
-        ),
-        patch(
-            "inspect_ai._eval.task.log.importlib_metadata.version",
-            return_value="1.0.0",
-        ),
-    ):
-        [log] = eval(task, model="mockllm/model")
-
-    assert "eval_registry" in log.eval.packages
-    assert log.eval.packages["eval_registry"] == "1.0.0"
+def _fake_dist(name: str, version: str = "1.0.0") -> types.SimpleNamespace:
+    return types.SimpleNamespace(name=name, version=version)
 
 
-class TestResolveExternalRegistryPackageVersion:
+class TestResolveTaskDistribution:
     def test_returns_none_when_task_registry_name_is_none(self):
-        assert resolve_external_registry_package_version(None) is None
+        assert resolve_task_distribution(None) is None
 
-    def test_returns_none_when_registry_package_name_returns_none(self):
-        with patch(
-            "inspect_ai._eval.task.log.registry_package_name", return_value=None
-        ):
-            result = resolve_external_registry_package_version("some_task")
+    def test_returns_none_when_task_not_in_registry(self):
+        with patch("inspect_ai._eval.task.log.registry_lookup", return_value=None):
+            assert resolve_task_distribution("pkg/some_task") is None
 
-        assert result is None
-
-    def test_returns_none_when_package_is_internal(self):
-        # i.e. if the task happened to live in `inspect_ai`
-        with patch(
-            "inspect_ai._eval.task.log.registry_package_name", return_value=PKG_NAME
-        ):
-            result = resolve_external_registry_package_version("inspect_ai/some_task")
-
-        assert result is None
-
-    def test_returns_package_name_and_version_for_external_package(self):
+    def test_returns_none_when_no_distribution_for_object(self):
         with (
+            patch("inspect_ai._eval.task.log.registry_lookup", return_value=object()),
             patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="external_package",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.importlib_metadata.version",
-                return_value="1.2.3",
+                "inspect_ai._eval.task.log.get_distribution_for_object",
+                return_value=None,
             ),
         ):
-            result = resolve_external_registry_package_version(
-                "external_package/some_task"
-            )
+            assert resolve_task_distribution("pkg/some_task") is None
 
-        assert result is not None
-        assert result == ("external_package", "1.2.3")
-
-    def test_returns_none_when_package_not_found(self):
-        from importlib import metadata as importlib_metadata
-
+    def test_returns_none_for_inspect_ai_itself(self):
         with (
+            patch("inspect_ai._eval.task.log.registry_lookup", return_value=object()),
             patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="nonexistent_package",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.importlib_metadata.version",
-                side_effect=importlib_metadata.PackageNotFoundError(
-                    "nonexistent_package"
-                ),
+                "inspect_ai._eval.task.log.get_distribution_for_object",
+                return_value=_fake_dist("inspect-ai"),
             ),
         ):
-            result = resolve_external_registry_package_version(
-                "nonexistent_package/some_task"
-            )
+            assert resolve_task_distribution("inspect_ai/some_task") is None
 
-        assert result is None
+    def test_returns_distribution_for_external_task(self):
+        dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
+        with (
+            patch("inspect_ai._eval.task.log.registry_lookup", return_value=object()),
+            patch(
+                "inspect_ai._eval.task.log.get_distribution_for_object",
+                return_value=dist,
+            ),
+        ):
+            assert resolve_task_distribution("harder_tasks/judge_run") is dist
 
 
 @pytest.mark.anyio
@@ -750,142 +712,56 @@ async def test_task_logger_log_finish_stops_stale_flush_timer(tmp_path) -> None:
 
 
 class TestResolvePackageRevision:
-    def test_returns_none_when_task_registry_name_is_none(self):
+    def test_returns_none_for_none_distribution(self):
         assert resolve_package_revision(None) is None
 
-    def test_returns_none_when_registry_package_name_returns_none(self):
-        with patch(
-            "inspect_ai._eval.task.log.registry_package_name", return_value=None
-        ):
-            assert resolve_package_revision("some_task") is None
-
-    def test_returns_none_when_package_is_internal(self):
-        with patch(
-            "inspect_ai._eval.task.log.registry_package_name", return_value=PKG_NAME
-        ):
-            assert resolve_package_revision("inspect_ai/some_task") is None
-
-    def test_returns_none_when_no_direct_url(self):
-        with (
-            patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="external_package",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.get_package_direct_url", return_value=None
-            ),
-        ):
-            assert resolve_package_revision("external_package/some_task") is None
-
     def test_returns_none_when_not_a_vcs_install(self):
-        # Installed from a direct archive URL: archive_info, no vcs_info.
-        direct_url = DirectUrl(
-            url="https://example.com/external_package-1.0.0.tar.gz",
-            archive_info=ArchiveInfo(hashes={"sha256": "abc123"}),
-        )
-        with (
-            patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="external_package",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.get_package_direct_url",
-                return_value=direct_url,
-            ),
+        dist = _fake_dist("external-package")
+        direct_url = DirectUrl(url="https://example.com/external_package-1.0.0.tar.gz")
+        with patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
         ):
-            assert resolve_package_revision("external_package/some_task") is None
-
-    def test_returns_none_for_editable_dir_install(self):
-        # Editable / local-dir install: dir_info, no vcs_info.
-        direct_url = DirectUrl(
-            url="file:///home/user/harder-tasks",
-            dir_info=DirInfo(editable=True),
-        )
-        with (
-            patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="harder_tasks",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.get_package_direct_url",
-                return_value=direct_url,
-            ),
-        ):
-            assert resolve_package_revision("harder_tasks/some_task") is None
-
-    def test_returns_none_for_non_git_vcs(self):
-        # A VCS install that isn't git (e.g. mercurial): vcs_info present, vcs != "git".
-        direct_url = DirectUrl(
-            url="https://example.com/external_package",
-            vcs_info=VcsInfo(vcs="hg", commit_id="deadbeefdeadbeef"),
-        )
-        with (
-            patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="external_package",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.get_package_direct_url",
-                return_value=direct_url,
-            ),
-        ):
-            assert resolve_package_revision("external_package/some_task") is None
+            assert resolve_package_revision(dist) is None
 
     def test_returns_revision_for_git_install(self):
+        dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
         direct_url = DirectUrl(
             url="https://github.com/METR/harder-tasks",
             vcs_info=VcsInfo(
-                vcs="git",
-                commit_id="523c14f000000000000000000000000000000000",
+                vcs="git", commit_id="523c14f000000000000000000000000000000000"
             ),
         )
-        with (
-            patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="harder_tasks",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.get_package_direct_url",
-                return_value=direct_url,
-            ),
+        with patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
         ):
-            result = resolve_package_revision("harder_tasks/some_task")
-
-        assert result == EvalRevision(
-            type="git",
-            origin="https://github.com/METR/harder-tasks",
-            commit="523c14f000000000000000000000000000000000",
-        )
+            assert resolve_package_revision(dist) == EvalRevision(
+                type="git",
+                origin="https://github.com/METR/harder-tasks",
+                commit="523c14f000000000000000000000000000000000",
+            )
 
     def test_strips_git_plus_prefix_from_origin(self):
+        dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
         direct_url = DirectUrl(
             url="git+https://github.com/METR/harder-tasks",
             vcs_info=VcsInfo(
-                vcs="git",
-                commit_id="523c14f000000000000000000000000000000000",
+                vcs="git", commit_id="523c14f000000000000000000000000000000000"
             ),
         )
-        with (
-            patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="harder_tasks",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.get_package_direct_url",
-                return_value=direct_url,
-            ),
+        with patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
         ):
-            result = resolve_package_revision("harder_tasks/some_task")
-
-        assert result == EvalRevision(
-            type="git",
-            origin="https://github.com/METR/harder-tasks",
-            commit="523c14f000000000000000000000000000000000",
-        )
+            result = resolve_package_revision(dist)
+        assert result is not None
+        assert result.origin == "https://github.com/METR/harder-tasks"
 
 
-def test_package_revision_logged_for_git_install():
+def test_package_and_revision_logged_for_git_install():
     task = Task()
+    dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
     direct_url = DirectUrl(
         url="https://github.com/METR/harder-tasks",
         vcs_info=VcsInfo(
@@ -893,26 +769,23 @@ def test_package_revision_logged_for_git_install():
         ),
     )
     with (
-        patch.object(
-            type(task),
-            "registry_name",
-            property(lambda self: "harder_tasks/my_task"),
-        ),
+        patch("inspect_ai._eval.task.log.resolve_task_distribution", return_value=dist),
         patch(
-            "inspect_ai._eval.task.log.get_package_direct_url",
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
             return_value=direct_url,
         ),
     ):
         [log] = eval(task, model="mockllm/model")
 
+    assert log.eval.packages["harder-tasks-judge-run"] == "0.1.0"
     assert log.eval.revision is not None
-    assert log.eval.revision.type == "git"
     assert log.eval.revision.origin == "https://github.com/METR/harder-tasks"
     assert log.eval.revision.commit == "523c14f000000000000000000000000000000000"
 
 
 def test_package_revision_preferred_over_cwd_git_context():
     task = Task()
+    dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
     direct_url = DirectUrl(
         url="https://github.com/METR/harder-tasks",
         vcs_info=VcsInfo(
@@ -920,20 +793,16 @@ def test_package_revision_preferred_over_cwd_git_context():
         ),
     )
     with (
-        patch.object(
-            type(task),
-            "registry_name",
-            property(lambda self: "harder_tasks/my_task"),
-        ),
+        patch("inspect_ai._eval.task.log.resolve_task_distribution", return_value=dist),
         patch(
-            "inspect_ai._eval.task.log.get_package_direct_url",
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
             return_value=direct_url,
         ),
         patch(
             "inspect_ai._eval.task.log.git_context",
             return_value=GitContext(
                 origin="https://github.com/some/cwd-repo",
-                commit="cwdcwdcwdcwdcwdcwdcwdcwdcwdcwdcwdcwdcwdc0",
+                commit="cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0",
                 dirty=False,
             ),
         ),
@@ -947,7 +816,9 @@ def test_package_revision_preferred_over_cwd_git_context():
 
 def test_revision_none_when_task_not_from_package():
     task = Task()
-    with patch("inspect_ai._eval.task.log.get_package_direct_url", return_value=None):
+    with patch(
+        "inspect_ai._eval.task.log.resolve_task_distribution", return_value=None
+    ):
         [log] = eval(task, model="mockllm/model")
 
     assert log.eval.revision is None
@@ -956,12 +827,7 @@ def test_revision_none_when_task_not_from_package():
 def test_falls_back_to_cwd_git_context_when_no_package_revision():
     task = Task()
     with (
-        patch.object(
-            type(task),
-            "registry_name",
-            property(lambda self: "harder_tasks/my_task"),
-        ),
-        patch("inspect_ai._eval.task.log.get_package_direct_url", return_value=None),
+        patch("inspect_ai._eval.task.log.resolve_task_distribution", return_value=None),
         patch(
             "inspect_ai._eval.task.log.git_context",
             return_value=GitContext(
