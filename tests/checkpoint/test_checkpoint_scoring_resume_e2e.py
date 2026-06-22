@@ -108,7 +108,6 @@ def _force_remove_project(name: str) -> None:
 def test_checkpoint_scoring_phase_resume(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
     # Scoring-crash count (host file) + target are inherited by the child.
     cancel_file = tmp_path / "cancels.txt"
     monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))

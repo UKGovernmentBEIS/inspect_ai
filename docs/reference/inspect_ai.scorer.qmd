@@ -22,6 +22,9 @@ description: Task scoring and metrics.
 ## Metrics
 
 ### accuracy
+### categorical
+### frequency
+### grouped
 ### mean
 ### std
 ### stderr
