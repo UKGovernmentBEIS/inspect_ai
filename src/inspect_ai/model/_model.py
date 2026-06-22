@@ -2337,11 +2337,13 @@ def record_and_check_model_usage(
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
-    from inspect_ai.model._model_info import get_model_info
+    from inspect_ai.model._model_info import _get_model_info_direct
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
-    # accumulates it in the per-model usage dicts)
-    info = get_model_info(model)
+    # accumulates it in the per-model usage dicts). Use the direct (non
+    # provider-resolving) lookup: the model is already instantiated, so falling
+    # back to get_model() here would re-instantiate it (reloading local weights).
+    info = _get_model_info_direct(model)
     total_cost: float | None = None
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
     if info is not None and info.cost is not None:

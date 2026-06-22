@@ -368,7 +368,9 @@ def get_model_input_tokens(model: Model) -> int | None:
         return explicit.input_tokens
 
     model_name = model.input_tokens_name()
-    model_info = get_model_info(model_name)
+    # direct (non provider-resolving) lookup: the model is already instantiated,
+    # so resolving a provider here would re-instantiate it (reloading local weights)
+    model_info = _get_model_info_direct(model_name)
     if model_info:
         return model_info.input_tokens
     elif str(model).startswith("mockllm/"):
