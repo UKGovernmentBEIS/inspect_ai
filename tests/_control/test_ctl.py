@@ -534,11 +534,13 @@ def test_get_with_retry_does_not_retry_connection_error(
 
 
 def test_fetch_summaries_skips_gone_server_but_aggregates_live_one(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A server that just exited (ConnectError) is skipped; a live one is kept.
+    """An unreachable server is skipped (with a visible warning); a live one is kept.
 
-    Decorating each kept row with its pid/socket_path is preserved.
+    Decorating each kept row with its pid/socket_path is preserved, and the
+    skip is surfaced on stderr (naming the pid and the cause) rather than
+    silently swallowed.
     """
     import httpx
 
@@ -553,6 +555,9 @@ def test_fetch_summaries_skips_gone_server_but_aggregates_live_one(
     assert [s["task_id"] for s in summaries] == ["live"]
     assert summaries[0]["pid"] == 8
     assert summaries[0]["socket_path"] == "/tmp/8.sock"
+    # the skipped server is surfaced, not swallowed
+    err = capsys.readouterr().err
+    assert "Skipping pid 7" in err
 
 
 def test_fetch_summaries_unresponsive_server_exits(

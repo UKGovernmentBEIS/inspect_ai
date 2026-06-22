@@ -451,7 +451,8 @@ def _post_to_server(socket_path: Path, path: str) -> None:
 
 # The control server is embedded in the eval process and shares its event
 # loop, which a busy eval can monopolize for several seconds at a time
-# (large-transcript serialization, log flushes — see issue #14). A perfectly
+# (large-transcript serialization, log flushes — see
+# https://github.com/meridianlabs-ai/inspect_ai/issues/14). A perfectly
 # healthy server can therefore miss a short read window, so reads use a
 # generous timeout and retry a timeout several times before giving up, rather
 # than silently reporting the eval as gone.
@@ -460,14 +461,15 @@ _REQUEST_ATTEMPTS = 8
 
 
 class _ServerUnreachable(Exception):
-    """A control read failed for a non-timeout reason (the server is likely gone).
+    """A control read failed for a non-timeout reason.
 
     Distinct from a timeout — which means the server is present but its loop is
-    busy, and is worth retrying. A connection refused / malformed response
-    means the process has exited or never came up, so retrying is pointless.
-    Carries the originating transport error as ``__cause__``; the caller decides
-    whether to skip it (enumerating many servers) or fail (a single targeted
-    read).
+    busy, and is worth retrying. This covers the non-retryable failures: a
+    connection refused (the process has exited or never came up), a server-side
+    ``500``, or a malformed response. Carries the originating error as
+    ``__cause__`` (so callers can surface its detail); the caller decides
+    whether to warn-and-skip (enumerating many servers) or fail (a single
+    targeted read).
     """
 
 
@@ -520,9 +522,13 @@ def _fetch_summaries(
     """Query each discovered control server for its eval summary.
 
     Each read retries on timeout (and ultimately fails the command if a server
-    stays unresponsive — see :func:`_get_with_retry`). A server that has simply
-    *exited* between discovery and connect raises :class:`_ServerUnreachable`
-    and is skipped, not retried — it isn't coming back.
+    stays unresponsive — see :func:`_get_with_retry`). A server that can't be
+    reached for a non-timeout reason raises :class:`_ServerUnreachable`; we warn
+    and skip it (rather than fail the whole listing — the other evals are still
+    worth showing) but the warning is surfaced rather than swallowed: the most
+    common cause is a process that just exited between discovery and connect,
+    but the same path also catches a server-side ``500`` or a malformed
+    response, which the user should see.
     """
     summaries: list[dict[str, Any]] = []
     for server in servers:
@@ -532,7 +538,14 @@ def _fetch_summaries(
                 "/evals",
                 what=f"Reading tasks from pid {server.pid}",
             )
-        except _ServerUnreachable:
+        except _ServerUnreachable as exc:
+            cause = exc.__cause__
+            detail = _error_detail(cause) if isinstance(cause, Exception) else str(exc)
+            click.echo(
+                f"Skipping pid {server.pid}: its control endpoint could not be "
+                f"read ({detail}) — it may have just exited.",
+                err=True,
+            )
             continue
         if isinstance(rows, list):
             # Decorate each row with discovery-side info the server doesn't
