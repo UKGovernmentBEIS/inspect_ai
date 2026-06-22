@@ -205,8 +205,13 @@ class EvalState:
     so the eval's reported start stays fixed at its first sample's start. The
     live set only holds *currently active* samples, so a pure min over it
     creeps forward as early samples finish and leave ``active_samples`` (see
-    ``_build_summary``). ``None`` until the first sample with a known start is
-    observed; stays ``None`` for reused/synthetic evals (no live samples)."""
+    ``_build_summary``). Fed from two sources via :meth:`observe_started`: the
+    per-sample terminal records (``record_sample_*``), which capture a sample's
+    start even if it finished and left ``active_samples`` before any control
+    poll, and ``_build_summary``'s fold of the still-live samples' starts.
+    Together they pin the true first start regardless of poll timing. ``None``
+    until the first sample with a known start is observed; stays ``None`` for
+    reused/synthetic evals (no live samples)."""
 
     will_retry: bool = False
     """Whether a failure of this attempt will be retried (task-level).
@@ -225,6 +230,19 @@ class EvalState:
 
     total_messages: int = 0
     """Cumulative message count, accumulated like :attr:`total_tokens`."""
+
+    def observe_started(self, started: float | None) -> None:
+        """Fold a sample's start time into :attr:`started_at` (running minimum).
+
+        Lowers :attr:`started_at` toward the earliest start ever seen and never
+        raises it, so the eval's reported start pins to its first sample. A
+        ``None`` start (sample that never ran) contributes nothing. Caller must
+        hold ``_lock`` (or otherwise serialise writes) — see :attr:`started_at`.
+        """
+        if started is not None and (
+            self.started_at is None or started < self.started_at
+        ):
+            self.started_at = started
 
     @property
     def terminal(self) -> int:
@@ -404,14 +422,17 @@ async def resolve_deferred_sample_stats(state: EvalState) -> None:
 
 
 def record_sample_completed(
-    eval_id: str, *, tokens: int = 0, messages: int = 0
+    eval_id: str, *, tokens: int = 0, messages: int = 0, started: float | None = None
 ) -> None:
     """Mark a sample as having finished successfully, accumulating its usage.
 
     Called once per sample at the final outcome — retries don't increment.
     ``tokens`` / ``messages`` are that sample's model usage, accumulated into
     the eval total so usage survives the sample leaving ``active_samples``
-    (the "usage so far"). Silently no-ops if the eval isn't registered.
+    (the "usage so far"). ``started`` is the sample's start time, folded into
+    the eval's running-minimum start (see :attr:`EvalState.started_at`) so a
+    sample that finished before any control poll still pins the eval start.
+    Silently no-ops if the eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
@@ -419,14 +440,17 @@ def record_sample_completed(
             state.completed += 1
             state.total_tokens += tokens
             state.total_messages += messages
+            state.observe_started(started)
             _maybe_mark_finished(state)
 
 
-def record_sample_errored(eval_id: str, *, tokens: int = 0, messages: int = 0) -> None:
+def record_sample_errored(
+    eval_id: str, *, tokens: int = 0, messages: int = 0, started: float | None = None
+) -> None:
     """Mark a sample as having finished with an error, accumulating its usage.
 
     Called once per sample at the final outcome (after retries are exhausted).
-    ``tokens`` / ``messages`` are accumulated like
+    ``tokens`` / ``messages`` / ``started`` are handled exactly as in
     :func:`record_sample_completed`. Silently no-ops if the eval isn't
     registered.
     """
@@ -436,17 +460,19 @@ def record_sample_errored(eval_id: str, *, tokens: int = 0, messages: int = 0) -
             state.errored += 1
             state.total_tokens += tokens
             state.total_messages += messages
+            state.observe_started(started)
             _maybe_mark_finished(state)
 
 
 def record_sample_cancelled(
-    eval_id: str, *, tokens: int = 0, messages: int = 0
+    eval_id: str, *, tokens: int = 0, messages: int = 0, started: float | None = None
 ) -> None:
     """Mark a sample as terminally cancelled (sibling failure / eval cancel).
 
     Terminal but not a genuine error — counted toward the finish total (so the
     eval isn't stuck "running") in its own bucket, separate from ``errored``.
-    Usage accumulates like the other terminal records. No-ops if unregistered.
+    Usage and ``started`` accumulate like the other terminal records. No-ops if
+    unregistered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
@@ -454,6 +480,7 @@ def record_sample_cancelled(
             state.cancelled += 1
             state.total_tokens += tokens
             state.total_messages += messages
+            state.observe_started(started)
             _maybe_mark_finished(state)
 
 

@@ -631,13 +631,14 @@ def _build_summary(
     # Pin the eval's start to its earliest sample start, tracked as a running
     # minimum on the EvalState. ``samples`` only holds *currently active*
     # samples, so a plain min over it creeps forward as early samples finish
-    # and leave ``active_samples`` (#4305); folding into ``latest.started_at``
-    # keeps it fixed.
+    # and leave ``active_samples`` (#4305); fold the live minimum into
+    # ``latest.started_at`` to keep it fixed. The terminal records
+    # (``record_sample_*``) feed the same running minimum, so a sample that
+    # finished before this first poll is already accounted for. Both this fold
+    # and those records run on the eval's loop, so the writes are serialised.
     sample_starts = [s.started for s in samples if s.started is not None]
     if sample_starts:
-        earliest = min(sample_starts)
-        if latest.started_at is None or earliest < latest.started_at:
-            latest.started_at = earliest
+        latest.observe_started(min(sample_starts))
     eval_started_at = (
         latest.started_at if latest.started_at is not None else started_at_fallback
     )
