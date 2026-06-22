@@ -18,6 +18,7 @@ from inspect_ai._eval.task.log import (
 )
 from inspect_ai._util.background import background_task_group, set_background_task_group
 from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.git import GitContext
 from inspect_ai._util.package import ArchiveInfo, DirectUrl, DirInfo, VcsInfo
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalRevision
@@ -812,6 +813,24 @@ class TestResolvePackageRevision:
         ):
             assert resolve_package_revision("harder_tasks/some_task") is None
 
+    def test_returns_none_for_non_git_vcs(self):
+        # A VCS install that isn't git (e.g. mercurial): vcs_info present, vcs != "git".
+        direct_url = DirectUrl(
+            url="https://example.com/external_package",
+            vcs_info=VcsInfo(vcs="hg", commit_id="deadbeefdeadbeef"),
+        )
+        with (
+            patch(
+                "inspect_ai._eval.task.log.registry_package_name",
+                return_value="external_package",
+            ),
+            patch(
+                "inspect_ai._eval.task.log.get_package_direct_url",
+                return_value=direct_url,
+            ),
+        ):
+            assert resolve_package_revision("external_package/some_task") is None
+
     def test_returns_revision_for_git_install(self):
         direct_url = DirectUrl(
             url="https://github.com/METR/harder-tasks",
@@ -858,8 +877,11 @@ class TestResolvePackageRevision:
         ):
             result = resolve_package_revision("harder_tasks/some_task")
 
-        assert result is not None
-        assert result.origin == "https://github.com/METR/harder-tasks"
+        assert result == EvalRevision(
+            type="git",
+            origin="https://github.com/METR/harder-tasks",
+            commit="523c14f000000000000000000000000000000000",
+        )
 
 
 def test_package_revision_logged_for_git_install():
@@ -890,8 +912,6 @@ def test_package_revision_logged_for_git_install():
 
 
 def test_package_revision_preferred_over_cwd_git_context():
-    from inspect_ai._util.git import GitContext
-
     task = Task()
     direct_url = DirectUrl(
         url="https://github.com/METR/harder-tasks",
@@ -923,3 +943,36 @@ def test_package_revision_preferred_over_cwd_git_context():
     assert log.eval.revision is not None
     assert log.eval.revision.origin == "https://github.com/METR/harder-tasks"
     assert log.eval.revision.commit == "523c14f000000000000000000000000000000000"
+
+
+def test_revision_none_when_task_not_from_package():
+    task = Task()
+    with patch("inspect_ai._eval.task.log.get_package_direct_url", return_value=None):
+        [log] = eval(task, model="mockllm/model")
+
+    assert log.eval.revision is None
+
+
+def test_falls_back_to_cwd_git_context_when_no_package_revision():
+    task = Task()
+    with (
+        patch.object(
+            type(task),
+            "registry_name",
+            property(lambda self: "harder_tasks/my_task"),
+        ),
+        patch("inspect_ai._eval.task.log.get_package_direct_url", return_value=None),
+        patch(
+            "inspect_ai._eval.task.log.git_context",
+            return_value=GitContext(
+                origin="https://github.com/some/cwd-repo",
+                commit="cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0",
+                dirty=True,
+            ),
+        ),
+    ):
+        [log] = eval(task, model="mockllm/model")
+
+    assert log.eval.revision is not None
+    assert log.eval.revision.origin == "https://github.com/some/cwd-repo"
+    assert log.eval.revision.dirty is True
