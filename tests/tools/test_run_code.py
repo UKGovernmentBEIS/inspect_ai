@@ -288,7 +288,7 @@ async def test_run_code_bridge_records_inner_tool_error():
 
 
 @pytest.mark.anyio
-async def test_run_code_monty_enforces_max_tool_calls():
+async def test_run_code_monty_raises_tool_error_on_max_tool_calls():
     pytest.importorskip("pydantic_monty")
 
     tool = run_code(
@@ -297,14 +297,15 @@ async def test_run_code_monty_enforces_max_tool_calls():
         max_inner_tool_calls=1,
     )
 
-    result = await tool(
-        code="""
+    with pytest.raises(ToolError) as exc_info:
+        await tool(
+            code="""
 await dummy_tool("first")
 await dummy_tool("second")
 """
-    )
+        )
 
-    assert "Maximum run_code inner tool calls exceeded" in result[0].text
+    assert "Maximum run_code inner tool calls exceeded" in str(exc_info.value)
 
 
 def test_format_run_code_result_without_trace():
