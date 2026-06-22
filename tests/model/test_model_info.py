@@ -18,11 +18,23 @@ from inspect_ai.model._model_info import (
     get_model_input_tokens,
     set_model_cost,
 )
+from inspect_ai.model._registry import modelapi
 
 
 class _TestModelAPI(ModelAPI):
     async def generate(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
+
+
+@modelapi("noload")
+def noload() -> type[ModelAPI]:
+    """A registered provider whose constructor loads nothing (no weights)."""
+
+    class NoLoadModelAPI(ModelAPI):
+        async def generate(self, *args: Any, **kwargs: Any) -> Any:
+            raise NotImplementedError
+
+    return NoLoadModelAPI
 
 
 @pytest.fixture(autouse=True)
@@ -413,17 +425,30 @@ class TestDoesNotReinstantiateProvider:
     can OOM-crash the run. These guard the per-generation / startup hot paths.
     """
 
+    @staticmethod
+    def _track_get_model(monkeypatch: Any) -> list[Any]:
+        """Patch get_model to record calls. Returns the call-args list.
+
+        Counting (rather than raising) is required because the provider-resolving
+        fallback in _resolve_model_info swallows exceptions via a broad
+        ``except (ValueError, Exception)`` -- a raised AssertionError would be
+        caught and the unwanted instantiation would go undetected.
+        """
+        calls: list[Any] = []
+
+        def tracking_get_model(*args: Any, **kwargs: Any) -> None:
+            calls.append((args, kwargs))
+            raise RuntimeError("provider resolution should not happen")
+
+        monkeypatch.setattr("inspect_ai.model._model.get_model", tracking_get_model)
+        return calls
+
     def test_record_usage_does_not_instantiate_provider(self, monkeypatch):
         """Recording usage for a local model must not re-resolve (reload) it."""
         from inspect_ai.model._model import record_and_check_model_usage
         from inspect_ai.model._model_output import ModelUsage
 
-        def fail_provider_resolution(*args: Any, **kwargs: Any) -> None:
-            raise AssertionError("usage recording attempted provider resolution")
-
-        monkeypatch.setattr(
-            "inspect_ai.model._model.get_model", fail_provider_resolution
-        )
+        calls = self._track_get_model(monkeypatch)
 
         # a string guaranteed to miss direct/fuzzy DB lookup -> would hit the
         # get_model() fallback before the fix
@@ -431,26 +456,33 @@ class TestDoesNotReinstantiateProvider:
             "hf/my-org/totally-unknown-model-xyz",
             ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2),
         )
+        assert calls == []
 
     def test_get_model_input_tokens_does_not_instantiate_provider(self, monkeypatch):
         """Compaction's context-window lookup must not re-resolve the model."""
-        from inspect_ai.model._generate_config import GenerateConfig
-        from inspect_ai.model._model import Model
+        # create the model first (via the registered no-load provider) so the
+        # patch below only affects the get_model_input_tokens() call path
+        model = get_model("noload/totally-unknown-model-xyz")
 
-        def fail_provider_resolution(*args: Any, **kwargs: Any) -> None:
-            raise AssertionError("input tokens lookup attempted provider resolution")
+        calls = self._track_get_model(monkeypatch)
 
-        monkeypatch.setattr(
-            "inspect_ai.model._model.get_model", fail_provider_resolution
-        )
-
-        model = Model(
-            _TestModelAPI("hf/my-org/totally-unknown-model-xyz"), GenerateConfig()
-        )
         assert get_model_input_tokens(model) is None
+        assert calls == []
 
-    def test_direct_lookup_still_returns_cost_for_known_model(self):
-        """The fix must not drop cost data for models found by direct lookup."""
+    def test_direct_lookup_still_returns_configured_cost(self):
+        """The fix must not drop cost data for the usage-recording path.
+
+        Built-in models ship no cost; cost comes from set_model_cost() /
+        --model-cost-config. record_and_check_model_usage() now uses the direct
+        lookup, so configured costs must still be visible through it.
+        """
+        set_model_cost(
+            "anthropic/claude-sonnet-4",
+            ModelCost(
+                input=1.0, output=2.0, input_cache_write=0.5, input_cache_read=0.1
+            ),
+        )
         info = _get_model_info_direct("anthropic/claude-sonnet-4")
         assert info is not None
         assert info.cost is not None
+        assert info.cost.input == 1.0
