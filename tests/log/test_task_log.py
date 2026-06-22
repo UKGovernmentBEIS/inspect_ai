@@ -729,9 +729,17 @@ async def test_task_logger_log_finish_stops_stale_flush_timer(tmp_path) -> None:
     task_logger.recorder = cast(Recorder, recorder)
     task_logger.eval = spec
     task_logger.header_only = False
-    task_logger._stale_flush_interval = 0.01
+    # long interval so the armed timer stays pending until log_finish stops it
+    task_logger._stale_flush_interval = 60
 
     async with _running_stale_flush_timer(task_logger, start=False):
+        # a sub-threshold sample arms a stale-flush timer
+        await task_logger.complete_sample(_sample(), flush=True)
+        assert task_logger._stale_flush_cancel_scope is not None
+
         await task_logger.log_finish("success", EvalStats(), EvalResults())
+
+        # log_finish must stop the timer itself, not the CM's finally
+        assert task_logger._stale_flush_cancel_scope is None
 
     assert task_logger._buffer_db is None
