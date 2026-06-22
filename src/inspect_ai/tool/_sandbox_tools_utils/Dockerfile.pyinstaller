@@ -1,39 +1,41 @@
-# Base image will automatically use target platform
-FROM python:3.10-slim-bullseye AS base
+# glibc builder for the PyInstaller --onedir bundle.
+#
+# Built against a conda-forge CPython 3.10, whose shared libpython and bundled runtime
+# libs (libssl, libffi, libz, ...) reference only glibc <= 2.17 symbols. All PyPI deps
+# resolve to manylinux2014 (manylinux_2_17) wheels, so nothing compiles against a newer
+# glibc. libc is not bundled, so 2.17 becomes the runtime floor — covering every glibc
+# distro from CentOS 7 / Ubuntu 14.04 forward, including Ubuntu 16.04 (glibc 2.23) and
+# 18.04 (2.27), which the previous bullseye/2.31 floor excluded.
+#
+# Why conda-forge: the official python:3.10 images floor at glibc 2.31, and the
+# pypa/manylinux2014 images (glibc 2.17) ship only *static* CPython builds, which
+# PyInstaller cannot use (it requires a shared libpython). conda-forge is the one base
+# that provides a *shared* libpython at the 2.17 floor. miniforge3 is a multi-arch
+# manifest defaulting to the conda-forge channel, so --platform selects the arch and no
+# Anaconda channel ToS acceptance is required.
+FROM condaforge/miniforge3 AS final
 
-# Architecture-specific package installation
-FROM base AS packages-amd64
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    gcc \
-    g++ \
-    build-essential \
-    file \
-    git
+# PyInstaller shells out to objdump (binutils) to analyze ELF dependencies; the base
+# image doesn't ship it. It's a build-time tool only — nothing from apt is bundled.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends binutils \
+    && rm -rf /var/lib/apt/lists/*
 
-FROM base AS packages-arm64  
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    gcc \
-    g++ \
-    build-essential \
-    file \
-    git
-
-# Final stage - automatically selects correct packages stage
-FROM packages-${TARGETARCH} AS final
-
-# Create an isolated Python environment to avoid PEP 668 (externally managed)
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:${PATH}"
+# A dedicated conda env pins the shared-libpython CPython 3.10 that PyInstaller bundles.
+# libstdcxx-ng supplies a glibc-2.17 libstdc++ (libgcc_s comes from python's libgcc-ng
+# dep); without it PyInstaller would bundle the debian *host's* libstdc++/libgcc_s,
+# which reference glibc 2.35+ and would raise the floor back above Ubuntu 16.04.
+RUN conda create -y -n build python=3.10 libstdcxx-ng && conda clean -afy
+ENV PATH="/opt/conda/envs/build/bin:${PATH}"
+# Make PyInstaller's ldd-based dependency analysis resolve libstdc++/libgcc_s from the
+# conda env (glibc 2.17/2.14) rather than the debian host (glibc 2.35+).
+ENV LD_LIBRARY_PATH="/opt/conda/envs/build/lib"
 
 RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel
 RUN python -m pip install --no-cache-dir \
         pyinstaller \
         psutil \
         jsonrpcserver \
-        pydantic \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+        pydantic
 
 CMD ["tail", "-f", "/dev/null"]

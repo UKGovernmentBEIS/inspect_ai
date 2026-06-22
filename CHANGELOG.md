@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Google: Retry truncated response streams (`ClientPayloadError` wrapping a `PayloadEncodingError`, e.g. a connection reset mid-body) instead of crashing the sample.
+- Sandbox Tools: Lower the glibc build floor from 2.31 to 2.17 (build against a conda-forge CPython) so injected tools run on older glibc sandboxes including Ubuntu 16.04 and 18.04.
 
 ## 0.3.241 (22 June 2026)
 
