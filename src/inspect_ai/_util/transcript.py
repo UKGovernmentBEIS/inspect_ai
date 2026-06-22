@@ -43,15 +43,20 @@ def html_escape_markdown(content: str) -> str:
     escaped: list[str] = []
     lines = content.splitlines()
     for line in lines:
+        # A fence only counts at the start of the line (after indentation);
+        # backticks appearing mid-line — e.g. a "```" string literal inside a
+        # code block — must not be mistaken for a fence, otherwise content after
+        # the real fence is treated as code and left un-escaped (an HTML/XSS hole).
+        stripped = line.lstrip()
         # look for matching end of codeblock
         if current_codeblock:
-            if current_codeblock in line:
+            if stripped.startswith(current_codeblock):
                 current_codeblock = ""
                 escaped.append(line)
                 continue
 
         # look for beginning of codeblock
-        match = codeblock_pattern.search(line)
+        match = codeblock_pattern.match(stripped)
         if match:
             current_codeblock = match[0]
             escaped.append(line)
