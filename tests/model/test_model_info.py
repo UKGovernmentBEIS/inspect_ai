@@ -403,3 +403,54 @@ class TestResultCaching:
         assert after.cost is not None
         assert after.cost.input == 1.0
         assert after.cost.output == 2.0
+
+
+class TestDoesNotReinstantiateProvider:
+    """Lookups for an already-instantiated model must never re-resolve a provider.
+
+    Re-resolving instantiates the provider a second time, which for local
+    providers (e.g. HuggingFace) reloads the model weights into GPU memory and
+    can OOM-crash the run. These guard the per-generation / startup hot paths.
+    """
+
+    def test_record_usage_does_not_instantiate_provider(self, monkeypatch):
+        """Recording usage for a local model must not re-resolve (reload) it."""
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelUsage
+
+        def fail_provider_resolution(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("usage recording attempted provider resolution")
+
+        monkeypatch.setattr(
+            "inspect_ai.model._model.get_model", fail_provider_resolution
+        )
+
+        # a string guaranteed to miss direct/fuzzy DB lookup -> would hit the
+        # get_model() fallback before the fix
+        record_and_check_model_usage(
+            "hf/my-org/totally-unknown-model-xyz",
+            ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2),
+        )
+
+    def test_get_model_input_tokens_does_not_instantiate_provider(self, monkeypatch):
+        """Compaction's context-window lookup must not re-resolve the model."""
+        from inspect_ai.model._generate_config import GenerateConfig
+        from inspect_ai.model._model import Model
+
+        def fail_provider_resolution(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("input tokens lookup attempted provider resolution")
+
+        monkeypatch.setattr(
+            "inspect_ai.model._model.get_model", fail_provider_resolution
+        )
+
+        model = Model(
+            _TestModelAPI("hf/my-org/totally-unknown-model-xyz"), GenerateConfig()
+        )
+        assert get_model_input_tokens(model) is None
+
+    def test_direct_lookup_still_returns_cost_for_known_model(self):
+        """The fix must not drop cost data for models found by direct lookup."""
+        info = _get_model_info_direct("anthropic/claude-sonnet-4")
+        assert info is not None
+        assert info.cost is not None
