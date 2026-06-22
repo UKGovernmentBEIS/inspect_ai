@@ -18,7 +18,7 @@ from inspect_ai._eval.task.log import (
 )
 from inspect_ai._util.background import background_task_group, set_background_task_group
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.package import ArchiveInfo, DirectUrl, VcsInfo
+from inspect_ai._util.package import ArchiveInfo, DirectUrl, DirInfo, VcsInfo
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalRevision
 from inspect_ai.log._log import (
@@ -793,6 +793,24 @@ class TestResolvePackageRevision:
             ),
         ):
             assert resolve_package_revision("external_package/some_task") is None
+
+    def test_returns_none_for_editable_dir_install(self):
+        # Editable / local-dir install: dir_info, no vcs_info.
+        direct_url = DirectUrl(
+            url="file:///home/user/harder-tasks",
+            dir_info=DirInfo(editable=True),
+        )
+        with (
+            patch(
+                "inspect_ai._eval.task.log.registry_package_name",
+                return_value="harder_tasks",
+            ),
+            patch(
+                "inspect_ai._eval.task.log.get_package_direct_url",
+                return_value=direct_url,
+            ),
+        ):
+            assert resolve_package_revision("harder_tasks/some_task") is None
 
     def test_returns_revision_for_git_install(self):
         direct_url = DirectUrl(

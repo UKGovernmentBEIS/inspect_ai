@@ -88,7 +88,8 @@ def resolve_package_revision(task_registry_name: str | None) -> EvalRevision | N
     local git working tree (the common case for remotely-executed tasks).
 
     Returns None for builtin tasks, tasks loaded from a local file (no package),
-    and packages not installed from a git source.
+    and packages not installed from a git source. The returned revision omits
+    ``dirty`` — an installed package has no working tree to be dirty.
     """
     if task_registry_name is None:
         return None
@@ -102,6 +103,8 @@ def resolve_package_revision(task_registry_name: str | None) -> EvalRevision | N
         or direct_url.vcs_info.vcs != "git"
     ):
         return None
+    # `direct_url.url` may carry pip's "git+" scheme prefix; strip it so the
+    # origin is the canonical repository URL.
     return EvalRevision(
         type="git",
         origin=direct_url.url.removeprefix("git+"),
