@@ -14,10 +14,13 @@ from inspect_ai._eval.task import log as task_log_module
 from inspect_ai._eval.task.log import (
     TaskLogger,
     resolve_external_registry_package_version,
+    resolve_package_revision,
 )
 from inspect_ai._util.background import background_task_group, set_background_task_group
 from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.package import ArchiveInfo, DirectUrl, VcsInfo
 from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalRevision
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -743,3 +746,99 @@ async def test_task_logger_log_finish_stops_stale_flush_timer(tmp_path) -> None:
         assert task_logger._stale_flush_cancel_scope is None
 
     assert task_logger._buffer_db is None
+
+
+class TestResolvePackageRevision:
+    def test_returns_none_when_task_registry_name_is_none(self):
+        assert resolve_package_revision(None) is None
+
+    def test_returns_none_when_registry_package_name_returns_none(self):
+        with patch(
+            "inspect_ai._eval.task.log.registry_package_name", return_value=None
+        ):
+            assert resolve_package_revision("some_task") is None
+
+    def test_returns_none_when_package_is_internal(self):
+        with patch(
+            "inspect_ai._eval.task.log.registry_package_name", return_value=PKG_NAME
+        ):
+            assert resolve_package_revision("inspect_ai/some_task") is None
+
+    def test_returns_none_when_no_direct_url(self):
+        with (
+            patch(
+                "inspect_ai._eval.task.log.registry_package_name",
+                return_value="external_package",
+            ),
+            patch(
+                "inspect_ai._eval.task.log.get_package_direct_url", return_value=None
+            ),
+        ):
+            assert resolve_package_revision("external_package/some_task") is None
+
+    def test_returns_none_when_not_a_vcs_install(self):
+        # Installed from a direct archive URL: archive_info, no vcs_info.
+        direct_url = DirectUrl(
+            url="https://example.com/external_package-1.0.0.tar.gz",
+            archive_info=ArchiveInfo(hashes={"sha256": "abc123"}),
+        )
+        with (
+            patch(
+                "inspect_ai._eval.task.log.registry_package_name",
+                return_value="external_package",
+            ),
+            patch(
+                "inspect_ai._eval.task.log.get_package_direct_url",
+                return_value=direct_url,
+            ),
+        ):
+            assert resolve_package_revision("external_package/some_task") is None
+
+    def test_returns_revision_for_git_install(self):
+        direct_url = DirectUrl(
+            url="https://github.com/METR/harder-tasks",
+            vcs_info=VcsInfo(
+                vcs="git",
+                commit_id="523c14f000000000000000000000000000000000",
+            ),
+        )
+        with (
+            patch(
+                "inspect_ai._eval.task.log.registry_package_name",
+                return_value="harder_tasks",
+            ),
+            patch(
+                "inspect_ai._eval.task.log.get_package_direct_url",
+                return_value=direct_url,
+            ),
+        ):
+            result = resolve_package_revision("harder_tasks/some_task")
+
+        assert result == EvalRevision(
+            type="git",
+            origin="https://github.com/METR/harder-tasks",
+            commit="523c14f000000000000000000000000000000000",
+        )
+
+    def test_strips_git_plus_prefix_from_origin(self):
+        direct_url = DirectUrl(
+            url="git+https://github.com/METR/harder-tasks",
+            vcs_info=VcsInfo(
+                vcs="git",
+                commit_id="523c14f000000000000000000000000000000000",
+            ),
+        )
+        with (
+            patch(
+                "inspect_ai._eval.task.log.registry_package_name",
+                return_value="harder_tasks",
+            ),
+            patch(
+                "inspect_ai._eval.task.log.get_package_direct_url",
+                return_value=direct_url,
+            ),
+        ):
+            result = resolve_package_revision("harder_tasks/some_task")
+
+        assert result is not None
+        assert result.origin == "https://github.com/METR/harder-tasks"

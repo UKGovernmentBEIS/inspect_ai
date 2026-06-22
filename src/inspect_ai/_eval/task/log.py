@@ -11,6 +11,7 @@ from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.git import git_context
+from inspect_ai._util.package import get_package_direct_url
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (
     registry_log_name,
@@ -76,6 +77,35 @@ def resolve_revision() -> EvalRevision | None:
         EvalRevision(type="git", origin=git.origin, commit=git.commit, dirty=git.dirty)
         if git
         else None
+    )
+
+
+def resolve_package_revision(task_registry_name: str | None) -> EvalRevision | None:
+    """Resolve the git revision of an external task's installed package.
+
+    Reads PEP 610 ``direct_url.json`` so tasks installed from a git URL record
+    the exact commit that was checked out, even when the eval process has no
+    local git working tree (the common case for remotely-executed tasks).
+
+    Returns None for builtin tasks, tasks loaded from a local file (no package),
+    and packages not installed from a git source.
+    """
+    if task_registry_name is None:
+        return None
+    package_name = registry_package_name(task_registry_name)
+    if package_name is None or package_name == PKG_NAME:
+        return None
+    direct_url = get_package_direct_url(package_name)
+    if (
+        direct_url is None
+        or direct_url.vcs_info is None
+        or direct_url.vcs_info.vcs != "git"
+    ):
+        return None
+    return EvalRevision(
+        type="git",
+        origin=direct_url.url.removeprefix("git+"),
+        commit=direct_url.vcs_info.commit_id,
     )
 
 
