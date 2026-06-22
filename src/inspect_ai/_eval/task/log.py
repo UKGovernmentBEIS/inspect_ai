@@ -490,11 +490,16 @@ class TaskLogger:
                 current_generation,
             )
         except Exception:
-            async with self._flush_pending_lock:
-                if self._stale_flush_cancel_scope is cancel_scope:
-                    self._stale_flush_cancel_scope = None
-                self._stale_flush_stops.discard(stopped)
-            stopped.set()
+            # The background task never started, so its finally won't run; this
+            # is the only path that signals `stopped`. Shield so a cancellation
+            # here can't skip stopped.set() and strand a _stop_stale_flush_timer()
+            # waiter (mirrors the shielded teardown in _stale_flush_after_delay).
+            with anyio.CancelScope(shield=True):
+                async with self._flush_pending_lock:
+                    if self._stale_flush_cancel_scope is cancel_scope:
+                        self._stale_flush_cancel_scope = None
+                    self._stale_flush_stops.discard(stopped)
+                stopped.set()
             raise
 
     async def _stop_stale_flush_timer(self) -> None:
