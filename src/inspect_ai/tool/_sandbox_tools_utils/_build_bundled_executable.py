@@ -232,7 +232,7 @@ def _verify_build(dist_dir: Path, build_config: SandboxToolsBuildConfig) -> None
     arch_word = "ARM64/aarch64" if build_config.arch == "arm64" else "x86_64"
     print(
         f"✅ Portable onedir bundle ready for {arch_word}. "
-        "Runs on Linux with glibc >= the build glibc (bullseye / 2.31)."
+        "Runs on Linux with glibc >= the build glibc (conda-forge / 2.17)."
     )
 
 
