@@ -1,3 +1,7 @@
+## Unreleased
+
+- Google: Retry truncated response streams (`ClientPayloadError` wrapping a `PayloadEncodingError`, e.g. a connection reset mid-body) instead of crashing the sample.
+
 ## 0.3.241 (22 June 2026)
 
 - Task Sources: Drive a running eval from code with `TaskSource`.
