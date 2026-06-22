@@ -120,6 +120,8 @@ class SandboxEnvironment(abc.ABC):
 
         By default, each output stream (stdout and stderr) is limited to 10 MiB. You can override this by setting the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable (specified in bytes). If exceeded, an `OutputLimitExceededError` will be raised.
 
+        `stdout` and `stderr` are returned as text: bytes that are not valid UTF-8 are decoded with replacement (each invalid byte becomes the Unicode replacement character, U+FFFD) rather than raising.
+
         Args:
           cmd: Command or command and arguments to execute.
           input: Standard input (optional).
@@ -139,8 +141,6 @@ class SandboxEnvironment(abc.ABC):
         Raises:
           TimeoutError: If the specified `timeout` expires
             (and `timeout_retry` attempts also timeout).
-          UnicodeDecodeError: If an error occurs while
-            decoding the command output.
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
