@@ -13,6 +13,7 @@
 - Mistral: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the conversation-api path honored it).
 - Limits: Added `turn_limit()` which tracks total generations.
 - Control Channel: `inspect ctl tasks` now reports keep-alive status (`on` / `off` / `mixed`) and a new `inspect ctl keep` command (backed by `POST /keep`) latches keep-alive on a running process so it parks after its eval.
+- Control Channel: `inspect ctl` reads now use a 15s timeout and retry a busy eval up to 8 times (printing a status on each timeout) before failing with a non-zero exit, instead of silently dropping a momentarily-unresponsive eval from the listing.
 - Hooks: Add `on_model_retry` hook, fired before each model retry backoff with the model name, attempt number, and upcoming `wait_time` (useful for surfacing time spent in rate limiting and other retries).
 - Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
 - Inspect View: Fix log-list grid columns snapping back to default widths while data loads

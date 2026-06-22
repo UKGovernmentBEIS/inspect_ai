@@ -449,31 +449,98 @@ def _post_to_server(socket_path: Path, path: str) -> None:
         response.raise_for_status()
 
 
+# The control server is embedded in the eval process and shares its event
+# loop, which a busy eval can monopolize for several seconds at a time
+# (large-transcript serialization, log flushes — see issue #14). A perfectly
+# healthy server can therefore miss a short read window, so reads use a
+# generous timeout and retry a timeout several times before giving up, rather
+# than silently reporting the eval as gone.
+_REQUEST_TIMEOUT = 15.0
+_REQUEST_ATTEMPTS = 8
+
+
+class _ServerUnreachable(Exception):
+    """A control read failed for a non-timeout reason (the server is likely gone).
+
+    Distinct from a timeout — which means the server is present but its loop is
+    busy, and is worth retrying. A connection refused / malformed response
+    means the process has exited or never came up, so retrying is pointless.
+    Carries the originating transport error as ``__cause__``; the caller decides
+    whether to skip it (enumerating many servers) or fail (a single targeted
+    read).
+    """
+
+
+def _get_with_retry(
+    socket_path: str | Path,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    what: str,
+) -> Any:
+    """GET ``path`` from a control server over its UDS, retrying on timeout.
+
+    Retries a read timeout up to ``_REQUEST_ATTEMPTS`` times, printing a status
+    to the console (stderr, so ``--json`` stdout stays clean) on each — the eval
+    is most likely just busy. On exhaustion, prints an error and exits non-zero.
+    Raises :class:`_ServerUnreachable` for a non-timeout transport error so the
+    caller can skip or fail as appropriate.
+    """
+    transport = httpx.HTTPTransport(uds=str(socket_path))
+    for attempt in range(1, _REQUEST_ATTEMPTS + 1):
+        try:
+            with httpx.Client(
+                transport=transport,
+                base_url="http://localhost",
+                timeout=_REQUEST_TIMEOUT,
+            ) as client:
+                response = client.get(path, params=params or {})
+                response.raise_for_status()
+                return response.json()
+        except httpx.TimeoutException:
+            click.echo(
+                f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
+                f"(attempt {attempt}/{_REQUEST_ATTEMPTS}) — the eval may be busy; "
+                "retrying…",
+                err=True,
+            )
+        except (httpx.HTTPError, OSError, ValueError) as exc:
+            raise _ServerUnreachable() from exc
+    click.echo(
+        f"{what}: gave up after {_REQUEST_ATTEMPTS} attempts of "
+        f"{_REQUEST_TIMEOUT:.0f}s each — the eval is not responding.",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1)
+
+
 def _fetch_summaries(
     servers: list[DiscoveredControlServer],
 ) -> list[dict[str, Any]]:
-    """Query each discovered control server for its eval summary."""
+    """Query each discovered control server for its eval summary.
+
+    Each read retries on timeout (and ultimately fails the command if a server
+    stays unresponsive — see :func:`_get_with_retry`). A server that has simply
+    *exited* between discovery and connect raises :class:`_ServerUnreachable`
+    and is skipped, not retried — it isn't coming back.
+    """
     summaries: list[dict[str, Any]] = []
     for server in servers:
         try:
-            transport = httpx.HTTPTransport(uds=str(server.socket_path))
-            with httpx.Client(
-                transport=transport, base_url="http://localhost", timeout=2.0
-            ) as client:
-                response = client.get("/evals")
-                response.raise_for_status()
-                rows = response.json()
-                if isinstance(rows, list):
-                    # Decorate each row with discovery-side info the
-                    # server doesn't see (pid, socket_path).
-                    for row in rows:
-                        row["pid"] = server.pid
-                        row["socket_path"] = str(server.socket_path)
-                    summaries.extend(rows)
-        except (httpx.HTTPError, OSError, ValueError):
-            # Skip unreachable / malformed servers — they may have just
-            # exited between discovery and connect.
+            rows = _get_with_retry(
+                server.socket_path,
+                "/evals",
+                what=f"Reading tasks from pid {server.pid}",
+            )
+        except _ServerUnreachable:
             continue
+        if isinstance(rows, list):
+            # Decorate each row with discovery-side info the server doesn't
+            # see (pid, socket_path).
+            for row in rows:
+                row["pid"] = server.pid
+                row["socket_path"] = str(server.socket_path)
+            summaries.extend(rows)
     return summaries
 
 
@@ -553,16 +620,17 @@ def _fetch_samples(
     """
     params = {} if active_since is None else {"active_since": active_since}
     try:
-        transport = httpx.HTTPTransport(uds=str(socket_path))
-        with httpx.Client(
-            transport=transport, base_url="http://localhost", timeout=5.0
-        ) as client:
-            response = client.get(f"/evals/{eval_id}/samples", params=params)
-            response.raise_for_status()
-            rows = response.json()
-    except (httpx.HTTPError, OSError, ValueError) as exc:
+        rows = _get_with_retry(
+            socket_path,
+            f"/evals/{eval_id}/samples",
+            params=params,
+            what=f"Reading samples for eval {eval_id}",
+        )
+    except _ServerUnreachable as exc:
+        cause = exc.__cause__
+        detail = _error_detail(cause) if isinstance(cause, Exception) else str(exc)
         click.echo(
-            f"Failed to read samples for eval {eval_id}: {_error_detail(exc)}",
+            f"Failed to read samples for eval {eval_id}: {detail}",
             err=True,
         )
         raise click.exceptions.Exit(code=1) from exc

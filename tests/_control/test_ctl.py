@@ -11,6 +11,7 @@ from inspect_ai._cli.ctl import (
     _resolve_target_eval,
     _resolve_target_server,
 )
+from inspect_ai._control.discovery import DiscoveredControlServer
 
 
 def _summary(task_id: str, task: str) -> dict[str, str]:
@@ -421,3 +422,148 @@ def test_resolve_target_server_none_running_exits(
     with pytest.raises(click.exceptions.Exit):
         _resolve_target_server(None)
     assert "No running inspect processes found" in capsys.readouterr().err
+
+
+# --- read timeout / retry behavior (issue #14) -----------------------------
+
+
+def _stub_httpx(
+    monkeypatch: pytest.MonkeyPatch, sequence: list[object]
+) -> dict[str, int]:
+    """Replace httpx in ctl so each ``client.get`` consumes one ``sequence`` item.
+
+    Each item is either an ``Exception`` to raise (e.g. a ``TimeoutException``)
+    or a payload to return from ``response.json()``. Returns a dict whose
+    ``"gets"`` entry counts how many requests were attempted.
+    """
+    counter = {"gets": 0}
+    seq = list(sequence)
+
+    class _Resp:
+        def __init__(self, payload: object) -> None:
+            self._payload = payload
+
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> object:
+            return self._payload
+
+    class _Client:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> "_Client":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            pass
+
+        def get(self, path: str, params: object = None) -> _Resp:
+            counter["gets"] += 1
+            item = seq.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return _Resp(item)
+
+    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.Client", _Client)
+    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.HTTPTransport", lambda *a, **k: None)
+    return counter
+
+
+def _disc(pid: int) -> "DiscoveredControlServer":
+    from pathlib import Path
+
+    return DiscoveredControlServer(
+        pid=pid, socket_path=Path(f"/tmp/{pid}.sock"), started_at=0.0
+    )
+
+
+def test_get_with_retry_retries_timeout_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A read that times out twice, then succeeds, returns the payload.
+
+    Each timeout prints a status to stderr; the eventual success is returned.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _get_with_retry
+
+    counter = _stub_httpx(
+        monkeypatch,
+        [httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow"), [{"task_id": "a"}]],
+    )
+    result = _get_with_retry("/tmp/x.sock", "/evals", what="Reading tasks")
+    assert result == [{"task_id": "a"}]
+    assert counter["gets"] == 3
+    err = capsys.readouterr().err
+    assert err.count("retrying") == 2
+    assert "attempt 1/8" in err and "attempt 2/8" in err
+
+
+def test_get_with_retry_exhausts_and_exits(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Eight consecutive timeouts exhaust the retries → error + failure status."""
+    import httpx
+
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS, _get_with_retry
+
+    counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
+    with pytest.raises(click.exceptions.Exit) as exc_info:
+        _get_with_retry("/tmp/x.sock", "/evals", what="Reading tasks")
+    assert exc_info.value.exit_code == 1
+    assert counter["gets"] == _REQUEST_ATTEMPTS
+    err = capsys.readouterr().err
+    assert f"gave up after {_REQUEST_ATTEMPTS} attempts" in err
+
+
+def test_get_with_retry_does_not_retry_connection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-timeout transport error (server gone) is not retried."""
+    import httpx
+
+    from inspect_ai._cli.ctl import _get_with_retry, _ServerUnreachable
+
+    counter = _stub_httpx(monkeypatch, [httpx.ConnectError("refused")])
+    with pytest.raises(_ServerUnreachable):
+        _get_with_retry("/tmp/x.sock", "/evals", what="Reading tasks")
+    assert counter["gets"] == 1  # tried once, no retry
+
+
+def test_fetch_summaries_skips_gone_server_but_aggregates_live_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A server that just exited (ConnectError) is skipped; a live one is kept.
+
+    Decorating each kept row with its pid/socket_path is preserved.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _fetch_summaries
+
+    # server 7 refuses (gone); server 8 returns one task.
+    _stub_httpx(
+        monkeypatch,
+        [httpx.ConnectError("refused"), [{"task_id": "live"}]],
+    )
+    summaries = _fetch_summaries([_disc(7), _disc(8)])
+    assert [s["task_id"] for s in summaries] == ["live"]
+    assert summaries[0]["pid"] == 8
+    assert summaries[0]["socket_path"] == "/tmp/8.sock"
+
+
+def test_fetch_summaries_unresponsive_server_exits(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A server that keeps timing out fails the command (not silently dropped)."""
+    import httpx
+
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS, _fetch_summaries
+
+    _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
+    with pytest.raises(click.exceptions.Exit):
+        _fetch_summaries([_disc(7)])
+    assert "gave up" in capsys.readouterr().err
