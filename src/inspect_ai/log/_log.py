@@ -202,6 +202,9 @@ class EvalConfig(BaseModel):
     log_shared: int | None = Field(default=None)
     """Interval (in seconds) for syncing sample events to log directory."""
 
+    log_buffer_s3_tags: dict[str, str] | None = Field(default=None)
+    """S3 object tags to apply to shared sample buffer files (requires log_shared)."""
+
     score_display: bool | None = Field(default=None)
     """Display scoring metrics realtime."""
 

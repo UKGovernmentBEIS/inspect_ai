@@ -148,6 +148,7 @@ class SampleBufferDatabase(SampleBuffer):
         read_only: bool = False,
         log_images: bool = True,
         log_shared: int | None = None,
+        log_buffer_s3_tags: dict[str, str] | None = None,
         update_interval: int = 2,
         db_dir: Path | None = None,
     ):
@@ -164,6 +165,7 @@ class SampleBufferDatabase(SampleBuffer):
                 Incompatible with ``create``.
             log_images: Log image attachments.
             log_shared: Sync interval for shared log directories.
+            log_buffer_s3_tags: S3 object tags applied to shared buffer files on S3.
             update_interval: Version update interval.
             db_dir: Override the database directory (defaults to the
                 inspect data dir).
@@ -239,7 +241,9 @@ class SampleBufferDatabase(SampleBuffer):
 
         # create sync filestore if log_shared
         self._sync_filestore = (
-            SampleBufferFilestore(location, update_interval=log_shared)
+            SampleBufferFilestore(
+                location, update_interval=log_shared, s3_tags=log_buffer_s3_tags
+            )
             if log_shared
             else None
         )

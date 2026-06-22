@@ -5,7 +5,8 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from urllib.parse import urlencode, urlparse
 from zipfile import ZipFile
 
 from pydantic import BaseModel, Field
@@ -174,10 +175,19 @@ class SampleBufferFilestore(SampleBuffer):
         *,
         create: bool = True,
         update_interval: int = DEFAULT_LOG_SHARED,
+        s3_tags: dict[str, str] | None = None,
     ) -> None:
         self._fs = filesystem(location)
         self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{os.path.splitext(basename(location))[0]}{self._fs.sep}"
         self.update_interval = update_interval
+
+        # S3 object tags are forwarded to s3fs via s3_additional_kwargs on each
+        # write; they only apply to s3 locations (other filesystems ignore them).
+        self._write_fs_options: dict[str, Any] = (
+            {"s3_additional_kwargs": {"Tagging": urlencode(s3_tags)}}
+            if s3_tags and urlparse(location).scheme == "s3"
+            else {}
+        )
 
         if create:
             self._fs.mkdir(self._dir, exist_ok=True)
@@ -186,7 +196,9 @@ class SampleBufferFilestore(SampleBuffer):
             self._fs.touch(f"{self._dir}.keep")
 
     def write_manifest(self, manifest: Manifest) -> None:
-        with open_file(self._manifest_file(), "wb") as f:
+        with open_file(
+            self._manifest_file(), "wb", fs_options=self._write_fs_options
+        ) as f:
             f.write(to_json_safe(manifest))
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
@@ -205,7 +217,11 @@ class SampleBufferFilestore(SampleBuffer):
         # write then move for atomicity
         try:
             with open(name, "rb") as zf:
-                with open_file(f"{self._dir}{segment_name(id)}", "wb") as f:
+                with open_file(
+                    f"{self._dir}{segment_name(id)}",
+                    "wb",
+                    fs_options=self._write_fs_options,
+                ) as f:
                     f.write(zf.read())
                     f.flush()
         finally:

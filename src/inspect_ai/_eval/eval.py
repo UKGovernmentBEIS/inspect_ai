@@ -158,6 +158,7 @@ def eval(
     log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
+    log_buffer_s3_tags: dict[str, str] | None = None,
     log_header_only: bool | None = None,
     run_samples: bool = True,
     score: bool = True,
@@ -279,6 +280,9 @@ def eval(
         log_shared: Sync sample events to log directory so that users on other systems
             can see log updates in realtime (defaults to no syncing). Specify `True`
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
+        log_buffer_s3_tags: S3 object tags (key/value pairs) to apply to the shared
+            sample buffer files written to S3. Only takes effect when `log_shared`
+            is enabled and the log directory is an `s3://` path.
         log_header_only: If `True`, the function should return only log headers rather
             than full logs with samples (defaults to `False`).
         run_samples: Run samples. If `False`, a log with `status=="started"` and an
@@ -351,6 +355,7 @@ def eval(
                 log_refusals=log_refusals,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
+                log_buffer_s3_tags=log_buffer_s3_tags,
                 log_header_only=log_header_only,
                 run_samples=run_samples,
                 score=score,
@@ -439,6 +444,7 @@ async def eval_async(
     log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
+    log_buffer_s3_tags: dict[str, str] | None = None,
     log_header_only: bool | None = None,
     run_samples: bool = True,
     score: bool = True,
@@ -537,6 +543,7 @@ async def eval_async(
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         log_shared: Indicate that the log directory is shared, which results in additional syncing of realtime log data for Inspect View.
+        log_buffer_s3_tags: S3 object tags (key/value pairs) to apply to the shared sample buffer files written to S3. Only takes effect when `log_shared` is enabled and the log directory is an `s3://` path.
         log_header_only: If `True`, the function should return only log headers rather than full logs with samples (defaults to `False`).
         run_samples: Run samples. If `False`, a log with `status=="started"` and an empty `samples` list is returned.
         score: Score output (defaults to True)
@@ -621,6 +628,7 @@ async def eval_async(
                 log_refusals=log_refusals,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
+                log_buffer_s3_tags=log_buffer_s3_tags,
                 log_header_only=log_header_only,
                 run_samples=run_samples,
                 score=score,
@@ -701,6 +709,7 @@ async def _eval_async_inner(
     log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
+    log_buffer_s3_tags: dict[str, str] | None = None,
     log_header_only: bool | None = None,
     run_samples: bool = True,
     score: bool = True,
@@ -831,6 +840,12 @@ async def _eval_async_inner(
                 "ERROR: --log-shared is not compatible with the json log format."
             )
 
+        # s3 buffer tags only apply to the shared buffer files, so require log_shared
+        if log_buffer_s3_tags and not log_shared:
+            raise PrerequisiteError(
+                "ERROR: --log-buffer-s3-tags requires --log-shared (tags apply to the shared sample buffer files)."
+            )
+
         # resolve solver
         if isinstance(solver, list):
             solver = chain(solver)
@@ -891,6 +906,7 @@ async def _eval_async_inner(
             log_model_api=log_model_api,
             log_buffer=log_buffer,
             log_shared=log_shared,
+            log_buffer_s3_tags=log_buffer_s3_tags,
             score_display=score_display,
             acp_server=acp_server,
         )

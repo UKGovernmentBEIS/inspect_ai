@@ -112,6 +112,7 @@ LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error 
 LOG_REFUSALS_HELP = "Log warnings for model refusals."
 LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 LOG_SHARED_HELP = "Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds)."
+LOG_BUFFER_S3_TAGS_HELP = "S3 object tag (key=value) to apply to the shared sample buffer files written to S3. Requires --log-shared and an s3:// log dir. Repeat the flag for multiple tags."
 NO_SCORE_HELP = (
     "Do not score model output (use the inspect score command to score output later)"
 )
@@ -677,6 +678,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar=["INSPECT_LOG_SHARED", "INSPECT_EVAL_LOG_SHARED"],
     )
     @click.option(
+        "--log-buffer-s3-tags",
+        multiple=True,
+        type=str,
+        help=LOG_BUFFER_S3_TAGS_HELP,
+        envvar="INSPECT_EVAL_LOG_BUFFER_S3_TAGS",
+    )
+    @click.option(
         "--no-score",
         type=bool,
         is_flag=True,
@@ -1058,6 +1066,7 @@ def _eval_command_impl(
     log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
+    log_buffer_s3_tags: tuple[str, ...] | None,
     no_score: bool | None,
     no_score_display: bool | None,
     log_format: Literal["eval", "json"] | None,
@@ -1140,6 +1149,7 @@ def _eval_command_impl(
         log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
+        log_buffer_s3_tags=log_buffer_s3_tags,
         no_score=no_score,
         no_score_display=no_score_display,
         acp_server=acp_server,
@@ -1326,6 +1336,7 @@ def eval_set_command(
     log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
+    log_buffer_s3_tags: tuple[str, ...] | None,
     no_score: bool | None,
     no_score_display: bool | None,
     bundle_dir: str | None,
@@ -1417,6 +1428,7 @@ def eval_set_command(
         log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
+        log_buffer_s3_tags=log_buffer_s3_tags,
         no_score=no_score,
         no_score_display=no_score_display,
         acp_server=acp_server,
@@ -1665,6 +1677,7 @@ def eval_exec(
     log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
+    log_buffer_s3_tags: tuple[str, ...] | None,
     no_score: bool | None,
     no_score_display: bool | None,
     is_eval_set: bool = False,
@@ -1744,6 +1757,17 @@ def eval_exec(
 
     # parse metadata
     eval_metadata = parse_cli_args(metadata)
+
+    # parse s3 buffer tags (key=value) applied to the shared sample buffer files
+    eval_log_buffer_s3_tags: dict[str, str] = {}
+    for tag in log_buffer_s3_tags or ():
+        if "=" not in tag:
+            raise click.BadParameter(
+                f"Invalid --log-buffer-s3-tags value '{tag}' (expected key=value).",
+                param_hint="--log-buffer-s3-tags",
+            )
+        key, value = tag.split("=", 1)
+        eval_log_buffer_s3_tags[key] = value
 
     # resolve epochs
     eval_epochs = (
@@ -1839,6 +1863,7 @@ def eval_exec(
             log_refusals=log_refusals,
             log_buffer=log_buffer,
             log_shared=log_shared,
+            log_buffer_s3_tags=eval_log_buffer_s3_tags or None,
             score=score,
             score_display=score_display,
             acp_server=acp_server,
