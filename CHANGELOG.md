@@ -15,6 +15,7 @@
 - Anthropic: Synthesize a refusal `trigger` when validating fallback blocks from message history, fixing a `ValidationError` with `anthropic>=0.110.0` (which made `trigger` a required field on `BetaFallbackBlock`).
 - Limits: Added `turn_limit()` which tracks total generations.
 - Control Channel: `inspect ctl tasks` now reports keep-alive status (`on` / `off` / `mixed`) and a new `inspect ctl keep` command (backed by `POST /keep`) latches keep-alive on a running process so it parks after its eval.
+- Control Channel: Stop printing a misleading "Control server did not shut down cleanly" warning when an eval is interrupted with Ctrl-C (the cancellation is now re-raised as the expected teardown it is).
 - Hooks: Add `on_model_retry` hook, fired before each model retry backoff with the model name, attempt number, and upcoming `wait_time` (useful for surfacing time spent in rate limiting and other retries).
 - Inspect View: Improve sample reading performance in viewer by serving `/log-bytes` range requests as plain responses instead of line-iterating a `BytesIO`.
 - Inspect View: Fix log-list grid columns snapping back to default widths while data loads
