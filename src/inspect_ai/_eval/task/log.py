@@ -169,7 +169,7 @@ class TaskLogger:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
         }
-        revision = resolve_revision()
+        revision = resolve_package_revision(task_registry_name) or resolve_revision()
         resolved_registry = resolve_external_registry_package_version(
             task_registry_name
         )

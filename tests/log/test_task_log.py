@@ -842,3 +842,66 @@ class TestResolvePackageRevision:
 
         assert result is not None
         assert result.origin == "https://github.com/METR/harder-tasks"
+
+
+def test_package_revision_logged_for_git_install():
+    task = Task()
+    direct_url = DirectUrl(
+        url="https://github.com/METR/harder-tasks",
+        vcs_info=VcsInfo(
+            vcs="git", commit_id="523c14f000000000000000000000000000000000"
+        ),
+    )
+    with (
+        patch.object(
+            type(task),
+            "registry_name",
+            property(lambda self: "harder_tasks/my_task"),
+        ),
+        patch(
+            "inspect_ai._eval.task.log.get_package_direct_url",
+            return_value=direct_url,
+        ),
+    ):
+        [log] = eval(task, model="mockllm/model")
+
+    assert log.eval.revision is not None
+    assert log.eval.revision.type == "git"
+    assert log.eval.revision.origin == "https://github.com/METR/harder-tasks"
+    assert log.eval.revision.commit == "523c14f000000000000000000000000000000000"
+
+
+def test_package_revision_preferred_over_cwd_git_context():
+    from inspect_ai._util.git import GitContext
+
+    task = Task()
+    direct_url = DirectUrl(
+        url="https://github.com/METR/harder-tasks",
+        vcs_info=VcsInfo(
+            vcs="git", commit_id="523c14f000000000000000000000000000000000"
+        ),
+    )
+    with (
+        patch.object(
+            type(task),
+            "registry_name",
+            property(lambda self: "harder_tasks/my_task"),
+        ),
+        patch(
+            "inspect_ai._eval.task.log.get_package_direct_url",
+            return_value=direct_url,
+        ),
+        patch(
+            "inspect_ai._eval.task.log.git_context",
+            return_value=GitContext(
+                origin="https://github.com/some/cwd-repo",
+                commit="cwdcwdcwdcwdcwdcwdcwdcwdcwdcwdcwdcwdcwdc0",
+                dirty=False,
+            ),
+        ),
+    ):
+        [log] = eval(task, model="mockllm/model")
+
+    assert log.eval.revision is not None
+    assert log.eval.revision.origin == "https://github.com/METR/harder-tasks"
+    assert log.eval.revision.commit == "523c14f000000000000000000000000000000000"
