@@ -24,7 +24,6 @@ from typing import (
     Type,
     TypeAlias,
     cast,
-    final,
 )
 
 if TYPE_CHECKING:
@@ -419,9 +418,10 @@ class ModelAPI(abc.ABC):
         """Scope for enforcement of max_connections (and adaptive concurrency).
 
         Two instances of the *same provider* that return the same key share one
-        connection pool. Callers should use `connection_pool_key()`, which adds
-        the provider namespace so distinct providers never collide (see there);
-        this method only needs to distinguish accounts/models within a provider.
+        connection pool. This method only needs to distinguish accounts/models
+        within a provider; the model layer adds the provider namespace on top
+        (see `_connection_pool_key`), so distinct providers never collide even
+        when their `connection_key()` values coincide.
 
         Providers that scope by API key should use `self.initial_api_key` here,
         NOT the live `self.api_key`: the live key can rotate mid-eval (e.g. a
@@ -430,28 +430,6 @@ class ModelAPI(abc.ABC):
         ``initial_api_key`` is fixed at construction, so the scope stays stable.
         """
         return "default"
-
-    @final
-    def connection_pool_key(self) -> str:
-        """Provider-namespaced connection-pool key used by the model layer.
-
-        Final on purpose: providers customize pooling by overriding
-        `connection_key()` (their intra-provider scope); this wrapper owns the
-        provider namespacing and must stay consistent across all providers, so
-        it is not an override point.
-
-        Prefixes `connection_key()` with the provider class so two providers
-        serving the same model don't share a pool (e.g. `openai/gpt-5` and
-        `azureai/gpt-5`, whose `connection_key()` both reduce to `None:gpt-5`
-        when their api keys are elided). Namespacing here rather than in each
-        provider's `connection_key()` means a provider can't accidentally omit
-        it — `connection_key()` only owns its intra-provider scope.
-
-        This key is internal — an in-process semaphore scope, never displayed —
-        so it uses the class name (unique per provider, available without
-        registry plumbing) rather than the registry provider name.
-        """
-        return f"{type(self).__name__}:{self.connection_key()}"
 
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
         """Whether compaction should add `redacted_reasoning_tokens` to its input estimate.
@@ -607,6 +585,17 @@ def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
         **(output.message.metadata or {}),
         REDACTED_REASONING_TOKENS_METADATA_KEY: output.usage.reasoning_tokens,
     }
+
+
+def _connection_pool_key(api: ModelAPI) -> str:
+    """Provider-namespaced connection-pool key for the model layer.
+
+    Prefixes the provider's `connection_key()` with the provider class so two
+    providers serving the same model don't share a pool (e.g. `openai/gpt-5`
+    and `azureai/gpt-5`, whose `connection_key()` both reduce to `None:gpt-5`
+    when their api keys are elided).
+    """
+    return f"{type(api).__name__}:{api.connection_key()}"
 
 
 class Model:
@@ -955,7 +944,7 @@ class Model:
                 config.max_tokens = self.api.max_tokens()
 
         model_name = ModelName(self)
-        key = f"ModelCompact({self.api.connection_pool_key()})"
+        key = f"ModelCompact({_connection_pool_key(self.api)})"
 
         async with concurrency(f"{model_name}_compact", 10, key, visible=False):
 
@@ -1409,7 +1398,7 @@ class Model:
         )
 
         model_name = ModelName(self)
-        key = f"Model{self.api.connection_pool_key()}"
+        key = f"Model{_connection_pool_key(self.api)}"
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
         # rules — both silent — keep deliberate overrides working under

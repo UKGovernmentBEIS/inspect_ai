@@ -14,6 +14,7 @@ import pytest
 
 from inspect_ai.model import ModelAPI, ModelOutput
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import _connection_pool_key
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 STUB_API_KEY = "STUB_API_KEY"
@@ -133,10 +134,10 @@ def test_connection_pool_key_disambiguates_providers_with_elided_key() -> None:
     # Two providers serving the same model name (e.g. openai/gpt-5 and
     # azureai/gpt-5) must not share a pool just because their api keys are
     # elided to None. Their connection_key() collides ("None:gpt-5"); the
-    # provider-class prefix added by connection_pool_key() keeps them distinct.
+    # provider-class prefix added by _connection_pool_key() keeps them distinct.
     openai = _OpenAIStubAPI("gpt-5")
     azure = _AzureAIStubAPI("gpt-5")
 
     assert openai.connection_key() == azure.connection_key() == "None:gpt-5"
-    assert openai.connection_pool_key() == "_OpenAIStubAPI:None:gpt-5"
-    assert azure.connection_pool_key() == "_AzureAIStubAPI:None:gpt-5"
+    assert _connection_pool_key(openai) == "_OpenAIStubAPI:None:gpt-5"
+    assert _connection_pool_key(azure) == "_AzureAIStubAPI:None:gpt-5"
