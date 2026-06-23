@@ -1,5 +1,6 @@
 import tempfile
 from random import randint
+from types import SimpleNamespace
 from typing import Generator
 
 import anyio
@@ -19,11 +20,16 @@ from inspect_ai.log._log import EvalLog
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
-from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
+from inspect_ai.model._model_info import (
+    clear_model_info_cache,
+    get_model_info,
+    set_model_info,
+)
 from inspect_ai.model._model_output import (
     ModelOutput,
     ModelUsage,
 )
+from inspect_ai.model._util import resolve_model_costs
 from inspect_ai.scorer import match
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._metrics import mean
@@ -503,6 +509,40 @@ def test_model_without_cost_data_errors() -> None:
             model="mockllm/model",
             cost_limit=1.0,
         )
+
+
+def test_openrouter_reported_cost_model_allows_cost_limit_without_static_pricing() -> None:
+    """OpenRouter cost limits should be allowed when runtime usage reports cost.
+
+    Gap in PR #4296: the PR surfaces OpenRouter's runtime-reported cost on
+    ``ModelUsage.total_cost`` so cost can be *tracked* for OpenRouter-routed
+    models that have no entry in inspect's static pricing DB. But the
+    cost_limit pre-flight gate (``resolve_model_costs``) still runs *before the
+    eval starts* and requires ``info.cost is not None`` (static pricing) for
+    every model. OpenRouter models have no static pricing -- that is the whole
+    premise of the PR -- so setting a cost_limit with an OpenRouter model
+    raises PrerequisiteError and the eval never starts. The runtime
+    ``check_cost_limit`` path the PR relies on is therefore unreachable: the PR
+    enables cost tracking but the limit gate still blocks the exact models it
+    targets. This test fails until the gate accepts providers that report cost
+    at runtime.
+    """
+    model_name = "openrouter/openai/gpt-5-nano"
+    info = get_model_info(model_name)
+    assert info is not None
+    # No static pricing in the DB -- this is precisely the case the PR's
+    # runtime-reported cost is meant to handle.
+    assert info.cost is None
+
+    task = SimpleNamespace(
+        task=SimpleNamespace(cost_limit=None),
+        model=get_model(model_name, api_key="test-key"),
+        model_roles=None,
+    )
+
+    # Should NOT raise: a cost_limit is valid because cost is reported at
+    # runtime. Currently raises PrerequisiteError (the gap).
+    resolve_model_costs([task], cost_limit=1.0)
 
 
 def test_cost_data_without_cost_limit_tracks_cost() -> None:
