@@ -8,6 +8,7 @@
 - Inspect view: Fix broken commit links for ssh-style GitHub origins
 - Inspect view: Cap oversized tool/text output to prevent resize layerization stalls
 - Inspect view: Fix event panel nav pills never expanding back from picker mode
+- Buf fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bug fix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
 
 ## 0.3.241 (22 June 2026)
