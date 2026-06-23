@@ -91,7 +91,11 @@ async def host_egress(*, staging_dir: str, destination_dir: str) -> None:
     staging = Path(staging_dir)
     manifest_path = staging / MANIFEST_FILENAME
     shipped = _read_manifest(manifest_path)
-    new_files = _scan_new_files(staging, shipped)
+    new_files = [
+        rel
+        for rel in _scan_new_files(staging, shipped)
+        if _committed_checkpoint_or_other(staging, rel)
+    ]
     if not new_files:
         return
     ordered = _safe_order(new_files)

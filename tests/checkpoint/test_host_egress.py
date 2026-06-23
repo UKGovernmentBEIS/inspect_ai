@@ -75,7 +75,7 @@ async def test_ships_new_files_and_writes_manifest(staging: Path, dest: Path) ->
     _write(staging / "restic" / "host" / "keys" / "abc", "host-key")
     _write(staging / "restic" / "host" / "data" / "ab" / "cdef", "pack-data")
     _write(staging / "restic" / "restic-config.json", '{"restic_password":"pwd"}')
-    _write(staging / "ckpt-00001.json", '{"checkpoint_id":1}')
+    _write(staging / "ckpt-00001.json", _checkpoint_json(1))
 
     await host_egress(staging_dir=str(staging), destination_dir=str(dest))
 
@@ -88,7 +88,7 @@ async def test_ships_new_files_and_writes_manifest(staging: Path, dest: Path) ->
     assert (
         dest / "restic" / "restic-config.json"
     ).read_text() == '{"restic_password":"pwd"}'
-    assert (dest / "ckpt-00001.json").read_text() == '{"checkpoint_id":1}'
+    assert (dest / "ckpt-00001.json").read_text() == _checkpoint_json(1)
 
     # Manifest reflects shipment
     manifest = (staging / MANIFEST_FILENAME).read_text().splitlines()
@@ -116,7 +116,7 @@ async def test_excludes_context_subdir(staging: Path, dest: Path) -> None:
 
 async def test_second_cycle_only_ships_new_files(staging: Path, dest: Path) -> None:
     _write(staging / "restic" / "host" / "config", "host-config")
-    _write(staging / "ckpt-00001.json", "first")
+    _write(staging / "ckpt-00001.json", _checkpoint_json(1))
     await host_egress(staging_dir=str(staging), destination_dir=str(dest))
 
     # Tamper with what's already at the destination to prove the
@@ -124,12 +124,12 @@ async def test_second_cycle_only_ships_new_files(staging: Path, dest: Path) -> N
     (dest / "restic" / "host" / "config").write_text("untouched-after-egress")
 
     _write(staging / "restic" / "host" / "data" / "ab" / "cd", "pack")
-    _write(staging / "ckpt-00002.json", "second")
+    _write(staging / "ckpt-00002.json", _checkpoint_json(2))
     await host_egress(staging_dir=str(staging), destination_dir=str(dest))
 
     assert (dest / "restic" / "host" / "config").read_text() == "untouched-after-egress"
     assert (dest / "restic" / "host" / "data" / "ab" / "cd").read_text() == "pack"
-    assert (dest / "ckpt-00002.json").read_text() == "second"
+    assert (dest / "ckpt-00002.json").read_text() == _checkpoint_json(2)
 
 
 async def test_sandbox_repos_shipped(staging: Path, dest: Path) -> None:
@@ -154,6 +154,32 @@ def test_seed_manifest_skips_torn_checkpoint_files(staging: Path) -> None:
 
     manifest = (staging / MANIFEST_FILENAME).read_text().splitlines()
     assert set(manifest) == {"restic/host/config", "ckpt-00001.json"}
+
+
+async def test_host_egress_does_not_manifest_torn_future_checkpoint(
+    staging: Path, dest: Path
+) -> None:
+    _write(staging / "restic" / "host" / "config", "host-config")
+    _write(staging / "ckpt-00001.json", _checkpoint_json(1))
+    _write(staging / "ckpt-00002.json", _checkpoint_json(2))
+    _write(staging / "ckpt-00003.json", "{")
+    _write(staging / "ckpt-00004.json", "{")
+
+    seed_manifest(str(staging))
+
+    _write(staging / "ckpt-00003.json", _checkpoint_json(3))
+    await host_egress(staging_dir=str(staging), destination_dir=str(dest))
+
+    manifest = (staging / MANIFEST_FILENAME).read_text().splitlines()
+    assert "ckpt-00003.json" in manifest
+    assert "ckpt-00004.json" not in manifest
+    assert (dest / "ckpt-00003.json").read_text() == _checkpoint_json(3)
+    assert not (dest / "ckpt-00004.json").exists()
+
+    _write(staging / "ckpt-00004.json", _checkpoint_json(4))
+    await host_egress(staging_dir=str(staging), destination_dir=str(dest))
+
+    assert (dest / "ckpt-00004.json").read_text() == _checkpoint_json(4)
 
 
 def test_safe_order_ships_checkpoint_file_last() -> None:
