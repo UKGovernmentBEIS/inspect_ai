@@ -107,7 +107,9 @@ def test_dispatch_survives_model_name_mutation(task_retry_attempts: int) -> None
                 solver=generate(),
                 name="name_mutation_task",
             ),
-            model="namemut/base:adapter",
+            # unique per case: get_model() memoizes, so a shared spec would let
+            # the first case's already-mutated model satisfy the second
+            model=f"namemut/base-{task_retry_attempts}:adapter",
             log_dir=log_dir,
             task_retry_attempts=task_retry_attempts,
         )
