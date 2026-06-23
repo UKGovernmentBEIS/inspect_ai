@@ -11,7 +11,7 @@ Source files include:
 |------------------|------------------------------------------------------|
 | [agent.py](agent.py)      | Pydantic AI agent created using `agent_bridge()`. |
 | [task.py](task.py)       | Evaluation task which uses the agent.          |
-| [dataset.json](../dataset.json) | Shared dataset with questions and ideal answers.                                   |
+| [dataset.json](dataset.json) | Dataset with questions and ideal answers.                                              |
 
 To run the example, install the required dependencies as follows:
 
