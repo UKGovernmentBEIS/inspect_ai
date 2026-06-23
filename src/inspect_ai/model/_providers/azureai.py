@@ -155,9 +155,10 @@ class AzureAIAPI(ModelAPI):
 
         # resolve api_key or managed identity (for Azure)
         self.token_provider = None
-        self.api_key = os.environ.get(
-            AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, None)
-        )
+        if not self.api_key:
+            self.api_key = os.environ.get(
+                AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, None)
+            )
         if not self.api_key:
             # try managed identity (Microsoft Entra ID)
             try:
