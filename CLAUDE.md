@@ -53,6 +53,8 @@ When asked to open a PR, don't stop at creation — monitor it afterward: watch 
 
 For changes to product functionality (not test-only or build-only changes), add a CHANGELOG entry: a single-line, single-sentence item in the `## Unreleased` section at the top of `CHANGELOG.md` (create that section if it doesn't exist), grouped with similar existing items when there are any, otherwise appended to the list. After updating a branch against its base, re-check that the entry is still under `## Unreleased` — a merge can relocate it under a released heading; move it back if so.
 
+Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless the task is explicitly about that submodule. A merge can silently keep a stale submodule pointer on your branch instead of advancing to the base's — the `submodule-on-main` CI check then fails. After any merge/rebase, run `git diff <base>..HEAD -- <submodule-path>` (or check `git status`/`git submodule status`); if the gitlink differs from the base and your change isn't about the submodule, reset it with `git checkout <base> -- <submodule-path>` and commit. Don't run `git submodule update` in a way that records a new pointer.
+
 ### Opening an upstream PR from an org fork
 
 Opening a PR from an organization fork to its upstream via the GitHub API/CLI needs an explicit `head_repo` — without it GitHub can't resolve the org fork as the PR head and rejects it with `{"field":"head","code":"invalid"}` (an org fork requires `head_repo`; a personal fork resolves without it). `gh pr create` has no `--head-repo` flag ([cli/cli#6462](https://github.com/cli/cli/issues/6462)), so use `gh api` — e.g. from the `meridianlabs-ai/inspect_ai` fork to upstream `UKGovernmentBEIS/inspect_ai`:
