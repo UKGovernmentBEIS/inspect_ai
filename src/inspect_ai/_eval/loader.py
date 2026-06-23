@@ -132,10 +132,8 @@ def resolve_tasks(
         if warn_unconsumed_task_args and task_args:
             logger.warning(
                 f"task_args {sorted(task_args.keys())} will not be applied: "
-                "task_args only apply to tasks referenced by name or file (or "
-                "auto-discovered from the working directory); they are ignored "
-                "for Task instances passed directly. Pass these arguments to "
-                "your @task function when creating the task instead."
+                "they are ignored for Task instances passed directly. Pass "
+                "them to your @task function when creating the task instead."
             )
         task_list = (
             [tasks]
