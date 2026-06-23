@@ -9,6 +9,7 @@
 - Inspect view: Fix broken commit links for ssh-style GitHub origins
 - Inspect view: Cap oversized tool/text output to prevent resize layerization stalls
 - Inspect view: Fix event panel nav pills never expanding back from picker mode
+- Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
 - Buf fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bug fix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
 
@@ -25,6 +26,7 @@
 - Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs
 - Eval Log: `read_eval_log`, `read_eval_log_async`, and `samples_df` now accept `exclude_fields` for more memory-efficient loading of large samples.
 - Sandbox: Preserve docker-compatible per-sample sandbox config (e.g. a per-sample `ComposeConfig`) when an eval-level sandbox override (`--sandbox <provider>`) is passed without its own config.
+- OpenAI: Skip the `_reasoning_summaries_lock` once the cached value is set, so highly-concurrent `generate()` calls no longer queue through the lock on every call.
 - Mistral: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the conversation-api path honored it).
 - Anthropic: Synthesize a refusal `trigger` when validating fallback blocks from message history, fixing a `ValidationError` with `anthropic>=0.110.0` (which made `trigger` a required field on `BetaFallbackBlock`).
 - Limits: Added `turn_limit()` which tracks total generations.
