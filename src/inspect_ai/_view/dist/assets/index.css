@@ -18840,6 +18840,12 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 ._preCompact_seqs2_15 {
   margin-bottom: 0;
 }
+._notice_mpxkz_1 {
+  margin-top: 0.25rem;
+  font-size: var(--inspect-font-size-smaller);
+  color: var(--bs-secondary-color);
+  font-style: italic;
+}
 ._keyPairContainer_1u1d5_1 {
   display: grid;
   grid-template-columns: max-content auto;
