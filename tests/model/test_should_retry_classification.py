@@ -437,6 +437,68 @@ def test_google_503_unavailable_classifies_as_transient() -> None:
     assert decision.kind == "transient"
 
 
+def test_google_client_payload_transfer_encoding_classifies_as_transient() -> None:
+    """A chunked response truncated mid-body (connection reset) is transient."""
+    import aiohttp
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    api = GoogleGenAIAPI.__new__(GoogleGenAIAPI)
+    ex = aiohttp.ClientPayloadError("Response payload is not completed")
+    ex.__cause__ = aiohttp.http_exceptions.TransferEncodingError(
+        message="Not enough data to satisfy transfer length header."
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
+def test_google_client_payload_content_length_classifies_as_transient() -> None:
+    """A Content-Length response truncated the same way is equally transient."""
+    import aiohttp
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    api = GoogleGenAIAPI.__new__(GoogleGenAIAPI)
+    ex = aiohttp.ClientPayloadError("Response payload is not completed")
+    ex.__cause__ = aiohttp.http_exceptions.ContentLengthError(
+        message="Not enough data to satisfy content length header."
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
+def test_google_client_payload_non_encoding_cause_does_not_retry() -> None:
+    """A non-truncation cause (e.g. corrupt compression) is not retryable."""
+    import aiohttp
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    api = GoogleGenAIAPI.__new__(GoogleGenAIAPI)
+    ex = aiohttp.ClientPayloadError("Response payload is not completed")
+    ex.__cause__ = ValueError(
+        "Error -3 while decompressing data: incorrect header check"
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is False
+
+
+def test_google_client_payload_without_cause_does_not_retry() -> None:
+    import aiohttp
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    api = GoogleGenAIAPI.__new__(GoogleGenAIAPI)
+    ex = aiohttp.ClientPayloadError("Response payload is not completed")
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is False
+
+
 # ---------- Grok (gRPC) ----------
 
 
