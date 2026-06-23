@@ -8,13 +8,10 @@ and eval_set() should warn.
 
 import logging
 import tempfile
-from typing import cast
 
 import pytest
 
 from inspect_ai import Task, eval, eval_set, task
-from inspect_ai._eval.loader import task_args_apply_to_tasks
-from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai.dataset import Sample
 
 WARNING_SNIPPET = "will not be applied"
@@ -25,71 +22,18 @@ def task_args_warning_check(task_arg: str = "default") -> Task:
     return Task(dataset=[Sample(input=f"{task_arg}: test input")])
 
 
-# -- predicate unit tests ----------------------------------------------------
-
-
-def test_predicate_task_instance() -> None:
-    assert task_args_apply_to_tasks(task_args_warning_check()) is False
-
-
-def test_predicate_task_instance_list() -> None:
-    tasks = [task_args_warning_check(), task_args_warning_check()]
-    assert task_args_apply_to_tasks(tasks) is False
-
-
-def test_predicate_string_spec() -> None:
-    assert task_args_apply_to_tasks("task_args_warning_check") is True
-
-
-def test_predicate_mixed_list() -> None:
-    # at least one element resolves by specification: args are applied.
-    # The Tasks alias only admits homogeneous lists, but untyped callers
-    # can pass mixed lists, so the predicate must classify them correctly.
-    mixed = cast(Tasks, [task_args_warning_check(), "task_args_warning_check"])
-    assert task_args_apply_to_tasks(mixed) is True
-
-
-def test_predicate_task_function() -> None:
-    # decorated task functions resolve via their registry name
-    assert task_args_apply_to_tasks(task_args_warning_check) is True
-
-
-def test_predicate_none_auto_discovery() -> None:
-    assert task_args_apply_to_tasks(None) is True
-    assert task_args_apply_to_tasks([]) is True
-
-
-def test_predicate_resolved_tasks_skipped() -> None:
-    # re-entrant resolution (eval_set internals): determination was made
-    # on the first pass, so the predicate must opt out
-    from inspect_ai._eval.loader import resolve_tasks
-    from inspect_ai.model import get_model
-
-    resolved_tasks = resolve_tasks(
-        task_args_warning_check(),
-        {},
-        get_model("mockllm/model"),
-        None,
-        None,
-        None,
-    )
-    assert task_args_apply_to_tasks(resolved_tasks) is None
-
-
-# -- end-to-end warning tests ------------------------------------------------
-
-
 @pytest.fixture
 def capture_eval_warnings(caplog):
-    # attach caplog's handler directly to the emitting module logger:
-    # eval() reconfigures the package logger's propagation during the run,
-    # so propagation-based capture misses warnings emitted mid-eval
-    eval_logger = logging.getLogger("inspect_ai._eval.eval")
-    eval_logger.addHandler(caplog.handler)
+    # the warning is emitted from resolve_tasks (the loader module). attach
+    # caplog's handler directly to the emitting module logger: eval()
+    # reconfigures the package logger's propagation during the run, so
+    # propagation-based capture misses warnings emitted mid-eval
+    loader_logger = logging.getLogger("inspect_ai._eval.loader")
+    loader_logger.addHandler(caplog.handler)
     try:
         yield caplog
     finally:
-        eval_logger.removeHandler(caplog.handler)
+        loader_logger.removeHandler(caplog.handler)
 
 
 def warning_records(caplog) -> list[logging.LogRecord]:
@@ -107,6 +51,19 @@ def test_task_instance_with_task_args_warns(capture_eval_warnings) -> None:
     records = warning_records(caplog)
     assert len(records) == 1, "expected exactly one unconsumed task_args warning"
     assert "task_arg" in records[0].message
+
+
+def test_task_instance_multiple_models_warns_once(capture_eval_warnings) -> None:
+    # resolve_tasks runs once per model; the warning is gated to the first
+    # model so it fires exactly once regardless of the model count
+    caplog = capture_eval_warnings
+    logs = eval(
+        task_args_warning_check(),
+        task_args={"task_arg": "custom"},
+        model=["mockllm/model", "mockllm/model"],
+    )
+    assert all(log.status == "success" for log in logs)
+    assert len(warning_records(caplog)) == 1
 
 
 def test_string_task_with_task_args_no_warning(capture_eval_warnings) -> None:

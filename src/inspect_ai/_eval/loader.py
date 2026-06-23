@@ -70,42 +70,6 @@ def _merge_model_roles(
     return merged or None
 
 
-def task_args_apply_to_tasks(tasks: Tasks) -> bool | None:
-    """Whether `task_args` will be applied when resolving `tasks`.
-
-    `task_args` are applied only to tasks resolved by specification —
-    referenced by name or file, as a `TaskInfo`, as a decorated task
-    function or class, or auto-discovered from the working directory
-    (`resolve_tasks` routes all of these through `load_tasks`). They are
-    never applied to `Task` instances passed directly, whose args come
-    from the instance's own construction params (`resolve_task_args`).
-
-    Keep the classification here in sync with the branches of
-    `resolve_tasks` below.
-
-    Returns:
-        `True` if at least one element of `tasks` resolves by
-        specification (so `task_args` are applied); `False` if every
-        element is a `Task` instance (so `task_args` are ignored);
-        `None` if `tasks` contains already-resolved (`ResolvedTask`) or
-        previous (`PreviousTask`) tasks, whose args were fixed when
-        first resolved.
-    """
-    tasks_list = tasks if isinstance(tasks, list) else [tasks]
-
-    # None (and the equivalent empty list) auto-discovers from the cwd,
-    # which resolves by specification
-    if len(tasks_list) == 0 or all(t is None for t in tasks_list):
-        return True
-
-    if any(isinstance(t, (ResolvedTask, PreviousTask)) for t in tasks_list):
-        return None
-
-    # everything in Tasks other than a Task instance (str, TaskInfo,
-    # task function, task class) resolves by specification
-    return any(not isinstance(t, Task) for t in tasks_list)
-
-
 def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
@@ -114,6 +78,7 @@ def resolve_tasks(
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
+    warn_unconsumed_task_args: bool = False,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         # shuffle data in tasks if requested
@@ -158,11 +123,26 @@ def resolve_tasks(
             eval_checkpoint=eval_checkpoint,
         )
 
-    # simple cases of passing us Task objects
-    if isinstance(tasks, Task):
-        return as_resolved_tasks([tasks])
-    elif isinstance(tasks, list) and isinstance(tasks[0], Task):
-        return as_resolved_tasks([t for t in tasks if isinstance(t, Task)])
+    # simple cases of passing us Task objects -- task_args are never applied
+    # to Task instances (their args come from the instance's own construction
+    # params), so warn if the caller passed args that will be silently ignored
+    if isinstance(tasks, Task) or (
+        isinstance(tasks, list) and isinstance(tasks[0], Task)
+    ):
+        if warn_unconsumed_task_args and task_args:
+            logger.warning(
+                f"task_args {sorted(task_args.keys())} will not be applied: "
+                "task_args only apply to tasks referenced by name or file (or "
+                "auto-discovered from the working directory); they are ignored "
+                "for Task instances passed directly. Pass these arguments to "
+                "your @task function when creating the task instead."
+            )
+        task_list = (
+            [tasks]
+            if isinstance(tasks, Task)
+            else [t for t in tasks if isinstance(t, Task)]
+        )
+        return as_resolved_tasks(task_list)
 
     # convert TaskInfo to str
     if isinstance(tasks, TaskInfo):
