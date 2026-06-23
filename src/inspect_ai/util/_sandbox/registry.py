@@ -16,6 +16,8 @@ _SANDBOX_PACKAGES: dict[str, str] = {
     "proxmox": "git+https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox.git",
     "modal": "inspect-sandboxes",
     "daytona": "inspect-sandboxes",
+    "e2b": "inspect-sandboxes",
+    "runloop": "inspect-sandboxes",
 }
 
 T = TypeVar("T", bound=SandboxEnvironment)

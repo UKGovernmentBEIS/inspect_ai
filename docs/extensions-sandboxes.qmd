@@ -23,7 +23,7 @@ The best way to learn about writing sandbox environments is to study existing im
 
 Several third-party sandboxes are published as standalone packages, and are good references for implementing more sophisticated cloud and cluster runtimes:
 
--   [inspect_sandboxes](https://github.com/meridianlabs-ai/inspect_sandboxes) — [Daytona](https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html) and [Modal](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html) cloud sandboxes.
+-   [inspect_sandboxes](https://github.com/meridianlabs-ai/inspect_sandboxes) — [Daytona](https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html), [E2B](https://meridianlabs-ai.github.io/inspect_sandboxes/e2b.html), [Modal](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html), and [Runloop](https://meridianlabs-ai.github.io/inspect_sandboxes/runloop.html) cloud sandboxes.
 -   [inspect-k8s-sandbox](https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox) — Kubernetes cluster sandbox.
 
 See the [Inspect Extensions](extensions/index.qmd) listing for the full set of available sandbox providers.
