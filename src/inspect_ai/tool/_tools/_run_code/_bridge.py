@@ -42,19 +42,6 @@ def _tool_call_arguments(
     return dict(bound.arguments)
 
 
-def _tool_message_result(message: Any) -> list[Content]:
-    """Return the model-visible result from an Inspect tool message."""
-    if message.error is not None:
-        return [ContentText(text=f"{message.error.type}: {message.error.message}")]
-
-    content = message.content
-
-    if isinstance(content, list):
-        return content
-
-    return [ContentText(text=content)]
-
-
 def _content_to_runtime_value(
     content: list[Content],
     artifacts: list[Content],
@@ -115,14 +102,14 @@ class RunCodeToolBridge:
                 *args: Any,
                 _tool_def: ToolDef = tool_def,
                 **kwargs: Any,
-            ) -> str:
+            ) -> Any:
                 return await self._call_tool(_tool_def, *args, **kwargs)
 
             external_functions[tool_def.name] = call_tool
 
         return external_functions
 
-    async def _call_tool(self, tool_def: ToolDef, *args: Any, **kwargs: Any) -> str:
+    async def _call_tool(self, tool_def: ToolDef, *args: Any, **kwargs: Any) -> Any:
         if self.max_tool_calls is not None and len(self.calls) >= self.max_tool_calls:
             raise RuntimeError(
                 f"Maximum run_code inner tool calls exceeded: {self.max_tool_calls}"
@@ -140,22 +127,41 @@ class RunCodeToolBridge:
 
         try:
             result = await self._execute_inspect_tool_call(tool_def, arguments)
-            text = _content_to_runtime_value(result, self.artifacts)
+            value = self._project_result(result)
             artifact_count = len(self.artifacts) - artifacts_before
-            call.result_preview = _preview(f"{text} | artifacts={artifact_count}")
-            return text
+            call.result_preview = _preview(f"{value!r} | artifacts={artifact_count}")
+            return value
         except Exception as exc:
             call.error = str(exc)
             raise
+
+    def _project_result(self, result: Any) -> Any:
+        """Project a raw Inspect ToolResult into a Monty runtime value.
+
+        Scalars (str/int/float/bool) cross the boundary natively so code can
+        chain them into later calls or compute on them. Rich Content is
+        projected to text, with non-text content preserved as artifacts.
+        """
+        if isinstance(result, (str, int, float, bool)):
+            return result
+        content = result if isinstance(result, list) else [result]
+        return _content_to_runtime_value(content, self.artifacts)
 
     async def _execute_inspect_tool_call(
         self,
         tool_def: ToolDef,
         arguments: dict[str, Any],
-    ) -> list[Content]:
-        """Execute an inner tool call through Inspect's normal tool path."""
-        from inspect_ai.model._call_tools import execute_tools
-        from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+    ) -> Any:
+        """Run one inner tool call and return its result.
+
+        Goes through ``call_tool`` for validation, approval and transcript
+        events. Inspect tool errors are returned as text; other exceptions
+        propagate.
+        """
+        from inspect_ai.event._tool import ToolEvent
+        from inspect_ai.model._call_tools import call_tool
+        from inspect_ai.model._chat_message import ChatMessageAssistant
+        from inspect_ai.tool._tool import ToolApprovalError, ToolError, ToolParsingError
         from inspect_ai.tool._tool_call import ToolCall
 
         call = ToolCall(
@@ -163,28 +169,29 @@ class RunCodeToolBridge:
             function=tool_def.name,
             arguments=arguments,
         )
-
         message = ChatMessageAssistant(
             content="Tool call requested from inside run_code.",
             tool_calls=[call],
         )
-
-        result = await execute_tools(
-            [message],
-            self.tool_defs,
+        event = ToolEvent(
+            id=call.id,
+            function=call.function,
+            arguments=call.arguments,
+            view=call.view,
+            pending=True,
         )
 
-        tool_messages = [
-            message
-            for message in result.messages
-            if isinstance(message, ChatMessageTool) and message.tool_call_id == call.id
-        ]
-
-        if not tool_messages:
-            return [ContentText(text="")]
-
-        tool_message = tool_messages[-1]
-        return _tool_message_result(tool_message)
+        try:
+            result, _messages, _output, _agent, _agent_span_id = await call_tool(
+                self.tool_defs, message.text, call, event, [message]
+            )
+        except ToolParsingError as ex:
+            return f"parsing: {ex.message}"
+        except ToolApprovalError as ex:
+            return f"approval: {ex.message}"
+        except ToolError as ex:
+            return f"unknown: {ex.message}"
+        return result
 
 
 def external_functions_for_tool_defs(
