@@ -2,6 +2,7 @@ import re
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+import contextlib
 
 
 # see https://cloud.google.com/storage/docs/retry-strategy
@@ -72,21 +73,43 @@ def parse_retry_after(headers: Mapping[str, str]) -> float | None:
 
     return None
 
+def parse_retry_details(details: dict | None) -> float | None:
+    """
+    Extracts the retry delay in seconds from a nested error details dictionary.
+    Expects a structure like: {'error': {'details': [{'retryDelay': '60s'}]}}
+    """
+    if not isinstance(details, dict):
+        return None
+
+    items = details.get("error", {}).get("details", [])
+    for item in items:
+        if "retryDelay" not in item:
+            continue
+        delay = item["retryDelay"]
+        return float(delay.removesuffix("s"))
+
+    return None
 
 def parse_retry_after_from_exception(ex: BaseException) -> float | None:
     """Best-effort Retry-After / x-ratelimit-reset-* extraction from an exception.
 
     Walks `ex.response.headers` if present and delegates to `parse_retry_after`.
+    Also inspects `ex.details` if present and delegates to `parse_retry_details`.
     Returns None on any failure (missing attributes, parse error). Used by
     every provider's `should_retry` → `RetryDecision.rate_limit` path.
     """
-    headers = getattr(getattr(ex, "response", None), "headers", None)
-    if headers is None:
-        return None
-    try:
-        return parse_retry_after(headers)
-    except Exception:
-        return None
+    with contextlib.suppress(Exception):
+        headers = getattr(getattr(ex, "response", None), "headers", None)
+        if headers is not None:
+            val = parse_retry_after(headers)
+            if val is not None:
+                return val
+
+    with contextlib.suppress(Exception):
+        details = getattr(ex, "details", None)
+        return parse_retry_details(details)
+
+    return None
 
 
 def _parse_retry_after_value(value: str) -> float | None:
