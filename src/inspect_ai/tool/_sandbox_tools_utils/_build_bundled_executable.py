@@ -151,7 +151,11 @@ def _build_executable(
         "PyInstaller",
         "--onedir",  # Directory bundle - no per-run self-extraction
         "--noupx",  # Don't compress - prevents driver corruption
-        # "--strip",  # REMOVED - can break node binary (consider re-enabling if issues are resolved)
+        # Strip symbols from the bundled binaries. The conda-forge runtime libs (esp.
+        # libstdc++, ~20MB) ship unstripped, dominating artifact size; stripping roughly
+        # halves the gzipped tar. The old "can break the node binary" caveat doesn't
+        # apply here — inspect_sandbox_tools bundles no node binary.
+        "--strip",
         "--optimize",
         "2",
         "--hidden-import=psutil",
@@ -232,7 +236,7 @@ def _verify_build(dist_dir: Path, build_config: SandboxToolsBuildConfig) -> None
     arch_word = "ARM64/aarch64" if build_config.arch == "arm64" else "x86_64"
     print(
         f"✅ Portable onedir bundle ready for {arch_word}. "
-        "Runs on Linux with glibc >= the build glibc (bullseye / 2.31)."
+        "Runs on Linux with glibc >= the build glibc (conda-forge / 2.17)."
     )
 
 

@@ -86,6 +86,7 @@ class Task:
         score_on_error: bool | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
+        turn_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
         cost_limit: float | None = None,
@@ -132,6 +133,7 @@ class Task:
                 as 'error'. Only takes effect after retries (if any) are exhausted.
             message_limit: Limit on total messages used for each sample.
             token_limit: Limit on total tokens used for each sample.
+            turn_limit: Limit on total turns (model generations) used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
@@ -194,6 +196,7 @@ class Task:
         self.score_on_error = score_on_error
         self.message_limit = message_limit
         self.token_limit = token_limit
+        self.turn_limit = turn_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
         self.cost_limit = cost_limit
@@ -268,6 +271,7 @@ def task_with(
     score_on_error: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
     token_limit: int | None | NotGiven = NOT_GIVEN,
+    turn_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
     cost_limit: float | None | NotGiven = NOT_GIVEN,
@@ -317,6 +321,7 @@ def task_with(
             as 'error'. Only takes effect after retries (if any) are exhausted.
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -376,6 +381,8 @@ def task_with(
         task.message_limit = message_limit
     if not isinstance(token_limit, NotGiven):
         task.token_limit = token_limit
+    if not isinstance(turn_limit, NotGiven):
+        task.turn_limit = turn_limit
     if not isinstance(time_limit, NotGiven):
         task.time_limit = time_limit
     if not isinstance(working_limit, NotGiven):

@@ -81,6 +81,7 @@ from inspect_ai.util._limit import (
     check_token_limit,
     record_model_cost,
     record_model_usage,
+    record_turn,
 )
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
@@ -1227,6 +1228,18 @@ class Model:
         # fallback is still a fallback-served response)
         record_sample_model_fallback(model_output)
 
+        # record a turn (one top-level model generation) against any active
+        # turn limits. recorded here in the outer frame (rather than alongside
+        # usage recording in the inner generate()) so that a turn is counted
+        # exactly once per top-level model.generate() call -- after retries and
+        # fallbacks have resolved, and including cache hits (which also advance
+        # the conversation by one assistant message). this keeps turn counting
+        # uniform across react(), basic_agent(), and custom agents, and avoids
+        # double-counting nested generations: model.compact() does not flow
+        # through this path, and sub-agent/scorer generations are scoped by
+        # their own turn_limit() contexts (or none).
+        record_turn()
+
         # notify the adaptive controller of a clean success (no retries during
         # this logical request, AND not a cache hit since cache hits don't
         # exercise the rate limit). Successful-after-retry and cache hits are
@@ -2187,7 +2200,7 @@ def combine_messages(
         )
 
 
-def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
     from inspect_ai._util.retry import retry_error_summary, sample_context_prefix
 
     prefix = sample_context_prefix()
@@ -2197,6 +2210,15 @@ def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
         level,
         f"{prefix}-> {model_name} retry {retry_state.attempt_number} "
         f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}",
+    )
+
+    # notify hooks of the retry (useful for surfacing time spent in rate limiting)
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    await emit_model_retry(
+        model_name=model_name,
+        attempt=retry_state.attempt_number,
+        wait_time=retry_state.upcoming_sleep,
     )
 
 

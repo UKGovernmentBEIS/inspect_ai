@@ -406,7 +406,6 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         default=None,
         help=CHECKPOINT_HELP,
         envvar="INSPECT_EVAL_CHECKPOINT",
-        hidden=True,
     )
     @click.option(
         "--acp-server",
@@ -439,10 +438,10 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "Control-channel server for this eval process (default: enabled "
             "on an AF_UNIX socket — the endpoint the `inspect ctl` CLI, "
             "scripted agents, and TUIs query). Pass `false` to disable it. "
-            "Pass `keep-alive` to also keep the process running after the "
-            "eval finishes so its state and results stay readable; the "
-            "process exits when `inspect ctl release` is run (or POST "
-            "/release is sent to the control endpoint). Without `keep-alive` "
+            "Pass `keep` to also keep the process running "
+            "after the eval finishes so its state and results stay readable; "
+            "the process exits when `inspect ctl release` is run (or POST "
+            "/release is sent to the control endpoint). Without `keep` "
             "the process exits as soon as the eval body returns, taking the "
             "control surface with it."
         ),
@@ -556,6 +555,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help="Limit on total tokens used for each sample.",
         envvar="INSPECT_EVAL_TOKEN_LIMIT",
+    )
+    @click.option(
+        "--turn-limit",
+        type=int,
+        help="Limit on total turns (model generations) used for each sample.",
+        envvar="INSPECT_EVAL_TURN_LIMIT",
     )
     @click.option(
         "--cost-limit",
@@ -1031,6 +1036,7 @@ def _eval_command_impl(
     modalities: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     cost_limit: float | None,
@@ -1111,6 +1117,7 @@ def _eval_command_impl(
         sample_shuffle=sample_shuffle,
         message_limit=message_limit,
         token_limit=token_limit,
+        turn_limit=turn_limit,
         time_limit=time_limit,
         working_limit=working_limit,
         cost_limit=cost_limit,
@@ -1297,6 +1304,7 @@ def eval_set_command(
     modalities: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     cost_limit: float | None,
@@ -1386,6 +1394,7 @@ def eval_set_command(
         sample_shuffle=sample_shuffle,
         message_limit=message_limit,
         token_limit=token_limit,
+        turn_limit=turn_limit,
         cost_limit=cost_limit,
         model_cost_config=model_cost_config,
         time_limit=time_limit,
@@ -1633,6 +1642,7 @@ def eval_exec(
     sample_shuffle: int | None,
     message_limit: int | None,
     token_limit: int | None,
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     cost_limit: float | None,
@@ -1812,6 +1822,7 @@ def eval_exec(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -2185,10 +2196,10 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     callback=ctl_server_flag_callback,
     help=(
         "Control-channel server for the retried eval's process (default: "
-        "enabled). Pass `false` to disable it; pass `keep-alive` to keep "
-        "the process running after the retried eval finishes so external "
-        "clients (the `inspect ctl` CLI, scripted agents) can still query "
-        "its state. Run `inspect ctl release` to release."
+        "enabled). Pass `false` to disable it; pass `keep` "
+        "to keep the process running after the retried eval finishes so "
+        "external clients (the `inspect ctl` CLI, scripted agents) can still "
+        "query its state. Run `inspect ctl release` to release."
     ),
     envvar="INSPECT_EVAL_CTL_SERVER",
 )
@@ -2233,7 +2244,6 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=CHECKPOINT_HELP
     + " For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval.",
     envvar="INSPECT_EVAL_CHECKPOINT",
-    hidden=True,
 )
 @scanner_options
 @common_options

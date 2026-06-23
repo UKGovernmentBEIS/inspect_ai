@@ -628,8 +628,20 @@ def _build_summary(
     model = first_sample.model if first_sample else latest.model
     run_id = first_sample.run_id if first_sample else latest.run_id
 
+    # Pin the eval's start to its earliest sample start, tracked as a running
+    # minimum on the EvalState. ``samples`` only holds *currently active*
+    # samples, so a plain min over it creeps forward as early samples finish
+    # and leave ``active_samples`` (#4305); fold the live minimum into
+    # ``latest.started_at`` to keep it fixed. The terminal records
+    # (``record_sample_*``) feed the same running minimum, so a sample that
+    # finished before this first poll is already accounted for. Both this fold
+    # and those records run on the eval's loop, so the writes are serialised.
     sample_starts = [s.started for s in samples if s.started is not None]
-    eval_started_at = min(sample_starts) if sample_starts else started_at_fallback
+    if sample_starts:
+        latest.observe_started(min(sample_starts))
+    eval_started_at = (
+        latest.started_at if latest.started_at is not None else started_at_fallback
+    )
 
     in_flight_samples = [
         s for s in samples if s.started is not None and s.completed is None
