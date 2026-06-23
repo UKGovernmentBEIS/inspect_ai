@@ -20,7 +20,7 @@
             "type": "integer"
           },
           "min": {
-            "default": 4,
+            "default": 10,
             "title": "Min",
             "type": "integer"
           },
@@ -1227,6 +1227,20 @@
             "title": "Trigger",
             "type": "string"
           },
+          "trigger_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Metadata"
+          },
           "turn": {
             "title": "Turn",
             "type": "integer"
@@ -1264,7 +1278,7 @@
         "type": "object"
       },
       "CheckpointSampleConfig": {
-        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_dir`` and\n``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_location``\nand ``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.",
         "properties": {
           "max_consecutive_failures": {
             "anyOf": [
@@ -2648,6 +2662,17 @@
             ],
             "title": "Token Limit"
           },
+          "turn_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Limit"
+          },
           "working_limit": {
             "anyOf": [
               {
@@ -2895,6 +2920,17 @@
       "EvalMetric": {
         "description": "Metric for evaluation score.",
         "properties": {
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
           "metadata": {
             "anyOf": [
               {
@@ -3469,6 +3505,20 @@
             "title": "Metadata",
             "type": "object"
           },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -3630,6 +3680,7 @@
               "working",
               "message",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"
@@ -3914,6 +3965,20 @@
             "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
+          },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
           },
           "model_usage": {
             "additionalProperties": {
@@ -4913,6 +4978,20 @@
               }
             ],
             "title": "Extra Headers"
+          },
+          "fallback_models": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Models"
           },
           "frequency_penalty": {
             "anyOf": [
@@ -7085,6 +7164,43 @@
         "title": "ModelEvent",
         "type": "object"
       },
+      "ModelFallback": {
+        "description": "A model fallback (request served by a different model than requested).",
+        "properties": {
+          "count": {
+            "default": 1,
+            "title": "Count",
+            "type": "integer"
+          },
+          "fallback_model": {
+            "title": "Fallback Model",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "fallback_model",
+          "count"
+        ],
+        "title": "ModelFallback",
+        "type": "object"
+      },
       "ModelOutput": {
         "description": "Output from model generation.",
         "properties": {
@@ -7111,6 +7227,16 @@
               }
             ],
             "title": "Error"
+          },
+          "fallback": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelFallback"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "metadata": {
             "anyOf": [
@@ -7820,6 +7946,7 @@
               "time",
               "working",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"

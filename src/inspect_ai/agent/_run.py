@@ -46,6 +46,14 @@ async def run(
     The input messages(s) will be copied prior to running so are
     not modified in place.
 
+    The agent's conversation is available only via the returned
+    `AgentState` — it is not propagated back to the input. When calling
+    `run()` from a solver, copy the returned state back into the
+    `TaskState` (e.g. `state.messages = agent_state.messages` and
+    `state.output = agent_state.output`) if the agent's conversation and
+    output should be reflected in the sample (`as_solver()` does this
+    automatically).
+
     Args:
         agent: Agent to run.
         input: Agent input (string, list of messages, or an `AgentState`).

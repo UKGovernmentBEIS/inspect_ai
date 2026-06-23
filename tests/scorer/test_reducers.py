@@ -555,7 +555,9 @@ def test_no_reducer():
 def test_default_reducer():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
     log = eval(task, model="mockllm/model", epochs=4)[0]
-    assert log.eval.config.epochs_reducer == ["mean"]
+    # the default is not recorded so that recompute can distinguish an
+    # explicit reducer choice from the (per-scorer) auto-selected default
+    assert log.eval.config.epochs_reducer is None
 
 
 def test_eval_reducer():

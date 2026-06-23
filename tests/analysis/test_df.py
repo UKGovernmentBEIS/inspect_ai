@@ -133,6 +133,145 @@ def test_evals_df_single_reducer_preserves_column_name():
     assert df.iloc[0]["score_match_accuracy"] == 0.75
 
 
+def test_evals_df_scores_with_mixed_score_views():
+    """Mixed score views keep legacy columns when metric keys don't collide."""
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalMetric,
+        EvalResults,
+        EvalScore,
+        EvalSpec,
+    )
+
+    log = EvalLog(
+        status="success",
+        eval=EvalSpec(
+            created="2024-01-01T00:00:00+00:00",
+            task="t",
+            dataset=EvalDataset(),
+            model="test/model",
+            config=EvalConfig(epochs=2),
+        ),
+        results=EvalResults(
+            scores=[
+                EvalScore(
+                    name="match",
+                    scorer="match",
+                    reducer="mean",
+                    metrics={"accuracy": EvalMetric(name="accuracy", value=0.50)},
+                ),
+                EvalScore(
+                    name="match",
+                    scorer="match",
+                    reducer=None,
+                    metrics={"C": EvalMetric(name="C", value=0.50)},
+                ),
+            ]
+        ),
+    )
+
+    df = evals_df([log], quiet=True)
+    assert "score_match_accuracy" in df.columns
+    assert "score_match_mean_accuracy" not in df.columns
+    assert "score_match_C" in df.columns
+    assert df.iloc[0]["score_match_accuracy"] == 0.50
+    assert df.iloc[0]["score_match_C"] == 0.50
+
+
+def test_evals_df_scores_with_mixed_score_view_metric_collision():
+    """Reducer suffixes are still used when metric columns would collide."""
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalMetric,
+        EvalResults,
+        EvalScore,
+        EvalSpec,
+    )
+
+    log = EvalLog(
+        status="success",
+        eval=EvalSpec(
+            created="2024-01-01T00:00:00+00:00",
+            task="t",
+            dataset=EvalDataset(),
+            model="test/model",
+            config=EvalConfig(epochs=2),
+        ),
+        results=EvalResults(
+            scores=[
+                EvalScore(
+                    name="match",
+                    scorer="match",
+                    reducer="mean",
+                    metrics={"accuracy": EvalMetric(name="accuracy", value=0.50)},
+                ),
+                EvalScore(
+                    name="match",
+                    scorer="match",
+                    reducer=None,
+                    metrics={"accuracy": EvalMetric(name="accuracy", value=0.75)},
+                ),
+            ]
+        ),
+    )
+
+    df = evals_df([log], quiet=True)
+    assert "score_match_mean_accuracy" in df.columns
+    assert "score_match_accuracy" in df.columns
+    assert df.iloc[0]["score_match_mean_accuracy"] == 0.50
+    assert df.iloc[0]["score_match_accuracy"] == 0.75
+
+
+def test_evals_df_headline_metric_uses_metric_key():
+    """Headline metric names should stay stable for expanded metric outputs."""
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalMetric,
+        EvalResults,
+        EvalScore,
+        EvalSpec,
+    )
+
+    log = EvalLog(
+        status="success",
+        eval=EvalSpec(
+            created="2024-01-01T00:00:00+00:00",
+            task="t",
+            dataset=EvalDataset(),
+            model="test/model",
+            config=EvalConfig(),
+        ),
+        results=EvalResults(
+            scores=[
+                EvalScore(
+                    name="one",
+                    scorer="dict_scorer",
+                    metrics={
+                        "nested_dict_metric_key1": EvalMetric(
+                            name="key1",
+                            group="nested_dict_metric",
+                            value=0.25,
+                        ),
+                        "nested_dict_metric_key2": EvalMetric(
+                            name="key2",
+                            group="nested_dict_metric",
+                            value=0.75,
+                        ),
+                    },
+                ),
+            ]
+        ),
+    )
+
+    df = evals_df([log], quiet=True)
+    assert df.iloc[0]["score_headline_metric"] == "nested_dict_metric_key1"
+    assert df.iloc[0]["score_headline_value"] == 0.25
+    assert df.iloc[0]["score_one_nested_dict_metric_key1"] == 0.25
+
+
 def test_evals_df_columns():
     df = evals_df(LOGS_DIR, columns=EvalInfo + EvalModel + EvalResults + EvalTask)
     assert (

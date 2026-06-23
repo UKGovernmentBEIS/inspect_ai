@@ -72,6 +72,9 @@ class PlainDisplay(Display):
             if self.tasks:
                 self._print_results()
 
+    def update_task_count(self, n: int) -> None:
+        self.total_tasks += n
+
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
         # Print initial task information using a rich panel
