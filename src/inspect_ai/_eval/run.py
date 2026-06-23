@@ -33,7 +33,7 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
-from inspect_ai.model._model import ModelName
+from inspect_ai.model._model import Model, ModelName
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -502,9 +502,20 @@ async def run_multiple(
     # model-balancing state (grows as tasks are injected)
     model_counts: dict[str, int] = {}
 
+    # A provider may rewrite its model's name mid-run — e.g. the vLLM provider
+    # resolves a "base:adapter" LoRA spec down to just "base" on the first
+    # generate(). Re-deriving the balancing key from the live str(model) would
+    # then decrement a different key than was incremented and raise KeyError at
+    # finalisation. Capture each model's name the first time it is seen and reuse
+    # that stable key for the lifetime of the run.
+    model_keys: dict[int, str] = {}
+
+    def model_key(model: Model) -> str:
+        return model_keys.setdefault(id(model), str(model))
+
     def note_models(options: list[TaskRunOptions]) -> None:
         for t in options:
-            model_counts.setdefault(str(t.model), 0)
+            model_counts.setdefault(model_key(t.model), 0)
 
     # pending (index, task) pairs: initial tasks keep their original order and
     # injected tasks are appended in arrival order, so results sort stably
@@ -530,9 +541,9 @@ async def run_multiple(
     def pick_balanced() -> tuple[int, TaskRunOptions]:
         # among models that have pending tasks, pick the least-used one (keeps as
         # many different models running concurrently as possible)
-        models_with_pending = {str(opts.model) for _, opts in pending}
+        models_with_pending = {model_key(opts.model) for _, opts in pending}
         model = min(models_with_pending, key=lambda m: model_counts[m])
-        item = next(p for p in pending if str(p[1].model) == model)
+        item = next(p for p in pending if model_key(p[1].model) == model)
         pending.remove(item)
         return item
 
@@ -548,7 +559,7 @@ async def run_multiple(
                         result = (await _run_task(options)).log
                     finally:
                         in_flight -= 1
-                        model_counts[str(options.model)] -= 1
+                        model_counts[model_key(options.model)] -= 1
                         if result is not None:
                             results.append((idx, result))
                         if result is None or result.status == "cancelled":
@@ -564,7 +575,7 @@ async def run_multiple(
                     # dispatch up to the concurrency cap (model-balanced)
                     while not cancelled and in_flight < parallel and pending:
                         idx, options = pick_balanced()
-                        model_counts[str(options.model)] += 1
+                        model_counts[model_key(options.model)] += 1
                         in_flight += 1
                         tg.start_soon(run_one, idx, options)
 
@@ -634,9 +645,20 @@ async def run_task_retry_attempts(
     # model-balancing state (grows as tasks are injected)
     model_counts: dict[str, int] = {}
 
+    # A provider may rewrite its model's name mid-run — e.g. the vLLM provider
+    # resolves a "base:adapter" LoRA spec down to just "base" on the first
+    # generate(). Re-deriving the balancing key from the live str(model) would
+    # then decrement a different key than was incremented and raise KeyError at
+    # finalisation. Capture each model's name the first time it is seen and reuse
+    # that stable key for the lifetime of the run.
+    model_keys: dict[int, str] = {}
+
+    def model_key(model: Model) -> str:
+        return model_keys.setdefault(id(model), str(model))
+
     def note_models(options: list[TaskRunOptions]) -> None:
         for t in options:
-            model_counts.setdefault(str(t.model), 0)
+            model_counts.setdefault(model_key(t.model), 0)
 
     # pending tasks: initial tasks keep their original order and injected tasks
     # are appended in arrival order, so results sort stably. A retry re-queues
@@ -671,9 +693,9 @@ async def run_task_retry_attempts(
     def pick_balanced() -> PendingTask:
         # among models that have pending tasks, pick the least-used one (keeps as
         # many different models running concurrently as possible)
-        models_with_pending = {str(p.options.model) for p in pending}
+        models_with_pending = {model_key(p.options.model) for p in pending}
         model = min(models_with_pending, key=lambda m: model_counts[m])
-        item = next(p for p in pending if str(p.options.model) == model)
+        item = next(p for p in pending if model_key(p.options.model) == model)
         pending.remove(item)
         return item
 
@@ -756,7 +778,7 @@ async def run_task_retry_attempts(
                     # finalize atomically (no awaits below) so the dispatcher sees
                     # a consistent (in_flight, pending) snapshot
                     in_flight -= 1
-                    model_counts[str(options.model)] -= 1
+                    model_counts[model_key(options.model)] -= 1
                     if result is not None:
                         results[item.idx] = result
                     if retry_item is not None:
@@ -776,7 +798,7 @@ async def run_task_retry_attempts(
                     # dispatch up to the concurrency cap (model-balanced)
                     while not cancelled and in_flight < parallel and pending:
                         item = pick_balanced()
-                        model_counts[str(item.options.model)] += 1
+                        model_counts[model_key(item.options.model)] += 1
                         in_flight += 1
                         tg.start_soon(run_one, item)
 
