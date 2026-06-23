@@ -6,7 +6,16 @@ from copy import deepcopy
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
-from inspect_ai import Epochs, Task, eval, eval_async, eval_set, task
+from inspect_ai import (
+    Epochs,
+    Task,
+    TaskSource,
+    eval,
+    eval_async,
+    eval_set,
+    task,
+    task_source,
+)
 from inspect_ai._util._async import tg_collect
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
@@ -235,3 +244,37 @@ def test_eval_set_task_instance_warns_once(capture_eval_warnings) -> None:
     assert len(records) == 1, (
         f"expected exactly one unconsumed task_args warning, got {len(records)}"
     )
+
+
+class _SeedTasks(TaskSource):
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def initial_tasks(self) -> list[Task]:
+        return [
+            Task(dataset=[Sample(input=f"t{i}")], name=f"t{i}")
+            for i in range(self._count)
+        ]
+
+    async def next_tasks(self) -> list[Task] | None:
+        return None
+
+
+@task_source(name="task_args_warning_source")
+def task_args_warning_source(count: int = 1) -> TaskSource:
+    return _SeedTasks(count)
+
+
+def test_task_source_with_task_args_no_warning(capture_eval_warnings) -> None:
+    # task_args are consumed by the source (resolve_task_source) to build its
+    # seed; resolving the seed Task instances must not false-warn (#4194)
+    caplog = capture_eval_warnings
+    logs = eval(
+        "task_args_warning_source",
+        task_args={"count": 2},
+        model="mockllm/model",
+        display="none",
+    )
+    assert all(log.status == "success" for log in logs)
+    assert len(logs) == 2  # count applied by the source -> two seed tasks
+    assert not _task_args_warnings(caplog)
