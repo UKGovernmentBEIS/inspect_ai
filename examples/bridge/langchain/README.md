@@ -8,7 +8,7 @@ The example uses the [`agent_bridge()`](https://inspect.aisi.org.uk/agent-bridge
 |------------------|------------------------------------------------------|
 | [agent.py](agent.py)      | LangChain agent created using `agent_bridge()`. |
 | [task.py](task.py)       | Evaluation task which uses the agent.          |
-| [dataset.json](dataset.json) | Dataset with questions and ideal answers.                                              |
+| [dataset.json](../dataset.json) | Shared dataset with questions and ideal answers.                                   |
 | [requirements.txt](requirements.txt) | Dependencies for LangChain example. |
 
 
