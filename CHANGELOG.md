@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task (task_args only apply to tasks referenced by name or file; they are ignored for `Task` instances passed directly). (#4194)
+- Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task. (#4194)
 - AzureAI: Honor an explicitly supplied `api_key` instead of replacing it with an environment credential.
 - Google: Retry truncated response streams (`ClientPayloadError` wrapping a `PayloadEncodingError`, e.g. a connection reset mid-body) instead of crashing the sample.
 - Sandbox Tools: Lower the glibc build floor from 2.31 to 2.17 (build against a conda-forge CPython) so injected tools run on older glibc sandboxes including Ubuntu 16.04 and 18.04.
