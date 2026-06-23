@@ -217,6 +217,9 @@ class ModelAPI(abc.ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.api_key_vars = api_key_vars
+        # Use initial api_key value as a stable identifier for connection
+        # pooling purposes.
+        self.initial_api_key = api_key
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
