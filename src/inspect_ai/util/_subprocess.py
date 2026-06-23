@@ -174,14 +174,31 @@ async def subprocess(
             await gracefully_terminate_cancelled_subprocess(process)
             raise
         finally:
-            try:
-                await process.aclose()
-            except ProcessLookupError:
-                # the anyio ansycio backend calls process.kill() from within
-                # its aclose() method without an enclosing exception handler
-                # (which in turn can throw ProcessLookupError if the process
-                # is already gone)
-                pass
+            # Inlined process.aclose() with a bounded final wait. anyio's
+            # Process.aclose() re-shields and does an unbounded
+            # `await self.wait()` on its exception path; if asyncio's child
+            # watcher misses this process's exit (a known race under heavy
+            # subprocess churn — symptom: `unix_events.py: exit status already
+            # read`), that wait never resolves and the shield makes it
+            # uncancellable, deadlocking the caller's task group on teardown.
+            with anyio.CancelScope(shield=True):
+                for stream in (process.stdin, process.stdout, process.stderr):
+                    if stream is not None:
+                        with contextlib.suppress(Exception):
+                            await stream.aclose()
+                # Reach here on normal return (process already exited),
+                # cancellation (gracefully_terminate already SIGKILLed), or
+                # any other exception in the body — the last case can leave a
+                # live, never-signalled process. anyio's aclose() handled that
+                # by re-shield + kill(); preserve that here so the wait is
+                # actually post-SIGKILL on every path.
+                if process.returncode is None:
+                    with contextlib.suppress(ProcessLookupError):
+                        process.kill()
+                with anyio.move_on_after(LOST_SUBPROCESS_WAIT_TIMEOUT) as scope:
+                    await process.wait()
+                if scope.cancelled_caught:
+                    _warn_lost_subprocess(process, "aclose")
 
     # wrapper for run command that implements timeout
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
@@ -217,6 +234,26 @@ def default_max_subprocesses() -> int:
     return cpus if cpus else 1
 
 
+# Upper bound on `await process.wait()` after we have already SIGKILLed the
+# process. After SIGKILL the OS process is gone; we are only waiting for
+# asyncio's child-watcher callback to set `transport._returncode`. If that
+# callback was lost to a child-watcher race it will never fire, so any finite
+# bound is correct. 60s is far above plausible event-loop scheduling latency
+# under heavy load while still bounding teardown.
+LOST_SUBPROCESS_WAIT_TIMEOUT = 60
+
+
+def _warn_lost_subprocess(process: Process, where: str) -> None:
+    logger.warning(
+        "subprocess wait() did not return within %ds after SIGKILL (pid=%s, %s); "
+        "asyncio child watcher likely missed this process's exit. "
+        "Leaking transport to avoid deadlock.",
+        LOST_SUBPROCESS_WAIT_TIMEOUT,
+        process.pid,
+        where,
+    )
+
+
 async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
     with anyio.CancelScope(shield=True):
         try:
@@ -235,8 +272,11 @@ async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
             async with create_task_group() as tg:
                 tg.start_soon(drain_stream, process.stdout)
                 tg.start_soon(drain_stream, process.stderr)
-            # Wait for the process to exit. Will be called again by aclose().
-            await process.wait()
+            # Bounded: see LOST_SUBPROCESS_WAIT_TIMEOUT.
+            with anyio.move_on_after(LOST_SUBPROCESS_WAIT_TIMEOUT) as scope:
+                await process.wait()
+            if scope.cancelled_caught:
+                _warn_lost_subprocess(process, "gracefully_terminate")
         # The process may have already exited, in which case we can ignore the error.
         except ProcessLookupError:
             pass

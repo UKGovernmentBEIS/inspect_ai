@@ -7,6 +7,7 @@ from inspect_ai._util.registry import (
     registry_create,
     registry_info,
 )
+from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
@@ -119,6 +120,7 @@ __all__ = [
     "is_dockerfile",
     "JSONType",
     "JSONSchema",
+    "StrEnum",
     "json_schema",
     "Limit",
     "message_limit",

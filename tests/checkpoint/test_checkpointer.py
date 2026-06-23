@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -56,6 +55,7 @@ from inspect_ai.util._checkpoint.checkpointer_impl import (
     CheckpointFailureLimitExceeded,
     _CheckpointerSetup,
     _EnteredCheckpointer,
+    _scan_next_checkpoint_id,
 )
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
@@ -463,6 +463,16 @@ def _write_checkpoint_files(sample_root: Path, count: int) -> None:
         (sample_root / f"ckpt-{checkpoint_id:05d}.json").write_text(
             checkpoint.model_dump_json()
         )
+
+
+async def test_scan_next_checkpoint_id_reuses_torn_checkpoint_id(
+    tmp_path: Path,
+) -> None:
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    (sample_root / "ckpt-00003.json").write_text("{")
+
+    assert await _scan_next_checkpoint_id(str(sample_root)) == 3
 
 
 def _checkpoint_resume_events(count: int) -> list[Event]:
@@ -960,13 +970,6 @@ def _patch_restic(tmp_path: Path) -> Iterator[None]:
         yield
 
 
-@contextmanager
-def _patch_checkpointing_enabled() -> Iterator[None]:
-    """Set INSPECT_CHECKPOINTING=1 so `build_impl()` runs its real path."""
-    with patch.dict(os.environ, {"INSPECT_CHECKPOINTING": "1"}):
-        yield
-
-
 @pytest.fixture
 def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
     """Active sample fixture; redirects on-disk writes under tmp_path."""
@@ -977,7 +980,6 @@ def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
         _patch_cache_dir(tmp_path),
         _patch_restic(tmp_path),
         _patch_sample_runtime([]),
-        _patch_checkpointing_enabled(),
     ):
         yield fake
 

@@ -47,6 +47,7 @@ RegistryType = Literal[
     "scorer",
     "solver",
     "task",
+    "task_source",
     "tool",
     "loader",
     "scanner",

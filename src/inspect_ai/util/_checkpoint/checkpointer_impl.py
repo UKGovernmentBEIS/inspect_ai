@@ -61,7 +61,7 @@ from ._layout.host_context import (
     STORE,
 )
 from ._layout.sample_checkpoints_dir import (
-    _list_checkpoint_ids,
+    scan_latest_committed_id,
     write_checkpoint_file,
 )
 from ._layout.schemas import Checkpoint, SnapshotDetails
@@ -429,11 +429,9 @@ class _EnteredCheckpointer:
         # the per-checkpoint file.
         cycle_start = time.monotonic()
 
-        # Checkpoint file numbering continues from any checkpoint files
-        # already present in the dir (incl. those FS-copied from a prior
-        # eval on resume). Scanned per-fire rather than tracked in
-        # memory so the count naturally bridges resumed runs without an
-        # explicit handoff.
+        # Checkpoint file numbering continues from the latest committed
+        # checkpoint. Torn checkpoint files are intentionally ignored so
+        # the next successful fire can replace them.
         next_checkpoint_id = await _scan_next_checkpoint_id(self._sample_root)
 
         # Wrap the whole fire in a trace action so an in-progress fire is
@@ -690,14 +688,12 @@ class _EnteredCheckpointer:
 async def _scan_next_checkpoint_id(sample_root: str) -> int:
     """Return the next checkpoint file ordinal for this sample.
 
-    Walks the sample root for ``ckpt-NNNNN.json`` filenames and returns
-    ``max(N) + 1`` — or 1 if none exist yet. Used by ``_fire`` so the
-    count continues across resume without an explicit handoff through
-    ``_hydrate``.
+    Uses the latest parseable checkpoint file as the commit point. A
+    torn ``ckpt-NNNNN.json`` is not committed, so the next successful
+    fire reuses that id instead of skipping ahead.
     """
-    ids = await _list_checkpoint_ids(sample_root)
-    next_id = (max(ids) + 1) if ids else 1
-    return next_id
+    latest = await scan_latest_committed_id(sample_root)
+    return latest + 1 if latest is not None else 1
 
 
 def _restic_tag(checkpoint_id: int) -> str:

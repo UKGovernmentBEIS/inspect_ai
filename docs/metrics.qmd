@@ -55,6 +55,14 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
     Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the `num_samples` option).
 
+-   `frequency()`
+
+    Frequency of each distinct categorical score value. By default this reports proportions over scored observations; pass `normalize=False` to report counts. If a task uses epochs, `frequency()` receives unreduced epoch scores, so each scored sample epoch is an observation.
+
+-   `categorical()`
+
+    Convenience helper for categorical scorers. Returns `frequency()` with optional declared categories, typically from a `StrEnum`, so zero-count categories are included and metrics can be recomputed from logs.
+
 ## Metric Grouping
 
 The `grouped()` function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.
@@ -195,9 +203,9 @@ The eval log reports `mean`, `stderr`, and `pass_rate` for the `word_overlap` sc
 
 ## Reducing Epochs {#reducing-epochs}
 
-If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs.
+If a task is run over more than one `epoch`, multiple scores will be generated for each sample. Metrics normally operate on a reduced score view, where epoch scores for each sample are combined into a single score.
 
-By default, this is done by taking the mean of all sample scores, but you may specify other strategies for reducing the samples by passing an `Epochs`, which includes both a count and one or more reducers to combine sample scores with. For example:
+By default, the reduced view is built with `mean`. You may specify other strategies by passing an `Epochs`, which includes both a count and one or more reducers to combine sample scores with. For example:
 
 ``` python
 @task
@@ -223,6 +231,18 @@ def gpqa():
         epochs=Epochs(5, ["at_least_2", "at_least_5"]),
     )
 ```
+
+Some metrics require unreduced epoch scores. These metrics run once over the raw sample-epoch scores, even when an explicit reducer is configured:
+
+``` python
+@scorer(metrics=[accuracy(), frequency()])
+def my_scorer() -> Scorer:
+    ...
+```
+
+With `epochs=Epochs(5, "mode")`, `accuracy()` receives one mode-reduced score per sample, while `frequency()` receives all scored sample-epoch values. With multiple reducers, reduced metrics run once for each reducer and unreduced metrics run once.
+
+If you disable reducers with `Epochs(n, [])` or `--no-epochs-reducer`, legacy `scores="auto"` metrics receive unreduced sample-epoch scores, preserving existing behavior. Metrics that explicitly declare `scores="reduced"` require a reducer when multiple epochs are present.
 
 ### Built-in Reducers
 
@@ -268,3 +288,23 @@ def mean_score() -> ScoreReducer:
 
     return reduce
 ```
+
+### Metrics and Reducers
+
+Metrics can declare that they need unreduced scores in order to properly compute their value using `scores`. For example:
+
+``` python
+@metric(scores="unreduced")
+def frequency_by_label() -> Metric:
+    ...
+```
+
+By default `scores="auto"` so metrics receive reduced scores unless epoch reducers are explicitly disabled. Use `scores="reduced"` for metrics that require one score per sample, and `scores="unreduced"` for metrics that require one score per sample epoch.
+
+| Metric score view | Input when epochs are used |
+|-------------------|----------------------------|
+| `scores="auto"` | Reduced scores, unless epoch reducers are explicitly disabled. |
+| `scores="reduced"` | Reduced scores; requires an epoch reducer when multiple epoch scores are present. |
+| `scores="unreduced"` | Raw sample-epoch scores, one observation for each scored epoch. |
+
+For example, `frequency()` declares `scores="unreduced"` because it reports the distribution of categorical outcomes across all scored observations.

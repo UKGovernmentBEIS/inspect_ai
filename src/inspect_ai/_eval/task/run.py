@@ -164,6 +164,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
+from .enqueue import get_task_enqueuer
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -181,6 +182,7 @@ from .scan import (
     scanned_transcripts_for_resume,
 )
 from .store import DiskSampleStore, maybe_page_to_disk
+from .task_source import TaskSource
 from .util import sample_messages, slice_dataset
 
 py_logger = getLogger(__name__)
@@ -270,6 +272,8 @@ class TaskRunOptions:
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
     initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
+    task_source: "TaskSource | None" = field(default=None)
+    """Run-level task source notified as this task's samples/task complete."""
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -302,6 +306,19 @@ def plan_agent_name(plan: Plan) -> str | None:
         if is_registry_object(last_step):
             return registry_unqualified_name(registry_info(last_step).name)
     return None
+
+
+def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
+    """Add tasks a TaskSource callback returned to the running eval's queue.
+
+    Routes through the run's enqueuer (the same buffer ``enqueue_task`` feeds), so
+    the eval loop drains them as the next batch. A no-op if the callback returned
+    nothing or there is no active enqueuer.
+    """
+    if tasks:
+        enqueuer = get_task_enqueuer()
+        if enqueuer is not None:
+            enqueuer.enqueue(tasks)
 
 
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
@@ -691,6 +708,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         return sample, state
 
                     return await task_run_sample(
+                        task=task,
                         task_name=task.name,
                         log_location=profile.log_location,
                         create_sample_state=create_sample_state,
@@ -713,6 +731,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
                         early_stopping=options.task.early_stopping,
+                        task_source=options.task_source,
                         fails_on_error=(
                             config.fail_on_error is not False
                             and config.continue_on_fail is not True
@@ -911,6 +930,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # restore sandbox limits
     reset_sandbox_limits(limit_tokens)
 
+    # notify a TaskSource (if the run has one) that this task is complete
+    # (it may return follow-up tasks to add to the run)
+    if options.task_source is not None:
+        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
+
     # return eval log
     return eval_log
 
@@ -968,7 +992,7 @@ def update_metrics_display_fn(
                         task_metrics.append(
                             TaskDisplayMetric(
                                 scorer=score.name,
-                                name=metric.name,
+                                name=key,
                                 value=metric.value,
                                 reducer=score.reducer,
                                 params=metric.params,
@@ -999,8 +1023,22 @@ def _sample_usage(state: TaskState) -> dict[str, int]:
     }
 
 
+def _sample_started() -> float | None:
+    """The just-finished sample's start time, for the eval's running-min start.
+
+    Read from the same sample-scoped timing contextvar that backs the logged
+    ``started_at`` (set when the sample began, still in scope in the terminal
+    block). Passed to ``record_sample_*`` so the eval's reported start pins to
+    its first sample even when that sample finished before any control poll
+    (see ``EvalState.started_at``). ``None`` for a sample that never started.
+    """
+    started = sample_start_datetime()
+    return started.timestamp() if started is not None else None
+
+
 async def task_run_sample(
     *,
+    task: Task,
     task_name: str,
     log_location: str,
     create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
@@ -1026,6 +1064,7 @@ async def task_run_sample(
     ],
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
+    task_source: TaskSource | None,
     retry_on_error: int,
     score_on_error: bool,
     error_retries: list[EvalRetryError],
@@ -1663,6 +1702,12 @@ async def task_run_sample(
                     await emit_sample_end(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
                     )
+                    # notify a TaskSource (if the run has one) as each sample
+                    # completes, so it can react in real time (and add tasks)
+                    if task_source is not None:
+                        _enqueue_source_tasks(
+                            await task_source.sample_complete(eval_sample, task)
+                        )
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
@@ -1683,6 +1728,7 @@ async def task_run_sample(
 
         # recurse w/ tick down of retry_on_error and append of error to error_retries
         return await task_run_sample(
+            task=task,
             task_name=task_name,
             log_location=log_location,
             create_sample_state=create_sample_state,
@@ -1705,6 +1751,7 @@ async def task_run_sample(
             sample_error=sample_error,
             sample_complete=sample_complete,
             early_stopping=early_stopping,
+            task_source=task_source,
             fails_on_error=fails_on_error,
             # tick retry count down
             retry_on_error=retry_on_error - 1,
@@ -1728,7 +1775,9 @@ async def task_run_sample(
         # a cancelled sample is terminal but not a genuine error — count it so
         # the eval can reach `total` and be marked finished (eg. a final-attempt
         # failure that cancels an in-flight sibling)
-        record_sample_cancelled(task_id, **_sample_usage(state))
+        record_sample_cancelled(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise cancelled_error
 
     # no error
@@ -1736,17 +1785,23 @@ async def task_run_sample(
         # call sample_complete callback if we have score results
         if results is not None:
             await sample_complete(state.sample_id, state.epoch, results)
-        record_sample_completed(task_id, **_sample_usage(state))
+        record_sample_completed(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return results
 
     # we have an error and should raise it
     elif raise_error is not None:
-        record_sample_errored(task_id, **_sample_usage(state))
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise raise_error
 
     # we have an error and should not raise it
     else:
-        record_sample_errored(task_id, **_sample_usage(state))
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return None
 
 

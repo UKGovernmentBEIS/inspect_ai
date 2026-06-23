@@ -8,7 +8,7 @@ This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though 
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
-> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl tasks` / `samples` / `sample` / `errors` / `events` / `release` commands, and the `--ctl-server` flag (on by default; `false` disables, `keep-alive` parks the process after the eval). **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits); **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
+> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl tasks` / `samples` / `sample` / `errors` / `events` / `release` commands, and the `--ctl-server` flag (on by default; `false` disables, `keep-alive` parks the process after the eval). **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** (in progress) adds the state-mutating directives — starting with adding a task to a running eval, then cancel / drain / requeue / modify-limits; **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
 
 ## Goals
 
@@ -76,6 +76,7 @@ inspect ctl tasks                              # list running tasks
 inspect ctl samples [TASK] [--active-since TS]  # per-sample table (status / retries / score / timing / idle)
 inspect ctl sample TASK SID [EPOCH] [-t]    # one sample's error history (--traceback for full)
 inspect ctl errors [TASK]                   # triage: samples that errored or were retried
+inspect ctl keep [--pid PID]               # keep a running process alive after its eval finishes
 inspect ctl release [--pid PID]            # release a lingering keep-alive process
 
 # phase 2 (shipped)
@@ -83,7 +84,8 @@ inspect ctl events TASK SID [EPOCH]         # one sample's transcript events (cu
                                             #   --since CURSOR / --tail N / --type / --full / --since-time / --until
                                             #   (-f / --follow push is phase 4)
 
-# phase 3 (directives)
+# phase 3 (directives) — first up: add a task
+inspect ctl add TASK [--model M] [-T k=v] [--dry-run]  # add a task to a running --ctl-server=keep-alive eval
 inspect ctl cancel <eval-id> [--force]      # cancel an eval (current sample drains; scoring runs)
 inspect ctl cancel-sample <eval-id> <sid>   # cancel one sample
 inspect ctl drain <eval-id>                 # stop accepting new samples; let in-flight finish
@@ -225,10 +227,12 @@ Phase annotations reflect the [Implementation](#implementation) plan; phases 1�
 | List samples (running + completed + pending) | `GET /evals/<id>/samples` | 1 ✅ |
 | Sample error detail | `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` | 1 ✅ |
 | Release a `--ctl-server=keep-alive` park | `POST /release` | 1 ✅ |
+| Set keep-alive on a running process | `POST /keep` | 1 ✅ |
 | Samples changed since (recency delta) | `GET /evals/<id>/samples?active_since=<ts>` | 2 ✅ |
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | `GET /evals/<id>/samples/<sid>/events` (SSE) | 4 |
 | Eval-wide transcript fan-in (push only) | `GET /evals/<id>/samples/events` (SSE) | 4 |
+| Add a task to a running eval | `POST /evals` (task spec → new sibling eval under this run) | 3 |
 | Cancel eval | `POST /evals/<id>/cancel` | 3 |
 | Drain | `POST /evals/<id>/drain` | 3 |
 | Requeue sample | `POST /evals/<id>/samples/<sid>/requeue` | 3 |
@@ -241,7 +245,7 @@ Notes on the built shape vs the original plan:
 
 - **Eval status detail** was folded into `GET /evals` rather than a separate `GET /evals/<id>` — the list is already per-task (folded across retry attempts) and small, so the CLI fetches it and resolves a target client-side.
 - **Sample detail** is keyed by `(sample_id, epoch)` (epochs make that the real identity) and is scoped to **error** detail (current error + `error_retries`) rather than a full sample dump. `sample_id` is a **query parameter**, not a path segment: sample ids are arbitrary strings and may contain `/`, `?`, `#`, etc., which a path segment can't carry — a query param is URL-encoded end to end.
-- **`POST /release`** is process-scoped (no eval id) — it releases the keep-alive park for the whole process.
+- **`POST /release`** and **`POST /keep`** are process-scoped (no eval id) — they release / set the keep-alive park for the whole process. `keep` is the inverse of `release`: it latches keep-alive on a process launched without it, so the process parks (and stays inspectable) after its eval finishes.
 
 Destructive endpoints (phase 3+) accept `?dry_run=true` to return "would do X" without doing it (per the agent shape constraints).
 
@@ -428,6 +432,8 @@ Without help from the process lifecycle, LLM-agent workflows have a race conditi
 
 The fix is an explicit handoff: `--ctl-server=keep-alive` parks the process after the eval body completes, and `inspect ctl release` is the signal the agent issues when it's done. (Keep-alive is a *value* of the `--ctl-server` flag rather than a flag of its own because it presupposes the server — a parked process with no control endpoint could never be released. See "Flags" below.)
 
+Keep-alive can also be set **at runtime** on an already-running process via `inspect ctl keep` (`POST /keep`) — the inverse of `release`. This covers the "I launched it normally, but now I want to inspect it after it finishes" case without relaunching. Both the launch flag and the runtime commands feed one **process-global keep-alive intent**: the launch path sets it before the control server binds; `POST /keep` (on) and `POST /release` (off) toggle it any time before the eval finishes; both parks gate on it (so a runtime request is honoured), and the `GET /evals` summaries report its live value so `inspect ctl tasks` shows the current keep-alive status (`on` / `off` / `mixed` across processes). The intent is **last-write-wins** — keep → release → keep while the eval is still running leaves the process in the keep state — rather than "release is sticky"; the park re-checks the intent on every keep/release, so a keep that follows a release re-arms the park. The intent resets at the outermost run boundary, and for an eval-set the *eval-set* owns it — it sets the intent before its inner `eval()` binds the run's server, so that server reports keep-alive and the inner `eval()` doesn't reset it (its standalone reset is gated on `eval_set_id is None`).
+
 **What the value does.**
 
 - `inspect eval <task> --ctl-server=keep-alive` — after the eval body returns (including scoring + log write), the process blocks on the control endpoint's shutdown event. The control server stays bound. `inspect ctl tasks` continues to show the eval (with `samples.completed == total` and a final status), and the log files are present at their final paths. `POST /release` (issued by `inspect ctl release` or any HTTP client) releases the block; the process tears down its server and exits.
@@ -448,7 +454,7 @@ This works because in the common case `eval_set` is *also* a single `eval()` cal
 
 **Implementation sketch.**
 
-- **Loop-native shutdown event.** `ControlServer` holds a `shutdown_event: anyio.Event` (not a `threading.Event`). The `POST /release` route sets it; `wait_for_shutdown_async(server)` is just `await server.shutdown_event.wait()`. Both the route and the waiter run on the same eval loop, so no thread or cross-loop bridge is needed. Release also **latches process-wide** (a module-level flag reset at the outermost run boundary): received while the eval is still running it means "exit when done", so both parks check the latch and skip — necessary for the eval-set park in particular, whose fresh server (and fresh event) couldn't otherwise see a release received by the run's server. (An earlier design parked on a `threading.Event` via `anyio.to_thread.run_sync`; that left an abandoned non-daemon worker thread blocked on `Event.wait()` after a Ctrl-C, which is why the loop-native event replaced it.)
+- **Loop-native park condition.** `ControlServer` holds a `_park_cond: anyio.Condition` (not a `threading.Event`). `wait_for_shutdown_async(server)` delegates to `server.wait_for_release()`, which parks while the module-level keep-alive intent holds and re-checks it whenever `POST /release` wakes it via `notify_park_change()`. Only `/release` notifies — the park exits on a transition to *off*, so `/keep` (which sets the intent *on*) has nothing to wake; it just leaves the intent on for the park to honour. A condition rather than a one-shot `anyio.Event` because the intent is **last-write-wins**: a one-shot event, once set by a release, could not be re-armed, so a keep that followed a release would be ignored. Both the routes and the waiter run on the same eval loop, so no thread or cross-loop bridge is needed. The intent **latches process-wide** (a module-level flag reset at the outermost run boundary), so the eval-set park — whose fresh server has its own fresh condition — still sees a keep/release received by the run's server. (An earlier design parked on a `threading.Event` via `anyio.to_thread.run_sync`; that left an abandoned non-daemon worker thread blocked on `Event.wait()` after a Ctrl-C, which is why the loop-native primitive replaced it.)
 - **Registry lifecycle: register on start, clear at the run boundary.** `task_run.py` *always* `register_eval`s a task and never unregisters it per-task — so a completed eval stays visible to `ctl tasks` for the rest of the run (including any keep-alive park) without a special "keep-alive active" flag. `clear_all_eval_states()` is called once at the outermost run boundary: `_eval_async_inner`'s `finally` when `eval_set_id is None` (standalone eval), or `eval_set`'s `finally` (eval-set). This replaced the earlier `keep_alive_active()` flag + per-task `unregister_eval` + `keep_alive_session` helper, which were removed.
 - **Standalone eval parks inline.** `_eval_async_inner` opens `control_server(...)` + `acp_server(...)`, runs the eval body, then — still inside those contexts — prints the keep-alive notice and `await wait_for_shutdown_async(server)` when `ctl_server="keep-alive"`. One control server, parked while it's still bound.
 - **Eval-set parks *after* the task display closes.** Eval-set runs its single inner `eval()` (which binds its own control server for the duration of the run, with `eval_set_id` set so that `eval()` does **not** park or clear). After the display tears down and the console summary prints, `eval_set` calls `run_coroutine(_keep_alive_park(eval_set_id))`: a fresh `control_server` is bound on a new loop and parked on its shutdown event. Two sequential server bindings (one during the run, one during the park), both serving the **same** process-global `EvalState` registry — so the surface is continuous across the brief gap while the summary prints. (Doing the park *after* the display closes is deliberate: otherwise the "keeping alive" notice lands inside the live task-display pane instead of the console.) The all-reused short-circuit — every task satisfied by a prior successful log, so `eval()` is never called — reaches the same `_keep_alive_park` with the reused logs already in the registry, so the parked surface looks identical.
@@ -519,8 +525,8 @@ The always-on read surface plus the process-lifecycle plumbing agents need. Give
   - `GET /evals` — folded per-task summaries (subsumes the originally-planned `GET /evals/<id>` status detail; the CLI reads the whole list and resolves a task client-side).
   - `GET /evals/<id>/samples` — all of an eval's samples (running + completed + pending), merged from `active_samples` + the recorder's live summaries (falling back to the on-disk log) + the planned `(sample_id, epoch)` set. Running samples carry `last_activity_at` (unix ts of the sample's most recent transcript event) and `events` (a live event count) so a consumer can tell "stalled" from "working" — `now - last_activity_at` is the sample's idle time — without diffing successive polls. (Caveat: a single in-flight model generation emits no event until it returns, so neither field advances *within* one long call — the per-sample `events` stream has the same blind spot; closing it needs streaming token deltas or a "current operation" indicator via the `execution_observer`, out of scope here.)
   - `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` — one sample's error detail: current error + prior-attempt `error_retries` (running samples sourced from `active_samples`, terminal ones from the log). `sample_id` is a query param so string ids with reserved chars (`/`, `?`, `#`) address correctly.
-- **`POST /release`** — releases a `--ctl-server=keep-alive` park. The only write endpoint in phase 1, and it acts on the process, not on eval state.
-- **CLI (`inspect ctl`, `--json` throughout):** `tasks` (running tasks), `samples [TASK]` (per-sample table: status / retries / score / timing / idle / tokens), `sample TASK SAMPLE_ID [EPOCH] [--traceback]` (one sample's error history), `errors [TASK]` (triage list of errored / retried samples), `release [--pid]`. `TASK` resolves by task-id prefix, then task-name (anchored at the name start or after a `/`); a sole running task is the default.
+- **`POST /release`** / **`POST /keep`** — release / set a keep-alive park. The only write endpoints in phase 1, and they act on the process, not on eval state. `/keep` is the inverse of `/release`: it latches keep-alive (the same process-global latch the launch flag sets and both parks gate on), so a process launched without `--ctl-server=keep` parks after its eval. The intent is last-write-wins — a keep that follows a release re-arms the park.
+- **CLI (`inspect ctl`, `--json` throughout):** `tasks` (running tasks; a keep-alive status footer reports `on` / `off` / `mixed` across processes), `samples [TASK]` (per-sample table: status / retries / score / timing / idle / tokens), `sample TASK SAMPLE_ID [EPOCH] [--traceback]` (one sample's error history), `errors [TASK]` (triage list of errored / retried samples), `keep [--pid]` (park a running process after its eval), `release [--pid]`. `TASK` resolves by task-id prefix, then task-name (anchored at the name start or after a `/`); a sole running task is the default.
 - **Retry + cancellation surfacing.** Sample retry counts — both sample-level `retry_on_error` and task-level retries (the latter seeded onto the re-run via the sample source, and carried across attempts that tear a sample down before it re-runs) — appear in `samples`; prior-attempt errors in `sample` / `errors`. A cancellation (a sibling failure tore the attempt down) is **not** a genuine error: it renders as `pending` when a retry will re-run the sample, `cancelled` when terminal — never `error`. This avoids the misleading "all samples error" snapshot during a retry teardown.
 - **`--ctl-server`** on `inspect eval` / `inspect eval-set` — on/off plus the `keep-alive` park value (see Implementation notes).
 
@@ -590,12 +596,41 @@ Unlocks watchdog agents (cursored polling). Live-render TUIs follow once phase-4
 
 ### Phase 3 — modification (direct) methods
 
-The first endpoints that **mutate eval state**, each idempotent and supporting `?dry_run=true` / `--dry-run` from day one:
+The first endpoints that **mutate the run**, each idempotent and supporting `?dry_run=true` / `--dry-run` from day one. The first directive built is **adding a task to a running eval**; the rest (cancel / drain / requeue / modify-limits) follow. The Security model's "future hardening" (SO_PEERCRED UID check, self-targeting guard) lands with this phase, since it introduces the first state-mutating writes.
+
+#### Add a task to a running eval
+
+`POST /evals` (CLI: `inspect ctl add TASK [...]`) submits a **task spec** that runs in the target process under the same `run_id`, appearing as a new sibling eval in `ls` / `samples` / `events`. Returns the new `eval_id`.
+
+**A spec, not a `Task`.** The wire is HTTP/JSON; a `Task` carries code (solvers, scorers, dataset). So the directive carries a *spec* — registry name or file path, `-T` task args, model, config / limit overrides — which the running process resolves in-process via the registry, exactly as `inspect eval <name>` does at launch. A task the process can't resolve (not importable in its environment) fails with a clear error; `--dry-run` surfaces that before committing.
+
+**Coupled to `--ctl-server=keep-alive`.** A normal eval ends when its initial task set drains, so there's no stable window to add to (an agent would race the teardown). Add-task is therefore a capability of an *addable* run — one launched with `--ctl-server=keep-alive`. An eval not launched addable rejects the directive with a clear error.
+
+**Two add paths, one discriminator.** "Are tasks currently running?" is exactly "is the live work-queue open?":
+
+- **Inject — tasks running.** The scheduler's queue is open → resolve the spec, mint identity + logger, enqueue it; a worker picks it up and it appears in the current task display.
+- **Restart — parked.** The run has drained and the process is parked (keep-alive, *outside* the display) → start a fresh scheduler session, re-launching the task display, for the added task(s) under the same `run_id`; on drain, return to the park. The park stays where it is today (after the eval body) — it just gains the ability to relaunch a session.
+
+The queue-closed check *is* the running→parked test, so the two paths can't both fire. An add that lands during the handoff (queue closing, display tearing down, park not yet entered) is **buffered**; the park drains buffered specs on entry — so an add is never lost regardless of timing.
+
+**Always the scheduler path (`run_single` deprecated).** Today `eval_run` uses `run_single` for `parallel==1` (all samples in one task group, no queue) and `run_multiple` (a worker pool over a `memory_object_stream`) for `parallel>1` — only the latter is injectable. Rather than maintain two shapes, **`run_single` is deprecated**: every run goes through the `run_multiple` scheduler (`parallel==1` ⇒ one worker), so a live queue always exists while the display is up and the inject path is uniform. The visible change is that a single-task run renders via the multi-task screen; behaviour is otherwise unchanged.
+
+**Workers.** An addable session **pre-starts `parallel` workers** — idle workers are suspended coroutines (no CPU, not shown in the display), so an injected task runs immediately instead of waiting for a busy worker to free, and there's no need to grow the pool mid-run. (Lazy spawn-on-inject is possible but needs a supervisor task *inside* the scheduler's group to own `start_soon` — a route can't spawn into a nursery it isn't inside — so pre-start is both simpler and effectively free.)
+
+**Identity & logging.** The added task joins the existing `run_id` with a fresh `eval_id` / `task_id` and its own log file in the run's `log_dir`; it `register_eval`s like any task, so the read surface covers it immediately and an agent gets back an `eval_id` it can then poll.
+
+**Wiring.** Mirrors the `--release` precedent (a route signalling the eval's own loop). The runner registers an `add_task` capability — a state-aware callback alongside `summaries_provider` / `sample_provider` on the process-global state — that either injects into the live queue or buffers for the park. The route resolves the spec on the eval's loop and invokes it; the response is deterministic (the new `eval_id`, a structured error, or a dry-run report).
+
+**`--dry-run`.** Resolves and validates the spec (task importable, model available, args type-check) and reports what *would* run (identity, model, sample count) without minting a log or starting work.
+
+**Scope.** Standalone `inspect eval --ctl-server=keep-alive` first; eval-set — which owns its own retry loop and task resolution — is a later increment.
+
+#### Other directives
 
 - `POST /evals/<id>/cancel` + `inspect ctl cancel` — graceful drain vs `--force`.
 - `POST /evals/<id>/drain`, `POST /evals/<id>/samples/<sid>/requeue`, `PATCH /evals/<id>` (modify per-sample limits / concurrency) + their CLI wrappers.
 
-These are the bigger eval-runner changes (live config mutation, requeue). The Security model's "future hardening" (SO_PEERCRED UID check, self-targeting guard) lands with this phase, since it introduces the first state-mutating writes.
+These are the bigger eval-runner changes (live config mutation, requeue).
 
 ### Phase 4 — push (SSE)
 
