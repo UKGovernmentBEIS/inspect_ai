@@ -6,6 +6,7 @@
 - Google: Retry truncated response streams (`ClientPayloadError` wrapping a `PayloadEncodingError`, e.g. a connection reset mid-body) instead of crashing the sample.
 - Sandbox Tools: Lower the glibc build floor from 2.31 to 2.17 (build against a conda-forge CPython) so injected tools run on older glibc sandboxes including Ubuntu 16.04 and 18.04.
 - Control Channel: `inspect ctl tasks` now pins each eval's reported start to its first sample's start instead of letting it drift forward as early samples finish.
+- Control Channel: `inspect ctl` reads now use a 15s timeout and retry a busy eval up to 8 times (printing a status on each timeout) before failing with a non-zero exit, instead of silently dropping a momentarily-unresponsive eval from the listing.
 - Inspect view: Improve MathJax Sanitization
 - Inspect view: Fix stale running status on nav
 - Inspect view: Fix broken commit links for ssh-style GitHub origins
