@@ -24,6 +24,7 @@ from typing import (
     Type,
     TypeAlias,
     cast,
+    final,
 )
 
 if TYPE_CHECKING:
@@ -417,7 +418,11 @@ class ModelAPI(abc.ABC):
     def connection_key(self) -> str:
         """Scope for enforcement of max_connections (and adaptive concurrency).
 
-        Two model instances that return the same key share one connection pool.
+        Two instances of the *same provider* that return the same key share one
+        connection pool. Callers should use `connection_pool_key()`, which adds
+        the provider namespace so distinct providers never collide (see there);
+        this method only needs to distinguish accounts/models within a provider.
+
         Providers that scope by API key should use `self.initial_api_key` here,
         NOT the live `self.api_key`: the live key can rotate mid-eval (e.g. a
         credential hook refreshing it via `initialize()`), and keying on it
@@ -425,6 +430,28 @@ class ModelAPI(abc.ABC):
         ``initial_api_key`` is fixed at construction, so the scope stays stable.
         """
         return "default"
+
+    @final
+    def connection_pool_key(self) -> str:
+        """Provider-namespaced connection-pool key used by the model layer.
+
+        Final on purpose: providers customize pooling by overriding
+        `connection_key()` (their intra-provider scope); this wrapper owns the
+        provider namespacing and must stay consistent across all providers, so
+        it is not an override point.
+
+        Prefixes `connection_key()` with the provider class so two providers
+        serving the same model don't share a pool (e.g. `openai/gpt-5` and
+        `azureai/gpt-5`, whose `connection_key()` both reduce to `None:gpt-5`
+        when their api keys are elided). Namespacing here rather than in each
+        provider's `connection_key()` means a provider can't accidentally omit
+        it — `connection_key()` only owns its intra-provider scope.
+
+        This key is internal — an in-process semaphore scope, never displayed —
+        so it uses the class name (unique per provider, available without
+        registry plumbing) rather than the registry provider name.
+        """
+        return f"{type(self).__name__}:{self.connection_key()}"
 
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
         """Whether compaction should add `redacted_reasoning_tokens` to its input estimate.
@@ -928,7 +955,7 @@ class Model:
                 config.max_tokens = self.api.max_tokens()
 
         model_name = ModelName(self)
-        key = f"ModelCompact({self.api.connection_key()})"
+        key = f"ModelCompact({self.api.connection_pool_key()})"
 
         async with concurrency(f"{model_name}_compact", 10, key, visible=False):
 
@@ -1364,8 +1391,8 @@ class Model:
     # (which would likely cause the rate limit to be exceeded). conversely if
     # you are using distinct models/endpoints/accounts within an eval you should
     # be able get the full max_connections for each of them. subclasses can
-    # override the _connection_key() argument to provide a scope within which
-    # to enforce max_connections (e.g. by account/api_key, by endpoint, etc.)
+    # override connection_key() to provide a scope within which to enforce
+    # max_connections (e.g. by account/api_key, by endpoint, etc.)
 
     @contextlib.asynccontextmanager
     async def _connection_concurrency(
@@ -1382,7 +1409,7 @@ class Model:
         )
 
         model_name = ModelName(self)
-        key = f"Model{self.api.connection_key()}"
+        key = f"Model{self.api.connection_pool_key()}"
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
         # rules — both silent — keep deliberate overrides working under

@@ -43,6 +43,14 @@ class _StubAPI(ModelAPI):
         return f"{self.initial_api_key}:{self.model_name}"
 
 
+class _OpenAIStubAPI(_StubAPI):
+    """Stub standing in for the openai provider."""
+
+
+class _AzureAIStubAPI(_StubAPI):
+    """Stub standing in for the azureai provider."""
+
+
 def _install_rotating_override(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make every override_api_key() call return a fresh, distinct token.
 
@@ -119,3 +127,16 @@ def test_env_var_keys_collapse_to_shared_pool_per_model() -> None:
     assert a.initial_api_key is None
     assert a.connection_key() == b.connection_key()
     assert a.connection_key() != c.connection_key()
+
+
+def test_connection_pool_key_disambiguates_providers_with_elided_key() -> None:
+    # Two providers serving the same model name (e.g. openai/gpt-5 and
+    # azureai/gpt-5) must not share a pool just because their api keys are
+    # elided to None. Their connection_key() collides ("None:gpt-5"); the
+    # provider-class prefix added by connection_pool_key() keeps them distinct.
+    openai = _OpenAIStubAPI("gpt-5")
+    azure = _AzureAIStubAPI("gpt-5")
+
+    assert openai.connection_key() == azure.connection_key() == "None:gpt-5"
+    assert openai.connection_pool_key() == "_OpenAIStubAPI:None:gpt-5"
+    assert azure.connection_pool_key() == "_AzureAIStubAPI:None:gpt-5"
