@@ -729,6 +729,16 @@ class GoogleGenAIAPI(ModelAPI):
             ),
         ):
             return RetryDecision.transient()
+        # A ClientPayloadError means the response body was truncated mid-stream
+        # (connection reset by peer / intermediary), not a request defect. aiohttp
+        # exposes the parser cause as __cause__; PayloadEncodingError covers both
+        # the chunked (TransferEncodingError) and Content-Length (ContentLengthError)
+        # framings of a cut-off stream, while leaving a corrupt-compression
+        # DecompressionError to fall through as non-retryable.
+        if isinstance(ex, aiohttp.ClientPayloadError) and isinstance(
+            ex.__cause__, aiohttp.http_exceptions.PayloadEncodingError
+        ):
+            return RetryDecision.transient()
         return RetryDecision.no()
 
     @override
