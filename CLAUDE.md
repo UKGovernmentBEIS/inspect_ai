@@ -53,7 +53,7 @@ When asked to open a PR, don't stop at creation — monitor it afterward: watch 
 
 For changes to product functionality (not test-only or build-only changes), add a CHANGELOG entry: a single-line, single-sentence item in the `## Unreleased` section at the top of `CHANGELOG.md` (create that section if it doesn't exist), grouped with similar existing items when there are any, otherwise appended to the list. After updating a branch against its base, re-check that the entry is still under `## Unreleased` — a merge can relocate it under a released heading; move it back if so.
 
-Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless the task is explicitly about that submodule. A merge can silently keep a stale submodule pointer on your branch instead of advancing to the base's — the `submodule-on-main` CI check then fails. After any merge/rebase, run `git diff <base>..HEAD -- <submodule-path>` (or check `git status`/`git submodule status`); if the gitlink differs from the base and your change isn't about the submodule, reset it with `git checkout <base> -- <submodule-path>` and commit. Don't run `git submodule update` in a way that records a new pointer.
+Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless the task is about that submodule. After any merge/rebase, check `git status`; if it shows the submodule modified, reset the pointer to the base and commit: `git checkout origin/main -- src/inspect_ai/_view/ts-mono`. (`git submodule update` will NOT fix this — it syncs the working tree to the already-recorded pointer, not the reverse.)
 
 ### Opening an upstream PR from an org fork
 
