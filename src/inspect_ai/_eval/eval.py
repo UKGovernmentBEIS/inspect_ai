@@ -1,8 +1,10 @@
 import contextlib
+import functools
 import logging
 import os
 import sys
 from contextlib import nullcontext
+from contextvars import Token, copy_context
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -12,8 +14,9 @@ from anyio.abc import TaskGroup
 from inspect_ai._control.eval_state import clear_all_eval_states
 from inspect_ai._control.server import (
     control_server,
-    release_requested,
-    reset_release_requested,
+    keep_alive_intent,
+    request_keep_alive,
+    reset_keep_alive,
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
@@ -88,9 +91,15 @@ from inspect_ai.util._display import (
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_tasks
-from .run import eval_run
-from .task import Epochs, PreviousTask
+from .loader import resolve_task_source, resolve_tasks
+from .run import TaskInjection, eval_run
+from .task import Epochs, PreviousTask, Task, TaskSource
+from .task.enqueue import (
+    TaskEnqueuer,
+    clear_task_enqueuer,
+    create_task_enqueuer,
+    register_task_enqueuer,
+)
 from .task.resolved import ResolvedTask, resolved_model_names
 from .task.tasks import Tasks
 
@@ -187,7 +196,7 @@ def eval(
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -460,7 +469,7 @@ async def eval_async(
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -551,10 +560,12 @@ async def eval_async(
     # have already initialized
     resolve_ctl_server(ctl_server)
 
-    # clear any release latch left by a prior run in this process (we run
-    # before this run's control server binds, so a release received during
-    # the run still latches)
-    reset_release_requested()
+    # clear a stale keep-alive intent left by a prior run in this process —
+    # but only for a standalone eval. When nested in an eval-set (eval_set_id
+    # set), eval_set() owns the intent: it sets it BEFORE this inner eval()
+    # runs to advertise the impending park, so resetting here would erase it.
+    if eval_set_id is None:
+        reset_keep_alive()
 
     result: list[EvalLog] | None = None
 
@@ -731,6 +742,7 @@ async def _eval_async_inner(
 
     run_id = uuid()
 
+    enqueuer_token: Token[TaskEnqueuer | None] | None = None
     try:
         # intialise eval
         model = eval_init(
@@ -745,7 +757,16 @@ async def _eval_async_inner(
             **kwargs,
         )
 
-        # resolve tasks
+        # A TaskSource drives the run dynamically: its initial_tasks() seed the
+        # run (resolved + validated up front like any task list) and become the
+        # first batch; next_tasks() then feeds subsequent batches (see the eval
+        # loop below). `tasks` may be a TaskSource instance or refer to one (a
+        # @task_source function, a registered name, or a file.py@name spec); any
+        # other task form resolves directly.
+        task_source = resolve_task_source(tasks, task_args)
+
+        # resolve tasks (a TaskSource seeds the run from initial_tasks(),
+        # resolved inside eval_resolve_tasks' initialized model/role context)
         resolved_tasks, approval = eval_resolve_tasks(
             tasks,
             task_args,
@@ -757,6 +778,7 @@ async def _eval_async_inner(
             sample_shuffle,
             checkpoint,
             notification,
+            task_source=task_source,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -873,11 +895,13 @@ async def _eval_async_inner(
             acp_server=acp_server,
         )
 
-        # run tasks - 2 codepaths, one for the traditional task at a time
-        # (w/ optional multiple models) and the other for true multi-task
-        # (which requires different scheduling and UI)
-        task_definitions = len(resolved_tasks) // len(model)
-        parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
+        # Max concurrently-executing (task × model) units. An explicit
+        # max_tasks bounds it directly — including a single task definition
+        # fanned across models, so `max_tasks=1` runs model-by-model rather
+        # than all at once (see issue #4195). When unset it has already been
+        # defaulted above to the model count (run all models in parallel) for
+        # the multi-model case, else None → 1 (one task at a time).
+        parallel = max_tasks if max_tasks is not None else 1
 
         # set run shape for log record enhancement
         if eval_config.epochs is not None:
@@ -924,55 +948,53 @@ async def _eval_async_inner(
         # control channel coming up. See design/control-channel.md
         # "Implementation notes".
         #
-        ctl_enabled, ctl_keep_alive = resolve_ctl_server(ctl_server)
+        ctl = resolve_ctl_server(ctl_server)
+        # Advertise keep-alive via the process-global latch (the single source
+        # of truth the control server reports and the park gates on). A runtime
+        # `POST /keep` sets the same latch. An eval-set demotes its inner eval()
+        # to a plain on/off server and owns the latch itself, so ctl.keep_alive
+        # is only ever set here for a standalone eval.
+        if ctl.keep_alive:
+            request_keep_alive()
+
+        # Register a task enqueuer so additional tasks can be added to this run
+        # while it's in progress — imperatively via `enqueue_task`, or
+        # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
+        # the run's models / config; the eval loop below runs them under this
+        # run_id after each batch.
+        resolve_added_tasks = functools.partial(
+            _resolve_enqueued_tasks,
+            models=model,
+            model_roles=model_roles,
+            config=GenerateConfig(**kwargs),
+            sandbox=sandbox,
+            sample_shuffle=sample_shuffle,
+            checkpoint=checkpoint,
+            cost_limit=cost_limit,
+        )
+        enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
+        enqueuer_token = register_task_enqueuer(enqueuer)
+
         async with (
-            control_server(run_id=run_id, enabled=ctl_enabled) as _ctl_server,
+            control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
         ):
             with scan_cm:
-                # single task definition (could be multi-model) or max_tasks capped to 1
-                if parallel == 1:
-                    results: list[EvalLog] = []
-                    for sequence in sorted(set(t.sequence for t in resolved_tasks)):
-                        task_batch = list(
-                            filter(lambda t: t.sequence == sequence, resolved_tasks)
-                        )
-                        results.extend(
-                            await eval_run(
-                                eval_set_id=eval_set_id,
-                                run_id=run_id,
-                                tasks=task_batch,
-                                parallel=parallel,
-                                eval_config=eval_config,
-                                eval_checkpoint=checkpoint,
-                                recorder=recorder,
-                                header_only=log_header_only,
-                                epochs_reducer=epochs_reducer,
-                                solver=solver,
-                                scanner=scanner,
-                                scan_id=scan_id,
-                                tags=tags,
-                                metadata=metadata,
-                                run_samples=run_samples,
-                                score=score,
-                                debug_errors=debug_errors is True,
-                                task_retry_attempts=task_retry_attempts,
-                                **kwargs,
-                            )
-                        )
-                        # exit the loop if there was a cancellation
-                        if any([result.status == "cancelled" for result in results]):
-                            break
-
-                    # return list of eval logs
-                    logs = EvalLogs(results)
-
-                # multiple task definitions AND tasks not capped at 1
-                else:
-                    results = await eval_run(
+                # The one place eval_run is invoked for a batch of tasks. The
+                # initial tasks run as the first loop iteration below; tasks
+                # added during the run (via `enqueue_task` or a `TaskSource`)
+                # feed later iterations, all under this run_id. `debug_errors`
+                # is passed only on the parallel==1 path (the multi-task path
+                # never set it — preserved asymmetry).
+                async def run_batch(
+                    tasks: list[ResolvedTask],
+                    debug: bool,
+                    inject: TaskInjection | None = None,
+                ) -> list[EvalLog]:
+                    return await eval_run(
                         eval_set_id=eval_set_id,
                         run_id=run_id,
-                        tasks=resolved_tasks,
+                        tasks=tasks,
                         parallel=parallel,
                         eval_config=eval_config,
                         eval_checkpoint=checkpoint,
@@ -986,19 +1008,96 @@ async def _eval_async_inner(
                         metadata=metadata,
                         run_samples=run_samples,
                         score=score,
+                        debug_errors=debug,
                         task_retry_attempts=task_retry_attempts,
+                        task_source=task_source,
+                        inject=inject,
                         **kwargs,
                     )
-                    logs = EvalLogs(results)
+
+                # Run successive batches under this run_id until the run is
+                # exhausted: the seed first, then tasks added imperatively
+                # (enqueue_task) or declaratively (a TaskSource's next_tasks())
+                # feed later iterations, repeating until none remain. A
+                # cancelled batch ends the run. Returns the combined logs.
+                async def run_batches(initial: list[ResolvedTask]) -> EvalLogs:
+                    results: list[EvalLog] = []
+                    pending: list[ResolvedTask] | None = initial
+                    while pending is not None:
+                        batch_logs: list[EvalLog] = []
+                        if parallel == 1:
+                            # single task definition (could be multi-model): run
+                            # sequence groups in order, stopping on cancellation
+                            for sequence in sorted({t.sequence for t in pending}):
+                                batch_logs.extend(
+                                    await run_batch(
+                                        [t for t in pending if t.sequence == sequence],
+                                        debug_errors is True,
+                                    )
+                                )
+                                if any(r.status == "cancelled" for r in batch_logs):
+                                    break
+                        else:
+                            # multiple task definitions, run together
+                            batch_logs.extend(await run_batch(pending, False))
+                        results.extend(batch_logs)
+
+                        # a cancelled batch ends the run
+                        if any(r.status == "cancelled" for r in batch_logs):
+                            break
+
+                        # (a TaskSource observes results via sample_complete /
+                        # task_complete, fired from task_run as each sample/task
+                        # finishes — so its next_tasks() decision can use them)
+
+                        # next batch under this run_id: imperative additions
+                        # (enqueue_task) first, else the TaskSource's next_tasks()
+                        # (which may block, and ends the run by returning None).
+                        pending = enqueuer.drain() or None
+                        if pending is None and task_source is not None:
+                            next_tasks = await task_source.next_tasks()
+                            pending = (
+                                resolve_added_tasks(next_tasks) if next_tasks else None
+                            )
+                    return EvalLogs(results)
+
+                if task_source is not None and parallel > 1:
+                    # live (TaskSource-driven) run: one eval_run fed additional
+                    # tasks while in progress. Injected tasks — from the source's
+                    # next_tasks(), its sample/task_complete return values, or
+                    # enqueue_task — start on free capacity rather than waiting
+                    # for a batch boundary. This only helps when there is spare
+                    # capacity to fill (parallel > 1); with parallel == 1 nothing
+                    # runs concurrently, so we fall through to run_batches, which
+                    # preserves the parallel==1 sequence grouping (and still drives
+                    # the source via enqueuer.drain() / next_tasks()).
+                    async def inject_next() -> list[ResolvedTask] | None:
+                        more = await task_source.next_tasks()
+                        return resolve_added_tasks(more) if more else None
+
+                    injection = TaskInjection(
+                        drain=enqueuer.drain,
+                        next=inject_next,
+                        set_wake=lambda fn: setattr(enqueuer, "on_enqueue", fn),
+                    )
+                    logs = EvalLogs(
+                        await run_batch(
+                            resolved_tasks, debug_errors is True, inject=injection
+                        )
+                    )
+                else:
+                    logs = await run_batches(resolved_tasks)
 
             # keep-alive: after the body, park while the control / ACP
             # servers are still up so `inspect ctl` can read state and
             # request shutdown. (Standalone eval parks here, inside the
             # task display; eval-set instead parks after the display has
-            # closed.) EvalStates are cleared at the run boundary below.
-            # a release received while the eval was still running latches
-            # ("exit when done") — skip the park (and its notice) entirely
-            if ctl_keep_alive and _ctl_server is not None and not release_requested():
+            # closed — so this gate is scoped to standalone via eval_set_id.)
+            # The intent covers the launch flag and runtime `POST /keep` /
+            # `/release` (last-write-wins). EvalStates are cleared at the run
+            # boundary below. Intent off (never asked, or a release won the
+            # last word) skips the park and its notice entirely.
+            if eval_set_id is None and keep_alive_intent() and _ctl_server is not None:
                 import rich
 
                 rich.get_console().print(
@@ -1024,6 +1123,9 @@ async def _eval_async_inner(
         raise e
 
     finally:
+        # Stop accepting task additions for this run.
+        if enqueuer_token is not None:
+            clear_task_enqueuer(enqueuer_token)
         # Clear the process-level EvalState registry at the run boundary
         # (after any keep-alive park) — but only for a standalone eval.
         # When nested in an eval-set (eval_set_id set) the eval-set owns
@@ -1033,6 +1135,52 @@ async def _eval_async_inner(
 
     # return logs
     return logs
+
+
+def _resolve_enqueued_tasks(
+    tasks: Tasks,
+    *,
+    models: list[Model],
+    model_roles: dict[str, str | Model] | None,
+    config: GenerateConfig,
+    sandbox: SandboxEnvironmentType | None,
+    sample_shuffle: bool | int | None,
+    checkpoint: CheckpointConfig | None,
+    cost_limit: float | None,
+) -> list[ResolvedTask]:
+    """Resolve tasks added to a running eval (via ``enqueue_task``).
+
+    Bound (via ``functools.partial``) to the run's models / config / roles /
+    sandbox, then handed to the :class:`TaskEnqueuer` so additions resolve
+    consistently with the run. Raises ``ValueError`` if the tasks can't be
+    resolved.
+    """
+
+    def resolve() -> list[ResolvedTask]:
+        resolved_roles = resolve_model_roles(model_roles)
+        resolved: list[ResolvedTask] = []
+        for m in models:
+            init_active_model(m, config)
+            resolved.extend(
+                resolve_tasks(
+                    tasks, {}, m, resolved_roles, sandbox, sample_shuffle, checkpoint
+                )
+            )
+        return resolved
+
+    # Resolve in an isolated (copied) context. Unlike the up-front
+    # eval_resolve_tasks (which runs once in the eval context before samples
+    # fork), this runs synchronously wherever enqueue_task() is called — which
+    # may be inside a running solver / scorer / tool, or a sample/task_complete
+    # callback. init_active_model() mutates the active-model and active
+    # generate-config ContextVars, so running it in the caller's context would
+    # swap that sample's active model out from under it; the copy keeps those
+    # mutations local to resolution.
+    resolved = copy_context().run(resolve)
+    if not resolved:
+        raise ValueError("No tasks to enqueue (resolution produced none).")
+    resolve_model_costs(resolved, cost_limit)
+    return resolved
 
 
 def eval_retry(
@@ -1124,7 +1272,7 @@ def eval_retry(
         score_display: Show scoring metrics in realtime (defaults to True)
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -1302,7 +1450,7 @@ async def eval_retry_async(
         score_display: Show scoring metrics in realtime (defaults to True)
         ctl_server: Control-channel server for this eval process.
             `True` or `None` (default) binds the default AF_UNIX socket;
-            `False` disables the control endpoint; `"keep-alive"` additionally
+            `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
             clients can still query its state — exit via `inspect ctl release`
             (or `POST /release`).
@@ -1664,6 +1812,7 @@ def eval_resolve_tasks(
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
     notification: bool | str | None = None,
+    task_source: TaskSource | None = None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
@@ -1676,11 +1825,23 @@ def eval_resolve_tasks(
     active_display = active_task_display()
     with active_display.suspend_task_app() if active_display else nullcontext():
         resolved_tasks: list[ResolvedTask] = []
+        # A TaskSource's seed comes from initial_tasks() rather than `tasks`;
+        # produce it once, here, so it runs inside the same initialized
+        # model/role context as normal task creation (a seed that calls
+        # get_model() then behaves like a @task factory resolved here). The
+        # same seed tasks are then fanned out across all models below.
+        seed: list[Task] | None = None
         for m in models:
             init_active_model(m, config)
+            if task_source is not None:
+                if seed is None:
+                    seed = task_source.initial_tasks()
+                batch: Tasks = seed
+            else:
+                batch = tasks
             resolved_tasks.extend(
                 resolve_tasks(
-                    tasks,
+                    batch,
                     task_args,
                     m,
                     resolved_model_roles,
