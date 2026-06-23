@@ -351,21 +351,29 @@ async def _run_score_task(
     scorers: list[Scorer],
     action: ScoreAction,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
-    target = Target(sample.target)
+    # resolve attachment:// refs so scorers see real content rather than
+    # opaque hashes; rebind timelines to the resolved event objects. Done
+    # per-sample so peak memory is bounded by concurrency, not sample count.
+    resolved_sample = sample
+    if sample.attachments:
+        resolved_sample = resolve_sample_attachments(sample)
+        resolved_sample = rebind_sample_timelines(resolved_sample)
+
+    target = Target(resolved_sample.target)
     state = TaskState(
         model=ModelName(log_header.eval.model),
-        sample_id=sample.id,
-        epoch=sample.epoch,
-        input=sample.input,
+        sample_id=resolved_sample.id,
+        epoch=resolved_sample.epoch,
+        input=resolved_sample.input,
         target=target,
-        choices=sample.choices,
-        messages=sample.messages,
-        output=sample.output,
+        choices=resolved_sample.choices,
+        messages=resolved_sample.messages,
+        output=resolved_sample.output,
         completed=True,
-        metadata=sample.metadata,
-        store=sample.store,
-        scores=(sample.scores or {}).copy() if action == "append" else {},
-        sample_uuid=sample.uuid,
+        metadata=resolved_sample.metadata,
+        store=resolved_sample.store,
+        scores=(resolved_sample.scores or {}).copy() if action == "append" else {},
+        sample_uuid=resolved_sample.uuid,
     )
 
     # get the model then initialize the async context
@@ -382,18 +390,14 @@ async def _run_score_task(
     init_task_context(model, model_roles)
     init_subtask_store(state.store)
 
-    # resolve attachment:// refs so scorers see real content rather than
-    # opaque hashes; rebind timelines to the resolved event objects. Done
-    # per-sample so peak memory is bounded by concurrency, not sample count.
-    if sample.attachments:
-        sample = resolve_sample_attachments(sample)
-        sample = rebind_sample_timelines(sample)
-
     # load a copy of the current sample events into the transcript
-    init_transcript(Transcript([*sample.events], log_model_api=False, bounded=False))
+    init_transcript(
+        Transcript([*resolved_sample.events], log_model_api=False, bounded=False)
+    )
+
     # restore stored timelines so timeline-dependent scorers (e.g. scout
     # @scanner(timeline=True), petri's audit_judge) work on re-score
-    for tl in sample.timelines or []:
+    for tl in resolved_sample.timelines or []:
         transcript().add_timeline(tl)
 
     if state.scores is None:
@@ -425,8 +429,8 @@ async def _run_score_task(
                             scorer_args=registry_params(scorer)
                             if has_registry_params(scorer)
                             else None,
-                            model_usage=sample.model_usage or None,
-                            role_usage=sample.role_usage or None,
+                            model_usage=resolved_sample.model_usage or None,
+                            role_usage=resolved_sample.role_usage or None,
                         )
                     )
 
@@ -438,7 +442,7 @@ async def _run_score_task(
                     )
 
     # slice off only the newly added events
-    new_events = transcript().events[len(sample.events) :]
+    new_events = transcript().events[len(resolved_sample.events) :]
 
     sample.scores = _get_updated_scores(sample, results, action=action)
     sample.events = _get_updated_events(sample, new_events, action=action)
