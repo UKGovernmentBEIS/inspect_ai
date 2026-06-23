@@ -26,6 +26,16 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Tcp/Ip host. Note: you can use `0.0.0.0` to expose the viewer and connect remotely (e.g. SSH).",
     )
     @click.option("--port", default=DEFAULT_VIEW_PORT, help="TCP/IP port")
+    @click.option(
+        "--direct-urls/--no-direct-urls",
+        default=False,
+        help=(
+            "Return presigned S3 URLs from /log-info so the browser fetches "
+            "log bytes directly from S3 instead of proxying through this "
+            "server. Recommended when port-forwarding from a remote machine. "
+            "Requires the bucket to permit CORS Range requests."
+        ),
+    )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
         return cast(click.Context, func(*args, **kwargs))
@@ -56,6 +66,7 @@ def start(
     recursive: bool,
     host: str,
     port: int,
+    direct_urls: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
     """View evaluation logs."""
@@ -81,6 +92,7 @@ def start(
         port=port,
         authorization=authorization,
         log_level=common["log_level"],
+        generate_direct_urls=direct_urls,
     )
 
 

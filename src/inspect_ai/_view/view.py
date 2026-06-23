@@ -28,6 +28,7 @@ def view(
     authorization: str | None = None,
     log_level: str | None = None,
     fs_options: dict[str, Any] = {},
+    generate_direct_urls: bool = False,
 ) -> None:
     """Run the Inspect View server.
 
@@ -42,6 +43,12 @@ def view(
         fs_options: Additional arguments to pass through to the filesystem provider
             (e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a
             public S3 bucket with no credentials.
+        generate_direct_urls: For S3-backed log files, return a presigned URL
+            from `/log-info` so the browser fetches log bytes directly from S3
+            instead of proxying through this server. Useful when the server is
+            reached over a slow link (e.g. SSH port-forward) but the browser
+            has good bandwidth to S3. Requires the bucket to permit CORS
+            `Range` requests from the viewer's origin.
     """
     init_dotenv()
     init_logger(log_level)
@@ -62,6 +69,7 @@ def view(
         port=port,
         authorization=authorization,
         fs_options=fs_options,
+        generate_direct_urls=generate_direct_urls,
     )
 
 
