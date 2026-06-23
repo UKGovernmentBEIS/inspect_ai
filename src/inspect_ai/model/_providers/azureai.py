@@ -83,7 +83,6 @@ from .util.llama31 import Llama31Handler
 logger = getLogger(__name__)
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
-AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
 AZUREAI_ENDPOINT_URL = "AZUREAI_ENDPOINT_URL"
 AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
@@ -136,7 +135,7 @@ class AzureAIAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[AZURE_API_KEY, AZUREAI_ENDPOINT_KEY],
+            api_key_vars=[AZURE_API_KEY, AZUREAI_API_KEY],
             config=config,
         )
 
@@ -155,9 +154,10 @@ class AzureAIAPI(ModelAPI):
 
         # resolve api_key or managed identity (for Azure)
         self.token_provider = None
-        self.api_key = os.environ.get(
-            AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, None)
-        )
+        if not self.api_key:
+            self.api_key = os.environ.get(
+                AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, None)
+            )
         if not self.api_key:
             # try managed identity (Microsoft Entra ID)
             try:
