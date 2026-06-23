@@ -217,8 +217,10 @@ class ModelAPI(abc.ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.api_key_vars = api_key_vars
-        # Use initial api_key value as a stable identifier for connection
-        # pooling purposes.
+        # Stable pooling identity for connection_key(). Captured from the
+        # constructor before _apply_api_key_overrides() runs and never mutated
+        # afterwards, so it survives api_key rotation (e.g. a credential hook
+        # refreshing self.api_key via initialize()). See connection_key().
         self.initial_api_key = api_key
         self._apply_api_key_overrides()
 
@@ -413,7 +415,15 @@ class ModelAPI(abc.ABC):
         return DEFAULT_MAX_CONNECTIONS
 
     def connection_key(self) -> str:
-        """Scope for enforcement of max_connections."""
+        """Scope for enforcement of max_connections (and adaptive concurrency).
+
+        Two model instances that return the same key share one connection pool.
+        Providers that scope by API key should use `self.initial_api_key` here,
+        NOT the live `self.api_key`: the live key can rotate mid-eval (e.g. a
+        credential hook refreshing it via `initialize()`), and keying on it
+        would discard all learned pool/adaptive state on every rotation.
+        ``initial_api_key`` is fixed at construction, so the scope stays stable.
+        """
         return "default"
 
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
