@@ -1023,6 +1023,19 @@ def _sample_usage(state: TaskState) -> dict[str, int]:
     }
 
 
+def _sample_started() -> float | None:
+    """The just-finished sample's start time, for the eval's running-min start.
+
+    Read from the same sample-scoped timing contextvar that backs the logged
+    ``started_at`` (set when the sample began, still in scope in the terminal
+    block). Passed to ``record_sample_*`` so the eval's reported start pins to
+    its first sample even when that sample finished before any control poll
+    (see ``EvalState.started_at``). ``None`` for a sample that never started.
+    """
+    started = sample_start_datetime()
+    return started.timestamp() if started is not None else None
+
+
 async def task_run_sample(
     *,
     task: Task,
@@ -1765,7 +1778,9 @@ async def task_run_sample(
         # a cancelled sample is terminal but not a genuine error — count it so
         # the eval can reach `total` and be marked finished (eg. a final-attempt
         # failure that cancels an in-flight sibling)
-        record_sample_cancelled(task_id, **_sample_usage(state))
+        record_sample_cancelled(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise cancelled_error
 
     # no error
@@ -1773,17 +1788,23 @@ async def task_run_sample(
         # call sample_complete callback if we have score results
         if results is not None:
             await sample_complete(state.sample_id, state.epoch, results)
-        record_sample_completed(task_id, **_sample_usage(state))
+        record_sample_completed(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return results
 
     # we have an error and should raise it
     elif raise_error is not None:
-        record_sample_errored(task_id, **_sample_usage(state))
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise raise_error
 
     # we have an error and should not raise it
     else:
-        record_sample_errored(task_id, **_sample_usage(state))
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return None
 
 

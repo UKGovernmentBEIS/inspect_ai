@@ -25,6 +25,8 @@ from ._build_config import filename_to_config
 # (Alpine) distros. Each artifact is routed to the matching set — running a glibc
 # bundle on Alpine (or vice versa) would fail by construction.
 GLIBC_DISTROS = [
+    "ubuntu:16.04",  # oldest glibc we target (glibc 2.23, above the build's 2.17 floor)
+    "ubuntu:18.04",  # glibc 2.27
     "ubuntu:20.04",
     "ubuntu:22.04",
     "ubuntu:24.04",
