@@ -92,7 +92,28 @@ jobs:
         if: ${{ !cancelled() }}
         run: uv cache prune --ci
 
+  # Detect whether anything outside docs changed, so the (expensive) test
+  # matrix can be skipped on documentation-only changes. A skipped job-level
+  # `if` still reports a (non-blocking) check, unlike workflow-level
+  # `paths-ignore` which would strand a required check.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**'
+              - '!docs/**'
+              - '!**/*.md'
+
   test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -123,7 +144,7 @@ jobs:
         # even through anyio cancel shields, which the conftest async timeout
         # cannot. The 900s budget sits above the conftest 300s per-test timeout
         # so it only fires on genuine hangs.
-        run: uv run pytest -rA --doctest-modules --color=yes -n auto --cov=inspect_ai --timeout=900 --timeout-method=thread
+        run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}

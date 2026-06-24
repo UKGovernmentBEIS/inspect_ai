@@ -70,7 +70,10 @@ async def test_subprocess_env():
 
 
 @pytest.mark.anyio
-async def test_subprocess_timeout():
+async def test_subprocess_timeout(monkeypatch):
+    # Shrink the post-SIGTERM grace so the test doesn't pay the full 2s
+    # production grace on top of the 1s timeout (behavior is unchanged).
+    monkeypatch.setattr(_subprocess_mod, "SUBPROCESS_SIGTERM_GRACE_SECONDS", 0.2)
     # The random() serves as adding a unique "signature" to the subprocess command
     timeout_duration = 10 + random()
     subprocess_cmds = ["sleep", str(timeout_duration)]
@@ -129,6 +132,7 @@ async def test_subprocess_timeout_with_lost_child_watcher(monkeypatch):
     """
     # Keep the test fast: the bound is a safety net, not a tuning knob.
     monkeypatch.setattr(_subprocess_mod, "LOST_SUBPROCESS_WAIT_TIMEOUT", 1)
+    monkeypatch.setattr(_subprocess_mod, "SUBPROCESS_SIGTERM_GRACE_SECONDS", 0.2)
 
     real_open_process = anyio.open_process
 
