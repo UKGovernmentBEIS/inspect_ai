@@ -176,7 +176,6 @@ def eval_set(
     log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
-    log_buffer_s3_tags: dict[str, str] | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
@@ -312,9 +311,6 @@ def eval_set(
         log_shared: Sync sample events to log directory so that users on other systems
             can see log updates in realtime (defaults to no syncing). Specify `True`
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
-        log_buffer_s3_tags: S3 object tags (key/value pairs) to apply to the shared
-            sample buffer files written to S3. Only takes effect when `log_shared`
-            is enabled and the log directory is an `s3://` path.
         bundle_dir: If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         bundle_overwrite: Whether to overwrite files in the bundle_dir.
@@ -429,7 +425,6 @@ def eval_set(
             log_refusals=log_refusals,
             log_buffer=log_buffer,
             log_shared=log_shared,
-            log_buffer_s3_tags=log_buffer_s3_tags,
             log_header_only=True,
             score=score,
             score_display=score_display,

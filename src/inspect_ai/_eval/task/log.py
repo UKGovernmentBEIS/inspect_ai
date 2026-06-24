@@ -257,7 +257,6 @@ class TaskLogger:
             location=self._location,
             log_images=self.eval.config.log_images is not False,
             log_shared=self.eval.config.log_shared,
-            log_buffer_s3_tags=self.eval.config.log_buffer_s3_tags,
         )
 
     async def reinit(self) -> None:

@@ -160,6 +160,18 @@ def _create_filestore_fixture(
     return eval_path, manifest
 
 
+def test_filestore_tags_s3_buffer_objects() -> None:
+    """S3 buffer objects get the inspect-ephemeral tag and other filesystems get none."""
+    s3 = SampleBufferFilestore("s3://bucket/logs/log.eval", create=False)
+    assert s3._write_fs_options == {
+        "s3_additional_kwargs": {"Tagging": "inspect-ephemeral=true"}
+    }
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = SampleBufferFilestore(os.path.join(temp_dir, "log.eval"), create=False)
+        assert local._write_fs_options == {}
+
+
 def test_iter_sample_segments_reads_all() -> None:
     """iter_sample_segments yields all segments for a sample."""
     with tempfile.TemporaryDirectory() as temp_dir:

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule for expiration.
+
 ## 0.3.241 (22 June 2026)
 
 - Task Sources: Drive a running eval from code with `TaskSource`.

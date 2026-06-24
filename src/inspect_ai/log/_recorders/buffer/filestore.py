@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlparse
 from zipfile import ZipFile
 
 from pydantic import BaseModel, Field
@@ -175,17 +175,15 @@ class SampleBufferFilestore(SampleBuffer):
         *,
         create: bool = True,
         update_interval: int = DEFAULT_LOG_SHARED,
-        s3_tags: dict[str, str] | None = None,
     ) -> None:
         self._fs = filesystem(location)
         self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{os.path.splitext(basename(location))[0]}{self._fs.sep}"
         self.update_interval = update_interval
 
-        # S3 object tags are forwarded to s3fs via s3_additional_kwargs on each
-        # write; they only apply to s3 locations (other filesystems ignore them).
+        # Tag the ephemeral buffer objects synced to S3.
         self._write_fs_options: dict[str, Any] = (
-            {"s3_additional_kwargs": {"Tagging": urlencode(s3_tags)}}
-            if s3_tags and urlparse(location).scheme == "s3"
+            {"s3_additional_kwargs": {"Tagging": "inspect-ephemeral=true"}}
+            if urlparse(location).scheme == "s3"
             else {}
         )
 
