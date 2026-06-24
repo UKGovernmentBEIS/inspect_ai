@@ -278,7 +278,7 @@ class VLLMAPI(OpenAICompatibleAPI):
                 )
                 resp.raise_for_status()
                 max_model_len = _server_context_length(
-                    resp.json(), [self.service_model_name()]
+                    resp.json(), self.service_model_name()
                 )
                 if max_model_len:
                     name = self.input_tokens_name()
@@ -550,17 +550,17 @@ class VLLMAPI(OpenAICompatibleAPI):
 # ---------------------------------------------------------------------------
 
 
-def _server_context_length(data: dict[str, Any], model_ids: list[str]) -> int | None:
+def _server_context_length(data: dict[str, Any], model_id: str) -> int | None:
     """Extract ``max_model_len`` from a vLLM ``/v1/models`` response.
 
-    Prefers the entry whose ``id`` matches one of ``model_ids``. With no match,
+    Prefers the entry whose ``id`` matches ``model_id``. With no match,
     falls back to the sole entry only when the endpoint lists exactly one model;
     when several models are listed the window is ambiguous, so returns ``None``
     rather than risk registering an unrelated model's window. Also returns
     ``None`` when no positive ``max_model_len`` is present.
     """
     entries = data.get("data") or []
-    entry = next((e for e in entries if e.get("id") in model_ids), None)
+    entry = next((e for e in entries if e.get("id") == model_id), None)
     if entry is None:
         if len(entries) == 1:
             entry = entries[0]
@@ -568,7 +568,7 @@ def _server_context_length(data: dict[str, Any], model_ids: list[str]) -> int | 
             if entries:
                 logger.debug(
                     f"vLLM /v1/models lists {len(entries)} models, none matching "
-                    f"{model_ids}; falling back to the static catalog window."
+                    f"{model_id}; falling back to the static catalog window."
                 )
             return None
     max_model_len = entry.get("max_model_len")

@@ -40,12 +40,12 @@ def test_server_context_length_matches_model_id() -> None:
             {"id": "my/model", "max_model_len": 8192},
         ]
     }
-    assert _server_context_length(data, ["my/model"]) == 8192
+    assert _server_context_length(data, "my/model") == 8192
 
 
 def test_server_context_length_falls_back_to_sole_entry() -> None:
     data = {"data": [{"id": "served/model", "max_model_len": 8192}]}
-    assert _server_context_length(data, ["unmatched"]) == 8192
+    assert _server_context_length(data, "unmatched") == 8192
 
 
 def test_server_context_length_ambiguous_no_match_returns_none() -> None:
@@ -55,16 +55,16 @@ def test_server_context_length_ambiguous_no_match_returns_none() -> None:
             {"id": "b/model", "max_model_len": 8192},
         ]
     }
-    assert _server_context_length(data, ["unmatched"]) is None
+    assert _server_context_length(data, "unmatched") is None
 
 
 def test_server_context_length_missing_or_empty() -> None:
     assert (
-        _server_context_length({"data": [{"id": "served/model"}]}, ["served/model"])
+        _server_context_length({"data": [{"id": "served/model"}]}, "served/model")
         is None
     )
-    assert _server_context_length({"data": []}, ["x"]) is None
-    assert _server_context_length({}, ["x"]) is None
+    assert _server_context_length({"data": []}, "x") is None
+    assert _server_context_length({}, "x") is None
 
 
 @pytest.mark.anyio
