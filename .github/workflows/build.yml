@@ -94,6 +94,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       matrix:
         python-version: ["3.10", "3.11"]
@@ -117,7 +118,12 @@ jobs:
           uv pip install .[dev]
 
       - name: Test with pytest
-        run: uv run pytest -rA --doctest-modules --color=yes -n auto --cov=inspect_ai
+        # --timeout (thread method) dumps a traceback and fails a hung test
+        # rather than letting the job hang to the job-level timeout; this works
+        # even through anyio cancel shields, which the conftest async timeout
+        # cannot. The 900s budget sits above the conftest 300s per-test timeout
+        # so it only fires on genuine hangs.
+        run: uv run pytest -rA --doctest-modules --color=yes -n auto --cov=inspect_ai --timeout=900 --timeout-method=thread
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}

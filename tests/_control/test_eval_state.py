@@ -347,3 +347,90 @@ async def test_deferred_resolutions_run_concurrently() -> None:
     assert len(entries) == 20
     assert all(e["total_messages"] == 1 for e in entries)
     assert in_flight["max"] > 1  # genuinely concurrent
+
+
+async def test_started_at_pinned_as_samples_complete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``started_at`` stays fixed at the earliest sample start.
+
+    Regression for #4305: the start was recomputed as the min over
+    *currently active* samples on every read, so it crept forward as early
+    samples finished and left ``active_samples``. It must instead pin to the
+    eval's first sample start.
+    """
+    from types import SimpleNamespace
+
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.state import current_eval_summaries
+
+    register_eval("e1", 3, task="t", task_id="tid")
+
+    def _sample(started: float) -> Any:
+        return SimpleNamespace(
+            eval_id="e1",
+            run_id="r",
+            task="t",
+            model="m",
+            log_location="logs/a.eval",
+            started=started,
+            completed=None,
+            total_tokens=0,
+            total_messages=0,
+        )
+
+    # First poll: all three samples in flight (starts 100, 200, 300).
+    monkeypatch.setattr(
+        samples_mod,
+        "active_samples",
+        lambda: [_sample(100.0), _sample(200.0), _sample(300.0)],
+    )
+    [entry] = await current_eval_summaries(0.0)
+    assert entry["started_at"] == 100.0
+
+    # Later poll: the two earliest finished and left ``active_samples``; only
+    # the last (start 300) is still live. The reported start must stay 100.
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [_sample(300.0)])
+    [entry] = await current_eval_summaries(0.0)
+    assert entry["started_at"] == 100.0
+
+
+async def test_started_at_pinned_from_terminal_record_before_first_poll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The earliest start is pinned even if its sample finishes before any poll.
+
+    ``active_samples`` only holds *live* samples, so a sample that started and
+    finished between polls would never be seen there. ``record_sample_*``
+    captures its start (``started=``), so the eval's reported start still pins
+    to it rather than to a later still-running sample.
+    """
+    from types import SimpleNamespace
+
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.state import current_eval_summaries
+
+    register_eval("e1", 2, task="t", task_id="tid")
+
+    def _sample(started: float) -> Any:
+        return SimpleNamespace(
+            eval_id="e1",
+            run_id="r",
+            task="t",
+            model="m",
+            log_location="logs/a.eval",
+            started=started,
+            completed=None,
+            total_tokens=0,
+            total_messages=0,
+        )
+
+    # The earliest sample (start 100) finished and left active_samples before
+    # the first poll ever ran — its start survives only via the terminal record.
+    record_sample_completed("e1", started=100.0)
+
+    # First poll sees only the later still-running sample (start 300), yet the
+    # reported start must be the recorded 100, not 300.
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [_sample(300.0)])
+    [entry] = await current_eval_summaries(0.0)
+    assert entry["started_at"] == 100.0
