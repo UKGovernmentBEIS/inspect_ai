@@ -90,7 +90,8 @@ ADD --chown=$USERNAME:$USERNAME image_home_dir/ $HOME
 RUN mkdir -p $HOME/.mozilla/firefox-esr/profile.default && \
     echo 'user_pref("browser.startup.homepage_override.mstone", "ignore");' >> $HOME/.mozilla/firefox-esr/profile.default/user.js && \
     echo 'user_pref("browser.aboutwelcome.enabled", false);' >> $HOME/.mozilla/firefox-esr/profile.default/user.js && \
-    echo 'user_pref("datareporting.policy.firstRunURL", "");' >> $HOME/.mozilla/firefox-esr/profile.default/user.js 
+    echo 'user_pref("datareporting.policy.firstRunURL", "");' >> $HOME/.mozilla/firefox-esr/profile.default/user.js && \
+    printf '[General]\nStartWithLastProfile=1\n\n[Profile0]\nName=default\nIsRelative=1\nPath=profile.default\nDefault=1\n' > $HOME/.mozilla/firefox-esr/profiles.ini
     
 EXPOSE 5900
 EXPOSE 6080
