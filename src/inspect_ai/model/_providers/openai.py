@@ -621,7 +621,16 @@ class OpenAIAPI(ModelAPI):
         # simple request with reasoning summaries and if it succeeds we
         # set the reasoning_summaries bit (we do this once for the lifetime
         # of the model provider instance). use the lock to guard against
-        # multiple samples doing this concurrently at startup
+        # multiple samples doing this concurrently at startup.
+        #
+        # fast path: once cached, return without touching the lock. this
+        # method is awaited on every generate() call (when
+        # config.reasoning_summary is None), so under high concurrency the
+        # uncontested-but-serialised lock acquire becomes a measurable
+        # bottleneck. the read is a sync attribute lookup of a bool so it is
+        # safe outside the lock.
+        if self._reasoning_summaries is not None:
+            return self._reasoning_summaries
         async with self._reasoning_summaries_lock:
             if self._reasoning_summaries is None:
                 reasoning_summaries = False

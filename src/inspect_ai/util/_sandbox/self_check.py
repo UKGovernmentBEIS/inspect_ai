@@ -83,6 +83,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_exec_input_shell_special,
         test_exec_input_binary,
         test_exec_input_large,
+        test_exec_large_command,
         test_exec_as_user,
         test_exec_as_nonexistent_user,
         test_cwd_unspecified,
@@ -624,6 +625,23 @@ async def test_exec_input_large(sandbox_env: SandboxEnvironment) -> None:
     reported = int(result.stdout.strip().split()[0])
     assert reported == size, (
         f"wc -c reported {reported} bytes from stdin, expected {size}"
+    )
+
+
+async def test_exec_large_command(sandbox_env: SandboxEnvironment) -> None:
+    # Command analogue of test_exec_input_large: stresses the argv/command
+    # transport, not stdin. Many medium args rather than one giant one — a single
+    # argv element is capped at MAX_ARG_STRLEN (128 KiB) regardless of ARG_MAX, so
+    # a ~1 MiB arg fails with E2BIG. printf %s cycles over every arg, so stdout is
+    # the args concatenated.
+    chunk = "x" * (64 * 1024)
+    n = 16  # ~1 MiB total argv, under a typical 2 MiB ARG_MAX
+    result = await sandbox_env.exec(["printf", "%s", *([chunk] * n)])
+    assert result.success, f"printf failed: stderr=[{result.stderr}]"
+    expected = chunk * n
+    assert result.stdout == expected, (
+        f"large command arguments should round-trip; "
+        f"got {len(result.stdout)} bytes, expected {len(expected)}"
     )
 
 
