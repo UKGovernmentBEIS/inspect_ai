@@ -28,8 +28,12 @@ class CloudFlareAPI(OpenAICompatibleAPI):
         **model_args: Any,
     ):
         # migrate formerly used CLOUDFLARE_API_TOKEN if no other key is specified
+        # (report the variable the key actually came from to override hooks)
+        api_key_var = CLOUDFLARE_API_KEY
         if api_key is None and CLOUDFLARE_API_KEY not in os.environ:
             api_key = os.environ.get(CLOUDFLARE_API_TOKEN, None)
+            if api_key is not None:
+                api_key_var = CLOUDFLARE_API_TOKEN
 
         # account id used for limits and forming base url
         self.account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", None)
@@ -40,6 +44,7 @@ class CloudFlareAPI(OpenAICompatibleAPI):
             model_name=f"@cf/{model_name}",
             base_url=base_url,
             api_key=api_key,
+            api_key_var=api_key_var,
             config=config,
             service="CloudFlare",
             service_base_url=f"https://api.cloudflare.com/client/v4/accounts/{self.account_id}/ai/v1",

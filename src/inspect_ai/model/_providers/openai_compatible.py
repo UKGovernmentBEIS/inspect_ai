@@ -66,6 +66,7 @@ class OpenAICompatibleAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         service: str | None = None,
         service_base_url: str | None = None,
+        api_key_var: str | None = None,
         emulate_tools: bool = False,
         responses_api: bool | None = None,
         responses_store: bool | None = None,
@@ -85,9 +86,11 @@ class OpenAICompatibleAPI(ModelAPI):
         else:
             self.service = service
 
-        # compute api key
+        # compute api key env var (providers may override the derived name when
+        # their credential comes from a differently-named variable, so that
+        # api_key override hooks see the variable the value actually came from)
         service_env_name = self.service.upper().replace("-", "_")
-        api_key_var = f"{service_env_name}_API_KEY"
+        api_key_var = api_key_var or f"{service_env_name}_API_KEY"
 
         super().__init__(
             model_name=model_name,
