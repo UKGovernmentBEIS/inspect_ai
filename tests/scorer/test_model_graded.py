@@ -1,3 +1,4 @@
+import math
 import os
 import re
 from typing import Any, Callable
@@ -15,7 +16,6 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
-    NOANSWER,
     PARTIAL,
     model_graded_fact,
     model_graded_qa,
@@ -156,10 +156,7 @@ def test_model_role_precedence_for_model_graded_scorer(
 
 
 def test_model_graded_answer_set_on_grade_parse_failure():
-    # issue #4025: when the grader output has no parseable GRADE: token the scorer
-    # falls into the parse-failure branch. value is NOANSWER (see #4048), but the
-    # answer field must still carry the model's completion (matching the grade-found
-    # branch) so the log viewer doesn't show an empty answer.
+    # #4025: parse failure is unscored, but answer must still carry the completion.
     subject_answer = "The capital of France is Paris."
     grader_model = get_model(
         "mockllm/model",
@@ -183,7 +180,7 @@ def test_model_graded_answer_set_on_grade_parse_failure():
 
     assert log.samples
     score = log.samples[0].scores["model_graded_fact"]
-    assert score.value == NOANSWER
+    assert isinstance(score.value, float) and math.isnan(score.value)
     assert score.answer == subject_answer
 
 
@@ -285,10 +282,7 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
         pytest.param("The submission is correct.", id="no_grade_marker_at_all"),
     ],
 )
-def test_grade_parse_failure_yields_noanswer(grader_output: str) -> None:
-    # When the grade regex doesn't match, the scorer should record NOANSWER
-    # rather than INCORRECT, so a parse failure is not counted as a wrong
-    # answer in aggregate metrics.
+def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
     grader = get_model(
         "mockllm/model",
         custom_outputs=[
@@ -304,10 +298,10 @@ def test_grade_parse_failure_yields_noanswer(grader_output: str) -> None:
     scores = log.samples[0].scores
     assert scores is not None
     score = scores["model_graded_fact"]
-    assert score.value == NOANSWER, (
-        f"expected NOANSWER for unparseable grade {grader_output!r}, "
-        f"got {score.value!r}"
+    assert isinstance(score.value, float) and math.isnan(score.value), (
+        f"expected unscored (NaN) for {grader_output!r}, got {score.value!r}"
     )
+    assert score.metadata["unscored_reason"] == "grade_parse_failure"
 
 
 @pytest.mark.parametrize(
@@ -319,9 +313,7 @@ def test_grade_parse_failure_yields_noanswer(grader_output: str) -> None:
     ],
 )
 def test_matched_grade_resolves_to_value(grader_output: str, expected: str) -> None:
-    # Companion to the parse-failure cases: a parseable grade must still resolve
-    # to its own value (not be swept into NOANSWER), guarding the matched-grade
-    # branch against drift.
+    # A parseable grade must resolve to its own value, not get swept into unscored.
     grader = get_model(
         "mockllm/model",
         custom_outputs=[
