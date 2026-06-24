@@ -2,6 +2,7 @@
 
 - Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule.
 - Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task. (#4194)
+- Model API: Keep the connection-pool/adaptive-concurrency scope stable when a provider's `api_key` is a short-lived credential.
 - HuggingFace: Forward an explicitly supplied API key when loading tokenizers for private or gated models.
 - NNterp: Forward an explicitly supplied API key when loading private or gated Hugging Face models and tokenizers.
 - OpenAI-compatible providers: Report the source environment variable (e.g. `CLOUDFLARE_API_TOKEN`, `HF_TOKEN`) to API key override hooks rather than the derived `*_API_KEY` name.
