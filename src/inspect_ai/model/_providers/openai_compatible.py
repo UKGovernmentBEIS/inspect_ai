@@ -86,8 +86,8 @@ class OpenAICompatibleAPI(ModelAPI):
         else:
             self.service = service
 
-        # Compute API key env var name (e.g. HF_API_KEY). Callers may provide
-        # non-standard env vars (e.g. HF_TOKEN). Ensure the API key override
+        # Compute API key env var name (e.g. HF_API_KEY). Callers may provide a
+        # non-standard env var (e.g. HF_TOKEN). Ensure the API key override
         # hooks in ModelAPI receive the env var name the value actually came
         # from.
         service_env_name = self.service.upper().replace("-", "_")
