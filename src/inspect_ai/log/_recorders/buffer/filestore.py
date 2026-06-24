@@ -168,7 +168,7 @@ class PendingSampleSegments:
 MANIFEST = "manifest.json"
 
 
-def _is_s3_tagging_denied(ex: BaseException) -> bool:
+def _is_s3_tagging_denied(ex: Exception) -> bool:
     """Whether a failed S3 write was rejected for lacking object-tagging permission.
 
     Tagging an object on write (the ``x-amz-tagging`` header) requires
