@@ -74,3 +74,20 @@ def test_hf_token_reported_to_override_hook(
     assert seen[0] == (HF_TOKEN, "source-key")
     assert all(name == HF_TOKEN for name, _ in seen)
     assert api.api_key == "overridden-key"
+
+
+@skip_if_no_openai_package
+def test_hf_missing_token_raises_prerequisite_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing HF_TOKEN (and no override hook) still raises a prerequisite error."""
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai.model._providers.hf_inference_providers import (
+        HF_TOKEN,
+        HFInferenceProvidersAPI,
+    )
+
+    monkeypatch.delenv(HF_TOKEN, raising=False)
+
+    with pytest.raises(PrerequisiteError, match=HF_TOKEN):
+        HFInferenceProvidersAPI(model_name="openai/gpt-oss-20b")
