@@ -21,6 +21,7 @@
 - Inspect view: Fix event panel nav pills never expanding back from picker mode
 - Inspect view: Fix inline MathJax stacking under inherited white-space: pre-wrap
 - Inspect view: guard Inspect view mutation requests
+- Scoring: Support `model` and `model_roles` overrides for re-scoring (`inspect score --model` / `--model-role`).
 - Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
 - Buf fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bug fix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
