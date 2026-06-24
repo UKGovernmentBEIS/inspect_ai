@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule.
 - Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task. (#4194)
 - HuggingFace: Forward an explicitly supplied API key when loading tokenizers for private or gated models.
 - NNterp: Forward an explicitly supplied API key when loading private or gated Hugging Face models and tokenizers.
