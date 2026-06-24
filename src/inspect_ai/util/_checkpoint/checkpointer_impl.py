@@ -61,7 +61,7 @@ from ._layout.host_context import (
     STORE,
 )
 from ._layout.sample_checkpoints_dir import (
-    _list_checkpoint_ids,
+    scan_latest_committed_id,
     write_checkpoint_file,
 )
 from ._layout.schemas import Checkpoint, SnapshotDetails
@@ -119,9 +119,14 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         # (e.g. a hook re-entering ``checkpointer()`` after the agent
         # returned) are no-ops.
         self._finalized = False
+        # Whether the agent's ``async with checkpointer()`` scope is currently
+        # open. Gates ``current()`` so a borrowed session isn't handed out
+        # (and fired through) after the scope — and its span machinery — closes.
+        self._entered = False
 
     async def __aenter__(self) -> Checkpointer:
         if self._cached is not None:
+            self._entered = True
             return self._cached
         result = await hydrate(
             config=self._config,
@@ -140,9 +145,15 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
             reset_transcript_store=reset_transcript_store,
         )
         self._reset_transcript_store_on_next_enter = False
+        self._entered = True
         return self._cached
 
     async def __aexit__(self, *exc: object) -> None:
+        # Leaving the agent's ``async with checkpointer()`` scope ends the
+        # borrow window: ``current()`` must stop handing out the session (its
+        # span scope is now closing). Reset unconditionally, ahead of the
+        # finalize gate's early returns.
+        self._entered = False
         # `exc[0]` is the propagating exception type (or None on a clean exit),
         # per the context-manager protocol.
         exc_type = exc[0] if exc else None
@@ -165,6 +176,13 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         self._finalized = True
         cp = self._cached
         await cp._fire("agent_complete", final=True)
+
+    def current(self) -> Checkpointer | None:
+        # Expose the session only while the owner's scope is open. ``_cached``
+        # outlives that scope (until ``close()`` at teardown), but firing
+        # through it post-exit writes a span-less, unresumable checkpoint — so
+        # gate on ``_entered``, not ``_cached``.
+        return self._cached if self._entered else None
 
     def close(self) -> None:
         if self._cached is not None:
@@ -411,11 +429,9 @@ class _EnteredCheckpointer:
         # the per-checkpoint file.
         cycle_start = time.monotonic()
 
-        # Checkpoint file numbering continues from any checkpoint files
-        # already present in the dir (incl. those FS-copied from a prior
-        # eval on resume). Scanned per-fire rather than tracked in
-        # memory so the count naturally bridges resumed runs without an
-        # explicit handoff.
+        # Checkpoint file numbering continues from the latest committed
+        # checkpoint. Torn checkpoint files are intentionally ignored so
+        # the next successful fire can replace them.
         next_checkpoint_id = await _scan_next_checkpoint_id(self._sample_root)
 
         # Wrap the whole fire in a trace action so an in-progress fire is
@@ -672,14 +688,12 @@ class _EnteredCheckpointer:
 async def _scan_next_checkpoint_id(sample_root: str) -> int:
     """Return the next checkpoint file ordinal for this sample.
 
-    Walks the sample root for ``ckpt-NNNNN.json`` filenames and returns
-    ``max(N) + 1`` — or 1 if none exist yet. Used by ``_fire`` so the
-    count continues across resume without an explicit handoff through
-    ``_hydrate``.
+    Uses the latest parseable checkpoint file as the commit point. A
+    torn ``ckpt-NNNNN.json`` is not committed, so the next successful
+    fire reuses that id instead of skipping ahead.
     """
-    ids = await _list_checkpoint_ids(sample_root)
-    next_id = (max(ids) + 1) if ids else 1
-    return next_id
+    latest = await scan_latest_committed_id(sample_root)
+    return latest + 1 if latest is not None else 1
 
 
 def _restic_tag(checkpoint_id: int) -> str:
