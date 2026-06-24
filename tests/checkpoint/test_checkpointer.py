@@ -55,6 +55,7 @@ from inspect_ai.util._checkpoint.checkpointer_impl import (
     CheckpointFailureLimitExceeded,
     _CheckpointerSetup,
     _EnteredCheckpointer,
+    _scan_next_checkpoint_id,
 )
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
@@ -462,6 +463,16 @@ def _write_checkpoint_files(sample_root: Path, count: int) -> None:
         (sample_root / f"ckpt-{checkpoint_id:05d}.json").write_text(
             checkpoint.model_dump_json()
         )
+
+
+async def test_scan_next_checkpoint_id_reuses_torn_checkpoint_id(
+    tmp_path: Path,
+) -> None:
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    (sample_root / "ckpt-00003.json").write_text("{")
+
+    assert await _scan_next_checkpoint_id(str(sample_root)) == 3
 
 
 def _checkpoint_resume_events(count: int) -> list[Event]:
