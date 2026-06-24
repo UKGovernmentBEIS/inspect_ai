@@ -27,9 +27,9 @@ class CloudFlareAPI(OpenAICompatibleAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
-        # migrate formerly used CLOUDFLARE_API_TOKEN if no other key is specified
-        # (report the variable the key actually came from to override hooks)
+        # report the variable that the key actually came from to override hooks
         api_key_var = CLOUDFLARE_API_KEY
+        # migrate formerly used CLOUDFLARE_API_TOKEN if no other key is specified
         if api_key is None and CLOUDFLARE_API_KEY not in os.environ:
             api_key = os.environ.get(CLOUDFLARE_API_TOKEN, None)
             if api_key is not None:

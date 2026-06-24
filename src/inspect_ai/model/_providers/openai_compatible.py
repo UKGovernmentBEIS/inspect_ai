@@ -86,9 +86,10 @@ class OpenAICompatibleAPI(ModelAPI):
         else:
             self.service = service
 
-        # compute api key env var (providers may override the derived name when
-        # their credential comes from a differently-named variable, so that
-        # api_key override hooks see the variable the value actually came from)
+        # Compute API key env var name (e.g. HF_API_KEY). Callers may provide
+        # non-standard env vars (e.g. HF_TOKEN). Ensure the API key override
+        # hooks in ModelAPI receive the env var name the value actually came
+        # from.
         service_env_name = self.service.upper().replace("-", "_")
         api_key_var = api_key_var or f"{service_env_name}_API_KEY"
 

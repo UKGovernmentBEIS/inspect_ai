@@ -22,8 +22,6 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
             model_name=model_name,
             base_url=base_url or "https://router.huggingface.co/v1",
             api_key=api_key,
-            # HF credentials come from HF_TOKEN rather than the derived
-            # service env var, so override hooks see the right variable
             api_key_var=HF_TOKEN,
             config=config,
             service="HF Inference Providers",
