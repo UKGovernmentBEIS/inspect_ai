@@ -17480,6 +17480,17 @@ li > ul {
     transform: translateX(2000%);
   }
 }
+/* Rendered markdown defines its own whitespace semantics, so neutralize any
+   `white-space: pre-wrap` inherited from an ancestor container. Without this,
+   markdown-it-mathjax3's pretty-printed math output (newlines/indentation
+   around each `<span id="mjx-…">` wrapper) is preserved as real line breaks,
+   stacking every inline formula onto its own line. Block elements that need
+   preserved whitespace (`pre`/`code`) carry their own directly-matching
+   white-space rules, which override this inherited value. */
+.markdown-content {
+  white-space: normal;
+}
+
 .markdown-ordered-list-item {
   margin-bottom: 0.2em;
 }
