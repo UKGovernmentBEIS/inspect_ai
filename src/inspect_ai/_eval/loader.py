@@ -79,6 +79,7 @@ def resolve_tasks(
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
+    warn_unconsumed_task_args: bool = False,
 ) -> list[ResolvedTask]:
     # A TaskSource drives a run dynamically and is handled by eval() (which
     # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete,
@@ -139,11 +140,24 @@ def resolve_tasks(
             eval_checkpoint=eval_checkpoint,
         )
 
-    # simple cases of passing us Task objects
-    if isinstance(tasks, Task):
-        return as_resolved_tasks([tasks])
-    elif isinstance(tasks, list) and isinstance(tasks[0], Task):
-        return as_resolved_tasks([t for t in tasks if isinstance(t, Task)])
+    # simple cases of passing us Task objects -- task_args are never applied
+    # to Task instances (their args come from the instance's own construction
+    # params), so warn if the caller passed args that will be silently ignored
+    if isinstance(tasks, Task) or (
+        isinstance(tasks, list) and isinstance(tasks[0], Task)
+    ):
+        if warn_unconsumed_task_args and task_args:
+            logger.warning(
+                f"task_args {sorted(task_args.keys())} will not be applied: "
+                "they are ignored for Task instances passed directly. Pass "
+                "them to your @task function when creating the task instead."
+            )
+        task_list = (
+            [tasks]
+            if isinstance(tasks, Task)
+            else [t for t in tasks if isinstance(t, Task)]
+        )
+        return as_resolved_tasks(task_list)
 
     # convert TaskInfo to str
     if isinstance(tasks, TaskInfo):

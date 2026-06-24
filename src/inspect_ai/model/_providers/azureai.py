@@ -83,7 +83,6 @@ from .util.llama31 import Llama31Handler
 logger = getLogger(__name__)
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
-AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
 AZUREAI_ENDPOINT_URL = "AZUREAI_ENDPOINT_URL"
 AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
@@ -136,7 +135,7 @@ class AzureAIAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[AZURE_API_KEY, AZUREAI_ENDPOINT_KEY],
+            api_key_vars=[AZURE_API_KEY, AZUREAI_API_KEY],
             config=config,
         )
 
