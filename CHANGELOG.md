@@ -1,14 +1,32 @@
 ## Unreleased
 
-- Security: `git_context()` now redacts credentials embedded in the git remote URL (e.g. `https://user:token@host`) before recording `origin`, preventing tokens from leaking into eval logs and downstream consumers.
+- Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule.
+- Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task. (#4194)
+- Model API: Keep the connection-pool/adaptive-concurrency scope stable when a provider's `api_key` is a short-lived credential.
+- HuggingFace: Forward an explicitly supplied API key when loading tokenizers for private or gated models.
+- NNterp: Forward an explicitly supplied API key when loading private or gated Hugging Face models and tokenizers.
+- OpenAI-compatible providers: Report the source environment variable (e.g. `CLOUDFLARE_API_TOKEN`, `HF_TOKEN`) to API key override hooks rather than the derived `*_API_KEY` name.
+- AzureAI: Offer `AZUREAI_API_KEY` values to API key override hooks.
+- AzureAI: Honor an explicitly supplied `api_key` instead of replacing it with an environment credential.
 - Google: Retry truncated response streams (`ClientPayloadError` wrapping a `PayloadEncodingError`, e.g. a connection reset mid-body) instead of crashing the sample.
 - Sandbox Tools: Lower the glibc build floor from 2.31 to 2.17 (build against a conda-forge CPython) so injected tools run on older glibc sandboxes including Ubuntu 16.04 and 18.04.
 - Control Channel: `inspect ctl tasks` now pins each eval's reported start to its first sample's start instead of letting it drift forward as early samples finish.
+- Control Channel: `inspect ctl` reads now use a 15s timeout and retry a busy eval up to 8 times (printing a status on each timeout) before failing with a non-zero exit, instead of silently dropping a momentarily-unresponsive eval from the listing.
+- Control Channel: Stop printing a misleading "Control server did not shut down cleanly" warning when an eval is interrupted with Ctrl-C (the cancellation is now re-raised as the expected teardown it is).
+- Inspect view: Require frontend-only headers for mutations and use non-GET routes for log deletion and client messages.
 - Inspect view: Improve MathJax Sanitization
 - Inspect view: Fix stale running status on nav
 - Inspect view: Fix broken commit links for ssh-style GitHub origins
 - Inspect view: Cap oversized tool/text output to prevent resize layerization stalls
 - Inspect view: Fix event panel nav pills never expanding back from picker mode
+- Inspect view: Fix inline MathJax stacking under inherited white-space: pre-wrap
+- Inspect view: guard Inspect view mutation requests
+- Scoring: Support `model` and `model_roles` overrides for re-scoring (`inspect score --model` / `--model-role`).
+- Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
+- Bug fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
+- Bug fix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
+- Security: `git_context()` now redacts credentials embedded in the git remote URL (e.g. `https://user:token@host`) before recording `origin`, preventing tokens from leaking into eval logs and downstream consumers.
+- Security: Apply the `data` tar filter when extracting sandbox checkpoint egress tarballs on the host, preventing a sandboxed agent from writing files outside the destination repo via crafted `..`/absolute-path/symlink entries.
 
 ## 0.3.241 (22 June 2026)
 
@@ -23,6 +41,7 @@
 - Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs
 - Eval Log: `read_eval_log`, `read_eval_log_async`, and `samples_df` now accept `exclude_fields` for more memory-efficient loading of large samples.
 - Sandbox: Preserve docker-compatible per-sample sandbox config (e.g. a per-sample `ComposeConfig`) when an eval-level sandbox override (`--sandbox <provider>`) is passed without its own config.
+- OpenAI: Skip the `_reasoning_summaries_lock` once the cached value is set, so highly-concurrent `generate()` calls no longer queue through the lock on every call.
 - Mistral: Forward `GenerateConfig.extra_headers` on the chat completions API path (previously only the conversation-api path honored it).
 - Anthropic: Synthesize a refusal `trigger` when validating fallback blocks from message history, fixing a `ValidationError` with `anthropic>=0.110.0` (which made `trigger` a required field on `BetaFallbackBlock`).
 - Limits: Added `turn_limit()` which tracks total generations.

@@ -54,6 +54,61 @@ def test_wait_for_shutdown_cancel_leaves_no_blocked_thread() -> None:
     assert leaked == 0, f"cancelled shutdown wait leaked {leaked} worker thread(s)"
 
 
+def test_stop_reraises_cancellation_without_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A Ctrl-C teardown must not log "did not shut down cleanly".
+
+    Regression: on Ctrl-C the eval's cancel scope tears down both the uvicorn
+    serve task and the ``stop()`` drain together, so ``asyncio.wait_for`` raises
+    ``CancelledError``. The drain used to catch that alongside ``Exception`` and
+    log a misleading ``Control server did not shut down cleanly`` warning (and
+    swallow the cancellation). ``stop()`` must instead re-raise the
+    cancellation, log nothing, and still run its discovery/socket cleanup.
+    """
+    import logging
+
+    from inspect_ai._control.server import ControlServer
+
+    class _StubUvicorn:
+        def __init__(self) -> None:
+            self.should_exit = False
+
+    async def scenario() -> bool:
+        server = ControlServer(run_id="test")
+        server._uvicorn_server = _StubUvicorn()
+        # A stand-in for uvicorn's serve task that never drains on its own, so
+        # the only way out of the drain's wait_for is the outer cancellation.
+        serve_task: asyncio.Task[None] = asyncio.ensure_future(asyncio.sleep(3600))
+        server._serve_task = serve_task
+
+        cleaned_up = False
+
+        async def _stop_and_track() -> None:
+            nonlocal cleaned_up
+            try:
+                await server.stop()
+            finally:
+                # stop()'s own finally must have run its cleanup before the
+                # cancellation propagates out of it.
+                cleaned_up = serve_task.cancelled() or serve_task.done()
+
+        stop_task = asyncio.ensure_future(_stop_and_track())
+        await asyncio.sleep(0.1)  # let stop() reach its wait_for
+        stop_task.cancel()  # simulate the eval cancel scope tearing down
+        with contextlib.suppress(asyncio.CancelledError):
+            await stop_task
+        # the cancellation must have propagated (stop did not swallow it)...
+        assert stop_task.cancelled()
+        return cleaned_up
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai._control.server"):
+        cleaned_up = asyncio.run(scenario())
+
+    assert cleaned_up, "stop() must still tear down the serve task on cancellation"
+    assert "did not shut down cleanly" not in caplog.text
+
+
 def test_wait_for_shutdown_returns_when_released() -> None:
     """Releasing keep-alive (POST /release) wakes the park promptly."""
     from inspect_ai._control.server import (
