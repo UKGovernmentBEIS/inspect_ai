@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task. (#4194)
+- HuggingFace: Forward an explicitly supplied API key when loading tokenizers for private or gated models.
 - AzureAI: Offer `AZUREAI_API_KEY` values to API key override hooks.
 - AzureAI: Honor an explicitly supplied `api_key` instead of replacing it with an environment credential.
 - Google: Retry truncated response streams (`ClientPayloadError` wrapping a `PayloadEncodingError`, e.g. a connection reset mid-body) instead of crashing the sample.
