@@ -23,8 +23,9 @@
 - Inspect view: guard Inspect view mutation requests
 - Scoring: Support `model` and `model_roles` overrides for re-scoring (`inspect score --model` / `--model-role`).
 - Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
-- Buf fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
+- Bug fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bug fix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
+- Security: `git_context()` now redacts credentials embedded in the git remote URL (e.g. `https://user:token@host`) before recording `origin`, preventing tokens from leaking into eval logs and downstream consumers.
 - Security: Apply the `data` tar filter when extracting sandbox checkpoint egress tarballs on the host, preventing a sandboxed agent from writing files outside the destination repo via crafted `..`/absolute-path/symlink entries.
 
 ## 0.3.241 (22 June 2026)
