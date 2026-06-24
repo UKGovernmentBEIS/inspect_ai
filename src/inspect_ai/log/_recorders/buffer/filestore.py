@@ -168,6 +168,28 @@ class PendingSampleSegments:
 MANIFEST = "manifest.json"
 
 
+def _is_s3_tagging_denied(ex: BaseException) -> bool:
+    """Whether a failed S3 write was rejected for lacking object-tagging permission.
+
+    Tagging an object on write (the ``x-amz-tagging`` header) requires
+    ``s3:PutObjectTagging`` in addition to ``s3:PutObject``. s3fs maps an S3
+    ``AccessDenied`` to ``PermissionError`` and preserves the underlying botocore
+    error (which names the denied action, e.g. ``PutObjectTagging``) on the
+    exception chain. Match either signal without taking a botocore dependency.
+    """
+    seen: set[int] = set()
+    cur: BaseException | None = ex
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if isinstance(cur, PermissionError):
+            return True
+        text = str(cur).lower()
+        if "accessdenied" in text or "tagging" in text:
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
 class SampleBufferFilestore(SampleBuffer):
     def __init__(
         self,
@@ -180,7 +202,8 @@ class SampleBufferFilestore(SampleBuffer):
         self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{os.path.splitext(basename(location))[0]}{self._fs.sep}"
         self.update_interval = update_interval
 
-        # Tag the ephemeral buffer objects synced to S3.
+        # Tag the ephemeral buffer objects synced to S3 (see _write_bytes for the
+        # permission fallback).
         self._write_fs_options: dict[str, Any] = (
             {"s3_additional_kwargs": {"Tagging": "inspect-ephemeral=true"}}
             if urlparse(location).scheme == "s3"
@@ -191,13 +214,37 @@ class SampleBufferFilestore(SampleBuffer):
             self._fs.mkdir(self._dir, exist_ok=True)
 
             # place a file in the dir to force it to be created
-            self._fs.touch(f"{self._dir}.keep")
+            self._write_bytes(f"{self._dir}.keep", b"")
+
+    def _write_bytes(self, path: str, data: bytes) -> None:
+        """Write bytes to the filestore, tagging S3 objects as ephemeral.
+
+        S3 buffer objects are written with an ``inspect-ephemeral`` tag so they
+        can be expired by an S3 lifecycle rule. Tagging on write requires the
+        ``s3:PutObjectTagging`` permission in addition to ``s3:PutObject``; if a
+        tagged write is denied for lacking it, disable tagging for the remainder
+        of this session and retry untagged so shared-log sync keeps working (the
+        objects simply won't be lifecycle-expirable by tag).
+        """
+        try:
+            with open_file(path, "wb", fs_options=self._write_fs_options) as f:
+                f.write(data)
+        except Exception as ex:
+            if not self._write_fs_options or not _is_s3_tagging_denied(ex):
+                raise
+            logger.warning(
+                "S3 object tagging denied when writing shared buffer objects "
+                "(missing s3:PutObjectTagging?); continuing untagged for the rest "
+                "of this session. Tag-based S3 lifecycle expiration will not apply "
+                "to this run's buffer objects. (%s)",
+                ex,
+            )
+            self._write_fs_options = {}
+            with open_file(path, "wb") as f:
+                f.write(data)
 
     def write_manifest(self, manifest: Manifest) -> None:
-        with open_file(
-            self._manifest_file(), "wb", fs_options=self._write_fs_options
-        ) as f:
-            f.write(to_json_safe(manifest))
+        self._write_bytes(self._manifest_file(), to_json_safe(manifest))
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
         # write the file locally
@@ -212,16 +259,9 @@ class SampleBufferFilestore(SampleBuffer):
             segment_file.flush()
             os.fsync(segment_file.fileno())
 
-        # write then move for atomicity
         try:
             with open(name, "rb") as zf:
-                with open_file(
-                    f"{self._dir}{segment_name(id)}",
-                    "wb",
-                    fs_options=self._write_fs_options,
-                ) as f:
-                    f.write(zf.read())
-                    f.flush()
+                self._write_bytes(f"{self._dir}{segment_name(id)}", zf.read())
         finally:
             os.unlink(name)
 
