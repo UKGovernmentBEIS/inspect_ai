@@ -31,6 +31,16 @@ from ._context import MCPServerContext
 
 logger = getLogger(__name__)
 
+# Default per-request timeout (seconds) applied when a sandbox MCP server is
+# created without an explicit `timeout`. Shared so the in-sandbox transport
+# timeout and the host-side MCP read timeout normalize to the same value.
+DEFAULT_SANDBOX_TIMEOUT = 180
+
+# Upper bound (seconds) on the best-effort server shutdown performed during
+# `sandbox_client` teardown. Kept short and independent of the per-request
+# timeout so a slow/broken transport cannot stall teardown.
+_KILL_SERVER_TIMEOUT = 30
+
 
 # Pardon the type: ignore's here. This code is a modified clone of Anthropic code
 # for stdio_client. In their case, they don't provide a type hint for the return
@@ -43,9 +53,9 @@ async def sandbox_client(  # type: ignore
     *,
     sandbox_name: str | None = None,
     errlog: TextIO = sys.stderr,
-    timeout: int | None = None,  # default 180 seconds
+    timeout: int | None = None,  # default DEFAULT_SANDBOX_TIMEOUT seconds
 ) -> MCPServerContext:  # type: ignore
-    timeout = timeout or 180
+    timeout = timeout or DEFAULT_SANDBOX_TIMEOUT
     sandbox_environment = await sandbox_with_injected_tools(sandbox_name=sandbox_name)
 
     # Create transport for all RPC calls
@@ -173,11 +183,26 @@ async def sandbox_client(  # type: ignore
         try:
             yield read_stream, write_stream
         finally:
-            await exec_scalar_request(
-                method="mcp_kill_server",
-                params={"session_id": session_id},
-                result_type=type(None),
-                transport=transport,
-                error_mapper=SandboxToolsErrorMapper,
-                timeout=timeout,
-            )
+            # Best-effort server shutdown. This runs while the surrounding task
+            # group is being torn down, so it must neither hang nor raise: a
+            # slow or broken transport here would otherwise corrupt the
+            # cancel-scope unwinding and surface as an inscrutable "Attempted to
+            # exit a cancel scope ..." RuntimeError that masks the real failure.
+            # We shield so a pending outer cancellation can't abort the kill
+            # mid-flight, bound it with our own deadline, and swallow any error.
+            try:
+                with anyio.move_on_after(_KILL_SERVER_TIMEOUT, shield=True):
+                    await exec_scalar_request(
+                        method="mcp_kill_server",
+                        params={"session_id": session_id},
+                        result_type=type(None),
+                        transport=transport,
+                        error_mapper=SandboxToolsErrorMapper,
+                        timeout=_KILL_SERVER_TIMEOUT,
+                    )
+            except Exception as ex:
+                logger.warning(
+                    "Sandbox MCP server shutdown failed (%s): %s",
+                    type(ex).__name__,
+                    ex,
+                )

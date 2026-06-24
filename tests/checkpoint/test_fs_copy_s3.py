@@ -10,6 +10,7 @@ payload. Also covers ``_fs_copy_repo`` against a local relative source
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,7 @@ from inspect_ai.util._checkpoint._host_egress import (
     host_egress,
     seed_manifest,
 )
+from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint.hydrate import (
     _fs_copy_cross_cutting,
     _fs_copy_repo,
@@ -30,6 +32,27 @@ S3_BUCKET = "s3://test-bucket"
 
 async def _put(fs: AsyncFilesystem, uri: str, content: bytes) -> None:
     await fs.write_file(uri, content)
+
+
+def _checkpoint_bytes(checkpoint_id: int) -> bytes:
+    return (
+        Checkpoint(
+            checkpoint_id=checkpoint_id,
+            trigger="turn",
+            turn=checkpoint_id,
+            created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+            duration_ms=10,
+            size_bytes=100 + checkpoint_id,
+            host=SnapshotDetails(
+                snapshot_id=f"snap-{checkpoint_id}",
+                size_bytes=100 + checkpoint_id,
+                duration_ms=10,
+            ),
+            sandboxes={},
+        )
+        .model_dump_json()
+        .encode()
+    )
 
 
 async def test_fs_copy_cross_cutting_downloads_from_s3(
@@ -180,7 +203,7 @@ async def test_seed_manifest_after_remote_resume_blocks_reupload(
         )
         await _put(fs, f"{src_root}/restic/host/config", b"cfg")
         await _put(fs, f"{src_root}/restic/host/data/ab/cd", b"pack")
-        await _put(fs, f"{src_root}/ckpt-00001.json", b"side1")
+        await _put(fs, f"{src_root}/ckpt-00001.json", _checkpoint_bytes(1))
 
         # Resume: download into a fresh local staging dir.
         await _fs_copy_cross_cutting(src_root, str(staging))

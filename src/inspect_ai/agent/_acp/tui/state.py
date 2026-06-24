@@ -53,6 +53,7 @@ from inspect_ai.agent._acp.inspect_ext import (
     MESSAGE_ROLE_META_KEY,
     MODEL_EVENT_COMPLETE_META_KEY,
     MODEL_EVENT_PENDING_META_KEY,
+    MODEL_FALLBACK_META_KEY,
     MODEL_META_KEY,
     PICKER_META_KEY,
     REPLAY_META_KEY,
@@ -144,6 +145,14 @@ class MessageGroup:
     segments: list[Segment] = field(default_factory=list)
     model: str | None = None
     """Source model name from ``_meta['inspect.model']`` if present."""
+
+    fallback_model: str | None = None
+    """Serving model from ``_meta['inspect.model_fallback']`` if present.
+
+    Set when the requested model's safety classifiers refused and a
+    fallback model served the generation — the chip renders it as an
+    italic ``(fallback → model)`` suffix after the model name.
+    """
 
     pending: bool = False
     """Whether the originating model event is still in flight.
@@ -1866,8 +1875,8 @@ class SessionState:
 
         Wire shape mirrors :class:`inspect_ai.event.SampleLimitEvent`:
         a ``type`` discriminator (``message`` / ``time`` / ``working``
-        / ``token`` / ``cost`` / ``operator`` / ``custom``) plus a
-        human-readable ``message`` and an optional numeric ``limit``.
+        / ``token`` / ``turn`` / ``cost`` / ``operator`` / ``custom``)
+        plus a human-readable ``message`` and an optional numeric ``limit``.
 
         The chip surfaces all three: the type and the numeric limit
         in the header (``limit · token · 100.0k``), and the message
@@ -2631,6 +2640,9 @@ class SessionState:
         if isinstance(model, str) and model:
             group.model = model
             self.current_model = model
+        fallback_model = meta.get(MODEL_FALLBACK_META_KEY)
+        if isinstance(fallback_model, str) and fallback_model:
+            group.fallback_model = fallback_model
         # User source is stamped by the server (input / operator /
         # generate / null). First chunk wins — the server emits one
         # chunk per user message, but be defensive against future

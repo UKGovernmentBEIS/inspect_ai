@@ -64,13 +64,16 @@ async def check_reasoning_content(
     config: GenerateConfig = GenerateConfig(),
     tools: list[Tool] = [],
     tool_choice: ToolChoice | None = None,
+    reasoning_tokens: int | None = 1024,
 ):
     model = get_model(model_name)
     output = await model.generate(
         "Solve 3*x^3-5*x=1",
         config=config.merge(
             GenerateConfig(
-                reasoning_effort="low", reasoning_tokens=1024, max_tokens=8192
+                reasoning_effort="low",
+                reasoning_tokens=reasoning_tokens,
+                max_tokens=8192,
             )
         ),
         tools=tools,

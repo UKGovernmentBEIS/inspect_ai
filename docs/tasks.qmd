@@ -748,7 +748,7 @@ A dataset's `eval.yaml` file defines a list of tasks. Here are the fields that c
 +-------------------+----------------+--------------------------------+
 | `epochs`          | 1              | `Epochs(epochs)`               |
 +-------------------+----------------+--------------------------------+
-| `epoch_reducer`   | "mean"         | `Epochs(epoch_reducer)`        |
+| `epoch_reducer`   | implicit mean  | `Epochs(epoch_reducer)`        |
 +-------------------+----------------+--------------------------------+
 | `solvers`         | None           | `Task(solver)`                 |
 +-------------------+----------------+--------------------------------+

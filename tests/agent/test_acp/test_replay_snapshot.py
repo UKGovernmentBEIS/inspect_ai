@@ -63,10 +63,9 @@ class _ListBackedProvider:
             return []
         return self._events[-n:]
 
-    def events_from(self, start: int) -> Sequence[Event]:
-        if start <= 0:
-            return list(self._events)
-        return self._events[start:]
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        events = self._events[max(0, start) :]
+        return list(events[:limit] if limit is not None else events)
 
     def events_since_last(self, event_type: type[Event]) -> list[Event]:
         suffix: list[Event] = []

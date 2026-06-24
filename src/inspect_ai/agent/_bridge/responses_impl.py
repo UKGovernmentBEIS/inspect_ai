@@ -95,6 +95,7 @@ from inspect_ai.model._internal import (
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
+    RESPONSES_NAMESPACE,
     TOOL_SEARCH_NAME,
     TOOL_SEARCH_OPTIONS_MARKER,
     assistant_internal,
@@ -154,7 +155,7 @@ from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
-from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE, ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._code_execution import (
@@ -287,7 +288,7 @@ async def inspect_responses_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # update state if we have more messages than the last generation
-    bridge._track_state(messages, output)
+    await bridge._track_state(messages, output)
 
     # return response
     response = Response(
@@ -470,7 +471,7 @@ def tool_from_responses_tool(
         return ToolInfo(
             name=f"mcp_server_{config.name}",
             description=f"mcp_server_{config.name}",
-            options=config.model_dump(),
+            options={INTERNAL_TOOL_TYPE: "mcp_call", **config.model_dump()},
         )
     elif is_tool_search_tool_param(tool_param):
         # client-resolved tool discovery (e.g. codex-cli). Preserve the native
@@ -512,6 +513,8 @@ def tools_from_responses_tool(
     locate the tool on the return trip.
     """
     if is_namespace_tool_param(tool_param):
+        ns_name = tool_param.get("name")
+        ns_desc = tool_param.get("description") or ns_name
         flattened: list[ToolInfo | Tool] = []
         for inner in tool_param.get("tools", []):
             inner_param = cast(ToolParam, inner)
@@ -519,6 +522,16 @@ def tools_from_responses_tool(
                 inner_param, web_search_providers, code_execution_providers
             )
             if inner_tool is not None:
+                # Stash the namespace so openai_responses_tools can re-group
+                # into a NamespaceToolParam on the outgoing request. Without
+                # this the tool reaches the API flat as functions.<name>,
+                # which OpenAI rejects on models that reserve those names for
+                # encrypted tool use (e.g. codex's multi_agent_v1.spawn_agent).
+                if isinstance(inner_tool, ToolInfo) and ns_name:
+                    inner_tool.options = {
+                        **(inner_tool.options or {}),
+                        RESPONSES_NAMESPACE: (ns_name, ns_desc),
+                    }
                 flattened.append(inner_tool)
         return flattened
     tool = tool_from_responses_tool(

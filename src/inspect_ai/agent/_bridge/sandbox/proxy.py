@@ -1741,6 +1741,31 @@ async def model_proxy_server(
                                 {"type": "content_block_stop", "index": index},
                             )
 
+                        elif block_type == "fallback":
+                            # server-side refusal fallback handoff marker. a
+                            # plain start/stop pair with no deltas. emit the
+                            # `from`/`to` wire shape (the message was dumped
+                            # without by_alias, so `from` may arrive as `from_`)
+                            fallback_block: dict[str, Any] = {
+                                "type": "fallback",
+                                "to": block.get("to"),
+                            }
+                            fallback_from = block.get("from", block.get("from_"))
+                            if fallback_from is not None:
+                                fallback_block["from"] = fallback_from
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": fallback_block,
+                                },
+                            )
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
                     # 3. message_delta event with cumulative usage
                     usage = message.get("usage", {})
                     message_delta_data: dict[str, Any] = {
