@@ -6,6 +6,7 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
+from inspect_ai.model._providers.vllm import _server_context_length
 
 
 @pytest.mark.anyio
@@ -30,6 +31,40 @@ async def test_vllm_api() -> None:
     message = ChatMessageUser(content="Lorem ipsum dolor")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+def test_server_context_length_matches_model_id() -> None:
+    data = {
+        "data": [
+            {"id": "other/model", "max_model_len": 4096},
+            {"id": "my/model", "max_model_len": 8192},
+        ]
+    }
+    assert _server_context_length(data, "my/model") == 8192
+
+
+def test_server_context_length_falls_back_to_sole_entry() -> None:
+    data = {"data": [{"id": "served/model", "max_model_len": 8192}]}
+    assert _server_context_length(data, "unmatched") == 8192
+
+
+def test_server_context_length_ambiguous_no_match_returns_none() -> None:
+    data = {
+        "data": [
+            {"id": "a/model", "max_model_len": 4096},
+            {"id": "b/model", "max_model_len": 8192},
+        ]
+    }
+    assert _server_context_length(data, "unmatched") is None
+
+
+def test_server_context_length_missing_or_empty() -> None:
+    assert (
+        _server_context_length({"data": [{"id": "served/model"}]}, "served/model")
+        is None
+    )
+    assert _server_context_length({"data": []}, "x") is None
+    assert _server_context_length({}, "x") is None
 
 
 @pytest.mark.anyio

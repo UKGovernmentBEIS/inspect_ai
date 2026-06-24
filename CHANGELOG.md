@@ -1,5 +1,6 @@
 ## Unreleased
 
+- vLLM: Read the served `max_model_len` from the server's `/v1/models` endpoint and register it as the model's context window (falling back to the static model catalog). This calibrates context management such as compaction against the window the server is actually running, which on self-hosted deployments is often smaller than the catalog value.
 - Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task. (#4194)
 - HuggingFace: Forward an explicitly supplied API key when loading tokenizers for private or gated models.
 - NNterp: Forward an explicitly supplied API key when loading private or gated Hugging Face models and tokenizers.
