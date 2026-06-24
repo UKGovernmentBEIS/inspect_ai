@@ -19,6 +19,7 @@
 - Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
 - Buf fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bug fix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
+- Security: Apply the `data` tar filter when extracting sandbox checkpoint egress tarballs on the host, preventing a sandboxed agent from writing files outside the destination repo via crafted `..`/absolute-path/symlink entries.
 
 ## 0.3.241 (22 June 2026)
 
