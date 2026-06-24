@@ -14,16 +14,23 @@ from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
 from inspect_ai._util.file import write_atomic_text
-from inspect_ai._util.hash import mm3_hash
+from inspect_ai.event import (
+    _pool,  # accessed as module attributes so monkeypatching _pool hashes is visible here
+)
 from inspect_ai.event._event import Event
-from inspect_ai.event._pool import (
-    _msg_hash,
-    condense_model_event_calls_with_lookup,
-    condense_model_event_inputs_with_lookup,
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._pool_index import (
+    CallPoolIndex,
+    MessagePoolIndex,
+    condense_model_event_with_indices,
 )
 from inspect_ai.log._condense import (
+    WalkContext,
     attachment_refs_from_value,
     condense_event,
+    events_attachment_fn,
+    walk_chat_message,
+    walk_json_value,
 )
 from inspect_ai.model._chat_message import ChatMessage
 
@@ -55,8 +62,11 @@ class TranscriptEventStore:
             self._reset_files()
         self._conn = connect(self._path, check_same_thread=False)
         self._lock = RLock()
-        self._pending_message_pos_by_event: dict[str, dict[int, int]] = {}
-        self._pending_call_pos_by_event: dict[str, dict[int, int]] = {}
+        # one store per sample transcript; full pool state lives in SQLite, so
+        # on a reopened store these start empty and _pool_pos transparently
+        # resolves existing rows by hash
+        self._msg_pool_index = MessagePoolIndex()
+        self._call_pool_index = CallPoolIndex()
         self._conn.row_factory = None
         self._closed = False
         self._init_schema(self._conn)
@@ -96,33 +106,38 @@ class TranscriptEventStore:
                 event.uuid = uuid()
             logical_id = event.uuid
 
-            with self._conn:
-                event_attachments: dict[str, str] = {}
-                event = condense_event(event, event_attachments)
-                pending_message_cache, pending_call_cache = (
-                    self._pending_caches_for_event(logical_id, event)
-                )
-                condensed_event = self._condense_event(
-                    event, pending_message_cache, pending_call_cache
-                )
-                event_json = json.dumps(
-                    to_jsonable_python(
-                        condensed_event, exclude_none=True, fallback=lambda _: None
-                    ),
-                    separators=(",", ":"),
-                )
-                self._upsert_event(logical_id, event_json)
-                self._insert_attachments(event_attachments)
-                self._merge_attachment_refs(
-                    self._attachment_refs(event),
-                    lambda ref: event_attachments.get(ref) or attachment_lookup(ref),
-                )
-                self._commit_pending_caches(
-                    logical_id,
-                    condensed_event,
-                    pending_message_cache,
-                    pending_call_cache,
-                )
+            msg_mark = self._msg_pool_index.mark()
+            call_mark = self._call_pool_index.mark()
+            try:
+                with self._conn:
+                    event_attachments: dict[str, str] = {}
+                    incoming_refs: set[str] = set()
+                    if isinstance(event, ModelEvent):
+                        condensed_event: Event = self._condense_model_event(
+                            event, event_attachments, incoming_refs
+                        )
+                    else:
+                        condensed_event = condense_event(event, event_attachments)
+                        incoming_refs.update(self._attachment_refs(condensed_event))
+                    event_json = json.dumps(
+                        to_jsonable_python(
+                            condensed_event, exclude_none=True, fallback=lambda _: None
+                        ),
+                        separators=(",", ":"),
+                    )
+                    self._upsert_event(logical_id, event_json)
+                    self._insert_attachments(event_attachments)
+                    self._merge_attachment_refs(
+                        incoming_refs,
+                        lambda ref: event_attachments.get(ref)
+                        or attachment_lookup(ref),
+                    )
+            except BaseException:
+                # the SQLite transaction rolled back; unwind the in-memory
+                # indices so they don't reference rolled-back pool rows
+                self._msg_pool_index.restore(msg_mark)
+                self._call_pool_index.restore(call_mark)
+                raise
 
     def merge_condensed_event(
         self,
@@ -150,9 +165,14 @@ class TranscriptEventStore:
     def merge_message_pool(self, messages: Iterable[ChatMessage]) -> None:
         with self._lock:
             self._ensure_open()
-            with self._conn:
-                for message in messages:
-                    self._message_pos(message)
+            mark = self._msg_pool_index.mark()
+            try:
+                with self._conn:
+                    for message in messages:
+                        self._message_pos(message)
+            except BaseException:
+                self._msg_pool_index.restore(mark)
+                raise
 
     def merge_call_pool_entry(self, hash_value: str, json_text: str) -> int:
         with self._lock:
@@ -163,9 +183,14 @@ class TranscriptEventStore:
     def merge_call_pool(self, calls: Iterable[JsonValue]) -> None:
         with self._lock:
             self._ensure_open()
-            with self._conn:
-                for call in calls:
-                    self._call_pos(call)
+            mark = self._call_pool_index.mark()
+            try:
+                with self._conn:
+                    for call in calls:
+                        self._call_pos(call)
+            except BaseException:
+                self._call_pool_index.restore(mark)
+                raise
 
     def _upsert_event(self, logical_id: str, event_json: str) -> None:
         row = self._conn.execute(
@@ -303,82 +328,96 @@ class TranscriptEventStore:
         assert row is not None
         return int(row[0])
 
-    def _pending_caches_for_event(
-        self, logical_id: str, event: Event
-    ) -> tuple[dict[int, int] | None, dict[int, int] | None]:
-        if not event.pending:
-            return (
-                self._pending_message_pos_by_event.get(logical_id),
-                self._pending_call_pos_by_event.get(logical_id),
-            )
-        return (
-            dict(self._pending_message_pos_by_event.get(logical_id, {})),
-            dict(self._pending_call_pos_by_event.get(logical_id, {})),
-        )
-
-    def _condense_event(
+    def _condense_model_event(
         self,
-        event: Event,
-        message_cache: dict[int, int] | None,
-        call_cache: dict[int, int] | None,
+        event: ModelEvent,
+        event_attachments: dict[str, str],
+        incoming_refs: set[str],
     ) -> Event:
-        event = condense_model_event_inputs_with_lookup(
-            event, lambda message: self._message_pos(message, message_cache)
-        )
-        return condense_model_event_calls_with_lookup(
-            event, lambda call_message: self._call_pos(call_message, call_cache)
+        """Condense a ModelEvent against the in-memory pool indices.
+
+        Pool dedup walks/serializes only messages new to the pool; attachment
+        refs are collected from new pool entries plus the walked remainder
+        (input emptied, call request without messages), so the per-event ref
+        scan is O(event-own-content) rather than O(history).
+
+        Args:
+            event: The model event to condense.
+            event_attachments: Out-parameter — attachment content produced by
+                walking is added here (mutated via the walk closures).
+            incoming_refs: Out-parameter — attachment refs from new pool
+                entries and the walked remainder are added here.
+
+        Returns:
+            The condensed event (input/call request replaced by pool refs).
+        """
+        content_fn = events_attachment_fn(event_attachments)
+        context = WalkContext(message_cache={}, only_core=False)
+
+        def add_message(hash_value: str, walked: ChatMessage) -> int:
+            message_jsonable = _pool._msg_pool_jsonable(walked)
+            incoming_refs.update(attachment_refs_from_value(message_jsonable))
+            return self._pool_pos(
+                "message_pool",
+                hash_value,
+                _pool._msg_pool_json(message_jsonable),
+            )
+
+        def add_call(hash_value: str, walked: JsonValue) -> int:
+            incoming_refs.update(attachment_refs_from_value(walked))
+            return self._pool_pos(
+                "call_pool", hash_value, _pool._call_pool_json(walked)
+            )
+
+        condensed = condense_model_event_with_indices(
+            event,
+            messages=self._msg_pool_index,
+            calls=self._call_pool_index,
+            walk_message=lambda m: walk_chat_message(m, content_fn, context),
+            walk_call_message=lambda v: walk_json_value(v, content_fn, context),
+            add_message=add_message,
+            add_call=add_call,
         )
 
-    def _commit_pending_caches(
-        self,
-        logical_id: str,
-        event: Event,
-        message_cache: dict[int, int] | None,
-        call_cache: dict[int, int] | None,
-    ) -> None:
-        if event.pending:
-            self._pending_message_pos_by_event[logical_id] = message_cache or {}
-            self._pending_call_pos_by_event[logical_id] = call_cache or {}
-        else:
-            self._pending_message_pos_by_event.pop(logical_id, None)
-            self._pending_call_pos_by_event.pop(logical_id, None)
-
-    def _message_pos(
-        self, message: ChatMessage, cache: dict[int, int] | None = None
-    ) -> int:
-        message_id = id(message)
-        if cache is not None:
-            cached_pos = cache.get(message_id)
-            if cached_pos is not None:
-                return cached_pos
-
-        message_jsonable = to_jsonable_python(
-            message,
-            exclude_none=True,
-            fallback=lambda _: None,
+        # walk the remainder (input now [], call request without messages)
+        condensed_remainder = condense_event(
+            condensed, event_attachments, context=context
         )
-        pos = self._pool_pos(
-            "message_pool",
-            _msg_hash(message),
-            json.dumps(message_jsonable, sort_keys=True),
-        )
-        if cache is not None:
-            cache[message_id] = pos
+        incoming_refs.update(self._attachment_refs(condensed_remainder))
+        return condensed_remainder
+
+    def _message_pos(self, message: ChatMessage) -> int:
+        """Pool position for a message already in walked/stored pool form.
+
+        Callers (`merge_message_pool`, seeding from hydrated pool entries)
+        pass walked-form messages, so hashing here matches the condense
+        path's walked-form hashes. Unlike the per-event condense path, the
+        index entry is registered even on a hash hit: resume-pool objects
+        recur across the seeding pass, so pinning them earns identity hits.
+        """
+        pos = self._msg_pool_index.get(message)
+        if pos is not None:
+            return pos
+        hash_value = _pool._msg_hash(message)
+        pos = self._msg_pool_index.get_by_hash(hash_value)
+        if pos is None:
+            pos = self._pool_pos(
+                "message_pool",
+                hash_value,
+                _pool._msg_pool_json(_pool._msg_pool_jsonable(message)),
+            )
+        self._msg_pool_index.add(message, hash_value, pos)
         return pos
 
-    def _call_pos(
-        self, call_message: JsonValue, cache: dict[int, int] | None = None
-    ) -> int:
-        call_message_id = id(call_message)
-        if cache is not None:
-            cached_pos = cache.get(call_message_id)
-            if cached_pos is not None:
-                return cached_pos
-
-        call_json = json.dumps(call_message, sort_keys=True)
-        pos = self._pool_pos("call_pool", mm3_hash(call_json), call_json)
-        if cache is not None:
-            cache[call_message_id] = pos
+    def _call_pos(self, call_message: JsonValue) -> int:
+        """Pool position for a call message already in walked/stored form."""
+        hash_value = _pool._call_hash(call_message)
+        pos = self._call_pool_index.get_by_hash(hash_value)
+        if pos is None:
+            pos = self._pool_pos(
+                "call_pool", hash_value, _pool._call_pool_json(call_message)
+            )
+        self._call_pool_index.add_hash(hash_value, pos)
         return pos
 
     def _pool_pos(self, table: str, hash_value: str, json_text: str) -> int:
