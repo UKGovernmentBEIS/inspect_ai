@@ -50,7 +50,7 @@ def resolve_model_costs(
             # direct (non provider-resolving) lookup: these models are already
             # instantiated, so resolving a provider here would re-instantiate
             # them (reloading local weights)
-            info = _get_model_info_direct(model_name)
+            info = _get_model_info_direct(model)
             if info is None or info.cost is None:
                 missing.append(model_name)
 

@@ -448,12 +448,13 @@ class TestDoesNotReinstantiateProvider:
         from inspect_ai.model._model import record_and_check_model_usage
         from inspect_ai.model._model_output import ModelUsage
 
+        # create the model first
+        model = get_model("noload/totally-unknown-model-xyz")
+
         calls = self._track_get_model(monkeypatch)
 
-        # a string guaranteed to miss direct/fuzzy DB lookup -> would hit the
-        # get_model() fallback before the fix
         record_and_check_model_usage(
-            "hf/my-org/totally-unknown-model-xyz",
+            model,
             ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2),
         )
         assert calls == []
