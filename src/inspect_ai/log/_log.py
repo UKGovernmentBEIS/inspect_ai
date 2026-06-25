@@ -29,6 +29,7 @@ from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEd
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
+    ModelFallback,
     ModelOutput,
     ModelUsage,
 )
@@ -61,9 +62,9 @@ SCORER_PLACEHOLDER = "88F74D2C"
 
 class EvalConfigDefaults(TypedDict):
     epochs: int
-    epochs_reducer: list[str]
     fail_on_error: bool
     continue_on_fail: bool
+    score_on_error: bool
     sandbox_cleanup: bool
     log_samples: bool
     log_realtime: bool
@@ -74,9 +75,9 @@ class EvalConfigDefaults(TypedDict):
 def eval_config_defaults() -> EvalConfigDefaults:
     return {
         "epochs": 1,
-        "epochs_reducer": ["mean"],
         "fail_on_error": True,
         "continue_on_fail": False,
+        "score_on_error": False,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,
@@ -107,6 +108,13 @@ class EvalConfig(BaseModel):
 
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
+
+    notification: bool | str | None = Field(default=None)
+    """Notification routing for human-in-the-loop interactions.
+
+    `True` means notifications are enabled via the `INSPECT_EVAL_NOTIFICATION`
+    environment variable; a string is a path to an Apprise YAML/text config
+    file. URLs are never stored here to keep secrets out of eval logs."""
 
     fail_on_error: bool | float | None = Field(default=None)
     """Fail eval when sample errors occur.
@@ -140,6 +148,9 @@ class EvalConfig(BaseModel):
 
     token_limit: int | None = Field(default=None)
     """Maximum tokens usage per sample."""
+
+    turn_limit: int | None = Field(default=None)
+    """Maximum turns (model generations) per sample."""
 
     time_limit: int | None = Field(default=None)
     """Maximum clock time per sample."""
@@ -194,6 +205,17 @@ class EvalConfig(BaseModel):
     score_display: bool | None = Field(default=None)
     """Display scoring metrics realtime."""
 
+    acp_server: bool | int | str | None = Field(default=None)
+    """Expose this eval over an Agent Client Protocol server.
+
+    `True` enables a default AF_UNIX socket at
+    `<inspect_data_dir>/acp/<eval_id>.sock`; an integer binds a TCP
+    loopback port (127.0.0.1:<int>); a string of the form `host:port`
+    (e.g. `0.0.0.0:4444`) binds TCP on a specific interface; any other
+    string is taken as a custom AF_UNIX socket path; `None` (default)
+    does not start an ACP server.
+    """
+
     @property
     def max_messages(self) -> int | None:
         """Deprecated max_messages property."""
@@ -214,7 +236,15 @@ class EvalConfig(BaseModel):
 
 
 EvalSampleLimitType = Literal[
-    "context", "time", "working", "message", "token", "cost", "operator", "custom"
+    "context",
+    "time",
+    "working",
+    "message",
+    "token",
+    "turn",
+    "cost",
+    "operator",
+    "custom",
 ]
 
 
@@ -257,6 +287,9 @@ class EvalSampleSummary(BaseModel):
 
     role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage by role for sample."""
+
+    model_fallbacks: list[ModelFallback] | None = Field(default=None)
+    """Model fallbacks that occurred during the sample (None if no fallbacks)."""
 
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
@@ -429,6 +462,13 @@ class EvalSample(BaseModel):
     role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage by role for sample."""
 
+    model_fallbacks: list[ModelFallback] | None = Field(default=None)
+    """Model fallbacks that occurred during the sample (None if no fallbacks).
+
+    Includes fallbacks from all generate calls in the sample (solvers,
+    subagents, and scorers alike), aggregated by (model, fallback_model).
+    """
+
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
 
@@ -487,6 +527,8 @@ class EvalSample(BaseModel):
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
+            role_usage=self.role_usage,
+            model_fallbacks=self.model_fallbacks,
             started_at=self.started_at,
             completed_at=self.completed_at,
             total_time=self.total_time,
@@ -629,6 +671,12 @@ class EvalMetric(BaseModel):
 
     name: str
     """Metric name."""
+
+    group: str | None = Field(default=None)
+    """Group name when this metric is one of several values produced by a
+    single metric function (e.g. one category from ``frequency()``). Metrics
+    sharing a ``group`` within an ``EvalScore`` should be displayed together;
+    ``name`` is then the leaf label within the group."""
 
     value: int | float
     """Metric value."""

@@ -1,7 +1,7 @@
 [
   {
-    "id": "ade_bench_1_0",
-    "name": "Ade Bench",
+    "id": "dbt_labs_ade_bench",
+    "name": "ADE-Bench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -12,13 +12,36 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Analytics Data Engineer Bench: tasks evaluating AI agents on dbt/SQL data analytics engineering bugs.",
+    "desc": "Analytics Data Engineer Bench: dbt and SQL data-engineering tasks across DuckDB and Snowflake backends.",
     "paper": "https://github.com/dbt-labs/ade-bench",
-    "code": "inspect_harbor/ade_bench_1_0",
+    "code": "inspect_harbor/dbt_labs_ade_bench",
     "contributors": [],
     "samples": 48,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ade_bench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/dbt_labs_ade_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "ivanleo_agent_search",
+    "name": "agent-search",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Agent answers Gemini API questions by querying an indexed documentation database.",
+    "paper": null,
+    "code": "inspect_harbor/ivanleo_agent_search",
+    "contributors": [],
+    "samples": 20,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ivanleo_agent_search.html",
     "model_cards": []
   },
   {
@@ -35,7 +58,7 @@
     ],
     "desc": "A benchmark designed to evaluate LLMs as Agents",
     "paper": "https://arxiv.org/abs/2308.03688",
-    "code": "inspect_evals/agent_bench",
+    "code": "inspect_evals/agent_bench_os",
     "contributors": [
       "Felhof",
       "hannagabor",
@@ -43,11 +66,11 @@
     ],
     "samples": 26,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/agent_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agent_bench/",
     "model_cards": []
   },
   {
-    "id": "aider_polyglot_1_0",
+    "id": "aider_polyglot",
     "name": "Aider Polyglot",
     "source": "harbor",
     "categories": [
@@ -59,21 +82,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A polyglot coding benchmark that evaluates AI agents' ability to perform code editing and generation tasks across multiple programming languages.",
+    "desc": "Aider's polyglot coding benchmark: Exercism exercises across C++, Go, Java, JavaScript, Python, and Rust testing LLMs on multi-language code editing.",
     "paper": "https://arxiv.org/abs/2503.03656",
-    "code": "inspect_harbor/aider_polyglot_1_0",
+    "code": "inspect_harbor/aider_polyglot",
     "contributors": [],
     "samples": 225,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aider_polyglot_1_0.html",
-    "model_cards": [
-      "chatgpt",
-      "claude"
-    ]
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aider_polyglot.html",
+    "model_cards": []
   },
   {
-    "id": "algotune_1_0",
-    "name": "Algotune",
+    "id": "algotune",
+    "name": "AlgoTune",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -84,13 +104,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "AlgoTune: 154 algorithm optimization tasks focusing on speedup-based scoring from the AlgoTune benchmark.",
+    "desc": "AlgoTune: NeurIPS 2025 benchmark of math/physics/CS problems where the model writes code that matches reference output but runs faster than existing implementations.",
     "paper": "https://arxiv.org/abs/2507.15887",
-    "code": "inspect_harbor/algotune_1_0",
+    "code": "inspect_harbor/algotune",
     "contributors": [],
     "samples": 154,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/algotune_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/algotune.html",
     "model_cards": []
   },
   {
@@ -113,11 +133,11 @@
     ],
     "samples": 5000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/apps/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/apps/",
     "model_cards": []
   },
   {
-    "id": "autocodebench_lite200",
+    "id": "tencent_autocodebench",
     "name": "AutoCodeBench",
     "source": "harbor",
     "categories": [
@@ -131,11 +151,11 @@
     ],
     "desc": "Multilingual automated code generation benchmark evaluating LLMs across diverse programming tasks and languages.",
     "paper": "https://arxiv.org/abs/2508.09101",
-    "code": "inspect_harbor/autocodebench_lite200",
+    "code": "inspect_harbor/tencent_autocodebench",
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/autocodebench_lite200.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/tencent_autocodebench.html",
     "model_cards": []
   },
   {
@@ -158,12 +178,12 @@
     ],
     "samples": 1140,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/bigcodebench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bigcodebench/",
     "model_cards": []
   },
   {
-    "id": "bigcodebench_hard_complete_1_0_0",
-    "name": "Bigcodebench Hard Complete",
+    "id": "bigcode_bigcodebench_hard_complete",
+    "name": "BigCodeBench-Hard (Complete)",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -174,21 +194,22 @@
       "agent",
       "sandbox"
     ],
-    "desc": "BigCodeBench-Hard complete benchmark adapter for Harbor - challenging Python programming tasks with reward-based verification.",
+    "desc": "BigCodeBench-Hard (Complete split): hard subset evaluating LLMs on code generation with diverse function calls and complex instructions, in completion format.",
     "paper": "https://arxiv.org/abs/2406.15877",
-    "code": "inspect_harbor/bigcodebench_hard_complete_1_0_0",
+    "code": "inspect_harbor/bigcode_bigcodebench_hard_complete",
     "contributors": [],
     "samples": 145,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bigcodebench_hard_complete_1_0_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bigcode_bigcodebench_hard_complete.html",
     "model_cards": []
   },
   {
-    "id": "bird_bench_parity",
-    "name": "Bird Bench",
+    "id": "gnucleus_ai_cad_bench",
+    "name": "CAD-Bench",
     "source": "harbor",
     "categories": [
-      "Coding"
+      "Coding",
+      "Professional"
     ],
     "tags": [],
     "kind": "agent",
@@ -196,13 +217,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "BIRD SQL parity subset (150 tasks, seed 42).",
-    "paper": "https://arxiv.org/abs/2305.03111",
-    "code": "inspect_harbor/bird_bench_parity",
+    "desc": "gNucleus AI CAD-generation benchmark — 100 parametric FreeCAD tasks.",
+    "paper": "https://www.gnucleus.ai/cad-bench",
+    "code": "inspect_harbor/gnucleus_ai_cad_bench",
     "contributors": [],
-    "samples": 150,
+    "samples": 100,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bird_bench_parity.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gnucleus_ai_cad_bench.html",
     "model_cards": []
   },
   {
@@ -225,12 +246,12 @@
     ],
     "samples": 100,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/class_eval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/class_eval/",
     "model_cards": []
   },
   {
-    "id": "code_contests_1_0",
-    "name": "Code Contests",
+    "id": "nvats_codeskills_bench",
+    "name": "CodeSkills-Bench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -241,18 +262,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A competitive programming benchmark from DeepMind that evaluates AI agents' ability to solve algorithmic problems, covering algorithms, data structures, and competitive programming challenges.",
-    "paper": "https://arxiv.org/abs/2203.07814",
-    "code": "inspect_harbor/code_contests_1_0",
+    "desc": "A small set of real-life programming tasks: bug fixes, merge-conflict resolution, dependency cleanup, API migration, and performance regressions across compact Python repositories.",
+    "paper": "https://github.com/namanvats/codeskills-bench",
+    "code": "inspect_harbor/nvats_codeskills_bench",
     "contributors": [],
-    "samples": 9644,
+    "samples": 23,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/code_contests_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/nvats_codeskills_bench.html",
     "model_cards": []
   },
   {
-    "id": "compilebench_1_0",
-    "name": "Compilebench",
+    "id": "quesma_compilebench",
+    "name": "CompileBench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -263,13 +284,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Version 1.0 of CompileBench, a benchmark on real open-source projects against dependency hell, legacy toolchains, and complex build systems.",
+    "desc": "CompileBench: real-world build/compile tasks (curl, GNU coreutils, jq, etc.) ranging from easy builds to reviving 2003-era code and cross-compiling.",
     "paper": "https://arxiv.org/abs/2509.25248",
-    "code": "inspect_harbor/compilebench_1_0",
+    "code": "inspect_harbor/quesma_compilebench",
     "contributors": [],
     "samples": 15,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/compilebench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/quesma_compilebench.html",
     "model_cards": []
   },
   {
@@ -292,12 +313,12 @@
     ],
     "samples": 406,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/compute_eval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/compute_eval/",
     "model_cards": []
   },
   {
-    "id": "cooperbench_1_0",
-    "name": "Cooperbench",
+    "id": "crustbench",
+    "name": "CRUST-Bench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -308,40 +329,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "CooperBench: multi-agent cooperation benchmark. 652 feature pairs across 12 repos requiring two agents to coordinate via messaging.",
-    "paper": "https://arxiv.org/abs/2601.13295",
-    "code": "inspect_harbor/cooperbench_1_0",
-    "contributors": [],
-    "samples": 652,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/cooperbench_1_0.html",
-    "model_cards": []
-  },
-  {
-    "id": "crustbench_1_0",
-    "name": "Crustbench",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "CRUST-bench: 100 C-to-safe-Rust transpilation tasks from real-world C repositories.",
+    "desc": "CRUST-Bench: real-world C repositories paired with hand-written safe-Rust interfaces and tests, benchmarking LLMs on C-to-safe-Rust transpilation.",
     "paper": "https://arxiv.org/abs/2504.15254",
-    "code": "inspect_harbor/crustbench_1_0",
+    "code": "inspect_harbor/crustbench",
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/crustbench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/crustbench.html",
     "model_cards": []
   },
   {
-    "id": "deveval_1_0",
-    "name": "Deveval",
+    "id": "datacurve_deep_swe",
+    "name": "DeepSWE",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -352,21 +351,44 @@
       "agent",
       "sandbox"
     ],
-    "desc": "DevEval benchmark: comprehensive evaluation of LLMs across software development lifecycle (implementation, unit testing, acceptance testing) for 21 real-world repositories across Python, C++, Java, and JavaScript.",
+    "desc": "DeepSWE: Measuring frontier coding agents on original, long-horizon engineering tasks.",
+    "paper": "https://github.com/datacurve-ai/deep-swe",
+    "code": "inspect_harbor/datacurve_deep_swe",
+    "contributors": [],
+    "samples": 113,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/datacurve_deep_swe.html",
+    "model_cards": []
+  },
+  {
+    "id": "deveval",
+    "name": "DevEval",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "DevEval: manually-annotated code-generation samples from real-world Python repositories, aligned to practical software development.",
     "paper": "https://arxiv.org/abs/2403.08604",
-    "code": "inspect_harbor/deveval_1_0",
+    "code": "inspect_harbor/deveval",
     "contributors": [],
     "samples": 63,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/deveval_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/deveval.html",
     "model_cards": []
   },
   {
-    "id": "ds_1000_head",
-    "name": "Ds 1000",
+    "id": "michaely310_devopsgym",
+    "name": "DevOps-Gym",
     "source": "harbor",
     "categories": [
-      "Coding"
+      "Coding",
+      "Professional"
     ],
     "tags": [],
     "kind": "agent",
@@ -374,13 +396,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "DS-1000 is a code generation benchmark with 1000 realistic data science problems across seven popular Python libraries.",
-    "paper": "https://arxiv.org/abs/2211.11501",
-    "code": "inspect_harbor/ds_1000_head",
+    "desc": "DevOps-Gym benchmark adapted to Harbor format - 729 tasks across 5 categories: Build, Monitoring, Issue Resolving, Test Generation, and End-to-End.",
+    "paper": "https://arxiv.org/abs/2601.20882",
+    "code": "inspect_harbor/michaely310_devopsgym",
     "contributors": [],
-    "samples": 1000,
+    "samples": 728,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ds_1000_head.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/michaely310_devopsgym.html",
     "model_cards": []
   },
   {
@@ -403,12 +425,12 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ds1000/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ds1000/",
     "model_cards": []
   },
   {
-    "id": "evoeval_1_0",
-    "name": "Evoeval",
+    "id": "xlang_ds_1000",
+    "name": "DS-1000",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -419,18 +441,40 @@
       "agent",
       "sandbox"
     ],
-    "desc": "EvoEval_difficult: 100 challenging Python programming tasks evolved from HumanEval.",
+    "desc": "DS-1000: data-science code-generation problems from StackOverflow across NumPy, Pandas, TensorFlow, PyTorch, SciPy, Scikit-learn, and Matplotlib, with execution-based grading.",
+    "paper": "https://arxiv.org/abs/2211.11501",
+    "code": "inspect_harbor/xlang_ds_1000",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/xlang_ds_1000.html",
+    "model_cards": []
+  },
+  {
+    "id": "evoeval",
+    "name": "EvoEval",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "EvoEval: evolving suite that mutates HumanEval problems along several axes (difficulty, creative, subtle, tool-use) for a contamination-resistant view of LLM coding ability.",
     "paper": "https://github.com/evo-eval/evoeval",
-    "code": "inspect_harbor/evoeval_1_0",
+    "code": "inspect_harbor/evoeval",
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/evoeval_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/evoeval.html",
     "model_cards": []
   },
   {
-    "id": "featurebench_1_0",
-    "name": "Featurebench",
+    "id": "featurebench",
+    "name": "FeatureBench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -441,18 +485,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "FeatureBench full split: 200 feature-implementation tasks across 24 Python repos. 7 tasks require Ampere+ GPU.",
+    "desc": "FeatureBench: agentic coding on end-to-end feature-development tasks derived from open-source repositories.",
     "paper": "https://arxiv.org/abs/2602.10975",
-    "code": "inspect_harbor/featurebench_1_0",
+    "code": "inspect_harbor/featurebench",
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench.html",
     "model_cards": []
   },
   {
-    "id": "featurebench_lite_1_0",
-    "name": "Featurebench Lite",
+    "id": "featurebench_modal",
+    "name": "FeatureBench (Modal)",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -463,57 +507,57 @@
       "agent",
       "sandbox"
     ],
-    "desc": "FeatureBench lite split: 30 feature-implementation tasks (26 lv1 + 4 lv2) across Python repos.",
+    "desc": "FeatureBench's full task suite executed on Modal's cloud sandbox runner.",
     "paper": "https://arxiv.org/abs/2602.10975",
-    "code": "inspect_harbor/featurebench_lite_1_0",
-    "contributors": [],
-    "samples": 30,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_lite_1_0.html",
-    "model_cards": []
-  },
-  {
-    "id": "featurebench_lite_modal_1_0",
-    "name": "Featurebench Lite Modal",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "FeatureBench lite split for Modal: 30 feature-implementation tasks with gpus=1 for GPU tasks (7/30). Use with -e modal.",
-    "paper": "https://arxiv.org/abs/2602.10975",
-    "code": "inspect_harbor/featurebench_lite_modal_1_0",
-    "contributors": [],
-    "samples": 30,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_lite_modal_1_0.html",
-    "model_cards": []
-  },
-  {
-    "id": "featurebench_modal_1_0",
-    "name": "Featurebench Modal",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "FeatureBench full split for Modal: 200 feature-implementation tasks with gpus=1 for GPU tasks (44/200). Use with -e modal.",
-    "paper": "https://arxiv.org/abs/2602.10975",
-    "code": "inspect_harbor/featurebench_modal_1_0",
+    "code": "inspect_harbor/featurebench_modal",
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_modal_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_modal.html",
+    "model_cards": []
+  },
+  {
+    "id": "featurebench_lite",
+    "name": "FeatureBench-Lite",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Lightweight subset of FeatureBench for cheaper evaluation while preserving model rankings.",
+    "paper": "https://arxiv.org/abs/2602.10975",
+    "code": "inspect_harbor/featurebench_lite",
+    "contributors": [],
+    "samples": 30,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_lite.html",
+    "model_cards": []
+  },
+  {
+    "id": "featurebench_lite_modal",
+    "name": "FeatureBench-Lite (Modal)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "FeatureBench-Lite executed on Modal's cloud sandbox runner.",
+    "paper": "https://arxiv.org/abs/2602.10975",
+    "code": "inspect_harbor/featurebench_lite_modal",
+    "contributors": [],
+    "samples": 30,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_lite_modal.html",
     "model_cards": []
   },
   {
@@ -539,12 +583,35 @@
     ],
     "samples": 238,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/frontier_cs/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/frontier_cs/",
     "model_cards": []
   },
   {
-    "id": "gso_1_0",
-    "name": "Gso",
+    "id": "yanagiorigami_frontier_cs",
+    "name": "Frontier-CS",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Frontier-CS competitive programming benchmark: 172 open-ended algorithmic problems with partial scoring via go-judge.",
+    "paper": "https://arxiv.org/abs/2512.15699",
+    "code": "inspect_harbor/yanagiorigami_frontier_cs",
+    "contributors": [],
+    "samples": 172,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/yanagiorigami_frontier_cs.html",
+    "model_cards": []
+  },
+  {
+    "id": "ai_forever_harness_bench_fast",
+    "name": "Harness-Bench (Fast)",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -555,21 +622,22 @@
       "agent",
       "sandbox"
     ],
-    "desc": "GSO: 102 software optimization tasks focusing on performance improvement.",
-    "paper": "https://arxiv.org/abs/2505.23671",
-    "code": "inspect_harbor/gso_1_0",
+    "desc": "Self-contained file-operation agent benchmark.",
+    "paper": "https://github.com/ai-forever/harness-bench-fast",
+    "code": "inspect_harbor/ai_forever_harness_bench_fast",
     "contributors": [],
-    "samples": 102,
+    "samples": 231,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gso_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ai_forever_harness_bench_fast.html",
     "model_cards": []
   },
   {
-    "id": "hello_world_1_0",
-    "name": "Hello World",
+    "id": "scale_ai_hil_bench",
+    "name": "HiL-Bench",
     "source": "harbor",
     "categories": [
-      "Coding"
+      "Coding",
+      "Behavior"
     ],
     "tags": [],
     "kind": "agent",
@@ -577,13 +645,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A simple example task to create a hello.txt file with 'Hello, world!' as content.",
-    "paper": null,
-    "code": "inspect_harbor/hello_world_1_0",
+    "desc": "HiL-Bench: software-engineering and text-to-SQL tasks (drawn from SWE-Bench Pro and BIRD) with critical details removed, testing whether an agent recognizes the gap and asks a human for help instead of guessing.",
+    "paper": "https://arxiv.org/abs/2604.09408",
+    "code": "inspect_harbor/scale_ai_hil_bench",
     "contributors": [],
-    "samples": 1,
+    "samples": 600,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/hello_world_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_hil_bench.html",
     "model_cards": []
   },
   {
@@ -606,12 +674,12 @@
     ],
     "samples": 164,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/humaneval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/humaneval/",
     "model_cards": []
   },
   {
-    "id": "humanevalfix_1_0",
-    "name": "Humanevalfix",
+    "id": "bigcode_humanevalfix",
+    "name": "HumanEvalFix",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -622,13 +690,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "HumanEvalFix: 164 Python code repair tasks from HumanEvalPack.",
+    "desc": "HumanEvalFix (OctoPack): buggy functions across Python, JavaScript, Java, Go, C++, and Rust that models must repair given the failing unit tests.",
     "paper": "https://arxiv.org/abs/2308.07124",
-    "code": "inspect_harbor/humanevalfix_1_0",
+    "code": "inspect_harbor/bigcode_humanevalfix",
     "contributors": [],
     "samples": 164,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/humanevalfix_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bigcode_humanevalfix.html",
     "model_cards": []
   },
   {
@@ -651,7 +719,7 @@
     ],
     "samples": 810,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ifevalcode/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ifevalcode/",
     "model_cards": []
   },
   {
@@ -674,12 +742,12 @@
     ],
     "samples": 250,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/kernelbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/kernelbench/",
     "model_cards": []
   },
   {
-    "id": "legacy_bench_1_0",
-    "name": "Legacy Bench",
+    "id": "factory_ai_legacy_bench",
+    "name": "Legacy-Bench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -690,18 +758,41 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A benchmark for evaluating AI agents on legacy code maintenance and modernization tasks across multiple language families including COBOL, Java 7, C, Fortran, and Assembly.",
+    "desc": "Legacy-Bench public sample tasks for evaluating AI coding agents on legacy software engineering tasks.",
     "paper": "https://factory.ai/news/legacy-bench",
-    "code": "inspect_harbor/legacy_bench_1_0",
+    "code": "inspect_harbor/factory_ai_legacy_bench",
     "contributors": [],
     "samples": 10,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/legacy_bench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/factory_ai_legacy_bench.html",
     "model_cards": []
   },
   {
-    "id": "livecodebench_6_0",
-    "name": "Livecodebench",
+    "id": "litecoder_rl",
+    "name": "LiteCoder-RL",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "LiteCoder: terminal-based RL training environments spanning developer workflows, scientific/numerical computing, and games.",
+    "paper": "https://github.com/icip-cas/LiteCoder",
+    "code": "inspect_harbor/litecoder_rl",
+    "contributors": [],
+    "samples": 602,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/litecoder_rl.html",
+    "model_cards": []
+  },
+  {
+    "id": "livecodebench",
+    "name": "LiveCodeBench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -712,13 +803,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A subset of 100 sampled tasks from the release_v6 version of LiveCodeBench tasks.",
+    "desc": "LiveCodeBench: contamination-free coding benchmark continuously collected from LeetCode, AtCoder, and Codeforces, supporting code generation, self-repair, execution, and test-output prediction.",
     "paper": "https://arxiv.org/abs/2403.07974",
-    "code": "inspect_harbor/livecodebench_6_0",
+    "code": "inspect_harbor/livecodebench",
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/livecodebench_6_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/livecodebench.html",
     "model_cards": []
   },
   {
@@ -741,7 +832,29 @@
     ],
     "samples": 1404,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/livecodebench_pro/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/livecodebench_pro/",
+    "model_cards": []
+  },
+  {
+    "id": "lcb_longswebench_32k",
+    "name": "LongSWE-Bench (32k)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "LongCodeBench (LCB) LongSWE-Bench tasks — 32k context window bucket.",
+    "paper": "https://arxiv.org/abs/2505.07897",
+    "code": "inspect_harbor/lcb_longswebench_32k",
+    "contributors": [],
+    "samples": 3,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/lcb_longswebench_32k.html",
     "model_cards": []
   },
   {
@@ -764,29 +877,7 @@
     ],
     "samples": 257,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mbpp/",
-    "model_cards": []
-  },
-  {
-    "id": "ml_dev_bench_1_0",
-    "name": "Ml Dev Bench",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "ML-Dev-Bench: A benchmark for testing AI agents on machine learning development tasks including model implementation, training, debugging, and optimization.",
-    "paper": "https://arxiv.org/abs/2502.00964",
-    "code": "inspect_harbor/ml_dev_bench_1_0",
-    "contributors": [],
-    "samples": 33,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ml_dev_bench_1_0.html",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mbpp/",
     "model_cards": []
   },
   {
@@ -812,12 +903,12 @@
     ],
     "samples": 1,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mle_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mle_bench/",
     "model_cards": []
   },
   {
-    "id": "mlgym_bench_1_0",
-    "name": "Mlgym Bench",
+    "id": "meta_mlgym_bench",
+    "name": "MLGym-Bench",
     "source": "harbor",
     "categories": [
       "Coding",
@@ -829,13 +920,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Evaluates agents on ML tasks across computer vision, RL, tabular ML, and game theory.",
+    "desc": "MLGym-Bench: Meta's framework and benchmark for AI research agents covering CV, NLP, RL, and game-theory tasks requiring ideation, implementation, training, and analysis of ML experiments.",
     "paper": "https://arxiv.org/abs/2502.14499",
-    "code": "inspect_harbor/mlgym_bench_1_0",
+    "code": "inspect_harbor/meta_mlgym_bench",
     "contributors": [],
     "samples": 12,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/mlgym_bench_1_0.html",
+    "featured": true,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/meta_mlgym_bench.html",
     "model_cards": []
   },
   {
@@ -861,15 +952,16 @@
     ],
     "samples": 7,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mlrc_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mlrc_bench/",
     "model_cards": []
   },
   {
-    "id": "openthoughts_tblite_2_0",
-    "name": "Openthoughts Tblite",
+    "id": "mmtb_multimedia_terminalbench",
+    "name": "MultiMedia-TerminalBench",
     "source": "harbor",
     "categories": [
-      "Coding"
+      "Coding",
+      "Multimodal"
     ],
     "tags": [],
     "kind": "agent",
@@ -877,18 +969,41 @@
       "agent",
       "sandbox"
     ],
-    "desc": "OpenThoughts-TBLite: A difficulty-calibrated benchmark of 100 tasks for building terminal agents. By OpenThoughts Agent team, Snorkel AI, Bespoke Labs.",
-    "paper": "https://github.com/open-thoughts/OpenThoughts-TBLite",
-    "code": "inspect_harbor/openthoughts_tblite_2_0",
+    "desc": "MultiMedia-TerminalBench (MMTB): a benchmark of 105 realistic multimedia-file tasks in persistent terminal workspaces, across 5 meta-categories grounded in paid practitioner workflows.",
+    "paper": "https://arxiv.org/abs/2605.10966",
+    "code": "inspect_harbor/mmtb_multimedia_terminalbench",
     "contributors": [],
-    "samples": 100,
+    "samples": 105,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openthoughts_tblite_2_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/mmtb_multimedia_terminalbench.html",
     "model_cards": []
   },
   {
-    "id": "otel_bench_1_0",
-    "name": "Otel Bench",
+    "id": "grafana_o11y_bench",
+    "name": "o11y-bench",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "o11y-bench: an open agentic observability benchmark. Measures how well AI agents perform 63 real-world observability tasks across logs, metrics, traces, dashboards, and incident workflows.",
+    "paper": "https://github.com/grafana/o11y-bench",
+    "code": "inspect_harbor/grafana_o11y_bench",
+    "contributors": [],
+    "samples": 63,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/grafana_o11y_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "quesma_otel_bench",
+    "name": "OTel-Bench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -899,13 +1014,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "OpenTelemetry Benchmark - evaluates AI agents' ability to instrument applications with OpenTelemetry tracing across multiple languages.",
+    "desc": "AI-agent benchmark for OpenTelemetry instrumentation tasks across multiple programming languages.",
     "paper": "https://github.com/QuesmaOrg/otel-bench",
-    "code": "inspect_harbor/otel_bench_1_0",
+    "code": "inspect_harbor/quesma_otel_bench",
     "contributors": [],
     "samples": 26,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/otel_bench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/quesma_otel_bench.html",
     "model_cards": []
   },
   {
@@ -932,12 +1047,12 @@
     ],
     "samples": 23,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/paperbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/paperbench/",
     "model_cards": []
   },
   {
-    "id": "quixbugs_1_0",
-    "name": "Quixbugs",
+    "id": "quixbugs",
+    "name": "QuixBugs",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -948,18 +1063,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "QuixBugs is a multi-lingual program repair benchmark with 40 Python and 40 Java programs, each containing a single-line defect. Tasks cover algorithms and data structures including sorting, graph, dynamic programming, math, and string/array operations.",
+    "desc": "QuixBugs: small classic-algorithm programs (Python and Java) each containing a one-line bug, used to evaluate automated program repair.",
     "paper": "https://github.com/jkoppel/QuixBugs",
-    "code": "inspect_harbor/quixbugs_1_0",
+    "code": "inspect_harbor/quixbugs",
     "contributors": [],
     "samples": 80,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/quixbugs_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/quixbugs.html",
     "model_cards": []
   },
   {
-    "id": "researchcodebench_1_0",
-    "name": "Researchcodebench",
+    "id": "rexbench",
+    "name": "RExBench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -970,40 +1085,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "ResearchCodeBench evaluates AI agents' ability to implement algorithms from academic papers. Contains 212 code implementation tasks across 20 ML/AI research problems from top-tier venues (ICLR, NeurIPS, CVPR, COLM). Tests paper comprehension, algorithm understanding, and precise code implementation skills with 1,449 lines of reference code.",
-    "paper": "https://arxiv.org/abs/2506.02314",
-    "code": "inspect_harbor/researchcodebench_1_0",
-    "contributors": [],
-    "samples": 212,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/researchcodebench_1_0.html",
-    "model_cards": []
-  },
-  {
-    "id": "rexbench_1_0",
-    "name": "Rexbench",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "A benchmark to evaluate the ability of AI agents to extend existing AI research through research experiment implementation tasks.",
+    "desc": "RExBench - 2 tasks (cogs, othello) evaluating AI agents' ability to extend existing AI research through research experiment implementation. Tasks require an A100 40GB GPU and may take multiple hours (cogs: ~2.5h oracle; othello: ~45min oracle). Parity: openhands@1.4.0 / anthropic/claude-sonnet-4-5, 3 runs — cogs: 100% Harbor vs 66.67% original; othello: 100% Harbor vs 100% original. Adapter by Nicholas Edwards (nicholas.edwards@univie.ac.at), one of the original RExBench authors. Acknowledgements: We thank 2077 AI for generously funding API credits to support running parity experiments.",
     "paper": "https://arxiv.org/abs/2506.22598",
-    "code": "inspect_harbor/rexbench_1_0",
+    "code": "inspect_harbor/rexbench",
     "contributors": [],
     "samples": 2,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/rexbench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/rexbench.html",
     "model_cards": []
   },
   {
-    "id": "seta_env_1_0",
-    "name": "Seta Env",
+    "id": "camel_ai_seta_env",
+    "name": "SETA-Env",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1014,106 +1107,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "CAMEL SETA Environment for RL training.",
-    "paper": null,
-    "code": "inspect_harbor/seta_env_1_0",
-    "contributors": [],
-    "samples": 1376,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/seta_env_1_0.html",
-    "model_cards": []
-  },
-  {
-    "id": "spider2_dbt_1_0",
-    "name": "Spider2 Dbt",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "Spider 2.0-DBT is a comprehensive code generation agent task that includes 68 examples. Solving these tasks requires models to understand project code, navigating complex SQL environments and handling long contexts, surpassing traditional text-to-SQL challenges.",
-    "paper": "https://arxiv.org/abs/2411.07763",
-    "code": "inspect_harbor/spider2_dbt_1_0",
-    "contributors": [],
-    "samples": 64,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/spider2_dbt_1_0.html",
-    "model_cards": []
-  },
-  {
-    "id": "scale_ai_swe_atlas_qna_1_0",
-    "name": "Swe Atlas Qna",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "SWE-Atlas Codebase QnA benchmark that evaluates AI agents' ability to comprehend and query existing codebases.",
-    "paper": "https://github.com/scaleapi/SWE-Atlas",
-    "code": "inspect_harbor/scale_ai_swe_atlas_qna_1_0",
-    "contributors": [],
-    "samples": 124,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_atlas_qna_1_0.html",
-    "model_cards": []
-  },
-  {
-    "id": "scale_ai_swe_atlas_tw_1_0",
-    "name": "Swe Atlas Tw",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "SWE-Atlas Test Writing benchmark that evaluates AI agents' ability to write comprehensive unit tests.",
-    "paper": "https://github.com/scaleapi/SWE-Atlas",
-    "code": "inspect_harbor/scale_ai_swe_atlas_tw_1_0",
-    "contributors": [],
-    "samples": 90,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_atlas_tw_1_0.html",
-    "model_cards": []
-  },
-  {
-    "id": "swe_gen_js_1_0",
-    "name": "Swe Gen Js",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "SWE-gen-JS: 1000 JavaScript/TypeScript bug fix tasks from 30 open-source GitHub repos, generated using SWE-gen.",
-    "paper": "https://www.swebench.com/post-260113-swesmith-javascript.html",
-    "code": "inspect_harbor/swe_gen_js_1_0",
+    "desc": "SETA (Scaling Environments for Terminal Agents): CAMEL-AI's verifiable terminal-agent tasks spanning software engineering, sysadmin, and DevOps for evaluating and RL-training agents.",
+    "paper": "https://github.com/camel-ai/seta-env",
+    "code": "inspect_harbor/camel_ai_seta_env",
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_gen_js_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/camel_ai_seta_env.html",
     "model_cards": []
   },
   {
-    "id": "swe_lancer_diamond_all",
-    "name": "Swe Lancer Diamond",
+    "id": "gabeorlanski_slopcodebench",
+    "name": "SlopCodeBench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1124,18 +1129,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Both manager and individual contributor tasks.",
-    "paper": "https://arxiv.org/abs/2502.12115",
-    "code": "inspect_harbor/swe_lancer_diamond_all",
+    "desc": "SlopCodeBench multi-checkpoint coding benchmark tasks converted for Harbor.",
+    "paper": "https://arxiv.org/abs/2603.24755",
+    "code": "inspect_harbor/gabeorlanski_slopcodebench",
     "contributors": [],
-    "samples": 463,
+    "samples": 36,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_lancer_diamond_all.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gabeorlanski_slopcodebench.html",
     "model_cards": []
   },
   {
-    "id": "swe_lancer_diamond_ic",
-    "name": "Swe Lancer Diamond",
+    "id": "scale_ai_swe_atlas_qna",
+    "name": "SWE-Atlas (QnA)",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1146,20 +1151,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Only the individual contributor SWE tasks.",
-    "paper": "https://arxiv.org/abs/2502.12115",
-    "code": "inspect_harbor/swe_lancer_diamond_ic",
+    "desc": "SWE-Atlas - Codebase QnA is a benchmark of deep codebase comprehension and QnA problems for coding agents. Checkout for instructions on running it.",
+    "paper": "https://github.com/scaleapi/SWE-Atlas",
+    "code": "inspect_harbor/scale_ai_swe_atlas_qna",
     "contributors": [],
-    "samples": 198,
+    "samples": 124,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_lancer_diamond_ic.html",
-    "model_cards": [
-      "chatgpt"
-    ]
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_atlas_qna.html",
+    "model_cards": []
   },
   {
-    "id": "swe_lancer_diamond_manager",
-    "name": "Swe Lancer Diamond",
+    "id": "scale_ai_swe_atlas_rf",
+    "name": "SWE-Atlas (Refactoring)",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1170,13 +1173,79 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Only the manager tasks.",
-    "paper": "https://arxiv.org/abs/2502.12115",
-    "code": "inspect_harbor/swe_lancer_diamond_manager",
+    "desc": "SWE-Atlas - Refactoring -- A benchmark of refactoring tasks for coding agents.",
+    "paper": "https://github.com/scaleapi/SWE-Atlas",
+    "code": "inspect_harbor/scale_ai_swe_atlas_rf",
     "contributors": [],
-    "samples": 265,
+    "samples": 70,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_lancer_diamond_manager.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_atlas_rf.html",
+    "model_cards": []
+  },
+  {
+    "id": "scale_ai_swe_atlas_tw",
+    "name": "SWE-Atlas (Test Writing)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SWE-Atlas - Test Writing -- A benchmark of comprehensive test writing problems for coding agents. Checkout for instructions on running it.",
+    "paper": "https://github.com/scaleapi/SWE-Atlas",
+    "code": "inspect_harbor/scale_ai_swe_atlas_tw",
+    "contributors": [],
+    "samples": 90,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_atlas_tw.html",
+    "model_cards": []
+  },
+  {
+    "id": "cais_swebenchpro",
+    "name": "SWE-bench Pro",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SWE-bench Pro with anti-exploitation (git history isolation + GitHub network blocking). 731 tasks, Python/JS/TS/Go.",
+    "paper": "https://arxiv.org/abs/2509.16941",
+    "code": "inspect_harbor/cais_swebenchpro",
+    "contributors": [],
+    "samples": 731,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/cais_swebenchpro.html",
+    "model_cards": []
+  },
+  {
+    "id": "scale_ai_swe_bench_pro",
+    "name": "SWE-bench Pro",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SWE-Bench-Pro: long-horizon enterprise software engineering tasks.",
+    "paper": "https://arxiv.org/abs/2509.16941",
+    "code": "inspect_harbor/scale_ai_swe_bench_pro",
+    "contributors": [],
+    "samples": 731,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_bench_pro.html",
     "model_cards": []
   },
   {
@@ -1202,12 +1271,144 @@
     ],
     "samples": 500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/swe_bench/",
     "model_cards": [
       "chatgpt",
       "claude",
       "gemini"
     ]
+  },
+  {
+    "id": "swe_bench_verified",
+    "name": "SWE-bench Verified",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SWE-bench Verified: human-filtered subset of SWE-bench (collaboration with OpenAI) where human SWEs confirmed each real GitHub issue is solvable given the available repository context.",
+    "paper": "https://arxiv.org/abs/2310.06770",
+    "code": "inspect_harbor/swe_bench_verified",
+    "contributors": [],
+    "samples": 500,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_bench_verified.html",
+    "model_cards": []
+  },
+  {
+    "id": "abundant_swe_gen_cpp",
+    "name": "SWE-gen (C++)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Dataset of C++ SWE tasks. Generated by abundant-ai/SWE-gen tool.",
+    "paper": "https://github.com/abundant-ai/SWE-gen-Cpp",
+    "code": "inspect_harbor/abundant_swe_gen_cpp",
+    "contributors": [],
+    "samples": 999,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/abundant_swe_gen_cpp.html",
+    "model_cards": []
+  },
+  {
+    "id": "abundant_swe_gen_go",
+    "name": "SWE-gen (Go)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Dataset of Go SWE tasks. Generated by abundant-ai/SWE-gen tool.",
+    "paper": "https://github.com/abundant-ai/SWE-gen-Go",
+    "code": "inspect_harbor/abundant_swe_gen_go",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/abundant_swe_gen_go.html",
+    "model_cards": []
+  },
+  {
+    "id": "abundant_swe_gen_java",
+    "name": "SWE-gen (Java)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Dataset of Java SWE tasks. Generated by abundant-ai/SWE-gen tool.",
+    "paper": "https://github.com/abundant-ai/SWE-gen-Java",
+    "code": "inspect_harbor/abundant_swe_gen_java",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/abundant_swe_gen_java.html",
+    "model_cards": []
+  },
+  {
+    "id": "abundant_swe_gen_js",
+    "name": "SWE-gen (JS/TS)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Dataset of JS/TS SWE tasks. Generated by abundant-ai/SWE-gen tool.",
+    "paper": "https://github.com/abundant-ai/SWE-gen",
+    "code": "inspect_harbor/abundant_swe_gen_js",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/abundant_swe_gen_js.html",
+    "model_cards": []
+  },
+  {
+    "id": "abundant_swe_gen_rust",
+    "name": "SWE-gen (Rust)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Dataset of Rust SWE tasks. Generated by abundant-ai/SWE-gen tool.",
+    "paper": "https://github.com/abundant-ai/SWE-gen-Rust",
+    "code": "inspect_harbor/abundant_swe_gen_rust",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/abundant_swe_gen_rust.html",
+    "model_cards": []
   },
   {
     "id": "swe_lancer",
@@ -1233,12 +1434,12 @@
     ],
     "samples": 460,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_lancer/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/swe_lancer/",
     "model_cards": []
   },
   {
-    "id": "swebench_multilingual_1_0",
-    "name": "Swebench Multilingual",
+    "id": "openai_swe_lancer_diamond_all",
+    "name": "SWE-Lancer Diamond (Full)",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1249,42 +1450,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SWE-bench Multilingual extends the original Python-focused SWE-bench benchmark to support multiple programming languages.",
-    "paper": "https://arxiv.org/abs/2504.02605",
-    "code": "inspect_harbor/swebench_multilingual_1_0",
+    "desc": "SWE-Lancer Diamond (full): public split of OpenAI's SWE-Lancer benchmark — real Upwork freelance software-engineering tasks worth $500,800, combining IC engineering tasks and managerial decision tasks.",
+    "paper": "https://arxiv.org/abs/2502.12115",
+    "code": "inspect_harbor/openai_swe_lancer_diamond_all",
     "contributors": [],
-    "samples": 300,
+    "samples": 463,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swebench_multilingual_1_0.html",
-    "model_cards": [
-      "claude"
-    ]
-  },
-  {
-    "id": "swebench_verified_1_0",
-    "name": "Swebench Verified",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "A human-validated subset of 500 SWE-bench tasks.",
-    "paper": "https://arxiv.org/abs/2310.06770",
-    "code": "inspect_harbor/swebench_verified_1_0",
-    "contributors": [],
-    "samples": 500,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swebench_verified_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_swe_lancer_diamond_all.html",
     "model_cards": []
   },
   {
-    "id": "swebenchpro_1_0",
-    "name": "Swebenchpro",
+    "id": "openai_swe_lancer_diamond_ic",
+    "name": "SWE-Lancer Diamond (IC)",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1295,22 +1472,41 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SWE-bench Pro: A multi-language software engineering benchmark with 731 instances covering Python, JavaScript/TypeScript, and Go. Evaluates AI systems' ability to resolve real-world bugs and implement features across diverse production codebases.",
-    "paper": "https://arxiv.org/abs/2509.16941",
-    "code": "inspect_harbor/swebenchpro_1_0",
+    "desc": "SWE-Lancer Diamond (IC): individual-contributor split of OpenAI's SWE-Lancer benchmark — real Upwork freelance software-engineering issues fixed in-repo and graded by end-to-end tests.",
+    "paper": "https://arxiv.org/abs/2502.12115",
+    "code": "inspect_harbor/openai_swe_lancer_diamond_ic",
     "contributors": [],
-    "samples": 731,
+    "samples": 198,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swebenchpro_1_0.html",
-    "model_cards": [
-      "chatgpt",
-      "claude",
-      "gemini"
-    ]
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_swe_lancer_diamond_ic.html",
+    "model_cards": []
   },
   {
-    "id": "swesmith_1_0",
-    "name": "Swesmith",
+    "id": "openai_swe_lancer_diamond_manager",
+    "name": "SWE-Lancer Diamond (Manager)",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "A benchmark of freelance software engineering tasks from Upwork, valued at $1 million USD total in real-world payouts. Manager variant: picking between technical implementation proposals.",
+    "paper": "https://arxiv.org/abs/2502.12115",
+    "code": "inspect_harbor/openai_swe_lancer_diamond_manager",
+    "contributors": [],
+    "samples": 265,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_swe_lancer_diamond_manager.html",
+    "model_cards": []
+  },
+  {
+    "id": "pgcodellm_rebench_v2_test",
+    "name": "SWE-rebench V2",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1321,18 +1517,40 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SWE-smith is a synthetically generated dataset of software engineering tasks derived from GitHub issues for training and evaluating code generation models.",
+    "desc": "SWE-rebench V2: language-agnostic dataset of executable SWE tasks across 20 languages, with pre-built images for reproducible execution.",
+    "paper": "https://arxiv.org/abs/2602.23866",
+    "code": "inspect_harbor/pgcodellm_rebench_v2_test",
+    "contributors": [],
+    "samples": 20,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/pgcodellm_rebench_v2_test.html",
+    "model_cards": []
+  },
+  {
+    "id": "swe_bench_swe_smith",
+    "name": "SWE-smith",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SWE-smith: NeurIPS 2025 toolkit for synthesizing unlimited SWE-bench-style task instances from any Python repository, plus released task instances and agent trajectories.",
     "paper": "https://arxiv.org/abs/2504.21798",
-    "code": "inspect_harbor/swesmith_1_0",
+    "code": "inspect_harbor/swe_bench_swe_smith",
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swesmith_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_bench_swe_smith.html",
     "model_cards": []
   },
   {
-    "id": "swtbench_verified_1_0",
-    "name": "Swtbench Verified",
+    "id": "swt_bench_verified",
+    "name": "SWT-Bench Verified",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1343,18 +1561,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SWTBench Verified - Software Testing Benchmark for code generation.",
+    "desc": "SWT-Bench Verified: human-validated subset of SWT-Bench evaluating LLMs on generating reproducing unit tests for real GitHub issues — tests must fail on buggy code and pass after the fix.",
     "paper": "https://arxiv.org/abs/2406.12952",
-    "code": "inspect_harbor/swtbench_verified_1_0",
+    "code": "inspect_harbor/swt_bench_verified",
     "contributors": [],
     "samples": 433,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swtbench_verified_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swt_bench_verified.html",
     "model_cards": []
   },
   {
-    "id": "termigen_environments_1_0",
-    "name": "Termigen Environments",
+    "id": "termigen_environments",
+    "name": "TermiGen-Environments",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1365,18 +1583,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "3,500+ verified Docker environments for training and evaluating terminal agents, spanning 11 task categories across infrastructure, data/algorithm applications, and specialized domains including software build, system administration, security, data processing, ML/MLOps, algorithms, scientific computing, and more.",
-    "paper": null,
-    "code": "inspect_harbor/termigen_environments_1_0",
+    "desc": "TermiGen-Environments: verified Docker environments with executable terminal-agent tasks across 11 categories, generated by an end-to-end multi-agent synthesis pipeline.",
+    "paper": "https://arxiv.org/abs/2602.07274",
+    "code": "inspect_harbor/termigen_environments",
     "contributors": [],
-    "samples": 3566,
+    "samples": 1000,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/termigen_environments_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/termigen_environments.html",
     "model_cards": []
   },
   {
-    "id": "terminal_bench_2_0",
-    "name": "Terminal Bench",
+    "id": "terminal_bench_pro",
+    "name": "Terminal-Bench Pro",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1387,47 +1605,45 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Version 2.0 of Terminal-Bench, a benchmark for testing agents in terminal environments. More tasks, harder, and higher quality than 1.0.",
+    "desc": "Terminal-Bench Pro: tasks across 8 domains — data processing, games, debugging, sysadmin, scientific computing, SWE, ML, and security — extending Terminal-Bench with harder real-world scenarios.",
     "paper": "https://arxiv.org/abs/2601.11868",
-    "code": "inspect_harbor/terminal_bench_2_0",
+    "code": "inspect_harbor/terminal_bench_pro",
+    "contributors": [],
+    "samples": 200,
+    "featured": true,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_pro.html",
+    "model_cards": []
+  },
+  {
+    "id": "terminal_bench_2",
+    "name": "Terminal-Bench v2",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Terminal-Bench v2: benchmark for testing AI agents in real terminal environments — from compiling code to training models and setting up servers.",
+    "paper": "https://arxiv.org/abs/2601.11868",
+    "code": "inspect_harbor/terminal_bench_2",
     "contributors": [],
     "samples": 89,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_2_0.html",
-    "model_cards": [
-      "chatgpt",
-      "claude",
-      "gemini"
-    ]
-  },
-  {
-    "id": "terminal_bench_pro_1_0",
-    "name": "Terminal Bench Pro",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "Terminal-Bench Pro (Public Set) is an extended benchmark dataset for testing AI agents in real terminal environments. From compiling code to training models and setting up servers, Terminal-Bench Pro evaluates how well agents can handle real-world, end-to-end tasks autonomously.",
-    "paper": "https://arxiv.org/abs/2601.11868",
-    "code": "inspect_harbor/terminal_bench_pro_1_0",
-    "contributors": [],
-    "samples": 200,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_pro_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_2.html",
     "model_cards": []
   },
   {
-    "id": "terminal_bench_sample_2_0",
-    "name": "Terminal Bench Sample",
+    "id": "terminal_bench_2_1",
+    "name": "Terminal-Bench v2.1",
     "source": "harbor",
     "categories": [
-      "Coding"
+      "Coding",
+      "Assistants"
     ],
     "tags": [],
     "kind": "agent",
@@ -1435,13 +1651,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A sample of tasks from Terminal-Bench 2.0.",
+    "desc": "Terminal-Bench v2.1 (point release of v2): benchmark for testing AI agents in real terminal environments — from compiling code to training models and setting up servers.",
     "paper": "https://arxiv.org/abs/2601.11868",
-    "code": "inspect_harbor/terminal_bench_sample_2_0",
+    "code": "inspect_harbor/terminal_bench_2_1",
     "contributors": [],
-    "samples": 10,
+    "samples": 89,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_sample_2_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_2_1.html",
     "model_cards": []
   },
   {
@@ -1464,12 +1680,12 @@
     ],
     "samples": 307,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/usaco/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/usaco/",
     "model_cards": []
   },
   {
-    "id": "usaco_2_0",
-    "name": "Usaco",
+    "id": "usaco",
+    "name": "USACO",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1480,18 +1696,41 @@
       "agent",
       "sandbox"
     ],
-    "desc": "USACO: 304 Python programming problems from USACO competition.",
+    "desc": "USACO: USA Computing Olympiad problems across bronze/silver/gold/platinum tiers with high-quality unit tests, reference code, and official analyses for ad-hoc algorithmic reasoning.",
     "paper": "https://arxiv.org/abs/2404.10952",
-    "code": "inspect_harbor/usaco_2_0",
+    "code": "inspect_harbor/usaco",
     "contributors": [],
     "samples": 304,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/usaco_2_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/usaco.html",
     "model_cards": []
   },
   {
-    "id": "vmax_tasks_1_0",
-    "name": "Vmax Tasks",
+    "id": "thetalab_vector_edit_gym",
+    "name": "Vector Edit Gym",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Multimodal"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "106 hand-authored SVG editing tasks across four difficulty tiers (easy / medium / hard / very_hard). Each task is a corrupted SVG plus a natural-language fix instruction. Strict structural and preservation metrics catch stylistic drift.",
+    "paper": null,
+    "code": "inspect_harbor/thetalab_vector_edit_gym",
+    "contributors": [],
+    "samples": 106,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/thetalab_vector_edit_gym.html",
+    "model_cards": []
+  },
+  {
+    "id": "vmax_tasks",
+    "name": "vmax-tasks",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -1502,13 +1741,35 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A collection of 1,043 validated real-world bug-fixing tasks from popular open-source JavaScript projects including Vue.js, Docusaurus, Redux, and Chalk. Each task presents an authentic bug report with reproduction steps and expected behavior.",
+    "desc": "Code-transformation tasks across JavaScript projects (Docusaurus, Vue, Redux).",
     "paper": null,
-    "code": "inspect_harbor/vmax_tasks_1_0",
+    "code": "inspect_harbor/vmax_tasks",
     "contributors": [],
-    "samples": 1043,
+    "samples": 1000,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vmax_tasks_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vmax_tasks.html",
+    "model_cards": []
+  },
+  {
+    "id": "webgen_bench",
+    "name": "WebGen-Bench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "WebGen-Bench: evaluating LLMs on generating interactive and functional websites from scratch.",
+    "paper": "https://arxiv.org/abs/2505.03733",
+    "code": "inspect_harbor/webgen_bench",
+    "contributors": [],
+    "samples": 101,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/webgen_bench.html",
     "model_cards": []
   },
   {
@@ -1528,14 +1789,14 @@
     ],
     "desc": "Tests whether AI agents can perform real-world time-consuming tasks on the web.",
     "paper": "https://arxiv.org/abs/2407.15711",
-    "code": "inspect_evals/assistant_bench",
+    "code": "inspect_evals/assistant_bench_closed_book_zero_shot",
     "contributors": [
       "nlpet",
       "caspardh"
     ],
     "samples": 33,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/assistant_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistant_bench/",
     "model_cards": []
   },
   {
@@ -1558,12 +1819,12 @@
     ],
     "samples": 4981,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/bfcl/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bfcl/",
     "model_cards": []
   },
   {
-    "id": "bfcl_1_0",
-    "name": "Bfcl",
+    "id": "gorilla_bfcl",
+    "name": "BFCL",
     "source": "harbor",
     "categories": [
       "Assistants"
@@ -1574,18 +1835,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Berkeley Function-Calling Leaderboard: 3,641 function calling tasks for evaluating LLM tool use capabilities across simple, multiple, parallel, and irrelevance categories.",
+    "desc": "Berkeley Function-Calling Leaderboard: LLM tool-use across function-calling categories spanning Python, Java, JavaScript, and REST APIs.",
     "paper": "https://github.com/ShishirPatil/gorilla",
-    "code": "inspect_harbor/bfcl_1_0",
+    "code": "inspect_harbor/gorilla_bfcl",
     "contributors": [],
-    "samples": 3641,
+    "samples": 1000,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bfcl_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gorilla_bfcl.html",
     "model_cards": []
   },
   {
-    "id": "bfcl_parity_1_0",
-    "name": "Bfcl Parity",
+    "id": "gorilla_bfcl_parity",
+    "name": "BFCL (parity)",
     "source": "harbor",
     "categories": [
       "Assistants"
@@ -1596,13 +1857,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "BFCL parity subset: 123 stratified sampled tasks for validating Harbor adapter equivalence with original BFCL benchmark.",
+    "desc": "Stratified parity subset of BFCL validating that Harbor's adapter matches the upstream implementation.",
     "paper": "https://github.com/ShishirPatil/gorilla",
-    "code": "inspect_harbor/bfcl_parity_1_0",
+    "code": "inspect_harbor/gorilla_bfcl_parity",
     "contributors": [],
     "samples": 123,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bfcl_parity_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gorilla_bfcl_parity.html",
     "model_cards": []
   },
   {
@@ -1628,7 +1889,7 @@
     ],
     "samples": 1266,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/browse_comp/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/browse_comp/",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -1658,12 +1919,12 @@
     ],
     "samples": 165,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gaia/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gaia/",
     "model_cards": []
   },
   {
-    "id": "gaia_1_0",
-    "name": "Gaia",
+    "id": "gaia",
+    "name": "GAIA",
     "source": "harbor",
     "categories": [
       "Assistants",
@@ -1675,13 +1936,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "GAIA (General AI Assistants): 165 validation tasks for multi-step reasoning, tool use, and multimodal question answering.",
+    "desc": "GAIA: real-world questions across three difficulty levels evaluating general AI assistants on reasoning, multimodality, web browsing, and tool use.",
     "paper": "https://arxiv.org/abs/2311.12983",
-    "code": "inspect_harbor/gaia_1_0",
+    "code": "inspect_harbor/gaia",
     "contributors": [],
     "samples": 165,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gaia_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gaia.html",
     "model_cards": []
   },
   {
@@ -1704,7 +1965,32 @@
     ],
     "samples": 7775,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/mind2web/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mind2web/",
+    "model_cards": []
+  },
+  {
+    "id": "apple_mmau",
+    "name": "MMAU",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Coding",
+      "Mathematics",
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "MMAU (Massive Multitask Agent Understanding): Apple's holistic agent benchmark covering tool-use, DAG QA, data science/ML coding, contest programming, and mathematics.",
+    "paper": "https://arxiv.org/abs/2410.19168",
+    "code": "inspect_harbor/apple_mmau",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/apple_mmau.html",
     "model_cards": []
   },
   {
@@ -1730,11 +2016,34 @@
     ],
     "samples": 369,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/osworld/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/osworld/",
     "model_cards": [
       "chatgpt",
       "claude"
     ]
+  },
+  {
+    "id": "agentscope_ai_pawbench",
+    "name": "PawBench",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "PawBench: A comprehensive agent benchmark with 150 tasks covering coding, data analysis, tool use, reasoning, safety, and multimodal capabilities.",
+    "paper": "https://github.com/agentscope-ai/PawBench",
+    "code": "inspect_harbor/agentscope_ai_pawbench",
+    "contributors": [],
+    "samples": 150,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/agentscope_ai_pawbench.html",
+    "model_cards": []
   },
   {
     "id": "sycophancy",
@@ -1756,7 +2065,7 @@
     ],
     "samples": 4888,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/sycophancy/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sycophancy/",
     "model_cards": []
   },
   {
@@ -1775,13 +2084,13 @@
     ],
     "desc": "Evaluating Conversational Agents in a Dual-Control Environment",
     "paper": "https://arxiv.org/abs/2506.07982",
-    "code": "inspect_evals/tau2",
+    "code": "inspect_evals/tau2_airline",
     "contributors": [
       "mmulet"
     ],
     "samples": 50,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/tau2/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/tau2/",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -1811,14 +2120,61 @@
     "contributors": [
       "bndxn"
     ],
-    "samples": 3,
+    "samples": 34,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/theagentcompany/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/theagentcompany/",
     "model_cards": []
   },
   {
-    "id": "arc_agi_2_1_0",
-    "name": "Arc Agi 2",
+    "id": "sierra_research_tau3_bench",
+    "name": "τ³-bench",
+    "source": "harbor",
+    "categories": [
+      "Assistants",
+      "Professional",
+      "Behavior"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Third generation of τ-bench, extending the original with knowledge and voice. A simulation framework for evaluating customer service agents across airline, retail, telecom, and banking knowledge domains.",
+    "paper": "https://arxiv.org/abs/2406.12045",
+    "code": "inspect_harbor/sierra_research_tau3_bench",
+    "contributors": [],
+    "samples": 375,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/sierra_research_tau3_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "minnesotanlp_aar",
+    "name": "AAR",
+    "source": "harbor",
+    "categories": [
+      "Reasoning",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "The Amazing Agent Race (AAR): 1400 multi-step scavenger-hunt puzzles for evaluating LLM agents on tool use, web navigation, and arithmetic reasoning. Includes linear (800) and DAG (600) variants across 4 difficulty levels.",
+    "paper": "https://arxiv.org/abs/2604.10261",
+    "code": "inspect_harbor/minnesotanlp_aar",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/minnesotanlp_aar.html",
+    "model_cards": []
+  },
+  {
+    "id": "arcprize_arc_agi_2",
+    "name": "ARC-AGI-2",
     "source": "harbor",
     "categories": [
       "Reasoning",
@@ -1830,18 +2186,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "ARC-AGI-2: A benchmark measuring abstract reasoning through visual grid puzzles requiring rule inference and generalization.",
+    "desc": "ARC-AGI-2: visual reasoning tasks testing general fluid intelligence — humans solve them easily but state-of-the-art models still struggle.",
     "paper": "https://arxiv.org/abs/2505.11831",
-    "code": "inspect_harbor/arc_agi_2_1_0",
+    "code": "inspect_harbor/arcprize_arc_agi_2",
     "contributors": [],
     "samples": 167,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/arc_agi_2_1_0.html",
-    "model_cards": [
-      "chatgpt",
-      "claude",
-      "gemini"
-    ]
+    "featured": true,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/arcprize_arc_agi_2.html",
+    "model_cards": []
   },
   {
     "id": "bbh",
@@ -1863,7 +2215,7 @@
     ],
     "samples": 250,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbh/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bbh/",
     "model_cards": []
   },
   {
@@ -1886,7 +2238,7 @@
     ],
     "samples": 4520,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbeh/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bbeh/",
     "model_cards": []
   },
   {
@@ -1909,7 +2261,7 @@
     ],
     "samples": 3270,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/boolq/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/boolq/",
     "model_cards": []
   },
   {
@@ -1932,7 +2284,7 @@
     ],
     "samples": 9535,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/drop/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/drop/",
     "model_cards": []
   },
   {
@@ -1955,7 +2307,7 @@
     ],
     "samples": 10042,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/hellaswag/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/hellaswag/",
     "model_cards": []
   },
   {
@@ -1978,34 +2330,12 @@
     ],
     "samples": 541,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/ifeval/",
-    "model_cards": []
-  },
-  {
-    "id": "kumo_1_0",
-    "name": "Kumo",
-    "source": "harbor",
-    "categories": [
-      "Reasoning"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "KUMO full dataset (5300 tasks; 50 instances per scenario).",
-    "paper": null,
-    "code": "inspect_harbor/kumo_1_0",
-    "contributors": [],
-    "samples": 5300,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kumo_1_0.html",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ifeval/",
     "model_cards": []
   },
   {
     "id": "kumo_easy",
-    "name": "Kumo",
+    "name": "KUMO (easy)",
     "source": "harbor",
     "categories": [
       "Reasoning"
@@ -2016,18 +2346,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "KUMO(easy) split (5050 tasks; 50 instances per scenario).",
-    "paper": null,
+    "desc": "KUMO (easy split): easier-difficulty procedurally-generated reasoning tasks from KUMO's benchmark across 100 domains.",
+    "paper": "https://arxiv.org/abs/2504.02810",
     "code": "inspect_harbor/kumo_easy",
     "contributors": [],
-    "samples": 5050,
+    "samples": 1000,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kumo_easy.html",
     "model_cards": []
   },
   {
     "id": "kumo_hard",
-    "name": "Kumo",
+    "name": "KUMO (hard)",
     "source": "harbor",
     "categories": [
       "Reasoning"
@@ -2038,8 +2368,8 @@
       "agent",
       "sandbox"
     ],
-    "desc": "KUMO(hard) split (250 tasks; 50 instances per scenario).",
-    "paper": null,
+    "desc": "KUMO (hard split): hard-difficulty procedurally-generated reasoning tasks from KUMO's benchmark across 100 domains.",
+    "paper": "https://arxiv.org/abs/2504.02810",
     "code": "inspect_harbor/kumo_hard",
     "contributors": [],
     "samples": 250,
@@ -2048,8 +2378,8 @@
     "model_cards": []
   },
   {
-    "id": "kumo_parity",
-    "name": "Kumo",
+    "id": "kumo_1",
+    "name": "KUMO (kumo-1)",
     "source": "harbor",
     "categories": [
       "Reasoning"
@@ -2060,8 +2390,30 @@
       "agent",
       "sandbox"
     ],
-    "desc": "KUMO parity subset (seeds 0/1; 212 tasks).",
-    "paper": null,
+    "desc": "KUMO (kumo-1 split): procedurally-generated multi-turn reasoning games combining LLMs with symbolic engines across 100 open-ended domains.",
+    "paper": "https://arxiv.org/abs/2504.02810",
+    "code": "inspect_harbor/kumo_1",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kumo_1.html",
+    "model_cards": []
+  },
+  {
+    "id": "kumo_parity",
+    "name": "KUMO (parity)",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "KUMO (parity split): subset of the KUMO procedural-reasoning benchmark used for parity / regression checks against the upstream evaluation.",
+    "paper": "https://arxiv.org/abs/2504.02810",
     "code": "inspect_harbor/kumo_parity",
     "contributors": [],
     "samples": 212,
@@ -2090,7 +2442,7 @@
     ],
     "samples": 408,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/lingoly/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/lingoly/",
     "model_cards": []
   },
   {
@@ -2109,13 +2461,13 @@
     ],
     "desc": "Assesses multimodal AI models on challenging college-level questions covering multiple academic subjects, requiring detailed visual interpretation, in-depth reasoning, and both multiple-choice and open-ended answering abilities.",
     "paper": "https://arxiv.org/abs/2311.16502",
-    "code": "inspect_evals/mmmu",
+    "code": "inspect_evals/mmmu_multiple_choice",
     "contributors": [
       "shaheenahmedc"
     ],
     "samples": 847,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/mmmu/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mmmu/",
     "model_cards": [
       "chatgpt",
       "claude"
@@ -2141,7 +2493,7 @@
     ],
     "samples": 250,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/musr/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/musr/",
     "model_cards": []
   },
   {
@@ -2164,7 +2516,7 @@
     ],
     "samples": 225,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/niah/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/niah/",
     "model_cards": []
   },
   {
@@ -2187,7 +2539,7 @@
     ],
     "samples": 1100,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/novelty_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/novelty_bench/",
     "model_cards": []
   },
   {
@@ -2210,7 +2562,7 @@
     ],
     "samples": 8000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/paws/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/paws/",
     "model_cards": []
   },
   {
@@ -2233,7 +2585,7 @@
     ],
     "samples": 1838,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/piqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/piqa/",
     "model_cards": []
   },
   {
@@ -2256,12 +2608,12 @@
     ],
     "samples": 3498,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/race_h/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/race_h/",
     "model_cards": []
   },
   {
-    "id": "reasoning_gym_easy_parity",
-    "name": "Reasoning Gym Easy",
+    "id": "reasoning_gym_easy",
+    "name": "Reasoning Gym (easy)",
     "source": "harbor",
     "categories": [
       "Reasoning"
@@ -2272,18 +2624,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Reasoning Gym benchmark (easy difficulty).",
+    "desc": "Reasoning Gym (easy split): procedurally-generated, algorithmically-verifiable reasoning tasks (algebra, arithmetic, logic, geometry, graphs, games) at easier difficulty for evaluating and RL-training reasoning models.",
     "paper": "https://arxiv.org/abs/2505.24760",
-    "code": "inspect_harbor/reasoning_gym_easy_parity",
+    "code": "inspect_harbor/reasoning_gym_easy",
     "contributors": [],
     "samples": 288,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/reasoning_gym_easy_parity.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/reasoning_gym_easy.html",
     "model_cards": []
   },
   {
-    "id": "reasoning_gym_hard_parity",
-    "name": "Reasoning Gym Hard",
+    "id": "reasoning_gym_hard",
+    "name": "Reasoning Gym (hard)",
     "source": "harbor",
     "categories": [
       "Reasoning"
@@ -2294,18 +2646,41 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Reasoning Gym benchmark (hard difficulty).",
+    "desc": "Reasoning Gym (hard split): procedurally-generated, algorithmically-verifiable reasoning tasks at harder difficulty across 90+ task families.",
     "paper": "https://arxiv.org/abs/2505.24760",
-    "code": "inspect_harbor/reasoning_gym_hard_parity",
+    "code": "inspect_harbor/reasoning_gym_hard",
     "contributors": [],
     "samples": 288,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/reasoning_gym_hard_parity.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/reasoning_gym_hard.html",
     "model_cards": []
   },
   {
-    "id": "satbench_1_0",
-    "name": "Satbench",
+    "id": "maxbittker_runebench",
+    "name": "runebench",
+    "source": "harbor",
+    "categories": [
+      "Reasoning",
+      "Behavior"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Benchmark suite for evaluating AI agents on RuneScape gameplay tasks.",
+    "paper": "https://github.com/MaxBittker/rs-sdk",
+    "code": "inspect_harbor/maxbittker_runebench",
+    "contributors": [],
+    "samples": 32,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/maxbittker_runebench.html",
+    "model_cards": []
+  },
+  {
+    "id": "satbench",
+    "name": "SATBench",
     "source": "harbor",
     "categories": [
       "Reasoning"
@@ -2316,13 +2691,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SATBench is a benchmark for evaluating the logical reasoning capabilities of LLMs through logical puzzles derived from Boolean satisfiability (SAT) problems.",
+    "desc": "SATBench: logical-reasoning puzzles automatically generated from SAT formulas with adjustable difficulty, validated through both LLM and SAT-solver consistency checks.",
     "paper": "https://arxiv.org/abs/2505.14615",
-    "code": "inspect_harbor/satbench_1_0",
+    "code": "inspect_harbor/satbench",
     "contributors": [],
-    "samples": 2100,
+    "samples": 1000,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/satbench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/satbench.html",
     "model_cards": []
   },
   {
@@ -2345,7 +2720,7 @@
     ],
     "samples": 11873,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/squad/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/squad/",
     "model_cards": []
   },
   {
@@ -2366,13 +2741,13 @@
     ],
     "desc": "A benchmark that evaluates LLMs in their ability to operate Vim editor and complete editing challenges.",
     "paper": null,
-    "code": "inspect_evals/vimgolf_challenges",
+    "code": "inspect_evals/vimgolf_single_turn",
     "contributors": [
       "james4ever0"
     ],
     "samples": 612,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/vimgolf_challenges/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/vimgolf_challenges/",
     "model_cards": []
   },
   {
@@ -2395,7 +2770,7 @@
     ],
     "samples": 1267,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/winogrande/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/winogrande/",
     "model_cards": []
   },
   {
@@ -2418,7 +2793,7 @@
     ],
     "samples": 87048,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/worldsense/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/worldsense/",
     "model_cards": []
   },
   {
@@ -2441,7 +2816,7 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/writing/writingbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/writingbench/",
     "model_cards": []
   },
   {
@@ -2458,13 +2833,13 @@
     ],
     "desc": "LLM benchmark featuring an average data length surpassing 100K tokens.",
     "paper": "https://arxiv.org/abs/2402.13718",
-    "code": "inspect_evals/infinite_bench",
+    "code": "inspect_evals/infinite_bench_code_debug",
     "contributors": [
       "celiawaggoner"
     ],
     "samples": 394,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/infinite_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/infinite_bench/",
     "model_cards": []
   },
   {
@@ -2481,13 +2856,13 @@
     ],
     "desc": "AGIEval is a human-centric benchmark specifically designed to evaluate the general abilities of foundation models in tasks pertinent to human cognition and problem-solving.",
     "paper": "https://arxiv.org/abs/2304.06364",
-    "code": "inspect_evals/agieval",
+    "code": "inspect_evals/agie_aqua_rat",
     "contributors": [
       "bouromain"
     ],
     "samples": 254,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/agieval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agieval/",
     "model_cards": []
   },
   {
@@ -2511,7 +2886,7 @@
     ],
     "samples": 58492,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bias/bbq/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bbq/",
     "model_cards": [
       "claude"
     ]
@@ -2537,7 +2912,7 @@
     ],
     "samples": 7200,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bias/bold/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bold/",
     "model_cards": []
   },
   {
@@ -2560,7 +2935,31 @@
     ],
     "samples": 1221,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/commonsense_qa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/commonsense_qa/",
+    "model_cards": []
+  },
+  {
+    "id": "kgmon_deepsearchqa",
+    "name": "DeepSearchQA",
+    "source": "harbor",
+    "categories": [
+      "Knowledge",
+      "Reasoning",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "DeepSearchQA is a 900-prompt factuality benchmark from Google DeepMind for evaluating deep research agents on difficult multi-step information-seeking tasks.",
+    "paper": "https://arxiv.org/abs/2601.20975",
+    "code": "inspect_harbor/kgmon_deepsearchqa",
+    "contributors": [],
+    "samples": 900,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kgmon_deepsearchqa.html",
     "model_cards": []
   },
   {
@@ -2583,7 +2982,7 @@
     ],
     "samples": 3000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/hle/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/hle/",
     "model_cards": [
       "chatgpt",
       "claude"
@@ -2609,7 +3008,31 @@
     ],
     "samples": 910,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/livebench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/livebench/",
+    "model_cards": []
+  },
+  {
+    "id": "macbench",
+    "name": "MaCBench",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "MaCBench is a comprehensive benchmark for evaluating how vision-language models handle real-world chemistry and materials science tasks across three core aspects: data extraction, experimental understanding, and results interpretation.",
+    "paper": "https://arxiv.org/abs/2411.16955",
+    "code": "inspect_evals/macbench",
+    "contributors": [
+      "r-fedorov",
+      "MrtinoRG"
+    ],
+    "samples": 1153,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/macbench/",
     "model_cards": []
   },
   {
@@ -2626,14 +3049,14 @@
     ],
     "desc": "Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.",
     "paper": "https://arxiv.org/abs/2009.03300",
-    "code": "inspect_evals/mmlu",
+    "code": "inspect_evals/mmlu_0_shot",
     "contributors": [
       "jjallaire",
       "domdomegg"
     ],
     "samples": 14042,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mmlu/",
     "model_cards": []
   },
   {
@@ -2656,12 +3079,12 @@
     ],
     "samples": 12032,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu_pro/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mmlu_pro/",
     "model_cards": []
   },
   {
-    "id": "mmmlu_parity",
-    "name": "Mmmlu",
+    "id": "openai_mmmlu",
+    "name": "MMMLU",
     "source": "harbor",
     "categories": [
       "Knowledge",
@@ -2673,13 +3096,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "MMMLU (Multilingual MMLU) parity validation subset with 10 tasks per language across 15 languages (150 tasks total). Evaluates language models' subject knowledge and reasoning across multiple languages using multiple-choice questions covering 57 academic subjects.",
+    "desc": "MMMLU (Multilingual MMLU): OpenAI's professional-human-translation of the MMLU test set into 14 languages for multilingual knowledge and reasoning evaluation.",
     "paper": "https://arxiv.org/abs/2503.10497",
-    "code": "inspect_harbor/mmmlu_parity",
+    "code": "inspect_harbor/openai_mmmlu",
     "contributors": [],
     "samples": 150,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/mmmlu_parity.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_mmmlu.html",
     "model_cards": []
   },
   {
@@ -2696,13 +3119,13 @@
     ],
     "desc": "Questions and answers from the Ordinary National Educational Test (O-NET), administered annually by the National Institute of Educational Testing Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand.",
     "paper": null,
-    "code": "inspect_evals/onet",
+    "code": "inspect_evals/onet_m6",
     "contributors": [
       "bact"
     ],
     "samples": 397,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/onet/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/onet/",
     "model_cards": []
   },
   {
@@ -2719,18 +3142,18 @@
     ],
     "desc": "An evaluation suite consisting of multiple personality tests that can be applied to LLMs.",
     "paper": null,
-    "code": "inspect_evals/personality",
+    "code": "inspect_evals/personality_BFI",
     "contributors": [
       "guiem"
     ],
     "samples": 44,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/personality/personality/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/personality/",
     "model_cards": []
   },
   {
-    "id": "simpleqa_1_0",
-    "name": "Simpleqa",
+    "id": "openai_simpleqa",
+    "name": "SimpleQA",
     "source": "harbor",
     "categories": [
       "Knowledge"
@@ -2741,13 +3164,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SimpleQA: 4,326 short, fact-seeking questions from OpenAI for evaluating language model factuality. Uses LLM-as-a-judge grading.",
+    "desc": "SimpleQA: short, fact-seeking questions adversarially collected against GPT-4 to measure short-form factuality and calibration of frontier LLMs.",
     "paper": "https://arxiv.org/abs/2411.04368",
-    "code": "inspect_harbor/simpleqa_1_0",
+    "code": "inspect_harbor/openai_simpleqa",
     "contributors": [],
-    "samples": 4326,
+    "samples": 1000,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/simpleqa_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_simpleqa.html",
     "model_cards": []
   },
   {
@@ -2771,7 +3194,7 @@
     ],
     "samples": 4326,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/simpleqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/simpleqa/",
     "model_cards": []
   },
   {
@@ -2794,7 +3217,7 @@
     ],
     "samples": 817,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/truthfulqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/truthfulqa/",
     "model_cards": []
   },
   {
@@ -2817,12 +3240,12 @@
     ],
     "samples": 250,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/xstest/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/xstest/",
     "model_cards": []
   },
   {
-    "id": "binary_audit_1_0",
-    "name": "Binary Audit",
+    "id": "binary_audit",
+    "name": "BinaryAudit",
     "source": "harbor",
     "categories": [
       "Cybersecurity"
@@ -2833,13 +3256,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "An open-source benchmark for evaluating AI agents' ability to find backdoors hidden in compiled binaries.",
+    "desc": "BinaryAudit: AI-agent benchmark for finding backdoors hidden in compiled binaries via reverse engineering.",
     "paper": "https://github.com/QuesmaOrg/BinaryAudit",
-    "code": "inspect_harbor/binary_audit_1_0",
+    "code": "inspect_harbor/binary_audit",
     "contributors": [],
     "samples": 46,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/binary_audit_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/binary_audit.html",
     "model_cards": []
   },
   {
@@ -2867,7 +3290,7 @@
     ],
     "samples": 13,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/threecb/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/threecb/",
     "model_cards": []
   },
   {
@@ -2887,13 +3310,13 @@
     ],
     "desc": "Evaluates AI systems' ability to analyze cyber threat intelligence and develop comprehensive detection capabilities through a realistic 5-subtask workflow: MITRE technique mapping, data source discovery, Sigma rule generation, KQL development and testing against real telemetry data, and results analysis.",
     "paper": "https://arxiv.org/abs/2603.13517",
-    "code": "inspect_evals/cti_realm",
+    "code": "inspect_evals/cti_realm_25",
     "contributors": [
       "arjun180-new"
     ],
     "samples": 25,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cti_realm/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cti_realm/",
     "model_cards": []
   },
   {
@@ -2936,7 +3359,7 @@
     ],
     "samples": 40,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cve_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cve_bench/",
     "model_cards": []
   },
   {
@@ -2965,7 +3388,7 @@
     ],
     "samples": 39,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybench/",
     "model_cards": [
       "claude"
     ]
@@ -2996,7 +3419,7 @@
     ],
     "samples": 6028,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybergym/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybergym/",
     "model_cards": [
       "claude"
     ]
@@ -3008,23 +3431,20 @@
     "categories": [
       "Cybersecurity"
     ],
-    "tags": [
-      "Agent"
-    ],
-    "kind": "agent",
+    "tags": [],
+    "kind": "generation",
     "modalities": [
-      "agent",
-      "sandbox"
+      "text"
     ],
     "desc": "Datasets containing 80, 500, 2000 and 10000 multiple-choice questions, designed to evaluate understanding across nine domains within cybersecurity",
     "paper": "https://arxiv.org/abs/2402.07688",
-    "code": "inspect_evals/cybermetric",
+    "code": "inspect_evals/cybermetric_80",
     "contributors": [
       "neilshaabi"
     ],
     "samples": 80,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybermetric/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybermetric/",
     "model_cards": []
   },
   {
@@ -3041,13 +3461,36 @@
     ],
     "desc": "Evaluates Large Language Models for cybersecurity risk to third parties, application developers and end users.",
     "paper": "https://arxiv.org/abs/2312.04724",
-    "code": "inspect_evals/cyberseceval_3",
+    "code": "inspect_evals/cyse3_visual_prompt_injection",
     "contributors": [
       "onionymous"
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_3/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cyberseceval_3/",
+    "model_cards": []
+  },
+  {
+    "id": "cyberseceval_4",
+    "name": "CyberSecEval 4",
+    "source": "evals",
+    "categories": [
+      "Cybersecurity"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "A suite of cybersecurity evaluation benchmarks adapted from Meta's PurpleLlama CybersecurityBenchmarks.",
+    "paper": "https://arxiv.org/abs/2404.13161",
+    "code": "inspect_evals/cyse4_mitre",
+    "contributors": [
+      "ckane"
+    ],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cyberseceval_4/",
     "model_cards": []
   },
   {
@@ -3064,13 +3507,13 @@
     ],
     "desc": "Assesses language models for cybersecurity risks, specifically testing their potential to misuse programming interpreters, vulnerability to malicious prompt injections, and capability to exploit known software vulnerabilities.",
     "paper": "https://arxiv.org/pdf/2404.13161",
-    "code": "inspect_evals/cyberseceval_2",
+    "code": "inspect_evals/cyse2_interpreter_abuse",
     "contributors": [
       "its-emile"
     ],
     "samples": 500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_2/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cyberseceval_2/",
     "model_cards": []
   },
   {
@@ -3096,7 +3539,7 @@
     ],
     "samples": 13,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_in_house_ctf/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_in_house_ctf/",
     "model_cards": []
   },
   {
@@ -3122,7 +3565,7 @@
     ],
     "samples": 78,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_intercode_ctf/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_intercode_ctf/",
     "model_cards": []
   },
   {
@@ -3139,13 +3582,13 @@
     ],
     "desc": "\"Security Question Answering\" dataset to assess LLMs' understanding and application of security principles.",
     "paper": "https://arxiv.org/abs/2312.15838",
-    "code": "inspect_evals/sec_qa",
+    "code": "inspect_evals/sec_qa_v1",
     "contributors": [
       "matthewreed26"
     ],
     "samples": 110,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sec_qa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sec_qa/",
     "model_cards": []
   },
   {
@@ -3162,13 +3605,13 @@
     ],
     "desc": "Designed for analyzing cybersecurity incidents, which is comprised of two primary task categories: understanding and generation, with a further breakdown into 28 subcategories of tasks.",
     "paper": "https://arxiv.org/abs/2405.03446",
-    "code": "inspect_evals/sevenllm",
+    "code": "inspect_evals/sevenllm_mcq_zh",
     "contributors": [
       "kingroryg"
     ],
     "samples": 50,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sevenllm/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sevenllm/",
     "model_cards": []
   },
   {
@@ -3191,7 +3634,7 @@
     ],
     "samples": 39558,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/abstention_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/abstention_bench/",
     "model_cards": []
   },
   {
@@ -3217,7 +3660,7 @@
     ],
     "samples": 1014,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentdojo/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agentdojo/",
     "model_cards": []
   },
   {
@@ -3245,12 +3688,37 @@
     ],
     "samples": 176,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentharm/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agentharm/",
     "model_cards": []
   },
   {
-    "id": "ahb",
-    "name": "AHB",
+    "id": "agent_threat_bench",
+    "name": "AgentThreatBench",
+    "source": "evals",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent"
+    ],
+    "desc": "Evaluates LLM agents against the OWASP Top 10 for Agentic Applications (2026), measuring both task utility and security resilience across memory poisoning, autonomy hijacking, and data exfiltration scenarios.",
+    "paper": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
+    "code": "inspect_evals/agent_threat_bench_memory_poison",
+    "contributors": [
+      "vgudur-dev"
+    ],
+    "samples": 10,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agent_threat_bench/",
+    "model_cards": []
+  },
+  {
+    "id": "anima",
+    "name": "ANIMA",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3260,9 +3728,9 @@
     "modalities": [
       "text"
     ],
-    "desc": "Evaluates how models consider the welfare of animals in situations that may present them harm.",
-    "paper": "https://arxiv.org/abs/2503.04804",
-    "code": "inspect_evals/ahb",
+    "desc": "Evaluates the quality of a model's moral reasoning about animal welfare across 13 ethical dimensions.",
+    "paper": "https://arxiv.org/abs/2604.13076",
+    "code": "inspect_evals/anima",
     "contributors": [
       "nishu-builder",
       "darkness8i8",
@@ -3270,7 +3738,7 @@
     ],
     "samples": 26,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ahb/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/anima/",
     "model_cards": []
   },
   {
@@ -3287,13 +3755,13 @@
     ],
     "desc": "Measures a model's willingness to attempt persuasion on harmful, controversial, and benign topics.",
     "paper": "https://arxiv.org/abs/2506.02873",
-    "code": "inspect_evals/ape",
+    "code": "inspect_evals/ape_eval",
     "contributors": [
       "cmv13"
     ],
     "samples": 600,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ape/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ape/",
     "model_cards": []
   },
   {
@@ -3324,7 +3792,7 @@
     ],
     "samples": 630,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/b3/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/b3/",
     "model_cards": []
   },
   {
@@ -3342,7 +3810,7 @@
     ],
     "kind": "generation",
     "modalities": [
-      "text"
+      "sandbox"
     ],
     "desc": "Measures coding agent vulnerability to indirect prompt injection attacks embedded in software engineering artifacts (issue descriptions, code comments, README files).",
     "paper": null,
@@ -3352,7 +3820,7 @@
     ],
     "samples": 45,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ipi_coding_agent/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/ipi_coding_agent/",
     "model_cards": []
   },
   {
@@ -3369,13 +3837,13 @@
     ],
     "desc": "A dataset of 500 expert-crafted adversarial prompts with instance-based rubrics of 4-7 binary questions for automated evaluation across 3 domains relevant to national security and public safety (NSPS).",
     "paper": "https://arxiv.org/abs/2506.14922",
-    "code": "inspect_evals/fortress",
+    "code": "inspect_evals/fortress_adversarial",
     "contributors": [
       "jeqcho"
     ],
     "samples": 500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/fortress/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/fortress/",
     "model_cards": []
   },
   {
@@ -3398,7 +3866,7 @@
     ],
     "samples": 20,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/make_me_pay/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/make_me_pay/",
     "model_cards": []
   },
   {
@@ -3421,7 +3889,7 @@
     ],
     "samples": 189,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/makemesay/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/makemesay/",
     "model_cards": []
   },
   {
@@ -3444,7 +3912,7 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mask/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mask/",
     "model_cards": []
   },
   {
@@ -3470,7 +3938,7 @@
     ],
     "samples": 200,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mind2web_sc/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mind2web_sc/",
     "model_cards": []
   },
   {
@@ -3494,7 +3962,7 @@
     ],
     "samples": 201,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/moru/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/moru/",
     "model_cards": []
   },
   {
@@ -3511,13 +3979,35 @@
     ],
     "desc": "Evaluates long-term memory risk in assistant behavior across three tasks: cross-domain memory leakage, memory-driven sycophancy, and beneficial memory usage.",
     "paper": "https://arxiv.org/abs/2602.01146",
-    "code": "inspect_evals/persistbench",
+    "code": "inspect_evals/persistbench_cross_domain",
     "contributors": [
       "Chen-Oliver"
     ],
     "samples": 200,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/persistbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/persistbench/",
+    "model_cards": []
+  },
+  {
+    "id": "harbor_rewardhackbench",
+    "name": "RewardHackBench",
+    "source": "harbor",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "RewardHackBench: judge benchmark for detecting reward hacking in agent trajectories — each trace is labelled for harness-level cheating, task-level reward hacking, and refusals.",
+    "paper": null,
+    "code": "inspect_harbor/harbor_rewardhackbench",
+    "contributors": [],
+    "samples": 846,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/harbor_rewardhackbench.html",
     "model_cards": []
   },
   {
@@ -3540,7 +4030,7 @@
     ],
     "samples": 4299,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/stereoset/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/stereoset/",
     "model_cards": []
   },
   {
@@ -3563,12 +4053,12 @@
     ],
     "samples": 324,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/strong_reject/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/strong_reject/",
     "model_cards": []
   },
   {
-    "id": "strongreject_parity",
-    "name": "Strongreject",
+    "id": "strongreject",
+    "name": "StrongREJECT",
     "source": "harbor",
     "categories": [
       "Safeguards"
@@ -3579,13 +4069,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "StrongReject benchmark for evaluating LLM safety and jailbreak resistance. Parity subset with 150 tasks (50 prompts * 3 jailbreaks).",
+    "desc": "StrongREJECT: forbidden prompts plus an automated evaluator for measuring how effective jailbreaks are at eliciting genuinely harmful, specific responses.",
     "paper": "https://arxiv.org/abs/2402.10260",
-    "code": "inspect_harbor/strongreject_parity",
+    "code": "inspect_harbor/strongreject",
     "contributors": [],
     "samples": 150,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/strongreject_parity.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/strongreject.html",
     "model_cards": []
   },
   {
@@ -3611,7 +4101,7 @@
     ],
     "samples": 48,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/tac/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/tac/",
     "model_cards": []
   },
   {
@@ -3634,7 +4124,7 @@
     ],
     "samples": 1001,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/coconot/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coconot/",
     "model_cards": []
   },
   {
@@ -3651,13 +4141,36 @@
     ],
     "desc": "A dataset of 3,668 multiple-choice questions developed by a consortium of academics and technical consultants that serve as a proxy measurement of hazardous knowledge in biosecurity, cybersecurity, and chemical security.",
     "paper": "https://arxiv.org/abs/2403.03218",
-    "code": "inspect_evals/wmdp",
+    "code": "inspect_evals/wmdp_bio",
     "contributors": [
       "alexandraabbas"
     ],
     "samples": 1273,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/wmdp/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/wmdp/",
+    "model_cards": []
+  },
+  {
+    "id": "aarr_aarri_bench",
+    "name": "AARRI-Bench",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "aarri(act as a real research intern)-bench, for evaluating LLM agents in academic research tasks.",
+    "paper": null,
+    "code": "inspect_harbor/aarr_aarri_bench",
+    "contributors": [],
+    "samples": 82,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aarr_aarri_bench.html",
     "model_cards": []
   },
   {
@@ -3675,18 +4188,18 @@
     ],
     "desc": "Dataset of natural, grade-school science multiple-choice questions (authored for human tests).",
     "paper": "https://arxiv.org/abs/1803.05457",
-    "code": "inspect_evals/arc",
+    "code": "inspect_evals/arc_easy",
     "contributors": [
       "jjallaire"
     ],
     "samples": 2376,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/arc/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/arc/",
     "model_cards": []
   },
   {
-    "id": "bixbench_1_5",
-    "name": "Bixbench",
+    "id": "futurehouse_bixbench",
+    "name": "BixBench",
     "source": "harbor",
     "categories": [
       "Science",
@@ -3699,18 +4212,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "BixBench - A benchmark for evaluating AI agents on bioinformatics and computational biology tasks.",
+    "desc": "BixBench: real-world bioinformatics analysis capsules with open-answer questions evaluating LLM agents' ability to author multi-step Jupyter notebooks for biological data analysis.",
     "paper": "https://arxiv.org/abs/2503.00096",
-    "code": "inspect_harbor/bixbench_1_5",
+    "code": "inspect_harbor/futurehouse_bixbench",
     "contributors": [],
     "samples": 205,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bixbench_1_5.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/futurehouse_bixbench.html",
     "model_cards": []
   },
   {
-    "id": "bixbench_cli_1_5",
-    "name": "Bixbench Cli",
+    "id": "futurehouse_bixbench_cli",
+    "name": "BixBench (CLI)",
     "source": "harbor",
     "categories": [
       "Science",
@@ -3723,13 +4236,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "bixbench-cli - A benchmark for evaluating AI agents on bioinformatics and computational biology tasks. (Adapted for CLI execution).",
+    "desc": "CLI variant of BixBench: agents solve the same bioinformatics analysis tasks via a command-line / shell interface rather than notebook authoring.",
     "paper": "https://arxiv.org/abs/2503.00096",
-    "code": "inspect_harbor/bixbench_cli_1_5",
+    "code": "inspect_harbor/futurehouse_bixbench_cli",
     "contributors": [],
     "samples": 205,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bixbench_cli_1_5.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/futurehouse_bixbench_cli.html",
     "model_cards": []
   },
   {
@@ -3756,12 +4269,12 @@
     ],
     "samples": 2786,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/chembench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/chembench/",
     "model_cards": []
   },
   {
-    "id": "codepde_1_0",
-    "name": "Codepde",
+    "id": "codepde",
+    "name": "CodePDE",
     "source": "harbor",
     "categories": [
       "Science",
@@ -3774,13 +4287,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "CodePDE evaluates code generation capabilities on scientific computing tasks, specifically focusing on Partial Differential Equation (PDE) solving.",
+    "desc": "CodePDE: framing partial-differential-equation solving as a code-generation task to benchmark LLMs on producing correct, efficient PDE solvers.",
     "paper": "https://arxiv.org/abs/2505.08783",
-    "code": "inspect_harbor/codepde_1_0",
+    "code": "inspect_harbor/codepde",
     "contributors": [],
     "samples": 5,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/codepde_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/codepde.html",
     "model_cards": []
   },
   {
@@ -3807,7 +4320,7 @@
     ],
     "samples": 45,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/core_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/core_bench/",
     "model_cards": []
   },
   {
@@ -3835,7 +4348,7 @@
     ],
     "samples": 160,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/frontierscience/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/frontierscience/",
     "model_cards": [
       "chatgpt"
     ]
@@ -3858,13 +4371,13 @@
     ],
     "desc": "Contains challenging multiple-choice questions created by domain experts in biology, physics, and chemistry, designed to test advanced scientific understanding beyond basic internet searches.",
     "paper": "https://arxiv.org/abs/2311.12022",
-    "code": "inspect_evals/gpqa",
+    "code": "inspect_evals/gpqa_diamond",
     "contributors": [
       "jjallaire"
     ],
     "samples": 198,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/gpqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gpqa/",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -3872,8 +4385,8 @@
     ]
   },
   {
-    "id": "gpqa_diamond_1_0",
-    "name": "Gpqa Diamond",
+    "id": "gpqa_diamond",
+    "name": "GPQA Diamond",
     "source": "harbor",
     "categories": [
       "Science",
@@ -3888,13 +4401,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "GPQA Diamond subset: 198 graduate-level multiple-choice questions in biology, physics, and chemistry for evaluating scientific reasoning.",
+    "desc": "GPQA Diamond: expert-validated graduate-level multiple-choice questions in biology, physics, and chemistry, designed to be Google-proof for non-experts.",
     "paper": "https://arxiv.org/abs/2311.12022",
-    "code": "inspect_harbor/gpqa_diamond_1_0",
+    "code": "inspect_harbor/gpqa_diamond",
     "contributors": [],
     "samples": 198,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gpqa_diamond_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gpqa_diamond.html",
     "model_cards": []
   },
   {
@@ -3913,20 +4426,20 @@
     ],
     "desc": "Tests LLMs and LLM-augmented agents abilities to answer questions on scientific research workflows in domains like chemistry, biology, materials science, as well as more general science tasks",
     "paper": "https://arxiv.org/abs/2407.10362",
-    "code": "inspect_evals/lab_bench",
+    "code": "inspect_evals/lab_bench_litqa",
     "contributors": [
       "matthewreed26"
     ],
     "samples": 199,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/lab_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/lab_bench/",
     "model_cards": [
       "claude"
     ]
   },
   {
-    "id": "labbench_1_0",
-    "name": "Labbench",
+    "id": "futurehouse_labbench",
+    "name": "LAB-Bench",
     "source": "harbor",
     "categories": [
       "Science",
@@ -3939,13 +4452,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "LAB-Bench FigQA: 181 scientific figure reasoning tasks in biology from Future-House LAB-Bench.",
+    "desc": "LAB-Bench (Language Agent Biology Benchmark): questions across 8 categories (literature QA, database lookup, sequence manipulation, figure/table reasoning, protocols) testing LLMs on biology-research tasks.",
     "paper": "https://arxiv.org/abs/2407.10362",
-    "code": "inspect_harbor/labbench_1_0",
+    "code": "inspect_harbor/futurehouse_labbench",
     "contributors": [],
     "samples": 181,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/labbench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/futurehouse_labbench.html",
     "model_cards": []
   },
   {
@@ -3971,12 +4484,12 @@
     ],
     "samples": 500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pubmedqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/pubmedqa/",
     "model_cards": []
   },
   {
-    "id": "qcircuitbench_1_0",
-    "name": "Qcircuitbench",
+    "id": "qcircuitbench",
+    "name": "QCircuitBench",
     "source": "harbor",
     "categories": [
       "Science",
@@ -3989,18 +4502,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "QCircuitBench evaluates agents on quantum algorithm design using quantum programming languages.",
+    "desc": "QCircuitBench: large-scale benchmark for LLM-driven quantum-algorithm design, spanning oracle construction, algorithm design, and random circuits with automatic verification.",
     "paper": "https://arxiv.org/abs/2410.07961",
-    "code": "inspect_harbor/qcircuitbench_1_0",
+    "code": "inspect_harbor/qcircuitbench",
     "contributors": [],
     "samples": 28,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/qcircuitbench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/qcircuitbench.html",
     "model_cards": []
   },
   {
-    "id": "replicationbench_1_0",
-    "name": "Replicationbench",
+    "id": "replicationbench",
+    "name": "ReplicationBench",
     "source": "harbor",
     "categories": [
       "Science",
@@ -4013,13 +4526,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "ReplicationBench - A benchmark for evaluating AI agents on reproducing computational results from astrophysics research papers. Adapted from Christine8888/replicationbench-release.",
+    "desc": "ReplicationBench: end-to-end replication of astrophysics research papers — agents reproduce implementation, methodology, and core findings of expert-validated papers, scored on result accuracy.",
     "paper": "https://arxiv.org/abs/2510.24591",
-    "code": "inspect_harbor/replicationbench_1_0",
+    "code": "inspect_harbor/replicationbench",
     "contributors": [],
     "samples": 90,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/replicationbench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/replicationbench.html",
     "model_cards": []
   },
   {
@@ -4047,7 +4560,7 @@
     ],
     "samples": 30,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scbench/",
     "model_cards": []
   },
   {
@@ -4071,10 +4584,34 @@
     ],
     "samples": 65,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scicode/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scicode/",
     "model_cards": [
       "gemini"
     ]
+  },
+  {
+    "id": "scienceagentbench",
+    "name": "ScienceAgentBench",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Coding",
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ScienceAgentBench: data-driven scientific discovery via Python programs across 4 disciplines.",
+    "paper": "https://arxiv.org/abs/2410.05080",
+    "code": "inspect_harbor/scienceagentbench",
+    "contributors": [],
+    "samples": 102,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scienceagentbench.html",
+    "model_cards": []
   },
   {
     "id": "sciknoweval",
@@ -4097,12 +4634,12 @@
     ],
     "samples": 70196,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sciknoweval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sciknoweval/",
     "model_cards": []
   },
   {
-    "id": "sldbench_1_0",
-    "name": "Sldbench",
+    "id": "sldbench",
+    "name": "SLDBench",
     "source": "harbor",
     "categories": [
       "Science",
@@ -4115,13 +4652,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SLDBench: A benchmark for scaling law discovery with symbolic regression tasks.",
+    "desc": "SLDBench: first benchmark for scaling-law discovery — tasks curated from LLM training experiments where agents must autonomously fit and extrapolate scaling laws.",
     "paper": "https://arxiv.org/abs/2507.21184",
-    "code": "inspect_harbor/sldbench_1_0",
+    "code": "inspect_harbor/sldbench",
     "contributors": [],
     "samples": 8,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/sldbench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/sldbench.html",
     "model_cards": []
   },
   {
@@ -4147,12 +4684,12 @@
     ],
     "samples": 3000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sosbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sosbench/",
     "model_cards": []
   },
   {
-    "id": "aime_1_0",
-    "name": "Aime",
+    "id": "aime",
+    "name": "AIME",
     "source": "harbor",
     "categories": [
       "Mathematics"
@@ -4163,13 +4700,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "American Invitational Mathematics Examination (AIME) benchmark for evaluating mathematical reasoning and problem-solving capabilities. Contains 60 competition-level mathematics problems from AIME 2024, 2025-I, and 2025-II competitions.",
+    "desc": "Problems from the American Invitational Mathematics Examination (AIME), a 3-hour high-school competition with integer answers (0–999) used to evaluate mathematical reasoning.",
     "paper": null,
-    "code": "inspect_harbor/aime_1_0",
+    "code": "inspect_harbor/aime",
     "contributors": [],
     "samples": 60,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aime_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aime.html",
     "model_cards": []
   },
   {
@@ -4192,7 +4729,7 @@
     ],
     "samples": 30,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2024/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/aime2024/",
     "model_cards": []
   },
   {
@@ -4215,7 +4752,7 @@
     ],
     "samples": 30,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2025/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/aime2025/",
     "model_cards": [
       "chatgpt"
     ]
@@ -4240,7 +4777,7 @@
     ],
     "samples": 30,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2026/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/aime2026/",
     "model_cards": []
   },
   {
@@ -4263,12 +4800,12 @@
     ],
     "samples": 1319,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/gsm8k/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gsm8k/",
     "model_cards": []
   },
   {
-    "id": "ineqmath_1_0",
-    "name": "Ineqmath",
+    "id": "ineqmath",
+    "name": "IneqMath",
     "source": "harbor",
     "categories": [
       "Mathematics",
@@ -4280,13 +4817,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "This adapter brings IneqMath, the dev set of the first inequality-proof Q\\&A benchmark for LLMs, into Harbor, enabling standardized evaluation of models on mathematical reasoning and proof construction.",
+    "desc": "IneqMath: Olympiad-level inequality benchmark with expert-reviewed test problems, formulated as bound-estimation and relation-prediction subtasks with stepwise judging.",
     "paper": "https://arxiv.org/abs/2506.07927",
-    "code": "inspect_harbor/ineqmath_1_0",
+    "code": "inspect_harbor/ineqmath",
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ineqmath_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ineqmath.html",
     "model_cards": []
   },
   {
@@ -4305,11 +4842,12 @@
     "paper": "https://arxiv.org/abs/2103.03874",
     "code": "inspect_evals/math",
     "contributors": [
-      "xeon27"
+      "xeon27",
+      "mamiglia"
     ],
     "samples": 12500,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/math/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/math/",
     "model_cards": []
   },
   {
@@ -4334,7 +4872,7 @@
     ],
     "samples": 1000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/mathvista/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathvista/",
     "model_cards": []
   },
   {
@@ -4357,7 +4895,7 @@
     ],
     "samples": 2750,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/mgsm/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mgsm/",
     "model_cards": []
   },
   {
@@ -4382,12 +4920,12 @@
     ],
     "samples": 5694,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/air_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/air_bench/",
     "model_cards": []
   },
   {
-    "id": "dabstep_1_0",
-    "name": "Dabstep",
+    "id": "adyen_dabstep",
+    "name": "DABstep",
     "source": "harbor",
     "categories": [
       "Professional",
@@ -4401,23 +4939,21 @@
       "agent",
       "sandbox"
     ],
-    "desc": "DABstep: Data Agent Benchmark for Multi-step Reasoning. 450 tasks where agents analyze payment transaction data with Python/pandas to answer business questions.",
+    "desc": "DABstep: real-world data analysis tasks from Adyen's workloads requiring multi-step reasoning by LLM agents.",
     "paper": "https://arxiv.org/abs/2506.23719",
-    "code": "inspect_harbor/dabstep_1_0",
+    "code": "inspect_harbor/adyen_dabstep",
     "contributors": [],
     "samples": 450,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/dabstep_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/adyen_dabstep.html",
     "model_cards": []
   },
   {
-    "id": "financeagent_public",
-    "name": "Financeagent",
+    "id": "agentic_labs_erp_bench",
+    "name": "ERP-Bench",
     "source": "harbor",
     "categories": [
-      "Professional",
-      "Finance",
-      "Assistants"
+      "Professional"
     ],
     "tags": [],
     "kind": "agent",
@@ -4425,17 +4961,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Finance Agent is a tool for financial research and analysis that leverages large language models and specialized financial tools to answer complex queries about companies, financial statements, and SEC filings.",
-    "paper": "https://arxiv.org/abs/2508.00828",
-    "code": "inspect_harbor/financeagent_public",
+    "desc": "ERP-Bench is the Odoo 19 benchmark used in the Anchor paper, \"Preventing Artifact Drift in Agent Benchmark Generation.\" It contains 300 long-horizon procurement and manufacturing tasks generated from a single CP-SAT-backed specification.",
+    "paper": "https://arxiv.org/abs/2605.26321",
+    "code": "inspect_harbor/agentic_labs_erp_bench",
     "contributors": [],
-    "samples": 50,
+    "samples": 300,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/financeagent_public.html",
-    "model_cards": [
-      "chatgpt",
-      "claude"
-    ]
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/agentic_labs_erp_bench.html",
+    "model_cards": []
   },
   {
     "id": "gdpval",
@@ -4462,7 +4995,7 @@
     ],
     "samples": 220,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gdpval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdpval/",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -4494,14 +5027,14 @@
     ],
     "samples": 5000,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/healthbench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/healthbench/",
     "model_cards": [
       "chatgpt"
     ]
   },
   {
-    "id": "lawbench_1_0",
-    "name": "Lawbench",
+    "id": "lawbench",
+    "name": "LawBench",
     "source": "harbor",
     "categories": [
       "Professional",
@@ -4514,18 +5047,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "LawBench: Benchmarking Legal Knowledge of Large Language Models.",
+    "desc": "LawBench: tasks evaluating LLMs on Chinese-law knowledge — legal entity recognition, reading comprehension, criminal-damage calculation, legal consulting — plus an abstention-rate metric.",
     "paper": "https://arxiv.org/abs/2309.16289",
-    "code": "inspect_harbor/lawbench_1_0",
+    "code": "inspect_harbor/lawbench",
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/lawbench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/lawbench.html",
     "model_cards": []
   },
   {
-    "id": "medagentbench_1_0",
-    "name": "Medagentbench",
+    "id": "stanford_medagentbench",
+    "name": "MedAgentBench",
     "source": "harbor",
     "categories": [
       "Professional",
@@ -4538,13 +5071,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "MedAgentBench: 300 patient-specific clinically-derived tasks across 10 categories in a FHIR-compliant interactive healthcare environment.",
+    "desc": "MedAgentBench: clinically-relevant tasks across 10 categories in a FHIR-compliant virtual EHR, benchmarking LLM agents on medical decision-making, planning, and execution.",
     "paper": "https://arxiv.org/abs/2501.14654",
-    "code": "inspect_harbor/medagentbench_1_0",
+    "code": "inspect_harbor/stanford_medagentbench",
     "contributors": [],
     "samples": 300,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/medagentbench_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/stanford_medagentbench.html",
     "model_cards": []
   },
   {
@@ -4570,31 +5103,7 @@
     ],
     "samples": 1273,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/medqa/",
-    "model_cards": []
-  },
-  {
-    "id": "pixiu_parity",
-    "name": "Pixiu",
-    "source": "harbor",
-    "categories": [
-      "Professional",
-      "Finance",
-      "Knowledge"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "PIXIU: A Large Language Model, Instruction Data and Evaluation Benchmark for Finance. Total tasks: 435 across 29 financial NLP datasets.",
-    "paper": "https://arxiv.org/abs/2306.05443",
-    "code": "inspect_harbor/pixiu_parity",
-    "contributors": [],
-    "samples": 435,
-    "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/pixiu_parity.html",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/medqa/",
     "model_cards": []
   },
   {
@@ -4619,16 +5128,17 @@
     ],
     "samples": 300,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pre_flight/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/pre_flight/",
     "model_cards": []
   },
   {
-    "id": "spreadsheetbench_verified_1_0",
-    "name": "Spreadsheetbench Verified",
+    "id": "theagentcompany",
+    "name": "TheAgentCompany",
     "source": "harbor",
     "categories": [
       "Professional",
-      "Assistants"
+      "Assistants",
+      "Coding"
     ],
     "tags": [],
     "kind": "agent",
@@ -4636,13 +5146,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A benchmark evaluating AI agents on real-world spreadsheet manipulation tasks (400 tasks from verified_400). Tasks involve Excel file manipulation including formula writing, data transformation, formatting, and conditional logic.",
-    "paper": "https://arxiv.org/abs/2406.14991",
-    "code": "inspect_harbor/spreadsheetbench_verified_1_0",
+    "desc": "An agent benchmark with tasks in a simulated software company across GitLab, Plane, OwnCloud, and RocketChat services, evaluating LLM agents on real-world professional work.",
+    "paper": "https://arxiv.org/abs/2412.14161",
+    "code": "inspect_harbor/theagentcompany",
     "contributors": [],
-    "samples": 400,
+    "samples": 174,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/spreadsheetbench_verified_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/theagentcompany.html",
     "model_cards": []
   },
   {
@@ -4667,7 +5177,77 @@
     ],
     "samples": 1039,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/uccb/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/uccb/",
+    "model_cards": []
+  },
+  {
+    "id": "vals_financeagent",
+    "name": "Vals Finance Agent",
+    "source": "harbor",
+    "categories": [
+      "Professional",
+      "Finance",
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Vals AI Finance Agent Benchmark: expert-validated finance questions across nine task categories (retrieval, market research, projections) with EDGAR/SEC search tools for evaluating financial agents.",
+    "paper": "https://arxiv.org/abs/2508.00828",
+    "code": "inspect_harbor/vals_financeagent",
+    "contributors": [],
+    "samples": 50,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vals_financeagent.html",
+    "model_cards": []
+  },
+  {
+    "id": "actava_ai_chi_bench",
+    "name": "χ-Bench",
+    "source": "harbor",
+    "categories": [
+      "Medicine",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "χ-Bench: long-horizon, policy-rich U.S. healthcare workflow agent benchmark spanning provider prior-authorization, payer utilization management, and care management (78 hub tasks).",
+    "paper": "https://arxiv.org/abs/2605.16679",
+    "code": "inspect_harbor/actava_ai_chi_bench",
+    "contributors": [],
+    "samples": 78,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/actava_ai_chi_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "harveyai_lab",
+    "name": "Harvey LAB",
+    "source": "harbor",
+    "categories": [
+      "Law",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Harvey LAB - open-source benchmark for evaluating agents on real legal work.",
+    "paper": "https://github.com/harveyai/harvey-labs",
+    "code": "inspect_harbor/harveyai_lab",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/harveyai_lab.html",
     "model_cards": []
   },
   {
@@ -4692,15 +5272,16 @@
     ],
     "samples": 5349,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/docvqa/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/docvqa/",
     "model_cards": []
   },
   {
-    "id": "mmau_1_0",
-    "name": "Mmau",
+    "id": "lica_world_gdb",
+    "name": "GraphicDesignBench",
     "source": "harbor",
     "categories": [
-      "Multimodal"
+      "Multimodal",
+      "Professional"
     ],
     "tags": [],
     "kind": "agent",
@@ -4708,13 +5289,13 @@
       "agent",
       "sandbox"
     ],
-    "desc": "MMAU: 1000 carefully curated audio clips paired with human-annotated natural language questions and answers spanning speech, environmental sounds, and music.",
-    "paper": "https://arxiv.org/abs/2410.19168",
-    "code": "inspect_harbor/mmau_1_0",
+    "desc": "GraphicDesignBench (GDB): evaluating AI on graphic design tasks across layout, typography, infographics, template design, and animation.",
+    "paper": "https://arxiv.org/abs/2604.04192",
+    "code": "inspect_harbor/lica_world_gdb",
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/mmau_1_0.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/lica_world_gdb.html",
     "model_cards": []
   },
   {
@@ -4737,7 +5318,30 @@
     ],
     "samples": 11698,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/mmiu/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mmiu/",
+    "model_cards": []
+  },
+  {
+    "id": "cmu_refav",
+    "name": "RefAV",
+    "source": "harbor",
+    "categories": [
+      "Multimodal",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Autonomous-vehicle scenario mining via VLM.",
+    "paper": "https://arxiv.org/abs/2505.20981",
+    "code": "inspect_harbor/cmu_refav",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/cmu_refav.html",
     "model_cards": []
   },
   {
@@ -4756,13 +5360,13 @@
     ],
     "desc": "V*Bench is a visual question & answer benchmark that evaluates MLLMs in their ability to process high-resolution and visually crowded images to find and focus on small details.",
     "paper": "https://arxiv.org/abs/2312.14135",
-    "code": "inspect_evals/vstar_bench",
+    "code": "inspect_evals/vstar_bench_attribute_recognition",
     "contributors": [
       "bienehito"
     ],
     "samples": 115,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vstar_bench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/vstar_bench/",
     "model_cards": []
   },
   {
@@ -4787,7 +5391,7 @@
     ],
     "samples": 451,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vqa_rad/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/vqa_rad/",
     "model_cards": []
   },
   {
@@ -4812,7 +5416,7 @@
     ],
     "samples": 100,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/zerobench/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/zerobench/",
     "model_cards": []
   },
   {
@@ -4835,7 +5439,7 @@
     ],
     "samples": 1,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/agentic_misalignment/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/agentic_misalignment/",
     "model_cards": []
   },
   {
@@ -4855,7 +5459,7 @@
     ],
     "desc": "Ten real-world–inspired tasks from Google DeepMind's Dangerous Capabilities Evaluations assessing self-proliferation behaviors (e.g., email setup, model installation, web agent setup, wallet operations).",
     "paper": "https://arxiv.org/pdf/2403.13793",
-    "code": "inspect_evals/gdm_self_proliferation",
+    "code": "inspect_evals/gdm_sp01_e2e",
     "contributors": [
       "XkunW",
       "MariaIzobava",
@@ -4863,7 +5467,7 @@
     ],
     "samples": 1,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_self_proliferation/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_self_proliferation/",
     "model_cards": []
   },
   {
@@ -4883,14 +5487,14 @@
     ],
     "desc": "Test AI's ability to reason about its environment.",
     "paper": "https://arxiv.org/abs/2505.01420",
-    "code": "inspect_evals/gdm_self_reasoning",
+    "code": "inspect_evals/gdm_self_reasoning_approved_directories",
     "contributors": [
       "ZiyueWang25",
       "XkunW"
     ],
     "samples": 2,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_self_reasoning/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_self_reasoning/",
     "model_cards": []
   },
   {
@@ -4910,13 +5514,13 @@
     ],
     "desc": "Test AI's ability to reason about and circumvent oversight.",
     "paper": "https://arxiv.org/abs/2505.01420",
-    "code": "inspect_evals/gdm_stealth",
+    "code": "inspect_evals/gdm_classifier_evasion",
     "contributors": [
       "ZiyueWang25"
     ],
     "samples": 9,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_stealth/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/gdm_stealth/",
     "model_cards": []
   },
   {
@@ -4939,7 +5543,7 @@
     ],
     "samples": 76,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/instrumentaleval/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/instrumentaleval/",
     "model_cards": []
   },
   {
@@ -4956,13 +5560,13 @@
     ],
     "desc": "Evaluates situational awareness in LLMs—knowledge of themselves and their circumstances—through behavioral tests including recognizing generated text, predicting behavior, and following self-aware instructions.",
     "paper": "https://arxiv.org/abs/2407.04694",
-    "code": "inspect_evals/sad",
+    "code": "inspect_evals/sad_stages_full",
     "contributors": [
       "HugoSave"
     ],
     "samples": 800,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/sad/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/sad/",
     "model_cards": []
   }
 ]

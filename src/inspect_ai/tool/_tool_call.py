@@ -78,6 +78,7 @@ class ToolCallError:
         "is_a_directory",
         "limit",
         "approval",
+        "cancelled",
         "unknown",
         # Retained for backward compatibility when loading logs created with an older
         # version of inspect.

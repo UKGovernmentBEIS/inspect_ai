@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from random import random
 from types import FrameType
@@ -16,7 +17,7 @@ import pytest
 from _pytest.outcomes import OutcomeException
 
 from inspect_ai import Task, eval, task
-from inspect_ai._util.entrypoints import clear_entry_points_state
+from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
@@ -213,6 +214,20 @@ def skip_if_no_openai_azure(func):
         or os.environ.get("AZUREAI_OPENAI_BASE_URL") is None,
         reason="Test requires both OpenAI package and AZUREAI_OPENAI_API_KEY and AZUREAI_OPENAI_BASE_URL environment variables",
     )(func)
+
+
+def skip_if_no_openai_bedrock(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(
+        pytest.mark.skipif(
+            importlib.util.find_spec("openai") is None
+            or (
+                os.environ.get("BEDROCK_OPENAI_API_KEY") is None
+                and os.environ.get("AWS_BEARER_TOKEN_BEDROCK") is None
+            ),
+            reason="Test requires the OpenAI package and a Bedrock bearer key (BEDROCK_OPENAI_API_KEY or AWS_BEARER_TOKEN_BEDROCK)",
+        )(func)
+    )
 
 
 def skip_if_no_mistral_azure(func):
@@ -502,13 +517,32 @@ def identity_solver(arg: int = 0):
 
 
 def ensure_test_package_installed():
-    try:
-        clear_entry_points_state()
-        import inspect_package  # type: ignore[import-not-found] # noqa: F401
-    except ImportError:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--no-deps", "tests/test_package"]
-        )
+    lock_path = Path(tempfile.gettempdir()) / "inspect-test-package-install.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("w") as lock_file:
+        if os.name == "posix":
+            import fcntl
+
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            clear_entry_points_state()
+            if importlib.util.find_spec("inspect_package") is None:
+                raise ImportError
+        except ImportError:
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--no-deps",
+                    "tests/test_package",
+                ]
+            )
+        finally:
+            if os.name == "posix":
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+    ensure_entry_points("inspect_package")
 
 
 @contextlib.contextmanager

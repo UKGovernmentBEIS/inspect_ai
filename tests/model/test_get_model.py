@@ -9,6 +9,22 @@ from test_helpers.utils import (
 from inspect_ai.model import GenerateConfig, get_model
 
 
+def test_default_generate_config_not_shared_between_models():
+    """Mutating one model's default config must not leak to other models.
+
+    Regression for shared mutable default `GenerateConfig()` on `get_model`:
+    Python evaluates the default once at function-definition time, so without
+    the `None` sentinel pattern every call to `get_model()` that omitted
+    `config=` would receive the SAME `GenerateConfig` instance.
+    """
+    model1 = get_model("mockllm/default-config-one", memoize=False)
+    model1.config.max_retries = 1
+
+    model2 = get_model("mockllm/default-config-two", memoize=False)
+
+    assert model2.config.max_retries is None
+
+
 @pytest.mark.anyio
 @skip_if_no_openai_package
 @skip_if_trio
@@ -84,12 +100,12 @@ async def test_context_manager_async_required():
 @skip_if_no_google
 async def test_context_manager_no_close():
     # use with sync context mananger
-    with get_model("google/gemini-3.1-flash-lite-preview") as model:
+    with get_model("google/gemini-3.1-flash-lite") as model:
         output = await model.generate("Say hello")
         assert "hello" in output.completion.lower()
 
     # use with async context manager
-    async with get_model("google/gemini-3.1-flash-lite-preview") as model:
+    async with get_model("google/gemini-3.1-flash-lite") as model:
         output = await model.generate("Say hello")
         assert "hello" in output.completion.lower()
 

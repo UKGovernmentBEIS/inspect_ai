@@ -26,7 +26,7 @@ class ChatMessageBase(BaseModel):
     content: str | list[Content]
     """Content (simple string or list of content objects)"""
 
-    source: Literal["input", "generate"] | None = Field(default=None)
+    source: Literal["input", "generate", "operator"] | None = Field(default=None)
     """Source of message."""
 
     metadata: dict[str, Any] | None = Field(default=None)

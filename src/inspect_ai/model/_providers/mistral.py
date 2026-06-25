@@ -124,7 +124,7 @@ class MistralAPI(ModelAPI):
         # track use of conversation api
         if conversation_api is not None:
             self.conversation_api = conversation_api
-        elif "voxtral" in model_name:  # no audio in conversation api
+        elif "voxtral" in self.model_family().lower():  # no audio in conversation api
             self.conversation_api = False
         else:
             self.conversation_api = True
@@ -193,7 +193,8 @@ class MistralAPI(ModelAPI):
                 tool_choice=(
                     mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
                 ),
-                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                | (config.extra_headers or {}),
             )
             if config.temperature is not None:
                 request["temperature"] = config.temperature
@@ -283,7 +284,14 @@ class MistralAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -568,9 +576,12 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
         if isinstance(content.image_url, str):
             return [ContentImage(image=content.image_url)]
         else:
+            detail: Literal["auto", "low", "high"]
             match content.image_url.detail:
-                case "low" | "high":
-                    detail: Literal["auto", "low", "high"] = content.image_url.detail
+                case "low":
+                    detail = "low"
+                case "high":
+                    detail = "high"
                 case _:
                     detail = "auto"
             return [ContentImage(image=content.image_url.url, detail=detail)]
@@ -598,13 +609,17 @@ def completion_choices_from_response(
         ]
 
 
+# Note: Mistral chat completions carry no response-level refusal category or
+# explanation, so there is no ChatCompletionChoice.stop_details to populate here.
 def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
     match choice.finish_reason:
         case "stop":
             return "stop"
         case "length":
             return "max_tokens"
-        case "model_length" | "tool_calls":
-            return choice.finish_reason
+        case "model_length":
+            return "model_length"
+        case "tool_calls":
+            return "tool_calls"
         case _:
             return "unknown"

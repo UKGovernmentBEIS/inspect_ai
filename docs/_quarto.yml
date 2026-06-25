@@ -4,18 +4,6 @@ project:
     - CNAME
     - listing/
 
-website:
-  navbar:
-    left:
-      - text: "User Guide"
-        href: index.qmd
-      - text: "Reference"
-        href: reference/index.qmd
-      - text: "Extensions"
-        href: extensions/index.qmd
-      - text: "Evals"
-        href: evals/index.qmd
-
 inspect-docs:
   title: Inspect
   description: Open-source framework for large language model evaluations
@@ -28,6 +16,36 @@ inspect-docs:
   org: UK AI Security Institute
   org_url: https://aisi.gov.uk
   twitter: AISecurityInst
+  sidebar:
+    collapse-level: 1
+  navbar:
+    left:
+      - text: "User Guide"
+        menu:
+          - text: Basics
+            href: index.qmd
+          - text: Components
+            href: tasks.qmd
+          - text: Models
+            href: models.qmd
+          - text: Scoring
+            href: scoring.qmd
+          - text: Agents
+            href: agents.qmd
+          - text: Tools
+            href: tools.qmd
+          - text: Running
+            href: running.qmd
+          - text: Analysis
+            href: analysis.qmd
+          - text: Extensions
+            href: extensions.qmd
+      - text: "Reference"
+        href: reference/index.qmd
+      - text: "Extensions"
+        href: extensions/index.qmd
+      - text: "Evals"
+        href: evals/index.qmd
   navigation:
     - text: Basics
       contents:
@@ -41,8 +59,6 @@ inspect-docs:
     - text: Components
       contents:
         - href: tasks.qmd
-        - text: Task Config
-          href: task-configuration.qmd
         - href: datasets.qmd
         - href: solvers.qmd
         - href: scorers.qmd
@@ -52,18 +68,35 @@ inspect-docs:
         - text: Providers
           href: providers.qmd
         - href: caching.qmd
-        - href: models-batch.qmd
         - text: Concurrency
           href: models-concurrency.qmd
         - href: compaction.qmd
+        - href: fallbacks.qmd
         - href: multimodal.qmd
         - href: reasoning.qmd
         - href: structured.qmd
+        - href: models-batch.qmd
+    - text: Scoring
+      href: scoring.qmd
+      contents:
+        - href: standard-scorers.qmd
+        - href: custom-scorers.qmd
+        - text: Model Grading
+          href: model-graded.qmd
+        - text: Scoring Metrics
+          href: metrics.qmd
+        - href: multiple-scorers.qmd
+        - href: scoring-workflow.qmd
+        - href: perplexity.qmd
     - text: Agents
       contents:
         - href: agents.qmd
         - href: react-agent.qmd
         - href: deepagent.qmd
+        - text: Checkpointing
+          href: checkpointing.qmd
+        - text: Intervention
+          href: intervention.qmd
         - href: multi-agent.qmd
         - href: agent-custom.qmd
         - href: agent-bridge.qmd
@@ -77,27 +110,46 @@ inspect-docs:
         - href: tools-custom.qmd
         - href: sandboxing.qmd
         - href: approval.qmd
-    - text: Analysis
-      contents:
-        - href: eval-logs.qmd
-        - href: dataframe.qmd
-    - text: Advanced
+    - text: Running
+      href: running.qmd
       contents:
         - href: eval-sets.qmd
-        - text: Handling Errors
-          href: handling-errors.qmd
-        - text: Setting Limits
-          href: setting-limits.qmd
-        - href: typing.qmd
-        - href: tracing.qmd
         - href: parallelism.qmd
-        - href: interactivity.qmd
+        - href: handling-errors.qmd
+        - href: setting-limits.qmd
+        - href: control-channel.qmd
         - href: early-stopping.qmd
-        - href: extensions.qmd
+        - href: task-source.qmd
+        - href: tracing.qmd
+    - text: Analysis
+      href: analysis.qmd
+      contents:
+        - href: eval-logs.qmd
+        - text: Dataframes
+          href: dataframe.qmd
+        - href: scanners.qmd
+        - href: inspect-viz.qmd
+        - href: task-views.qmd
+    - text: Extensions
+      href: extensions.qmd
+      contents:
+        - text: Model APIs
+          href: extensions-model-api.qmd
+        - text: Components
+          href: extensions-components.qmd
+        - text: Sandboxes
+          href: extensions-sandboxes.qmd
+        - text: Approvers
+          href: extensions-approvers.qmd
+        - text: Hooks
+          href: extensions-hooks.qmd
+        - text: Filesystems
+          href: extensions-filesystems.qmd
 
 format:
   inspect-docs-html:
     code-annotations: select
+    css: styles.css
 
 execute:
   enabled: false

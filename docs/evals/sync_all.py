@@ -14,21 +14,12 @@ import sys
 from pathlib import Path
 
 import yaml
-
-from sync import CATEGORY_VOCAB, load_evals
+from sync import CATEGORY_ORDER, CATEGORY_VOCAB, load_evals
 from sync_harbor import load_harbor
 
 HERE = Path(__file__).parent
 OUTPUT_FILE = HERE / "evals.json"
 MODEL_CARDS_FILE = HERE / "model_cards.yml"
-
-CATEGORY_ORDER = [
-    "Coding", "Assistants", "Reasoning", "Knowledge",
-    "Cybersecurity", "Safeguards",
-    "Science", "Mathematics", "Biology", "Chemistry", "Physics",
-    "Professional", "Finance", "Medicine", "Law",
-    "Behavior", "Multimodal", "Scheming",
-]
 
 
 def _category_index(cat: str) -> int:
@@ -41,11 +32,14 @@ def _category_index(cat: str) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--inspect-evals", default="../inspect_evals", type=Path,
+        "--inspect-evals",
+        default="../inspect_evals",
+        type=Path,
         help="Path to sibling inspect_evals checkout (default: ../inspect_evals)",
     )
     parser.add_argument(
-        "--no-fetch", action="store_true",
+        "--no-fetch",
+        action="store_true",
         help="Reuse cached harbor registry.json and _tasks.py; do not hit the network.",
     )
     args = parser.parse_args()
@@ -61,13 +55,13 @@ def main() -> None:
     if missing_category:
         print(
             f"\nerror: {len(missing_category)} harbor dataset(s) missing required "
-            f"'categories' in harbor_overrides.yml:",
+            f"'categories' in inspect_harbor's docs/overrides.yml:",
             file=sys.stderr,
         )
         for name in missing_category:
             print(f"  - {name}", file=sys.stderr)
         print(
-            "\nAdd a `categories: [...]` entry for each in docs/evals/harbor_overrides.yml.",
+            "\nAdd a `categories: [...]` entry for each in inspect_harbor's docs/overrides.yml.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -99,7 +93,9 @@ def main() -> None:
     for r in all_records:
         r["model_cards"] = sorted(model_card_map.get(r["id"], []))
 
-    all_records.sort(key=lambda r: (_category_index(r["categories"][0]), r["name"].lower()))
+    all_records.sort(
+        key=lambda r: (_category_index(r["categories"][0]), r["name"].lower())
+    )
 
     OUTPUT_FILE.write_text(json.dumps(all_records, indent=2, ensure_ascii=False) + "\n")
 

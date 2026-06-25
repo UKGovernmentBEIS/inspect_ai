@@ -345,11 +345,19 @@ async def test_serial_workload_at_low_limit_does_not_grow() -> None:
 
 
 def test_default_bounds() -> None:
-    """Defaults are min=4, start=20, max=200."""
+    """Defaults are min=10, start=20, max=100."""
     cfg = AdaptiveConcurrency()
-    assert cfg.min == 4
+    assert cfg.min == 10
     assert cfg.start == 20
-    assert cfg.max == 200
+    assert cfg.max == 100
+
+
+def test_small_max_clamps_implicit_min_and_start() -> None:
+    """AdaptiveConcurrency(max=N) with N below the default min just works."""
+    cfg = AdaptiveConcurrency(max=8)
+    assert cfg.min == 8
+    assert cfg.start == 8
+    assert cfg.max == 8
 
 
 def test_advanced_fields_default_to_documented_values() -> None:

@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx
 import pytest
 from openai import APIStatusError
@@ -16,6 +18,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+from inspect_ai.model._providers.together import TogetherAIAPI
 from inspect_ai.tool import ToolInfo
 
 
@@ -63,6 +66,40 @@ def test_strict_tools_default_true() -> None:
 
     tools = api.tools_to_openai([ToolInfo(name="test_tool", description="Test tool")])
     assert tools[0]["function"]["strict"] is True
+
+
+async def test_responses_phase_model_arg(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test responses_phase is an openai-api model arg, not an SDK arg."""
+    captured: dict[str, Any] = {}
+
+    async def mock_generate_responses(**kwargs: Any) -> ModelOutput:
+        captured.update(kwargs)
+        return ModelOutput.from_content(model="gpt-5", content="ok")
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai_compatible.generate_responses",
+        mock_generate_responses,
+    )
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        responses_api=True,
+        responses_phase=True,
+    )
+    try:
+        assert api.responses_phase is True
+        assert "responses_phase" not in api.model_args
+
+        await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+        assert captured["synthesize_phase"] is True
+    finally:
+        await api.aclose()
 
 
 @skip_if_no_openai
@@ -262,3 +299,37 @@ def test_user_supplied_http_client_not_overridden() -> None:
     # user-supplied client should be used as-is
     assert api.http_client is custom_client
     assert api.http_client.timeout.read == 42.0
+
+
+def _together_api(stream: bool | None = None) -> TogetherAIAPI:
+    return TogetherAIAPI(
+        model_name="together/meta-llama/Llama-3.1-8B-Instruct-Turbo",
+        api_key="test",
+        base_url="https://example.com",
+        stream=stream,
+    )
+
+
+def test_together_stream_defaults_to_false() -> None:
+    assert _together_api().stream is False
+
+
+@pytest.mark.parametrize("stream", [True, False])
+def test_together_stream_model_arg_forwarded(stream: bool) -> None:
+    assert _together_api(stream=stream).stream is stream
+
+
+@skip_if_no_together
+async def test_together_stream_end_to_end() -> None:
+    # Use a generous max_tokens: reasoning models (e.g. gpt-oss) spend their
+    # budget on the reasoning channel and emit no answer content if it is too
+    # low, producing an empty completion (regardless of streaming).
+    model = get_model(
+        "together/openai/gpt-oss-20b",
+        stream=True,
+        config=GenerateConfig(max_tokens=1024, temperature=0.0),
+    )
+    response = await model.generate(
+        input=[ChatMessageUser(content="This is a test string. What are you?")]
+    )
+    assert len(response.completion) >= 1

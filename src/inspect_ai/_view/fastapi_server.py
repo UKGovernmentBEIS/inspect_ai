@@ -26,16 +26,22 @@ from typing_extensions import override
 from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
+from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
 from inspect_ai._view._dist import resolve_dist_directory
 from inspect_ai._view.common import (
+    AppConfig,
     LogDirResponse,
     LogFilesResponse,
     LogInfo,
+    LogInProgressError,
     LogListingResponse,
+    apply_log_edits,
+    build_pending_sample_urls,
     delete_log,
+    get_app_config,
     get_log_dir,
     get_log_file,
     get_log_files,
@@ -46,12 +52,22 @@ from inspect_ai._view.common import (
     parse_log_token,
     stream_log_bytes,
 )
+from inspect_ai._view.scout_routes import get_scout_search_router
+from inspect_ai._view.user_info import UserInfo, user_info
 from inspect_ai.log import EvalLog
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
-from inspect_ai.log._recorders.buffer.types import SampleData, Samples
+from inspect_ai.log._recorders.buffer.types import (
+    PendingSampleUrls,
+    SampleData,
+    Samples,
+)
 
 logger = getLogger(__name__)
+
+VIEW_REQUEST_HEADER = "X-Inspect-View-Request"
+VIEW_REQUEST_HEADER_VALUE = "true"
 
 
 class AccessPolicy(Protocol):
@@ -60,6 +76,8 @@ class AccessPolicy(Protocol):
     async def can_delete(self, request: Request, file: str) -> bool: ...
 
     async def can_list(self, request: Request, dir: str) -> bool: ...
+
+    async def can_write(self, request: Request, file: str) -> bool: ...
 
 
 class FileMappingPolicy(Protocol):
@@ -92,6 +110,10 @@ def view_server_app(
 ) -> "FastAPI":
     app = FastAPI()
 
+    @app.exception_handler(FileNotFoundError)
+    async def _file_not_found(_request: Request, _exc: FileNotFoundError) -> Response:
+        return Response(status_code=HTTP_404_NOT_FOUND)
+
     async def _map_file(request: Request, file: str) -> str:
         if mapping_policy is not None:
             return await mapping_policy.map(request, file)
@@ -112,10 +134,23 @@ def view_server_app(
             if not await access_policy.can_delete(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
 
+    async def _validate_write(request: Request, file: str) -> None:
+        if access_policy is not None:
+            if not await access_policy.can_write(request, file):
+                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
     async def _validate_list(request: Request, file: str) -> None:
         if access_policy is not None:
             if not await access_policy.can_list(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+    def _validate_mutating_request(request: Request) -> None:
+        if request.headers.get(VIEW_REQUEST_HEADER) != VIEW_REQUEST_HEADER_VALUE:
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+        fetch_dest = request.headers.get("Sec-Fetch-Dest")
+        if fetch_dest is not None and fetch_dest != "empty":
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
 
     @app.get("/logs/{log:path}", response_model=EvalLog)
     async def api_log(
@@ -125,11 +160,9 @@ def view_server_app(
     ) -> Response:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        try:
-            body = await get_log_file(await _map_file(request, file), header_only)
-        except FileNotFoundError:
-            return Response(status_code=HTTP_404_NOT_FOUND)
-        return Response(content=body, media_type="application/json")
+        body, etag = await get_log_file(await _map_file(request, file), header_only)
+        headers = {"ETag": etag} if etag is not None else {}
+        return Response(content=body, media_type="application/json", headers=headers)
 
     @app.get("/log-size/{log:path}")
     async def api_log_size(request: Request, log: str) -> int:
@@ -146,12 +179,36 @@ def view_server_app(
             generate_direct_url=generate_direct_urls,
         )
 
-    @app.get("/log-delete/{log:path}")
+    @app.delete("/log-delete/{log:path}")
     async def api_log_delete(request: Request, log: str) -> bool:
+        _validate_mutating_request(request)
         file = normalize_uri(log)
         await _validate_delete(request, file)
         await delete_log(await _map_file(request, file))
         return True
+
+    @app.post("/log-edit/{log:path}", response_model=EvalLog)
+    async def api_log_edit(request: Request, log: str, update: LogUpdate) -> Response:
+        _validate_mutating_request(request)
+        file = normalize_uri(log)
+        await _validate_write(request, file)
+        if_match = request.headers.get("If-Match")
+        try:
+            contents, new_etag = await apply_log_edits(
+                await _map_file(request, file), update, if_match_etag=if_match
+            )
+        except LogInProgressError as ex:
+            # 409 Conflict — the recorder still owns the file. Distinct
+            # from 412 (stale ETag) and 400 (bad input).
+            raise HTTPException(status_code=409, detail=str(ex))
+        except ValueError as ex:
+            raise HTTPException(status_code=400, detail=str(ex))
+        except WriteConflictError as ex:
+            raise HTTPException(status_code=412, detail=str(ex))
+        headers = {"ETag": new_etag} if new_etag is not None else {}
+        return Response(
+            content=contents, media_type="application/json", headers=headers
+        )
 
     @app.get("/log-bytes/{log:path}")
     async def api_log_bytes(
@@ -180,11 +237,11 @@ def view_server_app(
         )
 
         if isinstance(response, BytesIO):
-            # For in-memory responses, Content-Length is known exactly
-            content_length = response.getbuffer().nbytes
-            return StreamingResponse(
-                content=response,
-                headers={"Content-Length": str(content_length)},
+            # Return in-memory bytes directly: StreamingResponse would iterate
+            # the BytesIO line-by-line (newline-split binary chunks), sending
+            # each through a threadpool hop — ~1MB/s for local range reads.
+            return Response(
+                content=response.getvalue(),
                 media_type="application/octet-stream",
             )
         else:
@@ -366,6 +423,10 @@ def view_server_app(
 
         return await read_eval_log_headers_async(mapped_files)
 
+    @app.get("/user-info", response_model_exclude_none=True)
+    async def api_user_info() -> UserInfo:
+        return user_info()
+
     @app.get("/events")
     async def api_events(
         last_eval_time: str | None = None,
@@ -397,10 +458,11 @@ def view_server_app(
             response.headers["ETag"] = samples.etag
             return samples
 
-    @app.get("/log-message")
+    @app.post("/log-message")
     async def api_log_message(
         request: Request, log_file: str, message: str
     ) -> Response:
+        _validate_mutating_request(request)
         file = urllib.parse.unquote(log_file)
         await _validate_read(request, file)
 
@@ -441,6 +503,51 @@ def view_server_app(
             return Response(status_code=HTTP_404_NOT_FOUND)
         else:
             return sample_data
+
+    @app.get(
+        "/pending-sample-data-urls",
+        response_model=PendingSampleUrls,
+        response_model_exclude_none=False,
+        response_class=InspectJsonResponse,
+    )
+    async def api_pending_sample_data_urls(
+        request: Request,
+        log: str,
+        id: str,
+        epoch: int,
+        last_event_id: int | None = Query(None, alias="last-event-id"),
+        after_attachment_id: int | None = Query(None, alias="after-attachment-id"),
+        after_message_pool_id: int | None = Query(None, alias="after-message-pool-id"),
+        after_call_pool_id: int | None = Query(None, alias="after-call-pool-id"),
+        max_segments: int | None = Query(None, alias="max-segments"),
+        tail: bool = Query(False),
+    ) -> PendingSampleUrls | Response:
+        file = urllib.parse.unquote(log)
+        await _validate_read(request, file)
+
+        mapped = await _map_file(request, file)
+        body = await build_pending_sample_urls(
+            file=mapped,
+            id=id,
+            epoch=epoch,
+            after_event_id=last_event_id,
+            after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
+            max_segments=max_segments,
+            tail=tail,
+        )
+        if body is None:
+            return Response(status_code=HTTP_404_NOT_FOUND)
+        return body
+
+    @app.get("/app-config", response_model=AppConfig)
+    async def api_app_config() -> AppConfig:
+        return get_app_config()
+
+    scout_router = get_scout_search_router()
+    if scout_router is not None:
+        app.include_router(scout_router, prefix="/scout")
 
     return app
 
@@ -509,6 +616,9 @@ class OnlyDirAccessPolicy(AccessPolicy):
 
     async def can_list(self, request: Request, dir: str) -> bool:
         return self._validate_log_dir(dir)
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        return self._validate_log_dir(file)
 
 
 def view_server(

@@ -1,6 +1,5 @@
 import json
-from collections.abc import MutableMapping
-from functools import lru_cache
+from collections.abc import Mapping, MutableMapping
 from logging import getLogger
 from typing import (
     Callable,
@@ -8,7 +7,7 @@ from typing import (
     Sequence,
 )
 
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
@@ -27,6 +26,15 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.event._pool import (
+    _build_call_index,
+    _build_msg_index,
+    condense_model_event_calls,
+    condense_model_event_inputs,
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
+from inspect_ai.event._validate import validate_chat_messages, validate_events_json
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -44,25 +52,6 @@ from ..event._store import StoreEvent
 from ..event._subtask import SubtaskEvent
 from ..event._tool import ToolEvent
 from ._log import EvalSample, EventsData
-from ._pool import (
-    _build_call_index,
-    _build_msg_index,
-    condense_model_event_calls,
-    condense_model_event_inputs,
-    resolve_model_event_calls,
-    resolve_model_event_inputs,
-)
-
-
-@lru_cache(maxsize=1)
-def _events_adapter() -> TypeAdapter[list[Event]]:
-    return TypeAdapter(list[Event])
-
-
-@lru_cache(maxsize=1)
-def _chat_messages_adapter() -> TypeAdapter[list[ChatMessage]]:
-    return TypeAdapter(list[ChatMessage])
-
 
 logger = getLogger(__name__)
 
@@ -73,6 +62,24 @@ ATTACHMENT_PROTOCOL = "attachment://"
 class WalkContext(TypedDict):
     message_cache: dict[str, ChatMessage]
     only_core: bool
+
+
+def attachment_refs_from_value(value: object) -> set[str]:
+    refs: set[str] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, str):
+            if value.startswith(ATTACHMENT_PROTOCOL):
+                refs.add(value.removeprefix(ATTACHMENT_PROTOCOL))
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                collect(item)
+
+    collect(value)
+    return refs
 
 
 def condense_events(
@@ -89,10 +96,10 @@ def condense_events(
     Returns:
         Tuple of (condensed events, events data containing message and call pools).
     """
-    condensed_events, message_pool, *_ = condense_model_event_inputs(events, [], {})
-    condensed_events, call_pool, *_ = condense_model_event_calls(
-        condensed_events, [], {}
-    )
+    condensed_events, _, new_msgs = condense_model_event_inputs(events, 0, {})
+    message_pool: list[ChatMessage] = [msg for _, msg in new_msgs]
+    condensed_events, _, new_calls = condense_model_event_calls(condensed_events, 0, {})
+    call_pool: list[JsonValue] = [call_msg for _, call_msg in new_calls]
     return condensed_events, EventsData(messages=message_pool, calls=call_pool)
 
 
@@ -112,11 +119,11 @@ def expand_events(
         Events with full message inputs and call request messages restored.
     """
     if isinstance(events, str):
-        events = _events_adapter().validate_json(events)
+        events = validate_events_json(events)
     if isinstance(data, str):
         raw = json.loads(data)
         data = EventsData(
-            messages=_chat_messages_adapter().validate_python(raw.get("messages", [])),
+            messages=validate_chat_messages(raw.get("messages", [])),
             calls=raw.get("calls", []),
         )
     result = resolve_model_event_inputs(list(events), data["messages"])
@@ -155,14 +162,22 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     existing_calls = existing["calls"] if existing else []
 
     msg_index = _build_msg_index(existing_msgs)
-    condensed_events, message_pool, *_ = condense_model_event_inputs(
-        condensed_events, existing_msgs, msg_index
+    condensed_events, _, new_msgs = condense_model_event_inputs(
+        condensed_events, len(existing_msgs), msg_index
     )
+    message_pool: list[ChatMessage] = [
+        *existing_msgs,
+        *(msg for _, msg in new_msgs),
+    ]
 
     call_index = _build_call_index(existing_calls)
-    condensed_events, call_pool, *_ = condense_model_event_calls(
-        condensed_events, existing_calls, call_index
+    condensed_events, _, new_calls = condense_model_event_calls(
+        condensed_events, len(existing_calls), call_index
     )
+    call_pool: list[JsonValue] = [
+        *existing_calls,
+        *(call_msg for _, call_msg in new_calls),
+    ]
     events_data = EventsData(messages=message_pool, calls=call_pool)
 
     return sample.model_copy(
@@ -297,6 +312,50 @@ def resolve_sample_attachments(
             "events_data": None,
         }
     )
+
+
+def resolve_events_attachments(
+    events: list[Event],
+    attachments: Mapping[str, str],
+    resolve_attachments: bool | Literal["full", "core"] = "core",
+) -> list[Event]:
+    """Resolve ``attachment://`` references in a list of events.
+
+    The events must already have their message / call *pools* resolved
+    (the buffer history provider does this via
+    ``materialize_pooled_events``); this only swaps ``attachment://<hash>``
+    content references back to their underlying values from
+    ``attachments``.
+
+    Args:
+       events: Events (pool-resolved) that may carry ``attachment://`` refs.
+       attachments: Mapping of attachment hash -> underlying content.
+       resolve_attachments: Which fields to resolve. ``"core"`` (default)
+           leaves ``ModelEvent.call`` condensed — matching resident
+           in-memory events, whose model-call payloads stay condensed
+           after ``Transcript._process_event``. ``"full"`` / ``True``
+           also resolves the model call. ``False`` is a no-op.
+
+    Returns:
+       Events with attachment content resolved (a new list; inputs are
+       not mutated). Returns ``events`` unchanged when
+       ``resolve_attachments`` is ``False``.
+    """
+    if resolve_attachments is False:
+        return events
+
+    def content_fn(text: str) -> str:
+        # migrate previous flavor of content reference
+        CONTENT_PROTOCOL = "tc://"
+        if text.startswith(CONTENT_PROTOCOL):
+            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            return attachments.get(text.replace(ATTACHMENT_PROTOCOL, "", 1), text)
+        else:
+            return text
+
+    context = WalkContext(message_cache={}, only_core=resolve_attachments == "core")
+    return walk_events(events, content_fn, context)
 
 
 def attachments_content_fn(
@@ -486,11 +545,28 @@ def walk_json_value(
     if isinstance(value, str):
         return content_fn(value)
     elif isinstance(value, list):
-        return [walk_json_value(v, content_fn, context) for v in value]
+        return walk_json_list(value, content_fn, context)
     elif isinstance(value, dict):
         return walk_json_dict(value, content_fn, context)
     else:
         return value
+
+
+def walk_json_list(
+    value: list[JsonValue],
+    content_fn: Callable[[str], str],
+    context: WalkContext,
+) -> list[JsonValue]:
+    walked_list: list[JsonValue] | None = None
+
+    for i, v in enumerate(value):
+        walked = walk_json_value(v, content_fn, context)
+        if walked is not v:
+            if walked_list is None:
+                walked_list = list(value)
+            walked_list[i] = walked
+
+    return walked_list if walked_list is not None else value
 
 
 def walk_json_dict(
@@ -498,13 +574,16 @@ def walk_json_dict(
     content_fn: Callable[[str], str],
     context: WalkContext,
 ) -> dict[str, JsonValue]:
-    updates: dict[str, JsonValue] = {}
+    walked_dict: dict[str, JsonValue] | None = None
+
     for k, v in value.items():
-        updates[k] = walk_json_value(v, content_fn, context)
-    if updates:
-        value = value.copy()
-        value.update(updates)
-    return value
+        walked = walk_json_value(v, content_fn, context)
+        if walked is not v:
+            if walked_dict is None:
+                walked_dict = value.copy()
+            walked_dict[k] = walked
+
+    return walked_dict if walked_dict is not None else value
 
 
 def walk_input(
@@ -608,9 +687,12 @@ def walk_tool_call(
         parse_error=tool_call.parse_error,
         view=tool_call.view.model_copy(
             update=dict(
+                # ToolCallContent.content is a non-optional str (default ""),
+                # so preserve an empty content as "" — nulling it here breaks
+                # readback validation (e.g. title-only lifecycle-tool views).
                 content=content_fn(tool_call.view.content)
-                if tool_call.view and tool_call.view.content
-                else None,
+                if tool_call.view.content
+                else tool_call.view.content,
             )
         )
         if tool_call.view

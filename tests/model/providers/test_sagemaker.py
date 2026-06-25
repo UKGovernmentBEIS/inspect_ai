@@ -745,12 +745,12 @@ class TestStreamingMetadataTracking:
             },
         ]
 
-        # Build mock streaming response
+        # Build mock streaming response (newline-delimited SSE)
         async def mock_event_stream():
             for chunk in chunks:
                 yield {
                     "PayloadPart": {
-                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
                     }
                 }
 
@@ -813,7 +813,7 @@ class TestStreamingMetadataTracking:
             for chunk in chunks:
                 yield {
                     "PayloadPart": {
-                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
                     }
                 }
 
@@ -921,7 +921,7 @@ class TestInferenceComponentName:
             for chunk in chunks:
                 yield {
                     "PayloadPart": {
-                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
                     }
                 }
 
@@ -967,7 +967,7 @@ class TestInferenceComponentName:
             for chunk in chunks:
                 yield {
                     "PayloadPart": {
-                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
                     }
                 }
 
@@ -988,3 +988,726 @@ class TestInferenceComponentName:
 
         call_args = mock_client.invoke_endpoint_with_response_stream.call_args
         assert "InferenceComponentName" not in call_args.kwargs
+
+
+# -- Perplexity / prompt_logprobs tests --------------------------------------
+
+OPENAI_RESPONSE_WITH_PROMPT_LOGPROBS = {
+    "id": "chatcmpl-abc123",
+    "object": "chat.completion",
+    "created": 1700000000,
+    "model": "default",
+    "choices": [
+        {
+            "index": 0,
+            "message": {"role": "assistant", "content": "Hello"},
+            "finish_reason": "stop",
+        }
+    ],
+    "usage": {"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+    "prompt_logprobs": [
+        None,
+        {"101": {"decoded_token": "is", "logprob": -0.5, "rank": 1}},
+        {"102": {"decoded_token": "2", "logprob": -1.2, "rank": 1}},
+    ],
+}
+
+COMPLETION_RESPONSE_WITH_PROMPT_LOGPROBS = {
+    "id": "cmpl-abc123",
+    "object": "text_completion",
+    "created": 1700000000,
+    "model": "default",
+    "choices": [
+        {
+            "index": 0,
+            "text": "World",
+            "finish_reason": "stop",
+            "prompt_logprobs": [
+                None,
+                {"101": {"decoded_token": "is", "logprob": -0.4, "rank": 1}},
+                {"102": {"decoded_token": "great", "logprob": -0.9, "rank": 1}},
+            ],
+        }
+    ],
+    "usage": {"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+}
+
+
+class TestPromptLogprobsInSagemakerChatMode:
+    """Test that prompt_logprobs flows through the SageMaker chat mode pipeline."""
+
+    @pytest.mark.anyio
+    async def test_prompt_logprobs_in_request_body(self):
+        """prompt_logprobs from GenerateConfig appears in the request body."""
+        api = _make_api()
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        request_body = json.loads(call_args.kwargs["Body"])
+        assert request_body["prompt_logprobs"] == 1
+
+    @pytest.mark.anyio
+    async def test_prompt_logprobs_omitted_when_none(self):
+        """prompt_logprobs is not in request body when not set."""
+        api = _make_api()
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        request_body = json.loads(call_args.kwargs["Body"])
+        assert "prompt_logprobs" not in request_body
+
+    @pytest.mark.anyio
+    async def test_prompt_logprobs_parsed_from_response(self):
+        """prompt_logprobs from vLLM response are parsed into ChatCompletionChoice."""
+        api = _make_api()
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE_WITH_PROMPT_LOGPROBS).encode(
+                "utf-8"
+            )
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output = result[0]
+
+        assert len(model_output.choices) == 1
+        choice = model_output.choices[0]
+        assert choice.prompt_logprobs is not None
+        assert len(choice.prompt_logprobs.content) == 2
+        assert choice.prompt_logprobs.content[0].token == "is"
+        assert choice.prompt_logprobs.content[0].logprob == -0.5
+        assert choice.prompt_logprobs.content[1].token == "2"
+        assert choice.prompt_logprobs.content[1].logprob == -1.2
+
+
+# -- Streaming reasoning tests ------------------------------------------------
+
+
+class TestStreamingReasoning:
+    """Tests for streaming handler capturing reasoning tokens from thinking models."""
+
+    @pytest.mark.anyio
+    async def test_streaming_captures_reasoning_field(self):
+        """Reasoning in delta.reasoning is captured and included in response."""
+        api = _make_api(stream=True)
+
+        chunks = [
+            {
+                "id": "chatcmpl-789",
+                "created": 1700000000,
+                "model": "qwen3-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"reasoning": "Let me think"},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-789",
+                "created": 1700000000,
+                "model": "qwen3-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"reasoning": " about this"},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-789",
+                "created": 1700000000,
+                "model": "qwen3-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": "The answer is A"},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-789",
+                "created": 1700000000,
+                "model": "qwen3-model",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            },
+            {
+                "id": "chatcmpl-789",
+                "created": 1700000000,
+                "model": "qwen3-model",
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 20,
+                    "completion_tokens": 10,
+                    "total_tokens": 30,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="What is the answer?")]
+        config = GenerateConfig(max_tokens=1000, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, model_call = result
+
+        assert model_output.completion == "The answer is A"
+        # Verify reasoning was captured in the response for downstream parsing
+        assert (
+            model_call.response["choices"][0]["message"].get("reasoning_content")
+            == "Let me think about this"
+        )
+
+    @pytest.mark.anyio
+    async def test_streaming_captures_reasoning_content_field(self):
+        """Reasoning in delta.reasoning_content is captured (OpenAI-compatible style)."""
+        api = _make_api(stream=True)
+
+        chunks = [
+            {
+                "id": "chatcmpl-rc",
+                "created": 1700000000,
+                "model": "thinking-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": None, "reasoning_content": "Thinking..."},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-rc",
+                "created": 1700000000,
+                "model": "thinking-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": "Answer: B"},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-rc",
+                "created": 1700000000,
+                "model": "thinking-model",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                "usage": {
+                    "prompt_tokens": 15,
+                    "completion_tokens": 8,
+                    "total_tokens": 23,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="What is the answer?")]
+        config = GenerateConfig(max_tokens=1000, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, model_call = result
+
+        assert model_output.completion == "Answer: B"
+        assert (
+            model_call.response["choices"][0]["message"].get("reasoning_content")
+            == "Thinking..."
+        )
+
+    @pytest.mark.anyio
+    async def test_streaming_reasoning_only_no_content(self):
+        """When model only produces reasoning (no content), content is empty but reasoning preserved."""
+        api = _make_api(stream=True)
+
+        chunks = [
+            {
+                "id": "chatcmpl-empty",
+                "created": 1700000000,
+                "model": "qwen3-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"reasoning": "Deep reasoning here..."},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-empty",
+                "created": 1700000000,
+                "model": "qwen3-model",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Think about this")]
+        config = GenerateConfig(max_tokens=1000, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, model_call = result
+
+        # Content is empty but reasoning is preserved
+        assert model_output.completion == ""
+        assert (
+            model_call.response["choices"][0]["message"]["reasoning_content"]
+            == "Deep reasoning here..."
+        )
+
+    @pytest.mark.anyio
+    async def test_streaming_no_reasoning_field_when_absent(self):
+        """When no reasoning is produced, reasoning_content is not in the response."""
+        api = _make_api(stream=True)
+
+        chunks = [
+            {
+                "id": "chatcmpl-normal",
+                "created": 1700000000,
+                "model": "normal-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": "Just text"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 2,
+                    "total_tokens": 7,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, model_call = result
+
+        assert model_output.completion == "Just text"
+        assert "reasoning_content" not in model_call.response["choices"][0]["message"]
+
+    @pytest.mark.anyio
+    async def test_streaming_zero_chunks_raises(self):
+        """Zero data chunks should raise RuntimeError for retry."""
+        api = _make_api(stream=True)
+
+        async def mock_event_stream():
+            # Only yields a non-data event (no PayloadPart)
+            return
+            yield  # make it an async generator
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        with pytest.raises(RuntimeError, match="No data chunks"):
+            await api.generate(messages, [], "auto", config)
+
+    @pytest.mark.anyio
+    async def test_streaming_tool_calls_accumulated(self):
+        """Streamed tool_call deltas are accumulated into complete tool calls."""
+        api = _make_api(stream=True)
+
+        chunks = [
+            {
+                "id": "chatcmpl-tc",
+                "created": 1700000000,
+                "model": "tool-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {"name": "search", "arguments": ""},
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-tc",
+                "created": 1700000000,
+                "model": "tool-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {"index": 0, "function": {"arguments": '{"query":'}}
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-tc",
+                "created": 1700000000,
+                "model": "tool-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {"index": 0, "function": {"arguments": ' "hello"}'}}
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-tc",
+                "created": 1700000000,
+                "model": "tool-model",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Search for hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        _, model_call = result
+
+        tool_calls = model_call.response["choices"][0]["message"].get("tool_calls")
+        assert tool_calls is not None
+        assert len(tool_calls) == 1
+        assert tool_calls[0]["id"] == "call_1"
+        assert tool_calls[0]["function"]["name"] == "search"
+        assert tool_calls[0]["function"]["arguments"] == '{"query": "hello"}'
+
+    @pytest.mark.anyio
+    async def test_streaming_multibyte_split_across_chunks(self):
+        """Multi-byte UTF-8 characters split across PayloadPart boundaries are handled."""
+        api = _make_api(stream=True)
+
+        # "δ" is U+03B4, encoded as 2 bytes: 0xCE 0xB4
+        # We'll split a chunk containing "δE" across two PayloadParts
+        full_line = 'data: {"id":"x","created":0,"model":"m","choices":[{"index":0,"delta":{"content":"δE"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}\n\n'
+        raw_bytes = full_line.encode("utf-8")
+        # Find the position of δ (0xCE 0xB4) and split between them
+        delta_pos = raw_bytes.index(b"\xce\xb4")
+        part1 = raw_bytes[: delta_pos + 1]  # includes 0xCE but not 0xB4
+        part2 = raw_bytes[delta_pos + 1 :]  # starts with 0xB4
+
+        async def mock_event_stream():
+            yield {"PayloadPart": {"Bytes": part1}}
+            yield {"PayloadPart": {"Bytes": part2}}
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hi")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, _ = result
+
+        assert model_output.completion == "δE"
+
+    @pytest.mark.anyio
+    async def test_streaming_includes_stream_options(self):
+        """stream_options.include_usage is set in the request body when streaming."""
+        api = _make_api(stream=True)
+
+        chunks = [
+            {
+                "id": "chatcmpl-opt",
+                "created": 1700000000,
+                "model": "m",
+                "choices": [
+                    {"index": 0, "delta": {"content": "ok"}, "finish_reason": "stop"}
+                ],
+                "usage": {
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "total_tokens": 2,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hi")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint_with_response_stream.call_args
+        sent_body = json.loads(call_args.kwargs["Body"])
+        assert sent_body["stream"] is True
+        assert sent_body["stream_options"] == {"include_usage": True}
+
+
+class TestCompletionModePromptLogprobs:
+    @pytest.mark.anyio
+    async def test_completion_mode_uses_config_prompt_logprobs(self):
+        """config.prompt_logprobs is used when model_args prompt_logprobs is not set."""
+        api = _make_api(completion_mode=True)
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(COMPLETION_RESPONSE_WITH_PROMPT_LOGPROBS).encode(
+                "utf-8"
+            )
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        request_body = json.loads(call_args.kwargs["Body"])
+        assert request_body["prompt_logprobs"] == 1
+
+    @pytest.mark.anyio
+    async def test_completion_mode_model_args_takes_precedence(self):
+        """model_args prompt_logprobs takes precedence over config."""
+        api = _make_api(completion_mode=True, prompt_logprobs=5)
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(COMPLETION_RESPONSE_WITH_PROMPT_LOGPROBS).encode(
+                "utf-8"
+            )
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        request_body = json.loads(call_args.kwargs["Body"])
+        assert request_body["prompt_logprobs"] == 5
+
+    @pytest.mark.anyio
+    async def test_completion_mode_parses_prompt_logprobs_from_response(self):
+        """Prompt logprobs from completion response are parsed into ChatCompletionChoice."""
+        api = _make_api(completion_mode=True)
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(COMPLETION_RESPONSE_WITH_PROMPT_LOGPROBS).encode(
+                "utf-8"
+            )
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output = result[0]
+
+        assert model_output.choices[0].prompt_logprobs is not None
+        assert len(model_output.choices[0].prompt_logprobs.content) == 2
+        assert model_output.choices[0].prompt_logprobs.content[0].token == "is"
+        assert model_output.choices[0].prompt_logprobs.content[0].logprob == -0.4
+        assert model_output.choices[0].prompt_logprobs.content[1].token == "great"
+        assert model_output.choices[0].prompt_logprobs.content[1].logprob == -0.9

@@ -224,6 +224,7 @@ def _model_graded_qa_single(
         else:
             return Score(
                 value=INCORRECT,
+                answer=state.output.completion,
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
                 metadata=dict(
@@ -290,8 +291,15 @@ First, write out in a step by step manner your reasoning about the criterion to 
 """
 
 
-DEFAULT_GRADE_PATTERN = r"(?i)GRADE\s*:\s*([CPI])(.*)$"
-"""Regex to extract the grade from the COT above."""
+DEFAULT_GRADE_PATTERN = r"(?is).*GRADE\s*:\s*([CPI])"
+"""Regex to extract the grade from the COT above.
+
+The leading greedy ``.*`` (with DOTALL) ensures ``re.search`` binds to the
+*last* ``GRADE: X`` in the grader output — the instructions tell the grader
+to end with the grade, so earlier mentions (e.g. echoed in chain-of-thought
+or injected via the submission) must not win. No end-of-string anchor is
+used so that trailing text after the grade line does not suppress the match.
+"""
 
 
 def chat_history(state: TaskState) -> str:
@@ -302,8 +310,8 @@ def chat_history(state: TaskState) -> str:
         if not isinstance(message, ChatMessageSystem)
     ]
 
-    # present message history (removing the final assistant message
-    # and after as it will be contained in the 'Answer:'):
+    # present message history through the final assistant turn. The default
+    # templates also include state.output.completion in the Submission slot.
     messages = remove_last_match_and_after(
         messages, lambda message: isinstance(message, ChatMessageAssistant)
     )

@@ -14,9 +14,9 @@ from inspect_ai._util.working import sample_waiting_for
 logger = getLogger(__name__)
 
 
-_DEFAULT_MIN = 4
+_DEFAULT_MIN = 10
 _DEFAULT_START = 20
-_DEFAULT_MAX = 200
+_DEFAULT_MAX = 100
 
 
 class AdaptiveConcurrency(BaseModel):
@@ -79,14 +79,23 @@ class AdaptiveConcurrency(BaseModel):
                     "expected 'min-max' or 'min-start-max'"
                 )
 
-        # struct form: clamp implicit start when min/max are provided but
-        # start is not, so AdaptiveConcurrency(min=1, max=15) just works
-        if isinstance(data, dict) and "start" not in data:
-            min_val = data.get("min", _DEFAULT_MIN)
+        # struct form: clamp implicit min/start when max is provided but they
+        # are not, so AdaptiveConcurrency(max=8) and AdaptiveConcurrency(min=1,
+        # max=15) just work without bounds-validation errors from the defaults
+        if isinstance(data, dict):
             max_val = data.get("max", _DEFAULT_MAX)
-            if isinstance(min_val, int) and isinstance(max_val, int):
+            if (
+                "min" not in data
+                and isinstance(max_val, int)
+                and max_val < _DEFAULT_MIN
+            ):
                 data = dict(data)
-                data["start"] = max(min_val, min(_DEFAULT_START, max_val))
+                data["min"] = max_val
+            if "start" not in data:
+                min_val = data.get("min", _DEFAULT_MIN)
+                if isinstance(min_val, int) and isinstance(max_val, int):
+                    data = dict(data)
+                    data["start"] = max(min_val, min(_DEFAULT_START, max_val))
 
         return data
 
@@ -119,6 +128,42 @@ class AdaptiveConcurrency(BaseModel):
                 f"(got {self.scale_up_percent})"
             )
         return self
+
+
+def adaptive_active(
+    adaptive_connections: bool | int | AdaptiveConcurrency | None,
+    max_connections: int | None,
+    batch: Any,
+) -> bool:
+    """True if adaptive concurrency will be the resolved strategy.
+
+    The same predicate is used by `Model._connection_concurrency`,
+    `create_sample_semaphore`, and `eval_set`'s adaptive-active check.
+    `False` is the explicit opt-out; `None`, `True`, an integer (max
+    shorthand), and a full `AdaptiveConcurrency` all enable adaptive.
+    Explicit `max_connections` and `batch=True` (or a `BatchConfig`)
+    silently take precedence — see `Model._connection_concurrency` for
+    the rationale.
+    """
+    return adaptive_connections is not False and max_connections is None and not batch
+
+
+def resolve_adaptive(
+    value: bool | int | AdaptiveConcurrency | None,
+) -> AdaptiveConcurrency:
+    """Resolve a config value to a concrete `AdaptiveConcurrency`.
+
+    Caller must have first verified `adaptive_active(value, ...)` is True
+    (i.e. `value is not False`). Note: `bool` is a subclass of `int` in
+    Python, so the bool/None branch must precede the int branch.
+    """
+    if isinstance(value, AdaptiveConcurrency):
+        return value
+    if isinstance(value, bool) or value is None:  # True / None → defaults
+        return AdaptiveConcurrency()
+    if isinstance(value, int):
+        return AdaptiveConcurrency(max=value)
+    raise TypeError(f"unexpected adaptive_connections value: {value!r}")
 
 
 class ConcurrencySemaphore(Protocol):

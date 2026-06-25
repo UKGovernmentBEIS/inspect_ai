@@ -8,6 +8,7 @@ from inspect_ai._util.registry import (
     registry_create,
     registry_info,
     registry_log_name,
+    registry_lookup,
     registry_name,
     registry_params,
     registry_tag,
@@ -120,7 +121,9 @@ def reducer_log_name(reducer: ScoreReducer) -> str:
     name = registry_log_name(reducer)
     params = registry_params(reducer)
     if "k" in params:
-        name = f"{name}_{params.get('k')}"
+        suffix = f"_{params.get('k')}"
+        if not name.endswith(suffix):
+            name = f"{name}{suffix}"
     return name
 
 
@@ -139,10 +142,14 @@ def create_reducers(reducers: ScoreReducers | None) -> list[ScoreReducer] | None
     def create_reducer(name: str) -> ScoreReducer:
         # special case to get digit parameters
         params: dict[str, Any] = {}
-        match = re.match(r"^(.*?)_(\d+)$", name)
-        if match:
-            name = match.group(1)
-            params["k"] = int(match.group(2))
+        # only apply the `<name>_<k>` shorthand when the literal name is
+        # not itself a registered reducer (so e.g. a custom reducer named
+        # "top_5" is not rewritten to a lookup of "top" with k=5)
+        if registry_lookup("score_reducer", name) is None:
+            match = re.match(r"^(.*?)_(\d+)$", name)
+            if match:
+                name = match.group(1)
+                params["k"] = int(match.group(2))
 
         return cast(
             Callable[..., ScoreReducer], registry_create("score_reducer", name)
@@ -177,7 +184,11 @@ def validate_reducer(epochs: int, reducer: ScoreReducer) -> None:
         if k > epochs:
             name = registry_log_name(reducer)
             # don't interfere w/ unknown uses of 'k' (i.e. only validate built in)
-            if name.startswith("pass_at") or name.startswith("at_least"):
+            if (
+                name.startswith("pass_at")
+                or name.startswith("pass_k")
+                or name.startswith("at_least")
+            ):
                 raise PrerequisiteError(
-                    f"Reducer '{name}_{k}' requires {k} epochs however evaluation has only {epochs} epochs."
+                    f"Reducer '{reducer_log_name(reducer)}' requires {k} epochs however evaluation has only {epochs} epochs."
                 )

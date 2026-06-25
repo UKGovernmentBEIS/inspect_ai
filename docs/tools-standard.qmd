@@ -80,8 +80,8 @@ For more details, see [Grounding with Google Search](https://ai.google.dev/gemin
 
 Note that when using the "gemini" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Gemini models.
 
-::: callout-warning
-Google's search grounding does not currently support use with other tools. Attempting to use `web_search("gemini")` alongside other tools will result in an error.
+::: callout-note
+Gemini 3 and later models can use `web_search("gemini")` alongside other tools. For Gemini 2.x models, Google's search grounding does not support use with other function tools, so Inspect will raise an error if you attempt to combine them. Use an external search provider such as "tavily", "exa", or "google" when you need web search alongside other tools on Gemini 2.x.
 :::
 
 ### Grok Options
@@ -184,6 +184,18 @@ We specify a 3-minute timeout for execution of the bash and python tools to ensu
 
 See the [Agents](#sec-agents) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.
 
+### Background Tasks {#sec-bash-background}
+
+The `bash()` tool can be configured to encourage the model to run long operations in the background and poll for progress in later calls rather than blocking:
+
+``` python
+use_tools([bash(timeout=180, background=True)])
+```
+
+The `background` option is prompt-only, it doesn't change how commands execute, it only augments the tool's description with guidance to launch long-running commands detached (e.g. `nohup <command> > /tmp/task.log 2>&1 &`), record the process id, and check on progress with subsequent calls (`ps`, `tail`).
+
+This works because a detached process keeps running between `bash()` calls even though each call executes in a fresh shell. For interactive long-running commands (e.g. ones you need to send input to or interrupt), prefer the [Bash Session](#sec-bash-session) tool instead.
+
 ## Bash Session {#sec-bash-session}
 
 The `bash_session()` tool provides a bash shell that retains its state across calls from the model (as distinct from the `bash()` tool which executes each command in a fresh session). The prompt, working directory, and environment variables are all retained across calls. The tool also supports a `restart` action that enables the model to reset its state and work in a fresh session.
@@ -267,8 +279,8 @@ The `computer()` tool provides models with a computer desktop environment along 
 
 | Provider  | Models                                                     |
 |-----------|------------------------------------------------------------|
-| Anthropic | `claude-opus-4-6` , `claude-opus-4-5`, `claude-sonnet-4-6` |
-| Open AI   | `gpt-5.4`, `gpt-5.4-pro`                                   |
+| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6`                    |
+| Open AI   | `gpt-5.4+`, `gpt-5.4-pro+`                                 |
 | Google    | `gemini-3-flash-preview`                                   |
 
 : {tbl-colwidths="\[25,75\]"}
@@ -464,6 +476,8 @@ def code_execution_task():
 
 [OpenAI](https://platform.openai.com/docs/guides/tools-code-interpreter), [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool), [Google](https://ai.google.dev/gemini-api/docs/code-execution), and [Grok](https://docs.x.ai/docs/guides/tools/code-execution-tool) models all have support for native server-side Python code execution. Note that Anthropic can additionally execute bash and text editor commands, but the primary execution language used is still Python.
 
+For Gemini models, `code_execution()` uses Google's native code execution tool when the Google provider is enabled. Gemini 3 and later models can use native code execution alongside other tools. For Gemini 2.x models, Google's native tools do not support use with other function tools, so Inspect will raise an error if you attempt to combine them; disable the Google native provider to use the `python()` fallback in that case.
+
 ::: callout-important
 Note that some providers bill separately for code execution, so you should consult their documentation for details before enabling this feature.
 :::
@@ -658,7 +672,7 @@ def intercode_ctf():
 ```
 
 
-## Read-Only Tools {#sec-read-only-tools}
+## File Reading
 
 Inspect provides three read-only sandbox tools — `read_file()`, `list_files()`, and `grep()` — for agents that need filesystem access without write capabilities. These are the default tools for `research()` and `plan()` subagents in the deep agent system, but are useful in any eval where you want to give a model read-only access.
 
@@ -922,3 +936,45 @@ def swe_bench():
 ```
 
 Note that the effectivess of using the system prompt will vary considerably across tasks, tools, and models, so should definitely be the subject of experimentation.
+
+## Intervention {#sec-intervention}
+
+The `ask_user()` and `notify_user()` tools let models communicate with a human operator during a sample. They pair with Inspect's [Agent Intervention](intervention.qmd) features (the `inspect acp` client, the in-process task display, and out-of-band notifications).
+
+Both of these tools take advantage of notifications, which are delivered via [Apprise](https://github.com/caronc/apprise) (Slack, desktop, SMS, email, and many other services) when the eval is configured with a notification target. See the [Notifications](intervention.qmd#notifications) section of the Agent Intervention article for more details.
+
+### Ask User
+
+The `ask_user()` tool lets the model request structured information from the operator. It uses the [ACP Elicitation](https://agentclientprotocol.com/rfds/elicitation) standard, which supports text, boolean, enum, and other field types.
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt="You are an expert at CTF challenges.",
+        tools=[bash(), text_editor(), ask_user()]
+    )
+```
+
+The prompt is dispatched to whichever surface is attached: an ACP client (e.g. `inspect acp`) if connected, otherwise the in-process Textual panel or the console. The sample pauses on the call until the operator responds.
+
+### Notify User
+
+The `notify_user()` tool lets the model send fire-and-forget status messages to the operator — useful for long-running agents that want to flag progress or surface a heads-up without waiting for a reply.
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, notify_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt="You are an expert at CTF challenges.",
+        tools=[bash(), text_editor(), ask_user(), notify_user()]
+    )
+```

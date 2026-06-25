@@ -49,8 +49,10 @@ jobs:
 
       - name: Upgrade npm (for Trusted Publishing)
         run: |
-          npm i -g npm@^11.5.1
-          npm --version
+          # Install via prefix to avoid npm self-upgrade rebuild bug on Node 22.
+          npm install --prefix "$RUNNER_TEMP/npm-upgrade" --no-audit --no-fund npm@^11.5.1
+          echo "$RUNNER_TEMP/npm-upgrade/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/npm-upgrade/node_modules/.bin/npm" --version
 
       - name: Install dependencies
         working-directory: src/inspect_ai/_view/ts-mono

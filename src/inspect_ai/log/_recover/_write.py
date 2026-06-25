@@ -80,7 +80,7 @@ async def write_recovered_eval_log(
     from inspect_ai._eval.score import (
         metrics_from_log_header,
         reducers_from_log_header,
-        resolve_scorers,
+        resolve_scorers_info,
     )
     from inspect_ai._eval.task.results import eval_results
     from inspect_ai._util.file import dirname
@@ -204,12 +204,12 @@ async def write_recovered_eval_log(
     try:
         reducers = reducers_from_log_header(header)
         metrics = metrics_from_log_header(header)
-        scorers = resolve_scorers(header)
+        scorers_info = resolve_scorers_info(header)
         results, reductions = eval_results(
             samples=sample_count,
             scores=scores_acc,
             reducers=reducers,
-            scorers=scorers,
+            scorers=scorers_info,
             metrics=metrics,
         )
     except Exception as ex:

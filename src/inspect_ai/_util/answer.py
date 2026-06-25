@@ -16,7 +16,7 @@ def answer_index(char: str) -> int:
 
         'A' -> 0, 'B' -> 1, etc
     """
-    if char.isalpha() or char == "," or char == " ":
+    if char.isalpha():
         return ord(char.upper()) - ord("A")
     elif char.isnumeric():
         return 25 + int(char)

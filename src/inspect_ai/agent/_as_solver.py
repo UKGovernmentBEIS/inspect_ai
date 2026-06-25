@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from inspect_ai.util._limit import Limit, apply_limits
-from inspect_ai.util._span import span
+from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
 if TYPE_CHECKING:
     from inspect_ai.solver._solver import Solver
@@ -13,13 +13,12 @@ from inspect_ai._util.registry import (
     is_registry_object,
     registry_info,
     registry_params,
-    registry_unqualified_name,
     set_registry_info,
     set_registry_params,
 )
 from inspect_ai.tool._tool_info import parse_tool_info
 
-from ._agent import Agent, AgentState
+from ._agent import Agent, AgentState, agent_display_name
 
 
 def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> Solver:
@@ -48,7 +47,7 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
         raise RuntimeError(
             "Agent passed to as_solver was not created by an @agent decorated function"
         )
-    agent_name = registry_unqualified_name(agent)
+    agent_name = agent_display_name(agent)
 
     # check to make sure we have all the parameters we need to run the agent
     agent_info = parse_tool_info(agent)
@@ -68,7 +67,7 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
             try:
                 # run the agent with limits
                 with apply_limits(limits):
-                    async with span(name=agent_name, type="agent"):
+                    async with span(name=agent_name, type=AGENT_SPAN_TYPE):
                         agent_state = await agent(agent_state, **agent_kwargs)
             # if an exception occurs, we still want to update the TaskState with the
             # AgentState's messages + output so that it appears in the log and is scored

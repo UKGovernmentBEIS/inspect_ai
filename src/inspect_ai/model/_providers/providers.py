@@ -99,6 +99,15 @@ def vllm() -> type[ModelAPI]:
     return VLLMAPI
 
 
+@modelapi(name="vllm-completions")
+def vllm_completions() -> type[ModelAPI]:
+    validate_openai_client("vLLM Completions API")
+
+    from .vllm_completions import VLLMCompletionsAPI
+
+    return VLLMCompletionsAPI
+
+
 @modelapi(name="cf")
 def cf() -> type[ModelAPI]:
     from .cloudflare import CloudFlareAPI
@@ -323,7 +332,7 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "2.26.0"
+    MIN_VERSION = "2.40.0"
 
     # verify we have the package
     try:
@@ -337,7 +346,7 @@ def validate_openai_client(feature: str) -> None:
 
 def validate_anthropic_client(feature: str) -> None:
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.96.0"
+    MIN_VERSION = "0.109.1"
 
     # verify we have the package
     try:

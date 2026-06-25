@@ -1,12 +1,13 @@
 from contextvars import ContextVar
 from copy import copy
 
+from inspect_ai._util.registry import has_registry_params, registry_params
 from inspect_ai.model._conversation import ModelConversation
 from inspect_ai.model._model import sample_model_usage, sample_role_usage
 from inspect_ai.solver._task_state import TaskState, sample_state
 
 from ._metric import Score
-from ._scorer import Scorer
+from ._scorer import Scorer, unique_scorer_name
 from ._target import Target
 
 
@@ -55,7 +56,10 @@ async def score(conversation: ModelConversation) -> list[Score]:
         )
 
     scores: list[Score] = []
+    used_names: list[str] = []
     for scorer in scorers:
+        scorer_name = unique_scorer_name(scorer, used_names)
+        used_names.append(scorer_name)
         score = await scorer(state, target)
         if score is not None:
             scores.append(score)
@@ -64,6 +68,10 @@ async def score(conversation: ModelConversation) -> list[Score]:
                     score=score,
                     target=target.target,
                     intermediate=True,
+                    scorer=scorer_name,
+                    scorer_args=registry_params(scorer)
+                    if has_registry_params(scorer)
+                    else None,
                     model_usage=sample_model_usage() or None,
                     role_usage=sample_role_usage() or None,
                 )

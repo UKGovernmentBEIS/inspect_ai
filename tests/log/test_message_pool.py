@@ -10,14 +10,25 @@ from pydantic import JsonValue
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai.event import Event, Timeline, TimelineEvent, TimelineSpan
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._pool import (
+    _call_hash,
+    _call_pool_json,
+    _compress_refs,
+    _expand_refs,
+    _msg_hash,
+    _msg_pool_json,
+    _msg_pool_jsonable,
+)
+from inspect_ai.event._validate import validate_chat_messages
 from inspect_ai.log._condense import (
     condense_events,
     condense_sample,
     expand_events,
     resolve_sample_attachments,
 )
-from inspect_ai.log._file import read_eval_log, write_eval_log
+from inspect_ai.log._file import read_eval_log, read_eval_log_sample, write_eval_log
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -28,12 +39,9 @@ from inspect_ai.log._log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._pool import (
-    _compress_refs,
-    _expand_refs,
-    resolve_sample_events_data,
-)
+from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.model._chat_message import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
@@ -41,6 +49,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool_call import ToolCall
 
 
 def _make_sample_with_repeated_inputs() -> EvalSample:
@@ -84,6 +93,33 @@ def _make_sample_with_repeated_inputs() -> EvalSample:
         messages=[msg_sys, msg_user, msg_asst, msg_user2, msg_asst2],
         events=[event1, event2, event3],
     )
+
+
+def _make_sample_with_timeline() -> EvalSample:
+    """Create a sample whose timeline references its event stream."""
+    sample = _make_sample_with_repeated_inputs()
+    sample.timelines = [
+        Timeline(
+            name="t",
+            description="",
+            root=TimelineSpan(
+                id="root",
+                name="root",
+                span_type="agent",
+                content=[TimelineEvent(event=e) for e in sample.events],
+            ),
+        )
+    ]
+    return sample
+
+
+def _timeline_events(sample: EvalSample) -> list[Event]:
+    assert sample.timelines is not None
+    return [
+        item.event
+        for item in sample.timelines[0].root.content
+        if isinstance(item, TimelineEvent)
+    ]
 
 
 def test_condense_builds_message_pool():
@@ -239,6 +275,77 @@ def test_write_read_round_trip(
         assert len(model_events[1].input) == 4
         assert len(model_events[2].input) == 5
         for event in model_events:
+            assert event.input_refs is None
+
+
+def test_eval_sample_validation_preserves_condensed_timeline_events_data():
+    """EvalSample validation hydrates timelines but does not resolve event pools."""
+    sample = _make_sample_with_timeline()
+    condensed = condense_sample(sample)
+
+    raw = json.loads(condensed.model_dump_json())
+    parsed = EvalSample.model_validate(raw)
+
+    assert parsed.events_data is not None
+    by_uuid = {e.uuid: e for e in parsed.events}
+    timeline_events = _timeline_events(parsed)
+
+    for event in timeline_events:
+        assert event is by_uuid[event.uuid]
+        assert isinstance(event, ModelEvent)
+        assert event.input == []
+        assert event.input_refs is not None
+
+
+@pytest.mark.parametrize(
+    "resolve_attachments",
+    [
+        pytest.param(False, id="no-attachments"),
+        pytest.param("full", id="full-attachments"),
+    ],
+)
+def test_read_rebinds_timelines_to_resolved_events(
+    resolve_attachments: Literal["full", "core"] | bool,
+):
+    """Read APIs should bind timelines to the final resolved sample.events."""
+    sample = _make_sample_with_timeline()
+    log = EvalLog(
+        version=LOG_SCHEMA_VERSION,
+        status="success",
+        eval=EvalSpec(
+            task="t",
+            task_version=0,
+            task_id="t",
+            model="m",
+            dataset=EvalDataset(name="t", samples=1),
+            config=EvalConfig(),
+            created="2025-01-01T00:00:00Z",
+        ),
+        plan=EvalPlan(),
+        results=EvalResults(total_samples=1, completed_samples=1),
+        stats=EvalStats(
+            started_at="2025-01-01T00:00:00Z", completed_at="2025-01-01T00:01:00Z"
+        ),
+        samples=[condense_sample(sample)],
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "test.eval")
+        write_eval_log(log, path)
+        read = read_eval_log(path, resolve_attachments=resolve_attachments)
+        read_sample = read_eval_log_sample(
+            path, id="test", resolve_attachments=resolve_attachments
+        )
+
+    assert read.samples is not None
+    for resolved_sample in (read.samples[0], read_sample):
+        by_uuid = {e.uuid: e for e in resolved_sample.events}
+        timeline_events = _timeline_events(resolved_sample)
+
+        for event in timeline_events:
+            assert event is by_uuid[event.uuid]
+            assert isinstance(event, ModelEvent)
+            assert len(event.input) > 0
             assert event.input_refs is None
 
 
@@ -921,7 +1028,7 @@ def test_resolve_call_empty_refs_preserves_request():
     then sets request[default_key] = [], adding a spurious 'messages' key
     and potentially masking the original 'input' field.
     """
-    from inspect_ai.log._pool import resolve_model_event_calls
+    from inspect_ai.event._pool import resolve_model_event_calls
 
     call = ModelCall(
         request={"model": "test", "input": "What is 2+2?"},
@@ -945,3 +1052,45 @@ def test_resolve_call_empty_refs_preserves_request():
     # request must be unchanged — no spurious keys, 'input' preserved
     assert resolved_call.request == {"model": "test", "input": "What is 2+2?"}
     assert "messages" not in resolved_call.request
+
+
+def test_msg_hash_stable_across_serialization_roundtrip() -> None:
+    """Insert-time hash must equal rebuild-time hash (_build_msg_index re-parses pool JSON)."""
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="x" * 200, metadata={"b": 1, "a": [1, {"k": "v"}]}),
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="t" * 150),
+                ContentReasoning(reasoning="r" * 150),
+            ],
+            tool_calls=[ToolCall(id="tc1", function="f", arguments={"x": 1})],
+        ),
+    ]
+    for msg in messages:
+        [reparsed] = validate_chat_messages([json.loads(msg.model_dump_json())])
+        assert _msg_hash(reparsed) == _msg_hash(msg)
+
+    # the hash excludes .id: same content under different ids hashes equal
+    a = ChatMessageUser(content="same content")
+    b = ChatMessageUser(content="same content")
+    assert a.id != b.id
+    assert _msg_hash(a) == _msg_hash(b)
+
+
+def test_pool_json_helpers_roundtrip_to_own_hash() -> None:
+    """Stored pool bytes must re-hash to the hash stored beside them.
+
+    This is the invariant `_msg_pool_json`/`_call_pool_json` own: a pool
+    row written by one process and re-parsed by another (resume/re-seed)
+    must land on its own hash, or every resume duplicates the pool. The
+    unsorted dict fields here are the case that breaks if storage and
+    hash disagree on key order.
+    """
+    msg = ChatMessageUser(content="hello", metadata={"b": 1, "a": 2})
+    stored = _msg_pool_json(_msg_pool_jsonable(msg))
+    [reparsed] = validate_chat_messages([json.loads(stored)])
+    assert _msg_hash(reparsed) == _msg_hash(msg)
+
+    call_msg: JsonValue = {"role": "user", "b": 1, "a": 2}
+    stored_call = _call_pool_json(call_msg)
+    assert _call_hash(json.loads(stored_call)) == _call_hash(call_msg)

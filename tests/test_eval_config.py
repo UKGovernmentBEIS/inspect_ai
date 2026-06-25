@@ -1,12 +1,50 @@
-import subprocess
+import os
 import tempfile
 from pathlib import Path
 
+import pytest
+from click.testing import CliRunner, Result
+from pydantic import ValidationError
+
 from inspect_ai import Task, eval, task
+from inspect_ai._cli.eval import RunConfigInput, eval_command
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.model import get_model
 from inspect_ai.solver import solver
+
+
+def run_eval_cli(args: list[str], env: dict[str, str] | None = None) -> Result:
+    """Invoke `inspect eval` in-process via CliRunner.
+
+    In-process invocation avoids the ~2s interpreter + package-import startup
+    that a fresh `inspect` subprocess pays on every call. `eval_command` is the
+    same click command `inspect eval` dispatches to, so CLI option parsing and
+    config resolution are exercised identically.
+    """
+    return CliRunner().invoke(eval_command, args, env=env)
+
+
+def assert_cli_success(result: Result) -> None:
+    assert result.exit_code == 0, f"{result.output}\n{result.exception}"
+
+
+def test_run_config_rejects_unknown_top_level_field():
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        RunConfigInput.model_validate({"unknown_field": "value"})
+
+
+def test_run_config_rejects_unknown_generate_config_field():
+    with pytest.raises(ValidationError, match="[Uu]nknown"):
+        RunConfigInput.model_validate(
+            {"generate_config": {"temperature": 0.5, "typo_field": 123}}
+        )
+
+
+def test_run_config_rejects_unknown_eval_config_field():
+    with pytest.raises(ValidationError, match="[Uu]nknown"):
+        RunConfigInput.model_validate({"eval_config": {"limit": 10, "bad_field": 1}})
 
 
 def test_eval_config_task():
@@ -21,10 +59,8 @@ def test_eval_config_task():
 
 def test_eval_config_task_cli():
     with tempfile.TemporaryDirectory() as log_dir:
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--task-config",
                 config_path("task.yaml"),
@@ -44,16 +80,15 @@ def test_eval_config_task_cli():
                 "grader={model: mockllm/model, temperature: 0.5, max_tokens: 1000}",
             ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir)[0])
         check_log(log, "green", check_model_roles=True)
 
 
 def test_eval_generate_config_cli():
     with tempfile.TemporaryDirectory() as log_dir:
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--generate-config",
                 config_path("generate_config.yaml"),
@@ -63,15 +98,255 @@ def test_eval_generate_config_cli():
                 log_dir,
                 "--model",
                 "mockllm/model",
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir)[0])
         # temperature should be overridden by explicit CLI option
         assert log.plan.config.temperature == 0.9
         # these should come from the config file
         assert log.plan.config.max_tokens == 512
         assert log.plan.config.seed == 42
+
+
+def test_eval_run_config_cli():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        run_config.write_text(
+            """
+task:
+  task: tests/test_eval_config.py@eval_config_task
+  args:
+    epochs: 2
+    color: purple
+model:
+  model: mockllm/model
+  args:
+    foo: run
+model_roles:
+  grader:
+    model: mockllm/model
+    config:
+      temperature: 0.5
+      max_tokens: 1000
+generate_config:
+  temperature: 0.1
+  max_tokens: 512
+  seed: 42
+solver:
+  solver: eval_config_solver
+  args:
+    shape: square
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        result = run_eval_cli(
+            [
+                "--run-config",
+                run_config.as_posix(),
+                "-T",
+                "color=green",
+                "--temperature",
+                "0.9",
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.task == "eval_config_task"
+        assert log.eval.task_args["epochs"] == 2
+        assert log.eval.task_args["color"] == "green"
+        assert log.eval.model == "mockllm/model"
+        assert log.eval.model_args["foo"] == "run"
+        assert log.eval.solver_args == {"shape": "square"}
+        assert log.plan.config.temperature == 0.9
+        assert log.plan.config.max_tokens == 512
+        assert log.plan.config.seed == 42
+        assert log.eval.config.limit == 1
+        assert log.eval.model_roles is not None
+        assert log.eval.model_roles["grader"].model == "mockllm/model"
+        assert log.eval.model_roles["grader"].config.temperature == 0.5
+        assert log.eval.model_roles["grader"].config.max_tokens == 1000
+
+
+def test_eval_run_config_cli_env_var_overridden_by_run_config():
+    """INSPECT_EVAL_MODEL must not override a model set in --run-config."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/model
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        result = run_eval_cli(
+            [
+                "--run-config",
+                run_config.as_posix(),
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env={"INSPECT_EVAL_MODEL": "anthropic/claude-sonnet-4-6"},
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.model == "mockllm/model"
+
+
+def test_eval_run_config_cli_env_var_overridden_by_explicit_flag():
+    """An explicit --model flag must beat both INSPECT_EVAL_MODEL and --run-config."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/from_run_config
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        result = run_eval_cli(
+            [
+                "--run-config",
+                run_config.as_posix(),
+                "--model",
+                "mockllm/from_cli",
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env={"INSPECT_EVAL_MODEL": "mockllm/from_env"},
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.model == "mockllm/from_cli"
+
+
+def test_eval_run_config_cli_env_var_used_when_run_config_missing_field():
+    """INSPECT_EVAL_MODEL still applies when --run-config doesn't set `model`."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        # run config provides task + eval_config but NO top-level model
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        # Defeat VSCode-mode .env override (inspect's init_dotenv uses
+        # override=True when TERM_PROGRAM=vscode, which would overwrite
+        # INSPECT_EVAL_MODEL from the repo .env and mask the env value
+        # this test is checking).
+        env = {"INSPECT_EVAL_MODEL": "mockllm/from_env"}
+        if os.environ.get("TERM_PROGRAM") == "vscode":
+            env["TERM_PROGRAM"] = "xterm"
+
+        result = run_eval_cli(
+            [
+                "--run-config",
+                run_config.as_posix(),
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env=env,
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.model == "mockllm/from_env"
+
+
+def test_eval_run_config_cli_paper_config():
+    """Task and model supplied on CLI; run config provides the rest (the 'paper config' use case)."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "paper.yaml"
+        run_config.write_text(
+            """
+model_roles:
+  grader:
+    model: mockllm/model
+    config:
+      temperature: 0.3
+generate_config:
+  temperature: 0.5
+  seed: 99
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_task",
+                "--model",
+                "mockllm/model",
+                "--run-config",
+                run_config.as_posix(),
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.task == "eval_config_task"
+        assert log.eval.model == "mockllm/model"
+        assert log.plan.config.temperature == 0.5
+        assert log.plan.config.seed == 99
+        assert log.eval.config.limit == 1
+        assert log.eval.model_roles is not None
+        assert log.eval.model_roles["grader"].model == "mockllm/model"
+        assert log.eval.model_roles["grader"].config.temperature == 0.3
+
+
+def test_eval_run_config_cli_conflicts_with_config_files():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        run_config = temp_path / "run.yaml"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/model
+""".strip()
+        )
+
+        conflicts = [
+            ["--generate-config", config_path("generate_config.yaml")],
+            ["--task-config", config_path("task.yaml")],
+            [
+                "--solver",
+                "eval_config_solver",
+                "--solver-config",
+                config_path("solver.yaml"),
+            ],
+        ]
+        for conflict in conflicts:
+            result = run_eval_cli(
+                [
+                    "--run-config",
+                    run_config.as_posix(),
+                    *conflict,
+                ]
+            )
+            assert result.exit_code != 0
+            assert isinstance(result.exception, PrerequisiteError)
+            assert "--run-config cannot be used with" in str(result.exception.message)
 
 
 @solver

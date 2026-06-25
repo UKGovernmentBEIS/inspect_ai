@@ -58,7 +58,31 @@ class ToolInfo(BaseModel):
     """Optional property bag that can be used by the model provider to customize the implementation of the tool"""
 
 
+INTERNAL_TOOL_TYPE = "__internal_tool_type__"
+"""Well-known ``ToolInfo.options`` key carrying the
+:class:`~inspect_ai._util.content.ContentToolUse` ``tool_type`` literal
+(``"web_search"`` / ``"code_execution"`` / ``"mcp_call"``) for tools that a
+model provider may execute server-side within a single API call."""
+
+
+def internal_tool_type(tool: ToolInfo) -> str | None:
+    """Return the server-side tool type if ``tool`` is an internal tool.
+
+    Internal tools (:func:`~inspect_ai.tool.web_search`,
+    :func:`~inspect_ai.tool.code_execution`, hosted MCP) set
+    :data:`INTERNAL_TOOL_TYPE` in their ``options``; this returns that value
+    so callers (e.g. agent-bridge filters) can distinguish them from
+    ordinary function tools without name-matching. Returns ``None`` for
+    function tools.
+    """
+    return (tool.options or {}).get(INTERNAL_TOOL_TYPE)
+
+
 def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
+    return _parse_tool_info_shared(func).model_copy(deep=True)
+
+
+def _described_tool_info(func: Callable[..., Any]) -> ToolInfo | None:
     # tool may already have registry attributes w/ tool info — these can be
     # updated at any time via set_tool_description / tool_with, so always
     # check them fresh (no caching for this path).
@@ -72,14 +96,20 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
             name=description.name,
             description=description.description,
             parameters=description.parameters,
-        ).model_copy(deep=True)
+        )
+    return None
+
+
+def _parse_tool_info_shared(func: Callable[..., Any]) -> ToolInfo:
+    described = _described_tool_info(func)
+    if described is not None:
+        return described
 
     # check cache for the expensive reflection/docstring work
-    # (callers mutate the result so we return a deep copy)
     func_id = id(func)
     cached = _tool_info_cache.get(func_id)
     if cached is not None and cached[0] is func:
-        return cached[1].model_copy(deep=True)
+        return cached[1]
 
     # get_type_hints requires a function, method, module, or class
     # For callable instances (objects with __call__),
@@ -153,7 +183,7 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
             info.description = f"{info.description}\n\nExamples\n\n{examples}"
 
     _tool_info_cache[func_id] = (func, info)
-    return info.model_copy(deep=True)
+    return info
 
 
 def parse_docstring(docstring: str | None, param_name: str) -> Dict[str, str]:

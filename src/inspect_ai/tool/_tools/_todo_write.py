@@ -12,7 +12,7 @@ class TodoStep(BaseModel):
     )
 
 
-@tool
+@tool(parallel=True)
 def todo_write() -> Tool:
     """Planning tool to track steps and progress in longer horizon tasks.
 
@@ -84,6 +84,6 @@ def todo_write() -> Tool:
             todos: The list of steps.
             explanation: Optional explanation of changes to the plan.
         """
-        return "Plan updated"
+        return "Todo list updated"
 
     return execute

@@ -17,8 +17,7 @@ modify files or run destructive commands — only read, search, and
 analyze.
 
 Use your available tools to understand the current state, constraints,
-and what resources are available. Batch parallel tool calls when
-investigating multiple files or paths. Don't plan in the abstract —
+and what resources are available. Don't plan in the abstract —
 ground your plan in what you actually observe.
 
 Break the work into concrete, actionable steps. Each step should be

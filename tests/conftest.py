@@ -4,7 +4,6 @@ import os
 import shutil
 import subprocess
 import sys
-import time
 import warnings
 
 import boto3
@@ -66,11 +65,50 @@ def local_inspect_tools(request):
     return request.config.getoption("--local-inspect-tools")
 
 
+@pytest.fixture(autouse=True)
+def fast_retry_waits(request):
+    """Zero out model-generate and chat-API retry backoff during tests.
+
+    Both retry paths default to ``wait_exponential_jitter(initial=3, ...)`` /
+    ``wait_exponential_jitter()``, so any test that exercises a retry waits a
+    real 3s + 6s + ... per attempt. The backoff *duration* is never the thing
+    under test, so we replace the module-level ``wait_exponential_jitter`` with
+    a no-wait stand-in. Tests that genuinely assert on backoff timing can opt
+    out with ``@pytest.mark.real_retry_wait``.
+    """
+    if request.node.get_closest_marker("real_retry_wait"):
+        yield
+        return
+
+    from tenacity.wait import wait_none
+
+    import inspect_ai.model._providers.util.chatapi as chatapi
+    import inspect_ai.model._retry as model_retry
+
+    def no_wait(*args: object, **kwargs: object) -> wait_none:
+        return wait_none()
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(model_retry, "wait_exponential_jitter", no_wait)
+        mp.setattr(chatapi, "wait_exponential_jitter", no_wait)
+        yield
+
+
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
     config.addinivalue_line("markers", "flaky: mark test as flaky/unreliable")
+    config.addinivalue_line(
+        "markers",
+        "real_retry_wait: opt out of the fast-retry fixture and use real "
+        "exponential backoff (for tests that assert on retry wait timing)",
+    )
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
+    # Dummy provider keys so tests that only construct a client (not call the
+    # API) work without real credentials. Real keys (when present) win via
+    # setdefault. api-marked tests are gated behind --runapi and skip when the
+    # real key is absent, so a dummy here doesn't enable accidental API calls.
+    os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -137,11 +175,13 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(scope="module")
 def mock_s3():
-    server = ThreadedMotoServer(port=19100)
+    # Use port=0 so the kernel assigns a free ephemeral port. Pinning a fixed
+    # port (e.g. 19100) caused EADDRINUSE flakes when other tests or leftover
+    # workers held it; the prior `time.sleep(1)` was working around that race
+    # rather than a server-readiness issue.
+    server = ThreadedMotoServer(port=0, verbose=False)
     server.start()
-
-    # Give the server a moment to start up
-    time.sleep(1)
+    host, port = server.get_host_and_port()
 
     existing_env = {
         key: os.environ.get(key, None)
@@ -153,10 +193,17 @@ def mock_s3():
         ]
     }
 
-    os.environ["AWS_ENDPOINT_URL"] = "http://127.0.0.1:19100"
+    os.environ["AWS_ENDPOINT_URL"] = f"http://{host}:{port}"
     os.environ["AWS_ACCESS_KEY_ID"] = "unused_id_mock_s3"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "unused_key_mock_s3"
     os.environ["AWS_DEFAULT_REGION"] = "us-west-1"
+
+    # Drop any cached fsspec S3FileSystem instance from a previous module's
+    # mock_s3 fixture — its baked-in client points at a moto server that
+    # was already torn down, and reuse causes EndpointConnectionError.
+    from s3fs import S3FileSystem  # type: ignore
+
+    S3FileSystem.clear_instance_cache()
 
     s3_client = boto3.client("s3")
     s3_client.create_bucket(
@@ -181,6 +228,9 @@ def mock_s3():
     s3_client.delete_bucket(Bucket="test-bucket")
 
     server.stop()
+    # Clear again on teardown so a later non-mock_s3 caller doesn't grab
+    # the stale instance either.
+    S3FileSystem.clear_instance_cache()
     for key, value in existing_env.items():
         if value is None:
             del os.environ[key]
@@ -189,6 +239,13 @@ def mock_s3():
 
 
 def pytest_sessionfinish(session, exitstatus):
+    # When running under pytest-xdist, this hook fires once per worker as well
+    # as on the controller. Letting every worker race to uninstall the test
+    # package corrupts the install for sibling workers; only the controller
+    # (which has no `workerinput` attribute on its config) should clean up.
+    if hasattr(session.config, "workerinput"):
+        return
+
     if importlib.util.find_spec("inspect_package"):
         try:
             subprocess.check_call(

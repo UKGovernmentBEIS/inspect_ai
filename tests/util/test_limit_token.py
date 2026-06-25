@@ -15,6 +15,7 @@ from inspect_ai.util._limit import (
     LimitExceededError,
     check_token_limit,
     record_model_usage,
+    suspend_token_limit,
     token_limit,
 )
 
@@ -341,6 +342,94 @@ def test_parallel_nested_forks(model: Model):
 
     assert result.status == "success"
     assert result.stats.model_usage["mockllm/model"].total_tokens == 26
+
+
+def test_suspend_token_limit_skips_recording_and_check() -> None:
+    with token_limit(10) as limit:
+        with suspend_token_limit():
+            _consume_tokens(100)
+        assert limit.usage == 0
+
+
+def test_suspend_token_limit_skips_check_with_explicit_check() -> None:
+    with token_limit(10):
+        with suspend_token_limit():
+            record_model_usage(ModelUsage(total_tokens=100))
+            check_token_limit()
+
+
+def test_suspend_token_limit_resumes_metering_on_exit() -> None:
+    with token_limit(10) as limit:
+        with suspend_token_limit():
+            _consume_tokens(100)
+
+        assert limit.usage == 0
+
+        with pytest.raises(LimitExceededError):
+            _consume_tokens(11)
+
+
+def test_suspend_token_limit_with_no_active_limit() -> None:
+    with suspend_token_limit():
+        _consume_tokens(100)
+
+
+def test_suspend_token_limit_nested() -> None:
+    with token_limit(10) as limit:
+        with suspend_token_limit():
+            _consume_tokens(50)
+            with suspend_token_limit():
+                _consume_tokens(50)
+            _consume_tokens(50)
+        assert limit.usage == 0
+
+
+def test_suspend_token_limit_hides_inner_token_limit() -> None:
+    with token_limit(10) as outer:
+        with suspend_token_limit():
+            with token_limit(5) as inner:
+                _consume_tokens(100)
+            assert inner.usage == 0
+        assert outer.usage == 0
+
+
+def test_suspend_token_limit_exception_restores_state() -> None:
+    with token_limit(10) as limit:
+        with pytest.raises(RuntimeError):
+            with suspend_token_limit():
+                _consume_tokens(100)
+                raise RuntimeError("boom")
+
+        # Metering should be resumed after the suspension exits.
+        with pytest.raises(LimitExceededError):
+            _consume_tokens(11)
+
+        assert limit.usage == 11
+
+
+async def test_suspend_token_limit_is_per_task() -> None:
+    """Suspension in one async task must not bleed into a sibling task."""
+
+    async def suspended_task() -> int:
+        with suspend_token_limit():
+            _consume_tokens(100)
+            await anyio.sleep(0)
+        return 1
+
+    async def metered_task() -> int:
+        # Sibling task is not suspended; recording must apply to its own limit.
+        with token_limit(10) as limit:
+            await anyio.sleep(0)
+            _consume_tokens(5)
+            assert limit.usage == 5
+        return 2
+
+    with token_limit(1000) as outer:
+        await tg_collect([suspended_task, metered_task])
+
+    # Only the metered_task's 5 tokens propagate to the outer limit;
+    # the suspended_task's 100 are dropped.
+    assert outer.usage == 5
 
 
 def _consume_tokens(total_tokens: int) -> None:

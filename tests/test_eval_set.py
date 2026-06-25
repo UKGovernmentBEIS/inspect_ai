@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import threading
 import time
+import zipfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable
@@ -21,6 +22,7 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
+    _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSetArgsInTaskIdentifier,
     _embed_viewer,
     epochs_changed,
@@ -34,7 +36,7 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import basename, size_in_mb
+from inspect_ai._util.file import basename, local_path, size_in_mb
 from inspect_ai.dataset import Sample
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
@@ -45,11 +47,11 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.log._recorders.eval import ZipLogFile
-from inspect_ai.model import get_model
+from inspect_ai.model import CachePolicy, Model, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
-from inspect_ai.solver import Solver, generate
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
@@ -268,6 +270,96 @@ def test_eval_set_s3(mock_s3) -> None:
     assert logs[0].status == "success"
 
 
+def test_eval_set_retry_in_same_second_does_not_clobber_failed_log() -> None:
+    """The retry's log must not collide with the failed log's filename.
+
+    A second `eval_set` call within the same wall-clock second as the
+    first must not write the retry's log to the same path as the failed
+    log it's reusing samples from.
+
+    Without `TaskLogger._bump_created_past_existing_logs`, the new
+    logger's filename collides (same `iso_now()` second + same
+    `task_id` carried via `PreviousTask`) and overwrites the failed log
+    in place — concurrently with `eval_log_sample_source.read_from_file`
+    reading it. Successful samples 1, 2 then look "missing" to the
+    sample source and get re-run alongside the actually-failed 3, 4.
+
+    We exercise this by running two `eval_set` calls back-to-back with a
+    solver that fails first attempt only on ids 3, 4, and asserting the
+    second call's solver is invoked only for those ids.
+    """
+    from inspect_ai.solver import Generate, TaskState, generate, solver
+
+    seen: set[tuple[int | str, int]] = set()
+    target_ids: set[int] = {3, 4}
+    run_2_solver_calls: list[int | str] = []
+    in_run_2 = False
+
+    @solver
+    def fails_3_4_first_time():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if in_run_2:
+                run_2_solver_calls.append(state.sample_id)
+            if state.sample_id in target_ids:
+                key = (state.sample_id, state.epoch)
+                if key not in seen:
+                    seen.add(key)
+                    raise ValueError(f"first attempt for sample {state.sample_id}")
+            return state
+
+        return solve
+
+    fails_solver = fails_3_4_first_time()
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 5)],
+            solver=[fails_solver, generate()],
+        )
+
+    # The bug fires whenever both runs land in the same wall-clock
+    # second — observed at >90% per iteration before the fix, so 5 is
+    # plenty for regression coverage.
+    n_iterations = 5
+    failures: list[tuple[int, list[int | str]]] = []
+    with tempfile.TemporaryDirectory() as base_dir:
+        for it in range(n_iterations):
+            log_dir = Path(base_dir) / f"iter_{it}"
+            log_dir.mkdir()
+            seen.clear()
+            run_2_solver_calls.clear()
+
+            in_run_2 = False
+            eval_set(
+                tasks=make_task(),
+                log_dir=str(log_dir),
+                model="mockllm/model",
+                retry_attempts=0,
+                continue_on_fail=True,
+                display="none",
+            )
+
+            in_run_2 = True
+            eval_set(
+                tasks=make_task(),
+                log_dir=str(log_dir),
+                model="mockllm/model",
+                retry_attempts=0,
+                continue_on_fail=True,
+                display="none",
+            )
+            in_run_2 = False
+
+            unexpected = [s for s in run_2_solver_calls if s not in target_ids]
+            if unexpected:
+                failures.append((it, sorted(run_2_solver_calls)))
+
+    assert not failures, (
+        f"{len(failures)}/{n_iterations} iterations re-ran samples that should "
+        f"have been reused from the prior log: {failures[:3]}"
+    )
+
+
 def test_eval_zero_retries() -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         success, logs = eval_set(
@@ -278,6 +370,50 @@ def test_eval_zero_retries() -> None:
             model="mockllm/model",
         )
         assert not success
+
+
+def test_eval_set_unknown_task_raises_prerequisite_error() -> None:
+    # when no tasks resolve (e.g. user passes a task spec referencing a
+    # package that isn't installed), eval_set should fail fast with the same
+    # legible error that `eval` produces, not crash with an IndexError
+    # deeper in resolve_tasks
+    with tempfile.TemporaryDirectory() as log_dir:
+        with pytest.raises(PrerequisiteError, match="No inspect tasks were found"):
+            eval_set(
+                tasks="invalid_package_that_does_not_exist/some_task",
+                log_dir=log_dir,
+                retry_attempts=0,
+                model="mockllm/model",
+            )
+
+
+# Task file content used by the cwd-fallback tests below. Defined here so
+# `resolve_tasks` can load it from a temp dir representing the cwd.
+_CWD_TASK_FILE_SOURCE = """
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+
+@task
+def cwd_task():
+    return Task(dataset=[Sample(input="hello", target="hello")])
+"""
+
+
+@pytest.mark.parametrize("tasks_arg", [None, []])
+def test_resolve_tasks_loads_from_cwd_when_no_tasks(
+    tasks_arg: list | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `Tasks` documents that `None` is a request to read tasks from the
+    # current working directory; an empty list has historically been treated
+    # the same way. Verify both forms continue to discover task files in cwd.
+    (tmp_path / "cwd_task.py").write_text(_CWD_TASK_FILE_SOURCE)
+    monkeypatch.chdir(tmp_path)
+
+    resolved = resolve_tasks(
+        tasks_arg, {}, get_model("mockllm/model"), None, None, None
+    )
+    assert len(resolved) == 1
+    assert resolved[0].task.name == "cwd_task"
 
 
 @skip_if_trio  # throwing the keyboardinterrupt corrupts trio's internals
@@ -336,6 +472,68 @@ def test_eval_set_retry_started():
         # re-run the eval set and confirm status 'succes'
         run_eval_set()
         assert eval_log_status() == "success"
+
+
+def test_eval_set_preserves_token_usage():
+    # baseline: a single-sample task that succeeds first try
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(input="hello", target="hello")],
+                solver=[generate()],
+                scorer=exact(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=0.1,
+            model="mockllm/model",
+        )
+        assert success
+        baseline_log = read_eval_log(logs[0].location)
+        assert baseline_log.stats.model_usage
+        model_name = list(baseline_log.stats.model_usage.keys())[0]
+        baseline_tokens = baseline_log.stats.model_usage[model_name].total_tokens
+        assert baseline_tokens > 0
+
+    # retry scenario: a single-sample task where the solver runs generate() and
+    # then raises on the first call. The same Task instance is reused across
+    # eval_set retries, so the closure-bound counter survives. The first
+    # attempt records baseline_tokens (generate ran before the failure), and
+    # the retry records baseline_tokens again — so a final log with token
+    # rollover wired up should exceed baseline_tokens.
+    #
+    # This exercises legacy batch-retry mode (retry_immediate=False), where each
+    # retry produces a fresh eval log and usage is rolled forward across logs.
+    @solver
+    def fail_first_after_generate() -> Solver:
+        counter = {"value": 0}
+
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            counter["value"] += 1
+            if counter["value"] == 1:
+                raise ValueError("first call fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(input="hello", target="hello")],
+                solver=[generate(), fail_first_after_generate()],
+                scorer=exact(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=2,
+            retry_wait=0.1,
+            retry_immediate=False,
+            model="mockllm/model",
+        )
+        assert success
+        retried_log = read_eval_log(logs[0].location)
+        retried_tokens = retried_log.stats.model_usage[model_name].total_tokens
+
+    assert retried_tokens > baseline_tokens
 
 
 def test_eval_set_header_only() -> None:
@@ -516,6 +714,149 @@ def test_task_identifier_with_model_roles_model_configs():
         resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
     )
     run_eval_set(create_resolved_tasks)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("max_connections", 48),
+        ("adaptive_connections", False),
+        ("max_retries", 20),
+        ("timeout", 600),
+        ("attempt_timeout", 60),
+        ("batch", True),
+        ("cache", CachePolicy(expiry="1M")),
+        ("cache_prompt", True),
+    ],
+)
+def test_task_identifier_ignores_runtime_config(field: str, value: object):
+    # runtime concurrency / caching knobs don't affect outputs and shouldn't
+    # break eval_set resume — for any of the three GenerateConfig sites that
+    # feed task_identifier: the primary model's config, the eval_set-level
+    # config (which becomes eval_plan.config), and each role model's config.
+    tuned = GenerateConfig.model_validate({field: value})
+
+    def ident(
+        primary_cfg: GenerateConfig = GenerateConfig(),
+        plan_cfg: GenerateConfig = GenerateConfig(),
+        role_cfg: GenerateConfig = GenerateConfig(),
+    ) -> str:
+        p = get_model("mockllm/model", config=primary_cfg)
+        r = get_model("mockllm/scorer", config=role_cfg)
+        t = hello_world()
+        task_with(t, model=p, model_roles={"scorer": r})
+        (resolved,) = resolve_tasks([t], {}, p, None, None, None)
+        return task_identifier(resolved, EvalSetArgsInTaskIdentifier(config=plan_cfg))
+
+    baseline = ident()
+    assert ident(primary_cfg=tuned) == baseline, f"primary model config: {field}"
+    assert ident(plan_cfg=tuned) == baseline, f"eval_plan.config: {field}"
+    assert ident(role_cfg=tuned) == baseline, f"role model config: {field}"
+
+    # sanity: a field that DOES affect identity still changes the hash on
+    # every path, so the test isn't trivially passing.
+    semantic = GenerateConfig(temperature=0.123)
+    assert ident(primary_cfg=semantic) != baseline
+    assert ident(plan_cfg=semantic) != baseline
+    assert ident(role_cfg=semantic) != baseline
+
+
+def test_task_identifier_ignores_role_base_url():
+    # base_url is not part of the primary model's identifier, and several
+    # providers populate it from env vars during init — so it must not be
+    # part of a role model's identifier either.
+    primary = get_model("mockllm/model")
+
+    def ident(role: Model) -> str:
+        t = hello_world()
+        task_with(t, model=primary, model_roles={"scorer": role})
+        (resolved,) = resolve_tasks([t], {}, primary, None, None, None)
+        return task_identifier(
+            resolved, EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+        )
+
+    assert ident(get_model("mockllm/scorer")) == ident(
+        get_model("mockllm/scorer", base_url="http://localhost:8000")
+    )
+
+
+# GenerateConfig fields whose value can change model/tool outputs, and which
+# therefore form part of task identity (i.e. are hashed into task_identifier).
+# Every GenerateConfig field MUST appear either here or in
+# _GENERATE_CONFIG_FIELDS_TO_EXCLUDE — see test_generate_config_fields_classified.
+_GENERATE_CONFIG_IDENTITY_FIELDS = {
+    "system_message",
+    "max_tokens",
+    "top_p",
+    "temperature",
+    "stop_seqs",
+    "best_of",
+    "frequency_penalty",
+    "presence_penalty",
+    "logit_bias",
+    "seed",
+    "top_k",
+    "num_choices",
+    "logprobs",
+    "top_logprobs",
+    "prompt_logprobs",
+    "parallel_tool_calls",
+    "internal_tools",
+    "max_tool_output",
+    "fallback_models",
+    "verbosity",
+    "effort",
+    "reasoning_effort",
+    "reasoning_tokens",
+    "reasoning_summary",
+    "reasoning_history",
+    "response_schema",
+    "extra_headers",
+    "extra_body",
+    "modalities",
+}
+
+
+def test_generate_config_fields_classified():
+    """Force every GenerateConfig field to be explicitly classified.
+
+    eval_set resume matches live tasks to existing logs by hashing
+    GenerateConfig minus _GENERATE_CONFIG_FIELDS_TO_EXCLUDE. A new field that
+    isn't classified is hashed by default, so tuning it between runs silently
+    breaks resume — which is exactly how `adaptive_connections` slipped
+    through after it was added.
+    """
+    fields = set(GenerateConfig.model_fields)
+    excluded = _GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+    identity = _GENERATE_CONFIG_IDENTITY_FIELDS
+
+    unclassified = fields - excluded - identity
+    assert not unclassified, (
+        f"GenerateConfig field(s) {sorted(unclassified)} are not classified "
+        f"for task_identifier hashing.\n"
+        f"  → If the field is a runtime/transport knob (concurrency, retries, "
+        f"timeouts, caching, batching) that does NOT change model outputs: "
+        f"add it to _GENERATE_CONFIG_FIELDS_TO_EXCLUDE in "
+        f"src/inspect_ai/_eval/evalset.py and bump TASK_IDENTIFIER_VERSION.\n"
+        f"  → If the field CAN change model outputs (sampling params, "
+        f"reasoning config, tool behaviour, etc.): add it to "
+        f"_GENERATE_CONFIG_IDENTITY_FIELDS in this test file. No version bump "
+        f"needed."
+    )
+
+    overlap = excluded & identity
+    assert not overlap, (
+        f"GenerateConfig field(s) {sorted(overlap)} appear in both "
+        f"_GENERATE_CONFIG_FIELDS_TO_EXCLUDE and "
+        f"_GENERATE_CONFIG_IDENTITY_FIELDS — pick one."
+    )
+
+    stale = (excluded | identity) - fields
+    assert not stale, (
+        f"GenerateConfig field(s) {sorted(stale)} no longer exist on "
+        f"GenerateConfig — remove from _GENERATE_CONFIG_FIELDS_TO_EXCLUDE "
+        f"(evalset.py) or _GENERATE_CONFIG_IDENTITY_FIELDS (this file)."
+    )
 
 
 def test_task_identifier_with_task_generate_configs():
@@ -1374,7 +1715,7 @@ def test_eval_set_embed_viewer(tmp_path: Path) -> None:
 
 
 def test_eval_set_single_flush_error() -> None:
-    """run_single must propagate task exceptions (baseline — should already pass)."""
+    """A single-task run must propagate task exceptions (baseline — should already pass)."""
 
     async def broken_flush(self: ZipLogFile) -> None:
         raise OSError("Simulated S3 write failure")
@@ -1426,7 +1767,8 @@ def test_eval_set_parallel_flush_error(retry_immediate: bool) -> None:
                 )
 
 
-def test_eval_set_retry_immediate() -> None:
+@pytest.mark.parametrize("retry_immediate", [True, None])
+def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
     """Test that retry_immediate retries a failed task reusing completed samples.
 
     Task A has 2 samples. On the first run, sample 1 completes and sample 2
@@ -1435,6 +1777,10 @@ def test_eval_set_retry_immediate() -> None:
 
     Task B waits until Task A's retry has completed before returning, ensuring
     deterministic ordering.
+
+    Parameterized over `retry_immediate=True` (explicit) and `retry_immediate=None`
+    (omitted) to verify both produce the immediate-retry behavior — `None` is the
+    sentinel that resolves to the new default of True.
     """
     import anyio
 
@@ -1504,7 +1850,7 @@ def test_eval_set_retry_immediate() -> None:
             log_dir=log_dir,
             model="mockllm/model",
             retry_attempts=1,
-            retry_immediate=True,
+            retry_immediate=retry_immediate,
             max_tasks=2,
             max_samples=1,
         )
@@ -1522,3 +1868,58 @@ def test_eval_set_retry_immediate() -> None:
             errored_sample,
             errored_sample,
         ]
+
+
+def test_carried_forward_samples_remain_condensed() -> None:
+    """Regression: eval_set retry must re-condense carried-forward samples.
+
+    Sample 1 fails on attempt 1 (re-run on attempt 2); sample 2 succeeds
+    on attempt 1 and is carried forward.
+    """
+    seen: set[int] = set()
+
+    @solver
+    def fail_once_on_sample_1() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 1 and state.sample_id not in seen:
+                seen.add(int(state.sample_id))
+                raise ValueError("first attempt for sample 1")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=Task(
+                dataset=[
+                    Sample(id=1, input="Say hello", target="hello"),
+                    Sample(id=2, input="Say hello", target="hello"),
+                ],
+                solver=[fail_once_on_sample_1(), generate()],
+                scorer=includes(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=2,
+            retry_wait=0.1,
+            retry_immediate=True,
+            model="mockllm/model",
+        )
+        assert success
+
+        all_logs = list_eval_logs(log_dir)
+        assert len(all_logs) == 1
+        latest = all_logs[0]
+
+        # Read raw JSON from the zip — read_eval_log_sample would
+        # decondense on read and hide the bug.
+        with zipfile.ZipFile(local_path(latest.name)) as zf:
+            sample_members = [n for n in zf.namelist() if n.startswith("samples/")]
+            assert "samples/2_epoch_1.json" in sample_members, (
+                f"sample 2 was not carried forward; found {sample_members}"
+            )
+            for member in sample_members:
+                data = json.loads(zf.read(member))
+                assert data.get("events_data") is not None, (
+                    f"{member} in {latest.name} was written decondensed; "
+                    f"carry-forward path must run condense_sample()"
+                )

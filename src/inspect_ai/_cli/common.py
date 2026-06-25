@@ -20,7 +20,7 @@ from .util import parse_cli_args
 class CommonOptions(TypedDict):
     log_level: str
     log_dir: str
-    display: Literal["full", "conversation", "rich", "plain", "none"]
+    display: Literal["full", "conversation", "rich", "plain", "log", "none"]
     no_ansi: bool | None
     traceback_locals: bool
     env: tuple[str, ...] | None

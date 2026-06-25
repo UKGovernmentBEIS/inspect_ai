@@ -36,6 +36,7 @@ from ..core.footer import task_footer
 from ..core.panel import task_panel, task_title, tasks_title
 from ..core.progress import (
     RichProgress,
+    progress_agent_name,
     progress_description,
     progress_model_name,
     progress_status_icon,
@@ -133,6 +134,11 @@ class RichDisplay(Display):
             self.live = None
 
     @override
+    def update_task_count(self, n: int) -> None:
+        self.total_tasks += n
+        self._update_display()
+
+    @override
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
         # for typechekcer
@@ -202,6 +208,7 @@ class RichTaskScreen(TaskScreen):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         # determine transient based on trace mode
         if transient is None:
@@ -239,7 +246,8 @@ class RichTaskScreen(TaskScreen):
             input = self.live.console.export_text(clear=False, styles=False)
             input_ansi = self.live.console.export_text(clear=True, styles=True)
             self.live.console.record = False
-            transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+            if record_event:
+                transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
 
             # print one blank line
             self.live.console.print("")
@@ -273,6 +281,7 @@ class RichTaskDisplay(TaskDisplay):
     ) -> None:
         self.status = status
         model = progress_model_name(self.status.profile.model)
+        agent = progress_agent_name(self.status.profile.agent)
         description = progress_description(self.status.profile)
 
         def task_status() -> str:
@@ -282,6 +291,7 @@ class RichTaskDisplay(TaskDisplay):
             total=self.status.profile.steps,
             progress=self.status.progress,
             description=f"{description.markup}",
+            agent=f"{agent.markup} " if agent.plain else "",
             model=f"{model.markup} ",
             status=task_status,
             on_update=on_update,

@@ -3,7 +3,7 @@ import json
 import os
 import re
 from contextvars import ContextVar
-from copy import copy
+from copy import copy, deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
@@ -31,6 +31,9 @@ from anthropic import (
 from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
+    CacheControlEphemeralParam,
+    CodeExecutionToolResultBlock,
+    CodeExecutionToolResultBlockParam,
     ContentBlock,
     ContentBlockParam,
     ContentBlockSourceParam,
@@ -61,6 +64,7 @@ from anthropic.types import (
     URLPDFSourceParam,
     WebSearchResultBlock,
     WebSearchTool20250305Param,
+    WebSearchTool20260209Param,
     WebSearchToolRequestErrorParam,
     WebSearchToolResultBlock,
     WebSearchToolResultBlockParam,
@@ -75,6 +79,9 @@ from anthropic.types.beta import (
     BetaCompactionBlock,
     BetaCompactionBlockParam,
     BetaDirectCaller,
+    BetaFallbackBlock,
+    BetaFallbackBlockParam,
+    BetaFallbackInfoParam,
     BetaInputTokensTriggerParam,
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
@@ -99,6 +106,7 @@ from anthropic.types.beta import (
     BetaToolTextEditor20250728Param,
     BetaToolUseBlock,
     BetaWebFetchTool20250910Param,
+    BetaWebFetchTool20260209Param,
     BetaWebFetchToolResultBlock,
     BetaWebFetchToolResultBlockParam,
     BetaWebSearchToolResultBlock,
@@ -120,7 +128,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.http import (
     is_retryable_http_status,
@@ -141,7 +149,6 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -157,17 +164,28 @@ from ..._util.httpx import httpx_classify_retry
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_call import ModelCall, as_error_response
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelFallback,
+    ModelOutput,
+    ModelUsage,
+    StopCategory,
+    StopDetails,
+    StopReason,
+    collect_stop_details,
+)
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
     to_inspect_citation,
 )
+from .._reasoning import effort_to_reasoning_tokens
 from ._anthropic_batch import AnthropicBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -191,6 +209,29 @@ _ADAPTIVE_ONLY_WARNING = (
     "anthropic model '{model}' does not support the '{parameter}' parameter "
     "(adaptive thinking only)."
 )
+_REASONING_TOKENS_UNSUPPORTED_ERROR = (
+    "anthropic model '{model}' does not support 'reasoning_tokens' (extended "
+    "thinking with an explicit token budget was removed in Claude 4.7). Use "
+    "'reasoning_effort' to control reasoning depth instead."
+)
+_MID_CONV_SYSTEM_HOISTED_WARNING = (
+    "anthropic: {count} mid-conversation system message(s) were repositioned "
+    "to the top-level system field because their placement violated the API "
+    "invariants (a mid-conversation system message must immediately follow a "
+    "user turn or an assistant turn ending in server tool use, and must "
+    "either end the message array or precede an assistant turn)."
+)
+_REMINDER_SYSTEM_HOISTED_WARNING = (
+    "anthropic: {count} mid-conversation system message(s) were hoisted to the "
+    "top-level system field because they sit adjacent to a tool result. "
+    "Rendering them as user turns would merge them into the tool-result turn "
+    "(tool results map to user-role messages), which strips prior thinking and "
+    "cache context on tool-use continuations."
+)
+_CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
+_CACHE_MISS_WARNING = (
+    "anthropic cache diagnostics: cache miss detected (reason: {reason})."
+)
 AZURE_ANTHROPIC_API_KEY = "AZURE_ANTHROPIC_API_KEY"
 
 # Azure base URL environment variables
@@ -211,6 +252,7 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         streaming: bool | Literal["auto"] = "auto",
         betas: str | list[str] = [],
+        cache_ttl: Literal["5m", "1h"] | None = None,
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -223,6 +265,13 @@ class AnthropicAPI(ModelAPI):
         # record steraming and betas prefs
         self.streaming = streaming
         self.betas = betas if isinstance(betas, list) else [str(betas)]
+
+        # validate and record prompt cache ttl
+        if cache_ttl is not None and cache_ttl not in ("5m", "1h"):
+            raise ValueError(
+                f"Invalid cache_ttl '{cache_ttl}': valid values are '5m' and '1h'."
+            )
+        self.cache_ttl = cache_ttl
 
         # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
@@ -392,9 +441,16 @@ class AnthropicAPI(ModelAPI):
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
 
-            # automatic caching for messages (system/tools use explicit breakpoints)
-            if cache_prompt:
-                request["cache_control"] = {"type": "ephemeral"}
+            # automatic caching for messages (system/tools use explicit breakpoints).
+            # Per Anthropic's docs, the top-level `cache_control` field is only
+            # supported on the direct Claude API and Azure AI Foundry (preview);
+            # "support for Amazon Bedrock and Google Vertex AI is coming later." On
+            # those services it is rejected as
+            # `cache_control: Extra inputs are not permitted`. Fall back to the
+            # per-block markers added in resolve_chat_input on those services.
+            # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
+            if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
+                request["cache_control"] = cache_control_param(self.cache_ttl)
 
             # system messages and tools
             if system_param is not None:
@@ -413,7 +469,7 @@ class AnthropicAPI(ModelAPI):
 
             # beta param for interleaved thinking
             if self.is_using_thinking(config) and (
-                self.is_claude_4() or self.is_claude_latest()
+                self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
             ):
                 betas.append("interleaved-thinking-2025-05-14")
 
@@ -449,6 +505,16 @@ class AnthropicAPI(ModelAPI):
             if len(extra_body) > 0 or self.extra_body is not None:
                 request[EXTRA_BODY] = extra_body | (self.extra_body or {})
 
+            # cache diagnostics: thread the previous response id forward. The
+            # SDK only exposes `diagnostics` on client.beta.messages.create,
+            # but inspect calls client.messages.create — route via extra_body
+            # so the field reaches /v1/messages without SDK kwarg validation.
+            if self.cache_diagnostics_enabled(config):
+                prev_id = _previous_assistant_message_id(input)
+                request[EXTRA_BODY] = (request.get(EXTRA_BODY) or {}) | {
+                    "diagnostics": {"previous_message_id": prev_id},
+                }
+
             # add compaction if the input has it and there is no config
             if _input_has_compaction(input) and not _request_has_edit_compaction(
                 request
@@ -463,17 +529,18 @@ class AnthropicAPI(ModelAPI):
             if _request_has_edit_compaction(request):
                 betas.append("compact-2026-01-12")
 
+            # add fallback beta header if the input contains fallback blocks
+            # (so replayed blocks are accepted even if fallback_models is no
+            # longer configured, e.g. on a resumed eval with changed config)
+            if FALLBACK_BETA not in betas and _input_has_fallback(input):
+                betas.append(FALLBACK_BETA)
+
             # resolve betas and extra headers — preserve any client default
             # betas (e.g. oauth-2025-04-20 set via ANTHROPIC_AUTH_TOKEN)
             if len(betas) > 0:
-                client_beta = getattr(self.client, "_custom_headers", {}).get(
-                    "anthropic-beta", ""
-                )
-                if client_beta:
-                    for b in client_beta.split(","):
-                        b = b.strip()
-                        if b and b not in betas:
-                            betas.insert(0, b)
+                for b in self._client_default_betas():
+                    if b not in betas:
+                        betas.insert(0, b)
                 betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
             request["extra_headers"] = extra_headers
@@ -505,6 +572,8 @@ class AnthropicAPI(ModelAPI):
 
             model_call.set_response(response, self._http_hooks.end_request(request_id))
 
+            _warn_refusal_without_fallback(self, config, output)
+
             return output, model_call
 
         except BadRequestError as ex:
@@ -518,8 +587,14 @@ class AnthropicAPI(ModelAPI):
                     stop_reason="model_length",
                     error=ex.message,
                 ), model_call or ModelCall(request={})
-            else:
-                raise ex
+            # Content-filter errors that arrive mid-stream surface as a plain
+            # APIStatusError (the SDK can't infer the 400 subclass once the
+            # HTTP response was 200), so route through handle_bad_request to
+            # convert them into a content_filter refusal.
+            handled = self.handle_bad_request(ex)
+            if isinstance(handled, ModelOutput):
+                return handled, model_call or ModelCall(request={})
+            raise ex
 
     @override
     async def count_tokens(
@@ -536,8 +611,9 @@ class AnthropicAPI(ModelAPI):
             for m in input
         ]
 
-        # Check if messages contain compaction blocks before conversion
+        # Check for content requiring beta opt-ins before conversion
         has_compaction = _messages_contain_compaction(input)
+        has_fallback = _input_has_fallback(input)
 
         # Convert to Anthropic message format
         messages = [await message_param(m) for m in input]
@@ -562,22 +638,27 @@ class AnthropicAPI(ModelAPI):
             else:
                 thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
+        # Beta opt-ins required for special content in the history. The API
+        # validates content block types for token counting too, so replayed
+        # compaction and fallback blocks need the same betas as generate.
+        betas: list[str] = []
+        request_extra: dict[str, Any] = {}
         if has_compaction:
-            # Use beta header with context_management for compaction support
-            response = await self.client.messages.count_tokens(
-                model=self.service_model_name(),
-                messages=messages,
-                extra_headers={"anthropic-beta": "compact-2026-01-12"},
-                extra_body={
-                    "context_management": {"edits": [{"type": "compact_20260112"}]}
-                },
-                **thinking_config,
-            )
-        else:
-            # Standard token counting
-            response = await self.client.messages.count_tokens(
-                model=self.service_model_name(), messages=messages, **thinking_config
-            )
+            betas.append("compact-2026-01-12")
+            request_extra["extra_body"] = {
+                "context_management": {"edits": [{"type": "compact_20260112"}]}
+            }
+        if has_fallback:
+            betas.append(FALLBACK_BETA)
+        if betas:
+            request_extra["extra_headers"] = {"anthropic-beta": ",".join(betas)}
+
+        response = await self.client.messages.count_tokens(
+            model=self.service_model_name(),
+            messages=messages,
+            **request_extra,
+            **thinking_config,
+        )
         return response.input_tokens
 
     @override
@@ -663,6 +744,7 @@ class AnthropicAPI(ModelAPI):
         pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
+        span_recorder: "_ServerToolSpanRecorder | None" = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
@@ -674,6 +756,11 @@ class AnthropicAPI(ModelAPI):
             pending_tool_uses = dict()
         if pending_mcp_tool_uses is None:
             pending_mcp_tool_uses = dict()
+        if span_recorder is None:
+            # a server tool span can straddle a pause_turn continuation (use
+            # block in the head message, result in the tail) so the recorder
+            # is threaded through continuations like pending_tool_uses
+            span_recorder = _ServerToolSpanRecorder()
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
@@ -708,6 +795,8 @@ class AnthropicAPI(ModelAPI):
             tools,
             pending_tool_uses=pending_tool_uses,
             pending_mcp_tool_uses=pending_mcp_tool_uses,
+            cache_diagnostics=self.cache_diagnostics_enabled(config),
+            span_recorder=span_recorder,
         )
 
         if continuation_required:
@@ -715,6 +804,10 @@ class AnthropicAPI(ModelAPI):
             tail_request["messages"] = request["messages"] + [
                 MessageParam(role=head_message.role, content=head_message.content)
             ]
+            # server tool calls (e.g. web search w/ dynamic filtering) may run
+            # inside a code execution container -- reuse it for the continuation
+            if head_message.container:
+                tail_request["container"] = head_message.container.id
             _, tail_model_output = await self._perform_request_and_continuations(
                 tail_request,
                 streaming,
@@ -722,11 +815,19 @@ class AnthropicAPI(ModelAPI):
                 config,
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
+                span_recorder=span_recorder,
             )
 
             head_content = _content_list(head_model_output.message.content)
             tail_content = _content_list(tail_model_output.message.content)
             tail_model_output.message.content = head_content + tail_content
+
+            # server tool spans were recorded under the head and tail message
+            # ids -- the merged content above lives on the tail message so
+            # re-key the head message's spans under the tail message id
+            merge_server_tool_spans(
+                head_model_output.message.id, tail_model_output.message.id
+            )
 
             # TODO:
             # It looks weird to return the head message with the tail output, but
@@ -740,19 +841,45 @@ class AnthropicAPI(ModelAPI):
         # Pydantic UserWarning for. We can remove this when remote MCP is out of beta
         return head_message.model_dump(warnings="none"), head_model_output
 
+    def _client_default_betas(self) -> list[str]:
+        """Betas set as client default headers (e.g. oauth-2025-04-20)."""
+        # header names are case-insensitive; _custom_headers is a plain dict
+        # that preserves the caller's original casing (e.g. 'Anthropic-Beta')
+        custom_headers = getattr(self.client, "_custom_headers", {})
+        client_beta = next(
+            (v for k, v in custom_headers.items() if k.lower() == "anthropic-beta"),
+            "",
+        )
+        return [b.strip() for b in client_beta.split(",") if b.strip()]
+
     def completion_config(
         self, config: GenerateConfig
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
+        # Claude 4.7+ (including Claude 5) removed extended thinking, so
+        # `reasoning_tokens` (sent as `budget_tokens`) is rejected by the API.
+        # Fail fast with an actionable error that names `reasoning_tokens` and
+        # points to `reasoning_effort`, rather than letting the request 400 with
+        # a message about `budget_tokens` the caller never set.
+        if config.reasoning_tokens is not None and self.is_claude_4_7_or_later():
+            raise PrerequisiteError(
+                _REASONING_TOKENS_UNSUPPORTED_ERROR.format(
+                    model=self.service_model_name()
+                )
+            )
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = (config.extra_headers or {}).copy()
         extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas.copy()
 
-        # pull betas out of headers
-        anthropic_beta_header = headers.pop("anthropic_beta", None)
-        if anthropic_beta_header:
-            betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
+        # pull betas out of headers (accept the underscore convention and the
+        # literal 'anthropic-beta' header spelling; header names are
+        # case-insensitive, so match case-insensitively)
+        for key in list(headers.keys()):
+            if key.lower() in ("anthropic_beta", "anthropic-beta"):
+                anthropic_beta_header = headers.pop(key)
+                if anthropic_beta_header:
+                    betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
 
         # Claude 4.7+ is always in adaptive thinking and rejects these params
         # regardless of config; other models only reject them under thinking.
@@ -797,15 +924,29 @@ class AnthropicAPI(ModelAPI):
         if self.is_using_thinking(config):
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
-                params["thinking"] = dict(type="adaptive", display="summarized")
+                thinking: dict[str, Any] = dict(type="adaptive", display="summarized")
                 # reasoning_effort takes precedence over effort
                 params["output_config"] = OutputConfigParam(effort=reasoning_effort)  # type: ignore[typeddict-item]  # (no support for 'xhigh' in sdk yet)
             else:
-                params["thinking"] = dict(
+                # pre-4.6 Claude: extended thinking with an explicit budget.
+                # bridged_reasoning_tokens prefers reasoning_tokens, falling
+                # back to a fixed-table translation of reasoning_effort.
+                thinking = dict(
                     type="enabled",
-                    budget_tokens=config.reasoning_tokens,
+                    budget_tokens=self.bridged_reasoning_tokens(config),
                     display="summarized",
                 )
+
+            # set thinking (remove 'display' for full-thinking). the beta may
+            # arrive via per-request betas or as a client default header.
+            full_thinking_beta = "dev-full-thinking-2025-05-14"
+            if (
+                full_thinking_beta in betas
+                or full_thinking_beta in self._client_default_betas()
+            ):
+                thinking.pop("display", None)
+            params["thinking"] = thinking
+
             headers["anthropic-version"] = "2023-06-01"
             if max_tokens > 8192:
                 betas.append("output-128k-2025-02-19")
@@ -823,6 +964,28 @@ class AnthropicAPI(ModelAPI):
                 "type": "json_schema",
                 "schema": json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS),
             }
+
+        # server-side refusal fallback (first-party Claude API only). routed
+        # via extra_body as the SDK only exposes `fallbacks` on
+        # client.beta.messages.create but inspect calls client.messages.create
+        if config.fallback_models:
+            if self.is_bedrock() or self.is_vertex() or self.is_azure():
+                warn_once(
+                    logger,
+                    "fallback_models is only supported on the first-party "
+                    "Anthropic API (not bedrock/vertex/azure) and will be ignored.",
+                )
+            elif normalized_batch_config(config.batch):
+                warn_once(
+                    logger,
+                    "fallback_models is not supported with the Anthropic "
+                    "Batches API and will be ignored.",
+                )
+            else:
+                betas.append(FALLBACK_BETA)
+                extra_body["fallbacks"] = [
+                    {"model": model} for model in config.fallback_models
+                ]
 
         # look for any of our native fields not in GenerateConfig in extra_body
         if config.extra_body is not None:
@@ -867,8 +1030,12 @@ class AnthropicAPI(ModelAPI):
                     "max": 32000,
                 }
                 max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
-            elif config.reasoning_tokens is not None:
-                max_tokens = max_tokens + config.reasoning_tokens
+            else:
+                # pre-4.6 path: size for explicit reasoning_tokens, or for
+                # the bridged effort->tokens translation when only effort is set.
+                bridged = self.bridged_reasoning_tokens(config)
+                if bridged is not None:
+                    max_tokens = max_tokens + bridged
 
         # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
         # (model caps below will still clamp on older models)
@@ -879,8 +1046,8 @@ class AnthropicAPI(ModelAPI):
         if self.is_claude_frontier() and self.is_claude_4_opus():
             # Opus 4.6+ (and future 4.x minor opus versions)
             max_tokens = min(max_tokens, 128000)
-        elif self.is_claude_latest() and not self.is_claude_4():
-            # Future major versions (claude 5+): assume opus-class limits
+        elif self.is_claude_5() or (self.is_claude_latest() and not self.is_claude_4()):
+            # Claude 5+ and future major versions: assume opus-class limits
             max_tokens = min(max_tokens, 128000)
         elif self.is_claude_4_5() or self.is_claude_frontier():
             # All other 4.5 / 4.6+ non-opus models (incl. future 4.x minor versions)
@@ -896,9 +1063,30 @@ class AnthropicAPI(ModelAPI):
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
         return self.is_thinking_model() and (
-            (config.reasoning_tokens is not None)
+            (self.bridged_reasoning_tokens(config) is not None)
             or (self.effort_from_reasoning_effort(config) is not None)
         )
+
+    def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
+        """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
+
+        Explicit `reasoning_tokens` wins; otherwise `reasoning_effort` is
+        translated via the shared fixed-table bridge. Frontier Claude uses
+        adaptive thinking with `effort` and ignores this path (returns None).
+
+        Note: `reasoning_tokens` on Claude 4.7+ (incl. Claude 5) is rejected up
+        front in `completion_config` (those models removed `budget_tokens`), so
+        this method is never reached with `reasoning_tokens` set on them.
+        """
+        if config.reasoning_tokens is not None:
+            return config.reasoning_tokens
+        if (
+            not self.is_claude_frontier()
+            and config.reasoning_effort is not None
+            and config.reasoning_effort != "none"
+        ):
+            return effort_to_reasoning_tokens(config.reasoning_effort)
+        return None
 
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:
@@ -910,21 +1098,20 @@ class AnthropicAPI(ModelAPI):
         return not self.is_claude_3() and not self.is_claude_3_5()
 
     def is_claude_3(self) -> bool:
-        return re.search(r"claude-3-[a-zA-Z]", self.service_model_name()) is not None
+        return re.search(r"claude-3-[a-zA-Z]", self.model_family()) is not None
 
     def is_claude_3_5(self) -> bool:
-        return "claude-3-5-" in self.service_model_name()
+        return "claude-3-5-" in self.model_family()
 
     def is_claude_3_7(self) -> bool:
-        return "claude-3-7-" in self.service_model_name()
+        return "claude-3-7-" in self.model_family()
 
     def is_claude_4(self) -> bool:
-        return re.search(r"claude-[a-zA-Z]+-4", self.service_model_name()) is not None
+        return re.search(r"claude-[a-zA-Z]+-4", self.model_family()) is not None
 
     def is_claude_4_0(self) -> bool:
         return self._is_claude_4_x(0) or (
-            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.service_model_name())
-            is not None
+            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
         )
 
     def is_claude_4_1(self) -> bool:
@@ -939,13 +1126,18 @@ class AnthropicAPI(ModelAPI):
     def is_claude_4_7(self) -> bool:
         return self._is_claude_4_x(7)
 
+    def is_claude_4_8(self) -> bool:
+        return self._is_claude_4_x(8)
+
+    def is_claude_5(self) -> bool:
+        return _is_claude_5(self.model_family())
+
     def is_claude_4_opus(self) -> bool:
-        return self.is_claude_4() and "opus" in self.service_model_name()
+        return self.is_claude_4() and "opus" in self.model_family()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
-            re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.service_model_name())
-            is not None
+            re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.model_family()) is not None
         )
 
     # attempt to not require an inspect package update for new models
@@ -959,14 +1151,16 @@ class AnthropicAPI(ModelAPI):
             or self.is_claude_4_5()
             or self.is_claude_4_6()
             or self.is_claude_4_7()
+            or self.is_claude_4_8()
         ):
             return True
-        # future major version
+        # future major version (newer than Claude 5, which is a known version)
         elif (
             not self.is_claude_3()
             and not self.is_claude_3_5()
             and not self.is_claude_3_7()
             and not self.is_claude_4()
+            and not self.is_claude_5()
         ):
             return True
         else:
@@ -974,15 +1168,70 @@ class AnthropicAPI(ModelAPI):
 
     # many feature are 4.6+ which we call "frontier"
     def is_claude_frontier(self) -> bool:
-        return self.is_claude_4_6() or self.is_claude_4_7() or self.is_claude_latest()
+        return (
+            self.is_claude_4_6()
+            or self.is_claude_4_7()
+            or self.is_claude_4_8()
+            or self.is_claude_5()
+            or self.is_claude_latest()
+        )
 
     # some features (e.g. xhigh effort) require 4.7 or any future minor version
     def is_claude_4_7_or_later(self) -> bool:
-        return self.is_claude_4_7() or self.is_claude_latest()
+        return (
+            self.is_claude_4_7()
+            or self.is_claude_4_8()
+            or self.is_claude_5()
+            or self.is_claude_latest()
+        )
+
+    def is_claude_4_8_or_later(self) -> bool:
+        return self.is_claude_4_8() or self.is_claude_5() or self.is_claude_latest()
+
+    # https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages
+    # Claude API and Claude Platform on AWS only; not Bedrock, Vertex, or Foundry.
+    def supports_mid_conversation_system(self) -> bool:
+        if self.is_bedrock() or self.is_vertex():
+            return False
+        # claude-mythos-preview falls through is_claude_latest() → True, but
+        # the endpoint rejects role:"system" in messages with
+        # "role 'system' is not supported on this model" (verified 2026-06-10
+        # vs. claude-opus-4-8 which accepts it). Route via <system-reminder>.
+        if "mythos-preview" in self.service_model_name():
+            return False
+        return self.is_claude_4_8_or_later()
+
+    # https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics
+    # Claude API only; not Bedrock or Vertex. Enabled when the caller opts
+    # in via the cache-diagnosis-2026-04-07 beta header through any of the
+    # three caller-controlled paths the provider honors: provider constructor
+    # (self.betas), per-request (config.extra_headers), or SDK client default
+    # header (set on the underlying AsyncAnthropic). Mirrors the merge done
+    # in completion_config + generate so we stay consistent with the headers
+    # actually sent to /v1/messages.
+    def cache_diagnostics_enabled(self, config: GenerateConfig) -> bool:
+        if self.is_bedrock() or self.is_vertex():
+            return False
+        if _CACHE_DIAGNOSIS_BETA in self.betas:
+            return True
+        if _CACHE_DIAGNOSIS_BETA in self._client_default_betas():
+            return True
+        for key, val in (config.extra_headers or {}).items():
+            if key.lower() in ("anthropic_beta", "anthropic-beta") and val:
+                if _CACHE_DIAGNOSIS_BETA in [b.strip() for b in val.split(",")]:
+                    return True
+        return False
 
     @override
     def connection_key(self) -> str:
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.initial_api_key}:{self.service_model_name()}"
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -994,12 +1243,24 @@ class AnthropicAPI(ModelAPI):
 
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens."""
+        from inspect_ai.model._model_info import _get_model_info_direct
+
         if "context-1m-2025-08-07" in self.betas:
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
-            return "anthropic/claude-haiku-4-5"  # 200K
+            # Unknown future version: assume the current 1M frontier.
+            return "anthropic/claude-opus-4-8"  # 1MM
+        elif (
+            self.is_claude_5() and _get_model_info_direct(self.canonical_name()) is None
+        ):
+            # A Claude 5 variant not yet registered in the model-info database
+            # (e.g. a tier-named claude-*-5 or a new codename): assume the 1M
+            # Claude 5 frontier rather than missing the lookup. Registered
+            # Claude 5 models (Fable/Mythos and their point releases, which
+            # fuzzy-match their base entry) fall through to the database below.
+            return "anthropic/claude-opus-4-8"  # 1MM
         else:
-            return self.canonical_name()
+            return super().input_tokens_name()
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
@@ -1071,8 +1332,8 @@ class AnthropicAPI(ModelAPI):
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
         return "all"
 
-    # convert some common BadRequestError states into 'refusal' model output
-    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
+    # convert some common APIStatusError states into 'refusal' model output
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         error = exception_message(ex).lower()
         content: str | None = None
         stop_reason: StopReason | None = None
@@ -1129,8 +1390,17 @@ class AnthropicAPI(ModelAPI):
         # (handles case where native compaction summarized away tool_use blocks)
         input = _convert_orphaned_tool_results(input)
 
-        # extract system message
-        system_messages, messages = split_system_messages(input)
+        # extract system messages — for Claude 4.8+ (Claude API / Claude
+        # Platform on AWS), inline system messages are sent as `role="system"`
+        # turns; only the leading contiguous block becomes the top-level
+        # `system` param. For other models, only the leading block is hoisted
+        # and mid-conversation system messages become `<system-reminder>` user
+        # turns (preserving the prompt cache).
+        messages: list[ChatMessage]
+        if self.supports_mid_conversation_system():
+            system_messages, messages = _split_for_mid_conversation_system(input)
+        else:
+            system_messages, messages = _split_system_as_reminders(input)
 
         # messages
         message_params = [(await message_param(message)) for message in messages]
@@ -1175,7 +1445,7 @@ class AnthropicAPI(ModelAPI):
 
         # only certain claude models qualify
         if cache_prompt:
-            model_name = self.service_model_name()
+            model_name = self.model_family()
             if (
                 "claude-3-sonnet" in model_name
                 or "claude-2" in model_name
@@ -1186,22 +1456,18 @@ class AnthropicAPI(ModelAPI):
         if cache_prompt:
             # system
             if system_param:
-                add_cache_control(system_param[-1])
+                add_cache_control(system_param[-1], self.cache_ttl)
             # tools
             if tools_params:
-                add_cache_control(tools_params[-1])
-            # mark the second-to-last block. auto-cache marks the last; this
-            # write gives lookback a fallback when that block changes (RAG,
-            # scorers, approvers, branching evals). harmless extra write for
-            # append-only growth where auto-cache alone suffices.
+                add_cache_control(tools_params[-1], self.cache_ttl)
+            # mark the second-to-last cacheable block. auto-cache marks the
+            # last; this write gives lookback a fallback when that block
+            # changes (RAG, scorers, approvers, branching evals). harmless
+            # extra write for append-only growth where auto-cache alone
+            # suffices. Skip thinking/redacted_thinking blocks — the API
+            # rejects cache_control on those.
             if message_params:
-                last_content = message_params[-1]["content"]
-                if isinstance(last_content, list) and len(last_content) >= 2:
-                    add_cache_control(cast(dict[str, Any], last_content[-2]))
-                elif len(message_params) >= 2:
-                    prev_content = message_params[-2]["content"]
-                    if isinstance(prev_content, list) and prev_content:
-                        add_cache_control(cast(dict[str, Any], prev_content[-1]))
+                add_lookback_cache_control(message_params, self.cache_ttl)
 
         # return chat input
         return (
@@ -1285,6 +1551,16 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
+            # Claude 5 (Fable/Mythos) does not support native computer use: the
+            # computer-use tool versions target Claude 4.x only (per Anthropic's
+            # computer-use docs and the Claude 5 launch feature list). Error
+            # rather than degrade to a non-native fallback tool.
+            if self.is_claude_5():
+                raise PrerequisiteError(
+                    f"Computer use is not supported by the model '{self.service_model_name()}'. "
+                    "Anthropic's native computer use requires a Claude 4.x model "
+                    "(e.g. claude-opus-4-8 or claude-sonnet-4-6)."
+                )
             # Note: The dimensions passed here for display_width_px and display_height_px
             # should match the dimensions of screenshots returned by the tool. Those
             # dimensions will always be one of the values in MAX_SCALING_TARGETS
@@ -1330,7 +1606,7 @@ class AnthropicAPI(ModelAPI):
     ):
         # See: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool#before-using-the-text-editor-tool
         # TODO: It would be great to enhance our `is_claude_xxx` functions to help here.
-        if self.service_model_name().startswith(("claude-3-5-haiku", "claude-3-opus")):
+        if self.model_family().startswith(("claude-3-5-haiku", "claude-3-opus")):
             return None
 
         # check for compatible 'text editor' tool
@@ -1352,7 +1628,7 @@ class AnthropicAPI(ModelAPI):
                 BetaToolTextEditor20250728Param(
                     type="text_editor_20250728", name="str_replace_based_edit_tool"
                 )
-                if self.is_claude_4() or self.is_claude_latest()
+                if self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
                 else BetaToolTextEditor20241022Param(
                     type="text_editor_20241022", name="str_replace_editor"
                 )
@@ -1367,14 +1643,30 @@ class AnthropicAPI(ModelAPI):
 
     def web_search_tool_params(
         self, tool: ToolInfo
-    ) -> list[WebSearchTool20250305Param | BetaWebFetchTool20250910Param] | None:
+    ) -> (
+        list[
+            WebSearchTool20250305Param
+            | BetaWebFetchTool20250910Param
+            | WebSearchTool20260209Param
+            | BetaWebFetchTool20260209Param
+        ]
+        | None
+    ):
         if (
             tool.name == "web_search"
             and tool.options
             and "anthropic" in tool.options
-            and _supports_web_search(self.service_model_name())
+            and (_supports_web_search(self.model_family()) or self.is_claude_frontier())
         ):
-            return _web_search_tool_params(tool.options["anthropic"])
+            # do we support dynamic filtering? (claude 4.6 and later; not
+            # available on vertex or bedrock)
+            # https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool#dynamic-filtering
+            web_search_filtering = self.is_claude_frontier() and not (
+                self.is_vertex() or self.is_bedrock()
+            )
+            return _web_search_tool_params(
+                tool.options["anthropic"], web_search_filtering
+            )
         else:
             return None
 
@@ -1383,7 +1675,7 @@ class AnthropicAPI(ModelAPI):
     ) -> BetaCodeExecutionTool20250825Param | None:
         if (
             tool.name == "code_execution"
-            and _supports_code_interpreter(self.service_model_name())
+            and _supports_code_interpreter(self.model_family())
             and tool.options
             and "anthropic" in tool.options.get("providers", {})
         ):
@@ -1413,7 +1705,7 @@ class AnthropicAPI(ModelAPI):
             )
         ):
             # memory tool supported on Claude 4+ models
-            if _supports_memory(self.service_model_name()):
+            if _supports_memory(self.model_family()):
                 return BetaMemoryTool20250818Param(
                     type="memory_20250818",
                     name="memory",
@@ -1471,6 +1763,19 @@ def _messages_contain_compaction(messages: list[ChatMessage]) -> bool:
     return False
 
 
+def _is_claude_5(model_name: str) -> bool:
+    """Check if a model name is a Claude 5 model.
+
+    Claude 5 model names carry no tier word (e.g. claude-fable-5,
+    claude-mythos-5); match any claude-<name>-5. This deliberately also matches
+    point-release, tier-named, and new-codename variants (claude-fable-5-1,
+    claude-opus-5, claude-saga-5) so they are treated as known Claude 5 models
+    without requiring a package update. Existing names with a digit before the
+    trailing -5 (claude-haiku-4-5, claude-3-5-*) do not match.
+    """
+    return re.search(r"claude-[a-zA-Z]+-5", model_name) is not None
+
+
 def _supports_web_search(model_name: str) -> bool:
     """Check if the model supports Anthropic's native web search tool."""
     # https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#supported-models
@@ -1496,12 +1801,20 @@ def _supports_code_interpreter(model_name: str) -> bool:
 def _supports_memory(model_name: str) -> bool:
     """Check if the model supports Anthropic's native memory tool."""
     # https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool
-    return model_name.startswith(("claude-sonnet-4", "claude-opus-4", "claude-haiku-4"))
+    return model_name.startswith(
+        ("claude-sonnet-4", "claude-opus-4", "claude-haiku-4")
+    ) or _is_claude_5(model_name)
 
 
 def _web_search_tool_params(
     maybe_anthropic_options: object,
-) -> list[WebSearchTool20250305Param | BetaWebFetchTool20250910Param]:
+    web_search_filtering: bool = False,
+) -> list[
+    WebSearchTool20250305Param
+    | BetaWebFetchTool20250910Param
+    | WebSearchTool20260209Param
+    | BetaWebFetchTool20260209Param
+]:
     if maybe_anthropic_options is not None and not isinstance(
         maybe_anthropic_options, dict
     ):
@@ -1509,14 +1822,27 @@ def _web_search_tool_params(
             f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
         )
 
-    web_fetch_tool = BetaWebFetchTool20250910Param(
-        name="web_fetch", type="web_fetch_20250910"
-    )
-
-    web_search_tool = WebSearchTool20250305Param(
-        name="web_search",
-        type="web_search_20250305",
-    )
+    # use the dynamic filtering tool versions when supported (these run web
+    # search/fetch inside the code execution sandbox so the model can filter
+    # results programmatically before they enter the context window)
+    web_fetch_tool: BetaWebFetchTool20250910Param | BetaWebFetchTool20260209Param
+    web_search_tool: WebSearchTool20250305Param | WebSearchTool20260209Param
+    if web_search_filtering:
+        web_fetch_tool = BetaWebFetchTool20260209Param(
+            name="web_fetch", type="web_fetch_20260209"
+        )
+        web_search_tool = WebSearchTool20260209Param(
+            name="web_search",
+            type="web_search_20260209",
+        )
+    else:
+        web_fetch_tool = BetaWebFetchTool20250910Param(
+            name="web_fetch", type="web_fetch_20250910"
+        )
+        web_search_tool = WebSearchTool20250305Param(
+            name="web_search",
+            type="web_search_20250305",
+        )
 
     if maybe_anthropic_options:
         if "allowed_domains" in maybe_anthropic_options:
@@ -1558,9 +1884,11 @@ ToolParamDef = (
     | BetaToolTextEditor20250429Param
     | BetaToolTextEditor20250728Param
     | WebSearchTool20250305Param
+    | WebSearchTool20260209Param
     | BetaMemoryTool20250818Param
     | BetaCodeExecutionTool20250825Param
     | BetaWebFetchTool20250910Param
+    | BetaWebFetchTool20260209Param
 )
 
 
@@ -1589,11 +1917,15 @@ def is_computer_tool(
     return param.get("name") == "computer" and not is_tool_param(param)
 
 
-def is_web_search_tool(param: ToolParamDef) -> TypeGuard[WebSearchTool20250305Param]:
+def is_web_search_tool(
+    param: ToolParamDef,
+) -> TypeGuard[WebSearchTool20250305Param | WebSearchTool20260209Param]:
     return param.get("name") == "web_search" and not is_tool_param(param)
 
 
-def is_web_fetch_tool(param: ToolParamDef) -> TypeGuard[BetaWebFetchTool20250910Param]:
+def is_web_fetch_tool(
+    param: ToolParamDef,
+) -> TypeGuard[BetaWebFetchTool20250910Param | BetaWebFetchTool20260209Param]:
     return param.get("name") == "web_fetch" and not is_tool_param(param)
 
 
@@ -1613,6 +1945,45 @@ def is_code_execution_tool(
     return param.get("name") == "code_execution" and not is_tool_param(param)
 
 
+_NON_CACHEABLE_BLOCK_TYPES = frozenset({"thinking", "redacted_thinking"})
+
+
+def add_lookback_cache_control(
+    message_params: list[MessageParam], ttl: Literal["5m", "1h"] | None = None
+) -> None:
+    """Tag the second-to-last cacheable content block across `message_params`.
+
+    Walks blocks in reverse (last message first), skipping
+    thinking/redacted_thinking (the API rejects `cache_control` on those with
+    `Extra inputs are not permitted`), and tags the second cacheable block
+    found. Tagging the *second*-to-last rather than the last gives lookback
+    caching a fallback when the final block changes (RAG, scorers, approvers,
+    branching) — auto-cache already covers the very last block.
+
+    Bare-string content counts as one cacheable block for position purposes
+    (it is the "last block" that auto-cache covers) but cannot itself carry
+    a `cache_control` field, so it is counted but never tagged.
+    """
+    seen_cacheable = 0
+    for msg in reversed(message_params):
+        content = msg["content"]
+        if isinstance(content, str):
+            seen_cacheable += 1
+            if seen_cacheable >= 2:
+                return
+        elif isinstance(content, list):
+            for block in reversed(content):
+                if (
+                    isinstance(block, dict)
+                    and block.get("type") in _NON_CACHEABLE_BLOCK_TYPES
+                ):
+                    continue
+                seen_cacheable += 1
+                if seen_cacheable == 2:
+                    add_cache_control(cast(dict[str, Any], block), ttl)
+                    return
+
+
 def add_cache_control(
     param: TextBlockParam
     | ToolParam
@@ -1623,12 +1994,22 @@ def add_cache_control(
     | BetaToolTextEditor20250429Param
     | BetaToolTextEditor20250728Param
     | WebSearchTool20250305Param
+    | WebSearchTool20260209Param
     | BetaMemoryTool20250818Param
     | BetaCodeExecutionTool20250825Param
     | BetaWebFetchTool20250910Param
+    | BetaWebFetchTool20260209Param
     | dict[str, Any],
+    ttl: Literal["5m", "1h"] | None = None,
 ) -> None:
-    cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
+    cast(dict[str, Any], param)["cache_control"] = cache_control_param(ttl)
+
+
+def cache_control_param(ttl: Literal["5m", "1h"] | None) -> CacheControlEphemeralParam:
+    cache_control = CacheControlEphemeralParam(type="ephemeral")
+    if ttl is not None:
+        cache_control["ttl"] = ttl
+    return cache_control
 
 
 def consecutive_user_message_reducer(
@@ -1758,6 +2139,160 @@ def _convert_orphaned_tool_results(
     return result
 
 
+def _split_system_as_reminders(
+    input: list[ChatMessage],
+) -> tuple[list[ChatMessageSystem], list[ChatMessage]]:
+    """Split system messages for models without mid-conversation support.
+
+    Pulls the leading contiguous block of system messages into the top-level
+    `system` field (preserving the cacheable prefix). Any remaining
+    mid-conversation system messages are converted to user turns wrapped in
+    `<system-reminder>` tags rather than hoisted to the top-level field, which
+    would bust the prompt cache on every new injection. The tag matches the
+    convention Claude Code uses for pre-4.8 models, so models post-trained on
+    those transcripts recognize it as an instruction signal.
+
+    Exception: a system message adjacent to a tool result is hoisted instead.
+    Tool results map to user-role wire messages, and the consecutive-user
+    reducer merges adjacent user turns, so a reminder placed next to a tool
+    result would fold into the tool-result turn. Non-tool-result content in a
+    tool-result turn restarts the assistant loop and strips prior thinking /
+    cache context on tool-use continuations, so those reminders are hoisted.
+    """
+    top: list[ChatMessageSystem] = []
+    i = 0
+    while i < len(input) and isinstance(input[i], ChatMessageSystem):
+        top.append(cast(ChatMessageSystem, input[i]))
+        i += 1
+
+    rest = input[i:]
+    result: list[ChatMessage] = []
+    hoisted = 0
+    for idx, m in enumerate(rest):
+        if not isinstance(m, ChatMessageSystem):
+            result.append(m)
+            continue
+
+        # neighbors that determine the user-role run this reminder would join:
+        # the last already-emitted message, and the next non-system message
+        # (consecutive systems are evaluated independently).
+        prev_msg = result[-1] if result else None
+        next_msg = next(
+            (
+                later
+                for later in rest[idx + 1 :]
+                if not isinstance(later, ChatMessageSystem)
+            ),
+            None,
+        )
+        if isinstance(prev_msg, ChatMessageTool) or isinstance(
+            next_msg, ChatMessageTool
+        ):
+            top.append(m)
+            hoisted += 1
+        else:
+            result.append(
+                ChatMessageUser(
+                    content=f"<system-reminder>\n{m.text}\n</system-reminder>"
+                )
+            )
+
+    if hoisted:
+        warn_once(logger, _REMINDER_SYSTEM_HOISTED_WARNING.format(count=hoisted))
+
+    return top, result
+
+
+def _split_for_mid_conversation_system(
+    input: list[ChatMessage],
+) -> tuple[list[ChatMessageSystem], list[ChatMessage]]:
+    """Split system messages for Claude 4.8+ mid-conversation support.
+
+    Pulls the leading contiguous block of system messages into the top-level
+    `system` field. Remaining system messages stay inline (will be serialized
+    as `role="system"` turns). Enforces the API's placement invariants by
+    merging consecutive mid-conversation systems and hoisting any in invalid
+    positions back to the top-level field.
+    """
+    # 1. Pull leading contiguous block.
+    top: list[ChatMessageSystem] = []
+    i = 0
+    while i < len(input) and isinstance(input[i], ChatMessageSystem):
+        top.append(cast(ChatMessageSystem, input[i]))
+        i += 1
+
+    # 2. Pre-merge consecutive system messages in the remainder so the
+    #    placement check below sees the effective neighbors.
+    merged: list[ChatMessage] = []
+    for m in input[i:]:
+        if (
+            isinstance(m, ChatMessageSystem)
+            and merged
+            and isinstance(merged[-1], ChatMessageSystem)
+        ):
+            prev_sys = cast(ChatMessageSystem, merged.pop())
+            merged.append(ChatMessageSystem(content=f"{prev_sys.text}\n\n{m.text}"))
+        else:
+            merged.append(m)
+
+    # 3. Walk and classify each system message; hoist invalid ones.
+    result: list[ChatMessage] = []
+    hoisted = 0
+    for j, m in enumerate(merged):
+        if not isinstance(m, ChatMessageSystem):
+            result.append(m)
+            continue
+        prev_msg = result[-1] if result else None
+        next_msg = merged[j + 1] if j + 1 < len(merged) else None
+        if _valid_mid_conv_position(prev_msg, next_msg):
+            result.append(m)
+        else:
+            top.append(m)
+            hoisted += 1
+
+    if hoisted:
+        warn_once(logger, _MID_CONV_SYSTEM_HOISTED_WARNING.format(count=hoisted))
+
+    return top, result
+
+
+def _valid_mid_conv_position(
+    prev: ChatMessage | None, next_msg: ChatMessage | None
+) -> bool:
+    # Must immediately follow a user turn or an assistant turn ending in
+    # server tool use. ChatMessageTool maps to user-role on the wire.
+    if isinstance(prev, ChatMessageUser | ChatMessageTool):
+        prev_ok = True
+    elif isinstance(prev, ChatMessageAssistant):
+        prev_ok = _ends_in_server_tool_use(prev)
+    else:
+        prev_ok = False
+    # Must end the message array or immediately precede an assistant turn.
+    next_ok = next_msg is None or isinstance(next_msg, ChatMessageAssistant)
+    return prev_ok and next_ok
+
+
+def _ends_in_server_tool_use(message: ChatMessageAssistant) -> bool:
+    if isinstance(message.content, str) or not message.content:
+        return False
+    return isinstance(message.content[-1], ContentToolUse)
+
+
+def _previous_assistant_message_id(input: list[ChatMessage]) -> str | None:
+    """Return the upstream Anthropic message id of the most recent assistant.
+
+    The id is tagged onto ChatMessageAssistant.metadata["message_id"] in
+    `model_output_from_message` whenever the cache-diagnostics beta is on, so
+    a subsequent generation can pass it as `diagnostics.previous_message_id`.
+    Returns None if no prior assistant message carries an id.
+    """
+    for m in reversed(input):
+        if isinstance(m, ChatMessageAssistant):
+            mid = (m.metadata or {}).get("message_id")
+            return mid if isinstance(mid, str) else None
+    return None
+
+
 async def message_param(message: ChatMessage) -> MessageParam:
     # if content is empty that is going to result in an error when we replay
     # this message to claude, so in that case insert a NO_CONTENT message
@@ -1771,10 +2306,22 @@ async def message_param(message: ChatMessage) -> MessageParam:
             message = message.model_copy()
             message.content = [ContentText(text=NO_CONTENT)]
 
-    # no system role for anthropic (this is more like an assertion,
-    # as these should have already been filtered out)
+    # system role: only reached on Claude 4.8+ where the leading-block
+    # split keeps mid-conversation system messages inline. Earlier models
+    # have all system messages hoisted to the top-level system field
+    # before this function is called, so role=="system" is unreachable
+    # there.
     if message.role == "system":
-        raise ValueError("Anthropic models do not support the system role")
+        if isinstance(message.content, str):
+            return MessageParam(role="system", content=message.content or NO_CONTENT)
+        text_blocks: list[TextBlockParam] = [
+            TextBlockParam(type="text", text=block.text)
+            for block in message.content
+            if isinstance(block, ContentText) and block.text
+        ]
+        if not text_blocks:
+            text_blocks = [TextBlockParam(type="text", text=NO_CONTENT)]
+        return MessageParam(role="system", content=text_blocks)  # type: ignore[typeddict-item]
 
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
@@ -1851,7 +2398,9 @@ MessageBlock = Union[
     | BetaMCPToolResultBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
+    | CodeExecutionToolResultBlock
     | BetaWebFetchToolResultBlock
+    | BetaFallbackBlock
 ]
 
 MessageBlockParam = Union[
@@ -1869,7 +2418,9 @@ MessageBlockParam = Union[
     | BetaMCPToolUseBlockParam
     | BetaRequestMCPToolResultBlockParam
     | BetaTextEditorCodeExecutionToolResultBlockParam
+    | CodeExecutionToolResultBlockParam
     | BetaWebFetchToolResultBlockParam
+    | BetaFallbackBlockParam
 ]
 
 
@@ -1913,13 +2464,12 @@ async def assistant_message_blocks(
             else:
                 blocks.append(ToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "server_tool_use":
+            # preserve the caller link (e.g. web search w/ dynamic filtering is
+            # called from a code execution block) -- synthesize 'direct' only
+            # when the param doesn't carry a caller
             blocks.append(
-                BetaServerToolUseBlock(
-                    id=block_param["id"],
-                    caller=BetaDirectCaller(type="direct"),
-                    input=block_param["input"],
-                    name=block_param["name"],
-                    type=block_param["type"],
+                BetaServerToolUseBlock.model_validate(
+                    {"caller": {"type": "direct"}, **block_param}
                 )
             )
 
@@ -1936,6 +2486,8 @@ async def assistant_message_blocks(
             blocks.append(
                 BetaTextEditorCodeExecutionToolResultBlock.model_validate(block_param)
             )
+        elif block_param["type"] == "code_execution_tool_result":
+            blocks.append(CodeExecutionToolResultBlock.model_validate(block_param))
         elif block_param["type"] == "mcp_tool_use":
             blocks.append(BetaMCPToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "mcp_tool_result":
@@ -1944,6 +2496,16 @@ async def assistant_message_blocks(
             blocks.append(BetaWebFetchToolResultBlock.model_validate(block_param))
         elif block_param["type"] == "compaction":
             blocks.append(BetaCompactionBlock.model_validate(block_param))
+        elif block_param["type"] == "fallback":
+            # BetaFallbackBlock requires a server-side refusal `trigger` (added in
+            # anthropic 0.110.0); inspect only round-trips `from`/`to`, so
+            # synthesize one when the param doesn't carry it -- mirroring the
+            # server_tool_use "synthesize a default caller" pattern above.
+            blocks.append(
+                BetaFallbackBlock.model_validate(
+                    {"trigger": {"type": "refusal"}, **block_param}
+                )
+            )
         else:
             logger.warning(
                 f"Unexpecxted assistant message block type: {block_param['type']}"
@@ -1955,17 +2517,31 @@ async def assistant_message_blocks(
 async def assistant_message_block_params(
     message: ChatMessageAssistant,
 ) -> list[MessageBlockParam]:
-    block_params: list[MessageBlockParam] = (
-        [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
-        if isinstance(message.content, str)
-        else (
-            [
-                item
-                for content in message.content
-                for item in await message_block_params(content)
-            ]
+    block_params: list[MessageBlockParam] = []
+    if isinstance(message.content, str):
+        block_params = [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
+    else:
+        # server tool spans recorded for this message at generate time. server
+        # tool blocks are opaque server artifacts (encrypted content, caller
+        # links, nesting) so they are replayed verbatim as a unit, while the
+        # editable content (text, reasoning, client tool calls) is still
+        # rendered from the content list so that scaffold edits surface.
+        record = (
+            assistant_internal().server_tool_spans.get(message.id)
+            if message.id is not None
+            else None
         )
-    )
+        emitted: set[int] = set()
+        for content in message.content:
+            span = _server_tool_span_for_content(content, record)
+            if span is not None:
+                # emit the whole span verbatim at the position of its first
+                # content item (subsequent items of the same span emit nothing)
+                if id(span) not in emitted:
+                    emitted.add(id(span))
+                    block_params.extend(_span_block_params(span, message))
+            else:
+                block_params.extend(await message_block_params(content))
 
     # move the first instance of thinking to the front (we only need to do this
     # for claude 3 models as we enable interleaved thinking for claude 4)
@@ -2006,6 +2582,99 @@ async def assistant_message_block_params(
     return block_params
 
 
+# server tool block params recorded for verbatim replay (use blocks and
+# result blocks for web_search, web_fetch, and code_execution server tools)
+_ServerToolSpanBlockParam = Union[
+    ServerToolUseBlockParam
+    | BetaServerToolUseBlockParam
+    | WebSearchToolResultBlockParam
+    | BetaWebFetchToolResultBlockParam
+    | BetaBashCodeExecutionToolResultBlockParam
+    | BetaTextEditorCodeExecutionToolResultBlockParam
+    | CodeExecutionToolResultBlockParam
+]
+
+
+@dataclass
+class _ServerToolSpan:
+    """A group of server tool blocks recorded in original wire order.
+
+    A span is one top-level server tool call group: it opens with a
+    `server_tool_use` block and closes once results have arrived for it and
+    for any nested tool uses it issued (e.g. web searches called from a code
+    execution block when web search dynamic filtering is enabled). The API
+    requires that this structure -- block order, use/result nesting, and
+    `caller` source links -- be replayed exactly, so spans are recorded
+    verbatim and re-emitted as a unit.
+    """
+
+    blocks: list[_ServerToolSpanBlockParam] = field(default_factory=list)
+    """Block params in original wire order (callers intact)."""
+
+    content_ids: list[str] = field(default_factory=list)
+    """Ids of the ContentToolUse items produced by this span (content order)."""
+
+    open_use_ids: set[str] = field(default_factory=set)
+    """Tool use ids awaiting results (recording-time bookkeeping only)."""
+
+
+class _ServerToolSpanRecorder:
+    """Records server tool spans during assistant content parsing.
+
+    A span can remain open across a pause_turn continuation (its use block
+    arrives in the head message and its result in the tail), so a single
+    recorder is threaded through continuation requests just like
+    `pending_tool_uses`.
+    """
+
+    def __init__(self) -> None:
+        self._spans: list[_ServerToolSpan] = []
+        self._open: _ServerToolSpan | None = None
+
+    def add_use(self, block: ServerToolUseBlock | BetaServerToolUseBlock) -> None:
+        span = self._open_span()
+        span.blocks.append(
+            cast(_ServerToolSpanBlockParam, block.model_dump(exclude_none=True))
+        )
+        span.open_use_ids.add(block.id)
+
+    def add_result(
+        self,
+        use: ServerToolUseBlock | BetaServerToolUseBlock,
+        result: _ServerToolSpanBlockParam,
+        content_id: str,
+    ) -> None:
+        span = self._open_span()
+        # defensively ensure the use block is present (results normally arrive
+        # within the span that their use block opened)
+        if use.id not in span.open_use_ids:
+            span.blocks.append(
+                cast(_ServerToolSpanBlockParam, use.model_dump(exclude_none=True))
+            )
+        else:
+            span.open_use_ids.discard(use.id)
+        span.blocks.append(result)
+        span.content_ids.append(content_id)
+        # close the span once all of its tool uses have results
+        if not span.open_use_ids:
+            self._spans.append(span)
+            self._open = None
+
+    def take_spans(self, include_open: bool) -> list[_ServerToolSpan]:
+        """Take all completed spans (and optionally any still-open span)."""
+        spans = self._spans
+        self._spans = []
+        if include_open and self._open is not None:
+            spans.append(self._open)
+            self._open = None
+        return spans
+
+    def _open_span(self) -> _ServerToolSpan:
+        if self._open is None:
+            self._open = _ServerToolSpan()
+        return self._open
+
+
 @dataclass
 class _AssistantInternal:
     thinking_blocks: dict[str, ThinkingBlockParam | RedactedThinkingBlockParam] = field(
@@ -2015,33 +2684,297 @@ class _AssistantInternal:
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
     ] = field(default_factory=dict)
-    server_web_searches: dict[
-        str, tuple[ServerToolUseBlockParam, WebSearchToolResultBlockParam]
-    ] = field(default_factory=dict)
-    server_web_fetches: dict[
-        str, tuple[ServerToolUseBlockParam, BetaWebFetchToolResultBlockParam]
-    ] = field(default_factory=dict)
-    server_code_executions: dict[
-        str,
-        tuple[
-            ServerToolUseBlockParam,
-            BetaBashCodeExecutionToolResultBlockParam
-            | BetaTextEditorCodeExecutionToolResultBlockParam,
-        ],
-    ] = field(default_factory=dict)
+    server_tool_spans: dict[str, list[_ServerToolSpan]] = field(default_factory=dict)
+    """Server tool spans keyed by assistant message id."""
+    server_tool_span_index: dict[str, _ServerToolSpan] = field(default_factory=dict)
+    """Server tool spans keyed by member tool use id (for replay of messages
+    whose id was rewritten, e.g. by the agent bridge -- server tool use ids
+    survive the bridge whereas message ids do not)."""
 
 
 def assistant_internal() -> _AssistantInternal:
     return _anthropic_assistant_internal.get()
 
 
-def init_sample_anthropic_assistant_internal() -> None:
-    _anthropic_assistant_internal.set(_AssistantInternal())
+def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> None:
+    """Initialize (``value is None``) or restore the sample's assistant internal.
+
+    Restore (``value`` from a prior :func:`dump_anthropic_assistant_internal`)
+    mutates the current instance in place rather than rebinding the context
+    var, so the restored state is visible outside the restoring task — see
+    ``inspect_ai.model._assistant_internal``.
+    """
+    if value is None:
+        _anthropic_assistant_internal.set(_AssistantInternal())
+        return
+    assert isinstance(value, dict)
+    internal = assistant_internal()
+    internal.thinking_blocks.update(
+        cast("dict[str, Any]", value.get("thinking_blocks", {}))
+    )
+    internal.tool_call_internal_names.update(
+        cast("dict[str, str | None]", value.get("tool_call_internal_names", {}))
+    )
+    internal.server_mcp_tool_uses.update(
+        {
+            tool_use_id: (use, result)
+            for tool_use_id, (use, result) in cast(
+                "dict[str, Any]", value.get("server_mcp_tool_uses", {})
+            ).items()
+        }
+    )
+    # Spans were dumped as an identity-deduped table with the two maps
+    # holding indices into it; rebuilding from the table restores the
+    # object sharing between (and within) the maps.
+    spans = [
+        _ServerToolSpan(
+            blocks=cast("list[_ServerToolSpanBlockParam]", span["blocks"]),
+            content_ids=cast("list[str]", span["content_ids"]),
+            open_use_ids=set(cast("list[str]", span["open_use_ids"])),
+        )
+        for span in cast("list[dict[str, Any]]", value.get("spans", []))
+    ]
+    internal.server_tool_spans.update(
+        {
+            message_id: [spans[index] for index in indexes]
+            for message_id, indexes in cast(
+                "dict[str, list[int]]", value.get("server_tool_spans", {})
+            ).items()
+        }
+    )
+    internal.server_tool_span_index.update(
+        {
+            content_id: spans[index]
+            for content_id, index in cast(
+                "dict[str, int]", value.get("server_tool_span_index", {})
+            ).items()
+        }
+    )
+
+
+def dump_anthropic_assistant_internal() -> JsonValue | None:
+    """Dump the sample's assistant internal as a JSON value (``None`` if empty).
+
+    Block params are the SDK's ``TypedDict`` request params — plain dicts
+    at runtime, so they serialize as-is and restore via cast with no
+    validation (corrupt data surfaces at request time, as it would have
+    in-memory). ``_ServerToolSpan`` objects are shared between
+    ``server_tool_spans`` and ``server_tool_span_index`` (and the index can
+    hold spans absent from the message map), so spans are dumped once into
+    a table and the maps reference table indices.
+    """
+    internal = assistant_internal()
+    span_table: list[_ServerToolSpan] = []
+    span_indexes: dict[int, int] = {}
+    for span in (
+        *(s for spans in internal.server_tool_spans.values() for s in spans),
+        *internal.server_tool_span_index.values(),
+    ):
+        if id(span) not in span_indexes:
+            span_indexes[id(span)] = len(span_table)
+            span_table.append(span)
+
+    if not (
+        internal.thinking_blocks
+        or internal.tool_call_internal_names
+        or internal.server_mcp_tool_uses
+        or span_table
+    ):
+        return None
+    return cast(
+        JsonValue,
+        {
+            "thinking_blocks": dict(internal.thinking_blocks),
+            "tool_call_internal_names": dict(internal.tool_call_internal_names),
+            "server_mcp_tool_uses": {
+                tool_use_id: list(use_result)
+                for tool_use_id, use_result in internal.server_mcp_tool_uses.items()
+            },
+            "spans": [
+                {
+                    "blocks": span.blocks,
+                    "content_ids": span.content_ids,
+                    "open_use_ids": sorted(span.open_use_ids),
+                }
+                for span in span_table
+            ],
+            "server_tool_spans": {
+                message_id: [span_indexes[id(span)] for span in spans]
+                for message_id, spans in internal.server_tool_spans.items()
+            },
+            "server_tool_span_index": {
+                content_id: span_indexes[id(span)]
+                for content_id, span in internal.server_tool_span_index.items()
+            },
+        },
+    )
 
 
 _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
     "anthropic_assistant_internal", default=_AssistantInternal()
 )
+
+
+def record_server_tool_spans(message_id: str, spans: list[_ServerToolSpan]) -> None:
+    """Record server tool spans for an assistant message (verbatim replay)."""
+    internal = assistant_internal()
+    internal.server_tool_spans[message_id] = (
+        internal.server_tool_spans.get(message_id, []) + spans
+    )
+    for span in spans:
+        for content_id in span.content_ids:
+            internal.server_tool_span_index[content_id] = span
+
+
+def index_server_tool_spans(spans: list[_ServerToolSpan]) -> None:
+    """Register spans in the tool use id index only (no message id record).
+
+    Used when re-parsing conversation history (e.g. via the agent bridge):
+    only fills gaps so that spans recorded at generate time -- which have
+    full fidelity -- are never overwritten.
+    """
+    internal = assistant_internal()
+    for span in spans:
+        if not any(
+            content_id in internal.server_tool_span_index
+            for content_id in span.content_ids
+        ):
+            for content_id in span.content_ids:
+                internal.server_tool_span_index[content_id] = span
+
+
+def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
+    """Re-key the head message's spans under the tail message id.
+
+    Continuations merge head message content into the tail message, so spans
+    recorded under the head message id belong to the tail message.
+    """
+    if head_id is None or tail_id is None or head_id == tail_id:
+        return
+    internal = assistant_internal()
+    head_spans = internal.server_tool_spans.pop(head_id, [])
+    if head_spans:
+        internal.server_tool_spans[tail_id] = (
+            head_spans + internal.server_tool_spans.get(tail_id, [])
+        )
+
+
+def _server_tool_span_for_content(
+    content: Content, record: list[_ServerToolSpan] | None
+) -> _ServerToolSpan | None:
+    """Resolve the recorded server tool span for a content item (if any)."""
+    if not isinstance(content, ContentToolUse) or content.tool_type == "mcp_call":
+        return None
+    # match within the message's own record
+    if record is not None:
+        for span in record:
+            if content.id in span.content_ids:
+                return span
+    # fall back to the sample-wide index (handles message ids rewritten by
+    # the agent bridge -- server tool use ids survive the bridge)
+    return assistant_internal().server_tool_span_index.get(content.id)
+
+
+def _span_block_params(
+    span: _ServerToolSpan, message: ChatMessageAssistant
+) -> list[MessageBlockParam]:
+    """Block params for a span (with compaction result-clearing applied)."""
+    # determine which of the span's results were cleared during compaction
+    cleared_ids = (
+        {
+            c.id
+            for c in message.content
+            if isinstance(c, ContentToolUse)
+            and c.id in span.content_ids
+            and is_result_cleared(c)
+        }
+        if isinstance(message.content, list)
+        else set()
+    )
+    if not cleared_ids:
+        return cast(list[MessageBlockParam], list(span.blocks))
+
+    # deep copy so the recorded blocks are never mutated
+    blocks = deepcopy(list(span.blocks))
+    for i, block in enumerate(blocks):
+        if cast(dict[str, Any], block).get("tool_use_id") in cleared_ids:
+            blocks[i] = _cleared_result_block_param(block)
+    return cast(list[MessageBlockParam], blocks)
+
+
+def _cleared_result_block_param(
+    block_param: _ServerToolSpanBlockParam,
+) -> _ServerToolSpanBlockParam:
+    """Copy of a server tool result block param with its result content removed."""
+    block = cast(dict[str, Any], block_param)
+    cleared: dict[str, Any]
+    match block.get("type"):
+        case "web_search_tool_result":
+            cleared = {
+                **block,
+                "content": {
+                    "type": "web_search_tool_result_error",
+                    "error_code": "unavailable",
+                },
+            }
+        case "web_fetch_tool_result":
+            original_content = block.get("content", {})
+            url = (
+                str(original_content.get("url", ""))
+                if isinstance(original_content, dict)
+                else ""
+            )
+            cleared = {
+                **block,
+                "content": {
+                    "type": "web_fetch_result",
+                    "url": url,
+                    "content": {
+                        "type": "document",
+                        "source": {
+                            "type": "text",
+                            "media_type": "text/plain",
+                            "data": TOOL_RESULT_REMOVED,
+                        },
+                    },
+                },
+            }
+        case "bash_code_execution_tool_result":
+            cleared = {
+                **block,
+                "content": {
+                    "type": "bash_code_execution_result",
+                    "return_code": 0,
+                    "stdout": TOOL_RESULT_REMOVED,
+                    "stderr": "",
+                    "content": [],
+                },
+            }
+        case "text_editor_code_execution_tool_result":
+            # use a view result with placeholder for text editor
+            cleared = {
+                **block,
+                "content": {
+                    "type": "text_editor_code_execution_view_result",
+                    "content": TOOL_RESULT_REMOVED,
+                    "file_type": "text",
+                },
+            }
+        case "code_execution_tool_result":
+            cleared = {
+                **block,
+                "content": {
+                    "type": "code_execution_result",
+                    "return_code": 0,
+                    "stdout": TOOL_RESULT_REMOVED,
+                    "stderr": "",
+                    "content": [],
+                },
+            }
+        case _:
+            # not a result block (e.g. server_tool_use) -- leave as-is
+            cleared = block
+    return cast(_ServerToolSpanBlockParam, cleared)
 
 
 async def model_output_from_message(
@@ -2052,13 +2985,20 @@ async def model_output_from_message(
     pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
     | None = None,
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
+    cache_diagnostics: bool = False,
+    span_recorder: _ServerToolSpanRecorder | None = None,
 ) -> tuple[ModelOutput, bool]:
+    # record server tool spans for verbatim replay on subsequent turns
+    if span_recorder is None:
+        span_recorder = _ServerToolSpanRecorder()
+
     # extract content and tool calls
     content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
         message.content,
         tools,
         pending_tool_uses=pending_tool_uses,
         pending_mcp_tool_uses=pending_mcp_tool_uses,
+        span_recorder=span_recorder,
     )
 
     # count reasoning tokens
@@ -2070,24 +3010,79 @@ async def model_output_from_message(
                     client, model, content_block.thinking
                 )
 
+    # cache-diagnostics: tag the assistant message with the upstream id so a
+    # subsequent turn can pass it as `diagnostics.previous_message_id`.
+    # The `diagnostics` response field itself is captured below onto the
+    # ModelOutput metadata, not the assistant message. Only when the beta
+    # is on.
+    asst_metadata: dict[str, Any] = {}
+    if cache_diagnostics:
+        msg_id = getattr(message, "id", None)
+        if msg_id:
+            asst_metadata["message_id"] = msg_id
+
+    # server-side refusal fallback: collect handoffs (in content order) so we
+    # can surface the serving model and a structured metadata entry. on a
+    # streaming mid-output decline `message.model` names the *requested* model,
+    # so the serving model is the final handoff's `to` model.
+    fallback_handoffs = [
+        {"from": from_model, "to": to_model}
+        for block in message.content
+        if getattr(block, "type", None) == "fallback"
+        for from_model, to_model in [_fallback_block_models(block)]
+    ]
+    serving_model = (
+        fallback_handoffs[-1]["to"] or message.model
+        if fallback_handoffs
+        else message.model
+    )
+
     # resolve choice
     stop_reason, pause_turn = message_stop_reason(message)
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=content, tool_calls=tool_calls, model=model, source="generate"
+            content=content,
+            tool_calls=tool_calls,
+            model=serving_model,
+            source="generate",
+            metadata=asst_metadata or None,
         ),
         stop_reason=stop_reason,
+        stop_details=collect_stop_details(
+            "anthropic", logger, lambda: message_stop_details(message)
+        ),
     )
+
+    # record server tool spans under the assistant message id for verbatim
+    # replay on subsequent turns. when pause_turn, an in-flight span may still
+    # be open (its result arrives in the continuation) -- leave it in the
+    # recorder so it completes during the continuation parse.
+    spans = span_recorder.take_spans(include_open=not pause_turn)
+    if spans and choice.message.id is not None:
+        record_server_tool_spans(choice.message.id, spans)
 
     # return ModelOutput
     usage = message.usage.model_dump()
     input_tokens_cache_write = usage.get("cache_creation_input_tokens", None)
     input_tokens_cache_read = usage.get("cache_read_input_tokens", None)
 
-    # When compaction occurs, the top-level usage excludes compaction iteration tokens.
-    # The iterations array contains per-iteration usage which we aggregate for accuracy.
+    # When compaction occurs, the top-level usage excludes compaction iteration
+    # tokens, so we aggregate the per-iteration usage for accuracy. Server-side
+    # fallback also populates `iterations` (a `fallback_message` entry for the
+    # serving attempt plus a `message` entry per declined attempt), but there
+    # the top-level usage already describes the serving (billed) attempt and an
+    # unbilled refused attempt must NOT be summed in — so detect fallback by
+    # the `fallback_message` marker and use the top-level usage as-is.
     iterations = usage.get("iterations", None)
-    if isinstance(iterations, list) and len(iterations) > 0:
+    is_fallback_iterations = isinstance(iterations, list) and any(
+        isinstance(it, dict) and it.get("type") == "fallback_message"
+        for it in iterations
+    )
+    if (
+        isinstance(iterations, list)
+        and len(iterations) > 0
+        and not is_fallback_iterations
+    ):
         # Aggregate tokens from all iterations
         input_tokens = sum(
             it.get("input_tokens", 0) for it in iterations if isinstance(it, dict)
@@ -2105,9 +3100,49 @@ async def model_output_from_message(
         + (input_tokens_cache_read or 0)
         + output_tokens  # includes reasoning tokens
     )
+
+    # Capture any undeclared fields on the Message (SDK uses extra="allow")
+    # so callers can read response fields we don't model explicitly.
+    extra_body = getattr(message, "model_extra", None) or {}
+    metadata: dict[str, Any] | None = (
+        {"extra_body": dict(extra_body)} if extra_body else None
+    )
+
+    # server-side refusal fallback: record a typed ModelFallback so log
+    # analysis can detect a fallback without parsing assistant content. the
+    # handoff chain and per-attempt `usage.iterations` are surfaced as
+    # diagnostics on ModelFallback.metadata.
+    fallback: ModelFallback | None = None
+    requested_model = fallback_handoffs[0]["from"] if fallback_handoffs else None
+    if requested_model and serving_model:
+        fallback = ModelFallback(
+            model=requested_model,
+            fallback_model=serving_model,
+            metadata={"handoffs": fallback_handoffs, "iterations": iterations},
+        )
+
+    # Cache diagnostics: surface the `diagnostics` response field as a
+    # top-level metadata key (in addition to its automatic capture under
+    # extra_body), and emit a one-time warning when a cache miss is named.
+    # Routed through ModelOutput.metadata rather than the assistant message
+    # because diagnostics is per-response, not part of the next-turn input.
+    if cache_diagnostics:
+        diagnostics = getattr(message, "diagnostics", None)
+        if diagnostics is not None:
+            diag_dict = (
+                diagnostics.model_dump()
+                if hasattr(diagnostics, "model_dump")
+                else dict(diagnostics)
+            )
+            metadata = (metadata or {}) | {"diagnostics": diag_dict}
+            reason = diag_dict.get("cache_miss_reason")
+            reason_type = reason.get("type") if isinstance(reason, dict) else None
+            if reason_type:
+                warn_once(logger, _CACHE_MISS_WARNING.format(reason=reason_type))
+
     return (
         ModelOutput(
-            model=message.model,
+            model=serving_model,
             choices=[choice],
             usage=ModelUsage(
                 input_tokens=input_tokens,
@@ -2117,6 +3152,8 @@ async def model_output_from_message(
                 input_tokens_cache_read=input_tokens_cache_read,
                 reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
             ),
+            fallback=fallback,
+            metadata=metadata,
         ),
         pause_turn,
     )
@@ -2152,7 +3189,16 @@ def content_and_tool_calls_from_assistant_content_blocks(
     pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
     | None = None,
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
+    span_recorder: _ServerToolSpanRecorder | None = None,
 ) -> tuple[list[Content], list[ToolCall] | None]:
+    # when no span recorder is provided (e.g. parsing scaffold conversation
+    # history via the agent bridge) record spans locally and register them in
+    # the tool use id index at the end (gap-filling only -- see
+    # index_server_tool_spans)
+    local_span_recorder = span_recorder is None
+    if span_recorder is None:
+        span_recorder = _ServerToolSpanRecorder()
+
     # resolve params to blocks
     content_blocks: list[
         BetaCompactionBlock
@@ -2160,6 +3206,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
         | BetaBashCodeExecutionToolResultBlock
         | BetaTextEditorCodeExecutionToolResultBlock
         | BetaWebFetchToolResultBlock
+        | BetaFallbackBlock
         | ContentBlock
     ] = []
     for block in content_blocks_input:
@@ -2173,6 +3220,20 @@ def content_and_tool_calls_from_assistant_content_blocks(
                         **block, caller=BetaDirectCaller(type="direct")
                     )
                 )
+            elif block.get("type") == "fallback":  # type: ignore[comparison-overlap]
+                # the fallback block is not in the content block union, so
+                # validate it explicitly (e.g. echoed scaffold history via the
+                # agent bridge arrives as a dict). tolerate `from_` — the
+                # reserved-keyword `from` alias is mangled when a message is
+                # dumped without by_alias (e.g. the sandbox bridge).
+                fb = dict(block)
+                if "from_" in fb and "from" not in fb:
+                    fb["from"] = fb.pop("from_")
+                # BetaFallbackBlock requires a server-side refusal `trigger`
+                # (added in anthropic 0.110.0); scaffold-echoed history doesn't
+                # carry it, so synthesize one. inspect never reads `trigger`.
+                fb.setdefault("trigger", {"type": "refusal"})
+                content_blocks.append(BetaFallbackBlock.model_validate(fb))
             else:
                 content_blocks.append(content_block_adapter.validate_python(block))
         else:
@@ -2187,7 +3248,22 @@ def content_and_tool_calls_from_assistant_content_blocks(
     if pending_mcp_tool_uses is None:
         pending_mcp_tool_uses = dict()
 
-    for content_block in content_blocks:
+    # server-side fallback: a declined attempt's content precedes the final
+    # `fallback` handoff block. The API forbids replaying thinking and unpaired
+    # client tool_use from the declined attempt, so drop them at conversion
+    # time (the raw blocks remain in the ModelCall log for analysis). Text and
+    # paired server tool blocks before the boundary are kept.
+    last_fallback_index = -1
+    for i, content_block in enumerate(content_blocks):
+        if getattr(content_block, "type", None) == "fallback":
+            last_fallback_index = i
+
+    for index, content_block in enumerate(content_blocks):
+        before_fallback_boundary = index < last_fallback_index
+        if before_fallback_boundary and isinstance(
+            content_block, (ThinkingBlock, RedactedThinkingBlock, ToolUseBlock)
+        ):
+            continue
         if content_block.type == "mcp_tool_use":  # type: ignore[comparison-overlap]
             tool_use_block = BetaMCPToolUseBlock.model_validate(
                 content_block.model_dump()
@@ -2237,16 +3313,14 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
                 )
 
-            # record in internal
-            assistant_internal().server_web_fetches[pending_tool_use.id] = (
-                cast(
-                    ServerToolUseBlockParam,
-                    pending_tool_use.model_dump(exclude_none=True),
-                ),
+            # record span block params for verbatim replay
+            span_recorder.add_result(
+                pending_tool_use,
                 cast(
                     BetaWebFetchToolResultBlockParam,
                     content_block.model_dump(exclude_none=True),
                 ),
+                pending_tool_use.id,
             )
 
             # append content
@@ -2263,6 +3337,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
         elif (
             content_block.type == "bash_code_execution_tool_result"
             or content_block.type == "text_editor_code_execution_tool_result"
+            or content_block.type == "code_execution_tool_result"
         ):
             # confirm that there is a pending tool use
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
@@ -2271,17 +3346,16 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
                 )
 
-            # record in internal
-            assistant_internal().server_code_executions[pending_tool_use.id] = (
-                cast(
-                    ServerToolUseBlockParam,
-                    pending_tool_use.model_dump(exclude_none=True),
-                ),
+            # record span block params for verbatim replay
+            span_recorder.add_result(
+                pending_tool_use,
                 cast(
                     BetaBashCodeExecutionToolResultBlockParam
-                    | BetaTextEditorCodeExecutionToolResultBlockParam,
+                    | BetaTextEditorCodeExecutionToolResultBlockParam
+                    | CodeExecutionToolResultBlockParam,
                     content_block.model_dump(exclude_none=True),
                 ),
+                pending_tool_use.id,
             )
 
             # append to content
@@ -2296,6 +3370,13 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
         elif content_block.type == "compaction":
             content.append(_content_data_for_compaction(content_block))
+
+        elif content_block.type == "fallback":
+            # server-side refusal fallback handoff marker. wrap as ContentData
+            # (mirroring compaction) so it round-trips replay and the bridge.
+            # NOTE: this must precede the TextBlock branch — the non-beta SDK
+            # client parses the unknown block as a loose TextBlock.
+            content.append(_content_data_for_fallback(content_block))
 
         elif isinstance(content_block, TextBlock):
             if content_block.text is None:
@@ -2343,6 +3424,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
         elif isinstance(content_block, (ServerToolUseBlock, BetaServerToolUseBlock)):
             pending_tool_uses[content_block.id] = content_block
+            span_recorder.add_use(content_block)
         elif isinstance(
             content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
         ):
@@ -2352,16 +3434,14 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     "WebSearchToolResultBlock without previous ServerToolUseBlock"
                 )
 
-            # record in internal
-            assistant_internal().server_web_searches[pending_tool_use.id] = (
-                cast(
-                    ServerToolUseBlockParam,
-                    pending_tool_use.model_dump(exclude_none=True),
-                ),
+            # record span block params for verbatim replay
+            span_recorder.add_result(
+                pending_tool_use,
                 cast(
                     WebSearchToolResultBlockParam,
                     content_block.model_dump(exclude_none=True),
                 ),
+                pending_tool_use.id,
             )
 
             content.append(
@@ -2408,6 +3488,12 @@ def content_and_tool_calls_from_assistant_content_blocks(
                 RedactedThinkingBlockParam, content_block.model_dump(exclude_none=True)
             )
 
+    # locally recorded spans (history re-parse) fill gaps in the tool use id
+    # index (spans recorded at generate time are keyed by message id by our
+    # caller and take precedence)
+    if local_span_recorder:
+        index_server_tool_spans(span_recorder.take_spans(include_open=True))
+
     return content, tool_calls
 
 
@@ -2425,6 +3511,7 @@ COMPACT_20260112 = "compact_20260112"
 EXTRA_BODY = "extra_body"
 CONTEXT_MANAGEMENT = "context_management"
 MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
+FALLBACK_BETA = "server-side-fallback-2026-06-01"
 
 
 def _add_edit_compaction(
@@ -2525,6 +3612,122 @@ def _is_compaction_content(content: Content) -> bool:
     if isinstance(content, ContentData):
         return _compaction_from_content_data(content) is not None
     return False
+
+
+def _fallback_block_models(block: Any) -> tuple[str | None, str | None]:
+    """Extract (from_model, to_model) from a server-side fallback block.
+
+    Handles both the typed BetaFallbackBlock (from the bridge dict path) and
+    the lenient TextBlock the non-beta SDK client produces for an unknown
+    `fallback` block (with `from`/`to` carried in `model_extra`).
+    """
+
+    def info_model(info: Any) -> str | None:
+        if info is None:
+            return None
+        if isinstance(info, dict):
+            return info.get("model")
+        return getattr(info, "model", None)
+
+    from_info = getattr(block, "from_", None)
+    to_info = getattr(block, "to", None)
+    extra = getattr(block, "model_extra", None) or {}
+    if from_info is None:
+        from_info = extra.get("from")
+    if to_info is None:
+        to_info = extra.get("to")
+    return info_model(from_info), info_model(to_info)
+
+
+def _content_data_for_fallback(block: Any) -> ContentData:
+    from_model, to_model = _fallback_block_models(block)
+    return ContentData(
+        data={
+            "fallback_metadata": {
+                "type": "anthropic_fallback",
+                "from": {"model": from_model},
+                "to": {"model": to_model},
+            }
+        }
+    )
+
+
+def _fallback_from_content_data(
+    content: ContentData,
+) -> BetaFallbackBlockParam | None:
+    fallback_metadata = content.data.get("fallback_metadata", None)
+    if isinstance(fallback_metadata, dict):
+        if fallback_metadata.get("type") == "anthropic_fallback":
+            from_info = fallback_metadata.get("from")
+            to_info = fallback_metadata.get("to")
+            to_model = to_info.get("model") if isinstance(to_info, dict) else None
+            param = BetaFallbackBlockParam(
+                type="fallback",
+                to=BetaFallbackInfoParam(model=to_model),  # type: ignore[typeddict-item]
+            )
+            # `from` is a reserved keyword — set via dict key
+            from_model = from_info.get("model") if isinstance(from_info, dict) else None
+            if from_model is not None:
+                cast(dict[str, Any], param)["from"] = {"model": from_model}
+            return param
+
+    return None
+
+
+def _fallback_from_content(content: Content) -> dict[str, Any] | None:
+    if isinstance(content, ContentData):
+        meta = content.data.get("fallback_metadata", None)
+        if isinstance(meta, dict) and meta.get("type") == "anthropic_fallback":
+            return meta
+    return None
+
+
+def _input_has_fallback(input: list[ChatMessage]) -> bool:
+    return any(
+        _fallback_from_content(c) is not None
+        for m in input
+        if isinstance(m, ChatMessageAssistant) and isinstance(m.content, list)
+        for c in m.content
+    )
+
+
+def _warn_refusal_without_fallback(
+    api: "AnthropicAPI", config: GenerateConfig, output: ModelOutput
+) -> None:
+    """Suggest fallback_models when a rescuable classifier refusal occurs.
+
+    Fires only when fallback could actually have been used: fallback_models
+    not configured, first-party non-batch API, and a Claude 5+ requested model
+    (the `fallbacks` param is only accepted for models publishing
+    allowed_fallback_models -- Opus 4.7/4.8 emit the same refusal stop_details
+    but cannot fall back).
+    """
+    if config.fallback_models:
+        return
+    if api.is_bedrock() or api.is_vertex() or api.is_azure():
+        return
+    if normalized_batch_config(config.batch):
+        return
+    if not (api.is_claude_5() or api.is_claude_latest()):
+        return
+    # classifier refusal (stop_details.type == "refusal") distinguishes
+    # rescuable safety-classifier declines from other content_filter stops
+    choice = output.choices[0] if output.choices else None
+    if choice is None or choice.stop_reason != "content_filter":
+        return
+    details = choice.stop_details
+    if details is None or details.type != "refusal":
+        return
+    category = f" (category: {details.category})" if details.category else ""
+    warn_once(
+        logger,
+        f"{output.model} declined this request with a safety classifier "
+        f"refusal{category}. Such requests can usually be served by a "
+        "fallback model — set the fallback_models generate config "
+        "(e.g. --fallback-models claude-opus-4-8) to retry refused "
+        "requests automatically. Learn more at "
+        "https://inspect.aisi.org.uk/fallbacks.html.",
+    )
 
 
 def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
@@ -2630,6 +3833,24 @@ def message_stop_reason(message: Message) -> tuple[StopReason, bool]:
             return "unknown", message.stop_reason == "pause_turn"
 
 
+def message_stop_details(message: Message) -> StopDetails | None:
+    """Extract refusal detail from an Anthropic `Message.stop_details` (Opus 4.7+).
+
+    Anthropic reports a single named category (`cyber`/`bio`); it is mirrored into
+    `categories` so callers can read the list uniformly across providers.
+    """
+    details = getattr(message, "stop_details", None)
+    if details is None:
+        return None
+    category = getattr(details, "category", None)
+    return StopDetails(
+        type=getattr(details, "type", None),
+        category=category,
+        explanation=getattr(details, "explanation", None),
+        categories=[StopCategory(category=category)] if category else [],
+    )
+
+
 web_search_result_block_param_adapter = TypeAdapter[
     WebSearchToolResultBlockParamContentParam
 ](WebSearchToolResultBlockParamContentParam)
@@ -2702,6 +3923,9 @@ async def message_block_params(
         result_cleared = is_result_cleared(content)
 
         # Try to use cached blocks, creating copies if result needs to be cleared
+        # (web_search/web_fetch/code_execution are resolved against recorded
+        # server tool spans in assistant_message_block_params before reaching
+        # here, so a non-mcp ContentToolUse below is from another system)
         if content.id in assistant_internal().server_mcp_tool_uses:
             mcp_use, mcp_result = assistant_internal().server_mcp_tool_uses[content.id]
             if result_cleared:
@@ -2712,90 +3936,13 @@ async def message_block_params(
                 )
             return [mcp_use, mcp_result]
 
-        elif content.id in assistant_internal().server_web_searches:
-            ws_use, ws_result = assistant_internal().server_web_searches[content.id]
-            if result_cleared:
-                # Create a copy to avoid mutating the cached version
-                ws_result = cast(
-                    WebSearchToolResultBlockParam,
-                    {
-                        **ws_result,
-                        "content": {
-                            "type": "web_search_tool_result_error",
-                            "error_code": "unavailable",
-                        },
-                    },
-                )
-            return [ws_use, ws_result]
-
-        elif content.id in assistant_internal().server_web_fetches:
-            wf_use, wf_result = assistant_internal().server_web_fetches[content.id]
-            if result_cleared:
-                # Create a copy to avoid mutating the cached version
-                original_content: Any = wf_result.get("content", {})
-                url = ""
-                if isinstance(original_content, dict):
-                    url = str(original_content.get("url", ""))
-                wf_result = cast(
-                    BetaWebFetchToolResultBlockParam,
-                    {
-                        **wf_result,
-                        "content": {
-                            "type": "web_fetch_result",
-                            "url": url,
-                            "content": {
-                                "type": "document",
-                                "source": {
-                                    "type": "text",
-                                    "media_type": "text/plain",
-                                    "data": TOOL_RESULT_REMOVED,
-                                },
-                            },
-                        },
-                    },
-                )
-            return [wf_use, wf_result]
-
-        elif content.id in assistant_internal().server_code_executions:
-            ce_use, ce_result = assistant_internal().server_code_executions[content.id]
-            if result_cleared:
-                # Create valid result block based on type (with a copy to avoid mutation)
-                if ce_result.get("type") == "bash_code_execution_tool_result":
-                    ce_result = cast(
-                        BetaBashCodeExecutionToolResultBlockParam,
-                        {
-                            **ce_result,
-                            "content": {
-                                "type": "bash_code_execution_result",
-                                "return_code": 0,
-                                "stdout": TOOL_RESULT_REMOVED,
-                                "stderr": "",
-                                "content": [],
-                            },
-                        },
-                    )
-                elif ce_result.get("type") == "text_editor_code_execution_tool_result":
-                    # Use a view result with placeholder for text editor
-                    ce_result = cast(
-                        BetaTextEditorCodeExecutionToolResultBlockParam,
-                        {
-                            **ce_result,
-                            "content": {
-                                "type": "text_editor_code_execution_view_result",
-                                "content": TOOL_RESULT_REMOVED,
-                                "file_type": "text",
-                            },
-                        },
-                    )
-            return [ce_use, ce_result]
-
         # Fall through to reconstruction if not in cache
         if content.tool_type == "web_search":
             # we might be parsing an openai web search result so defend ourselves accordingly
             # note that if this is a native anthropic web_search or web_fetch it will have
-            # been handledby plucking the blocks from assistant_internal()
-            # therefore, this is a web_search from another system which we need to
-            # normalize to the anthropic schema
+            # been handled by replaying its recorded server tool span. therefore, this is
+            # a web_search from another system which we need to normalize to the
+            # anthropic schema
             if result_cleared:
                 result_content: WebSearchToolResultBlockParamContentParam = (
                     WebSearchToolRequestErrorParam(
@@ -2858,10 +4005,10 @@ async def message_block_params(
             ]
         elif content.tool_type == "code_execution":
             # if this is a native anthropic code execution it will have been handled
-            # by plucking the blocks from assistant_internal().server_code_executions.
-            # therefore, this is a code execution from another system which we need to
-            # normalize to the anthropic schema (i.e. we can't just parse its arguments
-            # and result or rely on its name to match one of our tools)
+            # by replaying its recorded server tool span. therefore, this is a code
+            # execution from another system which we need to normalize to the
+            # anthropic schema (i.e. we can't just parse its arguments and result
+            # or rely on its name to match one of our tools)
             return [
                 BetaServerToolUseBlockParam(
                     type="server_tool_use",
@@ -2913,8 +4060,10 @@ async def message_block_params(
         compaction_param = _compaction_from_content_data(content)
         if compaction_param:
             return [compaction_param]
-        else:
-            raise RuntimeError(f"Unexpected data block: {content.data}")
+        fallback_param = _fallback_from_content_data(content)
+        if fallback_param:
+            return [fallback_param]
+        raise RuntimeError(f"Unexpected data block: {content.data}")
 
     else:
         raise RuntimeError(

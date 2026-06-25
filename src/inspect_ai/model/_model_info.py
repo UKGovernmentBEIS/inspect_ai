@@ -25,6 +25,12 @@ _custom_models: dict[str, ModelInfo] = {}
 # Cached model info database
 _model_info_cache: dict[str, ModelInfo] | None = None
 
+# Memoized results of model info lookups keyed by input identifier (string name
+# or Model.canonical_name()) and whether provider resolution is enabled.
+# Includes negative results so failed lookups aren't repeated on every turn.
+# Invalidated by set_model_info, set_model_cost, and clear_model_info_cache.
+_result_cache: dict[tuple[str, bool], ModelInfo | None] = {}
+
 
 def _get_model_info_db() -> dict[str, ModelInfo]:
     """Get the model info database, loading it on first access."""
@@ -269,6 +275,37 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
             print(f"Context window: {info.context_length}")
         ```
     """
+    return _get_model_info(model, resolve_provider=True)
+
+
+def _get_model_info_direct(model: str | Model) -> ModelInfo | None:
+    """Look up model info without instantiating a provider."""
+    return _get_model_info(model, resolve_provider=False)
+
+
+def _get_model_info(
+    model: str | Model,
+    *,
+    resolve_provider: bool,
+) -> ModelInfo | None:
+    # Import here to avoid circular imports
+    from inspect_ai.model._model import Model
+
+    identifier = model.canonical_name() if isinstance(model, Model) else model
+    cache_key = (identifier, resolve_provider)
+    if cache_key in _result_cache:
+        return _result_cache[cache_key]
+
+    result = _resolve_model_info(model, resolve_provider=resolve_provider)
+    _result_cache[cache_key] = result
+    return result
+
+
+def _resolve_model_info(
+    model: str | Model,
+    *,
+    resolve_provider: bool,
+) -> ModelInfo | None:
     # Import here to avoid circular imports
     from inspect_ai.model._model import Model, get_model
 
@@ -297,6 +334,9 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
     if result is not None:
         return result
 
+    if not resolve_provider:
+        return None
+
     # Fall back to full provider instantiation (requires SDK)
     # This handles cases where the model name needs provider-specific canonicalization
     try:
@@ -313,10 +353,26 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
 
 
 def get_model_input_tokens(model: Model) -> int | None:
+    from inspect_ai.model._compaction._compaction import DEFAULT_CONTEXT_WINDOW
+
+    # an explicit set_model_info() override for this model takes precedence over the
+    # frontier aliasing some providers apply in input_tokens_name() (e.g. an OpenAI
+    # pre-deployment codename aliases to the current frontier's context window; an
+    # explicit registration means the caller knows the real window). Check the
+    # custom registry under both the model string and canonical name, since
+    # set_model_info() may be keyed by either.
+    explicit = _custom_models.get(str(model)) or _custom_models.get(
+        model.canonical_name()
+    )
+    if explicit is not None and explicit.input_tokens is not None:
+        return explicit.input_tokens
+
     model_name = model.input_tokens_name()
     model_info = get_model_info(model_name)
     if model_info:
         return model_info.input_tokens
+    elif str(model).startswith("mockllm/"):
+        return DEFAULT_CONTEXT_WINDOW
     else:
         return None
 
@@ -346,6 +402,7 @@ def set_model_info(model: str, info: ModelInfo) -> None:
         ```
     """
     _custom_models[model] = info
+    _result_cache.clear()
 
 
 def set_model_cost(model: str, cost: ModelCost) -> None:
@@ -362,6 +419,7 @@ def set_model_cost(model: str, cost: ModelCost) -> None:
     if info is None:
         raise ValueError(f"Model '{model}' not found.")
     _custom_models[model] = info.model_copy(update={"cost": cost})
+    _result_cache.clear()
 
 
 def clear_model_info_cache() -> None:
@@ -374,3 +432,4 @@ def clear_model_info_cache() -> None:
     _model_info_cache = None
     _lookup_index = None
     _custom_models.clear()
+    _result_cache.clear()

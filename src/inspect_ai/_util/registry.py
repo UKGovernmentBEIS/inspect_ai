@@ -47,6 +47,7 @@ RegistryType = Literal[
     "scorer",
     "solver",
     "task",
+    "task_source",
     "tool",
     "loader",
     "scanner",
@@ -91,6 +92,11 @@ def registry_add(o: object, info: RegistryInfo) -> None:
 
     # add to registry
     _registry[registry_key(info.type, info.name)] = o
+
+    # bump version so caches keyed on registry contents (e.g. get_all_hooks)
+    # know to invalidate
+    global _registry_version
+    _registry_version += 1
 
 
 def registry_tag(
@@ -337,18 +343,37 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         LookupError: If the named object was not found in the registry.
         TypeError: If the specified parameters are not valid for the object.
     """
+    return create_registry_object(type, name, kwargs)
+
+
+def create_registry_object(
+    type: RegistryType, name: str, args: dict[str, Any]
+) -> object:
+    """Create a registry object, passing creation arguments as a dict.
+
+    Equivalent to `registry_create()` but takes creation arguments as an explicit
+    dict, so it is safe when those arguments contain a key that would collide
+    with `registry_create()`'s own positional parameters (e.g. replaying a
+    factory such as `react` that has its own `name` parameter).
+    """
     # lookup the object
     obj = registry_lookup(type, name)
 
     # forward registry info to the instantiated object
     def with_registry_info(o: object) -> object:
-        return set_registry_info(o, registry_info(obj))
+        info = registry_info(obj)
+        # objects created by self-tagging factories (e.g. @agent / @solver) already
+        # carry their own (richer) metadata — preserve it rather than overwriting
+        # with the factory's. The factory's name (identity) is still used.
+        if is_registry_object(o) and registry_info(o).metadata:
+            info = info.model_copy(update={"metadata": registry_info(o).metadata})
+        return set_registry_info(o, info)
 
     # instantiate registry and model objects
-    kwargs = registry_kwargs(**kwargs)
+    args = registry_kwargs(**args)
 
     if isclass(obj):
-        return with_registry_info(obj(**kwargs))
+        return with_registry_info(obj(**args))
     elif callable(obj):
         return_type = get_annotations(obj, eval_str=True).get("return")
         # Until we remove the MetricDeprecated symbol we need this extra
@@ -358,7 +383,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         else:
             return_type = getattr(return_type, "__name__", None)
         if return_type and return_type.lower() == type:
-            return with_registry_info(obj(**kwargs))
+            return with_registry_info(obj(**args))
         else:
             return obj
     else:
@@ -512,6 +537,17 @@ REGISTRY_INFO = "__registry_info__"
 REGISTRY_PARAMS = "__registry_params__"
 _registry: dict[str, object] = {}
 
+# Monotonic counter bumped by `registry_add` on every mutation. Used by
+# consumers (e.g. `get_all_hooks`) to cache results derived from the registry
+# while invalidating automatically when new entries are added. Module-private
+# — read it via `registry_version()` if needed externally.
+_registry_version: int = 0
+
+
+def registry_version() -> int:
+    """Current registry version. Bumped on each `registry_add`."""
+    return _registry_version
+
 
 class RegistryDict(TypedDict):
     type: RegistryType
@@ -555,7 +591,7 @@ def registry_value(o: object) -> Any:
 def registry_arg(arg: Any) -> Any:
     if isinstance(arg, dict):
         if is_registry_dict(arg):
-            return registry_create(arg["type"], arg["name"], **arg["params"])
+            return create_registry_object(arg["type"], arg["name"], arg["params"])
         elif is_model_dict(arg):
             return model_create_from_dict(arg)
         else:
@@ -573,7 +609,7 @@ def registry_kwargs(**kwargs: Any) -> dict[str, Any]:
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:
-    return registry_create(d["type"], d["name"], **d["params"])
+    return create_registry_object(d["type"], d["name"], d["params"])
 
 
 class ModelDict(TypedDict):

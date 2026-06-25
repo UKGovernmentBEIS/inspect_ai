@@ -4,7 +4,7 @@ import logging
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Literal, NamedTuple, Set, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic import BaseModel
@@ -20,10 +20,24 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
+from inspect_ai._control.eval_state import (
+    DeferredSampleStats,
+    clear_all_eval_states,
+    register_completed_eval,
+)
+from inspect_ai._control.server import (
+    control_server,
+    keep_alive_intent,
+    request_keep_alive,
+    reset_keep_alive,
+    resolve_ctl_server,
+    wait_for_shutdown_async,
+)
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
+from inspect_ai._eval.task.scan import Scanners, scan_already_clean
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
@@ -64,6 +78,7 @@ from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
+from inspect_ai.util._checkpoint import CheckpointConfig
 from inspect_ai.util._display import (
     display_type_initialized,
     display_type_plain,
@@ -74,8 +89,12 @@ from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask
+from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs
 from .task.tasks import Tasks
+
+if TYPE_CHECKING:
+    from inspect_ai._control.eval_state import DeferredStatsProvider
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +111,7 @@ class EvalSetArgsInTaskIdentifier:
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None
     message_limit: int | None = None
     token_limit: int | None = None
+    turn_limit: int | None = None
     time_limit: int | None = None
     working_limit: int | None = None
     cost_limit: float | None = None
@@ -112,13 +132,19 @@ def eval_set(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
+    acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    notification: bool | str | None = None,
     score: bool = True,
+    score_display: bool | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
@@ -133,6 +159,7 @@ def eval_set(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -165,14 +192,16 @@ def eval_set(
             (required to ensure that a unique storage scope is assigned for the set).
         retry_attempts: Maximum number of retry attempts before giving up
             (defaults to 10).
-        retry_wait: Time to wait between attempts, increased exponentially.
-            (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
-            per-retry will in no case by longer than 1 hour.
+        retry_wait: Time to wait between attempts when `retry_immediate=False`,
+            increased exponentially (defaults to 30, resulting in waits of 30, 60,
+            120, 240, etc.). Wait time per-retry will in no case be longer than 1
+            hour. Ignored when `retry_immediate=True`.
         retry_connections: Reduce max_connections at this rate with each retry
-            (defaults to 1.0, which results in no reduction).
+            when `retry_immediate=False` (defaults to 1.0, which results in no
+            reduction). Ignored when `retry_immediate=True`.
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
-        retry_immediate: If True, will immediately retry tasks as they fail without waiting for all tasks to complete. If False, will maintain legacy retry behavior of waiting for all tasks to complete before retrying any tasks. When True, `retry_wait` and `retry_connections` are ignored (defaults to False).
+        retry_immediate: If True (the default), immediately retry tasks as they fail without waiting for all tasks to complete; completed samples are reused from logs on retry. If False, wait for all tasks to complete before retrying any tasks (legacy batch-retry behavior). When True, `retry_wait` and `retry_connections` are ignored.
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -187,8 +216,27 @@ def eval_set(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        checkpoint: Checkpoint configuration for this eval set, or `True`
+            to enable checkpointing with the default trigger (every 500k
+            tokens). Overrides any task- or sample-level `checkpoint`
+            when set.
+        acp_server: Override the original eval's ACP server transport on retry.
+            `True` enables a default AF_UNIX socket; an integer binds a TCP
+            loopback port; a string is taken as a custom UNIX socket path;
+            `None` (default) replays whatever transport (or no transport) was
+            persisted in the original log's `EvalConfig.acp_server`.
+        ctl_server: Control-channel server for this eval-set process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep"` additionally
+            keeps the process running after the eval-set finishes so external
+            clients (the `inspect ctl` CLI, scripted agents, TUIs) can still
+            query state and read results — exit via `inspect ctl release`
+            (or `POST /release`). Requires `retry_immediate=True` (the
+            default) for the `"keep"` value.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
+        scanner: Scanner(s) to apply to each sample's transcript after the
+            sample completes.
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
@@ -196,7 +244,16 @@ def eval_set(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        notification: Enable out-of-band notifications when a human-in-the-loop
+            interaction (`ask_user`, human approval) is posted. Pass `True` to
+            send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
+            variable (single URL, comma-separated list, or path to an Apprise
+            config file). Alternatively pass a path to an Apprise YAML/text
+            config file. URLs are not accepted directly so secrets never end up
+            in source code, shell history, process listings, or eval logs.
+            Requires the `apprise` package.
         score: Score output (defaults to True)
+        score_display: Show scoring metrics in realtime (defaults to True)
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -223,6 +280,7 @@ def eval_set(
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -236,7 +294,7 @@ def eval_set(
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to the greater of 4 and the number of models being evaluated)
+            (defaults to the greater of 10 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -270,6 +328,8 @@ def eval_set(
     from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
 
     num_retry_attempts = 10 if retry_attempts is None else retry_attempts
+    if retry_immediate is None:
+        retry_immediate = True
     task_retry_attempts = num_retry_attempts if retry_immediate else 0
 
     if retry_immediate and num_retry_attempts == 0:
@@ -277,6 +337,35 @@ def eval_set(
             "retry_immediate=True has no effect when retry_attempts=0; "
             "no task-level retries will be performed."
         )
+
+    # --ctl-server=keep requires retry_immediate=True (the default).
+    # In retry_immediate=False mode eval-set makes multiple eval() calls
+    # via tenacity, each with its own short-lived control server —
+    # the keep-alive park would need to live OUTSIDE any single
+    # eval() call, which is exactly the multi-loop bridging problem
+    # we deliberately avoid (see design/control-channel.md "Server
+    # lifecycle aligned with eval()"). Refuse the combination
+    # explicitly rather than silently giving a broken keep-alive
+    # experience.
+    ctl = resolve_ctl_server(ctl_server)
+    # clear a stale keep-alive intent left by a prior run in this process;
+    # needed here as well as in eval_async because the all-reused short-circuit
+    # parks without ever calling eval()
+    reset_keep_alive()
+    if ctl.keep_alive and retry_immediate is False:
+        raise PrerequisiteError(
+            "--ctl-server=keep is incompatible with retry_immediate=False "
+            "(the legacy batch-retry mode tears down the control "
+            "surface between attempts). Use --retry-immediate (the "
+            "default) or drop the keep value."
+        )
+    # The eval-set owns the latch: set it now (after the rejection check),
+    # before the inner eval() binds its (plain on/off) control server, so that
+    # server reports keep-alive for the run and the inner eval() (eval_set_id
+    # set) leaves the latch alone rather than resetting it. The park below reads
+    # the same latch, so a runtime `POST /keep` during the run is honoured too.
+    if ctl.keep_alive:
+        request_keep_alive()
 
     # helper function to run a set of evals
     def run_eval(
@@ -295,12 +384,15 @@ def eval_set(
             task_args=task_args,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
+            checkpoint=checkpoint,
             solver=solver,
+            scanner=scanner,
             tags=tags,
             metadata=metadata,
             trace=trace,
             display=display,
             approval=approval,
+            notification=notification,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
@@ -316,6 +408,7 @@ def eval_set(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -334,8 +427,14 @@ def eval_set(
             log_shared=log_shared,
             log_header_only=True,
             score=score,
+            score_display=score_display,
             eval_set_id=eval_set_id,
             task_retry_attempts=task_retry_attempts,
+            acp_server=acp_server,
+            # Demoted to a plain on/off: eval-set owns the keep-alive park
+            # itself (after the display closes), so the inner eval() must
+            # not park inside the task display. See the park below.
+            ctl_server=ctl.enabled,
             **kwargs,
         )
 
@@ -388,15 +487,17 @@ def eval_set(
     # batch=True + adaptive_connections=True + retry_connections=0.5 would
     # silently lose decay (evalset suppresses it, but the model path goes
     # static and never sets up an adaptive controller).
-    adaptive_will_be_active = (
-        bool(kwargs.get("adaptive_connections"))
-        and kwargs.get("max_connections") is None
-        and not kwargs.get("batch")
+    from inspect_ai.util._concurrency import adaptive_active
+
+    adaptive_will_be_active = adaptive_active(
+        kwargs.get("adaptive_connections"),
+        kwargs.get("max_connections"),
+        kwargs.get("batch"),
     )
     if adaptive_will_be_active:
         retry_connections = 1.0
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
-    max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
+    max_tasks = max_tasks if max_tasks is not None else max(len(models), 10)
     log_dir_allow_dirty = log_dir_allow_dirty is True
 
     # prepare console/status
@@ -459,7 +560,14 @@ def eval_set(
             approval,
             sandbox,
             sample_shuffle,
+            notification=notification,
         )
+
+        # fail with a legible error if no tasks were found (matches `eval`)
+        if len(resolved_tasks) == 0:
+            raise PrerequisiteError(
+                "Error: No inspect tasks were found at the specified paths."
+            )
 
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
@@ -471,6 +579,7 @@ def eval_set(
             solver=solver,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -534,9 +643,22 @@ def eval_set(
                 failed_tasks = as_previous_tasks(
                     failed_resolved_tasks, failed_logs, eval_set_args
                 )
-            tasks_to_run = pending_tasks + failed_tasks
+            combined_tasks: list[ResolvedTask | PreviousTask] = [
+                *pending_tasks,
+                *failed_tasks,
+                *_resume_scan_tasks(
+                    scanner,
+                    success_logs,
+                    resolved_tasks,
+                    eval_set_args,
+                    prior_scan_clean,
+                ),
+            ]
+            tasks_to_run = combined_tasks
+
+            _register_reused_logs(success_logs)
+
             if not tasks_to_run:
-                # no new tasks and no failed logs to retry, just return success logs
                 return [log.header for log in success_logs]
 
         # run the tasks
@@ -560,44 +682,72 @@ def eval_set(
         before=before,
     )
 
-    with _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext():
-        # emit start event
-        run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+    # must read BEFORE scan_context enters — scan_init invalidates the
+    # finalize flag on attach, so reading from inside try_eval is too late
+    prior_scan_clean = scan_already_clean(scanner, eval_set_id, log_dir)
 
-        if retry_immediate:
-            # retry handled by eval
-            results = try_eval()
+    # EvalStates accumulate as tasks run (task_run registers but never
+    # unregisters); clear the registry at this run boundary — in `finally`,
+    # after any keep-alive park — so they stay visible in `inspect ctl tasks`
+    # through the run + park, but don't leak past it.
+    try:
+        with (
+            _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
+            scan_context(scanner, scan_id=eval_set_id, log_dir=log_dir),
+        ):
+            # emit start event
+            run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+
+            if retry_immediate:
+                # retry handled by eval
+                results = try_eval()
+            else:
+                # execute w/ retry
+                results = retry(try_eval)
+
+            # final sweep to remove failed log files
+            if retry_cleanup:
+                task_ids = {result.eval.task_id for result in results}
+                cleanup_older_eval_logs(log_dir, task_ids)
+
+        # if specified, bundle the output directory
+        if bundle_dir:
+            bundle_log_dir(
+                log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
+            )
+
+        # report final status
+        success = all_evals_succeeded(results)
+        if success:
+            msg = status_msg(f"Completed all tasks in '{log_dir}' successfully")
         else:
-            # execute w/ retry
-            results = retry(try_eval)
+            msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
+        console.print(f"{msg}")
 
-        # final sweep to remove failed log files
-        if retry_cleanup:
-            task_ids = {result.eval.task_id for result in results}
-            cleanup_older_eval_logs(log_dir, task_ids)
+        if scanner is not None:
+            from inspect_ai._eval.task.scan import print_scan_status
 
-    # if specified, bundle the output directory
-    if bundle_dir:
-        bundle_log_dir(
-            log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
-        )
+            print()
+            print_scan_status(log_dir, scanner)
 
-    # report final status
-    success = all_evals_succeeded(results)
-    if success:
-        msg = status_msg(f"Completed all tasks in '{log_dir}' successfully")
-    else:
-        msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
-    console.print(f"{msg}")
+        # update manifest
+        write_log_dir_manifest(log_dir)
 
-    # update manifest
-    write_log_dir_manifest(log_dir)
+        # emit end event
+        run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
 
-    # emit end event
-    run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
+        # park last of all — display closed and summary printed, so the
+        # keep-alive notice lands in the console (not the live display pane).
+        # Gate on the intent (not just the launch flag) so a runtime `inspect
+        # ctl keep` during the run also parks; intent reflects the last-write
+        # of any keep / release received during the run.
+        if keep_alive_intent():
+            run_coroutine(_keep_alive_park(eval_set_id))
 
-    # return status + results
-    return success, results
+        # return status + results
+        return success, results
+    finally:
+        clear_all_eval_states()
 
 
 @contextlib.contextmanager
@@ -627,6 +777,135 @@ def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
         write_log_listing(log_dir)
 
 
+def _register_reused_logs(success_logs: list[Log]) -> None:
+    """Publish synthetic :class:`EvalState`s for reused successful logs.
+
+    Reused tasks bypass ``task_run.py`` (their results are read from
+    disk rather than re-computed), so the per-task ``register_eval``
+    that normally publishes state never fires for them. Without an
+    explicit registration here, ``inspect ctl tasks`` would show zero
+    entries for an eval-set whose tasks all came from prior logs —
+    confusing for an agent driving an eval-set under ``--ctl-server=keep``
+    that expects to see what the eval-set returned.
+
+    Registration uses only the already-parsed headers (eval-set read them
+    to decide reuse), so it costs no extra I/O: the summaries-derived stats
+    (messages and the precise completed/errored split) are deferred behind
+    ``deferred_sample_stats`` and resolved by the first control request —
+    an eval-set that no control client ever queries never reads them.
+    """
+    from inspect_ai._util.dateutil import datetime_from_iso_format_safe
+
+    for log_entry in success_logs:
+        header = log_entry.header
+        eval_spec = header.eval
+        results = header.results
+        stats = header.stats
+
+        total = results.total_samples if results is not None else 0
+
+        completed_at: float | None = None
+        completed_str = stats.completed_at if stats is not None else ""
+        if completed_str:
+            try:
+                completed_at = datetime_from_iso_format_safe(completed_str).timestamp()
+            except (ValueError, TypeError):
+                completed_at = None
+
+        tokens = (
+            sum(u.total_tokens for u in stats.model_usage.values())
+            if stats is not None
+            else 0
+        )
+
+        # Provisional terminal split, shown only until the deferred
+        # resolution (or permanently, if its read fails): optimistically
+        # all-completed. Deriving `errored` from the header's
+        # `completed_samples` would mislabel early-stopped / unscored
+        # samples of a successful log as errors — phantom failures that
+        # mislead a monitoring agent into retrying or alerting on a healthy
+        # task. The precise split (which CAN surface genuine tolerated
+        # errors) arrives with the deferred resolution; either way the
+        # counters sum to `total`, so the row renders terminal with no
+        # phantom `queued`.
+        register_completed_eval(
+            eval_spec.eval_id,
+            total=total,
+            completed=total,
+            errored=0,
+            task=eval_spec.task,
+            task_id=eval_spec.task_id,
+            model=str(eval_spec.model) if eval_spec.model else "",
+            log_location=log_entry.info.name,
+            run_id=eval_spec.run_id,
+            completed_at=completed_at,
+            total_tokens=tokens,
+            total_messages=0,
+            # without results the captured `total` is 0 and a resolution
+            # could write `errored > total`; leave the provisional standing
+            deferred_sample_stats=_deferred_sample_stats(log_entry, total)
+            if results is not None
+            else None,
+        )
+
+
+def _deferred_sample_stats(log_entry: Log, total: int) -> "DeferredStatsProvider":
+    """Lazy accessor for a reused log's summaries-derived stats.
+
+    Messages and the precise terminal buckets require reading the per-sample
+    summaries (a full log read — a network round-trip on S3), deferred to the
+    first control request. The split mirrors what the live path would have
+    recorded: ``errored`` counts samples whose final attempt failed — a
+    status-``success`` log can contain these under ``fail_on_error``
+    tolerance — and everything else (scored and early-stopped alike, which
+    the live path both record as completed) lands in ``completed``.
+    """
+
+    async def provider() -> DeferredSampleStats:
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        summaries = await read_eval_log_sample_summaries_async(log_entry.info)
+        errored = sum(1 for s in summaries if s.error is not None)
+        return DeferredSampleStats(
+            total_messages=sum(s.message_count or 0 for s in summaries),
+            completed=max(0, total - errored),
+            errored=errored,
+        )
+
+    return provider
+
+
+async def _keep_alive_park(eval_set_id: str) -> None:
+    """Park the eval-set process after the run completes (display closed).
+
+    Runs on a fresh loop once ``eval()`` (and its task display) has exited
+    and the summary has printed, so the notice + wait land in the console.
+    Brings up a control server for the lingering window and blocks until
+    ``POST /release``. EvalStates stay visible throughout (live ones
+    accumulated during the run, reused ones via
+    :func:`_register_reused_logs`); ``eval_set`` clears them at the run
+    boundary once this returns.
+
+    A release received while the run was still in flight wins ("exit when
+    done") — the run's server is gone by the time this park binds its fresh
+    one, so the module-level intent is the only carrier of that request.
+    """
+    if not keep_alive_intent():
+        return
+    async with control_server(run_id=eval_set_id) as ctl_server:
+        if ctl_server is None:
+            # Bind failed: nothing to park on (can't be released via
+            # `inspect ctl release`), so don't linger.
+            return
+        rich.get_console().print(
+            "Eval-set finished. Keeping process alive — press Ctrl+C or run "
+            "`inspect ctl release` to let it exit.",
+            markup=False,
+            highlight=False,
+        )
+        await wait_for_shutdown_async(ctl_server)
+
+
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:
     EVAL_SET_ID_FILE = ".eval-set-id"
     fs = filesystem(log_dir)
@@ -645,6 +924,36 @@ def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str
     with file(eval_set_id_file, "w") as f:
         f.write(eval_set_id)
     return eval_set_id
+
+
+def _resume_scan_tasks(
+    scanner: "Scanners | None",
+    success_logs: list[Log],
+    resolved_tasks: list[ResolvedTask],
+    eval_set_args: EvalSetArgsInTaskIdentifier,
+    prior_scan_clean: bool,
+) -> list[PreviousTask]:
+    """Build PreviousTask wrappers for success_logs that may need re-scanning.
+
+    Returned tasks fan out via `run_eval` so the per-sample reuse path
+    can dispatch scans for transcripts whose row never landed in the
+    scan dir. Returns an empty list when there's no scan work to do
+    (no scanner, no success logs, or the prior scan finalized
+    cleanly — in which case every transcript already has a row).
+
+    Must be added to `tasks_to_run` even when there are pending or
+    failed tasks; otherwise unscanned transcripts in already-
+    completed tasks are silently skipped on every call that has work.
+    """
+    if scanner is None or not success_logs or prior_scan_clean:
+        return []
+    success_task_identifiers = {log.task_identifier for log in success_logs}
+    success_resolved_tasks = [
+        task
+        for task in resolved_tasks
+        if task_identifier(task, eval_set_args) in success_task_identifiers
+    ]
+    return as_previous_tasks(success_resolved_tasks, success_logs, eval_set_args)
 
 
 # convert resolved tasks to previous tasks
@@ -823,17 +1132,19 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     # number of epochs differs (changed)
     elif epochs.epochs != config.epochs:
         return True
-    # default to mean reducer should match (not changed)
-    if epochs.reducer is None and config.epochs_reducer == ["mean"]:
-        return False
-    # different reducer list (changed)
-    elif [reducer_log_name(r) for r in (epochs.reducer or [])] != [
-        r for r in (config.epochs_reducer or [])
-    ]:
-        return True
-    # fall through (not changed)
-    else:
-        return False
+
+    # compare reducers, treating the unrecorded default (None) and an
+    # explicit ["mean"] as equivalent (older logs recorded ["mean"] for
+    # the default before it was dropped from eval_config_defaults()).
+    def canonical(r: list[str] | None) -> list[str] | None:
+        return None if r is None or r == ["mean"] else r
+
+    requested = (
+        [reducer_log_name(r) for r in epochs.reducer]
+        if epochs.reducer is not None
+        else None
+    )
+    return canonical(requested) != canonical(config.epochs_reducer)
 
 
 # cleanup logs that aren't the latest
@@ -866,7 +1177,7 @@ def latest_completed_task_eval_logs(
 
         # sort by last file write time
         id_logs.sort(
-            key=lambda id_log: (id_log[0].mtime if id_log[0].mtime else 0), reverse=True
+            key=lambda id_log: id_log[0].mtime if id_log[0].mtime else 0, reverse=True
         )
 
         # take the most recent
@@ -922,13 +1233,18 @@ def validate_eval_set_prerequisites(
         return all_logs
 
 
-# these generate config fields should not affect task identity
+# Runtime/transport GenerateConfig knobs that don't affect model outputs and so
+# must not affect task identity. Adding a field to GenerateConfig? See
+# test_generate_config_fields_classified — it will fail until you classify it.
 _GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
     "max_retries",
     "timeout",
     "attempt_timeout",
     "max_connections",
+    "adaptive_connections",
     "batch",
+    "cache",
+    "cache_prompt",
 }
 
 
@@ -949,7 +1265,7 @@ def resolve_solver(
 # Version of the task_identifier computation. Bump this when the task_identifier
 # logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
 # recomputed.
-TASK_IDENTIFIER_VERSION = 1
+TASK_IDENTIFIER_VERSION = 3
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
@@ -963,6 +1279,7 @@ def task_identifier(
         version: int | str
         message_limit: int | None
         token_limit: int | None
+        turn_limit: int | None
         time_limit: int | None
         working_limit: int | None
         cost_limit: float | None
@@ -992,6 +1309,9 @@ def task_identifier(
             token_limit=task.task.token_limit
             if eval_set_args.token_limit is None
             else eval_set_args.token_limit,
+            turn_limit=task.task.turn_limit
+            if eval_set_args.turn_limit is None
+            else eval_set_args.turn_limit,
             time_limit=task.task.time_limit
             if eval_set_args.time_limit is None
             else eval_set_args.time_limit,
@@ -1015,6 +1335,7 @@ def task_identifier(
             version=task.eval.task_version,
             message_limit=task.eval.config.message_limit,
             token_limit=task.eval.config.token_limit,
+            turn_limit=task.eval.config.turn_limit,
             time_limit=task.eval.config.time_limit,
             working_limit=task.eval.config.working_limit,
             cost_limit=task.eval.config.cost_limit,
@@ -1052,7 +1373,20 @@ def task_identifier(
 
     # hash for model roles
     if len(model_roles):
-        additional_hash_input += to_json_safe(model_roles)
+        # base_url is excluded for symmetry with the primary model (whose
+        # base_url is not hashed) and because several providers populate it
+        # from env vars during init, which would make the identifier
+        # environment-dependent.
+        additional_hash_input += to_json_safe(
+            model_roles,
+            exclude={
+                role: {
+                    "base_url": True,
+                    "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+                }
+                for role in model_roles
+            },
+        )
 
     additional_hash_input += to_json_safe(additional_hash_fields)
 

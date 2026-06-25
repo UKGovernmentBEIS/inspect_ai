@@ -1,4 +1,3 @@
-from copy import copy
 from typing import (
     Any,
     Callable,
@@ -29,7 +28,7 @@ from ._tool_description import (
     set_tool_description,
     tool_description,
 )
-from ._tool_info import parse_tool_info
+from ._tool_info import _parse_tool_info_shared
 from ._tool_params import ToolParam, ToolParams
 
 
@@ -56,8 +55,8 @@ class ToolDef:
             by parsing doc comments if not specified.
           parameters: Tool parameter descriptions and types.
              Discovered automatically by parsing doc comments if not specified.
-          parallel: Does the tool support parallel execution
-             (defaults to True if not specified)
+          parallel: Can this tool execute concurrently with other tool calls
+             in the same assistant message? Defaults to `False` (opt-in).
           viewer: Optional tool call viewer implementation.
           model_input: Optional function that determines how
               tool call results are played back as model input.
@@ -78,11 +77,10 @@ class ToolDef:
             if isinstance(parameters, ToolParams):
                 self.parameters = parameters
             else:
-                self.parameters = tdef.parameters
+                self.parameters = tdef.parameters.model_copy(deep=True)
                 if parameters is not None:
                     apply_description_overrides(self.parameters, parameters)
 
-            parameters = parameters if parameters is not None else tdef.parameters
             self.parallel = parallel if parallel is not None else tdef.parallel
             self.viewer = viewer or tdef.viewer
             self.model_input = model_input or tdef.model_input
@@ -97,24 +95,24 @@ class ToolDef:
                 or parameters is None
                 or not isinstance(parameters, ToolParams)
             ):
-                tool_info = parse_tool_info(tool)
+                tool_info = _parse_tool_info_shared(tool)
                 self.name = name or tool_info.name
                 self.description = description or tool_info.description
                 if parameters:
                     if not isinstance(parameters, ToolParams):
-                        self.parameters = copy(tool_info.parameters)
+                        self.parameters = tool_info.parameters.model_copy(deep=True)
                         apply_description_overrides(self.parameters, parameters)
                     else:
                         self.parameters = parameters
                 else:
-                    self.parameters = tool_info.parameters
+                    self.parameters = tool_info.parameters.model_copy(deep=True)
             else:
                 self.name = name
                 self.description = description
                 self.parameters = parameters
 
             # behavioral attributes
-            self.parallel = parallel is not False
+            self.parallel = parallel is True
             self.viewer = viewer
             self.model_input = model_input
             self.options = options
@@ -208,43 +206,47 @@ class ToolDefFields(NamedTuple):
 def tool_def_fields(tool: Tool) -> ToolDefFields:
     # get tool_info
     name, prompt, parallel, viewer, model_input, options = tool_registry_info(tool)
-    tool_info = parse_tool_info(tool)
+    tool_info = _parse_tool_info_shared(tool)
 
     # if there is a description then append any prompt to the
     # the description (note that 'prompt' has been depreacted
     # in favor of just providing a description in the doc comment.
-    if tool_info.description:
+    description = tool_info.description
+    if description:
         if prompt:
-            tool_info.description = f"{tool_info.description}. {prompt}"
+            description = f"{description}. {prompt}"
 
     # if there is no description and there is a prompt, then use
     # the prompt as the description
     elif prompt:
-        tool_info.description = prompt
+        description = prompt
 
     # no description! we can't proceed without one
     else:
         raise ValueError(f"Description not provided for tool function '{name}'")
 
-    # validate that we have types/descriptions for paramters
-    validate_tool_parameters(name, tool_info.parameters.properties)
-
     # see if the user has overriden any of the tool's descriptions
+    parameters = tool_info.parameters
     desc = tool_description(tool)
+    if desc.parameters:
+        parameters = parameters.model_copy(deep=True)
+        for key, param in desc.parameters.properties.items():
+            if key in parameters.properties:
+                parameters.properties[key].description = param.description
+
     if desc.name:
         name = desc.name
     if desc.description:
-        tool_info.description = desc.description
-    if desc.parameters:
-        for key, param in desc.parameters.properties.items():
-            if key in tool_info.parameters.properties.keys():
-                tool_info.parameters.properties[key].description = param.description
+        description = desc.description
+
+    # validate that we have types/descriptions for paramters
+    validate_tool_parameters(name, parameters.properties)
 
     # build tool def
     return ToolDefFields(
         name=name,
-        description=tool_info.description,
-        parameters=tool_info.parameters,
+        description=description,
+        parameters=parameters,
         parallel=parallel,
         viewer=viewer,
         model_input=model_input,
@@ -265,7 +267,7 @@ def tool_registry_info(
     info = registry_info(tool)
     name = info.name.split("/")[-1]
     prompt = info.metadata.get(TOOL_PROMPT, None)
-    parallel = info.metadata.get(TOOL_PARALLEL, True)
+    parallel = info.metadata.get(TOOL_PARALLEL, False)
     viewer = info.metadata.get(TOOL_VIEWER, None)
     model_input = info.metadata.get(TOOL_MODEL_INPUT, None)
     options = info.metadata.get(TOOL_OPTIONS, None)

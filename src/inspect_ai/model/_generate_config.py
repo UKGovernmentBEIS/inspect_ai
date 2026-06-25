@@ -2,10 +2,16 @@ from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any, Literal, Union
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from typing_extensions import TypedDict
 
-from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
+from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DESERIALIZING
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._json import JSONSchema
@@ -84,8 +90,8 @@ class GenerateConfigArgs(TypedDict, total=False):
     max_connections: int | None
     """Maximum number of concurrent connections to Model API (default is model specific)."""
 
-    adaptive_connections: bool | AdaptiveConcurrency | None
-    """Enable adaptive concurrency for model API connections. `True` for defaults (min=4, start=20, max=200), or pass `AdaptiveConcurrency` to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency."""
+    adaptive_connections: bool | int | AdaptiveConcurrency | None
+    """Adaptive concurrency for model API connections. Defaults to enabled (`None` and `True` both resolve to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out (uses static concurrency). Pass an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`. Pass an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency."""
 
     system_message: str | None
     """Override the default system message."""
@@ -144,6 +150,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only."""
 
+    fallback_models: list[str] | None
+    """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""
+
     verbosity: Literal["low", "medium", "high"] | None
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
@@ -198,8 +207,8 @@ class GenerateConfig(BaseModel):
     max_connections: int | None = Field(default=None)
     """Maximum number of concurrent connections to Model API (default is model specific)."""
 
-    adaptive_connections: bool | AdaptiveConcurrency | None = Field(default=None)
-    """Enable adaptive concurrency for model API connections. `True` for defaults (min=4, start=20, max=200), or pass `AdaptiveConcurrency` to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency."""
+    adaptive_connections: bool | int | AdaptiveConcurrency | None = Field(default=None)
+    """Adaptive concurrency for model API connections. Defaults to enabled (`None` and `True` both resolve to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out (uses static concurrency). Pass an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`. Pass an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency."""
 
     system_message: str | None = Field(default=None)
     """Override the default system message."""
@@ -265,6 +274,9 @@ class GenerateConfig(BaseModel):
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only."""
 
+    fallback_models: list[str] | None = Field(default=None)
+    """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""
+
     verbosity: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
@@ -308,6 +320,30 @@ class GenerateConfig(BaseModel):
 
     batch: bool | int | BatchConfig | None = Field(default=None)
     """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
+
+    # reject unknown fields unless we are reading older logs
+    @model_validator(mode="before")
+    @classmethod
+    def handle_unknown_fields(cls, data: Any, info: ValidationInfo) -> Any:
+        if isinstance(data, dict):
+            data = dict(data)
+            extra = set(data) - set(cls.model_fields)
+            if extra:
+                if isinstance(info.context, dict) and info.context.get(
+                    DESERIALIZING, False
+                ):
+                    data = {
+                        key: value
+                        for key, value in data.items()
+                        if key in cls.model_fields
+                    }
+                else:
+                    fields = ", ".join(sorted(extra))
+                    raise ValueError(
+                        f"Unknown GenerateConfig field(s): {fields}. "
+                        "Use extra_body for provider-specific options."
+                    )
+        return data
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")

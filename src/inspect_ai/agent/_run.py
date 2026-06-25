@@ -1,12 +1,11 @@
 from copy import copy
 from typing import Any, overload
 
-from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.util._limit import Limit, LimitExceededError, apply_limits
-from inspect_ai.util._span import span
+from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
-from ._agent import Agent, AgentState
+from ._agent import Agent, AgentState, agent_display_name
 
 
 @overload
@@ -46,6 +45,14 @@ async def run(
 
     The input messages(s) will be copied prior to running so are
     not modified in place.
+
+    The agent's conversation is available only via the returned
+    `AgentState` — it is not propagated back to the input. When calling
+    `run()` from a solver, copy the returned state back into the
+    `TaskState` (e.g. `state.messages = agent_state.messages` and
+    `state.output = agent_state.output`) if the agent's conversation and
+    output should be reflected in the sample (`as_solver()` does this
+    automatically).
 
     Args:
         agent: Agent to run.
@@ -89,8 +96,8 @@ async def run(
     # run the agent with limits, catching errors which are a direct result of our limits
     with apply_limits(limits or [], catch_errors=True) as limit_scope:
         # run the agent
-        agent_name = name or registry_unqualified_name(agent)
-        async with span(name=agent_name, type="agent", id=span_id):
+        agent_name = name or agent_display_name(agent)
+        async with span(name=agent_name, type=AGENT_SPAN_TYPE, id=span_id):
             state = await agent(state, **agent_kwargs)
             if limits is None:
                 return state

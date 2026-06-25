@@ -193,12 +193,18 @@ class TaskSandboxEnvironment(NamedTuple):
 
 
 async def resolve_sandbox_for_task_and_sample(
-    eval_sandbox: SandboxEnvironmentSpec | None,
+    sandbox: SandboxEnvironmentSpec | None,
     task: Task,
     sample: Sample,
 ) -> TaskSandboxEnvironment | None:
-    # eval_sandbox overrides task or sample sandbox
-    sandbox = eval_sandbox or await resolve_sandbox(task.sandbox, sample)
+    # `sandbox` is the task's already-resolved sandbox (i.e. `ResolvedTask.sandbox`),
+    # which has had any eval-level override (`--sandbox <provider>`) and implicit
+    # config-file resolution applied by resolve_task_sandbox(). We layer the
+    # per-sample sandbox on top exactly as the execution path does
+    # (sandboxenv_context() -> resolve_sandbox()), so that the set of sandboxes we
+    # initialize here matches what each sample actually uses at runtime -- including
+    # docker-compatible per-sample configs (e.g. a per-sample ComposeConfig).
+    sandbox = await resolve_sandbox(sandbox, sample)
     if sandbox is not None:
         # see if there are environment variables required for init of this sample
         run_dir = task_run_dir(task)
@@ -253,24 +259,27 @@ async def resolve_sandbox(
 
 async def _retrying_httpx_get(
     url: str,
-    client: httpx.AsyncClient = httpx.AsyncClient(),
+    client: httpx.AsyncClient | None = None,
     timeout: int = 30,  # per-attempt timeout
     max_retries: int = 10,
     total_timeout: int = 120,  #  timeout for the whole retry loop. not for an individual attempt
 ) -> bytes:
-    @retry(
-        wait=wait_exponential_jitter(),
-        stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),
-        retry=retry_if_exception(httpx_should_retry),
-        before_sleep=log_httpx_retry_attempt(url),
-    )
-    async def do_get() -> bytes:
-        response = await client.get(
-            url=url,
-            follow_redirects=True,
-            timeout=(timeout, timeout, timeout, timeout),
-        )
-        response.raise_for_status()
-        return response.content
+    client = client or httpx.AsyncClient()
+    async with client:
 
-    return await do_get()
+        @retry(
+            wait=wait_exponential_jitter(),
+            stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),
+            retry=retry_if_exception(httpx_should_retry),
+            before_sleep=log_httpx_retry_attempt(url),
+        )
+        async def do_get() -> bytes:
+            response = await client.get(
+                url=url,
+                follow_redirects=True,
+                timeout=(timeout, timeout, timeout, timeout),
+            )
+            response.raise_for_status()
+            return response.content
+
+        return await do_get()

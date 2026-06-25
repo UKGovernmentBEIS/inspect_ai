@@ -9,6 +9,18 @@ description: Customize Inspect view behavior.
 ## Scanner Results
 ### ScannerResultView
 
+## Sample Score Panel
+### SampleScoreView
+### SampleScoreViewSort
+
+## Sample List
+### TaskSamplesView
+### TaskSamplesColumn
+### TaskSamplesSort
+
+## Score Colors
+### ScoreColorScale
+
 ## Fields
 ### MetadataField
 ### ScannerResultField

@@ -1,4 +1,5 @@
 import base64
+import re
 from logging import getLogger
 from typing import Any, Literal, Tuple, Union, cast
 
@@ -15,13 +16,18 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
-from inspect_ai.util._json import json_schema_dump
+from inspect_ai.util._json import (
+    JSON_SCHEMA_EXTENDED_FIELDS,
+    JSONSchema,
+    json_schema_dump,
+)
 
 from .._chat_message import (
     ChatMessage,
@@ -33,7 +39,14 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+    StopCategory,
+    StopDetails,
+    collect_stop_details,
+)
 from .util import (
     model_base_url,
 )
@@ -250,6 +263,29 @@ class ConverseClientConverseRequest(BaseModel):
     additionalModelResponseFieldPaths: list[str] = []
 
 
+def _lock_object_additional_properties(schema: JSONSchema) -> None:
+    """Set `additionalProperties: false` on object nodes only.
+
+    Bedrock's structured-output grammar compiler requires objects to forbid
+    extra properties, but rejects `additionalProperties` on `anyOf` nodes (how
+    optional/union fields are expressed). Setting it only on objects keeps
+    optional fields working. This matches the object-only handling in the
+    OpenAI and Anthropic SDKs; it is done locally here rather than via the
+    shared `set_additional_properties_false` (which stamps every node) because
+    only Bedrock's compiler is strict enough to reject the looser shape.
+    """
+    if schema.type == "object" or schema.properties:
+        schema.additionalProperties = False
+    if schema.items:
+        _lock_object_additional_properties(schema.items)
+    if schema.properties:
+        for prop_schema in schema.properties.values():
+            _lock_object_additional_properties(prop_schema)
+    if schema.anyOf:
+        for any_schema in schema.anyOf:
+            _lock_object_additional_properties(any_schema)
+
+
 class BedrockAPI(ModelAPI):
     def __init__(
         self,
@@ -312,13 +348,17 @@ class BedrockAPI(ModelAPI):
 
     @override
     def max_tokens(self) -> int | None:
-        if "llama3-70" in self.model_name or "llama3-8" in self.model_name:
+        family = self.model_family().lower()
+        if any(
+            name in family
+            for name in ("llama3-70", "llama3-8", "llama-3-70", "llama-3-8")
+        ):
             return 2048
 
-        if "llama3" in self.model_name or "claude3" in self.model_name:
+        if any(name in family for name in ("llama3", "llama-3", "claude3", "claude-3")):
             return 4096
 
-        elif "mistral-large" in self.model_name:
+        elif "mistral-large" in family:
             return 8192
 
         # Other models will just the default
@@ -413,13 +453,37 @@ class BedrockAPI(ModelAPI):
         return False
 
     def is_gpt_oss(self) -> bool:
-        return "gpt-oss" in self.model_name
+        return "gpt-oss" in self.model_family().lower()
 
     def is_claude(self) -> bool:
-        return "claude" in self.model_name
+        return "claude" in self.model_family().lower()
 
     def is_nova(self) -> bool:
-        return "nova" in self.model_name
+        return "nova" in self.model_family().lower()
+
+    def _is_claude_4_x(self, x: int) -> bool:
+        # bedrock model ids look like
+        # `anthropic.claude-opus-4-7-20260101-v1:0` or
+        # `eu.anthropic.claude-opus-4-7-...` for cross-region inference profiles.
+        return (
+            re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.model_family()) is not None
+        )
+
+    def is_claude_4_7_or_later(self) -> bool:
+        # mirrors the gating used in the native anthropic provider:
+        # claude 4.7+ runs adaptive-thinking-only and rejects temperature /
+        # top_p / top_k. assume future minor versions of claude 4 keep the
+        # 4.7 capability set unless a specific older minor is matched.
+        if not self.is_claude():
+            return False
+        if self._is_claude_4_x(7):
+            return True
+        # future claude 4 minor not yet recognised
+        if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
+            recognised = any(self._is_claude_4_x(x) for x in (0, 1, 5, 6))
+            if not recognised:
+                return True
+        return False
 
     async def generate(
         self,
@@ -458,17 +522,39 @@ class BedrockAPI(ModelAPI):
                 input, emulate_reasoning=self.is_claude()
             )
 
+            # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
+            # parameters; only maxTokens is accepted. Mirror the gating used
+            # in the native anthropic provider. See issue #3766.
+            forbid_sampling_params = self.is_claude_4_7_or_later()
+
             # additional model request fields
-            additionalModelRequestFields: dict[str, Any] = {}
-            if config.top_k:
-                additionalModelRequestFields["top_k"] = config.top_k
+            additionalModelRequestFields = self._additional_model_request_fields(
+                config, forbid_sampling_params
+            )
             reasoning_cfg = self.reasoning_config(config)
             additionalModelRequestFields = additionalModelRequestFields | reasoning_cfg
 
-            # Nova with reasoning enabled requires maxTokens to be unset
-            nova_reasoning_enabled = (
-                self.is_nova() and "reasoningConfig" in reasoning_cfg
+            # Nova with reasoning at "high" effort requires maxTokens to be unset.
+            # Lower effort levels ("low", "medium") still accept maxTokens, so we
+            # must only omit it for the "high" case. See issue #3767.
+            nova_high_effort_reasoning = (
+                self.is_nova()
+                and reasoning_cfg.get("reasoningConfig", {}).get("maxReasoningEffort")
+                == "high"
             )
+
+            # Gate temperature / top_p for adaptive-thinking-only models.
+            if forbid_sampling_params and config.temperature is not None:
+                warn_once(logger, self._sampling_param_warning("temperature"))
+                inference_temperature: float | None = None
+            else:
+                inference_temperature = config.temperature
+
+            if forbid_sampling_params and config.top_p is not None:
+                warn_once(logger, self._sampling_param_warning("top_p"))
+                inference_top_p: float | None = None
+            else:
+                inference_top_p = config.top_p
 
             # Make the request
             request = ConverseClientConverseRequest(
@@ -476,9 +562,9 @@ class BedrockAPI(ModelAPI):
                 messages=messages,
                 system=system,
                 inferenceConfig=ConverseInferenceConfig(
-                    maxTokens=None if nova_reasoning_enabled else config.max_tokens,
-                    temperature=config.temperature,
-                    topP=config.top_p,
+                    maxTokens=None if nova_high_effort_reasoning else config.max_tokens,
+                    temperature=inference_temperature,
+                    topP=inference_top_p,
                     stopSequences=config.stop_seqs,
                 ),
                 additionalModelRequestFields=additionalModelRequestFields,
@@ -529,6 +615,48 @@ class BedrockAPI(ModelAPI):
 
         # return
         return output, model_call
+
+    def _sampling_param_warning(self, parameter: str) -> str:
+        return (
+            f"bedrock model '{self.model_name}' does not support the "
+            f"'{parameter}' parameter (adaptive thinking only)."
+        )
+
+    def _additional_model_request_fields(
+        self, config: GenerateConfig, forbid_sampling_params: bool
+    ) -> dict[str, Any]:
+        fields: dict[str, Any] = {}
+
+        if config.top_k:
+            if forbid_sampling_params:
+                warn_once(logger, self._sampling_param_warning("top_k"))
+            elif self.is_nova():
+                fields["inferenceConfig"] = {"topK": config.top_k}
+            else:
+                fields["top_k"] = config.top_k
+
+        # Structured output: Claude on Bedrock honours `output_config.format`,
+        # the Converse-API analogue of the native Anthropic provider's
+        # `output_format`. Other Bedrock models don't support it, so warn
+        # rather than silently dropping the user's schema.
+        if config.response_schema is not None:
+            if self.is_claude():
+                schema = config.response_schema.json_schema.model_copy(deep=True)
+                _lock_object_additional_properties(schema)
+                fields.setdefault("output_config", {})["format"] = {
+                    "type": "json_schema",
+                    "schema": json_schema_dump(
+                        schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS
+                    ),
+                }
+            else:
+                warn_once(
+                    logger,
+                    f"bedrock model '{self.model_name}' does not support "
+                    "structured output (response_schema); ignoring it.",
+                )
+
+        return fields
 
     def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
         if self.is_gpt_oss():
@@ -614,6 +742,9 @@ def model_output_from_response(
             content=content, tool_calls=tool_calls, model=model, source="generate"
         ),
         stop_reason=message_stop_reason(response.stopReason),
+        stop_details=collect_stop_details(
+            "bedrock", logger, lambda: bedrock_stop_details(response)
+        ),
     )
 
     # Compute usage
@@ -661,6 +792,67 @@ def message_stop_reason(
             return "unknown"
         case _:
             return "unknown"
+
+
+def _bedrock_guardrail_assessments(trace: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten guardrail input/output assessments from a Converse `trace`."""
+    guardrail = trace.get("guardrail")
+    if not isinstance(guardrail, dict):
+        return []
+    assessments: list[dict[str, Any]] = []
+    # inputAssessment: {guardrailId: assessment}
+    input_assessment = guardrail.get("inputAssessment")
+    if isinstance(input_assessment, dict):
+        assessments.extend(v for v in input_assessment.values() if isinstance(v, dict))
+    # outputAssessments: {guardrailId: [assessment, ...]}
+    output_assessments = guardrail.get("outputAssessments")
+    if isinstance(output_assessments, dict):
+        for value in output_assessments.values():
+            if isinstance(value, list):
+                assessments.extend(a for a in value if isinstance(a, dict))
+            elif isinstance(value, dict):
+                assessments.append(value)
+    return assessments
+
+
+def bedrock_stop_details(response: ConverseResponse) -> StopDetails | None:
+    """Extract guardrail/content-filter detail from a Converse response.
+
+    The guardrail `trace` is only populated when a guardrail was configured with
+    tracing enabled; otherwise there is no per-category detail to report.
+    """
+    if response.stopReason not in ("guardrail_intervened", "content_filtered"):
+        return None
+    trace = response.trace or {}
+    categories: list[StopCategory] = []
+    for assessment in _bedrock_guardrail_assessments(trace):
+        # content policy: harm categories with a confidence level
+        content_policy = assessment.get("contentPolicy")
+        if isinstance(content_policy, dict):
+            for f in content_policy.get("filters", []) or []:
+                if isinstance(f, dict) and (
+                    f.get("action") == "BLOCKED" or f.get("detected")
+                ):
+                    confidence = f.get("confidence")
+                    categories.append(
+                        StopCategory(
+                            category=str(f.get("type", "unknown")),
+                            level=str(confidence) if confidence else None,
+                        )
+                    )
+        # topic policy: named denied topics
+        topic_policy = assessment.get("topicPolicy")
+        if isinstance(topic_policy, dict):
+            for t in topic_policy.get("topics", []) or []:
+                if isinstance(t, dict) and (
+                    t.get("action") == "BLOCKED" or t.get("detected")
+                ):
+                    name = t.get("name")
+                    if name:
+                        categories.append(StopCategory(category=str(name)))
+    if not categories:
+        return None
+    return StopDetails(type=response.stopReason, categories=categories)
 
 
 def as_converse_system_messages(

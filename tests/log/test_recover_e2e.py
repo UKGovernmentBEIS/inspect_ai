@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
@@ -88,17 +89,9 @@ def _make_realistic_sample(
     )
 
 
-_DEAD_PID = 99999999
-
-
 def _simulate_crashed_buffer(buffer: SampleBufferDatabase) -> None:
-    """Rename the buffer DB to use a dead PID, simulating a crashed process."""
-    old_path = buffer.db_path
-    new_path = old_path.parent / old_path.name.replace(
-        f".{os.getpid()}.", f".{_DEAD_PID}."
-    )
-    old_path.rename(new_path)
-    buffer.db_path = new_path
+    """Snapshot the buffer DB (incl. hot WAL) under a dead PID, simulating a crash."""
+    simulate_crashed_buffer_db(buffer)
 
 
 def _make_model_event(input_msgs: list[ChatMessage], output_content: str) -> ModelEvent:
@@ -924,3 +917,173 @@ def test_sync_recover_eval_log() -> None:
         assert log.status == "error"
         assert log.samples is not None
         assert len(log.samples) == 2
+
+
+async def test_streaming_recovery_synthesizes_uuid_for_in_progress_sample() -> None:
+    """Filestore-based recovery synthesizes uuid for uuid-less in-progress samples.
+
+    An in-progress sample whose buffer row has no uuid should still be
+    recovered with a synthesized uuid.
+    """
+    import json
+    from zipfile import ZipFile
+
+    from pydantic_core import to_jsonable_python
+
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._recorders.buffer.filestore import (
+        Manifest,
+        SampleManifest,
+        Segment,
+        segment_file_name,
+        segment_name,
+    )
+    from inspect_ai.log._recorders.buffer.types import EventData, SampleData
+    from inspect_ai.log._recorders.eval import LogStart
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "fs_recover.eval")
+            output_path = os.path.join(temp_dir, "fs_recover-recovered.eval")
+
+            eval_spec = _make_eval_spec(task="fs_uuid_test", num_samples=1)
+            plan = EvalPlan()
+            log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
+
+            # Write a minimal crashed .eval file (no header.json)
+            with ZipFile(eval_path, "w") as zf:
+                zf.writestr(
+                    "_journal/start.json",
+                    json.dumps(to_jsonable_python(log_start, exclude_none=True)),
+                )
+
+            # Build a filestore buffer directory for this eval manually
+            # (mirrors _create_filestore_fixture from test_recover_filestore.py)
+            eval_name = os.path.splitext(os.path.basename(eval_path))[0]
+            buffer_dir = os.path.join(temp_dir, ".buffer", eval_name)
+            os.makedirs(buffer_dir, exist_ok=True)
+
+            # Create an in-progress summary with uuid=None (legacy row)
+            in_progress = EvalSampleSummary(
+                id=42,
+                epoch=1,
+                input="Question 42",
+                target="answer",
+                started_at=datetime.now(timezone.utc).isoformat(),
+                # uuid intentionally omitted — simulates old buffer rows
+            )
+            assert in_progress.uuid is None
+
+            # Create a model event for this sample
+            model_event = _make_model_event([ChatMessageUser(content="hi")], "hi back")
+            event_dict = to_jsonable_python(
+                model_event,
+                exclude_none=True,
+            )
+
+            # Write one segment zip for the sample
+            sample_data = SampleData(
+                events=[
+                    EventData(
+                        id=1,
+                        event_id="evt-1-0",
+                        sample_id=str(in_progress.id),
+                        epoch=in_progress.epoch,
+                        event=event_dict,
+                    )
+                ],
+                attachments=[],
+            )
+            seg_zip_path = os.path.join(buffer_dir, segment_name(1))
+            with ZipFile(seg_zip_path, "w") as zf:
+                zf.writestr(
+                    segment_file_name(in_progress.id, in_progress.epoch),
+                    json.dumps(to_jsonable_python(sample_data, exclude_none=True)),
+                )
+
+            # Write manifest listing this sample as in-progress (no completed_at)
+            manifest = Manifest(
+                samples=[
+                    SampleManifest(
+                        summary=in_progress,
+                        segments=[1],
+                    )
+                ],
+                segments=[Segment(id=1, last_event_id=1, last_attachment_id=0)],
+            )
+            with open(os.path.join(buffer_dir, "manifest.json"), "w") as f:
+                f.write(manifest.model_dump_json())
+            with open(os.path.join(buffer_dir, ".keep"), "w") as f:
+                pass
+
+            # Recover — no SQLite DB; filestore fallback kicks in
+            empty_db_dir = os.path.join(temp_dir, "empty_db_dir")
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=empty_db_dir,
+            )
+
+            assert log.samples is not None
+            assert len(log.samples) == 1
+
+            recovered = read_eval_log(output_path, resolve_attachments=True)
+            assert recovered.samples is not None
+            target = next(s for s in recovered.samples if s.id == 42 and s.epoch == 1)
+            assert target.uuid is not None
+            assert len(target.uuid) >= 20
+
+
+async def test_recovery_preserves_uuid_from_in_progress_buffer_row() -> None:
+    """If start_sample is given a uuid, recovery preserves it (no fallback fires)."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "uuid_roundtrip.eval")
+            output_path = os.path.join(temp_dir, "uuid_roundtrip-recovered.eval")
+
+            eval_spec = _make_eval_spec(num_samples=1)
+            plan = EvalPlan()
+            log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
+
+            zip_log = ZipLogFile(eval_path)
+            await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+            await zip_log.start(log_start)
+            await zip_log.flush()
+
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            try:
+                expected_uuid = "myStateUUID0123456789a"
+                in_progress = EvalSampleSummary(
+                    id=7,
+                    epoch=1,
+                    input="Q7",
+                    target="A7",
+                    uuid=expected_uuid,
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                )
+                buffer.start_sample(in_progress)
+                buffer.log_events(
+                    [
+                        SampleEvent(
+                            id=7,
+                            epoch=1,
+                            event=_make_model_event(
+                                [ChatMessageUser(content="Q7")], "A7"
+                            ),
+                        )
+                    ]
+                )
+                _simulate_crashed_buffer(buffer)
+
+                await recover_eval_log_async(
+                    eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+                )
+            finally:
+                buffer.cleanup()
+
+            recovered = read_eval_log(output_path, resolve_attachments=True)
+            assert recovered.samples is not None
+            target = next(s for s in recovered.samples if s.id == 7 and s.epoch == 1)
+            assert target.uuid == expected_uuid

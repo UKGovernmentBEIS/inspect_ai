@@ -60,7 +60,7 @@ $ inspect eval-set mmlu.py mathematics.py \
 
 ### Concurrency
 
-By default, `eval_set()` will run multiple tasks in parallel, using the greater of 4 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
+By default, `eval_set()` will run multiple tasks in parallel, using the greater of 10 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
 
 Use the `max_tasks` option to override the default behavior:
 
@@ -110,9 +110,9 @@ There are a number of options that control the retry behaviour of eval sets:
 | **Option** | Description |
 |------------------------------------|------------------------------------|
 | `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
-| `--retry-immediate` | Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored. |
-| `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
-| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 1.0, which results in no reduction) |
+| `--retry-immediate` / `--no-retry-immediate` | Immediately retry tasks as they fail without waiting for all tasks to complete (the default). Pass `--no-retry-immediate` for legacy batch-retry behavior. When in effect, `--retry-wait` and `--retry-connections` are ignored. |
+| `--retry-wait` | Time to wait between attempts when `--no-retry-immediate` is set, increased exponentially (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Ignored under the default `--retry-immediate` mode. |
+| `--retry-connections` | Reduce max connections at this rate with each retry when `--no-retry-immediate` is set (defaults to 1.0, which results in no reduction). Ignored under the default `--retry-immediate` mode. |
 | `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
 
 : {tbl-colwidths=\[40,60\]}
@@ -147,6 +147,18 @@ You can bundle a standalone version of the log viewer for an eval set using the 
 : {tbl-colwidths=\[40,60\]}
 
 The bundle directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the log viewer for the eval set. See the section on [Log Viewer Publishing](log-viewer.qmd#sec-publishing) for additional details.
+
+## Inspect Flow
+
+Eval sets handle running, retrying, and tracking a set of tasks. As that work grows (many tasks across many models with varying parameters, then reviewing and promoting the results), you may want more structure than ad-hoc scripts provide. [Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/) is a companion package for running and managing evaluations at scale, built on top of eval sets. It provides:
+
+- Declarative, type-safe specs that define an evaluation across tasks, models, and parameters.
+- Matrix parameter sweeps for systematic exploration across tasks, models, and hyperparameters.
+- Reusable defaults with automatic inheritance, so common settings are configured once.
+- A Flow Store that indexes evaluation logs and reuses them across runs and directories.
+- Composable post-evaluation steps to tag, validate, and promote logs.
+
+See the [Inspect Flow documentation](https://meridianlabs-ai.github.io/inspect_flow/) to learn more.
 
 ## Logging Context
 

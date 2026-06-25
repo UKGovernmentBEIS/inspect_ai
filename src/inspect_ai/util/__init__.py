@@ -7,6 +7,7 @@ from inspect_ai._util.registry import (
     registry_create,
     registry_info,
 )
+from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
@@ -17,12 +18,27 @@ from inspect_ai.util._limit import (
     cost_limit,
     message_limit,
     sample_limits,
+    suspend_token_limit,
+    suspend_turn_limit,
     time_limit,
     token_limit,
+    turn_limit,
     working_limit,
 )
 
 from ._background import background
+from ._checkpoint import (
+    CheckpointConfig,
+    Checkpointer,
+    CheckpointSampleConfig,
+    CheckpointTrigger,
+    Manual,
+    TimeInterval,
+    TokenInterval,
+    TurnInterval,
+    checkpointer,
+    current_checkpointer,
+)
 from ._collect import collect
 from ._concurrency import AdaptiveConcurrency, concurrency
 from ._console import input_screen
@@ -32,7 +48,9 @@ from ._early_stopping import (
     EarlyStopping,
     EarlyStoppingSummary,
 )
+from ._input import InputOutcome, InputRequest, InputResult, request_input
 from ._json import JSONSchema, JSONType, json_schema
+from ._notify import notify
 from ._panel import InputPanel, input_panel
 from ._resource import resource
 from ._sandbox import (
@@ -64,7 +82,7 @@ from ._sandbox import (
     sandbox_with,
     sandboxenv,
 )
-from ._span import current_span_id, span
+from ._span import SpanIdProvider, current_span_id, span, span_id_provider
 from ._store import Store, store, store_from_events, store_from_events_as
 from ._store_model import StoreModel, store_as
 from ._subprocess import (
@@ -92,16 +110,21 @@ __all__ = [
     "DisplayType",
     "display_counter",
     "display_type",
+    "InputOutcome",
     "InputPanel",
+    "InputRequest",
+    "InputResult",
     "input_panel",
     "input_screen",
     "is_compose_yaml",
     "is_dockerfile",
     "JSONType",
     "JSONSchema",
+    "StrEnum",
     "json_schema",
     "Limit",
     "message_limit",
+    "notify",
     "OutputLimitExceededError",
     "parse_compose_yaml",
     "resource",
@@ -128,13 +151,18 @@ __all__ = [
     "store_as",
     "span",
     "current_span_id",
+    "span_id_provider",
+    "SpanIdProvider",
     "collect",
     "Subtask",
     "subtask",
     "throttle",
     "background",
     "cost_limit",
+    "suspend_token_limit",
+    "suspend_turn_limit",
     "token_limit",
+    "turn_limit",
     "time_limit",
     "working_limit",
     "trace_action",
@@ -144,6 +172,7 @@ __all__ = [
     "RegistryType",
     "registry_create",
     "registry_info",
+    "request_input",
     "EarlyStopping",
     "EarlyStop",
     "EarlyStoppingSummary",
@@ -154,4 +183,14 @@ __all__ = [
     "ExecRemoteStreamingOptions",
     "ExecStderr",
     "ExecStdout",
+    "checkpointer",
+    "current_checkpointer",
+    "Checkpointer",
+    "CheckpointConfig",
+    "CheckpointSampleConfig",
+    "CheckpointTrigger",
+    "Manual",
+    "TimeInterval",
+    "TokenInterval",
+    "TurnInterval",
 ]
