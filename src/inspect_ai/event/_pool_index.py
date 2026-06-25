@@ -64,7 +64,7 @@ from . import (
     _pool,  # accessed as module attributes so monkeypatching _pool._msg_hash is visible here
 )
 from ._model import ModelEvent
-from ._pool import _CALL_MESSAGE_KEYS, _compress_refs
+from ._pool import _CALL_MESSAGE_KEYS, _compress_refs, _strict_eq
 
 _BUCKET_CONTENT_LIMIT = 256 * 1024
 """Max single content-string length (bytes) for a message to be bucketed.
@@ -91,51 +91,6 @@ tool code can populate with cyclic or pathologically nested structures.
 Capping out reports heavy — the safe direction (the message just isn't
 bucketed).
 """
-
-
-def _strict_eq(a: object, b: object) -> bool:
-    """Equality that distinguishes values with different JSON serializations.
-
-    Python ``==`` conflates values the pool hashes distinguish: ``0 == 0.0``
-    and ``True == 1``, but ``json.dumps`` emits different bytes for each, so
-    ``_msg_hash``/``_call_hash`` differ. An ``==``-based merge of such values
-    would reuse a pool entry whose stored bytes round-trip to the *other*
-    value — silent data corruption. This comparison requires matching types
-    for scalars (recursing into models, dataclasses, dicts, and lists), so a
-    merge implies identical serialization.
-    """
-    if a is b:
-        return True
-    ta, tb = type(a), type(b)
-    if ta is not tb:
-        return False
-    if isinstance(a, BaseModel):
-        return _strict_eq(a.__dict__, b.__dict__)  # type: ignore[attr-defined]
-    if dataclasses.is_dataclass(a) and not isinstance(a, type):
-        return _strict_eq(vars(a), vars(b))
-    if ta is dict:
-        assert isinstance(a, dict) and isinstance(b, dict)
-        if len(a) != len(b):
-            return False
-        sentinel = object()
-        for k, v in a.items():
-            other = b.get(k, sentinel)
-            if other is sentinel or not _strict_eq(v, other):
-                return False
-            # dict lookup matches keys by ==, which conflates 0/0.0 and
-            # True/1 on the key axis just like values ({0: x} and {0.0: x}
-            # serialize to different JSON); str keys (the JSON-bound common
-            # case) cannot ==-collide across types, so only non-str keys
-            # need their counterpart's type checked
-            if type(k) is not str and not any(
-                bk == k and type(bk) is type(k) for bk in b
-            ):
-                return False
-        return True
-    if ta is list or ta is tuple:
-        assert isinstance(a, (list, tuple)) and isinstance(b, (list, tuple))
-        return len(a) == len(b) and all(_strict_eq(x, y) for x, y in zip(a, b))
-    return a == b
 
 
 def _has_heavy_str(value: object, depth: int = 0) -> bool:
