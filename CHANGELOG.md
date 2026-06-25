@@ -21,9 +21,11 @@
 - Inspect view: Fix event panel nav pills never expanding back from picker mode
 - Inspect view: Fix inline MathJax stacking under inherited white-space: pre-wrap
 - Inspect view: guard Inspect view mutation requests
+- Scoring: Support `model` and `model_roles` overrides for re-scoring (`inspect score --model` / `--model-role`).
 - Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
-- Buf fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
+- Bug fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bug fix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
+- Security: `git_context()` now redacts credentials embedded in the git remote URL (e.g. `https://user:token@host`) before recording `origin`, preventing tokens from leaking into eval logs and downstream consumers.
 - Security: Apply the `data` tar filter when extracting sandbox checkpoint egress tarballs on the host, preventing a sandboxed agent from writing files outside the destination repo via crafted `..`/absolute-path/symlink entries.
 
 ## 0.3.241 (22 June 2026)
@@ -36,6 +38,7 @@
 - MCP: Bound sandbox MCP `call_tool` with `read_timeout_seconds` so a lost response surfaces to the model as a tool timeout error instead of deadlocking the tool call.
 - Scoring: Restore sample.timelines into transcript on re-score.
 - Scoring: `mean()` now maps `Value` to float via `value_to_float()` like the other built-in metrics.
+- Scoring: Fix `mean`/`median`/`pass_at`/`pass_k` epoch reducers applying a custom `value_to_float` twice to dict-valued scores.
 - Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs
 - Eval Log: `read_eval_log`, `read_eval_log_async`, and `samples_df` now accept `exclude_fields` for more memory-efficient loading of large samples.
 - Sandbox: Preserve docker-compatible per-sample sandbox config (e.g. a per-sample `ComposeConfig`) when an eval-level sandbox override (`--sandbox <provider>`) is passed without its own config.
