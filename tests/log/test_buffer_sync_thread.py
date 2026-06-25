@@ -496,6 +496,21 @@ def test_base_exception_finalizes_sync_worker_state(
 
     monkeypatch.setattr(database_module, "sync_to_filestore", sync_that_stops)
 
+    # The shared_db fixture's start_sample() spawns a live background sync
+    # worker. Shut it down before driving _sync_to_filestore() synchronously,
+    # otherwise that worker can win the race for the forced-due sync request,
+    # consume it, and exit — leaving this thread's direct call blocked forever
+    # in _sync_wakeup.wait(timeout=None).
+    with shared_db._sync_lock:
+        shared_db._sync_closed = True
+        shared_db._sync_wakeup.notify_all()
+        background_worker = shared_db._sync_thread
+    if background_worker is not None and (
+        background_worker is not threading.current_thread()
+    ):
+        background_worker.join(timeout=5)
+    shared_db._sync_closed = False
+
     shared_db._sync_thread = threading.current_thread()
     shared_db._sync_requested = True
     shared_db._sync_pending = True

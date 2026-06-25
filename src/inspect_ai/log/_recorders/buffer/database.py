@@ -29,9 +29,15 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
+    _call_pool_json,
     _compress_refs,
-    condense_model_event_calls,
-    condense_model_event_inputs,
+    _msg_pool_json,
+    _msg_pool_jsonable,
+)
+from inspect_ai.event._pool_index import (
+    CallPoolIndex,
+    MessagePoolIndex,
+    condense_model_event_with_indices,
 )
 from inspect_ai.log._recorders.buffer.history import SampleHistory
 from inspect_ai.model import ChatMessage
@@ -40,9 +46,11 @@ from ..._condense import (
     ATTACHMENT_PROTOCOL,
     WalkContext,
     attachments_content_fn,
+    walk_chat_message,
     walk_events,
     walk_input,
     walk_json_dict,
+    walk_json_value,
 )
 from ..._log import EvalSampleSummary
 from ..types import SampleEvent
@@ -225,9 +233,9 @@ class SampleBufferDatabase(SampleBuffer):
             else:
                 raise FileNotFoundError("Log database for '{location}' not found.")
 
-        # Per-sample hash → pool index maps; full pool entries live in SQLite.
-        self._msg_indices: dict[tuple[str, int], dict[str, int]] = {}
-        self._call_indices: dict[tuple[str, int], dict[str, int]] = {}
+        # Per-sample pool indices; full pool entries live in SQLite.
+        self._msg_indices: dict[tuple[str, int], MessagePoolIndex] = {}
+        self._call_indices: dict[tuple[str, int], CallPoolIndex] = {}
 
         # Prevent late ModelEvents from restarting indices at 0 after completion.
         self._completed_samples: set[tuple[str, int]] = set()
@@ -263,21 +271,24 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def log_events(self, events: list[SampleEvent]) -> None:
-        index_snapshots: dict[
-            tuple[str, int], tuple[dict[str, int] | None, dict[str, int] | None]
-        ] = {}
+        # `None` mark = the index didn't exist before this batch (pop on restore)
+        index_snapshots: dict[tuple[str, int], tuple[int | None, int | None]] = {}
 
         def restore_index_snapshots() -> None:
-            for key, (msg_index, call_index) in index_snapshots.items():
-                if msg_index is None:
+            for key, (msg_mark, call_mark) in index_snapshots.items():
+                if msg_mark is None:
                     self._msg_indices.pop(key, None)
                 else:
-                    self._msg_indices[key] = msg_index
+                    msg_index = self._msg_indices.get(key)
+                    if msg_index is not None:
+                        msg_index.restore(msg_mark)
 
-                if call_index is None:
+                if call_mark is None:
                     self._call_indices.pop(key, None)
                 else:
-                    self._call_indices[key] = call_index
+                    call_index = self._call_indices.get(key)
+                    if call_index is not None:
+                        call_index.restore(call_mark)
 
         with self._get_connection(
             write=True, on_rollback=restore_index_snapshots
@@ -291,8 +302,8 @@ class SampleBufferDatabase(SampleBuffer):
                         msg_index = self._msg_indices.get(key)
                         call_index = self._call_indices.get(key)
                         index_snapshots[key] = (
-                            None if msg_index is None else dict(msg_index),
-                            None if call_index is None else dict(call_index),
+                            None if msg_index is None else msg_index.mark(),
+                            None if call_index is None else call_index.mark(),
                         )
 
                 event = self._condense_event(conn, event)
@@ -473,7 +484,7 @@ class SampleBufferDatabase(SampleBuffer):
     @classmethod
     @override
     def running_tasks(cls, log_dir: str) -> list[str] | None:
-        log_subdir = log_dir_hash(log_dir)
+        log_subdir = log_dir_hash(filesystem(log_dir).path_as_uri(log_dir))
         db_dir = resolve_db_dir() / log_subdir
 
         if db_dir.exists():
@@ -1182,7 +1193,7 @@ class SampleBufferDatabase(SampleBuffer):
 
         cursor = conn.execute(query, params)
 
-        message_cache: dict[str, ChatMessage] = {}
+        message_cache: dict[str, tuple[ChatMessage, ChatMessage]] = {}
 
         for row in cursor:
             event = json.loads(row["data"])
@@ -1394,6 +1405,9 @@ class SampleBufferDatabase(SampleBuffer):
         )
 
     def _condense_event(self, conn: Connection, event: SampleEvent) -> SampleEvent:
+        if isinstance(event.event, ModelEvent):
+            return self._condense_model_event(conn, event, event.event)
+
         # alias attachments
         attachments: dict[str, str] = {}
         event.event = walk_events(
@@ -1404,41 +1418,68 @@ class SampleBufferDatabase(SampleBuffer):
 
         # insert attachments
         self._insert_attachments(conn, event.id, event.epoch, attachments)
-
-        # message/call pool dedup for ModelEvents
-        if isinstance(event.event, ModelEvent):
-            key = (str(event.id), event.epoch)
-            if key in self._completed_samples:
-                raise RuntimeError(
-                    f"ModelEvent for sample {key} arrived after "
-                    "complete_sample; this would corrupt buffer DB pool "
-                    "indices."
-                )
-
-            # message pool
-            msg_index = self._msg_indices.get(key, {})
-            [condensed_event], msg_index, new_msgs = condense_model_event_inputs(
-                [event.event], len(msg_index), msg_index
-            )
-            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
-            for h, msg in new_msgs:
-                self._insert_message_pool_entry(conn, event.id, event.epoch, h, msg)
-            self._msg_indices[key] = msg_index
-
-            # call pool
-            call_index = self._call_indices.get(key, {})
-            [condensed_event], call_index, new_calls = condense_model_event_calls(
-                [event.event], len(call_index), call_index
-            )
-            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
-            for h, call_msg in new_calls:
-                self._insert_call_pool_entry(conn, event.id, event.epoch, h, call_msg)
-            self._call_indices[key] = call_index
-
         return event
 
+    def _condense_model_event(
+        self, conn: Connection, event: SampleEvent, model_event: ModelEvent
+    ) -> SampleEvent:
+        key = (str(event.id), event.epoch)
+        if key in self._completed_samples:
+            raise RuntimeError(
+                f"ModelEvent for sample {key} arrived after "
+                "complete_sample; this would corrupt buffer DB pool "
+                "indices."
+            )
+
+        msg_index = self._msg_indices.get(key)
+        if msg_index is None:
+            msg_index = self._msg_indices[key] = MessagePoolIndex()
+        call_index = self._call_indices.get(key)
+        if call_index is None:
+            call_index = self._call_indices[key] = CallPoolIndex()
+
+        attachments: dict[str, str] = {}
+        content_fn = self._create_attachments_content_fn(attachments)
+        context = WalkContext(message_cache={}, only_core=False)
+
+        # positions derive from index size: valid only because the condense
+        # helper registers each add_message/add_call result in the index
+        # before the next call (see condense_model_event_with_indices), so
+        # size == rows already inserted for this sample
+        def add_message(hash_value: str, walked: ChatMessage) -> int:
+            index = msg_index.size
+            self._insert_message_pool_entry(
+                conn, event.id, event.epoch, hash_value, walked
+            )
+            return index
+
+        def add_call(hash_value: str, walked: JsonValue) -> int:
+            index = call_index.size
+            self._insert_call_pool_entry(
+                conn, event.id, event.epoch, hash_value, walked
+            )
+            return index
+
+        condensed = condense_model_event_with_indices(
+            model_event,
+            messages=msg_index,
+            calls=call_index,
+            walk_message=lambda m: walk_chat_message(m, content_fn, context),
+            walk_call_message=lambda v: walk_json_value(v, content_fn, context),
+            add_message=add_message,
+            add_call=add_call,
+        )
+
+        # walk the remainder (input now [], call request without messages)
+        condensed_event = walk_events([condensed], content_fn, context)[0]
+        self._insert_attachments(conn, event.id, event.epoch, attachments)
+        return SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
+
     def _resolve_event_attachments(
-        self, conn: Connection, event: JsonData, message_cache: dict[str, ChatMessage]
+        self,
+        conn: Connection,
+        event: JsonData,
+        message_cache: dict[str, tuple[ChatMessage, ChatMessage]],
     ) -> JsonData:
         return walk_json_dict(
             event,
@@ -1491,7 +1532,7 @@ class SampleBufferDatabase(SampleBuffer):
     ) -> None:
         conn.execute(
             "INSERT OR IGNORE INTO message_pool (sample_id, sample_epoch, msg_id, data) VALUES (?, ?, ?, ?)",
-            (str(sample_id), epoch, msg_id, msg.model_dump_json()),
+            (str(sample_id), epoch, msg_id, _msg_pool_json(_msg_pool_jsonable(msg))),
         )
 
     def _insert_call_pool_entry(
@@ -1504,7 +1545,7 @@ class SampleBufferDatabase(SampleBuffer):
     ) -> None:
         conn.execute(
             "INSERT OR IGNORE INTO call_pool (sample_id, sample_epoch, hash, data) VALUES (?, ?, ?, ?)",
-            (str(sample_id), epoch, hash, json.dumps(call_msg)),
+            (str(sample_id), epoch, hash, _call_pool_json(call_msg)),
         )
 
     def _get_attachments_content(

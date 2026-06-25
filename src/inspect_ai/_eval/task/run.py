@@ -1025,6 +1025,19 @@ def _sample_usage(state: TaskState) -> dict[str, int]:
     }
 
 
+def _sample_started() -> float | None:
+    """The just-finished sample's start time, for the eval's running-min start.
+
+    Read from the same sample-scoped timing contextvar that backs the logged
+    ``started_at`` (set when the sample began, still in scope in the terminal
+    block). Passed to ``record_sample_*`` so the eval's reported start pins to
+    its first sample even when that sample finished before any control poll
+    (see ``EvalState.started_at``). ``None`` for a sample that never started.
+    """
+    started = sample_start_datetime()
+    return started.timestamp() if started is not None else None
+
+
 async def task_run_sample(
     *,
     task: Task,
@@ -1654,43 +1667,46 @@ async def task_run_sample(
                             include_events=include_events,
                         )
 
-                    if logger:
-                        # When the full event history is still resident in
-                        # memory we can log the sample directly from memory
-                        # rather than reading every event back out of the
-                        # realtime buffer DB and re-validating it. This is the
-                        # case whenever realtime logging is off (no buffer DB)
-                        # OR the transcript was not bounded-evicted (events
-                        # never exceeded the resident tail — the common case for
-                        # high-throughput runs). Only fall back to the streaming
-                        # read-back when events were actually evicted.
-                        log_from_memory = (
-                            logger.buffer_db is None
-                            or not sample_transcript.history.resident_events_truncated
+                    with anyio.CancelScope(
+                        shield=error is not None or cancelled_error is not None
+                    ):
+                        if logger:
+                            # When the full event history is still resident in
+                            # memory we can log the sample directly from memory
+                            # rather than reading every event back out of the
+                            # realtime buffer DB and re-validating it. This is the
+                            # case whenever realtime logging is off (no buffer DB)
+                            # OR the transcript was not bounded-evicted (events
+                            # never exceeded the resident tail — the common case for
+                            # high-throughput runs). Only fall back to the streaming
+                            # read-back when events were actually evicted.
+                            log_from_memory = (
+                                logger.buffer_db is None
+                                or not sample_transcript.history.resident_events_truncated
+                            )
+                            eval_sample = await log_sample(
+                                eval_sample=make_eval_sample(
+                                    include_events=log_from_memory
+                                ),
+                                logger=logger,
+                                log_images=log_images,
+                                from_memory=log_from_memory,
+                            )
+                        else:
+                            eval_sample = make_eval_sample()
+                        await scan_eval_sample(
+                            eval_sample,
+                            scanner,
+                            scan_id=scan_id,
+                            eval_id=task_id,
+                            log_location=log_location,
+                            model=str(state.model),
+                            eval_spec=logger.eval if logger else None,
                         )
-                        eval_sample = await log_sample(
-                            eval_sample=make_eval_sample(
-                                include_events=log_from_memory
-                            ),
-                            logger=logger,
-                            log_images=log_images,
-                            from_memory=log_from_memory,
+                        await emit_attempt_end(will_retry=False)
+                        await emit_sample_end(
+                            eval_set_id, run_id, task_id, state.uuid, eval_sample
                         )
-                    else:
-                        eval_sample = make_eval_sample()
-                    await scan_eval_sample(
-                        eval_sample,
-                        scanner,
-                        scan_id=scan_id,
-                        eval_id=task_id,
-                        log_location=log_location,
-                        model=str(state.model),
-                        eval_spec=logger.eval if logger else None,
-                    )
-                    await emit_attempt_end(will_retry=False)
-                    await emit_sample_end(
-                        eval_set_id, run_id, task_id, state.uuid, eval_sample
-                    )
                     # notify a TaskSource (if the run has one) as each sample
                     # completes, so it can react in real time (and add tasks)
                     if task_source is not None:
@@ -1764,7 +1780,9 @@ async def task_run_sample(
         # a cancelled sample is terminal but not a genuine error — count it so
         # the eval can reach `total` and be marked finished (eg. a final-attempt
         # failure that cancels an in-flight sibling)
-        record_sample_cancelled(task_id, **_sample_usage(state))
+        record_sample_cancelled(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise cancelled_error
 
     # no error
@@ -1772,17 +1790,23 @@ async def task_run_sample(
         # call sample_complete callback if we have score results
         if results is not None:
             await sample_complete(state.sample_id, state.epoch, results)
-        record_sample_completed(task_id, **_sample_usage(state))
+        record_sample_completed(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return results
 
     # we have an error and should raise it
     elif raise_error is not None:
-        record_sample_errored(task_id, **_sample_usage(state))
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise raise_error
 
     # we have an error and should not raise it
     else:
-        record_sample_errored(task_id, **_sample_usage(state))
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return None
 
 

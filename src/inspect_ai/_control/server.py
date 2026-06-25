@@ -486,9 +486,20 @@ class ControlServer:
                             "during shutdown",
                             exc_info=True,
                         )
-                except (asyncio.CancelledError, Exception):
-                    # serve() failed (or was cancelled) instead of draining
-                    # cleanly. Best-effort teardown: log and fall through to the
+                except asyncio.CancelledError:
+                    # The eval's cancel scope is tearing down (eg. a Ctrl-C with
+                    # samples in flight) — `wait_for` cancels and reaps the serve
+                    # task, then propagates the cancellation. This is an expected
+                    # teardown, not a server fault, so re-raise it to keep
+                    # structured cancellation intact rather than logging a
+                    # misleading "did not shut down cleanly" warning. The
+                    # `finally` below still runs, so discovery/socket cleanup
+                    # happens regardless.
+                    raise
+                except Exception:
+                    # serve() raised (rather than draining cleanly or being
+                    # cancelled) instead of shutting down — a genuine unclean
+                    # shutdown. Best-effort teardown: log and fall through to the
                     # discovery/socket cleanup in `finally` rather than masking
                     # it silently.
                     logger.warning(
