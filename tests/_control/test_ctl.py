@@ -436,12 +436,13 @@ def _stub_httpx(
     or a payload to return from ``response.json()``. Returns a dict whose
     ``"gets"`` entry counts how many requests were attempted.
     """
-    counter = {"gets": 0}
+    counter = {"gets": 0, "posts": 0}
     seq = list(sequence)
 
     class _Resp:
-        def __init__(self, payload: object) -> None:
+        def __init__(self, payload: object, status_code: int = 200) -> None:
             self._payload = payload
+            self.status_code = status_code
 
         def raise_for_status(self) -> None:
             pass
@@ -459,12 +460,18 @@ def _stub_httpx(
         def __exit__(self, *args: object) -> None:
             pass
 
-        def get(self, path: str, params: object = None) -> _Resp:
-            counter["gets"] += 1
+        def _next(self, kind: str) -> _Resp:
+            counter[kind] += 1
             item = seq.pop(0)
             if isinstance(item, Exception):
                 raise item
             return _Resp(item)
+
+        def get(self, path: str, params: object = None) -> _Resp:
+            return self._next("gets")
+
+        def post(self, path: str, params: object = None) -> _Resp:
+            return self._next("posts")
 
     monkeypatch.setattr("inspect_ai._cli.ctl.httpx.Client", _Client)
     monkeypatch.setattr("inspect_ai._cli.ctl.httpx.HTTPTransport", lambda *a, **k: None)
@@ -517,6 +524,49 @@ def test_get_with_retry_exhausts_and_exits(
     assert counter["gets"] == _REQUEST_ATTEMPTS
     err = capsys.readouterr().err
     assert f"gave up after {_REQUEST_ATTEMPTS} attempts" in err
+
+
+def test_buffer_read_retries_timeout_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A buffer read (GET) retries a busy eval on timeout, like the other reads."""
+    import httpx
+
+    from inspect_ai._cli.ctl import _fetch_buffer_config
+
+    counter = _stub_httpx(
+        monkeypatch,
+        [
+            httpx.ReadTimeout("slow"),
+            httpx.ReadTimeout("slow"),
+            {"log_buffer": 10, "pending": 2, "log_shared": None},
+        ],
+    )
+    config = _fetch_buffer_config(
+        "/tmp/x.sock", "e1", log_buffer=None, log_shared=None, set_values=False
+    )
+    assert config == {"log_buffer": 10, "pending": 2, "log_shared": None}
+    assert counter["gets"] == 3
+    assert counter["posts"] == 0
+    assert "retrying" in capsys.readouterr().err
+
+
+def test_buffer_set_does_not_retry_timeout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A buffer update (POST) is single-shot — a mutation must not be retried."""
+    import httpx
+
+    from inspect_ai._cli.ctl import _fetch_buffer_config
+
+    counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")])
+    with pytest.raises(click.exceptions.Exit) as exc_info:
+        _fetch_buffer_config(
+            "/tmp/x.sock", "e1", log_buffer=3, log_shared=None, set_values=True
+        )
+    assert exc_info.value.exit_code == 1
+    assert counter["posts"] == 1  # tried once, no retry
+    assert "Failed to update buffer config" in capsys.readouterr().err
 
 
 def test_get_with_retry_does_not_retry_connection_error(

@@ -575,6 +575,12 @@ def _post_to_server(socket_path: Path, path: str) -> None:
 _REQUEST_TIMEOUT = 15.0
 _REQUEST_ATTEMPTS = 8
 
+# A mutation (flush / buffer set) is issued once — it isn't idempotent, so it
+# must not be retried — but it gets the same total wall-clock budget a retried
+# read would consume (one attempt of `_REQUEST_ATTEMPTS * _REQUEST_TIMEOUT`, ie.
+# 2 min) so a slow remote (eg. S3) write isn't cut short.
+_MUTATION_TIMEOUT = _REQUEST_ATTEMPTS * _REQUEST_TIMEOUT
+
 
 class _ServerUnreachable(Exception):
     """A control read failed for a non-timeout reason.
@@ -589,20 +595,24 @@ class _ServerUnreachable(Exception):
     """
 
 
-def _get_with_retry(
+def _get_response_with_retry(
     socket_path: str | Path,
     path: str,
     *,
     params: dict[str, Any] | None = None,
     what: str,
-) -> Any:
-    """GET ``path`` from a control server over its UDS, retrying on timeout.
+) -> httpx.Response:
+    """GET ``path`` over the UDS, retrying a read timeout; return the response.
 
     Retries a read timeout up to ``_REQUEST_ATTEMPTS`` times, printing a status
     to the console (stderr, so ``--json`` stdout stays clean) on each — the eval
     is most likely just busy. On exhaustion, prints an error and exits non-zero.
-    Raises :class:`_ServerUnreachable` for a non-timeout transport error so the
-    caller can skip or fail as appropriate.
+    Raises :class:`_ServerUnreachable` for a non-timeout transport error (eg. a
+    refused/reset connection) so the caller can skip or fail as appropriate.
+
+    Returns the raw response without inspecting its status, so callers that need
+    to handle a meaningful status (eg. a 404) can; :func:`_get_with_retry` is the
+    JSON-decoding wrapper for the common case.
     """
     transport = httpx.HTTPTransport(uds=str(socket_path))
     for attempt in range(1, _REQUEST_ATTEMPTS + 1):
@@ -612,9 +622,7 @@ def _get_with_retry(
                 base_url="http://localhost",
                 timeout=_REQUEST_TIMEOUT,
             ) as client:
-                response = client.get(path, params=params or {})
-                response.raise_for_status()
-                return response.json()
+                return client.get(path, params=params or {})
         except httpx.TimeoutException:
             click.echo(
                 f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
@@ -622,7 +630,7 @@ def _get_with_retry(
                 "retrying…",
                 err=True,
             )
-        except (httpx.HTTPError, OSError, ValueError) as exc:
+        except (httpx.HTTPError, OSError) as exc:
             raise _ServerUnreachable() from exc
     click.echo(
         f"{what}: gave up after {_REQUEST_ATTEMPTS} attempts of "
@@ -630,6 +638,28 @@ def _get_with_retry(
         err=True,
     )
     raise click.exceptions.Exit(code=1)
+
+
+def _get_with_retry(
+    socket_path: str | Path,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    what: str,
+) -> Any:
+    """GET ``path`` and return its decoded JSON, retrying a busy eval on timeout.
+
+    Wraps :func:`_get_response_with_retry`; a non-2xx status or undecodable body
+    raises :class:`_ServerUnreachable` (a server-side ``500`` or malformed
+    response is not retryable). For endpoints with a meaningful 4xx, call
+    :func:`_get_response_with_retry` directly and inspect the status.
+    """
+    response = _get_response_with_retry(socket_path, path, params=params, what=what)
+    try:
+        response.raise_for_status()
+        return response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise _ServerUnreachable() from exc
 
 
 def _fetch_summaries(
@@ -849,10 +879,11 @@ def _post_flush(socket_path: str, eval_id: str) -> dict[str, Any]:
     """Ask one control server to flush an eval's buffered samples to the log."""
     try:
         transport = httpx.HTTPTransport(uds=str(socket_path))
-        # A remote (eg. S3) log write can take a while — allow more time than
-        # the read endpoints' 5s.
+        # A remote (eg. S3) log write can take a while; a mutation isn't retried,
+        # so give the single attempt the full mutation budget (see
+        # `_MUTATION_TIMEOUT`).
         with httpx.Client(
-            transport=transport, base_url="http://localhost", timeout=30.0
+            transport=transport, base_url="http://localhost", timeout=_MUTATION_TIMEOUT
         ) as client:
             response = client.post(f"/evals/{eval_id}/flush")
             if response.status_code == 404:
@@ -879,34 +910,56 @@ def _fetch_buffer_config(
     log_shared: int | None,
     set_values: bool,
 ) -> dict[str, Any]:
-    """Read (``set_values=False``) or update an eval's sample-buffer config."""
+    """Read (``set_values=False``) or update an eval's sample-buffer config.
+
+    The read is a GET that retries a busy eval on timeout (like the other
+    reads). The update is a single-shot POST — a mutation isn't idempotent, so
+    it must not be retried — given the full mutation budget (see
+    :data:`_MUTATION_TIMEOUT`).
+    """
     params: dict[str, Any] = {}
     if log_buffer is not None:
         params["log_buffer"] = log_buffer
     if log_shared is not None:
         params["log_shared"] = log_shared
+    path = f"/evals/{eval_id}/buffer"
+    verb = "update" if set_values else "read"
     try:
-        transport = httpx.HTTPTransport(uds=str(socket_path))
-        with httpx.Client(
-            transport=transport, base_url="http://localhost", timeout=5.0
-        ) as client:
-            path = f"/evals/{eval_id}/buffer"
-            response = (
-                client.post(path, params=params) if set_values else client.get(path)
+        if set_values:
+            transport = httpx.HTTPTransport(uds=str(socket_path))
+            with httpx.Client(
+                transport=transport,
+                base_url="http://localhost",
+                timeout=_MUTATION_TIMEOUT,
+            ) as client:
+                response = client.post(path, params=params)
+        else:
+            response = _get_response_with_retry(
+                socket_path, path, what=f"Reading buffer config for eval {eval_id}"
             )
-            if response.status_code == 404:
-                click.echo(
-                    f"Eval '{eval_id}' has no sample buffer in this process "
-                    "(e.g. a reused log, or a retry attempt that's been "
-                    "superseded).",
-                    err=True,
-                )
-                raise click.exceptions.Exit(code=1)
-            response.raise_for_status()
-            config = response.json()
+        if response.status_code == 404:
+            click.echo(
+                f"Eval '{eval_id}' has no sample buffer in this process "
+                "(e.g. a reused log, or a retry attempt that's been "
+                "superseded).",
+                err=True,
+            )
+            raise click.exceptions.Exit(code=1)
+        response.raise_for_status()
+        config = response.json()
+    except _ServerUnreachable as exc:
+        detail = (
+            _error_detail(exc.__cause__)
+            if isinstance(exc.__cause__, Exception)
+            else str(exc)
+        )
+        click.echo(
+            f"Failed to {verb} buffer config for eval {eval_id}: {detail}", err=True
+        )
+        raise click.exceptions.Exit(code=1) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
         click.echo(
-            f"Failed to read buffer config for eval {eval_id}: {_error_detail(exc)}",
+            f"Failed to {verb} buffer config for eval {eval_id}: {_error_detail(exc)}",
             err=True,
         )
         raise click.exceptions.Exit(code=1) from exc
