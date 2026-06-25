@@ -1831,7 +1831,7 @@ def eval_resolve_tasks(
         # get_model() then behaves like a @task factory resolved here). The
         # same seed tasks are then fanned out across all models below.
         seed: list[Task] | None = None
-        for m in models:
+        for i, m in enumerate(models):
             init_active_model(m, config)
             if task_source is not None:
                 if seed is None:
@@ -1848,6 +1848,10 @@ def eval_resolve_tasks(
                     sandbox,
                     sample_shuffle,
                     eval_checkpoint,
+                    # warn once (not per model) if args can't be applied. A
+                    # TaskSource already consumed task_args to build its seed
+                    # (resolve_task_source), so don't warn for that path.
+                    warn_unconsumed_task_args=(i == 0 and task_source is None),
                 )
             )
 
