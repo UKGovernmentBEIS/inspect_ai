@@ -1,14 +1,15 @@
 """Tests for the control-channel buffer directives: ``flush`` and ``buffer``.
 
 Covers the directive functions in ``inspect_ai._control.buffer`` (resolved
-through the process-global ``EvalState`` providers), the server routes that wrap
-them, and the CLI rendering helper.
+through ``EvalState.live``), the server routes that wrap them, and the CLI
+rendering helper.
 """
 
 import asyncio
 
 import httpx
 import pytest
+from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
 from inspect_ai._control.eval_state import (
@@ -38,7 +39,7 @@ async def test_flush_directive_invokes_provider() -> None:
         calls["n"] += 1
         return 3
 
-    register_eval("e1", 5, flush_provider=_flush)
+    register_eval("e1", 5, live=FakeLiveEvalData(flush=_flush))
 
     result = await flush_eval_samples("e1")
     assert result == {"flushed": 3}
@@ -59,7 +60,7 @@ async def test_flush_directive_none_after_detach() -> None:
     async def _flush() -> int:
         return 1
 
-    register_eval("e1", 5, flush_provider=_flush)
+    register_eval("e1", 5, live=FakeLiveEvalData(flush=_flush))
     detach_eval_providers("e1")  # retry detaches the live providers
     assert await flush_eval_samples("e1") is None
 
@@ -71,7 +72,7 @@ async def test_buffer_directive_read_only() -> None:
         seen.append((log_buffer, log_shared))
         return BufferConfig(log_buffer=10, pending=2, log_shared=30)
 
-    register_eval("e1", 5, buffer_provider=_buffer)
+    register_eval("e1", 5, live=FakeLiveEvalData(buffer=_buffer))
 
     result = await eval_buffer_config("e1")
     assert result == {"log_buffer": 10, "pending": 2, "log_shared": 30}
@@ -91,7 +92,7 @@ async def test_buffer_directive_set_values() -> None:
             log_buffer=state["log_buffer"], pending=0, log_shared=state["log_shared"]
         )
 
-    register_eval("e1", 5, buffer_provider=_buffer)
+    register_eval("e1", 5, live=FakeLiveEvalData(buffer=_buffer))
 
     result = await eval_buffer_config("e1", log_buffer=3, log_shared=None)
     assert result == {"log_buffer": 3, "pending": 0, "log_shared": 30}
@@ -120,7 +121,7 @@ async def test_flush_route_ok_and_404() -> None:
     async def _flush() -> int:
         return 4
 
-    register_eval("e1", 5, flush_provider=_flush)
+    register_eval("e1", 5, live=FakeLiveEvalData(flush=_flush))
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
@@ -145,7 +146,7 @@ async def test_buffer_route_get_and_post() -> None:
         )
         return current
 
-    register_eval("e1", 5, buffer_provider=_buffer)
+    register_eval("e1", 5, live=FakeLiveEvalData(buffer=_buffer))
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
@@ -196,7 +197,7 @@ def test_flush_route_error_becomes_500(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _boom() -> int:
         raise RuntimeError("disk full")
 
-    register_eval("e1", 5, flush_provider=_boom)
+    register_eval("e1", 5, live=FakeLiveEvalData(flush=_boom))
 
     async def scenario() -> httpx.Response:
         app = server_mod.ControlServer(run_id="test")._build_app()

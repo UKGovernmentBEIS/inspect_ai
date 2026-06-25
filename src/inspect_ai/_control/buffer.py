@@ -3,13 +3,13 @@
 The state-mutating counterparts to the read surface in
 :mod:`inspect_ai._control.state`: flush an eval's buffered completed samples to
 the (possibly remote, eg. S3) log on demand, and read / retune its sample-buffer
-parameters. Both reach the live eval through providers the runner attached to the
-process-global :class:`~inspect_ai._control.eval_state.EvalState` via
-``register_eval`` (``flush_provider`` / ``buffer_provider``), so the control layer
-stays ignorant of how a buffer is wired.
+parameters. Both reach the live eval through ``EvalState.live`` — the running ``TaskLogger``
+the runner attached to the process-global
+:class:`~inspect_ai._control.eval_state.EvalState` via ``register_eval`` — so the
+control layer stays ignorant of how a buffer is wired.
 
-Returns ``None`` when the eval isn't in this process, or has no buffer providers
-(a reused/synthetic eval, or one whose providers were detached on retry) — the
+Returns ``None`` when the eval isn't in this process, or has no live data source
+(a reused/synthetic eval, or one whose logger was detached on retry) — the
 endpoint turns that into a 404.
 """
 
@@ -27,9 +27,9 @@ async def flush_eval_samples(eval_id: str) -> dict[str, Any] | None:
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-    if state is None or state.flush_provider is None:
+    if state is None or state.live is None:
         return None
-    flushed = await state.flush_provider()
+    flushed = await state.live.flush_samples()
     return {"flushed": flushed}
 
 
@@ -51,6 +51,6 @@ async def eval_buffer_config(
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-    if state is None or state.buffer_provider is None:
+    if state is None or state.live is None:
         return None
-    return state.buffer_provider(log_buffer, log_shared)._asdict()
+    return state.live.buffer_config(log_buffer, log_shared)._asdict()

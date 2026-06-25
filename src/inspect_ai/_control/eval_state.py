@@ -50,37 +50,57 @@ if TYPE_CHECKING:
     from inspect_ai.log._log import EvalSample, EvalSampleSummary
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
-    # Async accessor for an eval's completed-sample summaries.
-    SummariesProvider = Callable[[], Awaitable[list[EvalSampleSummary] | None]]
+    class LiveEvalData(Protocol):
+        """A running eval's live data source — the in-process ``TaskLogger``.
 
-    # Async accessor for one full sample by ``(id, epoch)``. A Protocol
-    # (rather than a Callable alias) because of the keyword-only
-    # ``exclude_fields`` argument.
-    class SampleProvider(Protocol):
-        def __call__(
+        A live (still-running or keep-alive-parked) eval serves its
+        not-yet-on-disk sample data and its buffer directives through these
+        methods; the control endpoints prefer them over reading the on-disk log
+        so reads are gap-free. The running ``TaskLogger`` satisfies this
+        structurally — these are its methods — so the runner hands the logger
+        itself to :func:`register_eval` and this module never imports it (the
+        layering the ``TYPE_CHECKING`` guard preserves).
+
+        ``EvalState.live`` is ``None`` for reused/synthetic evals (no running
+        logger — they fall back to :attr:`~EvalState.log_location` and
+        :attr:`~EvalState.deferred_sample_stats`) and is cleared when a retry
+        supersedes the attempt the logger was bound to (see
+        :func:`detach_eval_providers`).
+        """
+
+        def sample_summaries(self) -> Awaitable[list[EvalSampleSummary] | None]:
+            """Completed-sample summaries (gap-free); ``None`` once torn down."""
+            ...
+
+        def read_sample(
             self,
             id: str | int,
             epoch: int,
             *,
             exclude_fields: set[str] | None = None,
-        ) -> Awaitable[EvalSample | None]: ...
+        ) -> Awaitable[EvalSample | None]:
+            """One full sample by ``(id, epoch)`` — recorder, then on-disk log."""
+            ...
 
-    # Sync accessor for one sample's transcript-event history by
-    # ``(id, epoch)``, or None once the backing buffer is torn down.
-    EventsProvider = Callable[[str | int, int], TranscriptHistoryProvider | None]
+        def sample_events_provider(
+            self, id: str | int, epoch: int
+        ) -> TranscriptHistoryProvider | None:
+            """One sample's realtime-buffer history provider; ``None`` once torn down."""
+            ...
+
+        def flush_samples(self) -> Awaitable[int]:
+            """Flush buffered completed samples to the log; return the count."""
+            ...
+
+        def buffer_config(
+            self, log_buffer: int | None = None, log_shared: int | None = None
+        ) -> "BufferConfig":
+            """Read (both args ``None``) or update the sample-buffer parameters."""
+            ...
 
     # Async accessor for a reused eval's summaries-derived stats, resolved
     # lazily on first control request (see ``DeferredSampleStats``).
     DeferredStatsProvider = Callable[[], Awaitable["DeferredSampleStats"]]
-
-    # Async directive that flushes the eval's buffered completed samples to the
-    # (possibly remote) log, returning the number written.
-    FlushProvider = Callable[[], Awaitable[int]]
-
-    # Get/set accessor for the eval's sample-buffer parameters. Called with
-    # ``(None, None)`` it reads; with values it updates ``log_buffer`` /
-    # ``log_shared`` and returns the resulting config.
-    BufferProvider = Callable[[int | None, int | None], "BufferConfig"]
 
 
 class BufferConfig(NamedTuple):
@@ -169,42 +189,19 @@ class EvalState:
     log_location: str = ""
     """This eval's log file location. The per-sample listing reads
     completed samples from here once the live recorder is gone (see
-    :attr:`summaries_provider`)."""
+    :attr:`live`)."""
 
-    summaries_provider: SummariesProvider | None = None
-    """Live accessor for completed-sample summaries from the recorder.
-    The per-sample listing prefers this and falls back to
-    :attr:`log_location` when it's ``None`` (reused/synthetic eval) or
-    returns ``None`` (recorder torn down)."""
+    live: "LiveEvalData | None" = None
+    """The running eval's live data source — the in-process ``TaskLogger`` (see
+    :class:`LiveEvalData`).
 
-    sample_provider: SampleProvider | None = None
-    """Live accessor for one full sample (``EvalSample``) from the recorder.
-    The whole-sample analogue of :attr:`summaries_provider`: per-sample
-    reads (error detail, event pages) prefer this gap-free source so they
-    agree with the samples listing, falling back to the on-disk
-    :attr:`log_location` when it's ``None`` (reused/synthetic eval) or the
-    recorder no longer holds the sample (flushed / torn down)."""
-
-    events_provider: EventsProvider | None = None
-    """Live accessor for one sample's transcript-event history (a
-    ``TranscriptHistoryProvider``) from the realtime buffer. The events
-    analogue of :attr:`sample_provider`, for streaming-completion samples
-    whose recorder copy is event-less (their events live in the buffer
-    database): event pages read through the eval's own buffer instance
-    rather than the control layer re-deriving the buffer's location.
-    ``None`` for reused/synthetic evals; returns ``None`` once the buffer
-    is torn down."""
-
-    flush_provider: FlushProvider | None = None
-    """Directive that flushes the eval's buffered completed samples to the
-    (possibly remote) log on demand (``inspect ctl flush`` / ``POST
-    /evals/<id>/flush``). ``None`` for reused/synthetic evals (nothing to
-    flush); detached on retry alongside the other live providers."""
-
-    buffer_provider: BufferProvider | None = None
-    """Get/set accessor for the eval's sample-buffer parameters (``inspect ctl
-    buffer`` / ``GET``+``POST /evals/<id>/buffer``). ``None`` for
-    reused/synthetic evals; detached on retry."""
+    The gap-free, ahead-of-disk source the control endpoints prefer for this
+    eval's sample summaries / full samples / transcript events, and the target
+    of its flush / buffer directives. ``None`` for reused/synthetic evals (which
+    fall back to :attr:`log_location` and :attr:`deferred_sample_stats`); set to
+    ``None`` by :func:`detach_eval_providers` when a retry supersedes the
+    attempt the logger was bound to (after which reads fall back to
+    :attr:`log_location` until the retry sweep removes that log)."""
 
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
@@ -320,11 +317,7 @@ def register_eval(
     task_id: str = "",
     model: str = "",
     log_location: str = "",
-    summaries_provider: SummariesProvider | None = None,
-    sample_provider: SampleProvider | None = None,
-    events_provider: EventsProvider | None = None,
-    flush_provider: FlushProvider | None = None,
-    buffer_provider: BufferProvider | None = None,
+    live: "LiveEvalData | None" = None,
     sample_ids: list[str | int] | None = None,
     epochs: int = 1,
     run_id: str | None = None,
@@ -347,11 +340,7 @@ def register_eval(
             task_id=task_id,
             model=model,
             log_location=log_location,
-            summaries_provider=summaries_provider,
-            sample_provider=sample_provider,
-            events_provider=events_provider,
-            flush_provider=flush_provider,
-            buffer_provider=buffer_provider,
+            live=live,
             sample_ids=sample_ids or [],
             epochs=epochs,
             run_id=run_id,
@@ -527,26 +516,21 @@ def record_sample_cancelled(
 
 
 def detach_eval_providers(eval_id: str) -> None:
-    """Null a superseded attempt's live providers.
+    """Detach a superseded attempt's live data source.
 
     Called by ``TaskLogger.reinit()`` when a task retry re-points the (one,
-    shared) logger at a fresh attempt: the superseded attempt's providers are
-    bound methods of that logger, so left attached they would silently serve
-    the *new* attempt's recorder/log/buffer data under the old attempt's
-    eval_id. Detaching them makes the superseded attempt's reads fall back to
-    its own ``log_location`` — its data stays correct until the retry sweep
-    removes that log, after which per-sample reads degrade to empty/404
-    (the counters on the state itself are unaffected). No-ops if the eval
-    isn't registered.
+    shared) logger at a fresh attempt: the superseded attempt's :attr:`live`
+    is that same logger, so left attached it would silently serve the *new*
+    attempt's recorder/log/buffer data under the old attempt's eval_id.
+    Clearing it makes the superseded attempt's reads fall back to its own
+    ``log_location`` — its data stays correct until the retry sweep removes
+    that log, after which per-sample reads degrade to empty/404 (the counters
+    on the state itself are unaffected). No-ops if the eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
-            state.summaries_provider = None
-            state.sample_provider = None
-            state.events_provider = None
-            state.flush_provider = None
-            state.buffer_provider = None
+            state.live = None
 
 
 def finalize_eval(eval_id: str) -> None:

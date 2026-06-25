@@ -2206,8 +2206,8 @@ def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
     completed (flapping found → not-found → found across attempts).
 
     Root cause: `current_sample_summaries` (→ `ctl samples`) sources completed
-    samples from the recorder via `summaries_provider` (gap-free / ahead of
-    disk), but `sample_error_detail` (→ `ctl sample`) and `sample_events`
+    samples from the recorder via `EvalState.live.sample_summaries` (gap-free /
+    ahead of disk), but `sample_error_detail` (→ `ctl sample`) and `sample_events`
     (→ `ctl events`) read only the on-disk `log_location`. A completed sample
     not yet flushed to disk is therefore visible to `samples` but missing from
     `sample` / `events`. A retry makes this acute: reused samples are re-logged
@@ -2343,12 +2343,7 @@ def test_task_retry_detaches_superseded_attempt_providers(
 
     def spy_clear() -> None:
         captured["states"] = [
-            (
-                s.eval_id,
-                s.summaries_provider is not None,
-                s.sample_provider is not None,
-                s.events_provider is not None,
-            )
+            (s.eval_id, s.live is not None)
             for s in eval_state_mod.get_eval_states()
             if s.task == "task_flaky"
         ]
@@ -2370,9 +2365,9 @@ def test_task_retry_detaches_superseded_attempt_providers(
     assert len(states) == 2, f"expected two attempts registered; got {states}"
     # registration order: superseded attempt first, latest last
     superseded, latest = states[0], states[-1]
-    assert superseded[1:] == (False, False, False), (
-        f"superseded attempt's providers must be detached: {superseded}"
+    assert superseded[1] is False, (
+        f"superseded attempt's live data source must be detached: {superseded}"
     )
-    assert latest[1:] == (True, True, True), (
-        f"latest attempt's providers must stay live: {latest}"
+    assert latest[1] is True, (
+        f"latest attempt's live data source must stay attached: {latest}"
     )
