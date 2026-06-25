@@ -50,8 +50,8 @@ def _content_to_runtime_value(
     content: list[Content],
 ) -> tuple[str, list[Content]]:
     """Extract text for Monty runtime, collecting non-text content as artifacts."""
-    text_parts = []
-    collected_artifacts = []
+    text_parts: list[str] = []
+    collected_artifacts: list[Content] = []
 
     for item in content:
         match item:
