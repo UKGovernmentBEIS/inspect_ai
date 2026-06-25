@@ -3,6 +3,7 @@
 from typing import Literal
 
 import pytest
+from test_helpers.checkpoint import RecordingCheckpointer
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
@@ -13,7 +14,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._compaction._compaction import compaction
+from inspect_ai.model._compaction._compaction import _CompactionState, compaction
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
@@ -21,7 +22,7 @@ from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._trim import partition_messages, strip_citations
-from inspect_ai.tool import ToolInfo
+from inspect_ai.tool import ToolCall, ToolInfo
 
 
 class ConsecutiveUserCompaction(CompactionSummary):
@@ -1334,3 +1335,99 @@ async def test_baseline_shortcut_trips_only_with_redacted_reasoning_correction(
         f"flag on: baseline + redacted_reasoning_tokens should exceed threshold "
         f"and trigger compaction; expected fewer than {n_in} messages, got {n_out}"
     )
+
+
+# ==============================================================================
+# Checkpointing support
+# ==============================================================================
+async def test_checkpoint_state_survives_round_trip() -> None:
+    """Handler state serializes and restores faithfully on resume.
+
+    The edit strategy replaces the tool result with a synthesized
+    "(Tool result removed)" message that has its own id, absent from the
+    full history. Such messages live only in `compacted_input`, so they
+    can't be rebuilt from the tracked `messages` by id — the state must be
+    persisted in full and survive the JSON round-trip intact.
+    """
+    model = get_model("mockllm/model")
+    strategy = CompactionEdit(threshold=300, keep_tool_uses=0)
+    prefix: list[ChatMessage] = [system_msg("S", "sys1")]
+
+    tool_call = ToolCall(id="t1", function="bash", arguments={"command": "A" * 200})
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("Question", "msg1"),
+        ChatMessageAssistant(content="Using tool", id="msg2", tool_calls=[tool_call]),
+        ChatMessageTool(
+            content="B" * 200, tool_call_id="t1", function="bash", id="msg3"
+        ),
+        user_msg("Follow up", "msg4"),
+        assistant_msg("Done", "msg5"),
+    ]
+
+    cp = RecordingCheckpointer()
+    compact = compaction(
+        strategy, prefix=prefix, tools=None, model=model, checkpointer=cp
+    )
+    # force=True so the edit runs deterministically (content is under threshold)
+    await compact.compact_input(messages, force=True)
+
+    snap = cp.callbacks["compaction"]()
+    assert isinstance(snap, _CompactionState)
+    assert snap.processed_message_ids  # state was captured
+
+    # compacted_input contains a synthesized message whose id is NOT in the
+    # full history — proof it can't be reconstructed from ids and must be
+    # serialized in full.
+    history_ids = {m.id for m in messages}
+    novel = [m for m in snap.compacted_input if m.id not in history_ids]
+    assert novel, "expected edit strategy to introduce a message absent from history"
+
+    # round-trip through JSON exactly as the checkpointer would, then resume
+    restored = _CompactionState.model_validate(snap.model_dump(mode="json"))
+    cp2 = RecordingCheckpointer(restored={"compaction": restored})
+    compaction(strategy, prefix=prefix, tools=None, model=model, checkpointer=cp2)
+    snap2 = cp2.callbacks["compaction"]()
+
+    assert snap2 == snap  # synthesized content and bookkeeping intact across resume
+
+
+async def test_resumed_compaction_does_not_resummarize() -> None:
+    """A resumed summary handler skips re-summarizing already-processed history.
+
+    Without restored state the resumed handler treats the whole history as
+    unprocessed and re-invokes the model; with it, the prior compacted view
+    is honored and no compaction runs.
+    """
+    model = get_model("mockllm/model")
+    strategy = CompactionSummary(threshold=200)
+    prefix: list[ChatMessage] = [system_msg("S", "sys1")]
+    # large enough to exceed threshold and trigger a summary on the first pass
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("A" * 800, "u1", source="input"),
+        assistant_msg("B" * 800, "a1"),
+        user_msg("C" * 800, "u2"),
+    ]
+
+    cp = RecordingCheckpointer()
+    compact = compaction(
+        strategy, prefix=prefix, tools=None, model=model, checkpointer=cp
+    )
+    _, summary1 = await compact.compact_input(messages)
+    assert summary1 is not None  # first pass summarized
+    # the agent appends the summary to the full history
+    history: list[ChatMessage] = messages + [summary1]
+
+    snap = cp.callbacks["compaction"]()
+    assert isinstance(snap, _CompactionState)
+    restored = _CompactionState.model_validate(snap.model_dump(mode="json"))
+
+    cp2 = RecordingCheckpointer(restored={"compaction": restored})
+    compact2 = compaction(
+        strategy, prefix=prefix, tools=None, model=model, checkpointer=cp2
+    )
+    # everything in `history` was processed before the fire, so the resumed
+    # handler must not re-summarize.
+    _, summary2 = await compact2.compact_input(history)
+    assert summary2 is None

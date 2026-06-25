@@ -115,10 +115,15 @@ def edit_eval_log(
                 raise ValueError(
                     f"Metadata key(s) {overlap} appear in both metadata_set and metadata_remove."
                 )
+            # `current_metadata.get(k)` returns None when k is absent, so
+            # `current_metadata.get(k) != v` mis-classifies "adding a new
+            # key whose value is None" as a no-op and silently drops it.
+            # Test key presence separately so a fresh null-valued key
+            # makes it through.
             metadata_set = {
                 k: v
                 for k, v in edit.metadata_set.items()
-                if current_metadata.get(k) != v
+                if k not in current_metadata or current_metadata[k] != v
             }
             metadata_remove = [k for k in edit.metadata_remove if k in current_metadata]
             if metadata_set or metadata_remove:

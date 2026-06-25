@@ -75,16 +75,15 @@ logger = getLogger(__name__)
 class _ApprovalRoutingSession(Protocol):
     """Narrowed view of ``AcpTransport`` for the approval shim.
 
-    Only the three primitives the shim actually uses: the driver-chain
-    snapshot, the one-way "has ever attached" bit, and the attach
-    subscription. Narrowed (rather than parameterising on the full
-    :class:`~inspect_ai.agent._acp.transport.AcpTransport`) so tests can
-    pass a minimal stub without implementing the full session surface.
+    Only the primitives the shim actually uses: the driver-chain
+    snapshot and the attach subscription. Narrowed (rather than
+    parameterising on the full
+    :class:`~inspect_ai.agent._acp.transport.AcpTransport`) so tests
+    can pass a minimal stub without implementing the full session
+    surface.
     """
 
     def approver_driver_chain(self) -> list["ApproverClient"]: ...
-
-    def has_ever_had_approver_client(self) -> bool: ...
 
     def subscribe_approver_attach(
         self, callback: Callable[[], None]
@@ -383,7 +382,7 @@ async def _request_from_driver_with_fallback(
     session: _ApprovalRoutingSession,
     request: RequestPermissionRequest,
     choices: list[ApprovalDecision],
-) -> Approval | None:
+) -> Approval:
     """Send ``request`` to the driver; park-and-retry on chain exhaustion.
 
     Routing model: single-driver, with a fallback chain. ACP has no
@@ -391,6 +390,16 @@ async def _request_from_driver_with_fallback(
     clients leaves the losers' editors showing a stale permission card
     forever (whatever they click later is silently discarded). Picking
     one driver keeps the UX coherent.
+
+    Exclusive-routing semantics: when no client is attached (including
+    the "no client has ever attached" case on the very first
+    interaction), this parks on
+    :meth:`AcpTransport.subscribe_approver_attach` until one arrives.
+    ``--acp-server`` committed the eval to ACP as the human channel;
+    falling through to the in-proc panel would break the
+    notification-driven workflow. The decision to commit happens at
+    the entry (``request_human_approval_via_acp`` returns ``None`` if
+    no live ACP transport is bound at all); once we're here, we wait.
 
     Behavior (per iteration):
 
@@ -400,17 +409,14 @@ async def _request_from_driver_with_fallback(
        return immediately). Critical: doing this AFTER the snapshot
        creates a window where an attach fires with no subscriber and
        we park forever despite a live client being present.
-    2. Snapshot the driver chain. If empty AND no ACP client has ever
-       attached to this session (``--acp-server`` + TTY case where no
-       operator ran ``inspect acp`` yet), return ``None`` so the caller
-       falls back to the in-proc panel.
+    2. Snapshot the driver chain. If empty, park on the attach event
+       (subscribed in step 1) — no fallback.
     3. Otherwise, try each client in chain order. Drain notifications
        first (best-effort ordering barrier), then ``request_permission``.
        On success, return the approval. On per-client failure, try
        the next.
     4. If every client in the snapshot raised (operator switched
-       away mid-approval) — or the chain was empty-but-ever-attached
-       — park on the attach event we subscribed in step 1. The fresh
+       away mid-approval), park on the attach event. The fresh
        client is fully bound, promoted, AND ready (replay completed)
        before the notify fires — see ``_post_bind_setup_locked`` and
        ``LiveAcpTransport.notify_approver_attach``.
@@ -444,16 +450,7 @@ async def _request_from_driver_with_fallback(
         unsub = session.subscribe_approver_attach(event.set)
         try:
             clients_in_order = session.approver_driver_chain()
-            if not clients_in_order:
-                if not session.has_ever_had_approver_client():
-                    # No ACP client has ever attached for this session.
-                    # ``--acp-server`` + TTY with no operator: fall
-                    # back to the in-proc panel rather than parking
-                    # forever.
-                    return None
-                # Empty chain but operator was here at some point —
-                # they disconnected. Fall through to the wait below.
-            else:
+            if clients_in_order:
                 for client in clients_in_order:
                     # Drain pending ``session/update`` notifications
                     # BEFORE the request goes out, so the operator sees
@@ -505,9 +502,11 @@ async def _request_from_driver_with_fallback(
                     else:
                         # Successful dispatch — finally below unsubscribes.
                         return _approval_from_response(response, choices)
-            # Either empty-but-ever-attached, or every client raised.
-            # Park until a fresh attach lands (or returns immediately
-            # if an attach raced us between subscribe and now).
+            # No clients attached (yet, or after they all raised).
+            # Park until a fresh attach lands (or return immediately
+            # if an attach raced us between subscribe and now). Under
+            # exclusive routing this also covers the very first
+            # interaction — we don't fall through to panel / console.
             await event.wait()
         finally:
             unsub()
@@ -557,27 +556,46 @@ async def request_human_approval_via_acp(
     with acp_guard(
         "ACP approval routing raised; falling back to in-proc approval flow"
     ):
-        # Deferred import — avoids the registry-init-time cycle through
-        # the log subsystem; only fires at actual approval time.
+        # Deferred imports — avoid the registry-init-time cycle through
+        # the log subsystem; only fire at actual approval time.
+        from inspect_ai.agent._acp.server import acp_server_accepting_clients
         from inspect_ai.log._samples import sample_active
 
+        # Gate on whether an AcpServer is accepting external clients,
+        # NOT on whether ``sample.acp_transport`` is a live transport.
+        # The Live transport is opened per-sample regardless of
+        # ``--acp-server`` for sub-agent isolation; only the
+        # server-running flag tells us the eval is reachable from
+        # outside. Without this split, the in-proc panel would never
+        # see human approval requests.
+        if not acp_server_accepting_clients():
+            return None
         sample = sample_active()
         if sample is None or sample.acp_transport is None:
             return None
         session = sample.acp_transport
-        # Use "has ever attached" rather than "has currently attached":
-        # in --acp-server + TTY mode an operator may attach via
-        # ``inspect acp``, trigger an approval, then disconnect. The
-        # wait-and-retry loop inside ``_request_from_driver_with_fallback``
-        # parks until they (or another client) re-attach. Falling back
-        # to the panel only kicks in when no operator has EVER connected.
-        if not session.has_ever_had_approver_client():
-            return None
+        # ``--acp-server`` is on (the gate above proved an AcpServer is
+        # accepting external clients). Under exclusive routing we route
+        # via ACP regardless of attach history — the in-proc panel
+        # never sees this approval. See
+        # ``design/acp/elicitation.md`` "Routing policy".
         request = _build_request(
             session_id=session.session_id,
             call=call,
             view=view,
             choices=choices,
         )
-        return await _request_from_driver_with_fallback(session, request, choices)
+        # Mark the sample as parked on a human approval so the ACP
+        # picker can surface a "pending" column. Ref-counted (not a
+        # single-slot save/restore) because `parallel=True` tool calls
+        # run concurrently within one sample, so two approvals can be
+        # in-flight at once; a single-slot restore on the first one to
+        # finish would clear the indicator while the second is still
+        # waiting. Decremented in `finally` so cancellation and
+        # exception paths can't leak a stuck counter.
+        sample._pending_approvals += 1
+        try:
+            return await _request_from_driver_with_fallback(session, request, choices)
+        finally:
+            sample._pending_approvals -= 1
     return None

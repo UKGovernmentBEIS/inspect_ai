@@ -132,6 +132,10 @@ class CompactionEdit(CompactionStrategy):
                 # Collect client-side tool calls
                 if msg.tool_calls:
                     for tc in msg.tool_calls:
+                        # Skip tool_search - the result carries tool definitions
+                        # (context), not a result that is safe to clear
+                        if tc.function == TOOL_SEARCH_NAME:
+                            continue
                         # Skip excluded tools
                         if self.exclude_tools and tc.function in self.exclude_tools:
                             continue
@@ -225,6 +229,10 @@ MCP_LIST_TOOLS_NAME = "mcp_list_tools"
 This tool provides context about available tools and should not be cleared
 during compaction, as it doesn't contain results but rather tool definitions.
 """
+
+# Client-resolved tool-discovery tool (e.g. codex-cli). Its result carries
+# discovered tool definitions (context), not a clearable result.
+TOOL_SEARCH_NAME = "tool_search"
 
 
 def is_result_cleared(content: ContentToolUse) -> bool:

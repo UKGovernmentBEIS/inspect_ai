@@ -94,20 +94,16 @@ def list_files():
 
 The following instance methods are available to tools that need to interact with a `SandboxEnvironment`:
 
+{{< include _sandboxenv-exec.md >}}
+
+{{< include _sandboxenv-exec-remote.md >}}
+
 {{< include _sandboxenv-interface.md >}}
 
 See the documentation on [Sandbox Environments](sandboxing.qmd) for additional details.
 
 
 ## Parallel Execution {#sec-parallel-execution}
-
-::: {.callout-note appearance="simple"}
-The parallel tool execution feature described below is available only in the development version of Inspect. To install the development version:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 Models often emit several tool calls in a single assistant turn. By default Inspect executes those calls serially in declared order. Tools that have no shared mutable state (no sandbox interaction, no shared `Store` writes, no order-dependent side effects) can opt in to running concurrently with their siblings via `@tool(parallel=True)`:
 

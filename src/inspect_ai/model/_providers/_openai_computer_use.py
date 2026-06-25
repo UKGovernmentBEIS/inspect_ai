@@ -77,16 +77,19 @@ _COMPUTER_USE_EXCLUDED_VARIANTS = ("nano", "instant", "chat")
 
 
 def maybe_computer_use_tool(
-    model_name: str, tool: ToolInfo
+    model_name: str, tool: ToolInfo, is_latest: bool = False
 ) -> ComputerToolParam | None:
     if not is_computer_tool_info(tool):
         return None
-    if not _supports_native_computer_use(model_name):
+    if not _supports_native_computer_use(model_name, is_latest):
         return None
     return ComputerToolParam(type="computer")
 
 
-def _supports_native_computer_use(model_name: str) -> bool:
+def _supports_native_computer_use(model_name: str, is_latest: bool = False) -> bool:
+    # predeployment/codename frontier models support native computer use
+    if is_latest:
+        return True
     name = model_name.lower()
     if any(variant in name for variant in _COMPUTER_USE_EXCLUDED_VARIANTS):
         return False

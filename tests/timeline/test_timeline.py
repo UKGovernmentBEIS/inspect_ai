@@ -17,6 +17,7 @@ from .generate import (
     scenario_parallel_collect,
     scenario_parallel_heterogeneous,
     scenario_parallel_with_nesting,
+    scenario_primitive_solvers,
     scenario_sequential_and_parallel,
     scenario_sequential_run,
     scenario_simple_agent,
@@ -29,6 +30,7 @@ from .generate import (
     validate_parallel_collect,
     validate_parallel_heterogeneous,
     validate_parallel_with_nesting,
+    validate_primitive_solvers,
     validate_sequential_and_parallel,
     validate_sequential_run,
     validate_simple_agent,
@@ -51,6 +53,10 @@ def _run_and_validate(
 
 def test_timeline_simple_agent() -> None:
     _run_and_validate(scenario_simple_agent, validate_simple_agent)
+
+
+def test_timeline_primitive_solvers() -> None:
+    _run_and_validate(scenario_primitive_solvers, validate_primitive_solvers)
 
 
 def test_timeline_multi_turn_agent() -> None:

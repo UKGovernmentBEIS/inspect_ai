@@ -86,7 +86,7 @@ def short_data_dir(monkeypatch):
         _stub,
     )
     monkeypatch.setattr(
-        "inspect_ai.agent._acp.discovery.pid_alive",
+        "inspect_ai._util.process.pid_alive",
         lambda pid: pid > 0,
     )
     try:

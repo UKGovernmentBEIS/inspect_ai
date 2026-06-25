@@ -80,3 +80,7 @@ class TextualDisplay(Display):
     @override
     def display_counter(self, caption: str, value: str) -> None:
         self.app.display_counter(caption, value)
+
+    @override
+    def update_task_count(self, n: int) -> None:
+        self.app.update_task_count(n)

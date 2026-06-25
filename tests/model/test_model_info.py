@@ -1,14 +1,28 @@
 """Tests for model_info lookup functionality."""
 
+from typing import Any
+
 import pytest
 
-from inspect_ai.model import ModelInfo, get_model, get_model_info, set_model_info
+from inspect_ai.model import (
+    ModelAPI,
+    ModelInfo,
+    get_model,
+    get_model_info,
+    set_model_info,
+)
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_info import (
+    _get_model_info_direct,
     clear_model_info_cache,
     get_model_input_tokens,
     set_model_cost,
 )
+
+
+class _TestModelAPI(ModelAPI):
+    async def generate(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
 
 
 @pytest.fixture(autouse=True)
@@ -41,6 +55,42 @@ class TestGetModelInfo:
         """Test that unknown models return None."""
         info = get_model_info("unknown-provider/unknown-model-xyz")
         assert info is None
+
+    def test_set_model_info_family(self):
+        """Test that set_model_info with family is retrievable."""
+        set_model_info("custom/aliased-model", ModelInfo(family="gpt-5"))
+        info = get_model_info("custom/aliased-model")
+        assert info is not None
+        assert info.family == "gpt-5"
+
+    def test_model_family_does_not_instantiate_provider(self, monkeypatch):
+        """Unknown model-family lookups must not recursively resolve a provider."""
+
+        def fail_provider_resolution(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("model_family() attempted provider resolution")
+
+        monkeypatch.setattr(
+            "inspect_ai.model._model.get_model", fail_provider_resolution
+        )
+        api = _TestModelAPI("unknown-provider/custom-alias")
+        assert api.model_family() == "unknown-provider/custom-alias"
+
+    def test_direct_lookup_does_not_poison_provider_resolved_lookup(self, monkeypatch):
+        """A direct miss must not prevent normal lookup from resolving a provider."""
+
+        class _ResolvedModel:
+            def canonical_name(self) -> str:
+                return "resolved-provider/resolved-model"
+
+        resolved_info = ModelInfo(family="resolved-family")
+        set_model_info("resolved-provider/resolved-model", resolved_info)
+        monkeypatch.setattr(
+            "inspect_ai.model._model.get_model",
+            lambda *args, **kwargs: _ResolvedModel(),
+        )
+
+        assert _get_model_info_direct("unknown-provider/nonmatching-alias") is None
+        assert get_model_info("unknown-provider/nonmatching-alias") is resolved_info
 
     def test_case_insensitive_lookup(self):
         """Test that model name lookups are case-insensitive.
@@ -166,7 +216,7 @@ class TestModelInfoFields:
             "google/gemini-2.5-flash-lite",
             "google/gemini-3-flash-preview",
             "google/gemini-3.1-flash-image-preview",
-            "google/gemini-3.1-flash-lite-preview",
+            "google/gemini-3.1-flash-lite",
         ]
 
         for model in test_models:
@@ -191,12 +241,42 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
-    def test_claude_latest_defaults_to_200k(self):
-        """Test that a future Claude model (is_claude_latest) maps to haiku-4-5 (200K)."""
+    def test_claude_fable_5(self):
+        """Test that Claude Fable 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-fable-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_mythos_5(self):
+        """Test that Claude Mythos 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-mythos-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_latest_defaults_to_1m(self):
+        """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""
         # Use a hypothetical future model name that triggers is_claude_latest()
         model = get_model("anthropic/claude-sonnet-4-9")
         tokens = get_model_input_tokens(model)
-        assert tokens == 200_000
+        assert tokens == 1_000_000
+
+    def test_unregistered_claude_5_defaults_to_1m(self):
+        """Unregistered Claude 5 variants assume the 1M frontier.
+
+        Claude 5 detection matches any ``claude-*-5``, so a tier-named
+        ``claude-opus-5-0`` or a new codename ``claude-saga-5`` is classified as
+        Claude 5 (is_claude_5) even though it is not in the database. The
+        input_tokens_name() fallback must still resolve such names to 1M rather
+        than missing the database lookup entirely.
+        """
+        for model_name in (
+            "anthropic/claude-opus-5-0",
+            "anthropic/claude-sonnet-5-0",
+            "anthropic/claude-saga-5",
+        ):
+            model = get_model(model_name)
+            tokens = get_model_input_tokens(model)
+            assert tokens == 1_000_000, model_name
 
     def test_claude_latest_with_1m_beta(self):
         """Test that a future Claude model with 1M beta maps to opus-4-6 (1MM)."""
@@ -206,6 +286,37 @@ class TestGetModelInputTokens:
         )
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
+
+    def test_openai_codename_maps_to_gpt_5_5(self):
+        """An OpenAI codename (is_latest) aliases to gpt-5.5's input tokens."""
+        model = get_model("openai/foo-bar-22", api_key="test-key")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 922_000
+
+    def test_openai_known_model_unaffected(self):
+        """A known OpenAI model still reports its own input tokens."""
+        model = get_model("openai/gpt-4o", api_key="test-key")
+        tokens = get_model_input_tokens(model)
+        assert tokens == get_model_info("openai/gpt-4o").input_tokens
+
+    def test_explicit_set_model_info_overrides_codename_alias(self):
+        """An explicit set_model_info() wins over the frontier aliasing.
+
+        A codename normally aliases to gpt-5.5's window; an explicit registration
+        means the caller knows the real window and must take precedence.
+        """
+        model = get_model("openai/foo-bar-22", api_key="test-key")
+        assert get_model_input_tokens(model) == 922_000  # aliased by default
+        set_model_info("openai/foo-bar-22", ModelInfo(context_length=4242))
+        assert get_model_input_tokens(model) == 4242
+
+    def test_codename_override_does_not_affect_frontier_model(self):
+        """Overriding a codename must not leak into the real frontier model."""
+        set_model_info("openai/foo-bar-22", ModelInfo(context_length=4242))
+        frontier = get_model("openai/gpt-5.5", api_key="test-key")
+        tokens = get_model_input_tokens(frontier)
+        assert tokens is not None
+        assert tokens != 4242
 
 
 class TestResultCaching:

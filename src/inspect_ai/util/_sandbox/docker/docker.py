@@ -354,7 +354,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         elapsed = time.monotonic() - start_time
         if timeout is not None and exec_result.returncode in (124, 137, 143):
             if exec_result.returncode == 124 or elapsed >= timeout:
-                raise TimeoutError(f"Command timed out after {timeout} seconds")
+                # preserve the partial output captured before the timeout so it can
+                # be surfaced to the caller via SandboxTimeoutError.truncated_output
+                timeout_error = TimeoutError(
+                    f"Command timed out after {timeout} seconds"
+                )
+                partial_output = (exec_result.stdout or "") + (exec_result.stderr or "")
+                if partial_output:
+                    setattr(timeout_error, "truncated_output", partial_output)
+                raise timeout_error
             # else: signal-death exit code but too fast to be a timeout
             # (e.g. OOM kill) — fall through and return the ExecResult
 

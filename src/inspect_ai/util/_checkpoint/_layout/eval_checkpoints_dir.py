@@ -17,19 +17,23 @@ from inspect_ai._util.file import basename, dirname
 from ..config import CheckpointConfig
 
 _LOG_SUFFIX = ".eval"
+_RECOVERED_SUFFIX = "-recovered"
 
 
 def log_basename(log_location: str) -> str:
-    """Return the log's basename with any trailing ``.eval`` stripped.
+    """Return the log's basename with recovery and log suffixes stripped.
 
     Used to derive the per-eval ``<log-base>.checkpoints/`` directory
     name (durable, alongside the log) and the matching per-eval working
     dir under ``inspect_cache_dir("checkpoints")/`` (ephemeral, host
-    cache). Single owner of the ``.eval`` suffix convention.
+    cache). Single owner of the ``.eval`` / ``-recovered`` suffix
+    conventions.
     """
     base = basename(log_location)
     if base.endswith(_LOG_SUFFIX):
         base = base[: -len(_LOG_SUFFIX)]
+    if base.endswith(_RECOVERED_SUFFIX):
+        base = base[: -len(_RECOVERED_SUFFIX)]
     return base
 
 
@@ -38,9 +42,12 @@ def eval_checkpoints_dir(log_location: str, override_root: str | None) -> str:
 
     Strips a trailing ``.eval`` from the log basename and appends
     ``.checkpoints``. Parent is ``override_root`` (the *evals
-    checkpoints dir*) if provided, else the log's directory.
+    checkpoints dir*) if provided, else the log's directory. Any
+    trailing slash on the parent is stripped so the join never
+    produces an empty path segment (which S3 honors literally as an
+    extra "directory").
     """
-    parent = override_root if override_root else dirname(log_location)
+    parent = (override_root if override_root else dirname(log_location)).rstrip("/")
     return f"{parent}/{log_basename(log_location)}.checkpoints"
 
 

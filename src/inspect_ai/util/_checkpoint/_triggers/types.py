@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Literal, Protocol
 
+from pydantic import JsonValue
+
 
 @dataclass(frozen=True)
 class Manual:
@@ -93,8 +95,17 @@ class BudgetPercent:
     percent: float
 
 
-CheckpointTriggerKind = Literal["time", "turn", "manual", "token", "cost", "budget"]
-"""Identifier of which trigger fired, as recorded on the sidecar."""
+CheckpointTriggerKind = Literal[
+    "time", "turn", "manual", "token", "cost", "budget", "agent_complete"
+]
+"""Identifier of which trigger fired, as recorded on the checkpoint file.
+
+``"agent_complete"`` is an internal label emitted only by the
+harness-driven final fire on clean solver exit (see
+:meth:`_CheckpointerSetup.__aexit__`). It is never returned from a
+public :class:`Trigger` spec's ``tick()``; users cannot configure it
+from :class:`CheckpointConfig`.
+"""
 
 CheckpointTrigger = (
     Manual | TurnInterval | TimeInterval | TokenInterval | CostInterval | BudgetPercent
@@ -103,9 +114,22 @@ CheckpointTrigger = (
 config types. See :mod:`._engine` for the runtime dispatch."""
 
 
+@dataclass(frozen=True)
+class TriggerFire:
+    """Result of a :meth:`Trigger.tick` that fired."""
+
+    kind: CheckpointTriggerKind
+    """Which trigger fired."""
+
+    metadata: dict[str, JsonValue] | None = None
+    """Trigger-specific fire details (e.g. configured threshold vs.
+    actual usage at fire time). Recorded on the checkpoint file as
+    ``trigger_metadata``."""
+
+
 class Trigger(Protocol):
     """Runtime trigger — one instance per checkpointed session."""
 
-    def tick(self) -> CheckpointTriggerKind | None:
-        """Advance the trigger's state; return the kind that fired, or ``None``."""
+    def tick(self) -> TriggerFire | None:
+        """Advance the trigger's state; return the fire details, or ``None``."""
         ...

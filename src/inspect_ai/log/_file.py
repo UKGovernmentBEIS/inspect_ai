@@ -24,7 +24,7 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
-from inspect_ai.log._pool import rebind_sample_timelines, resolve_sample_events_data
+from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
@@ -266,6 +266,7 @@ def read_eval_log(
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -279,6 +280,10 @@ def read_eval_log(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension).
+       exclude_fields: Set of EvalSample field names to skip when loading
+          samples (e.g. {"messages", "events", "store", "attachments"}).
+          Ignored for .json format logs (only applies to .eval logs). Has no
+          effect when header_only is True or when log_file is an IO[bytes] stream.
 
     Returns:
        EvalLog object read from file.
@@ -293,10 +298,7 @@ def read_eval_log(
     # flow, so force the use of asyncio
     return run_coroutine(
         read_eval_log_async(
-            log_file,
-            header_only,
-            resolve_attachments,
-            format,
+            log_file, header_only, resolve_attachments, format, exclude_fields
         )
     )
 
@@ -306,6 +308,7 @@ async def read_eval_log_async(
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -319,6 +322,10 @@ async def read_eval_log_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension).
+       exclude_fields: Set of EvalSample field names to skip when loading
+          samples (e.g. {"messages", "events", "store", "attachments"}).
+          Ignored for .json format logs (only applies to .eval logs). Has no
+          effect when header_only is True or when log_file is an IO[bytes] stream.
 
     Returns:
        EvalLog object read from file.
@@ -349,7 +356,10 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_location(log_file)
         else:
             recorder_type = recorder_type_for_format(format)
-        log = await recorder_type.read_log(log_file, header_only)
+
+        exclude_fields = _normalize_excluded_fields(exclude_fields)
+
+        log = await recorder_type.read_log(log_file, header_only, exclude_fields)
 
     if log.samples:
         log.samples = [
@@ -431,6 +441,7 @@ def read_eval_log_sample(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful when reading large samples with fields like
           'store' or 'attachments' that aren't needed.
+          Ignored for .json format logs (only applies to .eval logs).
 
     Returns:
        EvalSample object read from file.
@@ -495,6 +506,7 @@ async def read_eval_log_sample_async(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful when reading large samples with fields like
           'store' or 'attachments' that aren't needed.
+          Ignored for .json format logs (only applies to .eval logs).
        reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
@@ -522,13 +534,7 @@ async def read_eval_log_sample_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    if exclude_fields:
-        if "events" not in exclude_fields:
-            # events_data is needed to resolve refs in events
-            exclude_fields = exclude_fields - {"events_data"}
-        else:
-            # no events means events_data is useless
-            exclude_fields = exclude_fields | {"events_data"}
+    exclude_fields = _normalize_excluded_fields(exclude_fields)
 
     sample = await recorder_type.read_log_sample(
         log_file, id, epoch, uuid, exclude_fields, reader
@@ -615,6 +621,7 @@ def read_eval_log_samples(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful when reading large samples with fields like
           'store' or 'attachments' that aren't needed.
+          Ignored for .json format logs (only applies to .eval logs).
 
     Returns:
        Generator of EvalSample objects in the log file.
@@ -909,6 +916,17 @@ def to_overview(header: EvalLog) -> LogOverview:
         completed_at=header.stats.completed_at,
         primary_metric=primary_metric,
     )
+
+
+def _normalize_excluded_fields(exclude_fields: set[str] | None) -> set[str] | None:
+    if exclude_fields:
+        if "events" not in exclude_fields:
+            # events_data is needed to resolve refs in events
+            exclude_fields = exclude_fields - {"events_data"}
+        else:
+            # no events means events_data is useless
+            exclude_fields = exclude_fields | {"events_data"}
+    return exclude_fields
 
 
 def _resolve_sample_for_read(

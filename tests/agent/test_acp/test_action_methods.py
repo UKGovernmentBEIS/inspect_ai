@@ -43,7 +43,10 @@ from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 
 def _handler(
-    *, wire_session_id: str = "wire", target_session_id: str | None = "tgt"
+    *,
+    wire_session_id: str = "wire",
+    target_session_id: str | None = "tgt",
+    interactive: bool = True,
 ) -> ConnectionHandler:
     """Fresh handler primed for direct method calls (no socket).
 
@@ -51,13 +54,19 @@ def _handler(
     ``binding`` assignment) so tests can exercise the
     "called before binding" rejection paths. Otherwise the handler
     is set to :class:`Bound` for the given wire+target pair.
+
+    ``interactive=False`` models an observe-only bind (no agent turn
+    loop) — used to confirm lifecycle controls still work while turn-loop
+    input would be rejected.
     """
     from inspect_ai.agent._acp.connection import Bound
 
     h = ConnectionHandler()
     if target_session_id is not None:
         h.state.binding = Bound(
-            wire_session_id=wire_session_id, target_session_id=target_session_id
+            wire_session_id=wire_session_id,
+            target_session_id=target_session_id,
+            interactive=interactive,
         )
     return h
 
@@ -192,6 +201,23 @@ async def test_cancel_sample_error_action_allowed_when_fails_on_error_false(
     sample.interrupt.assert_called_once_with("error")
 
 
+async def test_cancel_sample_allowed_on_observe_only_binding(
+    patch_active_samples,
+) -> None:
+    """cancel_sample works on a non-interactive (observe-only) binding.
+
+    Decision #4: sample-level cancel doesn't touch the agent turn loop
+    (it cancels the sample's task group), so an observe-only client may
+    still terminate the sample — there is no interactivity gate here.
+    """
+    sample = _stub_active_sample()
+    patch_active_samples(sample)
+    h = _handler(interactive=False)
+    result = await h.cancel_sample(session_id="wire", action="score")
+    assert result == {}
+    sample.interrupt.assert_called_once_with("score")
+
+
 # Note: the prior ``test_cancel_sample_also_cancels_current_turn`` was
 # removed. The in-flight ``ModelEvent.pending=True`` cleanup is now
 # driven via ``ActiveSample.on_interrupt`` (registered by the live
@@ -282,6 +308,29 @@ async def test_cancel_tool_call_pending_tool_invokes_cancel_fn(
     )
     patch_active_samples(_stub_active_sample(transcript=tr))
     h = _handler()
+    result = await h.cancel_tool_call(session_id="wire", tool_call_id="tc-live")
+    assert result == {"cancelled": True}
+    assert len(cancel_calls) == 1
+
+
+async def test_cancel_tool_call_allowed_on_observe_only_binding(
+    patch_active_samples,
+) -> None:
+    """cancel_tool_call works on a non-interactive (observe-only) binding.
+
+    Decision #4: per-tool cancel fires the tool's own ``_cancel_fn`` —
+    independent of the agent turn loop — so an observe-only client may
+    cancel a running tool. No interactivity gate.
+    """
+    cancel_calls: list[None] = []
+    tr = Transcript()
+    tr._event(
+        _pending_tool_event(
+            tool_id="tc-live", cancel_fn=lambda: cancel_calls.append(None)
+        )
+    )
+    patch_active_samples(_stub_active_sample(transcript=tr))
+    h = _handler(interactive=False)
     result = await h.cancel_tool_call(session_id="wire", tool_call_id="tc-live")
     assert result == {"cancelled": True}
     assert len(cancel_calls) == 1

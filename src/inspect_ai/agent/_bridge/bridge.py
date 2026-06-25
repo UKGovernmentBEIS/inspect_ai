@@ -1,5 +1,5 @@
 import contextlib
-import importlib
+import importlib.util
 import re
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -14,7 +14,7 @@ from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, get_model
+from inspect_ai.model._model import GenerateFilter, ModelEventSink, get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai_convert import (
     messages_from_openai,
@@ -90,6 +90,8 @@ async def agent_bridge(
     compaction: CompactionStrategy | None = None,
     web_search: WebSearchProviders | None = None,
     code_execution: CodeExecutionProviders | None = None,
+    model_event_sink: ModelEventSink | None = None,
+    forward_generation_config: bool = False,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -121,6 +123,17 @@ async def agent_bridge(
           Anthropic, Google, and Grok). If the provider does not support
           native code execution then the bash() tool will be provided
           (note that this requires a sandbox by declared for the task).
+       model_event_sink: Optional sink that takes ownership of `ModelEvent`
+          emission for calls routed through the bridge. When set, the bridge
+          installs it around `model.generate()` so the sink decides when and
+          under which span each event is emitted to the transcript.
+       forward_generation_config: Forward client generation parameters (e.g.
+          `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
+          to `False`, in which case those parameters are dropped and the resolved
+          Inspect model config and provider defaults govern generation (structural
+          parameters like the system prompt, tools, and response format are always
+          forwarded). Set `True` for faithful-proxy behavior where the client's
+          generation parameters are authoritative.
     """
     # ensure one time init
     init_bridge_request_patch()
@@ -133,7 +146,14 @@ async def agent_bridge(
     state = state or AgentState(messages=[])
 
     # create the bridge
-    bridge = AgentBridge(state, filter, retry_refusals, compaction)
+    bridge = AgentBridge(
+        state,
+        filter,
+        retry_refusals,
+        compaction,
+        model_event_sink=model_event_sink,
+        forward_generation_config=forward_generation_config,
+    )
 
     # set the patch config for this context and child coroutines
     token = _patch_config.set(
@@ -335,8 +355,10 @@ def init_anthropic_request_patch() -> None:
 
 
 def init_google_request_patch() -> None:
-    # don't patch if no google genai
-    if not importlib.util.find_spec("google.genai"):
+    try:
+        if not importlib.util.find_spec("google.genai"):
+            return
+    except ModuleNotFoundError:
         return
 
     from google.genai._api_client import BaseApiClient

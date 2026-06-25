@@ -8,7 +8,6 @@ from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.log._log import EvalPlan, EvalSample, EvalSampleSummary, EvalSpec
-from inspect_ai.log._pool import rebind_sample_timelines, resolve_sample_events_data
 from inspect_ai.log._recorders.eval import (
     HEADER_JSON,
     JOURNAL_DIR,
@@ -18,6 +17,7 @@ from inspect_ai.log._recorders.eval import (
     SUMMARY_DIR,
     LogStart,
 )
+from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
 
 
 @dataclass
