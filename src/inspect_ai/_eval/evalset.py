@@ -288,7 +288,7 @@ def eval_set(
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking.
-        max_samples: Maximum number of samples to run in parallel
+        max_samples: Maximum number of samples to run in parallel within each task
             (default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
