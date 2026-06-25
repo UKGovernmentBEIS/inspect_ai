@@ -38,6 +38,7 @@
 - MCP: Bound sandbox MCP `call_tool` with `read_timeout_seconds` so a lost response surfaces to the model as a tool timeout error instead of deadlocking the tool call.
 - Scoring: Restore sample.timelines into transcript on re-score.
 - Scoring: `mean()` now maps `Value` to float via `value_to_float()` like the other built-in metrics.
+- Scoring: Fix `mean`/`median`/`pass_at`/`pass_k` epoch reducers applying a custom `value_to_float` twice to dict-valued scores.
 - Eval Set: `task_identifier` now excludes runtime-only `GenerateConfig` fields from `model_roles` configs
 - Eval Log: `read_eval_log`, `read_eval_log_async`, and `samples_df` now accept `exclude_fields` for more memory-efficient loading of large samples.
 - Sandbox: Preserve docker-compatible per-sample sandbox config (e.g. a per-sample `ComposeConfig`) when an eval-level sandbox override (`--sandbox <provider>`) is passed without its own config.
