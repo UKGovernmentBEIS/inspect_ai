@@ -469,21 +469,30 @@ class TaskLogger:
 
         With both arguments ``None`` this is a pure read. ``log_buffer`` sets
         the number of completed samples to buffer before a log write (clamped
-        to a minimum of 1); ``log_shared`` retunes the shared-log sync interval
-        in seconds (a no-op when realtime logging — and thus the buffer
-        database — is off). Returns the resulting configuration. Handed to the
-        control channel via ``register_eval`` for ``inspect ctl buffer``.
+        to a minimum of 1); ``log_shared`` *retunes* an already-running
+        shared-log sync interval (in seconds).
+
+        ``log_shared`` cannot turn shared sync on at runtime: a buffer started
+        without it has no filestore (a normal CLI run passes ``log_shared=0``),
+        so the request is rejected and reported back as ``log_shared=None``
+        ("off") rather than echoing a value that won't take effect. It's also a
+        no-op when realtime logging — and thus the buffer database — is off.
+        Returns the resulting configuration. Handed to the control channel via
+        ``register_eval`` for ``inspect ctl buffer``.
         """
         from inspect_ai._control.eval_state import BufferConfig
 
         if log_buffer is not None:
             self.flush_buffer = max(1, log_buffer)
         if log_shared is not None and self._buffer_db is not None:
+            # returns False (a no-op) when this buffer has no shared sync to
+            # retune — the reported log_shared below stays None, so the rejected
+            # request isn't echoed back as if it had been applied
             self._buffer_db.set_sync_interval(log_shared)
         return BufferConfig(
             log_buffer=self.flush_buffer,
             pending=len(self.flush_pending),
-            log_shared=self._buffer_db.log_shared
+            log_shared=self._buffer_db.shared_sync_interval
             if self._buffer_db is not None
             else None,
         )

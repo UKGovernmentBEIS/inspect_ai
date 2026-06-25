@@ -539,3 +539,28 @@ def test_set_sync_interval_noop_without_shared_sync(tmp_path: Path) -> None:
         assert db.log_shared is None
     finally:
         db.cleanup()
+
+
+def test_shared_sync_interval_reports_active_value(
+    shared_db: SampleBufferDatabase,
+) -> None:
+    # shared sync is configured (filestore created) → report the interval
+    assert shared_db._sync_filestore is not None
+    assert shared_db.shared_sync_interval == 30
+
+
+def test_shared_sync_interval_off_normalizes_to_none(tmp_path: Path) -> None:
+    # log_shared=0 ("off" from a normal CLI run) stores 0 but creates no
+    # filestore; the effective interval must read as None, not 0
+    db = SampleBufferDatabase(
+        location=str(tmp_path / "local.eval"),
+        create=True,
+        log_shared=0,
+        db_dir=tmp_path / "db",
+    )
+    try:
+        assert db.log_shared == 0
+        assert db._sync_filestore is None
+        assert db.shared_sync_interval is None
+    finally:
+        db.cleanup()

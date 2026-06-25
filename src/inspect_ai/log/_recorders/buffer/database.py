@@ -1026,6 +1026,19 @@ class SampleBufferDatabase(SampleBuffer):
             if write:
                 self._sync()
 
+    @property
+    def shared_sync_interval(self) -> int | None:
+        """Effective shared-log sync interval in seconds, or None when off.
+
+        ``log_shared`` carries the raw configured value, but a normal CLI run
+        passes ``0`` ("off") which is stored as ``0`` yet never creates a
+        filestore. Shared sync is actually running only when a filestore was
+        created (``log_shared`` truthy at construction). This collapses both
+        ``0`` and "no filestore" to ``None`` so callers report a single "off"
+        signal rather than a misleading ``0s`` interval.
+        """
+        return self.log_shared if self._sync_filestore is not None else None
+
     def set_sync_interval(self, seconds: int) -> bool:
         """Change the interval for syncing buffered events to the shared log dir.
 

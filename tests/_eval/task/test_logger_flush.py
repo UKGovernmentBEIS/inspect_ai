@@ -98,3 +98,42 @@ async def test_buffer_config_log_shared_noop_without_buffer_db() -> None:
     # no buffer db → setting log_shared is silently ignored, report stays None
     config = logger.buffer_config(log_shared=5)
     assert config.log_shared is None
+
+
+class _OffBufferDb:
+    """A buffer db with realtime logging on but no shared sync (CLI log_shared=0).
+
+    set_sync_interval is a no-op (returns False) and the effective interval
+    stays None — mirrors SampleBufferDatabase when no filestore was created.
+    """
+
+    def __init__(self) -> None:
+        self.set_calls: list[int] = []
+
+    def set_sync_interval(self, seconds: int) -> bool:
+        self.set_calls.append(seconds)
+        return False
+
+    @property
+    def shared_sync_interval(self) -> int | None:
+        return None
+
+
+async def test_buffer_config_reports_off_when_no_shared_sync() -> None:
+    # a buffer db exists (realtime on) but shared sync is off — report None,
+    # not a raw 0/interval
+    logger = _logger([], flush_buffer=10)
+    logger._buffer_db = _OffBufferDb()  # type: ignore[assignment]
+    assert logger.buffer_config().log_shared is None
+
+
+async def test_buffer_config_shared_enable_rejected_reports_off() -> None:
+    # --shared 5 on a buffer with no shared sync can't enable it at runtime;
+    # the rejected request must not be echoed back as if it took effect
+    logger = _logger([], flush_buffer=10)
+    db = _OffBufferDb()
+    logger._buffer_db = db  # type: ignore[assignment]
+
+    config = logger.buffer_config(log_shared=5)
+    assert config.log_shared is None
+    assert db.set_calls == [5]  # the no-op attempt was made and ignored
