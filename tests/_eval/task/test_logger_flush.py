@@ -63,6 +63,53 @@ async def test_flush_samples_finished_is_noop() -> None:
     assert recorder.flushes == 0
 
 
+async def test_flush_during_log_finish_is_serialized() -> None:
+    # a control-channel flush that races log_finish's recorder teardown must not
+    # reach into the torn-down recorder (KeyError -> 500): _flush_lock serializes
+    # them and the _finished flag makes the late flush a no-op
+    finish_entered = anyio.Event()
+    release_finish = anyio.Event()
+
+    class FinishRecorder:
+        def __init__(self) -> None:
+            self.torn_down = False
+            self.flushes = 0
+
+        async def log_finish(self, *args: object) -> str:
+            finish_entered.set()
+            await release_finish.wait()
+            self.torn_down = True  # mirrors `del self.data[key]`
+            return "log"
+
+        async def flush(self, eval: object) -> None:
+            if self.torn_down:
+                raise KeyError("log torn down")  # what the real recorder raises
+            self.flushes += 1
+
+    logger = _logger([("s1", 1)])
+    recorder = FinishRecorder()
+    logger.recorder = recorder  # type: ignore[assignment]
+    logger.header_only = False
+
+    flush_result: list[int] = []
+
+    async def do_flush() -> None:
+        flush_result.append(await logger.flush_samples())
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(logger.log_finish, "success", None)  # type: ignore[arg-type]
+        # wait until log_finish is inside the lock, awaiting teardown
+        await finish_entered.wait()
+        tg.start_soon(do_flush)
+        # let the flush reach (and block on) the lock before finish proceeds
+        await anyio.sleep(0)
+        release_finish.set()
+
+    assert flush_result == [0]  # the flush no-oped (finished) instead of writing
+    assert recorder.flushes == 0  # never called recorder.flush on the gone log
+    assert logger._finished is True
+
+
 async def test_buffer_config_finished_reports_no_pending() -> None:
     # log_finish clears flush_pending, so a finished eval reports 0 pending
     # rather than the stale count it carried before the final write

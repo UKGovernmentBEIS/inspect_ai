@@ -776,8 +776,9 @@ def _post_flush(socket_path: str, eval_id: str) -> dict[str, Any]:
             response = client.post(f"/evals/{eval_id}/flush")
             if response.status_code == 404:
                 click.echo(
-                    f"Eval '{eval_id}' is not flushable — it has no realtime "
-                    "buffer or has already finished.",
+                    f"Eval '{eval_id}' is not flushable — it has no live sample "
+                    "buffer in this process (e.g. a reused log, or a retry "
+                    "attempt that's been superseded).",
                     err=True,
                 )
                 raise click.exceptions.Exit(code=1)
@@ -814,7 +815,10 @@ def _fetch_buffer_config(
             )
             if response.status_code == 404:
                 click.echo(
-                    f"Eval '{eval_id}' not found — it may have finished.", err=True
+                    f"Eval '{eval_id}' has no sample buffer in this process "
+                    "(e.g. a reused log, or a retry attempt that's been "
+                    "superseded).",
+                    err=True,
                 )
                 raise click.exceptions.Exit(code=1)
             response.raise_for_status()

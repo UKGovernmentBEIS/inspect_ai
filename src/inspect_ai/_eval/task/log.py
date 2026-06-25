@@ -252,10 +252,15 @@ class TaskLogger:
         # torn-down recorder.
         self._finished = False
 
-        # serializes log flushes so an on-demand `flush_samples()` (control
-        # channel) can't interleave with the buffer-full flush in
-        # `_finalize_sample` — both run on the eval loop and both await the
-        # recorder, so without this they could double-write / race the clear.
+        # Serializes the three flush paths — the buffer-full flush in
+        # `_finalize_sample`, on-demand `flush_samples()` (control channel), and
+        # the teardown in `log_finish()`. All run on the eval loop and interleave
+        # at the recorder await. The recorder holds its own lock, so the writes
+        # themselves are already safe; this lock keeps the *bookkeeping* correct:
+        # the count `flush_samples()` returns reflects exactly what it flushed
+        # (no concurrent mutation of `flush_pending` across the await), and an
+        # on-demand flush can't reach into the recorder after `log_finish()` has
+        # torn it down (which would raise rather than no-op).
         self._flush_lock = anyio.Lock()
 
         # sample buffer db
@@ -422,19 +427,23 @@ class TaskLogger:
         if flush:
             self.flush_pending.append((sample.id, sample.epoch))
             if len(self.flush_pending) >= self.flush_buffer:
-                await self._flush_to_log()
+                await self.flush_samples()
 
         if sample.error is None:
             self._samples_completed += 1
 
-    async def _flush_to_log(self) -> int:
+    async def flush_samples(self) -> int:
         """Write the buffered completed samples to the log and clear the buffer.
 
         Flushes whatever is in ``flush_pending`` to the (possibly remote, eg.
-        S3) log via the recorder, removes those samples from the realtime
-        buffer database, and clears the pending list. Returns the number of
-        samples written (0 if none were pending). Serialized via
-        :attr:`_flush_lock`.
+        S3) log via the recorder, removes those samples from the realtime buffer
+        database, and clears the pending list — returning the number of samples
+        written (0 if none were pending). Serialized via :attr:`_flush_lock`.
+
+        Called both when the flush buffer fills (from ``_finalize_sample``) and
+        on demand: handed to the control channel via ``register_eval`` so
+        ``inspect ctl flush`` can push a long-running eval's results out to S3
+        without waiting for the buffer to fill.
         """
         async with self._flush_lock:
             # once finished, the recorder has torn down this eval's tracked log;
@@ -448,19 +457,6 @@ class TaskLogger:
                 self._buffer_db.remove_samples(self.flush_pending)
             self.flush_pending.clear()
             return flushed
-
-    async def flush_samples(self) -> int:
-        """Write all buffered completed samples to the log immediately.
-
-        Completed samples normally accumulate until ``log_buffer`` of them
-        queue up before a (possibly remote) write. This forces that write now —
-        so the samples become readable in the log without waiting for the
-        buffer to fill — and returns the number of samples written (0 if none
-        were pending). Handed to the control channel via ``register_eval`` so
-        ``inspect ctl flush`` can push a long-running eval's results out to S3
-        on demand.
-        """
-        return await self._flush_to_log()
 
     def buffer_config(
         self, log_buffer: int | None = None, log_shared: int | None = None
@@ -509,24 +505,30 @@ class TaskLogger:
         reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
     ) -> EvalLog:
-        # finish and get log
-        log = await self.recorder.log_finish(
-            self.eval, status, stats, results, reductions, error, self.header_only
-        )
+        # Finalize under `_flush_lock` so an on-demand `flush_samples()` from the
+        # control channel can't interleave with the teardown: `recorder.log_finish`
+        # deletes this eval's tracked log, and a flush racing that would call
+        # `recorder.flush()` on the gone log (KeyError -> 500). The lock makes
+        # finish and flush mutually exclusive; the `_finished` flag set inside it
+        # makes any flush that acquires the lock afterward a no-op rather than
+        # touching the torn-down recorder.
+        async with self._flush_lock:
+            # finish and get log
+            log = await self.recorder.log_finish(
+                self.eval, status, stats, results, reductions, error, self.header_only
+            )
 
-        # the recorder finalized and tore down this eval's tracked log; every
-        # completed sample is now on disk. Mark finished and drop the pending
-        # list so the still-attached flush/buffer directives (kept visible under
-        # --ctl-server=keep) report a finished no-op / accurate empty pending
-        # rather than flushing into the torn-down recorder or reporting stale
-        # pending.
-        self._finished = True
-        self.flush_pending.clear()
+            # every completed sample is now on disk. Mark finished and drop the
+            # pending list so the still-attached flush/buffer directives (kept
+            # visible under --ctl-server=keep) report a finished no-op / accurate
+            # empty pending rather than reporting stale pending.
+            self._finished = True
+            self.flush_pending.clear()
 
-        # cleanup the events db
-        if self._buffer_db is not None:
-            self._buffer_db.cleanup()
-            self._buffer_db = None
+            # cleanup the events db
+            if self._buffer_db is not None:
+                self._buffer_db.cleanup()
+                self._buffer_db = None
 
         # return log
         return log
