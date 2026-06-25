@@ -549,6 +549,53 @@ b = await second_dummy_tool("y")
     assert "second:y" in result[0].text
 
 
+def add_numbers_tool() -> Tool:
+    async def execute(a: int, b: int) -> int:
+        """Add two integers.
+
+        Args:
+            a: First integer.
+            b: Second integer.
+        """
+        return a + b
+
+    return ToolDef(
+        execute,
+        name="add_numbers",
+        description="Add two integers.",
+    ).as_tool()
+
+
+@pytest.mark.anyio
+async def test_external_functions_preserve_scalar_return_type():
+    external_functions = external_functions_for_tool_defs(
+        _tool_defs([add_numbers_tool()])
+    )
+
+    result = await external_functions["add_numbers"](2, 3)
+
+    assert result == 5
+    assert isinstance(result, int)
+
+
+@pytest.mark.anyio
+async def test_run_code_chains_typed_tool_results_with_monty():
+    pytest.importorskip("pydantic_monty")
+
+    # the first result feeds the second call; the int must survive the
+    # Monty boundary so the second call validates against the int schema
+    tool = run_code(tools=[add_numbers_tool()], execute_code=True)
+
+    result = await tool(
+        code="""
+x = await add_numbers(a=1, b=2)
+await add_numbers(a=x, b=40)
+"""
+    )
+
+    assert result[0].text == "43"
+
+
 @pytest.mark.anyio
 async def test_run_code_can_call_wrapped_tools_with_asyncio_gather():
     pytest.importorskip("pydantic_monty")
