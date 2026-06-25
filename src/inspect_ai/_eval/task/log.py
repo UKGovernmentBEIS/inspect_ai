@@ -550,6 +550,10 @@ class TaskLogger:
 
     async def _arm_stale_flush_timer(self, *, generation: int | None = None) -> None:
         async with self._flush_pending_lock:
+            # never arm once log_finish() has begun finalizing — it has (or is
+            # about to) clear pending and tear down, so a timer here is stale
+            if self._finished:
+                return
             if generation is not None and generation != self._stale_flush_generation:
                 return
 
@@ -673,6 +677,15 @@ class TaskLogger:
             if self._buffer_db is not None:
                 self._buffer_db.cleanup()
                 self._buffer_db = None
+
+        # An on-demand flush_samples() that was mid-flush while we waited on
+        # _flush_lock above re-arms the stale-flush timer *outside* _flush_lock
+        # (see _flush_pending_samples), so it can slip in after our pre-lock stop
+        # and leave a timer armed against the now-finished eval. Now that
+        # _finished is set and pending cleared, stop once more to cancel it — and
+        # not while holding _flush_lock, since the stop awaits any in-flight
+        # timer flush, which takes that lock.
+        await self._stop_stale_flush_timer()
 
         # return log
         return log

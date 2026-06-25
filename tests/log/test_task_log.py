@@ -219,6 +219,21 @@ class _FlushBufferDB:
         pass
 
 
+class _FinishRecorder(_FlushRecorder):
+    """A flush recorder whose ``log_finish`` can be paused mid-call."""
+
+    def __init__(self, location: str = "test.eval") -> None:
+        super().__init__(location)
+        self.log_finish_entered = anyio.Event()
+        self.allow_log_finish = anyio.Event()
+        self.allow_log_finish.set()
+
+    async def log_finish(self, *args: Any, **kwargs: Any) -> Any:
+        self.log_finish_entered.set()
+        await self.allow_log_finish.wait()
+        return None
+
+
 def _flush_logger(
     *,
     flush_buffer: int = 2,
@@ -337,6 +352,52 @@ async def test_task_logger_threshold_flush_cancels_scheduled_stale_flush() -> No
     assert recorder.flush_count == 1
     assert logger.flush_pending == []
     assert buffer_db.removed == [("sample", 1), ("sample-2", 1)]
+
+
+async def _call_log_finish(logger: TaskLogger) -> None:
+    await logger.log_finish("success", EvalStats())
+
+
+@pytest.mark.anyio
+async def test_log_finish_cancels_stale_timer_rearmed_by_racing_flush() -> None:
+    # Repro: an on-demand flush_samples() is mid-flush (holding _flush_lock) when
+    # a new sample appends to pending; log_finish() runs concurrently. The flush
+    # re-arms the stale-flush timer *outside* _flush_lock — after log_finish's
+    # pre-lock stop — so without a second stop the timer would survive finish
+    # (armed scope + empty pending). log_finish must cancel it.
+    recorder = _FinishRecorder()
+    recorder.allow_flush = anyio.Event()
+    recorder.allow_log_finish = anyio.Event()
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(flush_buffer=10, buffer_db=buffer_db, recorder=recorder)
+    logger.header_only = False
+    logger._stale_flush_interval = 60
+    logger.flush_pending = [("sample", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(logger.flush_samples)
+            await recorder.flush_started.wait()
+
+            # a sample completes during the flush → the flush re-arms a timer
+            # for the leftover pending sample once it releases _flush_lock
+            logger.flush_pending.append(("sample-2", 1))
+
+            tg.start_soon(_call_log_finish, logger)
+            recorder.allow_flush.set()
+
+            # finish is now parked inside recorder.log_finish (holding _flush_lock,
+            # _finished not yet set); wait for the racing re-arm to land
+            await recorder.log_finish_entered.wait()
+            while logger._stale_flush_cancel_scope is None:
+                await anyio.sleep(0)
+
+            recorder.allow_log_finish.set()
+
+        # both tasks joined: finish must have cancelled the racing timer
+        assert logger._finished is True
+        assert logger.flush_pending == []
+        assert logger._stale_flush_cancel_scope is None
 
 
 @pytest.mark.anyio
