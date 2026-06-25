@@ -30,6 +30,7 @@ pytest-cov
 pytest-dotenv
 pytest-mock
 pytest-textual-snapshot
+pytest-timeout
 pytest-watcher
 pytest-xdist
 # match ruff version specified in .pre-commit-config.yaml

@@ -160,6 +160,71 @@ def _create_filestore_fixture(
     return eval_path, manifest
 
 
+def test_filestore_tags_s3_buffer_objects() -> None:
+    """S3 buffer objects get the inspect-ephemeral tag and other filesystems get none."""
+    s3 = SampleBufferFilestore("s3://bucket/logs/log.eval", create=False)
+    assert s3._write_fs_options == {
+        "s3_additional_kwargs": {"Tagging": "inspect-ephemeral=true"}
+    }
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = SampleBufferFilestore(os.path.join(temp_dir, "log.eval"), create=False)
+        assert local._write_fs_options == {}
+
+
+def test_filestore_falls_back_when_tagging_denied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tagging-permission denial disables tagging and retries the write untagged."""
+    fs = SampleBufferFilestore("s3://bucket/logs/log.eval", create=False)
+    assert fs._write_fs_options  # tagging enabled to start
+
+    calls: list[dict[str, object]] = []
+
+    class _FakeFile:
+        def write(self, data: object) -> None:
+            pass
+
+        def __enter__(self) -> "_FakeFile":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+    def fake_open_file(
+        file: str,
+        mode: str,
+        encoding: str = "utf-8",
+        fs_options: dict[str, object] = {},
+    ) -> "_FakeFile":
+        calls.append({"file": file, "fs_options": fs_options})
+        if fs_options:
+            raise PermissionError(
+                "An error occurred (AccessDenied) ... not authorized to "
+                "perform: s3:PutObjectTagging"
+            )
+        return _FakeFile()
+
+    monkeypatch.setattr(
+        "inspect_ai.log._recorders.buffer.filestore.open_file", fake_open_file
+    )
+
+    fs._write_bytes("s3://bucket/logs/buf/segment.0.zip", b"data")
+
+    # first attempt tagged (failed), second attempt untagged (succeeded)
+    assert [c["fs_options"] for c in calls] == [
+        {"s3_additional_kwargs": {"Tagging": "inspect-ephemeral=true"}},
+        {},
+    ]
+    # tagging disabled for the rest of the session
+    assert fs._write_fs_options == {}
+
+    # subsequent writes go straight to untagged with no retry
+    calls.clear()
+    fs._write_bytes("s3://bucket/logs/buf/segment.1.zip", b"more")
+    assert [c["fs_options"] for c in calls] == [{}]
+
+
 def test_iter_sample_segments_reads_all() -> None:
     """iter_sample_segments yields all segments for a sample."""
     with tempfile.TemporaryDirectory() as temp_dir:

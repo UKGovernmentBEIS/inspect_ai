@@ -412,7 +412,7 @@ if len(errors) > 0:
 | `EvalTask` | Task configuration (name, file, args, solver, etc.) |
 | `EvalModel` | Model name, args, generation config, etc. |
 | `EvalDataset` | Dataset name, location, sample ids, etc. |
-| `EvalConfig` | Epochs, approval, sample limits, etc. |
+| `EvalConfiguration` | Epochs, approval, sample limits, etc. |
 | `EvalResults` | Status, errors, samples completed, headline metric. |
 | `EvalScores` | All scores and metrics broken into separate columns. |
 

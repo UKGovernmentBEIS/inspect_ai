@@ -6,6 +6,7 @@ import time
 import anyio
 import pytest
 from tenacity import RetryError
+from tenacity.wait import wait_none
 from typing_extensions import TypedDict
 
 from inspect_ai._util._async import tg_collect
@@ -53,7 +54,13 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
         super().__init__(
             config or BatchConfig(size=3, send_delay=0.01, tick=0.001),
             model_retry_config(
-                "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+                "test",
+                3,
+                None,
+                lambda e: True,
+                lambda ex: None,
+                lambda m, s: None,
+                wait=wait_none(),
             ),
             max_batch_request_count=10,
             max_batch_size_mb=1,
