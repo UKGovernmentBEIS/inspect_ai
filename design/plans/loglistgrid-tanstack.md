@@ -31,10 +31,13 @@ Every current `LogListGrid` feature must survive the migration. Phase 1 delibera
 | Column reordering (header drag) | later |
 | Column pinning (`type` icon col pinned-left) | later |
 | Auto-fit-to-grid-width (`autoSizeStrategy: fitGridWidth`) + user-resize-override suppression | later |
+| Multi-line/preformatted cell tooltips (model-roles, task-args JSON — was `PreformattedTooltip`, now native `title`) | later — or accept the drop (Q3) |
 
 Phase numbers past 1 are a planning order, not a contract; we can resequence as we learn. The point is the full set lands eventually.
 
-## Phase 1 — Stand up the table (render + navigate)
+## Phase 1 — Stand up the table (render + navigate) — ✅ DONE
+
+> Committed on branch `loglist-tanstack-phase1` (ts-mono `b48e211`, rebased on `origin/main`; parent repo bumps the submodule pointer). See **Phase 1 outcome** below for what shipped and what diverged from this sketch.
 
 Deliver an inspect-local TanStack grid that renders the logs and tasks views with correct content and lets the user click into a log. No sorting, persistence, find, keyboard nav, resizing, or filtering yet.
 
@@ -42,13 +45,13 @@ Deliver an inspect-local TanStack grid that renders the logs and tasks views wit
 
 - **`DataGrid.tsx`** — generic `<TRow>` TanStack wrapper. `useReactTable` with `getCoreRowModel`, `columnVisibility` state, `@tanstack/react-virtual` for rows. Renders header + cells via `flexRender`. Fixed column widths from each column's `size`; horizontal scroll when total width exceeds the container (like scout). Row selection highlight + click handler: normal click navigates, Cmd/Ctrl/Shift/middle-click open in new tab. (No sort/resizer/keyboard wiring yet — those land in later phases; leave clean seams for them.)
 - **`DataGrid.module.css`** — adapt scout's CSS module (drop drag/reorder/resizer classes for now). Reuse existing `shared/gridCells.module.css` for cell-content classes (`iconCell`, `numberCell`, `taskText`, `scoreCell`, …) referenced by cell renderers.
-- **`columnTypes.ts`** — local `ExtendedColumnDef<TRow>`: `ColumnDef<TRow>` + `meta` (`align`), `minSize`/`maxSize`, `headerTitle`, `textValue`. (Add `meta.sortComparator` in phase 2; filter fields later.)
+- **`columnTypes.ts`** — local `ExtendedColumnDef<TRow>`: `ColumnDef<TRow>` + `meta` (`align`, `sortComparator`), `headerTitle`, `titleValue`, `textValue`. (`size`/`minSize`/`maxSize` come from TanStack's own `ColumnDef`. `meta.sortComparator` is declared but unpopulated until phase 2; `textValue` unpopulated until phase 4; filter fields later.)
 
 **Column porting** — translate `useLogListColumns` (`log-list/grid/columns/hooks.tsx`) from AG `ColDef<LogListRow>[]` to `ExtendedColumnDef<LogListRow>[]`:
 
 - `field`/`colId` → column **`id`** set to the *same field key* (`type`, `task`, `score`, `score_<scorer>/<metric>`, `metric_<name>`, …) so the existing `columnVisibility` record and the Columns popover keep working unchanged.
-- `valueGetter` → `accessorFn`; `cellRenderer`(`params.data`/`params.value`) → `cell: ({ row, getValue })`; fold `valueFormatter` into `cell`/`textValue`. `tooltipValueGetter` → cell `title`. `initialWidth`→`size`, `min/maxWidth`→`minSize`/`maxSize`.
-- Keep the comparator on the AG side for now (carry as `meta.sortComparator`, unused until phase 2) so we don't have to revisit each column.
+- `valueGetter` → `accessorFn`; `cellRenderer`(`params.data`/`params.value`) → `cell: ({ row, getValue })`; `valueFormatter` folded into `cell`. `tooltipValueGetter` → `titleValue: (row) => string | undefined`, rendered by the DataGrid as the cell `title`. `initialWidth`→`size`, `min/maxWidth`→`minSize`/`maxSize`. Every column uses `accessorFn` + explicit `id` (not `accessorKey`) so score-column ids containing `/` or `.` aren't misread as deep key paths.
+- **Comparators are NOT carried in phase 1.** The existing AG comparators read `IRowNode.data`, a shape that won't match phase 2's row-based local sort; carrying them would be porting-the-wrong-way. Phase 2 reconstructs comparators in this same hook (it has `scorerMap` for value types).
 - Mode-specific ordering/visibility logic (tasks vs logs, default-hidden sets, score-mode matching) stays as-is.
 - `pickerColumns`: emit a lightweight `ColDef`-shaped list (`{ colId, headerName }[]`) so the shared `ColumnSelectorPopover` (still used by the AG-Grid samples view) is untouched.
 
@@ -71,9 +74,30 @@ Deliver an inspect-local TanStack grid that renders the logs and tasks views wit
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test` in `ts-mono`.
 - `pnpm dev` against a logs dir with multiple folders + tasks. Confirm: logs/folder view renders all rows with correct cell content (task, model, score, status, completed, scores…); tasks view renders without the type column and in tasks order; default-hidden columns are hidden; Columns popover toggles base + score columns; per-scorer ↔ by-metric switch; row click navigates; Cmd/Shift/middle-click open new tab; virtualization smooth on a large dir.
 
+## Phase 1 outcome & findings
+
+**Verified:** `tsc --noEmit`, eslint, prettier all clean; 477/477 unit tests pass; `top-level-views.spec.ts` e2e 8/8 pass (renders Tasks/Folders/Samples, click-navigation, folder grouping, ARIA selectors) against msw-mocked data. `pnpm dev` visual pass not separately run — the e2e exercises the same render/navigate paths.
+
+**Decisions / divergences from the sketch:**
+- **ARIA roles as the stable selector.** The DataGrid sets `role="grid"/"rowgroup"/"row"/"columnheader"/"gridcell"` (CSS-module class names are hashed and unusable as selectors). e2e selectors target these roles.
+- **DataGrid click contract simplified.** `onRowActivate(row)` fires only on a plain left click; modifier/middle clicks are left to the task cell's native `<a href>` overlay (matches prior AG behavior — new-tab only works from the task cell). Row selection highlight is internal state seeded from an optional `selectedRowId`.
+- **Tooltips degrade to native `title`.** The AG `PreformattedTooltip` (multi-line model-roles / task-args JSON) is dropped; `titleValue` feeds the native `title` attribute. Revisit if multi-line fidelity matters.
+- **Row/header heights:** row 30px, header 25px; fixed widths + horizontal scroll (auto-fit-to-width deferred).
+- **Lint suppression:** `react-hooks/incompatible-library` on `useReactTable` — the same documented suppression scout's DataGrid uses (React Compiler can't memoize TanStack's returned fns).
+- **filteredCount** is set to `data.length` (no filtering yet) so the footer count stays accurate.
+
+**Rebase finding (origin/main):** PR #365 enabled `noUncheckedIndexedAccess` for `apps/inspect`. New code had to narrow indexed access — done via `Object.entries(scorerMap)` for the per-scorer map and guards on `roles[0]` / `contributors[0]` / `splice` results (proper narrowing, not `@ts-expect-error`). The conflicts the rebase surfaced in `LogListGrid.tsx`/`hooks.tsx` were only #365's suppressions on the AG code this rewrite deletes — nothing substantive lost.
+
+**Carried over (left in place, addressed later):**
+- Old AG grid-state store slice (`gridStateByScope` / `setLogsGridState` in `state/types.ts` + `logsSlice.ts` + `useLogsListing`) is now unused by the log list — phase 2 replaces it.
+- `ag-grid-community`/`ag-grid-react` deps remain (still used by the samples views).
+- e2e: `log-list-filters.spec.ts` is `describe.skip`'d (AG-api/sort/filter); `top-level-views.spec.ts` repointed to ARIA roles.
+
+**Env note:** the rebase bumped Playwright; running e2e needed `pnpm exec playwright install chromium` (local cache only).
+
 ## Later phases (sketch)
 
-- **Phase 2 — Sorting + persistence.** `manualSorting: true`; `LogListGrid` `useMemo`s sorted data from `(data, sorting)` using each column's `meta.sortComparator` wrapped by the existing **`createFolderFirstComparator`** + **`comparators`** (`shared/gridComparators.ts`), reused near-verbatim. Direction is known to us, so folder-pinning stays correct in both directions (TanStack's built-in sort can't do this — it negates the whole comparator on desc). DataGrid renders sort-click + asc/desc indicators. Persist sort per `scopeKey`: replace `gridStateByScope: Record<string, GridState>` in `state/types.ts` with a new TanStack-shaped key (e.g. `logListSortByScope: Record<string, SortingState>`); drop the `ag-grid-community` `GridState` import. New key (not reinterpreting the old one) avoids reading stale AG state.
+- **Phase 2 — Sorting + persistence.** Wire the DataGrid's `sorting` state + sort-click/asc-desc indicators (add to the existing header render). Keep sorting out of TanStack's row model (`manualSorting: true`); `LogListGrid` `useMemo`s sorted data from `(data, sorting)`. Reconstruct comparators in `useLogListColumns` and attach via `meta.sortComparator` (folder-first + NaN-aware/date), reusing **`createFolderFirstComparator`** + **`comparators`** (`shared/gridComparators.ts`) — adapt their `IRowNode`-based signature to row-based, or wrap. Direction is known to us, so folder-pinning stays correct in both directions (TanStack's built-in sort can't — it negates the whole comparator on desc). Persist sort per `scopeKey`: replace the now-unused `gridStateByScope: Record<string, GridState>` (`state/types.ts` + `logsSlice.ts` + `useLogsListing`) with a TanStack-shaped key (e.g. `logListSortByScope: Record<string, SortingState>`); drop the `ag-grid-community` `GridState` import. New key (not reinterpreting the old one) avoids reading stale AG state.
 - **Phase 3 — Keyboard navigation.** Arrows/Home/End/PgUp-Dn/Enter + scroll-into-view; adapt scout's DataGrid keyboard handler to single-select semantics.
 - **Phase 4 — Ctrl+F find.** Port `FindBandUI` + per-row search string built from visible columns' `textValue`/accessor (replacing AG's `getCellValue` cache); scroll-to-match + select.
 - **Phase 5 — Column resizing.** TanStack `enableColumnResizing` + resizer UI (re-add the scout CSS).
@@ -81,5 +105,6 @@ Deliver an inspect-local TanStack grid that renders the logs and tasks views wit
 
 ## Open questions
 
-1. Phase 2: persist **column widths** per scope too, or sort-only? (Lean sort-only initially.)
-2. Existing Playwright tests drive the AG api (`window.__inspectGridApi`) for sort/filter. Rewrite to drive TanStack/DOM, or expose a minimal test handle? (Addressed alongside phase 2/filtering, not phase 1.)
+1. Phase 2: persist **column widths** per scope too, or sort-only? (Lean sort-only initially. Column resizing itself is phase 5, so widths may not be persistable until then.)
+2. Phase 2/filtering: rewrite the skipped `log-list-filters.spec.ts` to drive the TanStack grid via DOM/ARIA roles (the `__inspectGridApi` AG hook is gone), or expose a minimal test handle? Re-enable per-suite as sorting (phase 2) then filtering land.
+3. Multi-line tooltips: is dropping `PreformattedTooltip` (model-roles / task-args JSON now flow through native `title`) acceptable, or restore a custom tooltip later?
