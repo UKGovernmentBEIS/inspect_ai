@@ -218,12 +218,13 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
         if isinstance(representative.value, dict):
             dict_scores = _partition_dict_scores(scores)
             dict_result: dict[str, str | int | float | bool | None] = {}
-            keys = dict_scores[0].value.keys()  # type: ignore
+            keys = _union_dict_keys(dict_scores)
             for key in keys:
                 key_values = [
                     cast(str | int | float | bool, score.value[key])  # type: ignore
                     for score in dict_scores
-                    if _is_reducible(score.value[key])  # type: ignore
+                    if key in score.value  # type: ignore
+                    and _is_reducible(score.value[key])  # type: ignore
                 ]
                 if len(key_values) == 0:
                     dict_result[key] = float("nan")
@@ -300,10 +301,12 @@ def _count_dict(
         return _nan_score(scores)
 
     dict_result: dict[str, str | int | float | bool] = {}
-    keys = dict_scores[0].value.keys()  # type: ignore
+    keys = _union_dict_keys(dict_scores)
     for key in keys:
         key_values = []
         for score in dict_scores:
+            if key not in score.value:  # type: ignore
+                continue
             key_value = cast(str | int | float | bool, score.value[key])  # type: ignore
             if _is_reducible(key_value):
                 key_values.append(key_value)
@@ -368,9 +371,11 @@ def _compute_dict_stat(
         return _nan_score(scores)
 
     dict_result: dict[str, str | int | float | bool | None] = {}
-    for key in dict_scores[0].value.keys():  # type: ignore
+    for key in _union_dict_keys(dict_scores):
         values = []
         for score in dict_scores:
+            if key not in score.value:  # type: ignore
+                continue
             key_value = value_to_float(score.value[key])  # type: ignore
             if _is_reducible(key_value):
                 values.append(key_value)
@@ -470,6 +475,22 @@ def _partition_dict_scores(scores: list[Score]) -> list[Score]:
                 "Attempting to reduce a dictionary score for a non-dictionary value"
             )
     return result
+
+
+def _union_dict_keys(dict_scores: list[Score]) -> list[str]:
+    r"""Ordered union of keys across dict-valued scores.
+
+    Epoch scores for a sample can legitimately carry different keys (for
+    example a scorer that only emits an optional metric for some outputs), so
+    reducing over the first score's keys alone would both miss keys that only
+    appear later and raise a KeyError on keys absent from a later score. Reduce
+    over the union instead; scores lacking a given key are skipped for that key,
+    mirroring how non-reducible values are filtered out elsewhere.
+    """
+    keys: dict[str, None] = {}
+    for score in dict_scores:
+        keys.update(dict.fromkeys(score.value.keys()))  # type: ignore
+    return list(keys)
 
 
 def _partition_list_scores(scores: list[Score]) -> list[Score]:

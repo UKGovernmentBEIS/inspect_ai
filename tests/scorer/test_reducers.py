@@ -246,6 +246,28 @@ def test_nan_root_first_score_dict_reducers() -> None:
     assert max_reducer(dict_scores).value == {"coolness": 4, "spiciness": 1}
 
 
+def test_heterogeneous_keys_dict_reducers() -> None:
+    # Epoch scores for a sample can legitimately carry different keys — e.g. a
+    # scorer that only emits an optional metric for some model outputs. Reducers
+    # should reduce over the union of keys (computing each key over the scores
+    # that actually have it) rather than raising KeyError off the first score's
+    # keys, or silently dropping keys that only appear in a later score.
+    dict_scores = [
+        Score(value={"coolness": 6, "spiciness": 2}),
+        Score(value={"coolness": 4}),  # "spiciness" absent this epoch
+        Score(value={"coolness": 2, "spiciness": 10, "zest": 8}),  # "zest" only here
+    ]
+
+    assert avg_reducer(dict_scores).value == {"coolness": 4, "spiciness": 6, "zest": 8}
+    assert median_reducer(dict_scores).value == {
+        "coolness": 4,
+        "spiciness": 6,
+        "zest": 8,
+    }
+    assert max_reducer(dict_scores).value == {"coolness": 6, "spiciness": 10, "zest": 8}
+    assert mode_reducer(dict_scores).value == {"coolness": 6, "spiciness": 2, "zest": 8}
+
+
 def test_dict_reducer_value_to_float_applied_once() -> None:
     # A custom value_to_float should be applied once per value, like the scalar
     # and list branches. Halving isn't idempotent, so applying it twice in the
