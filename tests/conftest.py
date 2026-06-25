@@ -65,10 +65,44 @@ def local_inspect_tools(request):
     return request.config.getoption("--local-inspect-tools")
 
 
+@pytest.fixture(autouse=True)
+def fast_retry_waits(request):
+    """Zero out model-generate and chat-API retry backoff during tests.
+
+    Both retry paths default to ``wait_exponential_jitter(initial=3, ...)`` /
+    ``wait_exponential_jitter()``, so any test that exercises a retry waits a
+    real 3s + 6s + ... per attempt. The backoff *duration* is never the thing
+    under test, so we replace the module-level ``wait_exponential_jitter`` with
+    a no-wait stand-in. Tests that genuinely assert on backoff timing can opt
+    out with ``@pytest.mark.real_retry_wait``.
+    """
+    if request.node.get_closest_marker("real_retry_wait"):
+        yield
+        return
+
+    from tenacity.wait import wait_none
+
+    import inspect_ai.model._providers.util.chatapi as chatapi
+    import inspect_ai.model._retry as model_retry
+
+    def no_wait(*args: object, **kwargs: object) -> wait_none:
+        return wait_none()
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(model_retry, "wait_exponential_jitter", no_wait)
+        mp.setattr(chatapi, "wait_exponential_jitter", no_wait)
+        yield
+
+
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
     config.addinivalue_line("markers", "flaky: mark test as flaky/unreliable")
+    config.addinivalue_line(
+        "markers",
+        "real_retry_wait: opt out of the fast-retry fixture and use real "
+        "exponential backoff (for tests that assert on retry wait timing)",
+    )
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
     # Dummy provider keys so tests that only construct a client (not call the
     # API) work without real credentials. Real keys (when present) win via

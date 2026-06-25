@@ -141,7 +141,9 @@ async def test_score_stream_preserves_log_updates(
         score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
     )
 
-    async def fake_score_async(*, log, scorers, metrics, action, copy, samples):
+    async def fake_score_async(
+        *, log, scorers, metrics, model, model_roles, action, copy, samples
+    ):
         assert samples is not None
         return log
 
@@ -201,7 +203,9 @@ async def test_score_stream_flushes_periodically(
         score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
     )
 
-    async def fake_score_async(*, log, scorers, metrics, action, copy, samples):
+    async def fake_score_async(
+        *, log, scorers, metrics, model, model_roles, action, copy, samples
+    ):
         assert samples is not None
         for idx in range(10):
             async with samples(idx):
