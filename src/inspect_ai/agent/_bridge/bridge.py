@@ -210,8 +210,10 @@ def init_openai_request_patch() -> None:
         return
     validate_openai_client("agent bridge")
 
+    import httpx
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
-    from openai._models import FinalRequestOptions
+    from openai._constants import RAW_RESPONSE_HEADER
+    from openai._models import BaseModel, FinalRequestOptions
     from openai._types import Omit, ResponseT
 
     # extract headers
@@ -224,6 +226,50 @@ def init_openai_request_patch() -> None:
             return headers
 
         return None
+
+    async def finalize_bridge_response(
+        client: AsyncAPIClient,
+        cast_to: Type[ResponseT],
+        options: FinalRequestOptions,
+        stream: bool,
+        stream_cls: type[_AsyncStreamT] | None,
+        result: BaseModel,
+    ) -> Any:
+        """Return the bridge result in the shape the OpenAI SDK caller expects.
+
+        The bridge intercepts `AsyncAPIClient.request()` and hands back an
+        already-parsed model (e.g. `ChatCompletion`). That matches a plain
+        `.create()` call, but callers using `.with_raw_response` /
+        `.with_streaming_response` (e.g. langchain-openai, which reads response
+        headers) expect `request()` to return a response *wrapper* whose
+        `.parse()` yields the model — otherwise they crash with
+        `'ChatCompletion' object has no attribute 'parse'`. Detect that case via
+        the SDK's own `X-Stainless-Raw-Response` header and delegate to
+        `_process_response()` so the wrapper is built exactly as it would be for
+        a real HTTP response.
+        """
+        raw_response = (
+            options.headers.get(RAW_RESPONSE_HEADER)
+            if isinstance(options.headers, dict)
+            else None
+        )
+        if not raw_response or isinstance(raw_response, Omit):
+            # plain `.create()` — return the parsed model directly (fast path)
+            return result
+
+        response = httpx.Response(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            content=result.model_dump_json().encode(),
+            request=client._build_request(options),
+        )
+        return await client._process_response(
+            cast_to=cast_to,
+            options=options,
+            response=response,
+            stream=stream,
+            stream_cls=stream_cls,
+        )
 
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
@@ -257,17 +303,20 @@ def init_openai_request_patch() -> None:
                 headers = filter_bridge_headers(request_headers(options))
 
                 if options.url == "/chat/completions":
-                    return await inspect_completions_api_request(
+                    result = await inspect_completions_api_request(
                         json_data, headers, config.bridge
                     )
                 else:
-                    return await inspect_responses_api_request(
+                    result = await inspect_responses_api_request(
                         json_data,
                         headers,
                         config.web_search,
                         config.code_execution,
                         config.bridge,
                     )
+                return await finalize_bridge_response(
+                    self, cast_to, options, stream, stream_cls, result
+                )
 
         # otherwise just delegate
         return await original_request(
