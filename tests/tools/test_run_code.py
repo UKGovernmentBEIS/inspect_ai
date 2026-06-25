@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.approval import ApprovalPolicy, approval, auto_approver
 from inspect_ai.tool import Tool, ToolDef, ToolError, run_code
 from inspect_ai.tool._tools._run_code._bridge import (
@@ -860,3 +861,48 @@ async def test_run_code_artifacts_appear_in_result():
     )
 
     assert any(isinstance(item, ContentImage) for item in result)
+
+
+@pytest.mark.anyio
+async def test_run_code_bridge_propagates_terminate_sample_error():
+    bridge = RunCodeToolBridge(_tool_defs([dummy_tool()]))
+    external_functions = bridge.external_functions()
+
+    with approval(
+        [
+            ApprovalPolicy(
+                approver=auto_approver(decision="terminate"),
+                tools="dummy_tool",
+            )
+        ]
+    ):
+        with pytest.raises(TerminateSampleError):
+            await external_functions["dummy_tool"]("secret")
+
+
+def file_not_found_tool() -> Tool:
+    async def execute(path: str) -> str:
+        """Raise FileNotFoundError.
+
+        Args:
+            path: Path to open.
+        """
+        raise FileNotFoundError(2, "No such file or directory", path)
+
+    return ToolDef(
+        execute,
+        name="file_not_found_tool",
+        description="Always raises FileNotFoundError.",
+    ).as_tool()
+
+
+@pytest.mark.anyio
+async def test_run_code_bridge_converts_recoverable_tool_errors():
+    bridge = RunCodeToolBridge(_tool_defs([file_not_found_tool()]))
+    external_functions = bridge.external_functions()
+
+    result = await external_functions["file_not_found_tool"]("missing.txt")
+
+    assert isinstance(result, str)
+    assert "file_not_found:" in result
+    assert "missing.txt" in result

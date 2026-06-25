@@ -10,7 +10,11 @@ from inspect_ai._util.content import (
     Content,
     ContentText,
 )
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.tool import ToolDef
+from inspect_ai.util import OutputLimitExceededError
+from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._sandbox.events import SandboxTimeoutError
 
 
 def _preview(value: Any, *, max_chars: int = 500) -> str:
@@ -63,6 +67,55 @@ def _content_to_runtime_value(
         return "\n".join(text_parts)
 
     return f"[{artifact_count} non-text artifact(s) generated]"
+
+
+def _recoverable_tool_error_message(exc: Exception, tool_name: str) -> str | None:
+    """Convert known recoverable tool exceptions to model-visible text.
+
+    This mirrors the kinds of tool failures that Inspect's higher-level
+    execute_tools(...) path normally converts into ToolCallError messages.
+    Unknown exceptions intentionally return None so they still propagate.
+    """
+    if isinstance(exc, (TimeoutError, SandboxTimeoutError)):
+        return "timeout: Command timed out before completing."
+
+    if isinstance(exc, UnicodeDecodeError):
+        return f"unicode_decode: Error decoding bytes to {exc.encoding}: {exc.reason}"
+
+    if isinstance(exc, ValueError):
+        if "embedded null byte" in str(exc):
+            return (
+                "parsing: "
+                f"An argument to tool '{tool_name}' contained an embedded null byte."
+            )
+        return None
+
+    if isinstance(exc, PermissionError):
+        err = f"{exc.strerror or str(exc)}."
+        if isinstance(exc.filename, str):
+            err = f"{err} Filename '{exc.filename}'."
+        return f"permission: {err}"
+
+    if isinstance(exc, FileNotFoundError):
+        if isinstance(exc.filename, str):
+            err = f"File '{exc.filename}' was not found."
+        else:
+            err = exc.strerror or str(exc)
+        return f"file_not_found: {err}"
+
+    if isinstance(exc, IsADirectoryError):
+        err = f"{exc.strerror or str(exc)}."
+        if isinstance(exc.filename, str):
+            err = f"{err} Filename '{exc.filename}'."
+        return f"is_a_directory: {err}"
+
+    if isinstance(exc, OutputLimitExceededError):
+        return f"limit: The tool exceeded its output limit of {exc.limit_str}."
+
+    if isinstance(exc, LimitExceededError):
+        return f"limit: The tool exceeded its {exc.type} limit of {exc.limit_str}."
+
+    return None
 
 
 @dataclass
@@ -185,12 +238,19 @@ class RunCodeToolBridge:
             result, _messages, _output, _agent, _agent_span_id = await call_tool(
                 self.tool_defs, message.text, call, event, [message]
             )
+        except TerminateSampleError:
+            raise
         except ToolParsingError as ex:
             return f"parsing: {ex.message}"
         except ToolApprovalError as ex:
             return f"approval: {ex.message}"
         except ToolError as ex:
             return f"unknown: {ex.message}"
+        except Exception as ex:
+            recoverable_error = _recoverable_tool_error_message(ex, call.function)
+            if recoverable_error is not None:
+                return recoverable_error
+            raise
         return result
 
 
