@@ -48,10 +48,10 @@ def _tool_call_arguments(
 
 def _content_to_runtime_value(
     content: list[Content],
-    artifacts: list[Content],
-) -> str:
+) -> tuple[str, list[Content]]:
     """Extract text for Monty runtime, collecting non-text content as artifacts."""
     text_parts = []
+    collected_artifacts = []
 
     for item in content:
         match item:
@@ -60,13 +60,13 @@ def _content_to_runtime_value(
                 text_parts.append(item.text)
             case _:
                 # All other content types are preserved as artifacts.
-                artifacts.append(item)
+                collected_artifacts.append(item)
 
     artifact_count = len(content) - len(text_parts)
     if text_parts:
-        return "\n".join(text_parts)
+        return "\n".join(text_parts), collected_artifacts
 
-    return f"[{artifact_count} non-text artifact(s) generated]"
+    return f"[{artifact_count} non-text artifact(s) generated]", collected_artifacts
 
 
 def _recoverable_tool_error_message(exc: Exception, tool_name: str) -> str | None:
@@ -198,7 +198,9 @@ class RunCodeToolBridge:
         if isinstance(result, (str, int, float, bool)):
             return result
         content = result if isinstance(result, list) else [result]
-        return _content_to_runtime_value(content, self.artifacts)
+        text, new_artifacts = _content_to_runtime_value(content)
+        self.artifacts.extend(new_artifacts)
+        return text
 
     async def _execute_inspect_tool_call(
         self,
