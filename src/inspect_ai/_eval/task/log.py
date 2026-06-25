@@ -245,6 +245,13 @@ class TaskLogger:
             eval_config.log_buffer = self.flush_buffer
         self.flush_pending: list[tuple[str | int, int]] = []
 
+        # set once log_finish() has finalized and torn down the recorder. The
+        # flush/buffer directive providers stay attached to this eval's
+        # EvalState under --ctl-server=keep (finished evals remain visible), so
+        # they must read as a finished no-op rather than reaching into the
+        # torn-down recorder.
+        self._finished = False
+
         # serializes log flushes so an on-demand `flush_samples()` (control
         # channel) can't interleave with the buffer-full flush in
         # `_finalize_sample` — both run on the eval loop and both await the
@@ -278,6 +285,7 @@ class TaskLogger:
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
         self.flush_pending = []
+        self._finished = False
         self._buffer_db = None
         await self.init()
 
@@ -429,7 +437,10 @@ class TaskLogger:
         :attr:`_flush_lock`.
         """
         async with self._flush_lock:
-            if not self.flush_pending:
+            # once finished, the recorder has torn down this eval's tracked log;
+            # there is nothing left to flush (log_finish wrote everything) and
+            # reaching into the recorder would raise. Report a finished no-op.
+            if self._finished or not self.flush_pending:
                 return 0
             await self.recorder.flush(self.eval)
             flushed = len(self.flush_pending)
@@ -493,6 +504,15 @@ class TaskLogger:
         log = await self.recorder.log_finish(
             self.eval, status, stats, results, reductions, error, self.header_only
         )
+
+        # the recorder finalized and tore down this eval's tracked log; every
+        # completed sample is now on disk. Mark finished and drop the pending
+        # list so the still-attached flush/buffer directives (kept visible under
+        # --ctl-server=keep) report a finished no-op / accurate empty pending
+        # rather than flushing into the torn-down recorder or reporting stale
+        # pending.
+        self._finished = True
+        self.flush_pending.clear()
 
         # cleanup the events db
         if self._buffer_db is not None:

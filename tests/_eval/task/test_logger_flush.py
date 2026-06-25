@@ -25,6 +25,7 @@ def _logger(pending: list[tuple[str | int, int]], flush_buffer: int = 10) -> Tas
     logger.flush_pending = list(pending)
     logger.flush_buffer = flush_buffer
     logger._buffer_db = None
+    logger._finished = False
     logger._flush_lock = anyio.Lock()
     return logger
 
@@ -47,6 +48,30 @@ async def test_flush_samples_noop_when_nothing_pending() -> None:
     assert flushed == 0
     # nothing pending → no remote write at all
     assert recorder.flushes == 0
+
+
+async def test_flush_samples_finished_is_noop() -> None:
+    # after log_finish the recorder is torn down; a still-attached flush
+    # directive (kept visible under --ctl-server=keep) must no-op rather than
+    # reach into the gone recorder
+    logger = _logger([("s1", 1)])
+    recorder: FakeRecorder = logger.recorder  # type: ignore[assignment]
+    logger._finished = True
+
+    flushed = await logger.flush_samples()
+    assert flushed == 0
+    assert recorder.flushes == 0
+
+
+async def test_buffer_config_finished_reports_no_pending() -> None:
+    # log_finish clears flush_pending, so a finished eval reports 0 pending
+    # rather than the stale count it carried before the final write
+    logger = _logger([], flush_buffer=7)
+    logger._finished = True
+
+    config = logger.buffer_config()
+    assert config.pending == 0
+    assert config.log_buffer == 7
 
 
 async def test_buffer_config_read() -> None:
