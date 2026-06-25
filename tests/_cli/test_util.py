@@ -127,7 +127,7 @@ def test_parse_model_role_cli_args(monkeypatch, test_case):
     ],
 )
 def test_parse_model_role_cli_invalid_args_raises_error(args, expected_substring):
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(TypeError) as e:
         parse_model_role_cli_args(args)
     assert expected_substring in str(e.value)
 
