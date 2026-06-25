@@ -2338,7 +2338,7 @@ def test_task_retry_detaches_superseded_attempt_live(
     # (the run boundary, after any park — both attempts are still registered)
     from inspect_ai._control import eval_state as eval_state_mod
 
-    captured: dict[str, list[tuple[str, bool, bool, bool]]] = {}
+    captured: dict[str, list[tuple[str, bool]]] = {}
     orig_clear = eval_state_mod.clear_all_eval_states
 
     def spy_clear() -> None:
