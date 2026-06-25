@@ -38,12 +38,12 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 logger = getLogger(__name__)
 
-# The provider types live under TYPE_CHECKING so this module stays
-# dependency-free at runtime (it's imported during eval bootstrap, before the
-# log/event packages finish initializing). PEP 563 (`from __future__ import
-# annotations`) means every annotation below is a string, so nothing here is
-# evaluated at runtime — but note that `typing.get_type_hints(EvalState)`
-# would fail outside a type-checking context.
+# The LiveEvalData protocol and the deferred-stats alias live under
+# TYPE_CHECKING so this module stays dependency-free at runtime (it's imported
+# during eval bootstrap, before the log/event packages finish initializing).
+# PEP 563 (`from __future__ import annotations`) means every annotation below is
+# a string, so nothing here is evaluated at runtime — but note that
+# `typing.get_type_hints(EvalState)` would fail outside a type-checking context.
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
@@ -65,7 +65,7 @@ if TYPE_CHECKING:
         logger — they fall back to :attr:`~EvalState.log_location` and
         :attr:`~EvalState.deferred_sample_stats`) and is cleared when a retry
         supersedes the attempt the logger was bound to (see
-        :func:`detach_eval_providers`).
+        :func:`detach_eval_live`).
         """
 
         def sample_summaries(self) -> Awaitable[list[EvalSampleSummary] | None]:
@@ -199,7 +199,7 @@ class EvalState:
     eval's sample summaries / full samples / transcript events, and the target
     of its flush / buffer directives. ``None`` for reused/synthetic evals (which
     fall back to :attr:`log_location` and :attr:`deferred_sample_stats`); set to
-    ``None`` by :func:`detach_eval_providers` when a retry supersedes the
+    ``None`` by :func:`detach_eval_live` when a retry supersedes the
     attempt the logger was bound to (after which reads fall back to
     :attr:`log_location` until the retry sweep removes that log)."""
 
@@ -515,7 +515,7 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
-def detach_eval_providers(eval_id: str) -> None:
+def detach_eval_live(eval_id: str) -> None:
     """Detach a superseded attempt's live data source.
 
     Called by ``TaskLogger.reinit()`` when a task retry re-points the (one,

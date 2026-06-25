@@ -15,7 +15,7 @@ from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
 from inspect_ai._control.eval_state import (
     BufferConfig,
     clear_all_eval_states,
-    detach_eval_providers,
+    detach_eval_live,
     register_eval,
 )
 
@@ -61,7 +61,7 @@ async def test_flush_directive_none_after_detach() -> None:
         return 1
 
     register_eval("e1", 5, live=FakeLiveEvalData(flush=_flush))
-    detach_eval_providers("e1")  # retry detaches the live providers
+    detach_eval_live("e1")  # retry detaches the live data source
     assert await flush_eval_samples("e1") is None
 
 

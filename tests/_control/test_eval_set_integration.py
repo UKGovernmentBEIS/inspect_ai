@@ -2299,17 +2299,17 @@ def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
     )
 
 
-def test_task_retry_detaches_superseded_attempt_providers(
+def test_task_retry_detaches_superseded_attempt_live(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A retry detaches the superseded attempt's live providers.
+    """A retry detaches the superseded attempt's live data source.
 
     The retry re-points the (one, shared) TaskLogger at the new attempt; the
-    superseded attempt's EvalState providers are bound methods of that
-    logger, so left attached they would serve the NEW attempt's recorder /
-    log / buffer data under the OLD attempt's eval_id. ``reinit`` detaches
-    them, leaving the superseded attempt's reads to its own (still-correct)
-    log; the latest attempt keeps live providers.
+    superseded attempt's ``EvalState.live`` is that same logger, so left
+    attached it would serve the NEW attempt's recorder / log / buffer data
+    under the OLD attempt's eval_id. ``reinit`` detaches it, leaving the
+    superseded attempt's reads to its own (still-correct) log; the latest
+    attempt keeps its live data source.
     """
     fail = {"calls": 0}
 
