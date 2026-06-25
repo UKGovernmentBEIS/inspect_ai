@@ -1,6 +1,7 @@
-from rich.text import Text
 from textual.reactive import reactive
 from textual.widgets import RichLog
+
+from inspect_ai._util.rich import untrusted_text_from_ansi
 
 # maximum number of lines to keep in the console
 MAX_CONSOLE_LINES = 100
@@ -53,4 +54,4 @@ class ConsoleView(RichLog):
                         break
             line = "".join(chars) + " "
 
-        self.write(Text.from_ansi(line))
+        self.write(untrusted_text_from_ansi(line))

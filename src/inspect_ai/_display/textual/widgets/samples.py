@@ -34,6 +34,7 @@ from inspect_ai._display.textual.widgets.vscode import conditional_vscode_link
 from inspect_ai._util.file import to_uri
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.port_names import get_service_by_port
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.vscode import EXTENSION_COMMAND_OPEN_SAMPLE, VSCodeCommand
 from inspect_ai.event._model import ModelEvent
@@ -187,11 +188,15 @@ class SamplesList(OptionList):
             table.add_column(width=20)
             table.add_column(width=11, justify="right")
             table.add_column(width=1)
-            task_name = Text.from_markup(f"{task_display_name(sample.task)}")
+            task_name = Text.from_markup(
+                clean_control_characters(task_display_name(sample.task))
+            )
             task_name.truncate(18, overflow="ellipsis", pad=True)
             task_time = Text.from_markup(f"{format_progress_time(sample.running_time)}")
             table.add_row(task_name, task_time, " ")
-            sample_id = Text.from_markup(f"id: {sample.sample.id}")
+            sample_id = Text.from_markup(
+                clean_control_characters(f"id: {sample.sample.id}")
+            )
             sample_id.truncate(18, overflow="ellipsis", pad=True)
             sample_epoch = Text.from_markup(f"epoch: {sample.epoch:.0f}")
             table.add_row(
@@ -405,7 +410,7 @@ class SampleInfo(Vertical):
             title = f"{task_display_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
             if sample.fallback_models:
                 title = f"{title} [italic](fallback → {', '.join(sample.fallback_models)})[/italic]"
-            self.query_one(Collapsible).title = title
+            self.query_one(Collapsible).title = clean_control_characters(title)
             sandboxes = self.query_one(SandboxesView)
             await sandboxes.sync_sample(sample)
             await self.query_one(SampleVNC).sync_sample(sample)

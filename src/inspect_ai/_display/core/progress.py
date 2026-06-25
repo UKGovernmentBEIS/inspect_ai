@@ -11,6 +11,7 @@ from rich.progress import Progress as RProgress
 from rich.text import Text
 from typing_extensions import override
 
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai._util.task import task_display_name
 from inspect_ai.model._model import ModelName
 
@@ -102,7 +103,7 @@ MAX_AGENT_NAME_WIDTH = 16
 def progress_model_name(
     model_name: ModelName, max_width: int = MAX_MODEL_NAME_WIDTH, pad: bool = False
 ) -> Text:
-    model = Text(model_name.name)
+    model = Text(clean_control_characters(model_name.name))
     model.truncate(max_width, overflow="ellipsis", pad=pad)
     return model
 
@@ -110,7 +111,7 @@ def progress_model_name(
 def progress_agent_name(
     agent: str | None, max_width: int = MAX_AGENT_NAME_WIDTH, pad: bool = False
 ) -> Text:
-    name = Text(agent or "")
+    name = Text(clean_control_characters(agent or ""))
     name.truncate(max_width, overflow="ellipsis", pad=pad)
     return name
 
@@ -118,7 +119,7 @@ def progress_agent_name(
 def progress_description(
     profile: TaskProfile, max_width: int = MAX_DESCRIPTION_WIDTH, pad: bool = False
 ) -> Text:
-    description = Text(task_display_name(profile.name))
+    description = Text(clean_control_characters(task_display_name(profile.name)))
     description.truncate(max_width, overflow="ellipsis", pad=pad)
     return description
 

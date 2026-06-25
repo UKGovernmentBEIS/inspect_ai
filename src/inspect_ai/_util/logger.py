@@ -21,7 +21,6 @@ from typing import IO, Literal, TypeAlias, cast
 import rich
 from rich.console import ConsoleRenderable
 from rich.logging import RichHandler
-from rich.text import Text
 from typing_extensions import TypedDict, override
 
 from .constants import (
@@ -37,6 +36,7 @@ from .constants import (
 )
 from .error import PrerequisiteError
 from .log_context import install_sample_context_filter
+from .rich import clean_control_characters, untrusted_text_from_ansi
 from .trace import (
     TraceFormatter,
     compress_trace_log,
@@ -128,7 +128,9 @@ class LogHandler(RichHandler):
         if self.logger_format == "rich":
             super().emit(record)
         elif self.logger_format == "plain":
-            formatted = self.plain_formatter.format(record).replace("\n", "\\n")
+            formatted = clean_control_characters(
+                self.plain_formatter.format(record).replace("\n", "\\n")
+            )
             self.display_stream.write(f"{formatted}\n")
             self.display_stream.flush()
         elif self.logger_format == "json":
@@ -137,7 +139,7 @@ class LogHandler(RichHandler):
 
     @override
     def render_message(self, record: LogRecord, message: str) -> ConsoleRenderable:
-        return Text.from_ansi(message)
+        return untrusted_text_from_ansi(message)
 
 
 class LogHandlerVar(TypedDict):

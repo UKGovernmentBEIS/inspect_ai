@@ -10,7 +10,11 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai._util.rich import tool_result_display
+from inspect_ai._util.rich import (
+    clean_control_characters,
+    clean_control_characters_renderable,
+    tool_result_display,
+)
 from inspect_ai._util.transcript import (
     content_display,
     set_transcript_markdown_options,
@@ -118,7 +122,7 @@ class TranscriptView(ScrollableContainer):
         def append_content(c: RenderableType) -> None:
             if isinstance(c, Markdown):
                 set_transcript_markdown_options(c)
-            widgets.append(Static(c, markup=False))
+            widgets.append(Static(clean_control_characters_renderable(c), markup=False))
 
         # first set aside events we don't render
         filtered_events = [e for e in events if can_render_event(e)]
@@ -222,19 +226,22 @@ def render_sample_init_event(event: SampleInitEvent) -> EventDisplay:
         content.append(Text())
         content.append(Text("Target", style="bold"))
         content.append(Text())
-        content.append(str(sample.target).strip())
+        content.append(Text(clean_control_characters(str(sample.target).strip())))
 
     return EventDisplay("sample init", Group(*content))
 
 
 def render_sample_limit_event(event: SampleLimitEvent) -> EventDisplay:
-    return EventDisplay(f"limit: {event.type}", Text(event.message))
+    return EventDisplay(
+        f"limit: {event.type}",
+        Text(clean_control_characters(event.message)),
+    )
 
 
 def render_interrupt_event(event: InterruptEvent) -> EventDisplay:
     return EventDisplay(
         f"interrupt: {event.source}",
-        Text(f"interrupted during {event.interrupted}"),
+        Text(clean_control_characters(f"interrupted during {event.interrupted}")),
     )
 
 
@@ -334,10 +341,12 @@ def render_score_event(event: ScoreEvent) -> EventDisplay:
     table = Table(box=None, show_header=False)
     table.add_column("", min_width=10, justify="left")
     table.add_column("", justify="left")
-    table.add_row("Target", str(event.target).strip())
+    table.add_row("Target", Text(clean_control_characters(str(event.target).strip())))
     if event.score.answer:
         table.add_row("Answer", transcript_markdown(event.score.answer, escape=True))
-    table.add_row("Score", str(event.score.value).strip())
+    table.add_row(
+        "Score", Text(clean_control_characters(str(event.score.value).strip()))
+    )
     if event.score.explanation:
         table.add_row(
             "Explanation", transcript_markdown(event.score.explanation, escape=True)
@@ -353,7 +362,7 @@ def render_subtask_event(event: SubtaskEvent) -> list[EventDisplay]:
     if event.result:
         content.append(Text())
         if isinstance(event.result, str | int | float | bool | None):
-            content.append(Text(str(event.result)))
+            content.append(Text(clean_control_characters(str(event.result))))
         else:
             content.append(render_as_json(event.result))
 
@@ -366,7 +375,9 @@ def render_input_event(event: InputEvent) -> EventDisplay:
 
 def render_approval_event(event: ApprovalEvent) -> EventDisplay:
     content: list[RenderableType] = [
-        f"[bold]{event.approver}[/bold]: {event.decision} ({event.explanation})"
+        clean_control_characters(
+            f"[bold]{event.approver}[/bold]: {event.decision} ({event.explanation})"
+        )
     ]
 
     return EventDisplay("approval", Group(*content))
@@ -411,11 +422,14 @@ def render_logger_event(event: LoggerEvent) -> EventDisplay:
     if event.message.name:
         content = f"{content} (${event.message.name})"
     content = f"{content}: {event.message.message}"
-    return EventDisplay("logger", content)
+    return EventDisplay("logger", Text(clean_control_characters(content)))
 
 
 def render_error_event(event: ErrorEvent) -> EventDisplay:
-    return EventDisplay("error", event.error.traceback.strip())
+    return EventDisplay(
+        "error",
+        Text(clean_control_characters(event.error.traceback.strip())),
+    )
 
 
 def render_as_json(json: Any) -> RenderableType:

@@ -7,6 +7,7 @@ import rich
 from inspect_ai._display.core.rich import rich_initialise
 from inspect_ai._util._async import configured_async_backend, run_coroutine
 from inspect_ai._util.platform import running_in_notebook
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai._util.text import truncate
 from inspect_ai.util._throttle import throttle
 
@@ -37,7 +38,7 @@ class PlainDisplay(Display):
         rich_initialise()
 
     def print(self, message: str) -> None:
-        print(message)
+        print(clean_control_characters(message))
 
     @contextlib.contextmanager
     def progress(self, total: int) -> Iterator[Progress]:

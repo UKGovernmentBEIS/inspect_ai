@@ -9,6 +9,10 @@ from rich.text import Text
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.path import cwd_relative_path
+from inspect_ai._util.rich import (
+    clean_control_characters,
+    clean_control_characters_renderable,
+)
 from inspect_ai._util.task import task_display_name
 from inspect_ai.util._display import display_type_plain
 
@@ -91,6 +95,7 @@ def task_panel(
     # enclose in outer table for log link footer
     root = table
     if log_location:
+        log_location = clean_control_characters(log_location)
         # if we are in jupyter then use a real hyperlink
         if jupyter:
             log_location = f"[link={log_location}]{log_location}[/link]"
@@ -118,14 +123,16 @@ def task_panel(
             height=3,
             expand=True,
         )
-        return Group(panel, root)
+        return clean_control_characters_renderable(Group(panel, root))
     else:
-        return Panel(
-            root,
-            title=task_panel_title(profile, show_model),
-            title_align="left",
-            width=width,
-            expand=True,
+        return clean_control_characters_renderable(
+            Panel(
+                root,
+                title=task_panel_title(profile, show_model),
+                title_align="left",
+                width=width,
+                expand=True,
+            )
         )
 
 
@@ -166,6 +173,7 @@ def task_panel_plain(
 
     # log location
     if log_location:
+        log_location = clean_control_characters(log_location)
         # Print a cwd relative path
         try:
             log_location_relative = cwd_relative_path(log_location, walk_up=True)
@@ -176,7 +184,7 @@ def task_panel_plain(
     table.add_row(delimeter)
     table.add_row("")
 
-    return table
+    return clean_control_characters_renderable(table)
 
 
 def task_panel_title(profile: TaskProfile, show_model: bool) -> str:
@@ -188,7 +196,7 @@ def task_panel_title(profile: TaskProfile, show_model: bool) -> str:
 
 def to_renderable(item: RenderableType | str, style: str = "") -> RenderableType:
     if isinstance(item, str):
-        return Text.from_markup(item, style=style)
+        return Text.from_markup(clean_control_characters(item), style=style)
     else:
         return item
 
@@ -197,7 +205,7 @@ def tasks_title(completed: int, total: int) -> str:
     title = f"{completed}/{total} tasks complete"
     if eval_set_id := get_eval_set_id_display():
         title = f"[{eval_set_id}] {title}"
-    return title
+    return clean_control_characters(title)
 
 
 def task_title(profile: TaskProfile, show_model: bool) -> str:
@@ -209,8 +217,8 @@ def task_title(profile: TaskProfile, show_model: bool) -> str:
         title = f"{title}: {profile.model}"
     if eval_set_id := get_eval_set_id_display():
         title = f"[{eval_set_id}] {title}"
-    return title
+    return clean_control_characters(title)
 
 
 def task_targets(profile: TaskProfile) -> str:
-    return f"dataset: {profile.dataset}"
+    return clean_control_characters(f"dataset: {profile.dataset}")

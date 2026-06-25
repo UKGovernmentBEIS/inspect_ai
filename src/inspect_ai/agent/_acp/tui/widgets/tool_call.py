@@ -815,13 +815,15 @@ def compose_content_item(item: object, *, context_id: str = "") -> ComposeResult
 
 def compose_diff_item(item: object) -> ComposeResult:
     """Render a ``FileEditToolCallContent`` (ACP ``Diff`` variant)."""
-    path = getattr(item, "path", "?")
+    path = clean_control_characters(str(getattr(item, "path", "?")))
     old_text = getattr(item, "old_text", None)
     new_text = getattr(item, "new_text", "") or ""
     yield Static(f"--- {path}", classes="diff-header", markup=False)
     if old_text:
+        old_text = clean_control_characters(str(old_text))
         for line in old_text.splitlines() or [""]:
             yield Static(f"- {line}", classes="diff-old", markup=False)
+    new_text = clean_control_characters(str(new_text))
     for line in new_text.splitlines() or [""]:
         yield Static(f"+ {line}", classes="diff-new", markup=False)
 

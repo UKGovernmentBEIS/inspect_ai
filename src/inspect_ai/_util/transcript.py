@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from rich.markdown import Markdown
 
 from inspect_ai._util.content import ContentReasoning
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai._util.text import truncate_lines
 
 from .format import format_function_call
@@ -27,6 +28,7 @@ def transcript_code_theme() -> str:
 def transcript_markdown(content: str, *, escape: bool = False) -> Markdown:
     from rich.markdown import Markdown
 
+    content = clean_control_characters(content)
     code_theme = transcript_code_theme()
     return Markdown(
         html_escape_markdown(content) if escape else content,
@@ -81,6 +83,9 @@ def transcript_panel(
 ) -> Panel:
     from rich.markdown import Markdown
 
+    title = clean_control_characters(title)
+    subtitle = clean_control_characters(subtitle) if subtitle else subtitle
+
     # resolve content to list
     if content is None:
         content = []
@@ -127,6 +132,7 @@ def transcript_panel(
 
 def content_display(text: str, max_lines: int = 50) -> list[RenderableType]:
     """Truncate text content and render as markdown."""
+    text = clean_control_characters(text)
     truncated_text, additional = truncate_lines(text, max_lines)
     content: list[RenderableType] = [transcript_markdown(truncated_text, escape=True)]
     if additional is not None:
@@ -145,7 +151,8 @@ def transcript_reasoning(reasoning: ContentReasoning) -> list[RenderableType]:
         (reasoning.reasoning or reasoning.summary or "")
         if not reasoning.redacted
         else (reasoning.summary or "Reasoning encrypted by model provider.")
-    ).strip()
+    )
+    text = clean_control_characters(text).strip()
 
     if len(text) > 0:
         truncated_text, additional = truncate_lines(text, 50)
@@ -166,7 +173,7 @@ def transcript_separator(
     title: str, color: str, characters: str = "─"
 ) -> RenderableType:
     return Rule(
-        title=title,
+        title=clean_control_characters(title),
         characters=characters,
         style=f"{color} bold",
         align="center",

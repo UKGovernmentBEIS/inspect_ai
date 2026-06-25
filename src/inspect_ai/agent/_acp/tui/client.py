@@ -38,6 +38,7 @@ from acp.schema import (
 )
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
 from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.inspect_ext import (
@@ -237,7 +238,9 @@ async def enumerate_sessions(
             return await _list_for_target(eval_id, target)
         except Exception as exc:
             print(
-                f"inspect acp: failed to enumerate {target.describe()}: {exc}",
+                clean_control_characters(
+                    f"inspect acp: failed to enumerate {target.describe()}: {exc}"
+                ),
                 file=sys.stderr,
                 flush=True,
             )

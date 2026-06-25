@@ -27,6 +27,8 @@ from textual.screen import Screen
 from textual.widgets import DataTable, Input, Markdown, Static
 from textual.widgets._data_table import CellDoesNotExist
 
+from inspect_ai._util.rich import clean_control_characters
+
 from .client import SessionRow
 from .widgets import AppFooter
 from .widgets._formatting import format_running, format_tokens
@@ -86,8 +88,8 @@ def _display_task(task: str) -> str:
     """
     head, sep, tail = task.partition("/")
     if not sep:
-        return task
-    return tail or head
+        return clean_control_characters(task)
+    return clean_control_characters(tail or head)
 
 
 def _sort_rows(rows: list[SessionRow]) -> list[SessionRow]:
@@ -210,6 +212,7 @@ def _sample_cell(sample_id: str, *, is_cursor: bool, dim: bool = False) -> Text:
     (DataTable's ``cell_padding: 1`` applies to BOTH adjacent columns,
     so an extra column adds 2 cells, not 1).
     """
+    sample_id = clean_control_characters(sample_id)
     if is_cursor:
         # ``$warning`` (warm amber in the dark theme) matches the
         # plan-overlay running-row highlight, sharing one selection
@@ -664,7 +667,9 @@ class PickerScreen(Screen[None]):
             # ``dim=True`` to every cell helper so the whole row
             # reads as muted at a glance.
             agent_cell: Text = (
-                Text("—", style="dim") if not is_acp else Text(row.agent_name or "—")
+                Text("—", style="dim")
+                if not is_acp
+                else Text(clean_control_characters(row.agent_name or "—"))
             )
             task_text = _display_task(row.task)
             task_cell = Text(task_text, style="dim")
