@@ -81,6 +81,7 @@ from inspect_ai.util._limit import (
     check_token_limit,
     record_model_cost,
     record_model_usage,
+    record_turn,
 )
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
@@ -110,7 +111,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
-from ._model_output import ModelOutput, ModelUsage
+from ._model_output import ModelFallback, ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
@@ -216,6 +217,11 @@ class ModelAPI(abc.ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.api_key_vars = api_key_vars
+        # Stable pooling identity for connection_key(). Captured from the
+        # constructor before _apply_api_key_overrides() runs and never mutated
+        # afterwards, so it survives api_key rotation (e.g. a credential hook
+        # refreshing self.api_key via initialize()). See connection_key().
+        self.initial_api_key = api_key
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
@@ -409,7 +415,20 @@ class ModelAPI(abc.ABC):
         return DEFAULT_MAX_CONNECTIONS
 
     def connection_key(self) -> str:
-        """Scope for enforcement of max_connections."""
+        """Scope for enforcement of max_connections (and adaptive concurrency).
+
+        Two instances of the *same provider* that return the same key share one
+        connection pool. This method only needs to distinguish accounts/models
+        within a provider; the model layer adds the provider namespace on top
+        (see `_connection_pool_key`), so distinct providers never collide even
+        when their `connection_key()` values coincide.
+
+        Providers that scope by API key should use `self.initial_api_key` here,
+        NOT the live `self.api_key`: the live key can rotate mid-eval (e.g. a
+        credential hook refreshing it via `initialize()`), and keying on it
+        would discard all learned pool/adaptive state on every rotation.
+        ``initial_api_key`` is fixed at construction, so the scope stays stable.
+        """
         return "default"
 
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
@@ -566,6 +585,17 @@ def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
         **(output.message.metadata or {}),
         REDACTED_REASONING_TOKENS_METADATA_KEY: output.usage.reasoning_tokens,
     }
+
+
+def _connection_pool_key(api: ModelAPI) -> str:
+    """Provider-namespaced connection-pool key for the model layer.
+
+    Prefixes the provider's `connection_key()` with the provider class so two
+    providers serving the same model don't share a pool (e.g. `openai/gpt-5`
+    and `azureai/gpt-5`, whose `connection_key()` both reduce to `None:gpt-5`
+    when their api keys are elided).
+    """
+    return f"{type(api).__name__}:{api.connection_key()}"
 
 
 class Model:
@@ -914,7 +944,7 @@ class Model:
                 config.max_tokens = self.api.max_tokens()
 
         model_name = ModelName(self)
-        key = f"ModelCompact({self.api.connection_key()})"
+        key = f"ModelCompact({_connection_pool_key(self.api)})"
 
         async with concurrency(f"{model_name}_compact", 10, key, visible=False):
 
@@ -1229,6 +1259,24 @@ class Model:
         model_output, event = await generate()
         total_time = time.monotonic() - time_start
 
+        # record any model fallback against the active sample (here in the
+        # outer frame rather than alongside usage recording so that cache
+        # hits also count -- a cached response originally served by a
+        # fallback is still a fallback-served response)
+        record_sample_model_fallback(model_output)
+
+        # record a turn (one top-level model generation) against any active
+        # turn limits. recorded here in the outer frame (rather than alongside
+        # usage recording in the inner generate()) so that a turn is counted
+        # exactly once per top-level model.generate() call -- after retries and
+        # fallbacks have resolved, and including cache hits (which also advance
+        # the conversation by one assistant message). this keeps turn counting
+        # uniform across react(), basic_agent(), and custom agents, and avoids
+        # double-counting nested generations: model.compact() does not flow
+        # through this path, and sub-agent/scorer generations are scoped by
+        # their own turn_limit() contexts (or none).
+        record_turn()
+
         # notify the adaptive controller of a clean success (no retries during
         # this logical request, AND not a cache hit since cache hits don't
         # exercise the rate limit). Successful-after-retry and cache hits are
@@ -1332,8 +1380,8 @@ class Model:
     # (which would likely cause the rate limit to be exceeded). conversely if
     # you are using distinct models/endpoints/accounts within an eval you should
     # be able get the full max_connections for each of them. subclasses can
-    # override the _connection_key() argument to provide a scope within which
-    # to enforce max_connections (e.g. by account/api_key, by endpoint, etc.)
+    # override connection_key() to provide a scope within which to enforce
+    # max_connections (e.g. by account/api_key, by endpoint, etc.)
 
     @contextlib.asynccontextmanager
     async def _connection_concurrency(
@@ -1350,7 +1398,7 @@ class Model:
         )
 
         model_name = ModelName(self)
-        key = f"Model{self.api.connection_key()}"
+        key = f"Model{_connection_pool_key(self.api)}"
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
         # rules — both silent — keep deliberate overrides working under
@@ -2171,7 +2219,7 @@ def combine_messages(
         )
 
 
-def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
     from inspect_ai._util.retry import retry_error_summary, sample_context_prefix
 
     prefix = sample_context_prefix()
@@ -2181,6 +2229,15 @@ def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
         level,
         f"{prefix}-> {model_name} retry {retry_state.attempt_number} "
         f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}",
+    )
+
+    # notify hooks of the retry (useful for surfacing time spent in rate limiting)
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    await emit_model_retry(
+        model_name=model_name,
+        attempt=retry_state.attempt_number,
+        wait_time=retry_state.upcoming_sleep,
     )
 
 
@@ -2280,6 +2337,17 @@ def init_sample_model_usage() -> None:
     sample_model_usage_context_var.set({})
 
 
+def init_sample_model_data() -> None:
+    """Initialize all per-sample model accumulators (usage, role usage, fallbacks)."""
+    init_sample_model_usage()
+    init_sample_role_usage()
+    init_sample_model_fallbacks()
+
+
+def init_sample_model_fallbacks() -> None:
+    sample_model_fallbacks_context_var.set({})
+
+
 def init_role_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
     if initial_usage is not None:
         role_usage_context_var.set(initial_usage)
@@ -2369,6 +2437,43 @@ def sample_total_tokens() -> int:
 
 sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "sample_model_usage", default={}
+)
+
+
+def record_sample_model_fallback(output: ModelOutput) -> None:
+    """Accumulate a model fallback from a generate call into the active sample."""
+    from inspect_ai.log._samples import set_active_sample_fallback_models
+
+    if output.fallback is None:
+        return
+    fallbacks = sample_model_fallbacks_context_var.get(None)
+    if fallbacks is not None:
+        key = (output.fallback.model, output.fallback.fallback_model)
+        fallbacks[key] = fallbacks.get(key, 0) + output.fallback.count
+
+        # surface serving models on the active sample for realtime display
+        set_active_sample_fallback_models(
+            list(dict.fromkeys(fallback_model for _, fallback_model in fallbacks))
+        )
+
+
+def sample_model_fallbacks() -> list[ModelFallback]:
+    """Model fallbacks accumulated for the active sample.
+
+    Rollup entries carry (model, fallback_model, count) only — per-call
+    diagnostics remain on each ModelEvent's `output.fallback.metadata`.
+    """
+    return [
+        ModelFallback(model=model, fallback_model=fallback_model, count=count)
+        for (
+            model,
+            fallback_model,
+        ), count in sample_model_fallbacks_context_var.get().items()
+    ]
+
+
+sample_model_fallbacks_context_var: ContextVar[dict[tuple[str, str], int]] = ContextVar(
+    "sample_model_fallbacks", default={}
 )
 
 

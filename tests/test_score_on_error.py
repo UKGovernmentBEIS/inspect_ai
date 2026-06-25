@@ -5,7 +5,7 @@ import anyio
 from test_helpers.utils import failing_solver_deterministic
 
 from inspect_ai import Task, eval
-from inspect_ai._eval.task.run import eval_log_sample_source
+from inspect_ai._eval.task.run import PreviousError, eval_log_sample_source
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
@@ -184,11 +184,12 @@ def test_score_on_error_eval_arg_overrides_task():
     assert sample.scores is not None and len(sample.scores) > 0
 
 
-def test_score_on_error_sample_source_skips_errored():
+def test_score_on_error_sample_source_seeds_retry_for_errored():
     # Run a real eval producing an errored-but-scored sample, then feed the
-    # log to eval_log_sample_source — it should return None for the errored
-    # sample (so eval_set retries will re-run it from scratch). This is the
-    # mechanism by which eval_set retries surface unfixed errors.
+    # log to eval_log_sample_source — for an errored sample it returns a
+    # PreviousError carrying the prior error's retry history (so eval_set
+    # retries re-run it from scratch but seed error_retries with the prior
+    # error, surfacing the retry on the re-run sample).
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
     assert log.samples is not None
     errored_sample = log.samples[0]
@@ -199,9 +200,13 @@ def test_score_on_error_sample_source_skips_errored():
     source = eval_log_sample_source(log, None, dataset)
 
     async def call() -> object:
-        return await source(errored_sample.id, errored_sample.epoch)
+        return await source.lookup(errored_sample.id, errored_sample.epoch)
 
-    assert anyio.run(call) is None
+    result = anyio.run(call)
+    assert isinstance(result, PreviousError)
+    assert result.sample.id == errored_sample.id
+    assert result.sample.error is not None
+    assert result.sample.error.message == errored_sample.error.message
 
 
 def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) -> None:
@@ -220,7 +225,7 @@ def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) ->
 
     async def call() -> object:
         async with AsyncFilesystem():
-            return await source(errored_sample.id, errored_sample.epoch)
+            return await source.lookup(errored_sample.id, errored_sample.epoch)
 
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
@@ -246,7 +251,7 @@ def test_eval_log_sample_source_scoring_resume_for_agent_complete_checkpoint(
 
     async def call() -> object:
         async with AsyncFilesystem():
-            return await source(errored_sample.id, errored_sample.epoch)
+            return await source.lookup(errored_sample.id, errored_sample.epoch)
 
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
@@ -255,7 +260,8 @@ def test_eval_log_sample_source_scoring_resume_for_agent_complete_checkpoint(
 
 
 def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) -> None:
-    # errored sample + no sidecar → factory still returns None
+    # errored sample + no sidecar → no checkpoint resume, so the factory
+    # falls back to a PreviousError seeding the re-run's error_retries
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
     assert log.samples is not None
     errored_sample = log.samples[0]
@@ -268,6 +274,8 @@ def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) ->
 
     async def call() -> object:
         async with AsyncFilesystem():
-            return await source(errored_sample.id, errored_sample.epoch)
+            return await source.lookup(errored_sample.id, errored_sample.epoch)
 
-    assert anyio.run(call) is None
+    result = anyio.run(call)
+    assert isinstance(result, PreviousError)
+    assert result.sample.error is not None

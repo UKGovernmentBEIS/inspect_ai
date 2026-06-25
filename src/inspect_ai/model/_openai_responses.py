@@ -48,7 +48,12 @@ from openai.types.responses import (
     WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
-from openai.types.responses.namespace_tool_param import NamespaceToolParam
+from openai.types.responses.namespace_tool_param import (
+    NamespaceToolParam,
+)
+from openai.types.responses.namespace_tool_param import (
+    Tool as NamespaceInnerTool,
+)
 from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_code_interpreter_tool_call import (
     OutputImage,
@@ -495,15 +500,44 @@ def openai_responses_tool_choice(
             )
 
 
+RESPONSES_NAMESPACE = "__responses_namespace__"
+"""``ToolInfo.options`` key under which the agent bridge stashes the
+``(name, description)`` of the ``NamespaceToolParam`` a tool was flattened
+from, so that :func:`openai_responses_tools` can re-group it on the outgoing
+request. Without this, namespaced tools (e.g. codex's
+``multi_agent_v1.spawn_agent``) are sent flat as ``functions.spawn_agent``,
+which OpenAI's reserved-name validation rejects on models configured for
+encrypted tool use."""
+
+
 def openai_responses_tools(
     tools: list[ToolInfo],
     model_name: str,
     config: GenerateConfig,
     is_latest: bool = False,
 ) -> list[ToolParam]:
-    result = [
-        _tool_param_for_tool_info(tool, model_name, config, is_latest) for tool in tools
-    ]
+    result: list[ToolParam] = []
+    namespaces: dict[tuple[str, str], list[FunctionToolParam | CustomToolParam]] = {}
+    for tool in tools:
+        param = _tool_param_for_tool_info(tool, model_name, config, is_latest)
+        ns = (tool.options or {}).get(RESPONSES_NAMESPACE)
+        if isinstance(ns, tuple) and len(ns) == 2:
+            # Only function/custom tools may live inside a NamespaceToolParam;
+            # the bridge only stashes RESPONSES_NAMESPACE on those, so cast.
+            namespaces.setdefault(ns, []).append(
+                cast(FunctionToolParam | CustomToolParam, param)
+            )
+        else:
+            result.append(param)
+    for (ns_name, ns_desc), ns_tools in namespaces.items():
+        result.append(
+            NamespaceToolParam(
+                type="namespace",
+                name=ns_name,
+                description=ns_desc,
+                tools=cast(list[NamespaceInnerTool], ns_tools),
+            )
+        )
 
     # Add at most one image_generation tool if image output modality requested
     img_config = image_output_config(config.modalities)
@@ -628,8 +662,43 @@ def assistant_internal() -> _AssistantInternal:
     return _openai_assistant_internal.get()
 
 
-def init_sample_openai_assistant_internal() -> None:
-    _openai_assistant_internal.set(_AssistantInternal())
+def init_sample_openai_assistant_internal(value: JsonValue | None = None) -> None:
+    """Initialize (``value is None``) or restore the sample's assistant internal.
+
+    Restore (``value`` from a prior :func:`dump_openai_assistant_internal`)
+    mutates the current instance in place rather than rebinding the context
+    var, so the restored state is visible outside the restoring task — see
+    ``inspect_ai.model._assistant_internal``.
+    """
+    if value is None:
+        _openai_assistant_internal.set(_AssistantInternal())
+        return
+    assert isinstance(value, dict)
+    internal = assistant_internal()
+    internal.tool_calls.update(cast("dict[str, Any]", value.get("tool_calls", {})))
+    internal.server_tool_uses.update(
+        cast("dict[str, Any]", value.get("server_tool_uses", {}))
+    )
+
+
+def dump_openai_assistant_internal() -> JsonValue | None:
+    """Dump the sample's assistant internal as a JSON value (``None`` if empty).
+
+    Values are the SDK's ``TypedDict`` request params — plain dicts at
+    runtime, so they serialize as-is and restore via cast with no
+    validation (corrupt data surfaces at request time, as it would have
+    in-memory).
+    """
+    internal = assistant_internal()
+    if not internal.tool_calls and not internal.server_tool_uses:
+        return None
+    return cast(
+        JsonValue,
+        {
+            "tool_calls": dict(internal.tool_calls),
+            "server_tool_uses": dict(internal.server_tool_uses),
+        },
+    )
 
 
 _openai_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(

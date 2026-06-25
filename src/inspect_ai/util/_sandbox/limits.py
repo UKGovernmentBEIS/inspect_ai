@@ -123,6 +123,25 @@ def override_max_exec_output_size(limit: int) -> Iterator[None]:
         _max_exec_output_size_var.reset(token)
 
 
+@contextmanager
+def override_max_read_file_size(limit: int) -> Iterator[None]:
+    """Temporarily override the max read file size for the current context.
+
+    Use this to read a file that is legitimately larger than the default
+    read file cap (e.g. a checkpoint egress tarball) without raising the
+    limit for unrelated reads. The override is scoped to the current async
+    context and restored on exit.
+
+    Args:
+        limit: File size limit (in bytes) to apply within the context.
+    """
+    token = _max_read_file_size_var.set(limit)
+    try:
+        yield
+    finally:
+        _max_read_file_size_var.reset(token)
+
+
 class OutputLimitExceededError(Exception):
     """Exception raised when a sandbox invocation results in excessive output."""
 

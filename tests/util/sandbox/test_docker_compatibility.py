@@ -625,6 +625,64 @@ class TestResolveTaskSandboxDockerCompatibility:
         assert "task-config.yaml" in result.config
 
 
+# --- Integration tests for resolve_sandbox_for_task_and_sample() (startup pass) ---
+
+
+class TestResolveSandboxForTaskAndSampleStartup:
+    """The sandbox-startup pass must collect the same spec a sample uses at runtime.
+
+    run.py::startup_sandbox_environments feeds each task's *already-resolved*
+    sandbox (ResolvedTask.sandbox, i.e. resolve_task_sandbox() output) into
+    resolve_sandbox_for_task_and_sample(), mirroring the execution path
+    (sandboxenv_context() -> resolve_sandbox()). These tests guard that an
+    eval-level override (`--sandbox <provider>`) preserves a docker-compatible
+    per-sample config and that the override's *type* wins. A regression to the
+    raw (unresolved) task sandbox would surface here as the wrong sandbox type.
+    """
+
+    async def test_override_preserves_per_sample_compose_config(self, tmp_path):
+        """An eval-level override keeps a docker-compatible per-sample ComposeConfig."""
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.sandbox import (
+            resolve_sandbox,
+            resolve_sandbox_for_task_and_sample,
+        )
+        from inspect_ai._eval.task.task import Task
+        from inspect_ai.dataset import Sample
+
+        # a per-sample docker-compatible config (the case the fix targets); the
+        # task itself has no sandbox, so the per-sample config is the only config
+        # in play and the override carries none of its own.
+        compose_config = ComposeConfig(
+            services={"default": ComposeService(image="python:3.11")},
+        )
+        sample = Sample(
+            input="test",
+            sandbox=SandboxEnvironmentSpec("docker", compose_config),
+        )
+        task = Task(dataset=[sample])
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        # reproduce what the loader stores as ResolvedTask.sandbox (loader.py):
+        # the eval-level `--sandbox` override baked in via resolve_task_sandbox().
+        resolved_task_sandbox = resolve_task_sandbox(task, "mock_docker_compatible")
+
+        result = await resolve_sandbox_for_task_and_sample(
+            resolved_task_sandbox, task, sample
+        )
+
+        # the override's type wins and the per-sample config survives (a revert to
+        # the raw task sandbox would yield type "docker" here instead)
+        assert result is not None
+        assert result.sandbox.type == "mock_docker_compatible"
+        assert result.sandbox.config == compose_config
+
+        # and the collected spec is exactly what the execution path resolves
+        execution = await resolve_sandbox(resolved_task_sandbox, sample)
+        assert result.sandbox == execution
+
+
 # --- Tests for deserialize_sandbox_specific_config() ---
 
 

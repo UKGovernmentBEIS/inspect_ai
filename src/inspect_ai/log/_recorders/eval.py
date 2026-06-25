@@ -165,6 +165,22 @@ class EvalRecorder(FileRecorder):
         await log.buffer_sample_streaming(sample, history)
 
     @override
+    async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            return None
+        return await log.sample_summaries()
+
+    @override
+    async def buffered_sample(
+        self, eval: EvalSpec, id: str | int, epoch: int
+    ) -> EvalSample | None:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            return None
+        return await log.buffered_sample(id, epoch)
+
+    @override
     async def flush(self, eval: EvalSpec) -> None:
         # get the zip log
         log = self.data[self._log_file_key(eval)]
@@ -240,6 +256,7 @@ class EvalRecorder(FileRecorder):
         cls,
         location: str,
         header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog:
         async with AsyncFilesystem() as async_fs:
             # if the log is not stored in the local filesystem then download it
@@ -265,7 +282,9 @@ class EvalRecorder(FileRecorder):
                 read_location = temp_log or location
                 reader = AsyncZipReader(async_fs, read_location)
                 cd = await reader.entries()
-                log = await _read_log(reader, cd.entries, location, header_only)
+                log = await _read_log(
+                    reader, cd.entries, location, header_only, exclude_fields
+                )
 
                 if etag is not None:
                     log.etag = etag
@@ -333,66 +352,11 @@ class EvalRecorder(FileRecorder):
                 epoch = sample.epoch
 
             if exclude_fields:
-                # Stream the sample JSON using low-level parse events.
-                # An ObjectBuilder accumulates events only for included fields;
-                # excluded fields are read as raw events and never allocated
-                # as Python objects, keeping peak memory proportional to the
-                # data we actually keep.
-                import ijson  # type: ignore
-                from ijson import IncompleteJSONError, ObjectBuilder
-                from ijson.backends.python import (  # type: ignore[import-untyped]
-                    UnexpectedSymbol,
+                data = await _read_member_json_excluding(
+                    reader,
+                    _sample_filename(id, epoch),
+                    exclude_fields,
                 )
-
-                try:
-                    data: dict[str, Any] = {}
-                    async with await reader.open_member(
-                        _sample_filename(id, epoch)
-                    ) as f:
-                        depth = 0
-                        current_key: str = ""
-                        builder: ObjectBuilder | None = None
-                        async for prefix, event, value in ijson.parse_async(
-                            adapt_to_reader(f), use_float=True
-                        ):
-                            # Depth must be updated before the completion check
-                            # so that a closing bracket that returns depth to 1
-                            # is recognised as completing the current value.
-                            if event in ("start_map", "start_array"):
-                                depth += 1
-                            elif event in ("end_map", "end_array"):
-                                depth -= 1
-
-                            if depth == 1 and event == "map_key":
-                                current_key = value
-                                builder = (
-                                    None
-                                    if current_key in exclude_fields
-                                    else ObjectBuilder()
-                                )
-                            elif builder is not None:
-                                builder.event(event, value)
-                                # Depth 1 means we have returned to the top-level
-                                # object, so the current field's value is complete.
-                                if depth == 1:
-                                    data[current_key] = builder.value
-                                    builder = None
-                except (
-                    ValueError,
-                    IncompleteJSONError,
-                    UnexpectedSymbol,
-                ) as ex:
-                    # ijson doesn't support NaN/Inf which are valid in
-                    # Python's JSON. Fall back to standard json.load
-                    # and manually remove excluded fields.
-                    if is_ijson_nan_inf_error(ex):
-                        data = json.loads(
-                            await reader.read_member_fully(_sample_filename(id, epoch))
-                        )
-                        for field in exclude_fields:
-                            data.pop(field, None)
-                    else:
-                        raise
             else:
                 data = json.loads(
                     await reader.read_member_fully(_sample_filename(id, epoch))
@@ -544,6 +508,62 @@ def _rewrite_eval_zip_via_filesystem(location: str, log: EvalLog) -> None:
         f.write(new_bytes)
 
 
+async def _read_member_json_excluding(
+    reader: AsyncZipReader,
+    member: str,
+    exclude_fields: set[str],
+) -> dict[str, Any]:
+    """Parse a zip member's JSON, skipping excluded top-level fields via ijson streaming."""
+    import ijson  # type: ignore
+    from ijson import IncompleteJSONError, ObjectBuilder
+    from ijson.backends.python import (  # type: ignore[import-untyped]
+        UnexpectedSymbol,
+    )
+
+    try:
+        data: dict[str, Any] = {}
+        async with await reader.open_member(member) as f:
+            depth = 0
+            current_key: str = ""
+            builder: ObjectBuilder | None = None
+            async for prefix, event, value in ijson.parse_async(
+                adapt_to_reader(f), use_float=True
+            ):
+                # Depth must be updated before the completion check
+                # so that a closing bracket that returns depth to 1
+                # is recognised as completing the current value.
+                if event in ("start_map", "start_array"):
+                    depth += 1
+                elif event in ("end_map", "end_array"):
+                    depth -= 1
+
+                if depth == 1 and event == "map_key":
+                    current_key = value
+                    builder = None if current_key in exclude_fields else ObjectBuilder()
+                elif builder is not None:
+                    builder.event(event, value)
+                    # Depth 1 means we have returned to the top-level
+                    # object, so the current field's value is complete.
+                    if depth == 1:
+                        data[current_key] = builder.value
+                        builder = None
+    except (
+        ValueError,
+        IncompleteJSONError,
+        UnexpectedSymbol,
+    ) as ex:
+        # ijson doesn't support NaN/Inf which are valid in
+        # Python's JSON. Fall back to standard json.load
+        # and manually remove excluded fields.
+        if is_ijson_nan_inf_error(ex):
+            data = json.loads(await reader.read_member_fully(member))
+            for field in exclude_fields:
+                data.pop(field, None)
+        else:
+            raise
+    return data
+
+
 async def _write_eval_log_with_recorder(
     log: EvalLog, recorder_dir: str, output_file: str, header_only: bool = False
 ) -> None:
@@ -678,6 +698,7 @@ class ZipLogFile:
         self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()
         self._samples: list[EvalSample] = []
+        self._streaming_samples: dict[tuple[str | int, int], EvalSample] = {}
         self._summary_counter = 0
         self._summaries: list[EvalSampleSummary] = []
         self._log_start: LogStart | None = None
@@ -731,6 +752,12 @@ class ZipLogFile:
 
             self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
 
+            # Retain the event-less sample so the control channel can read its
+            # error detail before the next flush makes it on-disk-readable
+            # (events stay in the buffer database — see ``buffered_sample``).
+            # Cleared in ``flush`` once the sample lands on disk.
+            self._streaming_samples[(sample.id, sample.epoch)] = sample
+
             self._summary_counter += 1
             summary = sample.summary()
             summary_file = _journal_summary_file(self._summary_counter)
@@ -771,6 +798,36 @@ class ZipLogFile:
                 ]
                 self._summaries.extend(summaries)
 
+    async def sample_summaries(self) -> list[EvalSampleSummary]:
+        """All sample summaries recorded so far (gap-free, ahead of disk).
+
+        Unions ``_summaries`` (already journalled) with the not-yet-flushed
+        ``_samples`` so a just-completed sample isn't missed between flushes.
+        """
+        async with self._lock:
+            return [*self._summaries, *(sample.summary() for sample in self._samples)]
+
+    async def buffered_sample(self, id: str | int, epoch: int) -> EvalSample | None:
+        """A not-yet-flushed full sample by ``(id, epoch)``, or None.
+
+        Gap-free counterpart to :meth:`sample_summaries`, covering both
+        completion paths during the window before a sample is flushed to disk:
+
+        - ``_samples`` — buffered whole samples (with events) awaiting a flush
+          (the reused-on-retry path).
+        - ``_streaming_samples`` — the streaming path's event-less samples
+          (their events live in the buffer database, so this carries error
+          detail / scores but not events).
+
+        Returns ``None`` once flushed (the on-disk log takes over) or for a
+        recorder that doesn't buffer; callers fall back to the on-disk log.
+        """
+        async with self._lock:
+            for sample in self._samples:
+                if sample.id == id and sample.epoch == epoch:
+                    return sample
+            return self._streaming_samples.get((id, epoch))
+
     async def write(self, filename: str, data: Any) -> None:
         async with self._lock:
             self._zip_writestr(filename, data)
@@ -792,6 +849,13 @@ class ZipLogFile:
                 finally:
                     # re-open zip file w/ self.temp_file pointer at end
                     self._open()
+
+            # Everything written so far is now in the uploaded file's central
+            # directory and readable from disk, so the streaming-path samples no
+            # longer need their in-memory copy (the buffered ``_samples`` are
+            # cleared by ``write_buffered_samples``, which the flush callers run
+            # first).
+            self._streaming_samples.clear()
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
@@ -896,6 +960,7 @@ async def _read_log(
     entries: list[ZipEntry],
     location: str,
     header_only: bool = False,
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     entry_names = {e.filename for e in entries}
 
@@ -918,7 +983,12 @@ async def _read_log(
             if entry.filename.startswith(f"{SAMPLES_DIR}/") and entry.filename.endswith(
                 ".json"
             ):
-                data = await _read_member_json(reader, entry.filename)
+                if exclude_fields:
+                    data = await _read_member_json_excluding(
+                        reader, entry.filename, exclude_fields
+                    )
+                else:
+                    data = await _read_member_json(reader, entry.filename)
                 samples.append(
                     EvalSample.model_validate(
                         data, context=get_deserializing_context()
