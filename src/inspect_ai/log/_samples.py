@@ -1,4 +1,5 @@
 import contextlib
+import os
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging import getLogger
@@ -431,14 +432,20 @@ def set_active_model_event_call(
     return model_call
 
 
-STREAM_FLUSH_MIN_INTERVAL_S = 0.1
+STREAM_FLUSH_MIN_INTERVAL_S = float(
+    os.environ.get("INSPECT_STREAM_FLUSH_INTERVAL", "0.1")
+)
 """Minimum seconds between partial-output flushes to the transcript.
 
 Providers throttle their per-token SDK delta loop to this so
 ``_event_updated`` subscribers (the live-view buffer, inspect-view's
-poll, workbench) are not spammed at token rate. ~10 Hz is enough for a
-smooth UI while keeping per-flush snapshot translation negligible.
-Shared across providers so they agree on cadence.
+poll, workbench) are not spammed at token rate. The 10 Hz default keeps
+per-flush snapshot translation negligible under batch evals, where it
+runs once per *concurrent* in-flight model call. Live-view consumers
+that want perceptibly latency-free streaming (e.g. the workbench, which
+has at most a handful of in-flight calls) can lower this via the
+``INSPECT_STREAM_FLUSH_INTERVAL`` env var at the cost of more event
+churn. Shared across providers so they agree on cadence.
 """
 
 

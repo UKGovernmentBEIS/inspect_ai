@@ -417,11 +417,18 @@ async def _stream_response(
 
     async with client.responses.stream(**request) as stream:
         async for event in stream:
-            if snapshot.handle_event(event) and (
-                (now := time.monotonic()) - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S
-            ):
-                last_flush = now
-                _flush()
+            if snapshot.handle_event(event):
+                now = time.monotonic()
+                # bypass the throttle when a function-call output item is
+                # added so each tool call surfaces the moment the provider
+                # opens it, even if several land within one flush window;
+                # text/reasoning/argument deltas stay throttled
+                force = isinstance(
+                    event, ResponseOutputItemAddedEvent
+                ) and isinstance(event.item, ResponseFunctionToolCall)
+                if force or now - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S:
+                    last_flush = now
+                    _flush()
         return await stream.get_final_response()
 
 

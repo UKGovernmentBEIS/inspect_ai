@@ -3756,10 +3756,14 @@ async def _capture_compaction_from_stream(
     Args:
         stream: The Anthropic AsyncMessageStream from messages.stream().
         on_snapshot: Called with ``stream.current_message_snapshot`` on
-            each ``content_block_*`` event, throttled to at most once per
-            ``STREAM_FLUSH_MIN_INTERVAL_S``. Used to publish partial
-            output to the pending ``ModelEvent`` while the response
-            arrives; ``None`` disables the per-flush callback.
+            each ``content_block_*`` event. ``content_block_delta`` (and
+            text/thinking ``content_block_start``) calls are throttled to
+            at most once per ``STREAM_FLUSH_MIN_INTERVAL_S``; a
+            ``content_block_start`` for a ``tool_use`` block and every
+            ``content_block_stop`` bypass the throttle so each tool call
+            surfaces the moment the provider opens its block. Used to
+            publish partial output to the pending ``ModelEvent`` while
+            the response arrives; ``None`` disables the callback.
 
     Returns:
         A tuple of (message, compaction_content) where message is the final
@@ -3776,14 +3780,22 @@ async def _capture_compaction_from_stream(
             and getattr(event.delta, "type", None) == "compaction_delta"
         ):
             compaction_content = getattr(event.delta, "content", None)
-        if (
-            on_snapshot is not None
-            and getattr(event, "type", None)
-            in ("content_block_start", "content_block_delta", "content_block_stop")
-            and (now := time.monotonic()) - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S
-        ):
-            last_flush = now
-            on_snapshot(stream.current_message_snapshot)
+        if on_snapshot is not None and (
+            event_type := getattr(event, "type", None)
+        ) in ("content_block_start", "content_block_delta", "content_block_stop"):
+            now = time.monotonic()
+            # bypass the throttle when a tool_use block opens (so each tool
+            # call surfaces the moment the provider starts it, even if
+            # several land within one flush window) and on every block
+            # close; text/thinking deltas stay throttled
+            force = event_type == "content_block_stop" or (
+                event_type == "content_block_start"
+                and getattr(getattr(event, "content_block", None), "type", None)
+                == "tool_use"
+            )
+            if force or now - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S:
+                last_flush = now
+                on_snapshot(stream.current_message_snapshot)
 
     # Get the final message snapshot
     message = stream.current_message_snapshot
