@@ -52,6 +52,7 @@ RegistryType = Literal[
     "loader",
     "scanner",
     "scanjob",
+    "validation_predicate",
 ]
 """Enumeration of registry object types.
 

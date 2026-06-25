@@ -1,9 +1,13 @@
 from inspect_ai import Task, eval, task
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
+    RegistryInfo,
+    _registry,
     extract_named_params,
+    registry_add,
     registry_create_from_dict,
     registry_info,
+    registry_key,
     registry_kwargs,
     registry_lookup,
     registry_value,
@@ -36,6 +40,19 @@ def test_registry_namespaces() -> None:
     info = registry_info(registry_lookup("metric", f"{PKG_NAME}/accuracy"))
     assert info
     assert info.name == f"{PKG_NAME}/accuracy"
+
+
+def test_validation_predicate_registry_type() -> None:
+    async def predicate() -> None:
+        pass
+
+    info = RegistryInfo(type="validation_predicate", name="test_predicate")
+    registry_add(predicate, info)
+    try:
+        assert registry_lookup("validation_predicate", "test_predicate") is predicate
+        assert registry_info(predicate) == info
+    finally:
+        _registry.pop(registry_key("validation_predicate", "test_predicate"), None)
 
 
 def test_registry_dict() -> None:
