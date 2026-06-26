@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Async Concurrency**: Use `inspect_ai._util._async.tg_collect()` instead of `asyncio.gather()` for running concurrent async tasks. Use `inspect_ai.util.collect()` only inside sample subtasks (it adds transcript span grouping).
 
-- **⚠️ NEVER offload `fsspec` to a thread.** Do not wrap anything that may touch `fsspec` — i.e. anything calling `filesystem()`, or reading/writing/listing/`exists`-ing a file or eval log — in `anyio.to_thread.run_sync` (and do not put such work in a sync FastAPI `def` endpoint, which Starlette also runs in a threadpool). `fsspec`'s sync API runs its **own** event loop on its **own** thread and blocks the caller; nesting our threadpool over fsspec's internal threading can **deadlock**. For blocking remote I/O use the async filesystem (`inspect_ai._util.asyncfiles.AsyncFilesystem`) instead. `to_thread` is fine for genuinely fsspec-free blocking work (e.g. local `sqlite`).
+- **⚠️ Never `to_thread` (or run in a sync FastAPI `def` endpoint) anything that touches `fsspec`/`filesystem()`.** fsspec's sync API runs its own event loop on its own thread; nesting our threadpool over it can deadlock. Use `inspect_ai._util.asyncfiles.AsyncFilesystem` for blocking remote I/O instead (`to_thread` is fine for fsspec-free work like local `sqlite`).
 
 - **File Paths**: All code that handles file paths must support `s3://` URLs, `file://` URIs, and plain local paths. Use `filesystem()` from `inspect_ai._util.file` for filesystem operations and `local_path()` to resolve `file://` URIs to local paths before passing to APIs that only accept local paths (e.g. `ZipFile`).
 
