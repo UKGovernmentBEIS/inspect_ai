@@ -379,10 +379,13 @@ def _scan_header_keys(f: IO[bytes]) -> tuple[int | None, str]:
     for prefix, event, value in ijson.parse(f):
         if (prefix, event) == ("version", "number"):
             version = value
-        elif prefix == "samples":
-            # Break as soon as we hit samples as that can be very large
-            break
         elif event == "map_key" and prefix == "":
+            # Stop at the top-level `samples` key, which can be enormous. Break
+            # *before* recording it: `samples` must not become last_header_field
+            # or the second pass would have to materialize the whole array to
+            # reach it. last_header_field stays the last real header field.
+            if value == "samples":
+                break
             last_header_field = value
 
     return version, last_header_field
