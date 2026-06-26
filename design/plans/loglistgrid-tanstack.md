@@ -170,6 +170,26 @@ Restored the arrow-key navigation origin/main had (its AG `LogListGrid` wired `c
 - **e2e:** `Keyboard navigation` describe in `top-level-views.spec.ts` — focus the grid, ↓/↓/↑ move `aria-selected`, Enter navigates under `/tasks/`.
 - **Verified:** typecheck/lint/format clean; resolver units + full `top-level-views` e2e (12) green.
 
+## Samples grid — stood up on DataGrid — ✅ (sort + filter wired)
+
+The shared `SamplesGrid` (used by both the cross-log `SamplesPanel` at `#/samples` and the single-log Samples tab via `SampleList`/`SamplesTab`) was swapped off AG Grid onto the inspect `DataGrid`, with client-side sorting and per-column filtering wired in. The remaining heavy/AG-specific features are deferred. What shipped:
+
+- `buildSampleColumns` (`shared/samples-grid/columns.tsx`) now emits `ExtendedColumnDef<SampleRow>[]` (accessorFn + `cell` + `meta.sortComparator`/`align` + `titleValue`); cell renderers (`cells.tsx`) reused as-is, keeping the list-mode markdown vs grid-mode plain-text branch.
+- `SamplesGrid` wraps `DataGrid` and runs **client-side sort + per-column filtering** over its rows via the same listing query the log list uses (`useLogsListingQuery` + `combineFilters`; accessors derived from the column defs' `accessorFn`/`meta.sortComparator`/`meta.filterType`). Sort/filter state is local to the grid (persistence still deferred). Row height 70 list / 30 grid; selection + click/keyboard activate → `onRowOpen`; column visibility flows straight through.
+- Columns are marked `filterable` with a `filterType` derived from the sort comparator (number/date/string), so DataGrid renders the per-column funnels; the status-icon and index columns are neither sortable nor filterable.
+- `SamplesPanel` seeds a Completed-desc default sort (`defaultSorting`) and pre-sorts its flattened rows for a stable `displayIndex`; `SampleList` keeps natural sample order.
+- Verified: typecheck/lint/format clean; 502 unit + 55 e2e green. (Fixed a pre-existing `error-state.spec.ts` that still asserted `.ag-root` for the already-migrated log list and was under-mocking `/api/logs`.)
+
+**Deferred (was AG, dropped for the stand-up — restore later):**
+- **Filter/sort chrome + integration** — the per-column funnels and header sorting work, but the cross-log **Reset-Filters** button + **filtered-count** footer, the single-log **toolbar-text↔column-filter** sync, and reconciling the **sample-navigation store** with the filtered/sorted set (so prev/next traverses the visible order) are not wired. Sort/filter state is also **not persisted** per scope yet.
+- **Rotated/compact score headers** (`RotatedHeader`, `compactScores`, the `compactSpacer` column) — plain string headers only.
+- **Score colour scales** (`colorScale.ts`, per-cell `cellStyle`) — score cells render without backgrounds.
+- **Column pinning** (`displayIndex` was pinned-left), **resizing**, **reordering**, **auto-fit-to-width** (flex columns → fixed widths).
+- **Follow-output / auto-scroll** for running evals; **scroll-to-top on log change**.
+- **Grid-state persistence** (sort/filter/column order/width) — `useSampleGridState`/`useSamplesView` grid-state APIs are no longer wired (column *visibility* still is).
+- **New-tab open** on modifier/middle click (the row-level path; the in-cell `<a>` overlay parity is also not wired for samples).
+- Cleanup follow-ups: (a) `SamplesGrid` imports the listing engine from `log-list/listing/` (a shared→feature direction) — the transitional `listing/` dir should move to `shared/` now that both grids use it; (b) once the deferred items are settled, prune now-unused AG helpers (`gridKeyboardNavigation`, `gridUtils`, `useApplyColumnVisibility`, `RotatedHeader`, `colorScale`) and the dormant grid-state returns, removing the last `ag-grid-*` usage + `ColumnSelectorPopover`'s AG coupling.
+
 ## Where we are & the path to a good point
 
 **Done (phases 1–4).** The log list renders every column across tasks/folder modes, navigates on click *and keyboard*, sorts (multi-sort, folder-pinned, persisted), filters (per-column popovers + Reset Filters + filtered-count), toggles column visibility (Columns popover + score-mode switch), and persists sort+filters per scope — all served from the react-query content cache, off the old zustand content path. What remains is parity polish and getting the log list fully off AG Grid.
@@ -195,6 +215,6 @@ After phase 6 the log-list migration is at a solid, shippable point and `ag-grid
 
 ## Separate efforts (out of this migration's scope)
 
-- **`SamplesGrid` migration** — cross-log `SamplesPanel` + single-log `SampleList`, with rotated headers, follow-output, and multiline rows. Its rows are already client-computed (cross-log even reads the same react-query content cache), so there's no datapath work; the cost is DataGrid feature delta (keyboard nav from phase 4 carries over). Completing it removes the last `ag-grid-*` usage and `ColumnSelectorPopover`'s AG coupling.
+- **`SamplesGrid` feature restoration** — the grid is now stood up on `DataGrid` (see "Samples grid — stood up on DataGrid" above); what remains is restoring the deferred features listed there (sorting, filtering, rotated headers, colour scales, follow-output, pinning/resize/reorder, grid-state persistence) and the AG-helper cleanup that removes the last `ag-grid-*` usage and `ColumnSelectorPopover`'s AG coupling.
 - **Server-side filter/sort + infinite scroll** — the payoff of the API boundary: replace `useLogsListingQuery`'s client `useMemo` (and the content-cache population) with a server `getLogsListing(dir, filter, orderBy, pagination)` query, deleting the transitional `log-list/listing/` evaluator. `Pagination` is cursor-shaped already.
 - **Scout reconciliation (user-owned)** — point scout at `@tsmono/inspect-common/query` + the shared `columnFilter/` module and collapse the duplicated query models to a single Python codegen source.
