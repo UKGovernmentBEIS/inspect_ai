@@ -47,6 +47,11 @@ def resolve_model_costs(
         missing: list[str] = []
         for model in models:
             model_name = f"{model}"
+            # A provider that reports the actual cost of each request (e.g.
+            # OpenRouter) lets the cost_limit be enforced at runtime, so it
+            # doesn't need a static pricing entry here.
+            if model.api.reports_usage_cost():
+                continue
             info = get_model_info(model_name)
             if info is None or info.cost is None:
                 missing.append(model_name)

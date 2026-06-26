@@ -484,6 +484,17 @@ class ModelAPI(abc.ABC):
         """Tool results can be replayed to the model with documents."""
         return False
 
+    def reports_usage_cost(self) -> bool:
+        """Whether this provider reports the actual cost of each request.
+
+        Providers that return a per-request cost on the response (e.g.
+        OpenRouter via ``usage.cost``) surface it on ``ModelUsage.total_cost``.
+        When True, a ``cost_limit`` can be enforced at runtime even if the model
+        has no entry in Inspect's static pricing database. Defaults to False
+        (cost is derived from static per-token pricing when available).
+        """
+        return False
+
     def disable_computer_screenshot_truncation(self) -> bool:
         """Some models do not support truncation of computer screenshots."""
         return False

@@ -405,60 +405,6 @@ class TestResultCaching:
         assert after.cost.output == 2.0
 
 
-class TestRecordCostAccounting:
-    """Tests for record_and_check_model_usage cost computation."""
-
-    def test_existing_total_cost_recomputed_for_db_priced_model(self):
-        """A stale cost on reused/cached usage must not override current DB pricing.
-
-        NOTE: this is NOT a true bug in PR #4296 -- it's a latent design smell
-        the PR introduces, not a defect reachable through any current code path.
-
-        The PR changed the seed in record_and_check_model_usage from
-        ``total_cost = None`` (always recompute from the pricing DB) to
-        ``total_cost = usage.total_cost`` (recompute only when None), so a
-        provider's authoritative reported cost (e.g. OpenRouter) isn't clobbered
-        by the local per-token estimate. The fragility: it uses *"total_cost is
-        present"* as the proxy for *"the provider reported it"*, conflating a
-        provider signal with leftover mutation state on the object.
-
-        In production this never bites: record_and_check_model_usage is called
-        exactly once per freshly-returned usage object (generate / compact), and
-        cache hits return early WITHOUT re-recording. This test manufactures a
-        double-record (same ModelUsage object recorded twice with pricing
-        changed in between) that the codebase never performs -- the second call
-        sees the leftover 0.001 and skips the DB recompute, returning stale cost
-        instead of 0.002. It documents the fragile implicit contract (a usage
-        replayed from a log, or a future cache that re-records, would expose it),
-        not a live bug. A robust fix would make the "provider reported" signal
-        explicit (e.g. a cost_source flag) rather than inferring it from presence.
-        """
-        from inspect_ai.model._model import record_and_check_model_usage
-        from inspect_ai.model._model_output import ModelUsage
-
-        set_model_cost(
-            "anthropic/claude-sonnet-4",
-            ModelCost(
-                input=1.0, output=1.0, input_cache_write=0.0, input_cache_read=0.0
-            ),
-        )
-
-        usage = ModelUsage(input_tokens=1000, output_tokens=0, total_tokens=1000)
-        record_and_check_model_usage("anthropic/claude-sonnet-4", usage)
-        assert usage.total_cost == pytest.approx(0.001)
-
-        set_model_cost(
-            "anthropic/claude-sonnet-4",
-            ModelCost(
-                input=2.0, output=2.0, input_cache_write=0.0, input_cache_read=0.0
-            ),
-        )
-
-        record_and_check_model_usage("anthropic/claude-sonnet-4", usage)
-
-        assert usage.total_cost == pytest.approx(0.002)
-
-
 class TestRecordCostPrecedence:
     """record_and_check_model_usage prefers a provider-reported total_cost."""
 

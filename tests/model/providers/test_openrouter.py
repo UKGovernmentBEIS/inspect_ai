@@ -372,6 +372,12 @@ def test_apply_reported_cost_rejects_bool_cost() -> None:
     assert output.usage.total_cost is None
 
 
+def test_reports_usage_cost_is_true() -> None:
+    """OpenRouter reports cost at runtime, so the cost_limit gate accepts it."""
+    api = _make_api("openrouter/openai/gpt-5-nano")
+    assert api.reports_usage_cost() is True
+
+
 @pytest.mark.anyio
 async def test_messages_to_openai_strips_reasoning_details_for_gemini() -> None:
     """Gemini-family models must not get reasoning_details replayed.

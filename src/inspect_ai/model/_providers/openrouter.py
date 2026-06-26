@@ -150,6 +150,13 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         return True
 
     @override
+    def reports_usage_cost(self) -> bool:
+        # OpenRouter returns the actual billed cost on every response (surfaced
+        # on ModelUsage.total_cost by _apply_reported_cost), so a cost_limit can
+        # be enforced at runtime even for models with no static pricing entry.
+        return True
+
+    @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         # Defer to the OpenAI-compatible base classifier (which handles 429 →
         # rate_limit and 5xx/timeouts → transient with header extraction).
