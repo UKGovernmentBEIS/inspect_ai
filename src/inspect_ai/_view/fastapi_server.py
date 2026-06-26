@@ -24,7 +24,7 @@ from starlette.types import Scope
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
-from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
+from inspect_ai._eval.evalset import EvalSet
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
@@ -51,6 +51,7 @@ from inspect_ai._view.common import (
     get_logs,
     normalize_uri,
     parse_log_token,
+    read_eval_set_info_async,
     stream_log_bytes,
 )
 from inspect_ai._view.scout_routes import get_scout_search_router
@@ -368,11 +369,11 @@ def view_server_app(
         # validate that the directory can be listed
         await _validate_list(request, eval_set_dir)
 
-        # return the eval set info for this directory
+        # return the eval set info for this directory (async fs, not to_thread —
+        # see the fsspec/to_thread warning in CLAUDE.md)
         mapped = await _map_file(request, eval_set_dir)
-        return await anyio.to_thread.run_sync(
-            lambda: read_eval_set_info(mapped, fs_options=fs_options)
-        )
+        async with AsyncFilesystem() as afs:
+            return await read_eval_set_info_async(mapped, afs)
 
     @app.get("/flow")
     async def flow(
@@ -393,13 +394,14 @@ def view_server_app(
         await _validate_list(request, flow_dir)
 
         mapped_dir = await _map_file(request, flow_dir)
+        sep = filesystem(mapped_dir).sep
+        flow_file = f"{mapped_dir.rstrip('/').rstrip(sep)}{sep}flow.yaml"
 
-        def _read_flow() -> bytes | None:
-            fs = filesystem(mapped_dir)
-            flow_file = f"{mapped_dir}{fs.sep}flow.yaml"
-            return fs.read_bytes(flow_file) if fs.exists(flow_file) else None
-
-        content = await anyio.to_thread.run_sync(_read_flow)
+        # async fs, not to_thread — see the fsspec/to_thread warning in CLAUDE.md
+        async with AsyncFilesystem() as afs:
+            content = (
+                await afs.read_file(flow_file) if await afs.exists(flow_file) else None
+            )
         if content is not None:
             return Response(
                 content=content.decode("utf-8"),
@@ -455,10 +457,11 @@ def view_server_app(
 
         client_etag = request.headers.get("If-None-Match")
 
-        mapped = await _map_file(request, file)
-        samples = await anyio.to_thread.run_sync(
-            lambda: sample_buffer(mapped).get_samples(client_etag)
-        )
+        # NOTE: sync on the event loop. The sample buffer can be filestore-backed
+        # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
+        # warning in CLAUDE.md.
+        buffer = sample_buffer(await _map_file(request, file))
+        samples = buffer.get_samples(client_etag)
         if samples == "NotModified":
             return Response(status_code=HTTP_304_NOT_MODIFIED)
         elif samples is None:
@@ -498,16 +501,17 @@ def view_server_app(
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
 
-        mapped = await _map_file(request, file)
-        sample_data = await anyio.to_thread.run_sync(
-            lambda: sample_buffer(mapped).get_sample_data(
-                id=id,
-                epoch=epoch,
-                after_event_id=last_event_id,
-                after_attachment_id=after_attachment_id,
-                after_message_pool_id=after_message_pool_id,
-                after_call_pool_id=after_call_pool_id,
-            )
+        # NOTE: sync on the event loop. The sample buffer can be filestore-backed
+        # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
+        # warning in CLAUDE.md.
+        buffer = sample_buffer(await _map_file(request, file))
+        sample_data = buffer.get_sample_data(
+            id=id,
+            epoch=epoch,
+            after_event_id=last_event_id,
+            after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
         )
 
         if sample_data is None:
