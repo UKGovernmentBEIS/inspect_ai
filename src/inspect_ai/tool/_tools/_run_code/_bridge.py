@@ -183,7 +183,7 @@ class RunCodeToolBridge:
 
         try:
             result = await self._execute_inspect_tool_call(tool_def, arguments)
-            value = self._project_result(result)
+            value = self._project_result(result, tool_def.name)
             artifact_count = len(self.artifacts) - artifacts_before
             call.result_preview = _preview(f"{value!r} | artifacts={artifact_count}")
             return value
@@ -191,7 +191,7 @@ class RunCodeToolBridge:
             call.error = str(exc)
             raise
 
-    def _project_result(self, result: Any) -> Any:
+    def _project_result(self, result: Any, tool_name: str) -> Any:
         """Project a raw Inspect ToolResult into a Monty runtime value.
 
         Three cases:
@@ -214,11 +214,13 @@ class RunCodeToolBridge:
 
         try:
             return to_jsonable_python(result, fallback=lambda value: str(value))
-        except Exception:
-            content = result if isinstance(result, list) else [result]
-            text, new_artifacts = _content_to_runtime_value(content)
-            self.artifacts.extend(new_artifacts)
-            return text
+        except Exception as exc:
+            from inspect_ai.tool._tool import ToolError
+
+            raise ToolError(
+                f"run_code: tool '{tool_name}' returned a value that can't be "
+                f"projected into the runtime ({type(result).__name__}): {exc}"
+            ) from exc
 
     @staticmethod
     def _is_content_result(result: Any) -> bool:

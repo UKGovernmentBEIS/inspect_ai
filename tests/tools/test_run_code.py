@@ -654,6 +654,19 @@ f"{len(txs)} txs total={total}"
     assert result[0].text == "2 txs total=42"
 
 
+def test_project_result_raises_on_unprojectable_value():
+    # Neither scalar, Content, nor JSON-serializable: raise instead of
+    # degrading to text, and leave artifacts untouched.
+    bridge = RunCodeToolBridge([])
+    circular: dict = {}
+    circular["self"] = circular
+
+    with pytest.raises(ToolError):
+        bridge._project_result(circular, "demo_tool")
+
+    assert bridge.artifacts == []
+
+
 @pytest.mark.anyio
 async def test_run_code_can_call_wrapped_tools_with_asyncio_gather():
     pytest.importorskip("pydantic_monty")
