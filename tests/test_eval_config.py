@@ -7,7 +7,7 @@ from click.testing import CliRunner, Result
 from pydantic import ValidationError
 
 from inspect_ai import Task, eval, task
-from inspect_ai._cli.eval import RunConfigInput, eval_command
+from inspect_ai._cli.eval import RunConfigInput, eval_command, eval_retry_command
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
@@ -15,15 +15,31 @@ from inspect_ai.model import get_model
 from inspect_ai.solver import solver
 
 
-def run_eval_cli(args: list[str], env: dict[str, str] | None = None) -> Result:
+def run_eval_cli(args: list[str], env: dict[str, str | None] | None = None) -> Result:
     """Invoke `inspect eval` in-process via CliRunner.
 
     In-process invocation avoids the ~2s interpreter + package-import startup
     that a fresh `inspect` subprocess pays on every call. `eval_command` is the
     same click command `inspect eval` dispatches to, so CLI option parsing and
     config resolution are exercised identically.
+
+    A value of `None` in `env` unsets that variable for the invocation (used to
+    clear `INSPECT_EVAL_*` overrides that would otherwise leak in from the
+    ambient environment or repo `.env`).
     """
     return CliRunner().invoke(eval_command, args, env=env)
+
+
+def run_eval_retry_cli(
+    args: list[str], env: dict[str, str | None] | None = None
+) -> Result:
+    """Invoke `inspect eval-retry` in-process via CliRunner.
+
+    Counterpart to `run_eval_cli` for the `eval-retry` command (see that
+    function for why we invoke the click command directly instead of spawning a
+    subprocess).
+    """
+    return CliRunner().invoke(eval_retry_command, args, env=env)
 
 
 def assert_cli_success(result: Result) -> None:
@@ -370,17 +386,15 @@ eval_config:
 """.strip()
         )
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "--run-config",
                 run_config.as_posix(),
                 "--log-dir",
                 log_dir.as_posix(),
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.config.score_on_error is True
         assert log.eval.config.continue_on_fail is True
@@ -390,18 +404,16 @@ def test_eval_cli_preserves_task_score_on_error():
     """A task-level positive error flag must survive when the CLI flag is absent."""
     with tempfile.TemporaryDirectory() as temp_dir:
         log_dir = Path(temp_dir) / "logs"
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_error_flags_task",
                 "--model",
                 "mockllm/model",
                 "--log-dir",
                 log_dir.as_posix(),
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.config.score_on_error is True
         assert log.eval.config.continue_on_fail is True
@@ -411,25 +423,21 @@ def test_eval_cli_score_on_error_default_when_unset():
     """With neither task nor CLI setting the flags, they default to off."""
     with tempfile.TemporaryDirectory() as temp_dir:
         log_dir = Path(temp_dir) / "logs"
-        # strip env vars: env-var presence would force the flags on
-        test_env = {
-            k: v
-            for k, v in os.environ.items()
-            if k not in ("INSPECT_EVAL_SCORE_ON_ERROR", "INSPECT_EVAL_CONTINUE_ON_FAIL")
-        }
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--model",
                 "mockllm/model",
                 "--log-dir",
                 log_dir.as_posix(),
             ],
-            env=test_env,
-            check=True,
+            # unset the env vars: their presence would force the flags on
+            env={
+                "INSPECT_EVAL_SCORE_ON_ERROR": None,
+                "INSPECT_EVAL_CONTINUE_ON_FAIL": None,
+            },
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert not log.eval.config.score_on_error
         assert not log.eval.config.continue_on_fail
@@ -444,10 +452,8 @@ def test_eval_cli_score_on_error_flag_turns_on():
     """
     with tempfile.TemporaryDirectory() as temp_dir:
         log_dir = Path(temp_dir) / "logs"
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--model",
                 "mockllm/model",
@@ -455,9 +461,9 @@ def test_eval_cli_score_on_error_flag_turns_on():
                 log_dir.as_posix(),
                 "--score-on-error",
                 "--continue-on-fail",
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.config.score_on_error is True
         assert log.eval.config.continue_on_fail is True
@@ -472,28 +478,24 @@ def test_eval_retry_cli_preserves_error_flags_from_log():
     with tempfile.TemporaryDirectory() as temp_dir:
         log_dir = Path(temp_dir) / "logs"
         # produce a retryable (errored) log whose config carries both flags
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_failing_error_flags_task",
                 "--model",
                 "mockllm/model",
                 "--log-dir",
                 log_dir.as_posix(),
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         first = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert first.status == "error"
         assert first.eval.config.score_on_error is True
         assert first.eval.config.continue_on_fail is True
 
         # retry without the flags; the retried log must preserve them
-        subprocess.run(
-            ["inspect", "eval-retry", first.location, "--log-dir", log_dir.as_posix()],
-            check=True,
-        )
+        retry = run_eval_retry_cli([first.location, "--log-dir", log_dir.as_posix()])
+        assert_cli_success(retry)
         logs = [read_eval_log(f) for f in list_eval_logs(log_dir.as_posix())]
         assert len(logs) == 2  # original + retry
         for log in logs:
