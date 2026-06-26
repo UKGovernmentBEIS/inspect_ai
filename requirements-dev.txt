@@ -11,6 +11,7 @@ huggingface_hub>=1.6.0
 inspect-scout>=0.4.37
 ipython
 jsonpath-ng
+latex2sympy2-extended==1.11.0
 markdown
 mcp>=1.10.0
 mistralai>=2.4.5,
