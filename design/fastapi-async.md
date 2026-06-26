@@ -7,11 +7,11 @@
 3. **`async def` + `anyio.to_thread.run_sync`** — endpoint must await *and* do sync blocking I/O. The sync blocker is manually offloaded.
 4. **`async def` with no awaits and no blocking** — fine as-is. Trivially fast, no reason to pay threadpool overhead.
 
-## ⚠️ Critical exception: never threadpool `fsspec`
+## ⚠️ Critical exception: never threadpool *remote* `fsspec`
 
-Rules 2 and 3 both run the endpoint body in a threadpool. **Do not use either for anything that may touch `fsspec`** — i.e. anything calling `filesystem()` or reading/writing/listing/`exists`-ing a file or eval log. `fsspec`'s sync API runs its **own** event loop on its **own** thread and blocks the caller; nesting a threadpool over that internal threading can **deadlock**. This includes the sample buffer when it is filestore-backed.
+Rules 2 and 3 both run the endpoint body in a threadpool. **Do not use either for `fsspec` work on a remote filesystem** (s3/gcs/azure — i.e. `filesystem(path).is_async()`). Those backends' sync API runs coroutines on fsspec's **own** background event-loop thread and blocks the caller; nesting a threadpool over that internal threading can **deadlock**. This includes the sample buffer when it is filestore-backed.
 
-For blocking remote I/O, use the async filesystem (`inspect_ai._util.asyncfiles.AsyncFilesystem`) from an `async def` endpoint — not `def` and not `to_thread`. `to_thread`/`def` remain fine for genuinely fsspec-free blocking work (e.g. local `sqlite`, `subprocess`). See the warning in the repo `CLAUDE.md`.
+For blocking remote I/O, use the async filesystem (`inspect_ai._util.asyncfiles.AsyncFilesystem`) from an `async def` endpoint — not `def` and not `to_thread`. `to_thread`/`def` remain fine for **known-local** fsspec (`LocalFileSystem` is plain sync, no background loop) and for genuinely fsspec-free blocking work (local `sqlite`, `subprocess`). See the warning in the repo `CLAUDE.md`.
 
 ## Why this matters
 
@@ -31,7 +31,7 @@ Does the endpoint await anything?
 
 ## What counts as sync blocking
 
-- File/directory I/O (`open`, `read`, `exists`, `rename`, `iterdir`) — but if it goes through `fsspec`/`filesystem()`, see the critical exception above: use `AsyncFilesystem`, never `def`/`to_thread`
+- File/directory I/O (`open`, `read`, `exists`, `rename`, `iterdir`) — safe to threadpool when known-local, but if it may hit a *remote* `fsspec` backend see the critical exception above (use `AsyncFilesystem`, never `def`/`to_thread`)
 - `subprocess.Popen`, `send2trash`
 - Sync database or KV store access (local `sqlite` is threadpool-safe)
 - Heavy CPU work or module introspection
