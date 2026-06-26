@@ -4,12 +4,21 @@ import functools
 import io
 import logging
 import shutil
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from types import TracebackType
-from typing import Any, AsyncIterator, BinaryIO, Callable, Coroutine, TypeVar, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    BinaryIO,
+    Callable,
+    Coroutine,
+    Iterator,
+    TypeVar,
+    cast,
+)
 from urllib.parse import urlparse
 
 import anyio
@@ -791,6 +800,28 @@ def get_async_filesystem() -> AsyncFilesystem:
             "Use 'async with AsyncFilesystem()' to establish one."
         )
     return fs
+
+
+@contextmanager
+def bind_async_filesystem(fs: AsyncFilesystem) -> Iterator[None]:
+    """Bind `fs` as the shared AsyncFilesystem for the current context.
+
+    Unlike ``async with AsyncFilesystem()``, this neither creates nor closes a
+    filesystem — the caller owns ``fs``'s lifecycle. Within the bound scope (and
+    any child tasks that inherit the context), ``get_async_filesystem()`` and
+    ``async with AsyncFilesystem()`` reuse ``fs``, so downstream S3 access shares
+    its client and connection pool.
+
+    Intended for binding a single long-lived, pre-warmed filesystem around a
+    unit of work — e.g. per-request in ASGI middleware — so reads don't re-pay
+    client/connection setup. Safe to nest; the previous binding is restored on
+    exit.
+    """
+    token = _current_async_fs.set(fs)
+    try:
+        yield
+    finally:
+        _current_async_fs.reset(token)
 
 
 @functools.cache

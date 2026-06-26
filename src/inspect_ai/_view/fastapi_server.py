@@ -25,6 +25,7 @@ from typing_extensions import override
 
 from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
+from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import filesystem
@@ -591,6 +592,28 @@ def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
     return AuthorizationMiddleware
 
 
+class AsyncFilesystemMiddleware:
+    """Bind one shared AsyncFilesystem for the lifetime of each request.
+
+    Pure-ASGI (not BaseHTTPMiddleware) so the ContextVar set here propagates to
+    the route handler and into its `tg_collect` fan-out tasks — BaseHTTPMiddleware
+    runs the endpoint in a separate task and would drop it. The single instance
+    keeps one warm aioboto3 client + connection pool across all requests, so S3
+    reads don't re-pay the credential/connection cold-start on every request.
+    """
+
+    def __init__(self, app: Any, fs: AsyncFilesystem) -> None:
+        self.app = app
+        self.fs = fs
+
+    async def __call__(self, scope: Scope, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        with bind_async_filesystem(self.fs):
+            await self.app(scope, receive, send)
+
+
 class _InspectStaticFiles(StaticFiles):
     """StaticFiles with no-cache headers to avoid stale assets."""
 
@@ -670,6 +693,11 @@ def view_server(
         name="static",
     )
 
+    # one server-lifetime async filesystem (shared client + connection pool)
+    # bound into every request by AsyncFilesystemMiddleware
+    shared_fs = AsyncFilesystem()
+    app.add_middleware(AsyncFilesystemMiddleware, fs=shared_fs)
+
     if authorization:
         app.add_middleware(authorization_middleware(authorization))
 
@@ -680,6 +708,16 @@ def view_server(
     display().print(f"Inspect View: {log_dir}")
 
     async def run_server() -> None:
+        # Warm the shared async S3 client (connection pool + credentials) once,
+        # on the server loop, so the first request doesn't pay the cold-start.
+        # Only relevant for S3; other backends don't use the aioboto3 client.
+        if fs.is_s3():
+            try:
+                await shared_fs.s3_client_async()
+                await shared_fs.exists(log_dir)
+            except Exception:
+                logger.warning("Failed to pre-warm shared S3 filesystem", exc_info=True)
+
         config = uvicorn.Config(
             app, host=host, port=port, log_config=None, timeout_keep_alive=15
         )
@@ -698,8 +736,11 @@ def view_server(
                 "(Press CTRL+C to quit)"
             )
 
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(announce_when_ready)
-            await server.serve()
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(announce_when_ready)
+                await server.serve()
+        finally:
+            await shared_fs.close()
 
     anyio.run(run_server)
