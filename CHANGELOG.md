@@ -8,11 +8,13 @@
 - Eval Logs: Add `read_eval_log_samples_by_id()` to concurrently read a specific subset of samples by `(id, epoch)` (#2873).
 - Model API: Keep the connection-pool/adaptive-concurrency scope stable when a provider's `api_key` is a short-lived credential.
 - HuggingFace: Forward an explicitly supplied API key when loading tokenizers for private or gated models.
+- HuggingFace: Fixed model weights being loaded a second time (wasting GPU memory and risking OOM) when recording usage, checking the context window for compaction, or validating cost limits.
 - NNterp: Forward an explicitly supplied API key when loading private or gated Hugging Face models and tokenizers.
 - OpenAI-compatible providers: Report the source environment variable (e.g. `CLOUDFLARE_API_TOKEN`, `HF_TOKEN`) to API key override hooks rather than the derived `*_API_KEY` name.
 - AzureAI: Offer `AZUREAI_API_KEY` values to API key override hooks.
 - AzureAI: Honor an explicitly supplied `api_key` instead of replacing it with an environment credential.
 - Google: Retry truncated response streams (`ClientPayloadError` wrapping a `PayloadEncodingError`, e.g. a connection reset mid-body) instead of crashing the sample.
+- Model Info: Look up custom cost/info registrations under both the user-facing model string and the canonical name, so configured costs aren't dropped for routed providers (e.g. `together`, `hf-inference-providers`, custom routed providers).
 - Agent Bridge: Forward the Google `generationConfig` structured-output schema (`responseSchema`/`responseJsonSchema`) instead of dropping it.
 - Agent Bridge: Forward Anthropic `output_config.effort` for adaptive thinking.
 - Sandbox Tools: Lower the glibc build floor from 2.31 to 2.17 (build against a conda-forge CPython) so injected tools run on older glibc sandboxes including Ubuntu 16.04 and 18.04.
