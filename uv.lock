@@ -2039,6 +2039,7 @@ dependencies = [
 dev = [
     { name = "adlfs" },
     { name = "anthropic" },
+    { name = "antlr4-python3-runtime" },
     { name = "apprise" },
     { name = "aws-bedrock-token-generator" },
     { name = "azure-ai-inference" },
@@ -2112,6 +2113,7 @@ doc = [
     { name = "types-pyyaml" },
 ]
 math = [
+    { name = "antlr4-python3-runtime" },
     { name = "latex2sympy2-extended" },
 ]
 
@@ -2126,6 +2128,8 @@ requires-dist = [
     { name = "agent-client-protocol", specifier = ">=0.10.1" },
     { name = "aioboto3", specifier = ">=13.0.0" },
     { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.109.1" },
+    { name = "antlr4-python3-runtime", marker = "extra == 'dev'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
+    { name = "antlr4-python3-runtime", marker = "extra == 'math'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
     { name = "anyio", specifier = ">=4.14.0" },
     { name = "apprise", marker = "extra == 'dev'" },
     { name = "aws-bedrock-token-generator", marker = "extra == 'dev'" },
