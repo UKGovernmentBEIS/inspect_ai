@@ -217,6 +217,11 @@ class ModelAPI(abc.ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.api_key_vars = api_key_vars
+        # Stable pooling identity for connection_key(). Captured from the
+        # constructor before _apply_api_key_overrides() runs and never mutated
+        # afterwards, so it survives api_key rotation (e.g. a credential hook
+        # refreshing self.api_key via initialize()). See connection_key().
+        self.initial_api_key = api_key
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
@@ -410,7 +415,20 @@ class ModelAPI(abc.ABC):
         return DEFAULT_MAX_CONNECTIONS
 
     def connection_key(self) -> str:
-        """Scope for enforcement of max_connections."""
+        """Scope for enforcement of max_connections (and adaptive concurrency).
+
+        Two instances of the *same provider* that return the same key share one
+        connection pool. This method only needs to distinguish accounts/models
+        within a provider; the model layer adds the provider namespace on top
+        (see `_connection_pool_key`), so distinct providers never collide even
+        when their `connection_key()` values coincide.
+
+        Providers that scope by API key should use `self.initial_api_key` here,
+        NOT the live `self.api_key`: the live key can rotate mid-eval (e.g. a
+        credential hook refreshing it via `initialize()`), and keying on it
+        would discard all learned pool/adaptive state on every rotation.
+        ``initial_api_key`` is fixed at construction, so the scope stays stable.
+        """
         return "default"
 
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
@@ -567,6 +585,17 @@ def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
         **(output.message.metadata or {}),
         REDACTED_REASONING_TOKENS_METADATA_KEY: output.usage.reasoning_tokens,
     }
+
+
+def _connection_pool_key(api: ModelAPI) -> str:
+    """Provider-namespaced connection-pool key for the model layer.
+
+    Prefixes the provider's `connection_key()` with the provider class so two
+    providers serving the same model don't share a pool (e.g. `openai/gpt-5`
+    and `azureai/gpt-5`, whose `connection_key()` both reduce to `None:gpt-5`
+    when their api keys are elided).
+    """
+    return f"{type(api).__name__}:{api.connection_key()}"
 
 
 class Model:
@@ -915,7 +944,7 @@ class Model:
                 config.max_tokens = self.api.max_tokens()
 
         model_name = ModelName(self)
-        key = f"ModelCompact({self.api.connection_key()})"
+        key = f"ModelCompact({_connection_pool_key(self.api)})"
 
         async with concurrency(f"{model_name}_compact", 10, key, visible=False):
 
@@ -1351,8 +1380,8 @@ class Model:
     # (which would likely cause the rate limit to be exceeded). conversely if
     # you are using distinct models/endpoints/accounts within an eval you should
     # be able get the full max_connections for each of them. subclasses can
-    # override the _connection_key() argument to provide a scope within which
-    # to enforce max_connections (e.g. by account/api_key, by endpoint, etc.)
+    # override connection_key() to provide a scope within which to enforce
+    # max_connections (e.g. by account/api_key, by endpoint, etc.)
 
     @contextlib.asynccontextmanager
     async def _connection_concurrency(
@@ -1369,7 +1398,7 @@ class Model:
         )
 
         model_name = ModelName(self)
-        key = f"Model{self.api.connection_key()}"
+        key = f"Model{_connection_pool_key(self.api)}"
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
         # rules — both silent — keep deliberate overrides working under
