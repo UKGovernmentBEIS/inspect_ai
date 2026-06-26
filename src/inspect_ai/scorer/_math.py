@@ -62,6 +62,8 @@ _PERCENT_SUFFIX = re.compile(
     r"\s+(?:percent(?:age)?|pct))\s*$",
     re.IGNORECASE,
 )
+_LATEX_NUMBER = re.compile(r"[+-]?(?:\d+|\d*\.\d+)(?:E[+-]?\d+)?\Z")
+_LATEX_COMMA_NUMBER = re.compile(r"\s*-?\d{1,3}(?:,\d{3})+(?:\.\d+)?\s*\Z")
 _DIGIT_RUN = re.compile(r"\d+")
 _COMMAND = re.compile(r"\\[A-Za-z]+")
 _WORD = re.compile(r"[A-Za-z]{2,}")
@@ -666,13 +668,23 @@ def _looks_complex(candidate: str) -> bool:
     )
 
 
+def _parse_latex_number(text: str, sympy: Any) -> Any:
+    normalized = text.replace(",", "").strip()
+    if not _LATEX_NUMBER.fullmatch(normalized):
+        raise _MathParseError("invalid numeric token from LaTeX parser")
+    if "." in normalized or "E" in normalized:
+        return sympy.Float(normalized)
+    return sympy.Integer(normalized)
+
+
 def _parse_latex_expression(candidate: str, sympy: Any) -> Any:
     from latex2sympy2_extended import (  # type: ignore[import-untyped]
         NormalizationConfig,
-        latex2sympy,
+        normalize_latex,
     )
     from latex2sympy2_extended.latex2sympy2 import (  # type: ignore[import-untyped]
         ConversionConfig,
+        _Latex2Sympy,
     )
 
     normalized_candidate = re.sub(
@@ -680,28 +692,39 @@ def _parse_latex_expression(candidate: str, sympy: Any) -> Any:
         "",
         candidate,
     )
+    normalized_candidate = normalize_latex(
+        normalized_candidate,
+        NormalizationConfig(
+            basic_latex=True,
+            units=True,
+            malformed_operators=True,
+            nits=True,
+            boxed="last",
+            equations=False,
+        ),
+    )
+
+    if _LATEX_COMMA_NUMBER.fullmatch(normalized_candidate):
+        return _parse_latex_number(normalized_candidate, sympy)
+
+    class _InspectLatex2Sympy(_Latex2Sympy):  # type: ignore[misc]
+        def parse_number(self, text: str) -> Any:
+            return _parse_latex_number(text, sympy)
+
+    converter = _InspectLatex2Sympy(
+        variable_values=None,
+        is_real=not _looks_complex(candidate),
+        convert_degrees=False,
+        config=ConversionConfig(
+            interpret_as_mixed_fractions=True,
+            interpret_simple_eq_as_assignment=False,
+            interpret_contains_as_eq=True,
+            lowercase_symbols=True,
+        ),
+    )
 
     def parse() -> Any:
-        return latex2sympy(
-            normalized_candidate,
-            variable_values=None,
-            is_real=not _looks_complex(candidate),
-            convert_degrees=False,
-            normalization_config=NormalizationConfig(
-                basic_latex=True,
-                units=True,
-                malformed_operators=True,
-                nits=True,
-                boxed="last",
-                equations=False,
-            ),
-            conversion_config=ConversionConfig(
-                interpret_as_mixed_fractions=True,
-                interpret_simple_eq_as_assignment=False,
-                interpret_contains_as_eq=True,
-                lowercase_symbols=True,
-            ),
-        )
+        return converter.parse(normalized_candidate)
 
     if _UNEVALUATED_LATEX_CONSTRUCTOR.search(normalized_candidate):
         with sympy.evaluate(False):
@@ -877,7 +900,7 @@ def _parse_first(candidates: list[str]) -> _ParsedValue:
 
 
 def _is_numeric_expression(expression: Any, sympy: Any) -> bool:
-    return isinstance(expression, sympy.Basic) and not expression.free_symbols
+    return isinstance(expression, sympy.Expr) and not expression.free_symbols
 
 
 def _numeric_equivalent(left: Any, right: Any, sympy: Any) -> bool:

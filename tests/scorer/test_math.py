@@ -88,16 +88,20 @@ def test_plain_and_latex_parsers_do_not_call_parse_expr(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import latex2sympy2_extended.latex2sympy2 as parser  # type: ignore[import-untyped]
+    import sympy.parsing.sympy_parser as sympy_parser  # type: ignore[import-untyped]
 
     def fail_parse_expr(*_args: Any, **_kwargs: Any) -> None:
         raise AssertionError("unsafe parse_expr() called")
 
     monkeypatch.setattr(parser, "parse_expr", fail_parse_expr)
+    monkeypatch.setattr(sympy_parser, "parse_expr", fail_parse_expr)
     for expression in (
         r"\frac{1}{2}",
+        r"\frac{1E2}{5}",
         r"\sqrt{2}",
         r"\left(1,2\right)",
         r"\begin{pmatrix}1&2\\3&4\end{pmatrix}",
+        "1,234.5",
         "sqrt(2) + sqrt(2)",
     ):
         assert _parse_candidate(expression)
@@ -170,6 +174,20 @@ def test_eager_latex_constructors_remain_unevaluated(
 
     assert parsed.expression is not None
     assert parsed.expression.func.__name__ == function_name
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["[]", "[0]", "(0,)", "(0, 1)"],
+)
+def test_constant_tuple_mismatch_is_incorrect(answer: str) -> None:
+    result = _score_answer_worker(answer, ("2",))
+    assert result.status == "incorrect"
+
+
+def test_constant_tuple_self_match_is_correct() -> None:
+    result = _score_answer_worker("(0, 1)", ("(0, 1)",))
+    assert result.status == "correct"
 
 
 @pytest.mark.parametrize(
