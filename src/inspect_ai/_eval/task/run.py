@@ -180,10 +180,10 @@ from .enqueue import get_task_enqueuer
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
-    sample_with_base64_content,
+    TaskInputMediaPlan,
+    materialize_sample_input,
     sample_without_base64_content,
     state_without_base64_content,
-    states_with_base64_content,
 )
 from .log import TaskLogger, collect_eval_data, plan_to_eval_plan
 from .results import eval_results
@@ -384,6 +384,8 @@ class TaskRunOptions:
         default=None
     )
     """Run-level incremental sandbox startup for samples a SampleSource adds."""
+    input_media_plan: TaskInputMediaPlan = field(default_factory=dict)
+    """Exact media references authorized before this task began executing."""
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -1002,8 +1004,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sample_uuid: str | None = None,
                     ) -> tuple[Sample, TaskState]:
                         sample = deepcopy(get_sample(sample_index))
-                        if log_images:
-                            sample = await sample_with_base64_content(sample)
+                        sample = await materialize_sample_input(
+                            sample, options.input_media_plan
+                        )
                         state = deepcopy(
                             TaskState(
                                 sample_id=sample.id or 0,
@@ -2294,12 +2297,8 @@ async def task_run_sample(
                 if not error or (retry_on_error == 0) or (cancelled_error is not None):
                     progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
-                    # if we are logging images then be sure to base64 images injected by solvers
-                    if log_images:
-                        state = (await states_with_base64_content([state]))[0]
-
-                    # otherwise ensure there are no base64 images in sample or messages
-                    else:
+                    # ensure there are no base64 images in sample or messages
+                    if not log_images:
                         sample = sample_without_base64_content(sample)
                         state = state_without_base64_content(state)
 

@@ -143,10 +143,9 @@ from inspect_ai._util.content import (
     ContentToolUse,
     ContentVideo,
 )
-from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
-from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -430,11 +429,7 @@ async def _openai_responses_function_call_output(
                     ResponseInputImageContentParam(
                         type="input_image",
                         detail=c.detail,
-                        image_url=(
-                            c.image
-                            if is_http_url(c.image)
-                            else await file_as_data_uri(c.image)
-                        ),
+                        image_url=inline_media_data_uri(c.image, "image"),
                     )
                 )
         return outputs
@@ -455,11 +450,7 @@ async def _openai_responses_custom_tool_call_output(
                     ResponseInputImageParam(
                         type="input_image",
                         detail=c.detail,
-                        image_url=(
-                            c.image
-                            if is_http_url(c.image)
-                            else await file_as_data_uri(c.image)
-                        ),
+                        image_url=inline_media_data_uri(c.image, "image"),
                     )
                 )
         return outputs
@@ -483,11 +474,7 @@ async def _openai_responses_content_param(
         return ResponseInputImageParam(
             type="input_image",
             detail=content.detail,
-            image_url=(
-                content.image
-                if is_http_url(content.image)
-                else await file_as_data_uri(content.image)
-            ),
+            image_url=inline_media_data_uri(content.image, "image"),
         )
     elif isinstance(content, ContentAudio | ContentVideo | ContentDocument):
         match content:
@@ -503,7 +490,14 @@ async def _openai_responses_content_param(
             case _:
                 raise TypeError(f"Unexpected content type: {type(content)}")
 
-        file_data_uri = await file_as_data_uri(contents)
+        file_data_uri = inline_media_data_uri(
+            contents,
+            "audio"
+            if isinstance(content, ContentAudio)
+            else "video"
+            if isinstance(content, ContentVideo)
+            else "document",
+        )
 
         return ResponseInputFileParam(
             type="input_file", file_data=file_data_uri, filename=filename
@@ -1439,7 +1433,9 @@ def _openai_input_items_from_chat_message_assistant(
                             "content": [
                                 {
                                     "type": "input_image",
-                                    "image_url": content.image,
+                                    "image_url": inline_media_data_uri(
+                                        content.image, "image"
+                                    ),
                                     "detail": content.detail,
                                 }
                             ],

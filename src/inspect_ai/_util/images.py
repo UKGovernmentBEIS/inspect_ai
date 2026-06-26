@@ -2,7 +2,7 @@ import base64
 import mimetypes
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Awaitable, Callable, Iterator
+from typing import Awaitable, Callable, Iterator, Literal
 from urllib.parse import urlparse
 
 import httpx
@@ -21,6 +21,14 @@ MediaResolverFunc = Callable[[str], Awaitable[str]]
 A media resolver is an async function that takes a URI string and returns
 a resolved path, URL, or data URI.
 """
+
+MediaKind = Literal["image", "audio", "video", "document"]
+"""Media type expected by an inline media consumer."""
+
+
+class UnresolvedMediaError(ValueError):
+    """Media reference must be explicitly materialized before use."""
+
 
 _media_resolvers: ContextVar[dict[str, MediaResolverFunc]] = ContextVar(
     "_media_resolvers"
@@ -120,6 +128,61 @@ async def file_as_data_uri(file: str) -> str:
         file_bytes, mime_type = await file_as_data(file)
         base64_file = base64.b64encode(file_bytes).decode("utf-8")
         return as_data_uri(mime_type, base64_file)
+
+
+async def materialize_media(file: str) -> str:
+    """Materialize a trusted media reference as a data URI.
+
+    This function may invoke a configured media resolver, make an HTTP request,
+    or read from a filesystem. Call it only where trusted code explicitly
+    intends to grant a reference that authority.
+
+    Args:
+        file: Local path, URL, configured-scheme URI, or existing data URI.
+
+    Returns:
+        A data URI containing the materialized media bytes.
+    """
+    return await file_as_data_uri(file)
+
+
+def inline_media_data(
+    file: str, expected_kind: MediaKind | None = None
+) -> tuple[bytes, str]:
+    """Decode inline media without performing filesystem or network I/O."""
+    if not is_data_uri(file):
+        raise UnresolvedMediaError(
+            "Media references must be materialized before model submission. "
+            "Trusted code can call inspect_ai.util.materialize_media()."
+        )
+
+    mime_type = data_uri_mime_type(file)
+    if mime_type is None:
+        raise ValueError("Inline media data URI does not declare a MIME type.")
+
+    if expected_kind is not None and not _mime_matches_kind(mime_type, expected_kind):
+        raise ValueError(
+            f"Inline {expected_kind} media has incompatible MIME type '{mime_type}'."
+        )
+
+    try:
+        file_bytes = base64.b64decode(data_uri_to_base64(file), validate=True)
+    except ValueError as ex:
+        raise ValueError("Inline media data URI contains invalid base64 data.") from ex
+
+    return file_bytes, mime_type
+
+
+def inline_media_data_uri(file: str, expected_kind: MediaKind | None = None) -> str:
+    """Validate and return an inline media data URI without performing I/O."""
+    inline_media_data(file, expected_kind)
+    return file
+
+
+def _mime_matches_kind(mime_type: str, kind: MediaKind) -> bool:
+    if kind == "document":
+        return True
+    return mime_type.startswith(f"{kind}/")
 
 
 def as_data_uri(mime_type: str, data: str) -> str:

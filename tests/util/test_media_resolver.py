@@ -7,10 +7,13 @@ import anyio
 import pytest
 
 from inspect_ai._util.images import (
+    UnresolvedMediaError,
     _get_resolver,
     _media_resolvers,
     file_as_data,
     file_as_data_uri,
+    inline_media_data,
+    inline_media_data_uri,
     media_resolver,
 )
 
@@ -242,6 +245,29 @@ class TestFileAsDataUri:
             result = await file_as_data_uri(uri)
         assert not called
         assert result == uri
+
+
+class TestInlineMedia:
+    def test_inline_media_data(self) -> None:
+        data, mime_type = inline_media_data("data:image/png;base64,aGVsbG8=", "image")
+        assert data == b"hello"
+        assert mime_type == "image/png"
+
+    def test_inline_media_data_uri(self) -> None:
+        uri = "data:application/pdf;base64,aGVsbG8="
+        assert inline_media_data_uri(uri, "document") == uri
+
+    def test_non_inline_media_rejected(self) -> None:
+        with pytest.raises(UnresolvedMediaError, match="materialized"):
+            inline_media_data_uri("/tmp/image.png", "image")
+
+    def test_mismatched_media_type_rejected(self) -> None:
+        with pytest.raises(ValueError, match="incompatible MIME type"):
+            inline_media_data_uri("data:text/plain;base64,aGVsbG8=", "image")
+
+    def test_invalid_base64_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid base64"):
+            inline_media_data("data:image/png;base64,not-valid!", "image")
 
 
 class TestGetResolverWithoutContext:
