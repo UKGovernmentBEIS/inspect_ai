@@ -1,3 +1,5 @@
+import base64
+import binascii
 import json
 import logging
 import os
@@ -5,11 +7,11 @@ import urllib.parse
 from io import BytesIO
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import anyio
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
@@ -51,6 +53,12 @@ from inspect_ai._view.common import (
     normalize_uri,
     parse_log_token,
     stream_log_bytes,
+)
+from inspect_ai._view.path_scope import (
+    VIEW_SCOPE_HEADER,
+    VIEW_SCOPE_KIND_HEADER,
+    PathScope,
+    PathScopeKind,
 )
 from inspect_ai._view.scout_routes import get_scout_search_router
 from inspect_ai._view.user_info import UserInfo, user_info
@@ -547,7 +555,25 @@ def view_server_app(
 
     scout_router = get_scout_search_router()
     if scout_router is not None:
-        app.include_router(scout_router, prefix="/scout")
+
+        async def _validate_scout_route_scope(request: Request) -> None:
+            encoded_dir = request.path_params.get("dir")
+            if encoded_dir is None:
+                return
+            try:
+                padding = "=" * (-len(encoded_dir) % 4)
+                transcript_dir = base64.urlsafe_b64decode(
+                    encoded_dir + padding
+                ).decode()
+            except (binascii.Error, UnicodeDecodeError, ValueError):
+                raise HTTPException(status_code=400, detail="Invalid transcript path")
+            await _validate_read(request, transcript_dir)
+
+        app.include_router(
+            scout_router,
+            prefix="/scout",
+            dependencies=[Depends(_validate_scout_route_scope)],
+        )
 
     return app
 
@@ -603,10 +629,10 @@ class _InspectStaticFiles(StaticFiles):
 class OnlyDirAccessPolicy(AccessPolicy):
     def __init__(self, dir: str) -> None:
         super().__init__()
-        self.dir = dir
+        self._scope = PathScope.parse("directory", dir)
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.dir) and ".." not in file
+        return self._scope.allows(file)
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)
@@ -621,6 +647,40 @@ class OnlyDirAccessPolicy(AccessPolicy):
         return self._validate_log_dir(file)
 
 
+class ScopedAuthorizationAccessPolicy(AccessPolicy):
+    def _request_scope(self, request: Request) -> PathScope | None:
+        scope_values = request.headers.getlist(VIEW_SCOPE_HEADER)
+        kind_values = request.headers.getlist(VIEW_SCOPE_KIND_HEADER)
+        if len(scope_values) != 1 or len(kind_values) != 1:
+            return None
+        kind = kind_values[0]
+        if kind not in ("directory", "file"):
+            return None
+        try:
+            return PathScope.parse(
+                kind=cast(PathScopeKind, kind),
+                location=scope_values[0],
+            )
+        except ValueError:
+            return None
+
+    async def can_read(self, request: Request, file: str) -> bool:
+        scope = self._request_scope(request)
+        return scope is not None and scope.allows(file)
+
+    async def can_delete(self, request: Request, file: str) -> bool:
+        scope = self._request_scope(request)
+        return scope is not None and scope.allows(file)
+
+    async def can_list(self, request: Request, dir: str) -> bool:
+        scope = self._request_scope(request)
+        return scope is not None and scope.kind == "directory" and scope.allows(dir)
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        scope = self._request_scope(request)
+        return scope is not None and scope.allows(file)
+
+
 def view_server(
     log_dir: str,
     recursive: bool = True,
@@ -629,7 +689,11 @@ def view_server(
     authorization: str | None = None,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
+    scoped_authorization: bool = False,
 ) -> None:
+    if scoped_authorization and not authorization:
+        raise ValueError("Scoped authorization requires request authorization.")
+
     # get filesystem and resolve log_dir to full path
     fs = filesystem(log_dir)
     if not fs.exists(log_dir):
@@ -637,9 +701,16 @@ def view_server(
     log_dir = fs.info(log_dir).name
 
     # setup server
+    if scoped_authorization:
+        access_policy: AccessPolicy | None = ScopedAuthorizationAccessPolicy()
+    elif authorization:
+        access_policy = None
+    else:
+        access_policy = OnlyDirAccessPolicy(log_dir)
+
     api = view_server_app(
         mapping_policy=None,
-        access_policy=OnlyDirAccessPolicy(log_dir) if not authorization else None,
+        access_policy=access_policy,
         default_dir=log_dir,
         recursive=recursive,
         fs_options=fs_options,
