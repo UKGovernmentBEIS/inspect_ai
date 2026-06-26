@@ -22,6 +22,10 @@ from ._target import Target
 
 _PARSER_PACKAGE = "latex2sympy2-extended"
 _PARSER_VERSION = "1.11.0"
+_ANTLR_PACKAGE = "antlr4-python3-runtime"
+_ANTLR_REQUIREMENT = (
+    "antlr4-python3-runtime>=4.9.3,<=4.13.2,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1"
+)
 
 _MAX_COMPLETION_CHARS = 1_000_000
 _MAX_CANDIDATE_CHARS = 4_096
@@ -53,6 +57,11 @@ _NUMBER = re.compile(
     r"[-+]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)"
     r"(?:[eE][-+]?\d+)?\s*%?"
 )
+_PERCENT_SUFFIX = re.compile(
+    r"\s*(?:\\?%|\\text\s*\{\s*(?:percent(?:age)?|pct)\s*\}|"
+    r"\s+(?:percent(?:age)?|pct))\s*$",
+    re.IGNORECASE,
+)
 _DIGIT_RUN = re.compile(r"\d+")
 _COMMAND = re.compile(r"\\[A-Za-z]+")
 _WORD = re.compile(r"[A-Za-z]{2,}")
@@ -66,13 +75,16 @@ _EAGER_PARSER_OPERATION = re.compile(
     r"\\begin\{[vV]matrix\}|"
     r"\\(?:det|gcd|lcm)\b|"
     r"\\xrightarrow|"
+    r"\\\||"
     r"\\operatorname\s*\{\s*(?:"
     r"cols|diag|diagonalize|eig|eigen|eigenvals|eigenvalues|eigenvects|"
     r"eigenvectors|eye|gcd|hstack|lcm|nullspace|norm|ones|orth|ortho|"
     r"orthogonal|orthogonalize|rank|ref|rows|rref|svd|trace|tr|vstack|"
     r"zeros"
-    r")\s*\}"
+    r")\s*\}",
+    re.IGNORECASE,
 )
+_UNEVALUATED_LATEX_CONSTRUCTOR = re.compile(r"\\(?:binom|gamma)\b", re.IGNORECASE)
 
 _PLAIN_FUNCTIONS = {
     "abs",
@@ -626,8 +638,6 @@ def _parse_plain_expression(candidate: str, sympy: Any) -> Any | None:
     if "\\" in candidate or re.search(r"\^\s*\{", candidate):
         return None
     text = candidate.strip()
-    if text.endswith("%"):
-        text = f"({text[:-1]}) / 100"
     text = text.replace("\u00d7", "*").replace("\u00f7", "/").replace("^", "**")
 
     equation = _split_plain_equation(text)
@@ -656,7 +666,7 @@ def _looks_complex(candidate: str) -> bool:
     )
 
 
-def _parse_latex_expression(candidate: str) -> Any:
+def _parse_latex_expression(candidate: str, sympy: Any) -> Any:
     from latex2sympy2_extended import (  # type: ignore[import-untyped]
         NormalizationConfig,
         latex2sympy,
@@ -670,26 +680,57 @@ def _parse_latex_expression(candidate: str) -> Any:
         "",
         candidate,
     )
-    return latex2sympy(
-        normalized_candidate,
-        variable_values=None,
-        is_real=not _looks_complex(candidate),
-        convert_degrees=False,
-        normalization_config=NormalizationConfig(
-            basic_latex=True,
-            units=True,
-            malformed_operators=True,
-            nits=True,
-            boxed="last",
-            equations=False,
-        ),
-        conversion_config=ConversionConfig(
-            interpret_as_mixed_fractions=True,
-            interpret_simple_eq_as_assignment=False,
-            interpret_contains_as_eq=True,
-            lowercase_symbols=True,
-        ),
-    )
+
+    def parse() -> Any:
+        return latex2sympy(
+            normalized_candidate,
+            variable_values=None,
+            is_real=not _looks_complex(candidate),
+            convert_degrees=False,
+            normalization_config=NormalizationConfig(
+                basic_latex=True,
+                units=True,
+                malformed_operators=True,
+                nits=True,
+                boxed="last",
+                equations=False,
+            ),
+            conversion_config=ConversionConfig(
+                interpret_as_mixed_fractions=True,
+                interpret_simple_eq_as_assignment=False,
+                interpret_contains_as_eq=True,
+                lowercase_symbols=True,
+            ),
+        )
+
+    if _UNEVALUATED_LATEX_CONSTRUCTOR.search(normalized_candidate):
+        with sympy.evaluate(False):
+            return parse()
+    return parse()
+
+
+def _parse_expression(candidate: str, sympy: Any) -> Any | None:
+    try:
+        expression = _parse_plain_expression(candidate, sympy)
+    except _MathLimitError:
+        raise
+    except Exception:
+        expression = None
+
+    if expression is not None:
+        return expression
+
+    try:
+        return _parse_latex_expression(candidate, sympy)
+    except Exception:
+        return None
+
+
+def _percentage_base(candidate: str) -> str | None:
+    match = _PERCENT_SUFFIX.search(candidate)
+    if match is None:
+        return None
+    return candidate[: match.start()].rstrip() or None
 
 
 def _integer_too_large(value: Any) -> bool:
@@ -780,22 +821,25 @@ def _parse_candidate(candidate: str) -> _ParsedValue:
 
     candidate = _strip_delimiters(candidate)
     _validate_candidate(candidate)
-    if _looks_like_prose(candidate) or _is_short_composite_answer(candidate):
-        return _ParsedValue(None, _normalize_text(candidate), candidate)
 
     expression: Any | None = None
-    try:
-        expression = _parse_plain_expression(candidate, sympy)
-    except _MathLimitError:
-        raise
-    except Exception:
-        expression = None
+    percentage_base = _percentage_base(candidate)
+    if percentage_base is not None:
+        expression = _parse_expression(percentage_base, sympy)
+        if expression is not None:
+            expression = sympy.Mul(
+                expression,
+                sympy.UnevaluatedExpr(sympy.Rational(1, 100)),
+                evaluate=False,
+            )
+
+    if expression is None and (
+        _looks_like_prose(candidate) or _is_short_composite_answer(candidate)
+    ):
+        return _ParsedValue(None, _normalize_text(candidate), candidate)
 
     if expression is None:
-        try:
-            expression = _parse_latex_expression(candidate)
-        except Exception:
-            expression = None
+        expression = _parse_expression(candidate, sympy)
 
     if expression is not None:
         try:
@@ -978,22 +1022,40 @@ def _dependency_error() -> Exception:
     )
 
 
-def _check_dependency() -> None:
-    try:
-        from importlib.metadata import version
+def _supported_antlr_version(installed: str) -> bool:
+    return (
+        installed == "4.9.3" or installed.startswith("4.11.") or installed == "4.13.2"
+    )
 
+
+def _check_dependency() -> None:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        parser_version = version(_PARSER_PACKAGE)
+        antlr_version = version(_ANTLR_PACKAGE)
+    except PackageNotFoundError:
+        raise _dependency_error() from None
+
+    if parser_version != _PARSER_VERSION:
+        raise PrerequisiteError(
+            f"ERROR: math() scorer requires {_PARSER_PACKAGE}=={_PARSER_VERSION} "
+            f"(you have {parser_version}).\n\n"
+            f"Install with: pip install {_PARSER_PACKAGE}=={_PARSER_VERSION}"
+        )
+
+    if not _supported_antlr_version(antlr_version):
+        raise PrerequisiteError(
+            f"ERROR: math() scorer requires {_ANTLR_PACKAGE} 4.9.3, 4.11.x, "
+            f"or 4.13.2 (you have {antlr_version}).\n\n"
+            f'Install with: pip install "{_ANTLR_REQUIREMENT}"'
+        )
+
+    try:
         import latex2sympy2_extended  # noqa: F401
         import sympy  # noqa: F401
     except ImportError:
         raise _dependency_error() from None
-
-    installed = version(_PARSER_PACKAGE)
-    if installed != _PARSER_VERSION:
-        raise PrerequisiteError(
-            f"ERROR: math() scorer requires {_PARSER_PACKAGE}=={_PARSER_VERSION} "
-            f"(you have {installed}).\n\n"
-            f"Install with: pip install {_PARSER_PACKAGE}=={_PARSER_VERSION}"
-        )
 
 
 def _status_metadata(status: str) -> dict[str, str]:
@@ -1034,6 +1096,12 @@ def math() -> Scorer:
                 explanation="Mathematical target exceeded the parsing time limit.",
                 metadata=_status_metadata("target_timeout"),
             )
+        except anyio.BrokenWorkerProcess as ex:
+            worker.started = False
+            raise RuntimeError(
+                "math() scorer worker process exited unexpectedly while parsing "
+                "the target."
+            ) from ex
 
         if target_error is not None:
             return Score.unscored(
@@ -1058,6 +1126,12 @@ def math() -> Scorer:
                 explanation="Mathematical answer exceeded the scoring time limit.",
                 metadata=_status_metadata("answer_timeout"),
             )
+        except anyio.BrokenWorkerProcess as ex:
+            worker.started = False
+            raise RuntimeError(
+                "math() scorer worker process exited unexpectedly while scoring "
+                "the model answer."
+            ) from ex
 
         if result.status == "correct":
             return Score(

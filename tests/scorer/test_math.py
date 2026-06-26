@@ -1,3 +1,4 @@
+import importlib.metadata
 import json
 import math as stdlib_math
 from pathlib import Path
@@ -9,6 +10,7 @@ from test_helpers.utils import simple_task_state
 
 import inspect_ai.scorer._math as math_module
 from inspect_ai import Task, eval
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import CORRECT, INCORRECT, Target, math
@@ -99,6 +101,102 @@ def test_plain_and_latex_parsers_do_not_call_parse_expr(
         "sqrt(2) + sqrt(2)",
     ):
         assert _parse_candidate(expression)
+
+
+@pytest.mark.parametrize(
+    ("answer", "target"),
+    [
+        ("33.5%", "0.335"),
+        (r"33.5\%", "0.335"),
+        ("33.5 percent", "0.335"),
+        ("33.5 percentage", "0.335"),
+        ("33.5 pct", "0.335"),
+        (r"\frac{1}{2}\%", "0.005"),
+        (r"\frac{1}{2}\text{ percent}", "0.005"),
+    ],
+)
+def test_percentage_suffixes_are_normalized(answer: str, target: str) -> None:
+    result = _score_answer_worker(answer, (target,))
+    assert result.status == "correct"
+
+
+def test_percentage_is_removed_before_latex_parser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parse_latex = math_module._parse_latex_expression
+    parsed_candidates: list[str] = []
+
+    def recording_parser(candidate: str, sympy: Any) -> Any:
+        parsed_candidates.append(candidate)
+        return parse_latex(candidate, sympy)
+
+    monkeypatch.setattr(math_module, "_parse_latex_expression", recording_parser)
+
+    parsed = _parse_candidate(r"\frac{1}{2}\%")
+
+    assert parsed.expression is not None
+    assert parsed_candidates == [r"\frac{1}{2}"]
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        r"\operatorname{SVD}(\begin{pmatrix}1&2\\3&4\end{pmatrix})",
+        r"\|\begin{pmatrix}1&2\\3&4\end{pmatrix}\|",
+        r"1\xRightarrow{n}2",
+    ],
+)
+def test_eager_latex_operations_are_rejected_before_parsing(
+    expression: str,
+) -> None:
+    with pytest.raises(
+        _MathLimitError, match="expression requests an eager mathematical operation"
+    ):
+        _parse_candidate(expression)
+
+
+@pytest.mark.timeout(5)
+@pytest.mark.parametrize(
+    ("expression", "function_name"),
+    [
+        (r"\binom{1000000}{500000}", "binomial"),
+        (r"\Gamma(1000000)", "gamma"),
+    ],
+)
+def test_eager_latex_constructors_remain_unevaluated(
+    expression: str, function_name: str
+) -> None:
+    parsed = _parse_candidate(expression)
+
+    assert parsed.expression is not None
+    assert parsed.expression.func.__name__ == function_name
+
+
+@pytest.mark.parametrize(
+    "version",
+    ["4.9.3", "4.11.0", "4.11.1", "4.13.2"],
+)
+def test_supported_antlr_versions(version: str) -> None:
+    assert math_module._supported_antlr_version(version)
+
+
+def test_unsupported_antlr_version_has_clear_prerequisite_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package_version = importlib.metadata.version
+
+    def fake_version(package: str) -> str:
+        if package == math_module._ANTLR_PACKAGE:
+            return "4.12.0"
+        return package_version(package)
+
+    monkeypatch.setattr(importlib.metadata, "version", fake_version)
+
+    with pytest.raises(PrerequisiteError) as exc_info:
+        math()
+
+    assert "4.9.3, 4.11.x, or 4.13.2" in str(exc_info.value.message)
+    assert "you have 4.12.0" in str(exc_info.value.message)
 
 
 @pytest.mark.parametrize(
@@ -208,6 +306,54 @@ async def test_answer_timeout_is_incorrect(monkeypatch: pytest.MonkeyPatch) -> N
     assert result is not None
     assert result.value == INCORRECT
     assert result.metadata == {"math_scorer_status": "answer_timeout"}
+
+
+async def test_target_worker_crash_is_contextual_scorer_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def broken_run_sync(*_args: Any, **_kwargs: Any) -> None:
+        raise anyio.BrokenWorkerProcess
+
+    monkeypatch.setattr(math_module, "run_sync", broken_run_sync)
+
+    with pytest.raises(
+        RuntimeError,
+        match="worker process exited unexpectedly while parsing the target",
+    ) as exc_info:
+        await math()(
+            simple_task_state(model_output="42"),
+            Target(["42"]),
+        )
+
+    assert isinstance(exc_info.value.__cause__, anyio.BrokenWorkerProcess)
+    assert math_module._math_worker_context().started is False
+
+
+async def test_answer_worker_crash_is_contextual_scorer_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    async def staged_run_sync(*_args: Any, **_kwargs: Any) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return None
+        raise anyio.BrokenWorkerProcess
+
+    monkeypatch.setattr(math_module, "run_sync", staged_run_sync)
+
+    with pytest.raises(
+        RuntimeError,
+        match="worker process exited unexpectedly while scoring the model answer",
+    ) as exc_info:
+        await math()(
+            simple_task_state(model_output="42"),
+            Target(["42"]),
+        )
+
+    assert isinstance(exc_info.value.__cause__, anyio.BrokenWorkerProcess)
+    assert math_module._math_worker_context().started is False
 
 
 async def test_worker_queue_time_is_not_expression_timeout(

@@ -1,5 +1,6 @@
 adlfs>=2025.8.0
 anthropic>=0.109.1
+antlr4-python3-runtime>=4.9.3,<=4.13.2,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1
 apprise
 aws-bedrock-token-generator
 azure-ai-inference
