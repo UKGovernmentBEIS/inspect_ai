@@ -142,6 +142,11 @@ async def eval_run(
         eval_config.sandbox_cleanup is not False,
     )
 
+    # track every logger we initialize (seed + injected) so that, if the run
+    # fails before those tasks complete normally, we can tear down their
+    # resources (stale-flush timers, buffer dbs) instead of leaking them
+    prepared_options: list[TaskRunOptions] = []
+
     async def prepare_options(
         resolved_tasks: list[ResolvedTask],
     ) -> list[TaskRunOptions]:
@@ -324,6 +329,8 @@ async def eval_run(
                         task_source=task_source,
                     )
                 )
+                # register the prepared task so a failed run can clean it up
+                prepared_options.append(task_run_options[-1])
         return task_run_options
 
     try:
@@ -368,6 +375,15 @@ async def eval_run(
         return await run_multiple(
             initial_options, parallel, debug_errors=debug_errors, feed=feed
         )
+
+    except BaseException:
+        # cleanup() awaits any in-flight stale flush to stop; shield so that a
+        # cancellation triggering this handler doesn't interrupt that wait and
+        # leave realtime flush timers running against torn-down logging state.
+        with anyio.CancelScope(shield=True):
+            for task_options in prepared_options:
+                await task_options.logger.cleanup()
+        raise
 
     finally:
         # shutdown sandbox environments

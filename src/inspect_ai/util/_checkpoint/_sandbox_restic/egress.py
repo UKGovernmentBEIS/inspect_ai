@@ -193,8 +193,13 @@ cat /tmp/egress-new.txt
 
 
 def _extract_tar(tar_bytes: bytes, dest_repo: str) -> None:
+    # The tarball bytes originate inside the sandbox (read via `read_file`),
+    # so they are untrusted: a sandboxed agent can plant a malicious tar at
+    # the egress staging path. `filter="data"` rejects absolute paths, `..`
+    # traversal, and outside-pointing links, preventing host-side writes
+    # outside `dest_repo` (CVE-2007-4559 class). See PEP 706.
     with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:") as tar:
-        tar.extractall(dest_repo)
+        tar.extractall(dest_repo, filter="data")
 
 
 async def _verify_destination(
