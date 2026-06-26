@@ -34,6 +34,7 @@ GENERATION_FIELDS = {
     "top_logprobs",
     "prompt_logprobs",
     "logit_bias",
+    "effort",
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
@@ -145,6 +146,7 @@ def test_anthropic_forward_then_clear():
         "top_k": 2,
         "top_p": 0.9,
         "thinking": {"type": "enabled", "budget_tokens": 2048},
+        "output_config": {"effort": "high"},
         # structural
         "system": "You are a dope model.",
         "stop_sequences": ["foo"],
@@ -157,14 +159,35 @@ def test_anthropic_forward_then_clear():
     assert config.top_k == 2
     # anthropic thinking budget maps to reasoning_tokens
     assert config.reasoning_tokens == 2048
+    # output_config.effort (adaptive-thinking depth) maps to effort
+    assert config.effort == "high"
 
     clear_generation_params(config)
     _assert_cleared(config)
-    # reasoning_tokens specifically must be among the cleared fields
+    # reasoning_tokens and effort specifically must be among the cleared fields
     assert config.reasoning_tokens is None
+    assert config.effort is None
     assert config.system_message == "You are a dope model."
     assert config.stop_seqs == ["foo"]
     assert config.parallel_tool_calls is False
+
+
+def test_anthropic_adaptive_thinking_effort_forwarded():
+    # `thinking: {"type": "adaptive"}` carries no budget_tokens; the reasoning
+    # depth arrives via `output_config.effort`. It must be forwarded rather than
+    # silently dropped (regression test for the bridge ignoring adaptive mode).
+    json_data = {
+        "model": "inspect",
+        "max_tokens": 32000,
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "high"},
+    }
+
+    config = generate_config_from_anthropic(json_data)
+    # adaptive mode has no explicit token budget
+    assert config.reasoning_tokens is None
+    # but the effort knob is preserved
+    assert config.effort == "high"
 
 
 def test_google_forward_then_clear():
