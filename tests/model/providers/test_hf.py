@@ -1,3 +1,6 @@
+import importlib
+import sys
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -143,6 +146,67 @@ def test_hf_trust_remote_code_explicit_true(monkeypatch) -> None:
         kwargs = call["kwargs"]
         # only the explicit kwarg we passed; no duplicate via passthrough
         assert sum(1 for k in kwargs if k == "trust_remote_code") == 1
+
+
+@pytest.mark.parametrize(
+    "model_args",
+    [
+        {},
+        {"tokenizer": "custom-tokenizer"},
+        {"model_path": "local-model"},
+        {"model_path": "local-model", "tokenizer_path": "custom-tokenizer"},
+    ],
+)
+def test_hf_explicit_api_key_reaches_model_and_tokenizer(
+    monkeypatch: pytest.MonkeyPatch,
+    model_args: dict[str, str],
+) -> None:
+    model_calls: list[dict] = []
+    tokenizer_calls: list[dict] = []
+
+    class FakeAutoModelForCausalLM:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            model_calls.append({"args": args, "kwargs": kwargs})
+            return MagicMock()
+
+    class FakeAutoTokenizer:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            tokenizer_calls.append({"args": args, "kwargs": kwargs})
+            return MagicMock()
+
+    fake_transformers = ModuleType("transformers")
+    fake_transformers.AutoModelForCausalLM = FakeAutoModelForCausalLM  # type: ignore[attr-defined]
+    fake_transformers.AutoTokenizer = FakeAutoTokenizer  # type: ignore[attr-defined]
+    fake_transformers.PreTrainedTokenizerBase = object  # type: ignore[attr-defined]
+    fake_transformers.set_seed = lambda seed: None  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    fake_torch = ModuleType("torch")
+    fake_torch.Tensor = object  # type: ignore[attr-defined]
+    fake_torch.backends = SimpleNamespace(  # type: ignore[attr-defined]
+        mps=SimpleNamespace(is_available=lambda: False)
+    )
+    fake_torch.cuda = SimpleNamespace(is_available=lambda: False)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    module_name = "inspect_ai.model._providers.hf"
+    previous_module = sys.modules.pop(module_name, None)
+    try:
+        provider_module = importlib.import_module(module_name)
+        provider_module.HuggingFaceAPI(
+            model_name="private/model",
+            api_key="hf-test-token",
+            **model_args,
+        )
+    finally:
+        sys.modules.pop(module_name, None)
+        if previous_module is not None:
+            sys.modules[module_name] = previous_module
+
+    assert model_calls[0]["kwargs"]["token"] == "hf-test-token"
+    assert tokenizer_calls[0]["kwargs"]["token"] == "hf-test-token"
 
 
 @skip_if_no_transformers

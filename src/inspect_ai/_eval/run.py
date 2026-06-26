@@ -33,7 +33,7 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
-from inspect_ai.model._model import ModelName
+from inspect_ai.model._model import Model, ModelName
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -141,6 +141,11 @@ async def eval_run(
         eval_config,
         eval_config.sandbox_cleanup is not False,
     )
+
+    # track every logger we initialize (seed + injected) so that, if the run
+    # fails before those tasks complete normally, we can tear down their
+    # resources (stale-flush timers, buffer dbs) instead of leaking them
+    prepared_options: list[TaskRunOptions] = []
 
     async def prepare_options(
         resolved_tasks: list[ResolvedTask],
@@ -324,6 +329,8 @@ async def eval_run(
                         task_source=task_source,
                     )
                 )
+                # register the prepared task so a failed run can clean it up
+                prepared_options.append(task_run_options[-1])
         return task_run_options
 
     try:
@@ -368,6 +375,15 @@ async def eval_run(
         return await run_multiple(
             initial_options, parallel, debug_errors=debug_errors, feed=feed
         )
+
+    except BaseException:
+        # cleanup() awaits any in-flight stale flush to stop; shield so that a
+        # cancellation triggering this handler doesn't interrupt that wait and
+        # leave realtime flush timers running against torn-down logging state.
+        with anyio.CancelScope(shield=True):
+            for task_options in prepared_options:
+                await task_options.logger.cleanup()
+        raise
 
     finally:
         # shutdown sandbox environments
@@ -499,12 +515,20 @@ async def run_multiple(
     """
     feed = feed or _empty_feed()
 
-    # model-balancing state (grows as tasks are injected)
-    model_counts: dict[str, int] = {}
+    # model-balancing state (grows as tasks are injected). Keyed by the Model
+    # object (identity), not str(model): a provider may rewrite its model name
+    # mid-run (e.g. vLLM resolving a "base:adapter" LoRA spec to "base" on the
+    # first generate()), which would make the decrement key differ from the
+    # increment key and raise KeyError at finalisation. The connection pool that
+    # balancing spreads load across belongs to the Model instance, not its name,
+    # so identity is the right key; eval_resolve_tasks shares one Model object
+    # across all of a model's tasks. (Relies on Model being identity-hashable —
+    # a plain class, not a frozen dataclass with __eq__.)
+    model_counts: dict[Model, int] = {}
 
     def note_models(options: list[TaskRunOptions]) -> None:
         for t in options:
-            model_counts.setdefault(str(t.model), 0)
+            model_counts.setdefault(t.model, 0)
 
     # pending (index, task) pairs: initial tasks keep their original order and
     # injected tasks are appended in arrival order, so results sort stably
@@ -530,9 +554,9 @@ async def run_multiple(
     def pick_balanced() -> tuple[int, TaskRunOptions]:
         # among models that have pending tasks, pick the least-used one (keeps as
         # many different models running concurrently as possible)
-        models_with_pending = {str(opts.model) for _, opts in pending}
+        models_with_pending = {opts.model for _, opts in pending}
         model = min(models_with_pending, key=lambda m: model_counts[m])
-        item = next(p for p in pending if str(p[1].model) == model)
+        item = next(p for p in pending if p[1].model is model)
         pending.remove(item)
         return item
 
@@ -548,7 +572,7 @@ async def run_multiple(
                         result = (await _run_task(options)).log
                     finally:
                         in_flight -= 1
-                        model_counts[str(options.model)] -= 1
+                        model_counts[options.model] -= 1
                         if result is not None:
                             results.append((idx, result))
                         if result is None or result.status == "cancelled":
@@ -564,7 +588,7 @@ async def run_multiple(
                     # dispatch up to the concurrency cap (model-balanced)
                     while not cancelled and in_flight < parallel and pending:
                         idx, options = pick_balanced()
-                        model_counts[str(options.model)] += 1
+                        model_counts[options.model] += 1
                         in_flight += 1
                         tg.start_soon(run_one, idx, options)
 
@@ -631,12 +655,20 @@ async def run_task_retry_attempts(
     """
     feed = feed or _empty_feed()
 
-    # model-balancing state (grows as tasks are injected)
-    model_counts: dict[str, int] = {}
+    # model-balancing state (grows as tasks are injected). Keyed by the Model
+    # object (identity), not str(model): a provider may rewrite its model name
+    # mid-run (e.g. vLLM resolving a "base:adapter" LoRA spec to "base" on the
+    # first generate()), which would make the decrement key differ from the
+    # increment key and raise KeyError at finalisation. The connection pool that
+    # balancing spreads load across belongs to the Model instance, not its name,
+    # so identity is the right key; eval_resolve_tasks shares one Model object
+    # across all of a model's tasks. (Relies on Model being identity-hashable —
+    # a plain class, not a frozen dataclass with __eq__.)
+    model_counts: dict[Model, int] = {}
 
     def note_models(options: list[TaskRunOptions]) -> None:
         for t in options:
-            model_counts.setdefault(str(t.model), 0)
+            model_counts.setdefault(t.model, 0)
 
     # pending tasks: initial tasks keep their original order and injected tasks
     # are appended in arrival order, so results sort stably. A retry re-queues
@@ -671,9 +703,9 @@ async def run_task_retry_attempts(
     def pick_balanced() -> PendingTask:
         # among models that have pending tasks, pick the least-used one (keeps as
         # many different models running concurrently as possible)
-        models_with_pending = {str(p.options.model) for p in pending}
+        models_with_pending = {p.options.model for p in pending}
         model = min(models_with_pending, key=lambda m: model_counts[m])
-        item = next(p for p in pending if str(p.options.model) == model)
+        item = next(p for p in pending if p.options.model is model)
         pending.remove(item)
         return item
 
@@ -756,7 +788,7 @@ async def run_task_retry_attempts(
                     # finalize atomically (no awaits below) so the dispatcher sees
                     # a consistent (in_flight, pending) snapshot
                     in_flight -= 1
-                    model_counts[str(options.model)] -= 1
+                    model_counts[options.model] -= 1
                     if result is not None:
                         results[item.idx] = result
                     if retry_item is not None:
@@ -776,7 +808,7 @@ async def run_task_retry_attempts(
                     # dispatch up to the concurrency cap (model-balanced)
                     while not cancelled and in_flight < parallel and pending:
                         item = pick_balanced()
-                        model_counts[str(item.options.model)] += 1
+                        model_counts[item.options.model] += 1
                         in_flight += 1
                         tg.start_soon(run_one, item)
 

@@ -66,6 +66,9 @@ from inspect_ai.log._recorders.buffer.types import (
 
 logger = getLogger(__name__)
 
+VIEW_REQUEST_HEADER = "X-Inspect-View-Request"
+VIEW_REQUEST_HEADER_VALUE = "true"
+
 
 class AccessPolicy(Protocol):
     async def can_read(self, request: Request, file: str) -> bool: ...
@@ -141,6 +144,14 @@ def view_server_app(
             if not await access_policy.can_list(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
 
+    def _validate_mutating_request(request: Request) -> None:
+        if request.headers.get(VIEW_REQUEST_HEADER) != VIEW_REQUEST_HEADER_VALUE:
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+        fetch_dest = request.headers.get("Sec-Fetch-Dest")
+        if fetch_dest is not None and fetch_dest != "empty":
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
     @app.get("/logs/{log:path}", response_model=EvalLog)
     async def api_log(
         request: Request,
@@ -168,8 +179,9 @@ def view_server_app(
             generate_direct_url=generate_direct_urls,
         )
 
-    @app.get("/log-delete/{log:path}")
+    @app.delete("/log-delete/{log:path}")
     async def api_log_delete(request: Request, log: str) -> bool:
+        _validate_mutating_request(request)
         file = normalize_uri(log)
         await _validate_delete(request, file)
         await delete_log(await _map_file(request, file))
@@ -177,6 +189,7 @@ def view_server_app(
 
     @app.post("/log-edit/{log:path}", response_model=EvalLog)
     async def api_log_edit(request: Request, log: str, update: LogUpdate) -> Response:
+        _validate_mutating_request(request)
         file = normalize_uri(log)
         await _validate_write(request, file)
         if_match = request.headers.get("If-Match")
@@ -445,10 +458,11 @@ def view_server_app(
             response.headers["ETag"] = samples.etag
             return samples
 
-    @app.get("/log-message")
+    @app.post("/log-message")
     async def api_log_message(
         request: Request, log_file: str, message: str
     ) -> Response:
+        _validate_mutating_request(request)
         file = urllib.parse.unquote(log_file)
         await _validate_read(request, file)
 
