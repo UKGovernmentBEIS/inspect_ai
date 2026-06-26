@@ -12,6 +12,37 @@ The inspect viewer's collection views (tasks, folder/logs, sample) render with A
 
 Scout's `DataGrid` is the structural analog, **not** a drop-in: it's wired to scout's *server* datapath (`manualSorting: true` with server fetch; column filters emit a `SimpleCondition` query DSL) and lives in `apps/scout` with scout-only imports. Inspect sorts/filters loaded rows client-side, so we borrow scout's *structure* (virtualizer, header/cell rendering, resize, keyboard nav) and reimplement sort client-side.
 
+## Definitions: the IndexedDB stores
+
+The viewer caches the log directory's contents in a per-directory Dexie/IndexedDB database (`AppDatabase`, `src/client/database/schema.ts`) across three object stores: **handles** (`logs`), **previews** (`log_previews`), and **details** (`log_details`). They form a handle → preview → details tier: the handle is the cheap identity/pointer for every file, the preview is the lightweight per-log summary the list needs to render a row, and the details blob is the full per-log header plus sample summaries. Tiering keeps the initial listing cheap and defers the heavy per-log payloads, which the `ReplicationService` (`src/state/sync/replicationService.ts`) fetches and writes in the background on separate work queues. All three are keyed by `file_path` (the log's `name`), and clearing/invalidating a file drops its row from all three (`clearCacheForFile`, `service.ts:399`).
+
+### handles (`logs`)
+
+| Aspect | Detail |
+|---|---|
+| Grain / key | One row per log file. Auto-increment `++id` primary key (preserves insertion order); `file_path` is the unique business key. Schema `logs: "++id, &file_path, mtime, task, task_id, cached_at"` (`schema.ts:93`). |
+| Contents | Tiny pointer record (`LogHandleRecord`, `schema.ts:6`): `file_path`, `file_name`, `task`, `task_id`, `mtime`, `cached_at`. Mirrors the server `LogHandle` (`name`/`task`/`task_id`/`mtime`). No log payload. |
+| Populated by | `ReplicationService.sync()` → `DatabaseService.writeLogs()` (`service.ts:74`) from `api.get_logs(mtime, count)`; `mtime` drives incremental sync and the default newest-first sort (`readLogs`, `service.ts:98`). |
+| Consumers | Drives the row set. `setLogHandles` → react-query `LogsContent.handles` (`logsContent.ts:33`); read via `useLogHandles` in `LogViewLayout.tsx:35`, `useLoadLog.ts:21`, and `hooks.ts` (e.g. `:530`). |
+
+### previews (`log_previews`)
+
+| Aspect | Detail |
+|---|---|
+| Grain / key | One row per log file. Primary key `file_path`. Schema `log_previews: "file_path, preview.status, preview.task_id, preview.model, cached_at"` (`schema.ts:96`) — indexes the common list-query/filter fields. |
+| Contents | `LogPreviewRecord` (`schema.ts:18`) wrapping a `LogPreview` (`api/types.ts:413`): `eval_id`/`run_id`, `task`/`task_id`/`task_version`, `status`, `error`, `model`/`model_roles`, `started_at`/`completed_at`, `primary_metric`. A lightweight summary — no samples. |
+| Populated by | `_previewQueue` (concurrency 2, batched 24) calls `api.get_log_summaries()` and flushes via `writeLogPreviews()` (`service.ts:136`). Missing/`"started"` previews are re-queued on each sync (`queueMissingOrStartedPreviews`). |
+| Consumers | The list grid's row data. `mergeLogPreviews` → `LogsContent.previews`; read via `useLogPreviews` in `LogsPanel.tsx:71` and `SamplesPanel.tsx:131`, and via `useLogsContent` in `hooks.ts:780`. |
+
+### details (`log_details`)
+
+| Aspect | Detail |
+|---|---|
+| Grain / key | One row per log file. Primary key `file_path`. Schema `log_details: "file_path, details.status, cached_at"` (`schema.ts:100`). |
+| Contents | `LogDetailsRecord` (`schema.ts:30`) wrapping a `LogDetails` (`api/types.ts:68`): full header (`eval`, `plan`, `results`, `stats`, `error`, `tags`, `metadata`, `version`) **plus** `sampleSummaries: SampleSummary[]` and the S3 `etag`. The heavy blob — grows with sample count. |
+| Populated by | `_detailQueue` (concurrency 24, batch 1) calls `api.get_log_details()` per file and flushes via `writeLogDetails()` (`service.ts:218`); `findMissingDetails` (`service.ts:275`) drives backfill. |
+| Consumers | Per-log content + sample summaries. `mergeLogDetails` → `LogsContent.details`; read via `useLogDetails` in `LogListGrid.tsx:195` (score/metric columns), `columns/hooks.tsx:107`, and `SamplesPanel.tsx:113` (samples views). |
+
 ## Feature roadmap (nothing is dropped)
 
 Every current `LogListGrid` feature must survive the migration. Phase 1 deliberately ships the minimum to render content correctly; everything else is sequenced into later phases, not abandoned.
