@@ -66,6 +66,7 @@ class OpenAICompatibleAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         service: str | None = None,
         service_base_url: str | None = None,
+        api_key_var: str | None = None,
         emulate_tools: bool = False,
         responses_api: bool | None = None,
         responses_store: bool | None = None,
@@ -85,9 +86,12 @@ class OpenAICompatibleAPI(ModelAPI):
         else:
             self.service = service
 
-        # compute api key
+        # Compute API key env var name (e.g. HF_API_KEY). Callers may provide a
+        # non-standard env var (e.g. HF_TOKEN). Ensure the API key override
+        # hooks in ModelAPI receive the env var name the value actually came
+        # from.
         service_env_name = self.service.upper().replace("-", "_")
-        api_key_var = f"{service_env_name}_API_KEY"
+        api_key_var = api_key_var or f"{service_env_name}_API_KEY"
 
         super().__init__(
             model_name=model_name,
@@ -333,7 +337,7 @@ class OpenAICompatibleAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:

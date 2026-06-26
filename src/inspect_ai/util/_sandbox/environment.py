@@ -177,8 +177,10 @@ class SandboxEnvironment(abc.ABC):
         Raises:
           TimeoutError: If the specified `timeout` expires
             (and `timeout_retry` attempts also timeout).
-          UnicodeDecodeError: If an error occurs while
-            decoding the command output.
+          UnicodeDecodeError: May be raised if the sandbox provider
+            cannot decode the command output to UTF-8 and does not
+            support using the UTF-8 replacement character for
+            characters which cannot be decoded.
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
