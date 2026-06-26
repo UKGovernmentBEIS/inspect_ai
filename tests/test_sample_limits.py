@@ -511,7 +511,9 @@ def test_model_without_cost_data_errors() -> None:
         )
 
 
-def test_openrouter_reported_cost_model_allows_cost_limit_without_static_pricing() -> None:
+def test_openrouter_reported_cost_model_allows_cost_limit_without_static_pricing() -> (
+    None
+):
     """OpenRouter cost limits should be allowed when runtime usage reports cost.
 
     Gap in PR #4296: the PR surfaces OpenRouter's runtime-reported cost on
