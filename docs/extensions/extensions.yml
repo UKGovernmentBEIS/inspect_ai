@@ -88,6 +88,12 @@
   author: "[METR](https://github.com/METR/hawk)"
   categories: ["Tooling"]
 
+- name: "[Optstop](https://github.com/UKGovernmentBEIS/optstop)"
+  description: |
+    Adaptive optimal stopping algorithms to help efficiently determine when enough data has been collected to make reliable inferences.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/optstop)"
+  categories: ["Tooling"]
+
 - name: "[Evaljobs](https://github.com/dvsrepo/evaljobs)"
   description: |
     Run evals on Hugging Face GPUs and share results and code on the Hugging Face Hub.
