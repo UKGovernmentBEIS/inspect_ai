@@ -2,7 +2,9 @@ import base64
 import errno
 import json
 import os
+import posixpath
 import shlex
+import stat
 import tempfile
 import time
 from logging import getLogger
@@ -438,20 +440,29 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
-        # Write the contents to a temp file
+        original_file = file
+        if _is_directory_alias(file):
+            raise _is_directory_error(original_file)
+
+        # resolve relative file paths
+        file = self.container_file(file)
+        await self._validate_read_file_source(file, original_file)
+
+        # Copy the contents to a host temp file
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-            # resolve relative file paths
-            original_file = file
-            file = self.container_file(file)
+            temp_root = Path(temp_dir).resolve(strict=True)
+            dest_fd, dest_file = tempfile.mkstemp(dir=temp_root, prefix="read-")
+            os.close(dest_fd)
+            dest_path = Path(dest_file)
+            _validate_staged_read_file(temp_root, dest_path, original_file)
 
             # copy the file
-            dest_file = os.path.join(temp_dir, os.path.basename(file))
             try:
                 await compose_cp(
                     src=f"{self._service}:{file}",
-                    dest=os.path.basename(dest_file),
+                    dest=dest_path.name,
                     project=self._project,
-                    cwd=os.path.dirname(dest_file),
+                    cwd=temp_root,
                     output_limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE,
                 )
             except RuntimeError as ex:
@@ -462,25 +473,52 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 if "could not find the file" in message:
                     raise FileNotFoundError(
                         errno.ENOENT, "No such file or directory.", original_file
-                    )
+                    ) from ex
 
                 # PermissionError
                 elif "permission denied" in message:
                     raise PermissionError(
                         errno.EACCES, "Permission denied.", original_file
-                    )
-                else:
-                    raise ex
+                    ) from ex
 
-            verify_read_file_size(dest_file)
+                # IsADirectoryError
+                elif "cannot copy directory" in message or "is a directory" in message:
+                    raise _is_directory_error(original_file) from ex
+                else:
+                    raise
+
+            _validate_staged_read_file(temp_root, dest_path, original_file)
+            verify_read_file_size(str(dest_path))
 
             # read and return w/ appropriate encoding
-            if text:
-                with open(dest_file, "r", newline="", encoding="utf-8") as f:
-                    return f.read()
-            else:
-                with open(dest_file, "rb") as f:
-                    return f.read()
+            try:
+                if text:
+                    with open(dest_path, "r", newline="", encoding="utf-8") as f:
+                        return f.read()
+                else:
+                    with open(dest_path, "rb") as f:
+                        return f.read()
+            except PermissionError as ex:
+                raise PermissionError(
+                    errno.EACCES, "Permission denied.", original_file
+                ) from ex
+
+    async def _validate_read_file_source(self, file: str, original_file: str) -> None:
+        if await self._container_path_test("-f", file):
+            return
+        if await self._container_path_test("-d", file):
+            raise _is_directory_error(original_file)
+        if await self._container_path_test("-e", file):
+            raise OSError(errno.EINVAL, "Path is not a regular file.", original_file)
+
+    async def _container_path_test(self, operator: str, file: str) -> bool:
+        result = await self.exec(["test", operator, file])
+        if result.returncode not in (0, 1):
+            raise RuntimeError(
+                f"Failed to inspect sandbox path '{file}': "
+                f"{result.stderr or result.stdout}"
+            )
+        return result.success
 
     @override
     async def connection(self, *, user: str | None = None) -> SandboxConnection:
@@ -539,6 +577,36 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         if not path.is_absolute():
             path = Path(self._working_dir) / path
         return path.as_posix()
+
+
+def _is_directory_alias(file: str) -> bool:
+    return posixpath.basename(file.rstrip("/")) in (".", "..")
+
+
+def _is_directory_error(file: str) -> IsADirectoryError:
+    return IsADirectoryError(errno.EISDIR, "Is a directory.", file)
+
+
+def _validate_staged_read_file(
+    temp_root: Path, dest_path: Path, original_file: str
+) -> None:
+    if dest_path.parent.resolve(strict=True) != temp_root:
+        raise RuntimeError("Docker read_file staging path escaped its temporary root.")
+
+    try:
+        mode = dest_path.lstat().st_mode
+    except FileNotFoundError as ex:
+        raise RuntimeError("Docker read_file staging file is missing.") from ex
+
+    if not stat.S_ISREG(mode):
+        raise OSError(
+            errno.EINVAL,
+            "Docker read_file did not produce a regular file.",
+            original_file,
+        )
+
+    if dest_path.resolve(strict=True).parent != temp_root:
+        raise RuntimeError("Docker read_file staging file escaped its temporary root.")
 
 
 async def container_working_dir(
