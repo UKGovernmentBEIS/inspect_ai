@@ -175,6 +175,16 @@ def test_google_forward_then_clear():
         "topK": 2,
         # structural
         "stopSequences": ["foo"],
+        # structured output (Gemini OpenAPI-style schema, uppercase type names)
+        "responseMimeType": "application/json",
+        "responseSchema": {
+            "type": "OBJECT",
+            "properties": {
+                "reasoning": {"type": "STRING"},
+                "confidence": {"type": "NUMBER"},
+            },
+            "required": ["reasoning", "confidence"],
+        },
     }
 
     config = generate_config_from_google(generation_config)
@@ -183,6 +193,38 @@ def test_google_forward_then_clear():
     assert config.top_p == 0.9
     assert config.top_k == 2
 
+    # responseSchema is mapped, with types normalized to lowercase JSON Schema
+    assert config.response_schema is not None
+    json_schema = config.response_schema.json_schema
+    assert json_schema.type == "object"
+    assert json_schema.properties is not None
+    assert json_schema.properties["confidence"].type == "number"
+    assert json_schema.required == ["reasoning", "confidence"]
+
     clear_generation_params(config)
     _assert_cleared(config)
     assert config.stop_seqs == ["foo"]
+    # structured output survives clearing (it's functional, not a tuning knob)
+    assert config.response_schema is not None
+
+
+def test_google_response_json_schema_used_directly():
+    # `responseJsonSchema` is already standard JSON Schema (lowercase types)
+    generation_config = {
+        "responseMimeType": "application/json",
+        "responseJsonSchema": {
+            "type": "object",
+            "properties": {"answer": {"type": "string"}},
+            "required": ["answer"],
+        },
+    }
+
+    config = generate_config_from_google(generation_config)
+    assert config.response_schema is not None
+    assert config.response_schema.json_schema.type == "object"
+    assert config.response_schema.json_schema.properties is not None
+
+
+def test_google_no_schema_leaves_response_schema_unset():
+    config = generate_config_from_google({"temperature": 0.5})
+    assert config.response_schema is None
