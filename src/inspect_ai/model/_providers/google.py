@@ -74,7 +74,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import file_as_data
+from inspect_ai._util.images import inline_media_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
@@ -1427,7 +1427,7 @@ async def chat_content_to_part(
     content: ContentImage | ContentAudio | ContentVideo | ContentDocument,
 ) -> Part:
     if isinstance(content, ContentImage):
-        content_bytes, mime_type = await file_as_data(content.image)
+        content_bytes, mime_type = inline_media_data(content.image, "image")
         return Part.from_bytes(mime_type=mime_type, data=content_bytes)
     else:
         file = await file_for_content(client, content)
@@ -2228,7 +2228,14 @@ async def file_for_content(
         file = content.video
     else:
         file = content.document
-    content_bytes, mime_type = await file_as_data(file)
+    content_bytes, mime_type = inline_media_data(
+        file,
+        "audio"
+        if isinstance(content, ContentAudio)
+        else "video"
+        if isinstance(content, ContentVideo)
+        else "document",
+    )
     content_sha256 = hashlib.sha256(content_bytes).hexdigest()
     # we cache uploads for re-use, open the db where we track that
     # (track up to 1 million previous uploads)

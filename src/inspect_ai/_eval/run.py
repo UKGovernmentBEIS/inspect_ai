@@ -53,6 +53,7 @@ from .loader import (
     as_solver_spec,
     solver_from_spec,
 )
+from .task.images import capture_task_input_media
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
 from .task.run import (
@@ -327,6 +328,11 @@ async def eval_run(
                         initial_model_usage=resolved_task.initial_model_usage,
                         initial_role_usage=resolved_task.initial_role_usage,
                         task_source=task_source,
+                        input_media_plan=(
+                            capture_task_input_media(task.dataset)
+                            if resolved_task.input_media_policy == "trusted_pre_run"
+                            else {}
+                        ),
                     )
                 )
                 # register the prepared task so a failed run can clean it up

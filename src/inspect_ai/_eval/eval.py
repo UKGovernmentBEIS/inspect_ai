@@ -1163,7 +1163,14 @@ def _resolve_enqueued_tasks(
             init_active_model(m, config)
             resolved.extend(
                 resolve_tasks(
-                    tasks, {}, m, resolved_roles, sandbox, sample_shuffle, checkpoint
+                    tasks,
+                    {},
+                    m,
+                    resolved_roles,
+                    sandbox,
+                    sample_shuffle,
+                    checkpoint,
+                    input_media_policy="inline_only",
                 )
             )
         return resolved

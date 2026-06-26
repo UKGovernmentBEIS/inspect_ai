@@ -1,6 +1,6 @@
-import functools
+from dataclasses import dataclass
+from typing import Sequence, TypeAlias
 
-from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
     Content,
@@ -9,42 +9,86 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentVideo,
 )
-from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.images import MediaKind, materialize_media
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage
 from inspect_ai.solver import TaskState
 
 
-async def states_with_base64_content(states: list[TaskState]) -> list[TaskState]:
-    return await tg_collect(
-        [functools.partial(state_with_base64_content, state) for state in states]
-    )
+@dataclass(frozen=True)
+class AuthorizedMediaRef:
+    message_index: int
+    content_index: int
+    kind: MediaKind
+    reference: str
 
 
-async def state_with_base64_content(state: TaskState) -> TaskState:
-    state.messages = await messages_with_base64_content(state.messages)
-    return state
+TaskInputMediaPlan: TypeAlias = dict[int | str, tuple[AuthorizedMediaRef, ...]]
 
 
-def state_without_base64_content(state: TaskState) -> TaskState:
-    state.messages = messages_without_base64_content(state.messages)
-    return state
+def capture_task_input_media(samples: Sequence[Sample]) -> TaskInputMediaPlan:
+    """Capture exact non-inline media references authorized before task execution."""
+    plan: TaskInputMediaPlan = {}
+
+    for sample in samples:
+        if sample.id is None:
+            raise ValueError(
+                "Sample ids must be assigned before capturing input media."
+            )
+        if isinstance(sample.input, str):
+            continue
+
+        refs: list[AuthorizedMediaRef] = []
+        for message_index, message in enumerate(sample.input):
+            if isinstance(message.content, str):
+                continue
+            for content_index, content in enumerate(message.content):
+                media = _media_reference(content)
+                if media is None or is_data_uri(media[1]):
+                    continue
+                refs.append(
+                    AuthorizedMediaRef(
+                        message_index=message_index,
+                        content_index=content_index,
+                        kind=media[0],
+                        reference=media[1],
+                    )
+                )
+        if refs:
+            plan[sample.id] = tuple(refs)
+
+    return plan
 
 
-async def samples_with_base64_content(samples: list[Sample]) -> list[Sample]:
-    return await tg_collect(
-        [functools.partial(sample_with_base64_content, sample) for sample in samples]
-    )
-
-
-async def sample_with_base64_content(sample: Sample) -> Sample:
-    if isinstance(sample.input, list):
-        return sample.model_copy(
-            update={"input": await messages_with_base64_content(sample.input)}
-        )
-    else:
+async def materialize_sample_input(sample: Sample, plan: TaskInputMediaPlan) -> Sample:
+    """Materialize only media references captured for this exact sample input."""
+    if isinstance(sample.input, str) or sample.id is None:
         return sample
+
+    authorized = {
+        (ref.message_index, ref.content_index): (ref.kind, ref.reference)
+        for ref in plan.get(sample.id, ())
+    }
+    messages: list[ChatMessage] = []
+    for message_index, message in enumerate(sample.input):
+        if isinstance(message.content, str):
+            messages.append(message)
+            continue
+
+        contents: list[Content] = []
+        for content_index, content in enumerate(message.content):
+            media = _media_reference(content)
+            expected = authorized.get((message_index, content_index))
+            if media is not None and expected == media and not is_data_uri(media[1]):
+                contents.append(
+                    _content_with_reference(content, await materialize_media(media[1]))
+                )
+            else:
+                contents.append(content)
+        messages.append(message.model_copy(update={"content": contents}))
+
+    return sample.model_copy(update={"input": messages})
 
 
 def sample_without_base64_content(sample: Sample) -> Sample:
@@ -56,34 +100,8 @@ def sample_without_base64_content(sample: Sample) -> Sample:
         return sample
 
 
-async def messages_with_base64_content(
-    messages: list[ChatMessage],
-) -> list[ChatMessage]:
-    return await tg_collect(
-        [
-            functools.partial(message_with_base64_content, message)
-            for message in messages
-        ]
-    )
-
-
 def messages_without_base64_content(messages: list[ChatMessage]) -> list[ChatMessage]:
     return [message_without_base64_content(message) for message in messages]
-
-
-async def message_with_base64_content(message: ChatMessage) -> ChatMessage:
-    if not isinstance(message.content, str):
-        return message.model_copy(
-            update=dict(
-                content=[
-                    await chat_content_with_base64_content(content)
-                    for content in message.content
-                ]
-            )
-        )
-
-    else:
-        return message
 
 
 def message_without_base64_content(message: ChatMessage) -> ChatMessage:
@@ -101,27 +119,35 @@ def message_without_base64_content(message: ChatMessage) -> ChatMessage:
         return message
 
 
-async def chat_content_with_base64_content(content: Content) -> Content:
+def _media_reference(content: Content) -> tuple[MediaKind, str] | None:
     if isinstance(content, ContentImage):
-        return ContentImage(
-            image=await file_as_data_uri(content.image),
-            detail=content.detail,
-        )
+        return "image", content.image
     elif isinstance(content, ContentAudio):
-        return ContentAudio(
-            audio=await file_as_data_uri(content.audio), format=content.format
-        )
+        return "audio", content.audio
     elif isinstance(content, ContentVideo):
-        return ContentVideo(
-            video=await file_as_data_uri(content.video), format=content.format
-        )
+        return "video", content.video
     elif isinstance(content, ContentDocument):
-        document = await file_as_data_uri(content.document)
-        return ContentDocument(
-            document=document, filename=content.filename, mime_type=content.mime_type
-        )
+        return "document", content.document
+    else:
+        return None
+
+
+def _content_with_reference(content: Content, reference: str) -> Content:
+    if isinstance(content, ContentImage):
+        return content.model_copy(update={"image": reference})
+    elif isinstance(content, ContentAudio):
+        return content.model_copy(update={"audio": reference})
+    elif isinstance(content, ContentVideo):
+        return content.model_copy(update={"video": reference})
+    elif isinstance(content, ContentDocument):
+        return content.model_copy(update={"document": reference})
     else:
         return content
+
+
+def state_without_base64_content(state: TaskState) -> TaskState:
+    state.messages = messages_without_base64_content(state.messages)
+    return state
 
 
 def chat_content_without_base64_content(content: Content) -> Content:

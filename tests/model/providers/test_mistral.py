@@ -2,6 +2,7 @@ import pytest
 from test_helpers.utils import skip_if_no_mistral, skip_if_no_mistral_package
 
 from inspect_ai._util.content import ContentImage
+from inspect_ai._util.images import UnresolvedMediaError
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -144,6 +145,24 @@ def test_completion_content_chunks_image_url_object():
     assert isinstance(result[0], ContentImage)
     assert result[0].image == "https://example.com/img.png"
     assert result[0].detail == "high"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_output_url_is_not_fetched_on_replay():
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral import (
+        completion_content_chunks,
+        mistral_content_chunk,
+    )
+
+    chunk = ImageURLChunk(
+        image_url=ImageURL(url="https://example.com/img.png", detail="high")
+    )
+    content = completion_content_chunks(chunk)[0]
+
+    with pytest.raises(UnresolvedMediaError, match="materialized"):
+        await mistral_content_chunk(content)
 
 
 @skip_if_no_mistral_package

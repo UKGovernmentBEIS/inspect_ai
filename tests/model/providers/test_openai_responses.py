@@ -1016,7 +1016,7 @@ def test_image_generation_round_trip_with_text():
         ),
         ImageGenerationCall(
             id="img_xyz",
-            result="fakeb64data",
+            result="ZmFrZWltYWdl",
             status="completed",
             type="image_generation_call",
         ),

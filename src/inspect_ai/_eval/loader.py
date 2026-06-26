@@ -10,7 +10,7 @@ from typing import Any, Callable, Tuple, cast
 
 from shortuuid import uuid
 
-from inspect_ai._eval.task.resolved import ResolvedTask
+from inspect_ai._eval.task.resolved import InputMediaPolicy, ResolvedTask
 from inspect_ai._eval.task.util import split_spec, task_file, task_run_dir
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
@@ -80,6 +80,7 @@ def resolve_tasks(
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
     warn_unconsumed_task_args: bool = False,
+    input_media_policy: InputMediaPolicy = "trusted_pre_run",
 ) -> list[ResolvedTask]:
     # A TaskSource drives a run dynamically and is handled by eval() (which
     # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete,
@@ -117,6 +118,7 @@ def resolve_tasks(
                 sandbox=resolve_task_sandbox(task, sandbox),
                 checkpoint=task.checkpoint,
                 sequence=sequence,
+                input_media_policy=input_media_policy,
             )
             for sequence, task in enumerate(tasks)
         ]
@@ -368,6 +370,7 @@ def resolve_previous_task(
         ),
         initial_model_usage=initial_model_usage,
         initial_role_usage=initial_role_usage,
+        input_media_policy="trusted_pre_run",
     )
 
 

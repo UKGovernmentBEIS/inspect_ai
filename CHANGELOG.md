@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Media: Materialize trusted fixed-task input independently of `log_images`;
+  require runtime, bridged, and dynamically-enqueued media to be inline before
+  provider serialization.
 - Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule.
 - Log: Reading sample summaries from an in-progress `.eval` on a remote filesystem (e.g. S3) now fetches the per-sample journal summary files concurrently, reducing load time for logs with many samples.
 - Log: Sample event condensing is now linear, not quadratic, in conversation length.

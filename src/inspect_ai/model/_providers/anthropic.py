@@ -61,7 +61,6 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
-    URLPDFSourceParam,
     WebSearchResultBlock,
     WebSearchTool20250305Param,
     WebSearchTool20260209Param,
@@ -134,11 +133,11 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import file_as_data, file_as_data_uri
+from inspect_ai._util.images import inline_media_data, inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
-from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
@@ -4035,20 +4034,17 @@ async def message_block_params(
             )
     elif isinstance(content, ContentDocument):
         if content.mime_type == "application/pdf":
-            if is_http_url(content.document):
-                source: Source = URLPDFSourceParam(type="url", url=content.document)
-            else:
-                pdf_data_uri = await file_as_data_uri(content.document)
-                pdf_data = data_uri_to_base64(pdf_data_uri)
-                source = Base64PDFSourceParam(
-                    type="base64", data=pdf_data, media_type="application/pdf"
-                )
+            pdf_data_uri = inline_media_data_uri(content.document, "document")
+            pdf_data = data_uri_to_base64(pdf_data_uri)
+            source: Source = Base64PDFSourceParam(
+                type="base64", data=pdf_data, media_type="application/pdf"
+            )
         elif is_image_type(content.mime_type):
             source = ContentBlockSourceParam(
                 type="content", content=[await image_block_param(content.document)]
             )
         else:
-            file_bytes, _ = await file_as_data(content.document)
+            file_bytes, _ = inline_media_data(content.document, "document")
             source = PlainTextSourceParam(
                 type="text", media_type="text/plain", data=file_bytes.decode()
             )
@@ -4227,8 +4223,7 @@ def _content_list(input: str | list[Content]) -> list[Content]:
 
 
 async def image_block_param(image: str) -> ImageBlockParam:
-    # resolve to url
-    image = await file_as_data_uri(image)
+    image = inline_media_data_uri(image, "image")
 
     # resolve mime type and base64 content
     media_type = data_uri_mime_type(image) or "image/png"

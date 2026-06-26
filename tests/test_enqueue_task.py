@@ -10,8 +10,10 @@ import pytest
 
 from inspect_ai import Task, eval, task
 from inspect_ai._eval.task.enqueue import enqueue_task
+from inspect_ai._util.content import ContentImage
 from inspect_ai.dataset import Sample
-from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.model import ChatMessageUser
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 
 @task
@@ -81,6 +83,68 @@ def test_enqueue_task_chains_across_batches() -> None:
     logs = eval(parent, model="mockllm/model", display="none")
     assert sorted(log.eval.task for log in logs) == ["gen0", "gen1", "parent"]
     assert len({log.eval.run_id for log in logs}) == 1
+
+
+def test_enqueued_task_media_is_inline_only(tmp_path) -> None:
+    secret = tmp_path / "secret.png"
+    secret.write_bytes(b"runtime-selected")
+    seen: list[str] = []
+
+    @solver
+    def child_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            assert not isinstance(state.input, str)
+            content = state.input[0].content
+            assert isinstance(content, list)
+            image = content[0]
+            assert isinstance(image, ContentImage)
+            seen.append(image.image)
+            return state
+
+        return solve
+
+    @solver
+    def enqueue_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(
+                Task(
+                    dataset=[
+                        Sample(
+                            id="child",
+                            input=[
+                                ChatMessageUser(
+                                    content=[ContentImage(image=str(secret))]
+                                )
+                            ],
+                        )
+                    ],
+                    solver=child_solver(),
+                    name="child-media",
+                )
+            )
+            return state
+
+        return solve
+
+    logs = eval(
+        Task(
+            dataset=[Sample(id="parent", input="parent")],
+            solver=enqueue_child(),
+            name="parent-media",
+        ),
+        model="mockllm/model",
+        display="none",
+    )
+
+    assert seen == [str(secret)]
+    child_sample = next(
+        sample for log in logs for sample in (log.samples or []) if sample.id == "child"
+    )
+    content = child_sample.messages[-1].content
+    assert isinstance(content, list)
+    image = content[0]
+    assert isinstance(image, ContentImage)
+    assert image.image == str(secret)
 
 
 def test_enqueue_task_does_not_leak_active_model() -> None:

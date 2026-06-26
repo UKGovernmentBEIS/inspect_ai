@@ -35,8 +35,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import (
     clamp_reasoning_effort_to_low_medium_high,
@@ -391,12 +390,8 @@ async def as_chat_completion_part(
     if content.type == "text":
         return ChatCompletionContentPartTextParam(type="text", text=content.text)
     elif content.type == "image":
-        # API takes URL or base64 encoded file. If it's a remote file or data URL leave it alone, otherwise encode it
-        image_url = content.image
+        image_url = inline_media_data_uri(content.image, "image")
         detail = content.detail
-
-        if not is_http_url(image_url):
-            image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",

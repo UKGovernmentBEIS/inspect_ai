@@ -106,7 +106,8 @@ CONTINUE_ON_FAIL_HELP = "Do not immediately fail the eval if the error threshold
 RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no retries occur). Specify --retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times."
 SCORE_ON_ERROR_HELP = "Score samples that error rather than failing the eval mid-run. Errors still count toward the --fail-on-error threshold for marking the log as 'error'. Only fires after retries (if any) are exhausted."
 LOG_IMAGES_HELP = (
-    "Include base64 encoded versions of filename or URL based images in the log file."
+    "Retain inline image and other media bytes in the log file. "
+    "This option does not control media fetching."
 )
 LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
 LOG_REFUSALS_HELP = "Log warnings for model refusals."
