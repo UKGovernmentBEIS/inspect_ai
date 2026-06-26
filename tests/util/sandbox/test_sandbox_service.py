@@ -131,6 +131,77 @@ async def run_math_service(
             await anyio.sleep(0.1)
 
 
+@pytest.mark.slow
+@skip_if_no_docker
+def test_sandbox_service_rejects_malicious_queue_names_and_ids() -> None:
+    log = eval(
+        Task(solver=sandbox_service_security_regression()),
+        model="mockllm/model",
+        sandbox=(
+            "docker",
+            str(Path(__file__).parent / "compose.sandbox-service.yaml"),
+        ),
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.store.get("shell_marker_created") is False
+    assert sample.store.get("escaped_response_created") is False
+    assert sample.store.get("invalid_filename_removed") is True
+    assert sample.store.get("response_id") == "safe-request"
+
+
+@solver
+def sandbox_service_security_regression() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        async def noop() -> None:
+            return None
+
+        handle_requests = await sandbox_service(
+            name="security_service",
+            methods={"noop": noop},
+            until=lambda: False,
+            sandbox=sandbox(),
+            handle_requests=False,
+        )
+
+        service_dir = f"{SERVICES_DIR}/security_service"
+        requests_dir = f"{service_dir}/requests"
+        responses_dir = f"{service_dir}/responses"
+        invalid_filename = "x; touch sandbox-service-marker; .json"
+        invalid_request = f"{requests_dir}/{invalid_filename}"
+        escaped_response = "/tmp/sandbox-service-response.json"
+
+        await sandbox().write_file(invalid_request, "{}")
+        await sandbox().write_file(
+            f"{requests_dir}/safe-request.json",
+            json.dumps(
+                {
+                    "id": "/tmp/sandbox-service-response",
+                    "method": "noop",
+                    "params": {},
+                }
+            ),
+        )
+
+        await handle_requests()
+
+        shell_marker = await sandbox().exec(["test", "-e", "sandbox-service-marker"])
+        escaped = await sandbox().exec(["test", "-e", escaped_response])
+        invalid_exists = await sandbox().exec(["test", "-e", invalid_request])
+        response = json.loads(
+            await sandbox().read_file(f"{responses_dir}/safe-request.json")
+        )
+
+        state.store.set("shell_marker_created", shell_marker.success)
+        state.store.set("escaped_response_created", escaped.success)
+        state.store.set("invalid_filename_removed", not invalid_exists.success)
+        state.store.set("response_id", response["id"])
+        return state
+
+    return solve
+
+
 @dataclass
 class FakeExecResult:
     success: bool = True
@@ -298,17 +369,18 @@ class _RequestReadSandbox:
       style), otherwise returns ``cat_stdout`` (use a non-JSON tail to model a
       provider that silently truncates an oversized read, e.g. docker/local).
     - ``wc -c``: returns ``file_size`` (the on-disk size check).
-    - ``head -c``: returns ``request_head`` (bounded id recovery).
+    - queue listing: returns ``list_stdout`` (NUL-delimited request paths).
     - ``tee``/``rm``: recorded in ``writes`` / ``removed``.
     """
 
     cat_stdout: str = ""
     raise_on_cat: bool = False
     file_size: int = 0
-    request_head: str = ""
+    list_stdout: str = ""
     limit_str: str = "10 MiB"
     writes: dict[str, str] = field(default_factory=dict)
     removed: list[str] = field(default_factory=list)
+    calls: list[list[str]] = field(default_factory=list)
 
     async def exec(
         self,
@@ -319,20 +391,20 @@ class _RequestReadSandbox:
         timeout: int | None = None,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        if cmd[:2] == ["bash", "-c"]:
-            script = cmd[2]
-            if script.startswith("cat "):
-                if self.raise_on_cat:
-                    raise OutputLimitExceededError(
-                        limit_str=self.limit_str, truncated_output=None
-                    )
-                return cast(ExecResult[str], FakeExecResult(stdout=self.cat_stdout))
-            if script.startswith("wc -c"):
-                return cast(
-                    ExecResult[str], FakeExecResult(stdout=f"{self.file_size}\n")
+        self.calls.append(cmd)
+        if cmd[:2] == ["sh", "-c"]:
+            return cast(ExecResult[str], FakeExecResult(stdout=self.list_stdout))
+        if cmd[0] == "cat":
+            if self.raise_on_cat:
+                raise OutputLimitExceededError(
+                    limit_str=self.limit_str, truncated_output=None
                 )
-            if script.startswith("head -c"):
-                return cast(ExecResult[str], FakeExecResult(stdout=self.request_head))
+            return cast(ExecResult[str], FakeExecResult(stdout=self.cat_stdout))
+        if cmd[0] == "wc":
+            return cast(
+                ExecResult[str],
+                FakeExecResult(stdout=f"{self.file_size} {cmd[-1]}\n"),
+            )
         if cmd[0] == "tee":
             self.writes[cmd[-1]] = input or ""
             return cast(ExecResult[str], FakeExecResult())
@@ -354,8 +426,7 @@ def _service_with_dirs(
 async def test_handle_request_oversized_raise_writes_error_and_removes_file() -> None:
     """A provider that RAISES on overflow (k8s) -> error response + removal."""
     request_id = "11111111-2222-3333-4444-555555555555"
-    head = json.dumps({"id": request_id, "method": "generate", "params": {}})
-    fake = _RequestReadSandbox(raise_on_cat=True, request_head=head)
+    fake = _RequestReadSandbox(raise_on_cat=True)
     service = _service_with_dirs(fake)
     request_file = f"{service._requests_dir}/{request_id}.json"
 
@@ -368,6 +439,8 @@ async def test_handle_request_oversized_raise_writes_error_and_removes_file() ->
     assert response["result"] is None
     assert "10 MiB" in response["error"]
     assert request_file in fake.removed
+    assert fake.calls[0] == ["cat", "--", request_file]
+    assert all(call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls)
 
 
 async def test_handle_request_oversized_truncated_writes_error_and_removes_file() -> (
@@ -380,12 +453,10 @@ async def test_handle_request_oversized_truncated_writes_error_and_removes_file(
     response instead of being retried forever.
     """
     request_id = "22222222-3333-4444-5555-666666666666"
-    head = json.dumps({"id": request_id, "method": "generate", "params": {}})
     fake = _RequestReadSandbox(
         raise_on_cat=False,
         cat_stdout="truncated-tail-that-is-not-valid-json}]}",
         file_size=SERVICE_REQUEST_READ_OUTPUT_LIMIT + 1,
-        request_head=head,
     )
     service = _service_with_dirs(fake)
     request_file = f"{service._requests_dir}/{request_id}.json"
@@ -398,6 +469,7 @@ async def test_handle_request_oversized_truncated_writes_error_and_removes_file(
     assert response["id"] == request_id
     assert response["result"] is None
     assert request_file in fake.removed
+    assert ["wc", "-c", "--", request_file] in fake.calls
 
 
 async def test_handle_request_incomplete_write_is_retried() -> None:
@@ -424,23 +496,231 @@ async def test_handle_request_incomplete_write_is_retried() -> None:
     assert secret not in logged
 
 
-async def test_handle_request_oversized_unrecoverable_id_removes_file() -> None:
-    """If the id can't be recovered, no response is written but the file is removed."""
-    fake = _RequestReadSandbox(raise_on_cat=True, request_head="garbage-with-no-id")
+async def test_handle_request_oversized_uses_filename_id() -> None:
+    """Oversized requests use the validated filename, not partial JSON, as the id."""
+    fake = _RequestReadSandbox(raise_on_cat=True)
     service = _service_with_dirs(fake)
     request_file = f"{service._requests_dir}/orphan.json"
 
     await service._handle_request(request_file)
 
-    # no response could be written (id not recoverable) ...
-    assert fake.writes == {}
-    # ... but the poison file is still removed so the poll loop stops cycling
+    response_path = f"{service._responses_dir}/orphan.json"
+    response = json.loads(fake.writes[response_path])
+    assert response["id"] == "orphan"
+    assert response["result"] is None
     assert request_file in fake.removed
 
 
-@pytest.mark.parametrize("bad_instance", ["", ".", "..", "../etc", "foo/bar"])
+async def test_handle_request_valid_call_uses_argv() -> None:
+    request_id = "safe-request_1.0"
+    request_data = {
+        "id": request_id,
+        "method": "add",
+        "params": {"x": 2, "y": 3},
+    }
+    fake = _RequestReadSandbox(cat_stdout=json.dumps(request_data))
+    service = _service_with_dirs(fake)
+
+    async def add(x: int, y: int) -> int:
+        return x + y
+
+    service.add_method("add", add)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    await service._handle_request(request_file)
+
+    response_path = f"{service._responses_dir}/{request_id}.json"
+    response = json.loads(fake.writes[response_path])
+    assert response == {"id": request_id, "result": 5, "error": None}
+    assert fake.calls[0] == ["cat", "--", request_file]
+    assert ["rm", "-f", "--", request_file] in fake.calls
+    assert all(call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls)
+
+
+@pytest.mark.parametrize(
+    "request_data_id",
+    [
+        "",
+        ".",
+        "..",
+        "../x",
+        "/tmp/x",
+        "a/b",
+        r"a\b",
+        "_hidden",
+        "-option",
+        "has space",
+        "line\nbreak",
+        "'quoted'",
+        "semi;colon",
+        "$(touch marker)",
+        "glob*",
+        "a" * 129,
+        None,
+        1,
+    ],
+)
+async def test_handle_request_rejects_invalid_body_id(
+    request_data_id: object,
+) -> None:
+    request_id = "safe-request"
+    request_data = {
+        "id": request_data_id,
+        "method": "run",
+        "params": {},
+    }
+    fake = _RequestReadSandbox(cat_stdout=json.dumps(request_data))
+    service = _service_with_dirs(fake)
+    called = False
+
+    async def run() -> None:
+        nonlocal called
+        called = True
+
+    service.add_method("run", run)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    await service._handle_request(request_file)
+
+    assert not called
+    assert set(fake.writes) == {f"{service._responses_dir}/{request_id}.json"}
+    response = json.loads(next(iter(fake.writes.values())))
+    assert response["id"] == request_id
+    assert response["result"] is None
+    assert "invalid" in response["error"]
+    assert request_file in fake.removed
+
+
+async def test_handle_request_rejects_mismatched_body_id() -> None:
+    request_id = "filename-id"
+    fake = _RequestReadSandbox(
+        cat_stdout=json.dumps({"id": "different-id", "method": "run", "params": {}})
+    )
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    await service._handle_request(request_file)
+
+    response_path = f"{service._responses_dir}/{request_id}.json"
+    response = json.loads(fake.writes[response_path])
+    assert response["id"] == request_id
+    assert response["result"] is None
+    assert "does not match" in response["error"]
+    assert request_file in fake.removed
+
+
+async def test_handle_request_rejects_non_object_payload() -> None:
+    request_id = "safe-request"
+    fake = _RequestReadSandbox(cat_stdout=json.dumps(["not", "an", "object"]))
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    await service._handle_request(request_file)
+
+    response_path = f"{service._responses_dir}/{request_id}.json"
+    response = json.loads(fake.writes[response_path])
+    assert response["id"] == request_id
+    assert response["result"] is None
+    assert "not a dict" in response["error"]
+    assert request_file in fake.removed
+
+
+async def test_handle_request_discards_shell_metacharacter_filename_as_argv() -> None:
+    fake = _RequestReadSandbox()
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/x;touch marker;.json"
+
+    await service._handle_request(request_file)
+
+    assert fake.writes == {}
+    assert fake.removed == [request_file]
+    assert fake.calls == [["rm", "-f", "--", request_file]]
+
+
+async def test_handle_request_ignores_path_outside_request_dir() -> None:
+    fake = _RequestReadSandbox()
+    service = _service_with_dirs(fake)
+
+    await service._handle_request("/tmp/outside.json")
+
+    assert fake.calls == []
+    assert fake.writes == {}
+    assert fake.removed == []
+
+
+async def test_handle_requests_lists_paths_without_shell_interpolation() -> None:
+    request_id = "listed-request"
+    fake = _RequestReadSandbox(
+        cat_stdout=json.dumps({"id": request_id, "method": "run", "params": {}})
+    )
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+    fake.list_stdout = f"{request_file}\0"
+
+    async def run() -> str:
+        return "ok"
+
+    service.add_method("run", run)
+
+    await service.handle_requests()
+
+    list_call = fake.calls[0]
+    assert list_call[:2] == ["sh", "-c"]
+    assert list_call[3:] == ["sandbox-service-list", service._requests_dir]
+    assert service._requests_dir not in list_call[2]
+    assert all(
+        call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls[1:]
+    )
+    response_path = f"{service._responses_dir}/{request_id}.json"
+    assert json.loads(fake.writes[response_path])["result"] == "ok"
+
+
+@pytest.mark.parametrize(
+    "bad_name",
+    [
+        "",
+        ".",
+        "..",
+        "../etc",
+        "/tmp/service",
+        "foo/bar",
+        "foo-bar",
+        "foo bar",
+        "foo;bar",
+        "foo\nbar",
+        "9service",
+        "a" * 129,
+    ],
+)
+def test_sandbox_service_rejects_invalid_name(bad_name: str) -> None:
+    fake = FakeSandboxEnvironment()
+    with pytest.raises(ValueError, match="invalid service name"):
+        SandboxService(
+            name=bad_name,
+            sandbox=cast(SandboxEnvironment, fake),
+            user="agent",
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_instance",
+    [
+        "",
+        ".",
+        "..",
+        "../etc",
+        "/tmp/instance",
+        "foo/bar",
+        "_hidden",
+        "-option",
+        "foo bar",
+        "foo;bar",
+        "foo\nbar",
+        "a" * 129,
+    ],
+)
 def test_sandbox_service_rejects_invalid_instance(bad_instance: str) -> None:
-    """Invalid instance values (path traversal, collapse-to-noninstanced) are rejected."""
+    """Invalid instance filename tokens are rejected."""
     fake = FakeSandboxEnvironment()
     with pytest.raises(ValueError, match="invalid instance"):
         SandboxService(

@@ -23,6 +23,7 @@
 - Control Channel: Stop printing a misleading "Control server did not shut down cleanly" warning when an eval is interrupted with Ctrl-C (the cancellation is now re-raised as the expected teardown it is).
 - Scoring: Support `model` and `model_roles` overrides for re-scoring (`inspect score --model` / `--model-role`).
 - Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
+- Sandbox: Validate sandbox-service names and request IDs, bind response paths to request filenames, and prevent queue filenames from being interpreted as shell commands.
 - Inspect View: Require frontend-only headers for mutations and use non-GET routes for log deletion and client messages.
 - Inspect View: Improve MathJax Sanitization
 - Inspect View: Fix stale running status on nav
