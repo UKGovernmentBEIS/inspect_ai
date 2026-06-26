@@ -703,9 +703,7 @@ async def read_eval_log_samples_by_id_async(
             )
 
     # tg_collect preserves the order of the input functions
-    return await tg_collect(
-        [partial(read_one, id, epoch) for id, epoch in requested]
-    )
+    return await tg_collect([partial(read_one, id, epoch) for id, epoch in requested])
 
 
 def read_eval_log_sample_summaries(
