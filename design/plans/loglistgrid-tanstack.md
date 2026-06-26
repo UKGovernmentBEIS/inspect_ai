@@ -26,10 +26,10 @@ Every current `LogListGrid` feature must survive the migration. Phase 1 delibera
 | Shared query types/builders (`Condition`/`OrderBy`/`Pagination`) via codegen → `@tsmono/inspect-common` | **2** ✅ |
 | Async content (handles/previews/details) in the react-query cache, out of zustand | **2** ✅ |
 | Client-side sorting incl. folder-pinned + NaN-aware/date comparators, sort indicators, per-`scopeKey` persistence | **2** ✅ |
-| Keyboard navigation (arrows / Home / End / PgUp-Dn / Enter), scroll-into-view | **3** |
-| Ctrl+F find band (`FindBandUI`) | **4** |
-| Column resizing | **5** |
-| Per-column filter UI (text/number/date popovers → `Condition`) + Reset Filters + filtered-count | later — evaluator/plumbing already built |
+| Per-column filter UI (text/number/date popovers → `Condition`) + Reset Filters + filtered-count | **3** ✅ |
+| Keyboard navigation (arrows / Home / End / PgUp-Dn / Enter), scroll-into-view | **4** |
+| Ctrl+F find band (`FindBandUI`) | **5** |
+| Column resizing | **6** |
 | Column reordering (header drag) | later |
 | Column pinning (`type` icon col pinned-left) | later |
 | Auto-fit-to-grid-width (`autoSizeStrategy: fitGridWidth`) + user-resize-override suppression | later |
@@ -113,12 +113,20 @@ Full detail in `loglist-content-react-query.md`. Summary of what shipped:
 - **e2e:** added a `Sorting` test in `top-level-views.spec.ts` (clicks the Task header, asserts asc/desc order) driving ARIA roles; sort carets are `aria-hidden` so the glyph doesn't leak into the header's accessible name. `log-list-filters.spec.ts` stays `describe.skip` until the filter UI lands.
 - **Verified:** typecheck/lint/format clean; 489 unit tests; 9/9 `top-level-views` e2e.
 
+## Phase 3 — Per-column filter UI — ✅ DONE
+
+Full detail in `loglist-filtering.md`. Summary of what shipped:
+
+- **Shared `columnFilter/` module.** Scout's column-filter editor (funnel button → per-type popover → `SimpleCondition`) ported into `@tsmono/inspect-components/columnFilter` (operators, parse/build, popover, per-type inputs). DataGrid stays inspect-local and consumes the shared control.
+- **Hover-reveal affordance.** The funnel is hidden until the header is hovered and stays lit when that column is actively filtered (origin/main's behavior, via inspect DataGrid header CSS — not scout's always-visible button).
+- **Type-aware evaluator.** `evaluateCondition` coerces both operands by the column's `filterType` (number/duration → `Number`; `date` → day-truncated epoch; `datetime` → epoch; boolean; string) so `<`/`=`/`BETWEEN`/`IN` are correct for numbers and dates. `getFilterType` threads through `applyListingQuery`/`useLogsListingQuery`.
+- **Per-scope persistence + chrome.** `LogListGridState` gained `columnFilters`; `combineFilters` AND-combines them into one `Condition`; the Reset Filters navbar button + Columns-popover filtered-field flagging + hide-clears-filter are restored.
+
 ## Later phases (sketch)
 
-- **Phase 3 — Keyboard navigation.** Arrows/Home/End/PgUp-Dn/Enter + scroll-into-view; adapt scout's DataGrid keyboard handler to single-select semantics.
-- **Phase 4 — Ctrl+F find.** Port `FindBandUI` + per-row search string built from visible columns' `textValue`/accessor (replacing AG's `getCellValue` cache); scroll-to-match + select.
-- **Phase 5 — Column resizing.** TanStack `enableColumnResizing` + resizer UI (re-add the scout CSS).
-- **Per-column filter UI.** The evaluator + API + persisted-state slot already accept `Condition`; remaining work is the header filter popovers (text/number/date → `SimpleCondition`), combine via AND, and the Reset-Filters/filtered-count chrome. Templates: scout's `ColumnFilterControl`/`useColumnFilter` (→ `SimpleCondition`) + `useFilterConditions`. When this lands, `filteredCount` reflects the filtered set and folder counts can fold in the filter.
+- **Phase 4 — Keyboard navigation.** Arrows/Home/End/PgUp-Dn/Enter + scroll-into-view; adapt scout's DataGrid keyboard handler to single-select semantics.
+- **Phase 5 — Ctrl+F find.** Port `FindBandUI` + per-row search string built from visible columns' `textValue`/accessor (replacing AG's `getCellValue` cache); scroll-to-match + select.
+- **Phase 6 — Column resizing.** TanStack `enableColumnResizing` + resizer UI (re-add the scout CSS).
 - **Later — reordering, pinning, auto-fit-to-width.** As listed in the roadmap.
 
 ## Discovered additional work
@@ -127,6 +135,9 @@ Full detail in `loglist-content-react-query.md`. Summary of what shipped:
 - **Server-side filter/sort + infinite scroll.** The whole point of the API boundary: replace `useLogsListingQuery`'s client `useMemo` (and the content-cache population) with a server `getLogsListing(dir, filter, orderBy, pagination)` query. The transitional `log-list/listing/` evaluator gets deleted then. `Pagination` is cursor-shaped already; infinite scroll arrives with the server move.
 - **New-tab parity.** New-tab open only works from the task cell's `<a>` overlay (matches old AG behavior); a row-level Cmd/middle-click handler could generalize it.
 - **`SamplesGrid` migration.** The sample view (rotated headers / variable row heights / follow-output) is still AG Grid — a separate effort, after which `ag-grid-*` deps + `ColumnSelectorPopover`'s AG coupling can be removed.
+- **Filter autocomplete suggestions.** The ported editor passes `suggestions={[]}` (plain inputs). Scout fetches per-column distinct values from the server; doing it right needs an inspect API method (analog of scout's `getTranscriptsColumnValues`). See `loglist-filtering.md`.
+- **Per-column filter clear affordance.** Resetting one column's filter today means re-opening its funnel and blanking the value (empty commits a `null` condition → removed); the only one-click reset is the all-columns Reset Filters button. Consider a dedicated per-column clear (e.g. a Clear button in the popover when active) for discoverability — inherited from scout/AG, neither of which had one either.
+- **ARIA-label audit vs origin/main.** The DataGrid's roles/labels (the funnel's `aria-label="Filter <columnId>"`, header `role="columnheader"`, etc.) were chosen for the TanStack rewrite; audit them against what origin/main's AG grid exposed so we don't regress accessibility/automation. Note: the funnel label substring-collides with header/segment accessible names (e.g. "Filter totalSamples" matches a "Samples" query) — scope selectors accordingly and reconsider the label scheme.
 
 ## Open questions
 
