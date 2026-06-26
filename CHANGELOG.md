@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Local Models: Fixed model weights being loaded a second time (wasting GPU memory and risking OOM) when recording usage, checking the context window for compaction, or validating cost limits.
+- Model Info: Look up custom cost/info registrations under both the user-facing model string and the canonical name, so configured costs aren't dropped for routed providers (e.g. `together`, `hf-inference-providers`, custom routed providers).
 - Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule.
 - Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task. (#4194)
 - HuggingFace: Forward an explicitly supplied API key when loading tokenizers for private or gated models.
