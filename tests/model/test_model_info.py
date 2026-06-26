@@ -487,3 +487,40 @@ class TestDoesNotReinstantiateProvider:
         assert info is not None
         assert info.cost is not None
         assert info.cost.input == 1.0
+
+    def test_direct_lookup_finds_cost_keyed_by_full_model_string(self):
+        """Cost keyed under the user-facing string must be found for a Model.
+
+        Routed providers (together, hf-inference-providers, custom routed
+        providers) strip a route prefix in canonical_name(), so it differs from
+        the user-facing string that set_model_info/set_model_cost key under.
+        mockllm reproduces the mismatch: str(model) is "mockllm/model" but
+        canonical_name() is "model". A canonical-only lookup drops the cost.
+        """
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelUsage
+
+        set_model_info(
+            "mockllm/model",
+            ModelInfo(
+                cost=ModelCost(
+                    input=1000.0,
+                    output=1000.0,
+                    input_cache_write=0.0,
+                    input_cache_read=0.0,
+                )
+            ),
+        )
+        model = get_model("mockllm/model")
+        assert str(model) == "mockllm/model"
+        assert model.canonical_name() == "model"
+
+        info = _get_model_info_direct(model)
+        assert info is not None
+        assert info.cost is not None
+        assert info.cost.input == 1000.0
+
+        usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+        record_and_check_model_usage(model, usage)
+        # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
+        assert usage.total_cost == pytest.approx(0.007)
