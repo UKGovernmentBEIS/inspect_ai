@@ -4,6 +4,7 @@
 - Log: Reading sample summaries from an in-progress `.eval` on a remote filesystem (e.g. S3) now fetches the per-sample journal summary files concurrently, reducing load time for logs with many samples.
 - Log: Sample event condensing is now linear, not quadratic, in conversation length.
 - Eval: Warn when non-empty `task_args` are passed but cannot be applied to any task. (#4194)
+- Eval Set: Fix `KeyError` at finalisation when a provider rewrites its own model name mid-run (e.g. vLLM resolving a `base:adapter` LoRA spec to `base`).
 - Model API: Keep the connection-pool/adaptive-concurrency scope stable when a provider's `api_key` is a short-lived credential.
 - HuggingFace: Forward an explicitly supplied API key when loading tokenizers for private or gated models.
 - NNterp: Forward an explicitly supplied API key when loading private or gated Hugging Face models and tokenizers.
