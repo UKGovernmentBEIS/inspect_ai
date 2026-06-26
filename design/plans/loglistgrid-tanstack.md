@@ -4,7 +4,8 @@
 
 The inspect viewer's collection views (tasks, folder/logs, sample) render with AG Grid. We're migrating them to TanStack Table — the engine `inspect_scout`'s transcripts panel already uses (`apps/scout/.../components/dataGrid/DataGrid.tsx`). Goals/constraints:
 
-- **Surgical.** Don't touch the datapath (rows are already loaded; sort/filter stay client-side).
+- **Behind an API abstraction.** Sort/filter run through a `getTranscripts`-shaped boundary (`filter`/`orderBy`/`pagination`) so the eventual move to server-side is a `queryFn` swap. Implemented **client-side** for now (evaluator over loaded rows); the streaming `ReplicationService`/IndexedDB sync itself is unchanged.
+- **Async content in react-query.** The log handles/previews/details live in the react-query cache (fed by the sync), not zustand — table *state* (sorting, visibility) stays in zustand. See `loglist-content-react-query.md`.
 - **Inspect-local now, shared later.** Build the TanStack grid inside `apps/inspect`. A shared monorepo grid is the eventual target but is deliberately premature until inspect's filtering/sorting model is settled — sharing now risks baking in the wrong abstraction.
 - **Phased, not all-at-once.** Stand up a basic, correct table first; layer features back in over subsequent phases.
 - **One component first.** This effort converts **`LogListGrid`** (serves `tasks` + `logs`/folder modes). `SamplesGrid` (sample view, with rotated headers / variable row heights / follow-output) is a separate effort after.
@@ -21,17 +22,19 @@ Every current `LogListGrid` feature must survive the migration. Phase 1 delibera
 | Mode-specific column set + ordering (tasks vs logs) | **1** |
 | Dynamic score-column discovery (`score_<scorer>/<metric>`, `metric_<name>`) | **1** |
 | Column visibility: default-hidden sets + Columns popover + per-scorer ↔ by-metric toggle | **1** |
-| Row selection highlight + click-to-navigate + Cmd/Shift/middle-click → new tab | **1** |
-| Client-side sorting incl. folder-first + NaN-aware/date comparators, sort indicators | **2** |
-| Sort state persistence per `scopeKey` | **2** |
+| Row selection highlight + click-to-navigate + Cmd/Shift/middle-click → new tab | **1** ✅ |
+| Shared query types/builders (`Condition`/`OrderBy`/`Pagination`) via codegen → `@tsmono/inspect-common` | **2** ✅ |
+| Async content (handles/previews/details) in the react-query cache, out of zustand | **2** ✅ |
+| Client-side sorting incl. folder-pinned + NaN-aware/date comparators, sort indicators, per-`scopeKey` persistence | **2** ✅ |
 | Keyboard navigation (arrows / Home / End / PgUp-Dn / Enter), scroll-into-view | **3** |
 | Ctrl+F find band (`FindBandUI`) | **4** |
 | Column resizing | **5** |
-| Per-column filter popovers (text/number/date) + Reset Filters + filtered-count | later |
+| Per-column filter UI (text/number/date popovers → `Condition`) + Reset Filters + filtered-count | later — evaluator/plumbing already built |
 | Column reordering (header drag) | later |
 | Column pinning (`type` icon col pinned-left) | later |
 | Auto-fit-to-grid-width (`autoSizeStrategy: fitGridWidth`) + user-resize-override suppression | later |
 | Multi-line/preformatted cell tooltips (model-roles, task-args JSON — was `PreformattedTooltip`, now native `title`) | later — or accept the drop (Q3) |
+| Infinite scroll / true pagination (cursor shape exists; client fetches all) | later (server-side) |
 
 Phase numbers past 1 are a planning order, not a contract; we can resequence as we learn. The point is the full set lands eventually.
 
@@ -95,16 +98,37 @@ Deliver an inspect-local TanStack grid that renders the logs and tasks views wit
 
 **Env note:** the rebase bumped Playwright; running e2e needed `pnpm exec playwright install chromium` (local cache only).
 
+## Phase 2 — Sorting behind the API + content in react-query — ✅ DONE
+
+Full detail in `loglist-content-react-query.md`. Summary of what shipped:
+
+- **Query DSL via codegen.** Scout's Pydantic query models (`Condition`/`Operator`/`LogicalOperator`/`OrderBy`/`Pagination`) copied into inspect (`src/inspect_ai/_view/_query/`) and emitted into `inspect-openapi.json` via `RootModel` stub endpoints, so they codegen into `@tsmono/inspect-common`. `ConditionBuilder`/`Column` builders ported into `@tsmono/inspect-common/query`.
+- **Client-side listing query (transitional).** `apps/inspect/.../log-list/listing/`: `evaluateCondition` + `compareByOrderBy` + `paginate` → `applyListingQuery`, exposed via the `useLogsListingQuery` hook (a `useMemo` over reactive rows — becomes a server `useQuery` when filter/sort move server-side). Column `meta.sortComparator` + `getValue`/`getComparator` accessors come from `useLogListColumns`.
+- **Content out of zustand.** `state/queryClient.ts` singleton + `state/logsContent.ts` cache (`useLogsContent`); the sync writes via `setQueryData` (logsSlice content actions are thin shims); all consumers migrated.
+- **Sorting wired.** DataGrid gained clickable sort headers (multi-sort), asc/desc carets (`aria-hidden`), `manualSorting` + controlled `sorting`/`onSortingChange`. `LogListGrid` splits folders/files, sorts files via `useLogsListingQuery` (folders pinned on top — replaces the folder-first comparator), persists sort per scope in `gridStateByScope` (now holds `LogListGridState { sorting }` instead of AG `GridState`).
+
+**Phase 2 outcome & findings:**
+- **Folder-first comparator dropped.** Folders are derived/pinned in the panel (split before the query), not via a direction-aware comparator.
+- **`gridStateByScope` kept its name** (holds TanStack sorting now); only the value type changed AG `GridState` → `LogListGridState`. Avoided a cosmetic grid→table rename.
+- **e2e:** added a `Sorting` test in `top-level-views.spec.ts` (clicks the Task header, asserts asc/desc order) driving ARIA roles; sort carets are `aria-hidden` so the glyph doesn't leak into the header's accessible name. `log-list-filters.spec.ts` stays `describe.skip` until the filter UI lands.
+- **Verified:** typecheck/lint/format clean; 489 unit tests; 9/9 `top-level-views` e2e.
+
 ## Later phases (sketch)
 
-- **Phase 2 — Sorting + persistence.** Wire the DataGrid's `sorting` state + sort-click/asc-desc indicators (add to the existing header render). Keep sorting out of TanStack's row model (`manualSorting: true`); `LogListGrid` `useMemo`s sorted data from `(data, sorting)`. Reconstruct comparators in `useLogListColumns` and attach via `meta.sortComparator` (folder-first + NaN-aware/date), reusing **`createFolderFirstComparator`** + **`comparators`** (`shared/gridComparators.ts`) — adapt their `IRowNode`-based signature to row-based, or wrap. Direction is known to us, so folder-pinning stays correct in both directions (TanStack's built-in sort can't — it negates the whole comparator on desc). Persist sort per `scopeKey`: replace the now-unused `gridStateByScope: Record<string, GridState>` (`state/types.ts` + `logsSlice.ts` + `useLogsListing`) with a TanStack-shaped key (e.g. `logListSortByScope: Record<string, SortingState>`); drop the `ag-grid-community` `GridState` import. New key (not reinterpreting the old one) avoids reading stale AG state.
 - **Phase 3 — Keyboard navigation.** Arrows/Home/End/PgUp-Dn/Enter + scroll-into-view; adapt scout's DataGrid keyboard handler to single-select semantics.
 - **Phase 4 — Ctrl+F find.** Port `FindBandUI` + per-row search string built from visible columns' `textValue`/accessor (replacing AG's `getCellValue` cache); scroll-to-match + select.
 - **Phase 5 — Column resizing.** TanStack `enableColumnResizing` + resizer UI (re-add the scout CSS).
-- **Later — filtering, reordering, pinning, auto-fit-to-width.** As listed in the roadmap.
+- **Per-column filter UI.** The evaluator + API + persisted-state slot already accept `Condition`; remaining work is the header filter popovers (text/number/date → `SimpleCondition`), combine via AND, and the Reset-Filters/filtered-count chrome. Templates: scout's `ColumnFilterControl`/`useColumnFilter` (→ `SimpleCondition`) + `useFilterConditions`. When this lands, `filteredCount` reflects the filtered set and folder counts can fold in the filter.
+- **Later — reordering, pinning, auto-fit-to-width.** As listed in the roadmap.
+
+## Discovered additional work
+
+- **Scout reconciliation (user-owned).** The query Pydantic models + TS builders are duplicated (scout's `_query/*` + `apps/scout/src/query/*` still exist). Follow-up: point scout at `@tsmono/inspect-common/query` and collapse to a single Python codegen source.
+- **Server-side filter/sort + infinite scroll.** The whole point of the API boundary: replace `useLogsListingQuery`'s client `useMemo` (and the content-cache population) with a server `getLogsListing(dir, filter, orderBy, pagination)` query. The transitional `log-list/listing/` evaluator gets deleted then. `Pagination` is cursor-shaped already; infinite scroll arrives with the server move.
+- **New-tab parity.** New-tab open only works from the task cell's `<a>` overlay (matches old AG behavior); a row-level Cmd/middle-click handler could generalize it.
+- **`SamplesGrid` migration.** The sample view (rotated headers / variable row heights / follow-output) is still AG Grid — a separate effort, after which `ag-grid-*` deps + `ColumnSelectorPopover`'s AG coupling can be removed.
 
 ## Open questions
 
-1. Phase 2: persist **column widths** per scope too, or sort-only? (Lean sort-only initially. Column resizing itself is phase 5, so widths may not be persistable until then.)
-2. Phase 2/filtering: rewrite the skipped `log-list-filters.spec.ts` to drive the TanStack grid via DOM/ARIA roles (the `__inspectGridApi` AG hook is gone), or expose a minimal test handle? Re-enable per-suite as sorting (phase 2) then filtering land.
-3. Multi-line tooltips: is dropping `PreformattedTooltip` (model-roles / task-args JSON now flow through native `title`) acceptable, or restore a custom tooltip later?
+1. Persist **column widths** per scope too (alongside sorting in `gridStateByScope`), or leave widths transient? (Lands with phase 5 resizing.)
+2. Multi-line tooltips: is dropping `PreformattedTooltip` (model-roles / task-args JSON now flow through native `title`) acceptable, or restore a custom tooltip later?
