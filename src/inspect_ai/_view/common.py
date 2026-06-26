@@ -19,6 +19,7 @@ from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import (
@@ -576,7 +577,23 @@ async def list_eval_logs_async(
     """
     # async filesystem if we can
     fs = filesystem(log_dir, fs_options)
-    if fs.is_async():
+    if fs.is_s3():
+        # S3: list via the shared async filesystem (one warm aioboto3 client +
+        # connection pool, reused across requests when the view server binds it).
+        # iter_files(detail=True) is a single list_objects_v2 sweep that returns
+        # FileInfo (name/size/mtime) — no separate existence precheck or per-file
+        # stat — and a missing prefix simply yields nothing.
+        async with AsyncFilesystem() as afs:
+            logs = [
+                info
+                async for info in afs.iter_files(
+                    log_dir, recursive=recursive, detail=True
+                )
+            ]
+        # resolve to eval logs (async fan-out so header reads on
+        # non-conforming filenames don't block the event loop)
+        return await log_files_from_ls_async(logs, formats, descending)
+    elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
             # Attempt existence check with robust handling for Azure-style auth issues.
             try:

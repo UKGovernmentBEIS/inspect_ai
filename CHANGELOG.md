@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Inspect View: Reuse a single async S3 client and connection pool across requests (bound per request via middleware) instead of creating one per read, eliminating the per-read credential/connection cold-start (e.g. `/log-headers` for a directory of large S3 logs: ~3s -> ~0.3s).
+- Inspect View: List S3 log directories via a single async `list_objects_v2` sweep on the shared client (no per-request client and no existence precheck), speeding up `/logs` and `/log-files` (~1.5s -> ~0.06s).
 - Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule.
 - Log: Reading sample summaries from an in-progress `.eval` on a remote filesystem (e.g. S3) now fetches the per-sample journal summary files concurrently, reducing load time for logs with many samples.
 - Log: Sample event condensing is now linear, not quadratic, in conversation length.

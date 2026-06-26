@@ -16,8 +16,10 @@ from typing import (
     Callable,
     Coroutine,
     Iterator,
+    Literal,
     TypeVar,
     cast,
+    overload,
 )
 from urllib.parse import urlparse
 
@@ -394,17 +396,44 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             filesystem(remote).get_file(remote, local)
 
+    @overload
+    def iter_files(
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        detail: Literal[False] = False,
+    ) -> AsyncIterator[str]: ...
+
+    @overload
+    def iter_files(
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        detail: Literal[True],
+    ) -> AsyncIterator[FileInfo]: ...
+
     async def iter_files(
-        self, base: str, pattern: str = "*", *, recursive: bool = False
-    ) -> AsyncIterator[str]:
-        """Yield URIs of files under `base`.
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        detail: bool = False,
+    ) -> AsyncIterator[str | FileInfo]:
+        """Yield files under `base` — URIs, or `FileInfo` when ``detail=True``.
 
         Matching is fnmatch-on-basename (case-sensitive). When `recursive`
         is False, only direct children of `base` are considered; otherwise
         any file at any depth under `base` is considered.
 
         The `pattern` argument matches the basename only; it must not
-        contain `/`.
+        contain `/`. With ``detail=True`` each match is a `FileInfo`
+        (name/size/mtime/etag) built from metadata the listing already
+        returns — no extra stat calls.
         """
         if is_s3_filename(base):
             bucket, prefix = s3_bucket_and_key(base)
@@ -417,9 +446,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     kwargs["Delimiter"] = "/"
                 async for page in paginator.paginate(**kwargs):
                     for obj in page.get("Contents", []):
-                        key = obj["Key"]
-                        if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
-                            yield f"s3://{bucket}/{key}"
+                        if fnmatchcase(obj["Key"].rsplit("/", 1)[-1], pattern):
+                            yield (
+                                _s3_obj_to_file_info(bucket, obj)
+                                if detail
+                                else f"s3://{bucket}/{obj['Key']}"
+                            )
             else:
                 results = await anyio.to_thread.run_sync(
                     s3_iter_files,
@@ -428,34 +460,68 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     prefix,
                     pattern,
                     recursive,
+                    detail,
                 )
                 for r in results:
                     yield r
         else:
-            fs = filesystem(base).fs
+            fsw = filesystem(base)
+            fs = fsw.fs
             if recursive:
-                paths = fs.find(base)
-                if isinstance(paths, dict):
-                    paths = list(paths.keys())
-                for path in paths:
-                    if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
-                        yield path
+                if detail:
+                    found = fs.find(base, detail=True)
+                    for path, info in found.items():
+                        if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
+                            yield fsw._file_info(info)
+                else:
+                    paths = fs.find(base)
+                    if isinstance(paths, dict):
+                        paths = list(paths.keys())
+                    for path in paths:
+                        if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
+                            yield path
             else:
                 for entry in fs.ls(base, detail=True):
                     if entry["type"] == "file":
                         name = entry["name"]
                         if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
-                            yield name
+                            yield fsw._file_info(entry) if detail else name
+
+    @overload
+    def iter_dirs(
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        detail: Literal[False] = False,
+    ) -> AsyncIterator[str]: ...
+
+    @overload
+    def iter_dirs(
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        detail: Literal[True],
+    ) -> AsyncIterator[FileInfo]: ...
 
     async def iter_dirs(
-        self, base: str, pattern: str = "*", *, recursive: bool = False
-    ) -> AsyncIterator[str]:
-        """Yield URIs (ending in `/`) of directory-like entries under `base`.
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        detail: bool = False,
+    ) -> AsyncIterator[str | FileInfo]:
+        """Yield directory entries (ending in `/`) under `base`.
 
-        Matching is fnmatch-on-terminal-name (case-sensitive). When
-        `recursive` is False, only direct subdirectories of `base` are
-        considered; otherwise matching directories at any depth are
-        yielded once (deduplicated).
+        URIs by default, or `FileInfo` (``type="directory"``, no size/mtime)
+        when ``detail=True``. Matching is fnmatch-on-terminal-name
+        (case-sensitive). When `recursive` is False, only direct subdirectories
+        of `base` are considered; otherwise matching directories at any depth
+        are yielded once (deduplicated).
 
         The `pattern` argument matches the terminal name only; it must
         not contain `/`.
@@ -474,7 +540,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                             cp_key = cp["Prefix"]
                             name = cp_key.rstrip("/").rsplit("/", 1)[-1]
                             if fnmatchcase(name, pattern):
-                                yield f"s3://{bucket}/{cp_key}"
+                                uri = f"s3://{bucket}/{cp_key}"
+                                yield _dir_file_info(uri) if detail else uri
                 else:
                     base_depth = len(prefix.rstrip("/").split("/")) if prefix else 0
                     seen: set[str] = set()
@@ -487,7 +554,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                                     dir_path = "/".join(parts[: i + 1])
                                     if dir_path not in seen:
                                         seen.add(dir_path)
-                                        yield f"s3://{bucket}/{dir_path}/"
+                                        uri = f"s3://{bucket}/{dir_path}/"
+                                        yield _dir_file_info(uri) if detail else uri
             else:
                 results = await anyio.to_thread.run_sync(
                     s3_iter_dirs,
@@ -496,6 +564,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     prefix,
                     pattern,
                     recursive,
+                    detail,
                 )
                 for r in results:
                     yield r
@@ -507,12 +576,14 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         name = entry["name"]
                         terminal = name.rstrip("/").rsplit("/", 1)[-1]
                         if fnmatchcase(terminal, pattern):
-                            yield name.rstrip("/") + "/"
+                            uri = name.rstrip("/") + "/"
+                            yield _dir_file_info(uri) if detail else uri
             else:
                 for dirpath, dirnames, _ in fs.walk(base):
                     for dirname in dirnames:
                         if fnmatchcase(dirname, pattern):
-                            yield f"{dirpath.rstrip('/')}/{dirname}/"
+                            uri = f"{dirpath.rstrip('/')}/{dirname}/"
+                            yield _dir_file_info(uri) if detail else uri
 
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
@@ -610,6 +681,30 @@ def _s3_head_to_file_info(filename: str, response: dict[str, Any]) -> FileInfo:
     return FileInfo(name=filename, type="file", size=size, mtime=mtime, etag=etag)
 
 
+def _s3_obj_to_file_info(bucket: str, obj: dict[str, Any]) -> FileInfo:
+    """Build a FileInfo from a `list_objects_v2` `Contents` entry.
+
+    Mirrors `FileSystem._file_info`: name is the full `s3://` URI and mtime is
+    `LastModified` in milliseconds, so listings match the fsspec-built path.
+    """
+    last_modified = obj.get("LastModified")
+    mtime = last_modified.timestamp() * 1000 if last_modified else None
+    etag_raw = obj.get("ETag")
+    etag = cast(str, etag_raw).strip('"') if etag_raw else None
+    return FileInfo(
+        name=f"s3://{bucket}/{obj['Key']}",
+        type="file",
+        size=cast(int, obj.get("Size", 0)),
+        mtime=mtime,
+        etag=etag,
+    )
+
+
+def _dir_file_info(uri: str) -> FileInfo:
+    """FileInfo for a directory-like entry (no size/mtime, like S3 prefixes)."""
+    return FileInfo(name=uri, type="directory", size=0, mtime=None)
+
+
 def s3_info(s3: Any, bucket: str, key: str, filename: str) -> FileInfo:
     response = s3.head_object(Bucket=bucket, Key=key)
     return _s3_head_to_file_info(filename, response)
@@ -700,33 +795,47 @@ def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
 
 
 def s3_iter_files(
-    s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
-) -> list[str]:
+    s3: Any,
+    bucket: str,
+    prefix: str,
+    pattern: str,
+    recursive: bool,
+    detail: bool = False,
+) -> list[str | FileInfo]:
     paginator = s3.get_paginator("list_objects_v2")
     kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
     if not recursive:
         kwargs["Delimiter"] = "/"
-    results: list[str] = []
+    results: list[str | FileInfo] = []
     for page in paginator.paginate(**kwargs):
         for obj in page.get("Contents", []):
-            key = obj["Key"]
-            if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
-                results.append(f"s3://{bucket}/{key}")
+            if fnmatchcase(obj["Key"].rsplit("/", 1)[-1], pattern):
+                results.append(
+                    _s3_obj_to_file_info(bucket, obj)
+                    if detail
+                    else f"s3://{bucket}/{obj['Key']}"
+                )
     return results
 
 
 def s3_iter_dirs(
-    s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
-) -> list[str]:
+    s3: Any,
+    bucket: str,
+    prefix: str,
+    pattern: str,
+    recursive: bool,
+    detail: bool = False,
+) -> list[str | FileInfo]:
     paginator = s3.get_paginator("list_objects_v2")
-    results: list[str] = []
+    results: list[str | FileInfo] = []
     if not recursive:
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"):
             for cp in page.get("CommonPrefixes", []):
                 cp_key = cp["Prefix"]
                 name = cp_key.rstrip("/").rsplit("/", 1)[-1]
                 if fnmatchcase(name, pattern):
-                    results.append(f"s3://{bucket}/{cp_key}")
+                    uri = f"s3://{bucket}/{cp_key}"
+                    results.append(_dir_file_info(uri) if detail else uri)
     else:
         base_depth = len(prefix.rstrip("/").split("/")) if prefix else 0
         seen: set[str] = set()
@@ -739,7 +848,8 @@ def s3_iter_dirs(
                         dir_path = "/".join(parts[: i + 1])
                         if dir_path not in seen:
                             seen.add(dir_path)
-                            results.append(f"s3://{bucket}/{dir_path}/")
+                            uri = f"s3://{bucket}/{dir_path}/"
+                            results.append(_dir_file_info(uri) if detail else uri)
     return results
 
 
