@@ -27,14 +27,15 @@ Every current `LogListGrid` feature must survive the migration. Phase 1 delibera
 | Async content (handles/previews/details) in the react-query cache, out of zustand | **2** ✅ |
 | Client-side sorting incl. folder-pinned + NaN-aware/date comparators, sort indicators, per-`scopeKey` persistence | **2** ✅ |
 | Per-column filter UI (text/number/date popovers → `Condition`) + Reset Filters + filtered-count | **3** ✅ |
-| Keyboard navigation (arrows / Home / End / PgUp-Dn / Enter), scroll-into-view | **4** |
+| Keyboard navigation (arrows / Home / End / PgUp-Dn / Enter), scroll-into-view | **4** ✅ |
 | Ctrl+F find band (`FindBandUI`) | **5** |
 | Column resizing | **6** |
-| Column reordering (header drag) | later |
-| Column pinning (`type` icon col pinned-left) | later |
-| Auto-fit-to-grid-width (`autoSizeStrategy: fitGridWidth`) + user-resize-override suppression | later |
-| Multi-line/preformatted cell tooltips (model-roles, task-args JSON — was `PreformattedTooltip`, now native `title`) | later — or accept the drop (Q3) |
-| Infinite scroll / true pagination (cursor shape exists; client fetches all) | later (server-side) |
+| Auto-fit-to-grid-width (`autoSizeStrategy: fitGridWidth`) + user-resize-override suppression | **6** |
+| Column resizing + per-scope width persistence | **6** |
+| Column reordering (header drag) | deferred |
+| Column pinning (`type` icon col pinned-left) | deferred |
+| Multi-line/preformatted cell tooltips (model-roles, task-args JSON — was `PreformattedTooltip`, now native `title`) | deferred — accept native-`title` for now |
+| Infinite scroll / true pagination (cursor shape exists; client fetches all) | separate (server-side) |
 
 Phase numbers past 1 are a planning order, not a contract; we can resequence as we learn. The point is the full set lands eventually.
 
@@ -122,24 +123,40 @@ Full detail in `loglist-filtering.md`. Summary of what shipped:
 - **Type-aware evaluator.** `evaluateCondition` coerces both operands by the column's `filterType` (number/duration → `Number`; `date` → day-truncated epoch; `datetime` → epoch; boolean; string) so `<`/`=`/`BETWEEN`/`IN` are correct for numbers and dates. `getFilterType` threads through `applyListingQuery`/`useLogsListingQuery`.
 - **Per-scope persistence + chrome.** `LogListGridState` gained `columnFilters`; `combineFilters` AND-combines them into one `Condition`; the Reset Filters navbar button + Columns-popover filtered-field flagging + hide-clears-filter are restored.
 
-## Later phases (sketch)
+## Phase 4 — Keyboard navigation — ✅ DONE
 
-- **Phase 4 — Keyboard navigation.** Arrows/Home/End/PgUp-Dn/Enter + scroll-into-view; adapt scout's DataGrid keyboard handler to single-select semantics.
-- **Phase 5 — Ctrl+F find.** Port `FindBandUI` + per-row search string built from visible columns' `textValue`/accessor (replacing AG's `getCellValue` cache); scroll-to-match + select.
-- **Phase 6 — Column resizing.** TanStack `enableColumnResizing` + resizer UI (re-add the scout CSS).
-- **Later — reordering, pinning, auto-fit-to-width.** As listed in the roadmap.
+Restored the arrow-key navigation origin/main had (its AG `LogListGrid` wired `createGridKeyboardHandler`; phase 1 dropped it). Notably main had **no test coverage** for this — the port ships the unit + e2e it lacked.
 
-## Discovered additional work
+- **Pure resolver.** `shared/data-grid/keyboardNav.ts`: `resolveKeyboardNavTarget({key, metaKey, ctrlKey, currentIndex, rowCount, pageJump}) → number | null`, matching the prior AG semantics — ↑/↓ ±1 (clamped), Cmd/Ctrl+↑/↓ jump to first/last, Home/End, PageUp/Dn ±10, from an empty selection any nav key lands on row 0, `null` for non-nav keys or an empty grid. Unit-tested in `keyboardNav.test.ts`.
+- **DataGrid wiring.** The `role="grid"` container is `tabIndex={0}` with an `onKeyDown` that applies the resolver to the internal `selectedId` (select target + `rowVirtualizer.scrollToIndex(target, {align:"center"})`), and Enter/Space activates the selected row. A focus guard ignores keys while an `input`/`textarea`/`select` is focused (so typing in a filter popover doesn't move the selection); a plain row click pulls focus to the grid so the keyboard works after a click.
+- **e2e:** `Keyboard navigation` describe in `top-level-views.spec.ts` — focus the grid, ↓/↓/↑ move `aria-selected`, Enter navigates under `/tasks/`.
+- **Verified:** typecheck/lint/format clean; resolver units + full `top-level-views` e2e (12) green.
 
-- **Scout reconciliation (user-owned).** The query Pydantic models + TS builders are duplicated (scout's `_query/*` + `apps/scout/src/query/*` still exist). Follow-up: point scout at `@tsmono/inspect-common/query` and collapse to a single Python codegen source.
-- **Server-side filter/sort + infinite scroll.** The whole point of the API boundary: replace `useLogsListingQuery`'s client `useMemo` (and the content-cache population) with a server `getLogsListing(dir, filter, orderBy, pagination)` query. The transitional `log-list/listing/` evaluator gets deleted then. `Pagination` is cursor-shaped already; infinite scroll arrives with the server move.
-- **New-tab parity.** New-tab open only works from the task cell's `<a>` overlay (matches old AG behavior); a row-level Cmd/middle-click handler could generalize it.
-- **`SamplesGrid` migration.** The sample view (rotated headers / variable row heights / follow-output) is still AG Grid — a separate effort, after which `ag-grid-*` deps + `ColumnSelectorPopover`'s AG coupling can be removed.
-- **Filter autocomplete suggestions.** The ported editor passes `suggestions={[]}` (plain inputs). Scout fetches per-column distinct values from the server; doing it right needs an inspect API method (analog of scout's `getTranscriptsColumnValues`). See `loglist-filtering.md`.
-- **Per-column filter clear affordance.** Resetting one column's filter today means re-opening its funnel and blanking the value (empty commits a `null` condition → removed); the only one-click reset is the all-columns Reset Filters button. Consider a dedicated per-column clear (e.g. a Clear button in the popover when active) for discoverability — inherited from scout/AG, neither of which had one either.
-- **ARIA-label audit vs origin/main.** The DataGrid's roles/labels (the funnel's `aria-label="Filter <columnId>"`, header `role="columnheader"`, etc.) were chosen for the TanStack rewrite; audit them against what origin/main's AG grid exposed so we don't regress accessibility/automation. Note: the funnel label substring-collides with header/segment accessible names (e.g. "Filter totalSamples" matches a "Samples" query) — scope selectors accordingly and reconsider the label scheme.
+## Where we are & the path to a good point
 
-## Open questions
+**Done (phases 1–4).** The log list renders every column across tasks/folder modes, navigates on click *and keyboard*, sorts (multi-sort, folder-pinned, persisted), filters (per-column popovers + Reset Filters + filtered-count), toggles column visibility (Columns popover + score-mode switch), and persists sort+filters per scope — all served from the react-query content cache, off the old zustand content path. What remains is parity polish and getting the log list fully off AG Grid.
 
-1. Persist **column widths** per scope too (alongside sorting in `gridStateByScope`), or leave widths transient? (Lands with phase 5 resizing.)
-2. Multi-line tooltips: is dropping `PreformattedTooltip` (model-roles / task-args JSON now flow through native `title`) acceptable, or restore a custom tooltip later?
+**Bar for "a pretty good point":** parity with origin/main's AG log list on what users actually feel, with the log list no longer depending on `ag-grid-*`. Two phases remain, in this order:
+
+- **Phase 5 — Ctrl+F find.** Port `FindBandUI` + a per-row search string built from visible columns' `textValue`/accessor (replacing AG's `getCellValue` cache); scroll-to-match + select. A real regression vs origin/main if left out. (Reuses the scroll-into-view established in phase 4.)
+- **Phase 6 — Layout fit.** Auto-fit-to-grid-width (`autoSizeStrategy: fitGridWidth` analog) so columns fill the grid — the most visible "unfinished" gap today, since we currently render fixed widths + horizontal scroll — plus user drag-resize (`enableColumnResizing` + resizer UI) with resize-override suppression, persisting widths per scope alongside sort/filters. Done together because resize overrides auto-fit.
+
+After phase 6 the log-list migration is at a solid, shippable point and `ag-grid-*` is used only by the samples views.
+
+**Definition of done (before calling it "good").** A parity sweep against origin/main — visual + behavioral — to catch silent drops: default column widths, tooltip content, empty/loading states, persistence across scope switches, new-tab behavior. Run `pnpm dev` on a large multi-folder logs dir, plus the full e2e + unit suites.
+
+## Deliberately deferred (not needed for a good point)
+
+- **TODO: use `skipToken` for the logs-content query before a directory is known.** `state/logsContent.ts:24` keys the content query on `["logs-content", logDir ?? ""]`, so before `logDir` hydrates it runs/caches under an empty-string key (`["logs-content", ""]`). Switch to react-query's `skipToken` (disable the query until `logDir` is set) — the standard pattern scout uses (e.g. `apps/scout/.../TranscriptsPanel.tsx`).
+- **TODO: verify multi-column sort mechanics vs origin/main.** Our DataGrid runs TanStack `enableMultiSort: true` with the library defaults (Shift/Ctrl-click = additive multi-sort; plain click replaces). Confirm this matches AG's behavior on main — specifically what a **plain click on a second column header does when another column is already sorted** (replace the sort vs add to a multi-sort), and the modifier for additive sort. If it diverges, fix it and add an e2e; if it matches, capture an e2e to lock it in.
+- **Column reordering** (header drag) and **column pinning** (`type` icon col pinned-left) — low-use AG niceties.
+- **Multi-line/preformatted tooltips** — accept the native-`title` drop (model-roles / task-args JSON); restore a custom tooltip only if requested.
+- **New-tab parity** beyond the task cell's `<a>` overlay (a row-level Cmd/middle-click handler would generalize it).
+- **Per-column filter clear affordance** and **filter autocomplete suggestions** (the latter needs an inspect API for per-column distinct values) — see `loglist-filtering.md`.
+- **ARIA-label audit vs origin/main** — reconcile the DataGrid's roles/labels (the funnel `aria-label="Filter <columnId>"` substring-collides with header/segment names) so accessibility/automation don't regress.
+
+## Separate efforts (out of this migration's scope)
+
+- **`SamplesGrid` migration** — cross-log `SamplesPanel` + single-log `SampleList`, with rotated headers, follow-output, and multiline rows. Its rows are already client-computed (cross-log even reads the same react-query content cache), so there's no datapath work; the cost is DataGrid feature delta (keyboard nav from phase 4 carries over). Completing it removes the last `ag-grid-*` usage and `ColumnSelectorPopover`'s AG coupling.
+- **Server-side filter/sort + infinite scroll** — the payoff of the API boundary: replace `useLogsListingQuery`'s client `useMemo` (and the content-cache population) with a server `getLogsListing(dir, filter, orderBy, pagination)` query, deleting the transitional `log-list/listing/` evaluator. `Pagination` is cursor-shaped already.
+- **Scout reconciliation (user-owned)** — point scout at `@tsmono/inspect-common/query` + the shared `columnFilter/` module and collapse the duplicated query models to a single Python codegen source.
