@@ -26,9 +26,9 @@ _custom_models: dict[str, ModelInfo] = {}
 _model_info_cache: dict[str, ModelInfo] | None = None
 
 # Memoized results of model info lookups keyed by input identifier (string name
-# or Model.canonical_name()) and whether provider resolution is enabled.
-# Includes negative results so failed lookups aren't repeated on every turn.
-# Invalidated by set_model_info, set_model_cost, and clear_model_info_cache.
+# or str(Model)) and whether provider resolution is enabled. Includes negative
+# results so failed lookups aren't repeated on every turn. Invalidated by
+# set_model_info, set_model_cost, and clear_model_info_cache.
 _result_cache: dict[tuple[str, bool], ModelInfo | None] = {}
 
 
@@ -291,7 +291,7 @@ def _get_model_info(
     # Import here to avoid circular imports
     from inspect_ai.model._model import Model
 
-    identifier = model.canonical_name() if isinstance(model, Model) else model
+    identifier = str(model) if isinstance(model, Model) else model
     cache_key = (identifier, resolve_provider)
     if cache_key in _result_cache:
         return _result_cache[cache_key]
@@ -312,15 +312,20 @@ def _resolve_model_info(
     # Get the database
     db = _get_model_info_db()
 
-    # If already a Model instance, use its canonical name directly
     if isinstance(model, Model):
-        name = model.canonical_name()
+        canonical = model.canonical_name()
 
-        # Check custom registry first
-        if name in _custom_models:
-            return _custom_models[name]
+        # Custom registrations (set_model_info / set_model_cost /
+        # --model-cost-config) may be keyed under either the user-facing model
+        # string or the canonical name. The two differ for providers that strip a
+        # route prefix in canonical_name() (together, hf-inference-providers,
+        # custom routed providers), so check both, preferring the more specific
+        # full string. The database is keyed by canonical name only.
+        for name in (str(model), canonical):
+            if name in _custom_models:
+                return _custom_models[name]
 
-        return _lookup_in_db(name, db)
+        return _lookup_in_db(canonical, db)
 
     # For string model names, try direct lookup first (no SDK required)
     # The database includes aliases for common model name formats
@@ -368,7 +373,9 @@ def get_model_input_tokens(model: Model) -> int | None:
         return explicit.input_tokens
 
     model_name = model.input_tokens_name()
-    model_info = get_model_info(model_name)
+    # direct (non provider-resolving) lookup: the model is already instantiated,
+    # so resolving a provider here would re-instantiate it (reloading local weights)
+    model_info = _get_model_info_direct(model_name)
     if model_info:
         return model_info.input_tokens
     elif str(model).startswith("mockllm/"):

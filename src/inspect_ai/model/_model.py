@@ -981,7 +981,7 @@ class Model:
 
             # Record and check usage
             if usage:
-                record_and_check_model_usage(f"{self}", usage, role=self.role)
+                record_and_check_model_usage(self, usage, role=self.role)
 
             return compacted_messages, usage
 
@@ -1248,7 +1248,7 @@ class Model:
 
             # record usage
             if output.usage:
-                record_and_check_model_usage(f"{self}", output.usage, role=self.role)
+                record_and_check_model_usage(self, output.usage, role=self.role)
 
                 # send telemetry to hooks
                 await emit_model_usage(
@@ -2371,17 +2371,22 @@ def init_sample_role_usage() -> None:
 
 
 def record_and_check_model_usage(
-    model: str, usage: ModelUsage, role: str | None = None
+    model: Model, usage: ModelUsage, role: str | None = None
 ) -> None:
     from inspect_ai.log._samples import (
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
-    from inspect_ai.model._model_info import get_model_info
+    from inspect_ai.model._model_info import _get_model_info_direct
+
+    # full "provider/model" identifier, used as the usage-bookkeeping dict key
+    model_name = f"{model}"
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
-    # accumulates it in the per-model usage dicts)
-    info = get_model_info(model)
+    # accumulates it in the per-model usage dicts). Use the direct (non
+    # provider-resolving) lookup: the model is already instantiated, so falling
+    # back to get_model() here would re-instantiate it (reloading local weights).
+    info = _get_model_info_direct(model)
     # A provider may have already populated total_cost from the actual billed
     # cost on the API response (e.g. OpenRouter returns `usage.cost`). Prefer
     # that authoritative value over the local per-token estimate; only fall
@@ -2393,8 +2398,8 @@ def record_and_check_model_usage(
         usage.total_cost = total_cost
 
     # record usage
-    set_model_usage(model, usage, sample_model_usage_context_var.get(None))
-    set_model_usage(model, usage, model_usage_context_var.get(None))
+    set_model_usage(model_name, usage, sample_model_usage_context_var.get(None))
+    set_model_usage(model_name, usage, model_usage_context_var.get(None))
 
     # record usage by role name (if role is set)
     if role is not None:

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Mapping
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._model import Model, get_model
-from inspect_ai.model._model_info import get_model_info
+from inspect_ai.model._model_info import _get_model_info_direct
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.resolved import ResolvedTask
@@ -52,7 +52,10 @@ def resolve_model_costs(
             # doesn't need a static pricing entry here.
             if model.api.reports_usage_cost():
                 continue
-            info = get_model_info(model_name)
+            # direct (non provider-resolving) lookup: these models are already
+            # instantiated, so resolving a provider here would re-instantiate
+            # them (reloading local weights)
+            info = _get_model_info_direct(model)
             if info is None or info.cost is None:
                 missing.append(model_name)
 
