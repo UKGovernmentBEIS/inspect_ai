@@ -364,21 +364,35 @@ async def _s3_read_with_etag(
         return content, etag
 
 
+def _scan_header_keys(f: IO[bytes]) -> tuple[int | None, str]:
+    """Stream a JSON eval log's top-level keys, stopping at ``samples``.
+
+    Reads only as far as the start of the (potentially huge) ``samples`` array
+    and returns ``(version, last_header_field)`` — the log version and the name
+    of the last header field seen. The second pass stops re-parsing once it has
+    consumed ``last_header_field``, so it never has to materialize ``samples``.
+    Consumes ``f``; callers re-parsing the same handle must ``seek(0)`` after.
+    """
+    version: int | None = None
+    last_header_field = "stats"
+
+    for prefix, event, value in ijson.parse(f):
+        if (prefix, event) == ("version", "number"):
+            version = value
+        elif prefix == "samples":
+            # Break as soon as we hit samples as that can be very large
+            break
+        elif event == "map_key" and prefix == "":
+            last_header_field = value
+
+    return version, last_header_field
+
+
 def _read_header_streaming(log_file: str) -> EvalLog:
     with file(log_file, "rb") as f:
         # Do low-level parsing to get the version number and also
         # detect the presence of results or error sections
-        version: int | None = None
-        last_header_field = "stats"
-
-        for prefix, event, value in ijson.parse(f):
-            if (prefix, event) == ("version", "number"):
-                version = value
-            elif prefix == "samples":
-                # Break as soon as we hit samples as that can be very large
-                break
-            elif event == "map_key" and prefix == "":
-                last_header_field = value
+        version, last_header_field = _scan_header_keys(f)
 
         if version is None:
             raise ValueError("Unable to read version of log format.")
