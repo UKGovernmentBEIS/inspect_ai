@@ -281,6 +281,21 @@ The [Checkpointer](./reference/inspect_ai.util.html.md#checkpointer) context has
 
 `cp.track()` is generic over the value type. Pydantic models and JSON primitive values are handled automatically; for other shapes (collections, generics, dataclasses, lists of models) pass `value_type=...`.
 
+### Reaching the session from a sub-component
+
+[checkpointer()](./reference/inspect_ai.util.html.md#checkpointer) opens a session and is entered once, by the agent that owns the loop. A sub-component that does *not* own the session — a custom `model` agent passed to [react()](./reference/inspect_ai.agent.html.md#react), a tool, or a nested helper — should not re-enter [checkpointer()](./reference/inspect_ai.util.html.md#checkpointer) (that would open a duplicate transcript span). Use `current_checkpointer()` instead, a plain accessor for the session the agent has already opened:
+
+``` python
+from inspect_ai.util import current_checkpointer
+
+cp = current_checkpointer()
+if cp is not None:
+    # register the sub-component's state on the agent's session
+    state = cp.track("my_state", lambda: state, state)
+```
+
+It returns `None` when called outside an active sample, or before the owning agent has opened its session.
+
 ## Limitations
 
 Checkpointing enables restoration of the most important agent context after a crash, but has some limitations you should bear in mind when using it:

@@ -12,6 +12,10 @@ inspect score [OPTIONS] LOG_FILE
 
 | Name | Type | Description | Default |
 |----|----|----|----|
+| `--model` | text | Model used for re-scoring (overrides the primary model recorded in the log). | None |
+| `--model-base-url` | text | Base URL for model API | None |
+| `-M` | text | One or more native model arguments (e.g. -M arg=value) | None |
+| `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Merged over the model roles recorded in the log. | None |
 | `--scorer` | text | Scorer to use for scoring | None |
 | `-S` | text | One or more scorer arguments (e.g. -S arg=value) | None |
 | `--metric` | text | Metric to use for scoring (overrides metrics in the log). | None |

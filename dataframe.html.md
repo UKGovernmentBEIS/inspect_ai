@@ -389,7 +389,7 @@ if len(errors) > 0:
 | [EvalTask](./reference/inspect_ai.analysis.html.md#evaltask) | Task configuration (name, file, args, solver, etc.) |
 | [EvalModel](./reference/inspect_ai.analysis.html.md#evalmodel) | Model name, args, generation config, etc. |
 | [EvalDataset](./reference/inspect_ai.log.html.md#evaldataset) | Dataset name, location, sample ids, etc. |
-| [EvalConfig](./reference/inspect_ai.log.html.md#evalconfig) | Epochs, approval, sample limits, etc. |
+| [EvalConfiguration](./reference/inspect_ai.analysis.html.md#evalconfiguration) | Epochs, approval, sample limits, etc. |
 | [EvalResults](./reference/inspect_ai.log.html.md#evalresults) | Status, errors, samples completed, headline metric. |
 | [EvalScores](./reference/inspect_ai.analysis.html.md#evalscores) | All scores and metrics broken into separate columns. |
 

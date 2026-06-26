@@ -6,9 +6,13 @@ Early stopping enables you to skip samples or epochs during evaluation based on 
 
 Common use cases include:
 
-- **Stopping a sample after consistent results**: If a sample has been answered correctly (or incorrectly) across multiple epochs, skip remaining epochs.
-- **Adaptive difficulty**: Focus evaluation time on samples near the model’s capability boundary.
-- **Resource optimization**: Skip samples that are unlikely to provide additional signal.
+- Stopping a sample after consistent results: If a sample has been answered correctly (or incorrectly) across multiple epochs, skip remaining epochs.
+- Adaptive difficulty: Focus evaluation time on samples near the model’s capability boundary.
+- Resource optimization: Skip samples that are unlikely to provide additional signal.
+
+> **NOTE: NoteOptstop Package**
+>
+> The [Optstop](https://github.com/UKGovernmentBEIS/optstop) package provides a complete implementation of adaptive optimal stopping algorithms to help efficiently determine when enough data has been collected to make reliable inferences.
 
 ## EarlyStopping Protocol
 

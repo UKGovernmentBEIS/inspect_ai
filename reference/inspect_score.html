@@ -3417,6 +3417,30 @@ ul.task-list li input[type="checkbox"] {
 </thead>
 <tbody>
 <tr class="odd">
+<td><code>--model</code></td>
+<td>text</td>
+<td>Model used for re-scoring (overrides the primary model recorded in the log).</td>
+<td>None</td>
+</tr>
+<tr class="even">
+<td><code>--model-base-url</code></td>
+<td>text</td>
+<td>Base URL for model API</td>
+<td>None</td>
+</tr>
+<tr class="odd">
+<td><code>-M</code></td>
+<td>text</td>
+<td>One or more native model arguments (e.g.&nbsp;-M arg=value)</td>
+<td>None</td>
+</tr>
+<tr class="even">
+<td><code>--model-role</code></td>
+<td>text</td>
+<td>Named model role with model name or YAML/JSON config, e.g.&nbsp;–model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Merged over the model roles recorded in the log.</td>
+<td>None</td>
+</tr>
+<tr class="odd">
 <td><code>--scorer</code></td>
 <td>text</td>
 <td>Scorer to use for scoring</td>

@@ -721,7 +721,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sandbox-paths" id="toc-sandbox-paths" class="nav-link" data-scroll-target="#sandbox-paths">Sandbox Paths</a></li>
   </ul></li>
   <li><a href="#checkpoint-flow" id="toc-checkpoint-flow" class="nav-link" data-scroll-target="#checkpoint-flow">Checkpoint Flow</a></li>
-  <li><a href="#custom-agents" id="toc-custom-agents" class="nav-link" data-scroll-target="#custom-agents">Custom Agents</a></li>
+  <li><a href="#custom-agents" id="toc-custom-agents" class="nav-link" data-scroll-target="#custom-agents">Custom Agents</a>
+  <ul class="collapse">
+  <li><a href="#reaching-the-session-from-a-sub-component" id="toc-reaching-the-session-from-a-sub-component" class="nav-link" data-scroll-target="#reaching-the-session-from-a-sub-component">Reaching the session from a sub-component</a></li>
+  </ul></li>
   <li><a href="#limitations" id="toc-limitations" class="nav-link" data-scroll-target="#limitations">Limitations</a></li>
   </ul>
 </nav>
@@ -1071,6 +1074,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p><code>cp.track()</code> is generic over the value type. Pydantic models and JSON primitive values are handled automatically; for other shapes (collections, generics, dataclasses, lists of models) pass <code>value_type=...</code>.</p>
+<section id="reaching-the-session-from-a-sub-component" class="level3">
+<h3 class="anchored" data-anchor-id="reaching-the-session-from-a-sub-component">Reaching the session from a sub-component</h3>
+<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#checkpointer">checkpointer()</a></span> opens a session and is entered once, by the agent that owns the loop. A sub-component that does <em>not</em> own the session — a custom <code>model</code> agent passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span>, a tool, or a nested helper — should not re-enter <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#checkpointer">checkpointer()</a></span> (that would open a duplicate transcript span). Use <code>current_checkpointer()</code> instead, a plain accessor for the session the agent has already opened:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> current_checkpointer</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>cp <span class="op">=</span> current_checkpointer()</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> cp <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># register the sub-component's state on the agent's session</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    state <span class="op">=</span> cp.track(<span class="st">"my_state"</span>, <span class="kw">lambda</span>: state, state)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>It returns <code>None</code> when called outside an active sample, or before the owning agent has opened its session.</p>
+</section>
 </section>
 <section id="limitations" class="level2">
 <h2 class="anchored" data-anchor-id="limitations">Limitations</h2>

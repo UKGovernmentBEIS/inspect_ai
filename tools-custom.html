@@ -912,12 +912,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
 <span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co">    Raises:</span></span>
 <span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">      TimeoutError: If the specified `timeout` expires.</span></span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">      UnicodeDecodeError: If an error occurs while</span></span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">        decoding the command output.</span></span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="co">      PermissionError: If the user does not have</span></span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co">        permission to execute the command.</span></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">      UnicodeDecodeError: May be raised if the sandbox provider</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">        cannot decode the command output to UTF-8 and does not</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="co">        support using the UTF-8 replacement character for</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co">        characters which cannot be decoded.</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co">      PermissionError: If the user does not have</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co">        permission to execute the command.</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>exec()</code> method should enforce an output limit of <code>SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE</code> (default 10MB, configurable via the <code>INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE</code> environment variable) and front-truncate its output to the limit when it is exceeded.</p>
 <p>To deal with potential unreliability of container services, the <code>exec()</code> method includes a <code>timeout_retry</code> parameter that defaults to <code>True</code>. For sandbox implementations this parameter is <em>advisory</em> (they should only use it if potential unreliability exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e.&nbsp;the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify <code>timeout_retry=False</code> to override this behavior.</p>
 </section>
@@ -1102,7 +1104,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb13-80"><a href="#cb13-80" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>We make available an <code>instance</code> parameter that enables creation of multiple instances of the <code>web_surfer()</code> tool. We then pass this <code>instance</code> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function (to store our own tool’s message history) and the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> function (so that we also provision a unique browser for the web surfer session).</p>
 <p>For example, this creates a distinct instance of the <code>web_surfer()</code> with its own state and browser:</p>
-<div id="e28af244" class="cell">
+<div id="2d4966be" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>react(..., tools<span class="op">=</span>[web_surfer(instance<span class="op">=</span>uuid())])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>

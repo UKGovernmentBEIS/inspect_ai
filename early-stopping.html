@@ -742,10 +742,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Early stopping enables you to skip samples or epochs during evaluation based on results observed so far. This is useful for implementing <a href="https://en.wikipedia.org/wiki/Computerized_adaptive_testing">adaptive testing algorithms</a> that dynamically decide which samples to run based on prior performance, potentially saving significant computation time while maintaining evaluation quality.</p>
 <p>Common use cases include:</p>
 <ul>
-<li><strong>Stopping a sample after consistent results</strong>: If a sample has been answered correctly (or incorrectly) across multiple epochs, skip remaining epochs.</li>
-<li><strong>Adaptive difficulty</strong>: Focus evaluation time on samples near the model’s capability boundary.</li>
-<li><strong>Resource optimization</strong>: Skip samples that are unlikely to provide additional signal.</li>
+<li>Stopping a sample after consistent results: If a sample has been answered correctly (or incorrectly) across multiple epochs, skip remaining epochs.</li>
+<li>Adaptive difficulty: Focus evaluation time on samples near the model’s capability boundary.</li>
+<li>Resource optimization: Skip samples that are unlikely to provide additional signal.</li>
 </ul>
+<div class="callout callout-style-default callout-note callout-titled" title="Optstop Package">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Optstop Package
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The <a href="https://github.com/UKGovernmentBEIS/optstop">Optstop</a> package provides a complete implementation of adaptive optimal stopping algorithms to help efficiently determine when enough data has been collected to make reliable inferences.</p>
+</div>
+</div>
 </section>
 <section id="earlystopping-protocol" class="level2">
 <h2 class="anchored" data-anchor-id="earlystopping-protocol">EarlyStopping Protocol</h2>

@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inspect.aisi.org.uk/dataframe.html</loc>
-    <lastmod>2026-06-11T21:18:34.568Z</lastmod>
+    <lastmod>2026-06-26T11:57:43.102Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/extensions-sandboxes.html</loc>
@@ -154,7 +154,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/checkpointing.html</loc>
-    <lastmod>2026-06-10T17:44:14.289Z</lastmod>
+    <lastmod>2026-06-26T11:57:43.101Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/sandboxing.html</loc>
@@ -214,7 +214,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/CHANGELOG.html</loc>
-    <lastmod>2026-06-22T14:37:27.286Z</lastmod>
+    <lastmod>2026-06-26T11:57:43.100Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/custom-scorers.html</loc>
@@ -370,6 +370,6 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/early-stopping.html</loc>
-    <lastmod>2026-05-28T01:12:56.415Z</lastmod>
+    <lastmod>2026-06-26T12:04:32.132Z</lastmod>
   </url>
 </urlset>
