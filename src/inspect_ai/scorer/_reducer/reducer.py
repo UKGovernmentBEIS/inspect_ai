@@ -373,7 +373,7 @@ def _compute_dict_stat(
         for score in dict_scores:
             key_value = value_to_float(score.value[key])  # type: ignore
             if _is_reducible(key_value):
-                values.append(value_to_float(key_value))
+                values.append(key_value)
 
         if len(values) == 0:
             dict_result[key] = float("nan")

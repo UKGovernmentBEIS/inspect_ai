@@ -1,17 +1,33 @@
 import os
-import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
+from click.testing import CliRunner, Result
 from pydantic import ValidationError
 
 from inspect_ai import Task, eval, task
-from inspect_ai._cli.eval import RunConfigInput
+from inspect_ai._cli.eval import RunConfigInput, eval_command
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.model import get_model
 from inspect_ai.solver import solver
+
+
+def run_eval_cli(args: list[str], env: dict[str, str] | None = None) -> Result:
+    """Invoke `inspect eval` in-process via CliRunner.
+
+    In-process invocation avoids the ~2s interpreter + package-import startup
+    that a fresh `inspect` subprocess pays on every call. `eval_command` is the
+    same click command `inspect eval` dispatches to, so CLI option parsing and
+    config resolution are exercised identically.
+    """
+    return CliRunner().invoke(eval_command, args, env=env)
+
+
+def assert_cli_success(result: Result) -> None:
+    assert result.exit_code == 0, f"{result.output}\n{result.exception}"
 
 
 def test_run_config_rejects_unknown_top_level_field():
@@ -43,10 +59,8 @@ def test_eval_config_task():
 
 def test_eval_config_task_cli():
     with tempfile.TemporaryDirectory() as log_dir:
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--task-config",
                 config_path("task.yaml"),
@@ -66,16 +80,15 @@ def test_eval_config_task_cli():
                 "grader={model: mockllm/model, temperature: 0.5, max_tokens: 1000}",
             ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir)[0])
         check_log(log, "green", check_model_roles=True)
 
 
 def test_eval_generate_config_cli():
     with tempfile.TemporaryDirectory() as log_dir:
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--generate-config",
                 config_path("generate_config.yaml"),
@@ -85,9 +98,9 @@ def test_eval_generate_config_cli():
                 log_dir,
                 "--model",
                 "mockllm/model",
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir)[0])
         # temperature should be overridden by explicit CLI option
         assert log.plan.config.temperature == 0.9
@@ -131,10 +144,8 @@ eval_config:
 """.strip()
         )
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "--run-config",
                 run_config.as_posix(),
                 "-T",
@@ -143,9 +154,9 @@ eval_config:
                 "0.9",
                 "--log-dir",
                 log_dir.as_posix(),
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.task == "eval_config_task"
         assert log.eval.task_args["epochs"] == 2
@@ -178,18 +189,16 @@ eval_config:
 """.strip()
         )
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "--run-config",
                 run_config.as_posix(),
                 "--log-dir",
                 log_dir.as_posix(),
             ],
-            env={**os.environ, "INSPECT_EVAL_MODEL": "anthropic/claude-sonnet-4-6"},
-            check=True,
+            env={"INSPECT_EVAL_MODEL": "anthropic/claude-sonnet-4-6"},
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.model == "mockllm/model"
 
@@ -209,10 +218,8 @@ eval_config:
 """.strip()
         )
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "--run-config",
                 run_config.as_posix(),
                 "--model",
@@ -220,9 +227,9 @@ eval_config:
                 "--log-dir",
                 log_dir.as_posix(),
             ],
-            env={**os.environ, "INSPECT_EVAL_MODEL": "mockllm/from_env"},
-            check=True,
+            env={"INSPECT_EVAL_MODEL": "mockllm/from_env"},
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.model == "mockllm/from_cli"
 
@@ -246,33 +253,20 @@ eval_config:
         # override=True when TERM_PROGRAM=vscode, which would overwrite
         # INSPECT_EVAL_MODEL from the repo .env and mask the env value
         # this test is checking).
-        test_env = {
-            k: v
-            for k, v in os.environ.items()
-            if k
-            not in (
-                "VSCODE_IPYTHON_KERNEL",
-                "VSCODE_CLI_REQUIRE_TOKEN",
-                "VSCODE_PID",
-                "VSCODE_CWD",
-            )
-        }
-        if test_env.get("TERM_PROGRAM") == "vscode":
-            test_env["TERM_PROGRAM"] = "xterm"
-        test_env["INSPECT_EVAL_MODEL"] = "mockllm/from_env"
+        env = {"INSPECT_EVAL_MODEL": "mockllm/from_env"}
+        if os.environ.get("TERM_PROGRAM") == "vscode":
+            env["TERM_PROGRAM"] = "xterm"
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "--run-config",
                 run_config.as_posix(),
                 "--log-dir",
                 log_dir.as_posix(),
             ],
-            env=test_env,
-            check=True,
+            env=env,
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.model == "mockllm/from_env"
 
@@ -298,10 +292,8 @@ eval_config:
 """.strip()
         )
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--model",
                 "mockllm/model",
@@ -309,9 +301,9 @@ eval_config:
                 run_config.as_posix(),
                 "--log-dir",
                 log_dir.as_posix(),
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.task == "eval_config_task"
         assert log.eval.model == "mockllm/model"
@@ -345,19 +337,16 @@ model: mockllm/model
             ],
         ]
         for conflict in conflicts:
-            result = subprocess.run(
+            result = run_eval_cli(
                 [
-                    "inspect",
-                    "eval",
                     "--run-config",
                     run_config.as_posix(),
                     *conflict,
-                ],
-                capture_output=True,
-                text=True,
+                ]
             )
-            assert result.returncode != 0
-            assert "--run-config cannot be used with" in result.stdout
+            assert result.exit_code != 0
+            assert isinstance(result.exception, PrerequisiteError)
+            assert "--run-config cannot be used with" in str(result.exception.message)
 
 
 def test_eval_run_config_score_on_error_not_clobbered():
