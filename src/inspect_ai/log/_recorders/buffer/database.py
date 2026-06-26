@@ -1155,7 +1155,7 @@ class SampleBufferDatabase(SampleBuffer):
 
         cursor = conn.execute(query, params)
 
-        message_cache: dict[str, ChatMessage] = {}
+        message_cache: dict[str, tuple[ChatMessage, ChatMessage]] = {}
 
         for row in cursor:
             event = json.loads(row["data"])
@@ -1438,7 +1438,10 @@ class SampleBufferDatabase(SampleBuffer):
         return SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
 
     def _resolve_event_attachments(
-        self, conn: Connection, event: JsonData, message_cache: dict[str, ChatMessage]
+        self,
+        conn: Connection,
+        event: JsonData,
+        message_cache: dict[str, tuple[ChatMessage, ChatMessage]],
     ) -> JsonData:
         return walk_json_dict(
             event,

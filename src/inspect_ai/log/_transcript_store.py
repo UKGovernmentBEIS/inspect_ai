@@ -129,8 +129,9 @@ class TranscriptEventStore:
                     self._insert_attachments(event_attachments)
                     self._merge_attachment_refs(
                         incoming_refs,
-                        lambda ref: event_attachments.get(ref)
-                        or attachment_lookup(ref),
+                        lambda ref: (
+                            event_attachments.get(ref) or attachment_lookup(ref)
+                        ),
                     )
             except BaseException:
                 # the SQLite transaction rolled back; unwind the in-memory
