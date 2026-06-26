@@ -554,27 +554,27 @@ async def model_proxy_server(
         model = json_body.get("model")
         return isinstance(model, str) and bool(model.strip())
 
-    def _openai_missing_model() -> dict[str, Any]:
+    def _openai_missing_param(param: str) -> dict[str, Any]:
         return {
             "status": 400,
             "body": {
                 "error": {
-                    "message": "Missing required parameter: 'model'.",
+                    "message": f"Missing required parameter: '{param}'.",
                     "type": "invalid_request_error",
-                    "param": "model",
+                    "param": param,
                     "code": "missing_required_parameter",
                 }
             },
         }
 
-    def _anthropic_missing_model() -> dict[str, Any]:
+    def _anthropic_missing_param(param: str) -> dict[str, Any]:
         return {
             "status": 400,
             "body": {
                 "type": "error",
                 "error": {
                     "type": "invalid_request_error",
-                    "message": "Missing required parameter: 'model'.",
+                    "message": f"Missing required parameter: '{param}'.",
                 },
             },
         }
@@ -596,7 +596,9 @@ async def model_proxy_server(
         try:
             json_body = _json_body(request)
             if not _has_model(json_body):
-                return _openai_missing_model()
+                return _openai_missing_param("model")
+            if json_body.get("input") is None:
+                return _openai_missing_param("input")
             stream = json_body.get("stream", False)
 
             completion = await call_bridge_model_service_async(
@@ -1312,7 +1314,9 @@ async def model_proxy_server(
         try:
             json_body = _json_body(request)
             if not _has_model(json_body):
-                return _openai_missing_model()
+                return _openai_missing_param("model")
+            if json_body.get("messages") is None:
+                return _openai_missing_param("messages")
             stream = json_body.get("stream", False)
 
             # the openai codex cli seems to have a bug that causes
@@ -1524,7 +1528,9 @@ async def model_proxy_server(
         try:
             json_body = _json_body(request)
             if not _has_model(json_body):
-                return _anthropic_missing_model()
+                return _anthropic_missing_param("model")
+            if json_body.get("messages") is None:
+                return _anthropic_missing_param("messages")
             stream = json_body.get("stream", False)
 
             if stream:
@@ -1752,6 +1758,66 @@ async def model_proxy_server(
                                 )
 
                             # content_block_stop
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
+                        elif block_type == "compaction":
+                            # Compaction blocks stream differently - a single delta
+                            # with the complete content (no intermediate streaming)
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": {
+                                        "type": "compaction",
+                                        "content": "",
+                                    },
+                                },
+                            )
+
+                            # Single delta with complete content
+                            content_value = block.get("content", "")
+                            yield _sse_anthropic(
+                                "content_block_delta",
+                                {
+                                    "type": "content_block_delta",
+                                    "index": index,
+                                    "delta": {
+                                        "type": "compaction_delta",
+                                        "content": content_value,
+                                    },
+                                },
+                            )
+
+                            # content_block_stop
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
+                        elif block_type == "fallback":
+                            # server-side refusal fallback handoff marker. a
+                            # plain start/stop pair with no deltas. emit the
+                            # `from`/`to` wire shape (the message was dumped
+                            # without by_alias, so `from` may arrive as `from_`)
+                            fallback_block: dict[str, Any] = {
+                                "type": "fallback",
+                                "to": block.get("to"),
+                            }
+                            fallback_from = block.get("from", block.get("from_"))
+                            if fallback_from is not None:
+                                fallback_block["from"] = fallback_from
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": fallback_block,
+                                },
+                            )
                             yield _sse_anthropic(
                                 "content_block_stop",
                                 {"type": "content_block_stop", "index": index},

@@ -554,27 +554,27 @@ async def model_proxy_server(
         model = json_body.get("model")
         return isinstance(model, str) and bool(model.strip())
 
-    def _openai_missing_model() -> dict[str, Any]:
+    def _openai_missing_param(param: str) -> dict[str, Any]:
         return {
             "status": 400,
             "body": {
                 "error": {
-                    "message": "Missing required parameter: 'model'.",
+                    "message": f"Missing required parameter: '{param}'.",
                     "type": "invalid_request_error",
-                    "param": "model",
+                    "param": param,
                     "code": "missing_required_parameter",
                 }
             },
         }
 
-    def _anthropic_missing_model() -> dict[str, Any]:
+    def _anthropic_missing_param(param: str) -> dict[str, Any]:
         return {
             "status": 400,
             "body": {
                 "type": "error",
                 "error": {
                     "type": "invalid_request_error",
-                    "message": "Missing required parameter: 'model'.",
+                    "message": f"Missing required parameter: '{param}'.",
                 },
             },
         }
@@ -596,7 +596,9 @@ async def model_proxy_server(
         try:
             json_body = _json_body(request)
             if not _has_model(json_body):
-                return _openai_missing_model()
+                return _openai_missing_param("model")
+            if json_body.get("input") is None:
+                return _openai_missing_param("input")
             stream = json_body.get("stream", False)
 
             completion = await call_bridge_model_service_async(
@@ -1312,7 +1314,9 @@ async def model_proxy_server(
         try:
             json_body = _json_body(request)
             if not _has_model(json_body):
-                return _openai_missing_model()
+                return _openai_missing_param("model")
+            if json_body.get("messages") is None:
+                return _openai_missing_param("messages")
             stream = json_body.get("stream", False)
 
             # the openai codex cli seems to have a bug that causes
@@ -1524,7 +1528,9 @@ async def model_proxy_server(
         try:
             json_body = _json_body(request)
             if not _has_model(json_body):
-                return _anthropic_missing_model()
+                return _anthropic_missing_param("model")
+            if json_body.get("messages") is None:
+                return _anthropic_missing_param("messages")
             stream = json_body.get("stream", False)
 
             if stream:

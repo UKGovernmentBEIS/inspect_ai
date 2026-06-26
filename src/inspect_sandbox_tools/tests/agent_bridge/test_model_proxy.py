@@ -973,6 +973,57 @@ async def test_openai_proxy_rejects_missing_model_without_crashing(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "param", "invalid_body", "valid_body"),
+    [
+        (
+            "/v1/responses",
+            "input",
+            {"model": "gpt-4o"},
+            {"model": "gpt-4o", "input": "Hello"},
+        ),
+        (
+            "/v1/responses",
+            "input",
+            {"model": "gpt-4o", "input": None},
+            {"model": "gpt-4o", "input": "Hello"},
+        ),
+        (
+            "/v1/chat/completions",
+            "messages",
+            {"model": "gpt-4o"},
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+        (
+            "/v1/chat/completions",
+            "messages",
+            {"model": "gpt-4o", "messages": None},
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+    ],
+)
+async def test_openai_proxy_rejects_missing_content_without_crashing(
+    proxy_server: tuple[AsyncHTTPServer, str],
+    path: str,
+    param: str,
+    invalid_body: dict[str, Any],
+    valid_body: dict[str, Any],
+) -> None:
+    """A valid model but missing messages/input is still a bad request, not a crash."""
+    _server, base_url = proxy_server
+
+    async with ClientSession() as session:
+        async with session.post(f"{base_url}{path}", json=invalid_body) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["error"]["type"] == "invalid_request_error"
+            assert body["error"]["param"] == param
+
+        async with session.post(f"{base_url}{path}", json=valid_body) as response:
+            assert response.status == 200
+
+
+@pytest.mark.asyncio
 async def test_model_proxy_responses_streaming(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1567,6 +1618,30 @@ async def test_anthropic_proxy_rejects_missing_model_without_crashing(
         async with session.post(
             f"{base_url}/v1/messages",
             json={"messages": [], "max_tokens": 16},
+        ) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["type"] == "error"
+            assert body["error"]["type"] == "invalid_request_error"
+
+        async with session.post(
+            f"{base_url}/v1/messages",
+            json={"model": "claude-test", "messages": [], "max_tokens": 16},
+        ) as response:
+            assert response.status == 200
+
+
+@pytest.mark.asyncio
+async def test_anthropic_proxy_rejects_missing_messages_without_crashing(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """A valid model but missing messages is still a bad request, not a crash."""
+    _server, base_url = proxy_server_anthropic
+
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1/messages",
+            json={"model": "claude-test", "max_tokens": 16},
         ) as response:
             assert response.status == 400
             body = await response.json()
