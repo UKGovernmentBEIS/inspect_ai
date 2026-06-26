@@ -487,41 +487,15 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
                             yield fsw._file_info(entry) if detail else name
 
-    @overload
-    def iter_dirs(
-        self,
-        base: str,
-        pattern: str = "*",
-        *,
-        recursive: bool = False,
-        detail: Literal[False] = False,
-    ) -> AsyncIterator[str]: ...
-
-    @overload
-    def iter_dirs(
-        self,
-        base: str,
-        pattern: str = "*",
-        *,
-        recursive: bool = False,
-        detail: Literal[True],
-    ) -> AsyncIterator[FileInfo]: ...
-
     async def iter_dirs(
-        self,
-        base: str,
-        pattern: str = "*",
-        *,
-        recursive: bool = False,
-        detail: bool = False,
-    ) -> AsyncIterator[str | FileInfo]:
-        """Yield directory entries (ending in `/`) under `base`.
+        self, base: str, pattern: str = "*", *, recursive: bool = False
+    ) -> AsyncIterator[str]:
+        """Yield URIs (ending in `/`) of directory-like entries under `base`.
 
-        URIs by default, or `FileInfo` (``type="directory"``, no size/mtime)
-        when ``detail=True``. Matching is fnmatch-on-terminal-name
-        (case-sensitive). When `recursive` is False, only direct subdirectories
-        of `base` are considered; otherwise matching directories at any depth
-        are yielded once (deduplicated).
+        Matching is fnmatch-on-terminal-name (case-sensitive). When
+        `recursive` is False, only direct subdirectories of `base` are
+        considered; otherwise matching directories at any depth are
+        yielded once (deduplicated).
 
         The `pattern` argument matches the terminal name only; it must
         not contain `/`.
@@ -540,8 +514,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                             cp_key = cp["Prefix"]
                             name = cp_key.rstrip("/").rsplit("/", 1)[-1]
                             if fnmatchcase(name, pattern):
-                                uri = f"s3://{bucket}/{cp_key}"
-                                yield _dir_file_info(uri) if detail else uri
+                                yield f"s3://{bucket}/{cp_key}"
                 else:
                     base_depth = len(prefix.rstrip("/").split("/")) if prefix else 0
                     seen: set[str] = set()
@@ -554,8 +527,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                                     dir_path = "/".join(parts[: i + 1])
                                     if dir_path not in seen:
                                         seen.add(dir_path)
-                                        uri = f"s3://{bucket}/{dir_path}/"
-                                        yield _dir_file_info(uri) if detail else uri
+                                        yield f"s3://{bucket}/{dir_path}/"
             else:
                 results = await anyio.to_thread.run_sync(
                     s3_iter_dirs,
@@ -564,7 +536,6 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     prefix,
                     pattern,
                     recursive,
-                    detail,
                 )
                 for r in results:
                     yield r
@@ -576,14 +547,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         name = entry["name"]
                         terminal = name.rstrip("/").rsplit("/", 1)[-1]
                         if fnmatchcase(terminal, pattern):
-                            uri = name.rstrip("/") + "/"
-                            yield _dir_file_info(uri) if detail else uri
+                            yield name.rstrip("/") + "/"
             else:
                 for dirpath, dirnames, _ in fs.walk(base):
                     for dirname in dirnames:
                         if fnmatchcase(dirname, pattern):
-                            uri = f"{dirpath.rstrip('/')}/{dirname}/"
-                            yield _dir_file_info(uri) if detail else uri
+                            yield f"{dirpath.rstrip('/')}/{dirname}/"
 
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
@@ -700,11 +669,6 @@ def _s3_obj_to_file_info(bucket: str, obj: dict[str, Any]) -> FileInfo:
     )
 
 
-def _dir_file_info(uri: str) -> FileInfo:
-    """FileInfo for a directory-like entry (no size/mtime, like S3 prefixes)."""
-    return FileInfo(name=uri, type="directory", size=0, mtime=None)
-
-
 def s3_info(s3: Any, bucket: str, key: str, filename: str) -> FileInfo:
     response = s3.head_object(Bucket=bucket, Key=key)
     return _s3_head_to_file_info(filename, response)
@@ -819,23 +783,17 @@ def s3_iter_files(
 
 
 def s3_iter_dirs(
-    s3: Any,
-    bucket: str,
-    prefix: str,
-    pattern: str,
-    recursive: bool,
-    detail: bool = False,
-) -> list[str | FileInfo]:
+    s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
+) -> list[str]:
     paginator = s3.get_paginator("list_objects_v2")
-    results: list[str | FileInfo] = []
+    results: list[str] = []
     if not recursive:
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"):
             for cp in page.get("CommonPrefixes", []):
                 cp_key = cp["Prefix"]
                 name = cp_key.rstrip("/").rsplit("/", 1)[-1]
                 if fnmatchcase(name, pattern):
-                    uri = f"s3://{bucket}/{cp_key}"
-                    results.append(_dir_file_info(uri) if detail else uri)
+                    results.append(f"s3://{bucket}/{cp_key}")
     else:
         base_depth = len(prefix.rstrip("/").split("/")) if prefix else 0
         seen: set[str] = set()
@@ -848,8 +806,7 @@ def s3_iter_dirs(
                         dir_path = "/".join(parts[: i + 1])
                         if dir_path not in seen:
                             seen.add(dir_path)
-                            uri = f"s3://{bucket}/{dir_path}/"
-                            results.append(_dir_file_info(uri) if detail else uri)
+                            results.append(f"s3://{bucket}/{dir_path}/")
     return results
 
 
