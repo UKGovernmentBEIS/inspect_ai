@@ -1,6 +1,5 @@
 import tempfile
 from random import randint
-from types import SimpleNamespace
 from typing import Generator
 
 import anyio
@@ -14,6 +13,7 @@ from test_helpers.utils import (
 )
 
 from inspect_ai import Task, eval
+from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
@@ -536,14 +536,20 @@ def test_openrouter_reported_cost_model_allows_cost_limit_without_static_pricing
     # runtime-reported cost is meant to handle.
     assert info.cost is None
 
-    task = SimpleNamespace(
-        task=SimpleNamespace(cost_limit=None),
+    task = ResolvedTask(
+        id="test",
+        task=Task(dataset=[Sample(input="hi")], solver=[]),
+        task_args={},
+        task_file=None,
         model=get_model(model_name, api_key="test-key"),
         model_roles=None,
+        sandbox=None,
+        checkpoint=None,
+        sequence=0,
     )
 
     # Should NOT raise: a cost_limit is valid because cost is reported at
-    # runtime. Currently raises PrerequisiteError (the gap).
+    # runtime (resolve_model_costs accepts providers with reports_usage_cost()).
     resolve_model_costs([task], cost_limit=1.0)
 
 
