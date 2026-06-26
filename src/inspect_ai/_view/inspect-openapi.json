@@ -1475,6 +1475,171 @@
         "title": "CompactionEvent",
         "type": "object"
       },
+      "Condition": {
+        "description": "WHERE clause condition that can be combined with others.",
+        "properties": {
+          "is_compound": {
+            "default": false,
+            "title": "Is Compound",
+            "type": "boolean"
+          },
+          "left": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/Condition"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Operator"
+              },
+              {
+                "$ref": "#/components/schemas/LogicalOperator"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator"
+          },
+          "right": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Condition"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      {
+                        "format": "date",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      {
+                        "format": "date",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Right"
+          }
+        },
+        "required": [
+          "is_compound"
+        ],
+        "title": "Condition",
+        "type": "object"
+      },
       "ConnectionLimitChange": {
         "description": "Record of an adaptive-connections controller scale change.",
         "properties": {
@@ -6614,6 +6779,16 @@
         "title": "LoggingMessage",
         "type": "object"
       },
+      "LogicalOperator": {
+        "description": "Logical operators for combining conditions.",
+        "enum": [
+          "AND",
+          "OR",
+          "NOT"
+        ],
+        "title": "LogicalOperator",
+        "type": "string"
+      },
       "Logprob": {
         "description": "Log probability for a token.",
         "properties": {
@@ -7355,6 +7530,51 @@
         "title": "ModelUsage",
         "type": "object"
       },
+      "Operator": {
+        "description": "SQL comparison operators.",
+        "enum": [
+          "=",
+          "!=",
+          "<",
+          "<=",
+          ">",
+          ">=",
+          "IN",
+          "NOT IN",
+          "LIKE",
+          "NOT LIKE",
+          "ILIKE",
+          "NOT ILIKE",
+          "IS NULL",
+          "IS NOT NULL",
+          "BETWEEN",
+          "NOT BETWEEN"
+        ],
+        "title": "Operator",
+        "type": "string"
+      },
+      "OrderBy": {
+        "properties": {
+          "column": {
+            "title": "Column",
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "ASC",
+              "DESC"
+            ],
+            "title": "Direction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column",
+          "direction"
+        ],
+        "title": "OrderBy",
+        "type": "object"
+      },
       "Outline": {
         "description": "Hierarchical outline of events for an agent.",
         "properties": {
@@ -7392,6 +7612,40 @@
           "children"
         ],
         "title": "OutlineNode",
+        "type": "object"
+      },
+      "Pagination": {
+        "properties": {
+          "cursor": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cursor"
+          },
+          "direction": {
+            "enum": [
+              "forward",
+              "backward"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "direction"
+        ],
+        "title": "Pagination",
         "type": "object"
       },
       "PendingSampleUrls": {
@@ -10939,6 +11193,24 @@
         "summary": " Citation"
       }
     },
+    "/condition": {
+      "get": {
+        "operationId": "_condition_condition_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Condition"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": " Condition"
+      }
+    },
     "/content": {
       "get": {
         "operationId": "_content_content_get",
@@ -11521,6 +11793,42 @@
           }
         },
         "summary": "Api Log"
+      }
+    },
+    "/order-by": {
+      "get": {
+        "operationId": "_order_by_order_by_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderBy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": " Order By"
+      }
+    },
+    "/pagination": {
+      "get": {
+        "operationId": "_pagination_pagination_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": " Pagination"
       }
     },
     "/pending-sample-data": {

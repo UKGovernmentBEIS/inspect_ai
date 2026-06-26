@@ -16,6 +16,7 @@ from pydantic import RootModel
 
 from inspect_ai._util.citation import Citation as _Citation
 from inspect_ai._view._openapi import build_openapi_schema
+from inspect_ai._view._query import Condition, OrderBy, Pagination
 from inspect_ai._view.fastapi_server import view_server_app
 from inspect_ai.event._event import Event as _Event
 from inspect_ai.model import ChatMessage as _ChatMessage
@@ -87,6 +88,21 @@ def _generate_new() -> None:
 
     @app.get("/tool-choice")
     def _tool_choice() -> ToolChoice:
+        raise NotImplementedError
+
+    # Query model stubs — these client-side query types (filter/order/paginate)
+    # aren't referenced by a real endpoint yet, so stub endpoints emit them into
+    # the schema. The Operator/LogicalOperator enums travel via Condition.
+    @app.get("/condition")
+    def _condition() -> Condition:
+        raise NotImplementedError
+
+    @app.get("/order-by")
+    def _order_by() -> OrderBy:
+        raise NotImplementedError
+
+    @app.get("/pagination")
+    def _pagination() -> Pagination:
         raise NotImplementedError
 
     schema = build_openapi_schema(app)
