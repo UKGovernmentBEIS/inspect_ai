@@ -43,6 +43,13 @@ The viewer caches the log directory's contents in a per-directory Dexie/IndexedD
 | Populated by | `_detailQueue` (concurrency 24, batch 1) calls `api.get_log_details()` per file and flushes via `writeLogDetails()` (`service.ts:218`); `findMissingDetails` (`service.ts:275`) drives backfill. |
 | Consumers | Per-log content + sample summaries. `mergeLogDetails` → `LogsContent.details`; read via `useLogDetails` in `LogListGrid.tsx:195` (score/metric columns), `columns/hooks.tsx:107`, and `SamplesPanel.tsx:113` (samples views). |
 
+### "Summary" terminology
+
+The word *summary* shows up at two grains, which map onto these stores as follows:
+
+- **Log summary** — the `api.get_log_summaries()` response, typed `LogPreview` (`api/types.ts:217`, `:413`). This *is* the **previews** store's payload: the API call says "summary" while the cached record is named `preview`, but they're the same lightweight per-log object. So "log summary" ≡ a `previews` row.
+- **Sample summary** — a `SampleSummary` (`api/types.ts:129`), one per sample (id/epoch/score/error/limit/tokens…). A finer grain that lives **inside the details store** as `LogDetails.sampleSummaries` (`api/types.ts:79`), fetched by `get_log_details()` — it is *not* in `previews`. The log list reads these (through `details`) to derive per-task aggregates (sample count, error/limit columns); the samples views render one row per sample summary.
+
 ## Feature roadmap (nothing is dropped)
 
 Every current `LogListGrid` feature must survive the migration. Phase 1 deliberately ships the minimum to render content correctly; everything else is sequenced into later phases, not abandoned.
