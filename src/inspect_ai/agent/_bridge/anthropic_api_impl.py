@@ -205,6 +205,16 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
         if thinking.get("type", None) == "enabled":
             config.reasoning_tokens = thinking.get("budget_tokens", None)
 
+    # `output_config.effort` carries the reasoning depth for adaptive thinking
+    # (Claude 4.6+ clients send `thinking: {"type": "adaptive"}` and convey the
+    # depth here rather than via `budget_tokens`). Forward it so the served model
+    # keeps the requested effort instead of silently dropping it.
+    output_config = json_data.get("output_config", None)
+    if output_config:
+        effort = output_config.get("effort", None)
+        if effort is not None:
+            config.effort = effort
+
     tool_choice = json_data.get("tool_choice", {})
     if tool_choice.get("disable_parallel_tool_use", None) is True:
         config.parallel_tool_calls = False
