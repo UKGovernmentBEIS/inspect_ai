@@ -1087,3 +1087,147 @@ async def test_recovery_preserves_uuid_from_in_progress_buffer_row() -> None:
             assert recovered.samples is not None
             target = next(s for s in recovered.samples if s.id == 7 and s.epoch == 1)
             assert target.uuid == expected_uuid
+
+
+async def test_streaming_recovery_output_message_stays_inline_in_messages() -> None:
+    """Long output message content must stay inline in recovered sample.messages.
+
+    _write_sample_streaming walks ModelEvent.output through condense_event
+    (events_context) and separately walks accumulated messages through
+    walk_chat_messages (messages_context). The output choice message ends up
+    in both walks because MessageAccumulator.result() appends it to messages.
+
+    If the two walks shared a WalkContext cache, the events walk (which uses
+    events_fn -- pooling text >100 chars as attachment refs) would cache the
+    rewritten message, and the subsequent messages walk would hit that cache
+    entry and return the attachment ref instead of the original inline content.
+    The split into events_context/messages_context prevents this; this test
+    would FAIL if the split were reverted to a single shared context.
+    """
+    import json
+    from zipfile import ZipFile
+
+    from pydantic_core import to_jsonable_python
+
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
+    from inspect_ai.log._recorders.buffer.filestore import (
+        Manifest,
+        SampleManifest,
+        Segment,
+        segment_file_name,
+        segment_name,
+    )
+    from inspect_ai.log._recorders.buffer.types import EventData, SampleData
+    from inspect_ai.log._recorders.eval import LogStart
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "ctx_split.eval")
+            output_path = os.path.join(temp_dir, "ctx_split-recovered.eval")
+
+            eval_spec = _make_eval_spec(task="ctx_split_test", num_samples=1)
+            plan = EvalPlan()
+            log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
+
+            with ZipFile(eval_path, "w") as zf:
+                zf.writestr(
+                    "_journal/start.json",
+                    json.dumps(to_jsonable_python(log_start, exclude_none=True)),
+                )
+
+            eval_name = os.path.splitext(os.path.basename(eval_path))[0]
+            buffer_dir = os.path.join(temp_dir, ".buffer", eval_name)
+            os.makedirs(buffer_dir, exist_ok=True)
+
+            # Long assistant reply: >100 chars so events_fn pools it as attachment.
+            # The same message (by object identity -- ModelOutput.message is a
+            # ChatMessageAssistant created once at construction time) will also
+            # appear in MessageAccumulator.result() messages.
+            long_reply = "assistant long reply " * 10  # 210 chars > 100-char threshold
+            model_event = ModelEvent(
+                model="mockllm/model",
+                input=[ChatMessageUser(content="hi")],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput.from_content(
+                    model="mockllm/model", content=long_reply
+                ),
+            )
+            event_dict = to_jsonable_python(model_event, exclude_none=True)
+
+            summary = EvalSampleSummary(
+                id=99,
+                epoch=1,
+                input="hi",
+                target="reply",
+                started_at=datetime.now(timezone.utc).isoformat(),
+                completed_at=datetime.now(timezone.utc).isoformat(),
+            )
+
+            sample_data = SampleData(
+                events=[
+                    EventData(
+                        id=1,
+                        event_id="evt-1-0",
+                        sample_id=str(summary.id),
+                        epoch=summary.epoch,
+                        event=event_dict,
+                    )
+                ],
+                attachments=[],
+            )
+            seg_zip_path = os.path.join(buffer_dir, segment_name(1))
+            with ZipFile(seg_zip_path, "w") as zf:
+                zf.writestr(
+                    segment_file_name(summary.id, summary.epoch),
+                    json.dumps(to_jsonable_python(sample_data, exclude_none=True)),
+                )
+
+            manifest = Manifest(
+                samples=[SampleManifest(summary=summary, segments=[1])],
+                segments=[Segment(id=1, last_event_id=1, last_attachment_id=0)],
+            )
+            with open(os.path.join(buffer_dir, "manifest.json"), "w") as f:
+                f.write(manifest.model_dump_json())
+            with open(os.path.join(buffer_dir, ".keep"), "w") as f:
+                pass
+
+            empty_db_dir = os.path.join(temp_dir, "empty_db_dir")
+            await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=empty_db_dir
+            )
+
+            # Read without resolving attachments so we can inspect the raw content.
+            recovered = read_eval_log(output_path, resolve_attachments=False)
+            assert recovered.samples is not None
+            sample = next(s for s in recovered.samples if s.id == 99 and s.epoch == 1)
+
+            # messages side: the assistant reply must be the original long text,
+            # NOT an attachment:// reference (proves messages_context is separate).
+            assistant_msgs = [
+                m for m in sample.messages if isinstance(m, ChatMessageAssistant)
+            ]
+            assert len(assistant_msgs) >= 1
+            assistant_content = assistant_msgs[-1].content
+            assert isinstance(assistant_content, str), (
+                f"Expected str content in messages, got {type(assistant_content)}"
+            )
+            assert not assistant_content.startswith(ATTACHMENT_PROTOCOL), (
+                "messages walk leaked attachment ref from events walk: "
+                f"content={assistant_content!r}"
+            )
+            assert assistant_content == long_reply
+
+            # events side: the same long content must have become an attachment ref,
+            # proving the events walk DID run with the attachment-creating fn.
+            # The condensed event's output choice message content is the ref.
+            model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+            assert len(model_events) >= 1
+            output_content = model_events[-1].output.choices[0].message.content
+            assert isinstance(output_content, str)
+            assert output_content.startswith(ATTACHMENT_PROTOCOL), (
+                "events walk did not pool long output content as attachment: "
+                f"content={output_content!r}"
+            )

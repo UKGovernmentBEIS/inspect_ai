@@ -373,7 +373,7 @@ def _compute_dict_stat(
         for score in dict_scores:
             key_value = value_to_float(score.value[key])  # type: ignore
             if _is_reducible(key_value):
-                values.append(value_to_float(key_value))
+                values.append(key_value)
 
         if len(values) == 0:
             dict_result[key] = float("nan")
@@ -516,6 +516,11 @@ def _nan_score(scores: list[Score]) -> Score:
         value: the reduced Value
         scores: ths list of scores being reduced
     """
+    # An empty list still routes here via `_first_scored` returning None; there
+    # are no fields to carry over, so return a bare NaN score rather than
+    # indexing `scores[0]`.
+    if not scores:
+        return Score(value=float("nan"))
     return Score(
         value=float("nan"),
         # retain remaining fields only if equal across all Scores
