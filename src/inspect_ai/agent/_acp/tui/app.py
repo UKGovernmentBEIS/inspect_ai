@@ -16,6 +16,7 @@ from typing import Any
 from textual.app import App
 from textual.binding import Binding
 
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai._util.sockets import parse_host_port
 from inspect_ai.agent._acp.discovery import (
     TargetAddress,
@@ -111,7 +112,7 @@ class InspectAcpApp(App[None]):
             # An explicit --server that fails to parse is a CLI-level
             # error; surface to stderr + exit (we're past click's
             # parse phase but still pre-render).
-            print(str(exc), file=sys.stderr, flush=True)
+            print(clean_control_characters(str(exc)), file=sys.stderr, flush=True)
             self.exit(return_code=2)
             return
 
@@ -174,7 +175,7 @@ class InspectAcpApp(App[None]):
             return rows
         except Exception as exc:
             print(
-                f"inspect acp: enumeration failed: {exc}",
+                clean_control_characters(f"inspect acp: enumeration failed: {exc}"),
                 file=sys.stderr,
                 flush=True,
             )

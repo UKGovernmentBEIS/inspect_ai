@@ -9,6 +9,7 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from inspect_ai._display.core.display import TaskDisplayMetric
+from inspect_ai._util.rich import clean_control_characters
 
 
 @dataclass
@@ -226,18 +227,26 @@ class TaskMetrics(Widget):
                     self._metric_value(metric.value), markup=False
                 )
             if grid.is_attached:
-                grid.mount(Static(metric.name, markup=False))
+                grid.mount(Static(clean_control_characters(metric.name), markup=False))
                 grid.mount(self.value_widgets[metric.name])
 
     def _title(self) -> Widget:
         if self.scorer is None:
             return Static("")
         elif self.reducer is None:
-            return Static(self.scorer, markup=False)
+            return Static(clean_control_characters(self.scorer), markup=False)
         else:
             return Horizontal(
-                Static(self.scorer, classes="scorer", markup=False),
-                Static(f"({self.reducer})", classes="reducer", markup=False),
+                Static(
+                    clean_control_characters(self.scorer),
+                    classes="scorer",
+                    markup=False,
+                ),
+                Static(
+                    clean_control_characters(f"({self.reducer})"),
+                    classes="reducer",
+                    markup=False,
+                ),
             )
 
     def _metric_value(self, val: float) -> str:

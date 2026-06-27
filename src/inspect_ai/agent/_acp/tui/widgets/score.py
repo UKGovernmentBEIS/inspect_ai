@@ -37,6 +37,8 @@ from textual.css.query import NoMatches
 from textual.widget import Widget
 from textual.widgets import Static
 
+from inspect_ai._util.rich import clean_control_characters
+
 from ..state import ScoreChip
 from ._collapsible import CollapsibleContent
 from ._formatting import SPINNER_FRAMES, format_duration
@@ -211,11 +213,11 @@ class ScoreChipWidget(Widget):
             f"[{glyph_colour}]{_SCORE_GLYPH}[/] [bold {glyph_colour}]score[/]"
         ]
         if self._chip.scorer is not None:
-            parts.append(f"[dim]·[/] [dim]{escape_markup(self._chip.scorer)}[/]")
+            scorer = escape_markup(clean_control_characters(self._chip.scorer))
+            parts.append(f"[dim]·[/] [dim]{scorer}[/]")
         if self._chip.value:
-            parts.append(
-                f"[dim]·[/] [dim]value:[/] [dim]{escape_markup(self._chip.value)}[/]"
-            )
+            value = escape_markup(clean_control_characters(self._chip.value))
+            parts.append(f"[dim]·[/] [dim]value:[/] [dim]{value}[/]")
         return " ".join(parts)
 
     def _indicator_text(self) -> str:
@@ -238,7 +240,8 @@ class ScoreChipWidget(Widget):
         ]
         scorer_name = self._chip.scorer_name
         if scorer_name:
-            parts.append(f"[dim]·[/] [dim]{escape_markup(scorer_name)}[/]")
+            scorer_name = escape_markup(clean_control_characters(scorer_name))
+            parts.append(f"[dim]·[/] [dim]{scorer_name}[/]")
         elapsed = self._elapsed_str()
         if elapsed:
             parts.append(f"[dim]·[/] [dim]{elapsed}[/]")

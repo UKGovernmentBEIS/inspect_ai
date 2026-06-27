@@ -36,6 +36,11 @@ from textual.css.query import NoMatches
 from textual.widget import Widget
 from textual.widgets import Static
 
+from inspect_ai._util.rich import (
+    clean_control_characters,
+    untrusted_text_from_ansi,
+)
+
 from ..state import EventChip, EventChipKind
 from ._collapsible import CollapsibleContent
 from ._scroll import schedule_scroll_to_end_if_at_bottom
@@ -180,7 +185,11 @@ class EventChipWidget(Widget):
                     # a one-line chip). Error messages are typically
                     # short; if they grow long, the traceback block
                     # below carries the deep-dive content.
-                    yield Static(body, classes="event-body-plain", markup=False)
+                    yield Static(
+                        clean_control_characters(body),
+                        classes="event-body-plain",
+                        markup=False,
+                    )
                 else:
                     yield CollapsibleContent(body, max_lines=_EVENT_BODY_MAX_LINES)
             if has_traceback:
@@ -216,7 +225,7 @@ class EventChipWidget(Widget):
             _, _, rest = summary.partition(" · ")
             rest_segments = rest.split(" · ")
             tail = " ".join(
-                f"[dim]·[/] [dim]{escape_markup(seg)}[/]"
+                f"[dim]·[/] [dim]{escape_markup(clean_control_characters(seg))}[/]"
                 for seg in rest_segments
                 if seg
             )
@@ -391,7 +400,10 @@ class _TracebackBlock(Widget):
         # through cleanly. If the wire only had the plain traceback
         # (no escape codes), ``from_ansi`` still produces a readable
         # ``Text`` — just without colour.
-        yield Static(Text.from_ansi(self._traceback), classes="traceback-body")
+        yield Static(
+            untrusted_text_from_ansi(self._traceback),
+            classes="traceback-body",
+        )
 
     def on_click(self) -> None:
         # Toggle — click expands when collapsed, collapses when
@@ -421,4 +433,4 @@ class _TracebackBlock(Widget):
             body = self.query_one(".traceback-body", Static)
         except NoMatches:
             return
-        body.update(Text.from_ansi(self._traceback))
+        body.update(untrusted_text_from_ansi(self._traceback))

@@ -1,16 +1,19 @@
 import asyncio
 import os
+import re
 import sys
 import traceback
 import unicodedata
+from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, Tuple, Type
 
 import click
 import tenacity
-from rich.console import Console, RenderableType
-from rich.style import Style
-from rich.text import Text
+from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
+from rich.segment import Segment
+from rich.style import Style, StyleType
+from rich.text import Span, Text
 from rich.traceback import Traceback
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
@@ -43,11 +46,78 @@ def lines_display(
     return content
 
 
-# clean control characters sent by untrusted sources (e.g. tool output)
-# which can trigger rich text measurement bugs
 def clean_control_characters(text: str) -> str:
+    """Remove terminal-directed controls while preserving useful whitespace."""
     return "".join(
         c for c in text if c in "\n\t" or unicodedata.category(c) not in ("Cc", "Cf")
+    )
+
+
+@dataclass
+class _ControlCharacterCleanRenderable:
+    renderable: RenderableType
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        for segment in console.render(self.renderable, options):
+            if segment.control:
+                yield segment
+            else:
+                yield Segment(
+                    clean_control_characters(segment.text),
+                    segment.style,
+                )
+
+
+def clean_control_characters_renderable(
+    renderable: RenderableType,
+) -> RenderableType:
+    """Clean text emitted by a nested Rich renderable without removing styles."""
+    return _ControlCharacterCleanRenderable(renderable)
+
+
+def untrusted_text_from_ansi(text: str) -> Text:
+    """Parse visual ANSI styles while discarding controls and hyperlinks."""
+    safe_ansi: list[str] = []
+    offset = 0
+    for match in re.finditer(r"\x1b\[[0-9;:]*m", text):
+        safe_ansi.append(clean_control_characters(text[offset : match.start()]))
+        safe_ansi.append(match.group())
+        offset = match.end()
+    safe_ansi.append(clean_control_characters(text[offset:]))
+
+    parsed = Text.from_ansi("".join(safe_ansi))
+    plain = parsed.plain
+
+    offsets = [0]
+    cleaned: list[str] = []
+    for char in plain:
+        if char in "\n\t" or unicodedata.category(char) not in ("Cc", "Cf"):
+            cleaned.append(char)
+        offsets.append(len(cleaned))
+
+    def safe_style(style: StyleType) -> StyleType:
+        return (
+            style.update_link(None)
+            if isinstance(style, Style) and style.link
+            else style
+        )
+
+    spans = [
+        Span(offsets[span.start], offsets[span.end], safe_style(span.style))
+        for span in parsed.spans
+        if offsets[span.start] < offsets[span.end]
+    ]
+    return Text(
+        "".join(cleaned),
+        style=safe_style(parsed.style),
+        justify=parsed.justify,
+        overflow=parsed.overflow,
+        no_wrap=parsed.no_wrap,
+        end=parsed.end,
+        tab_size=parsed.tab_size,
+        spans=spans,
     )
 
 
@@ -62,7 +132,7 @@ def rich_traceback(
         show_locals=os.environ.get("INSPECT_TRACEBACK_LOCALS", None) == "1",
         width=CONSOLE_DISPLAY_WIDTH,
     )
-    return rich_tb
+    return clean_control_characters_renderable(rich_tb)
 
 
 def truncate_traceback(

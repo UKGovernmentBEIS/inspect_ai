@@ -23,11 +23,14 @@ terminal display.
 
 from __future__ import annotations
 
+from typing import Any
+
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.markdown import CodeBlock, Heading, Markdown
 from rich.syntax import Syntax
 from rich.text import Text
 
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai._util.transcript import transcript_code_theme
 
 _CODE_BG = "#282c34"
@@ -99,6 +102,9 @@ class PlainHeading(Heading):
 
 class StyledMarkdown(Markdown):
     """Markdown variant with custom code + heading renderers."""
+
+    def __init__(self, markup: str, *args: Any, **kwargs: Any) -> None:
+        super().__init__(clean_control_characters(markup), *args, **kwargs)
 
     elements = {
         **Markdown.elements,

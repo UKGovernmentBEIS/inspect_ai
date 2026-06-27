@@ -31,6 +31,8 @@ from textual.css.query import NoMatches
 from textual.widget import Widget
 from textual.widgets import Static
 
+from inspect_ai._util.rich import clean_control_characters
+
 from ..state import MessageGroup, Segment
 from ._collapsible import CollapsibleContent
 from ._formatting import SPINNER_FRAMES, format_duration
@@ -240,16 +242,18 @@ class MessageWidget(Widget):
             if self._group.is_queued:
                 base = f"{base} [dim]· queued[/dim]"
             elif self._group.user_source:
-                base = f"{base} [dim]· {self._group.user_source}[/dim]"
+                source = clean_control_characters(self._group.user_source)
+                base = f"{base} [dim]· {source}[/dim]"
             return f"[{fg}]•[/] {base}"
         # Assistant: prefer the group's own model attribution; fall back
         # to the session's current model when the chunk had no
         # `_meta["inspect.model"]` (e.g. an old server).
-        model = self._group.model or self._current_model or "—"
+        model = clean_control_characters(
+            self._group.model or self._current_model or "—"
+        )
         if self._group.fallback_model:
-            model = (
-                f"{model} [italic](fallback → {self._group.fallback_model})[/italic]"
-            )
+            fallback_model = clean_control_characters(self._group.fallback_model)
+            model = f"{model} [italic](fallback → {fallback_model})[/italic]"
         base = f"[bold {fg}]assistant[/] [dim]· {model}[/dim]"
         # Glyph prefix on every assistant chip — animated braille
         # spinner while the model event is in flight, then a small

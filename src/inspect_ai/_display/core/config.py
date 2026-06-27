@@ -2,6 +2,7 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from inspect_ai._util.registry import is_model_dict, is_registry_dict
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai._util.text import truncate_text
 from inspect_ai.log._log import eval_config_defaults
 from inspect_ai.model._cache import CachePolicy
@@ -66,7 +67,7 @@ def task_config_str(profile: TaskProfile, generate_config: bool = True) -> str:
                 value = value.replace("[", "\\[")
             config_print.append(f"{name}: {value}")
     values = ", ".join(config_print)
-    return values
+    return clean_control_characters(values)
 
 
 def task_config(

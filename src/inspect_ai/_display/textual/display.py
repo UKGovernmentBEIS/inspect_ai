@@ -4,6 +4,8 @@ from typing import AsyncIterator, Callable, Coroutine, Iterator
 import rich
 from typing_extensions import override
 
+from inspect_ai._util.rich import clean_control_characters
+
 from ..core.display import (
     TR,
     Display,
@@ -21,7 +23,11 @@ from .app import TaskScreenApp
 class TextualDisplay(Display):
     @override
     def print(self, message: str) -> None:
-        rich.get_console().print(message, markup=False, highlight=False)
+        rich.get_console().print(
+            clean_control_characters(message),
+            markup=False,
+            highlight=False,
+        )
 
     @override
     @contextlib.contextmanager

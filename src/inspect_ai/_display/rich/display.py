@@ -14,6 +14,7 @@ from typing_extensions import override
 from inspect_ai._util._async import configured_async_backend, run_coroutine
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.platform import running_in_notebook
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai.event._input import InputEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.util._display import display_type
@@ -68,7 +69,11 @@ class RichDisplay(Display):
 
     @override
     def print(self, message: str) -> None:
-        rich.get_console().print(message, markup=False, highlight=False)
+        rich.get_console().print(
+            clean_control_characters(message),
+            markup=False,
+            highlight=False,
+        )
 
     @override
     @contextlib.contextmanager

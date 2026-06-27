@@ -7,7 +7,7 @@ from rich.table import Table
 from rich.text import Text
 
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
-from inspect_ai._util.rich import rich_traceback
+from inspect_ai._util.rich import clean_control_characters, rich_traceback
 from inspect_ai.log import EvalStats
 from inspect_ai.log._log import EvalScore
 from inspect_ai.model._model_output import ModelUsage
@@ -153,9 +153,12 @@ def task_scores(scores: list[EvalScore], pad_edge: bool = False) -> list[Table]:
             table.add_column()
 
             # Add score name and metrics
-            table.add_row(f"[bold]{score.name}[/bold]")
+            table.add_row(f"[bold]{clean_control_characters(score.name)}[/bold]")
             for name, metric in score.metrics.items():
-                table.add_row(f"{name}", f"{metric.value:.3f}")
+                table.add_row(
+                    clean_control_characters(name),
+                    f"{metric.value:.3f}",
+                )
 
             score_tables.append(table)
 
@@ -259,7 +262,7 @@ def model_usage_summary(model: str, usage: ModelUsage) -> list[RenderableType]:
         reasoning_tokens = ""
 
     return [
-        Text(model, style="bold"),
+        Text(clean_control_characters(model), style="bold"),
         f"  {usage.total_tokens:,} tokens [{input_tokens}, [bold]O: [/bold]{usage.output_tokens:,}{reasoning_tokens}]",
     ]
 
@@ -269,7 +272,7 @@ def task_can_retry(profile: TaskProfile) -> bool:
 
 
 def task_interrupted(profile: TaskProfile, samples_completed: int) -> RenderableType:
-    log_location = profile.log_location
+    log_location = clean_control_characters(profile.log_location)
     theme = rich_theme()
     message = f"[bold][{theme.error}]Task interrupted ("
     if samples_completed > 0:
@@ -292,7 +295,7 @@ def task_interrupted(profile: TaskProfile, samples_completed: int) -> Renderable
             f"{message}no samples completed before interruption)[/{theme.error}][/bold]"
         )
 
-    return message
+    return clean_control_characters(message)
 
 
 def task_metric(metrics: list[TaskDisplayMetric], width: int | None = None) -> str:
@@ -316,7 +319,7 @@ def task_metric(metrics: list[TaskDisplayMetric], width: int | None = None) -> s
 
     if width is not None:
         metric_str = metric_str.rjust(width)
-    return metric_str
+    return clean_control_characters(metric_str)
 
 
 def task_metrics(scores: list[EvalScore]) -> str:
@@ -347,6 +350,8 @@ def task_metrics(scores: list[EvalScore]) -> str:
             output[key] = value
 
     if output:
-        return f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
+        return clean_control_characters(
+            f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
+        )
     else:
         return ""

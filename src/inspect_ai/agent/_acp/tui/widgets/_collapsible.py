@@ -17,6 +17,7 @@ from textual.css.query import NoMatches
 from textual.widget import Widget
 from textual.widgets import Static
 
+from inspect_ai._util.rich import clean_control_characters
 from inspect_ai._util.text import truncate_lines
 
 from ._scroll import schedule_scroll_to_end_if_at_bottom
@@ -54,7 +55,7 @@ class CollapsibleContent(Widget):
 
     def __init__(self, full_text: str, *, max_lines: int) -> None:
         super().__init__()
-        self._full_text = full_text
+        self._full_text = clean_control_characters(full_text)
         self._max_lines = max_lines
         self._expanded = False
 
@@ -98,7 +99,7 @@ class CollapsibleContent(Widget):
         the body text + truncation note avoids a full re-mount that
         would flash the surrounding card.
         """
-        self._full_text = text
+        self._full_text = clean_control_characters(text)
         try:
             body_static = self.query_one("#cc-body", Static)
         except NoMatches:
