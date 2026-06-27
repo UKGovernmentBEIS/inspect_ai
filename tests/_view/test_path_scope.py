@@ -150,23 +150,17 @@ def test_signed_http_file_scopes_require_the_exact_query(scheme: str) -> None:
 
 
 def test_signed_query_values_use_canonical_rfc3986_encoding() -> None:
-    selected = (
-        "https://example.test/run.eval?credential=team%2Fmember&label=hello%20world"
-    )
+    selected = "s3://bucket/run.eval?credential=team%2Fmember&label=hello%20world"
     scope = PathScope.parse("file", selected)
 
     assert (
-        scope.resolve(
-            "https://example.test/run.eval?credential=team/member&label=hello world"
-        )
+        scope.resolve("s3://bucket/run.eval?credential=team/member&label=hello world")
         == selected
     )
 
 
-def test_scoped_authorization_canonicalizes_signed_query_values() -> None:
-    selected = (
-        "https://example.test/run.eval?credential=team%2Fmember&label=hello%20world"
-    )
+def test_scoped_authorization_preserves_opaque_signed_url() -> None:
+    selected = "https://example.test/run.eval?token=a%26b&credential=team%2Fmember"
     request = _request(
         (VIEW_SCOPE_KIND_HEADER, "file"),
         (VIEW_SCOPE_HEADER, selected),
@@ -177,12 +171,27 @@ def test_scoped_authorization_canonicalizes_signed_query_values() -> None:
         asyncio.run(
             policy.resolve_read(
                 request,
-                "https://example.test/run.eval?"
-                "credential=team/member&label=hello world",
+                selected,
             )
         )
         == selected
     )
+    assert (
+        asyncio.run(
+            policy.resolve_read(
+                request,
+                "https://example.test/run.eval?token=a&b&credential=team%2Fmember",
+            )
+        )
+        is None
+    )
+
+
+def test_http_file_scope_preserves_encoded_path_delimiters() -> None:
+    selected = "https://example.test/logs/a%3Fb%23c.eval"
+    scope = PathScope.parse("file", selected)
+
+    assert scope.resolve(selected) == selected
 
 
 def test_remote_directory_scopes_reject_queries() -> None:
