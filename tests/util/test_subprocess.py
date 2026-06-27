@@ -121,7 +121,9 @@ def _process_found(pattern: str) -> bool:
 
 
 @pytest.mark.anyio
-async def test_subprocess_timeout_with_lost_child_watcher(monkeypatch):
+async def test_subprocess_timeout_with_lost_child_watcher(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Regression: timeout must still fire when process.wait() never resolves.
 
     Under heavy subprocess churn, asyncio's child watcher can miss a process
