@@ -28,6 +28,7 @@ def view(
     authorization: str | None = None,
     log_level: str | None = None,
     fs_options: dict[str, Any] = {},
+    scoped_authorization: bool = False,
 ) -> None:
     """Run the Inspect View server.
 
@@ -42,6 +43,8 @@ def view(
         fs_options: Additional arguments to pass through to the filesystem provider
             (e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a
             public S3 bucket with no credentials.
+        scoped_authorization: Require a per-request file or directory scope on
+            authorization-protected path operations.
     """
     init_dotenv()
     init_logger(log_level)
@@ -49,6 +52,9 @@ def view(
     # initialize the log_dir
     if not log_dir:
         log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
+
+    if scoped_authorization and not authorization:
+        raise ValueError("Scoped authorization requires request authorization.")
 
     # acquire the requested port
     view_acquire_port(view_data_dir(), port)
@@ -62,6 +68,7 @@ def view(
         port=port,
         authorization=authorization,
         fs_options=fs_options,
+        scoped_authorization=scoped_authorization,
     )
 
 

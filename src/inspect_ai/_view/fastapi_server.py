@@ -1,15 +1,16 @@
+import base64
+import binascii
 import json
 import logging
 import os
-import urllib.parse
 from io import BytesIO
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol, cast
 
 import anyio
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
@@ -51,6 +52,13 @@ from inspect_ai._view.common import (
     normalize_uri,
     parse_log_token,
     stream_log_bytes,
+)
+from inspect_ai._view.path_scope import (
+    VIEW_SCOPE_HEADER,
+    VIEW_SCOPE_KIND_HEADER,
+    PathScope,
+    PathScopeKind,
+    canonical_path_location,
 )
 from inspect_ai._view.scout_routes import get_scout_search_router
 from inspect_ai._view.user_info import UserInfo, user_info
@@ -124,25 +132,42 @@ def view_server_app(
             return await mapping_policy.unmap(request, file)
         return file
 
-    async def _validate_read(request: Request, file: str) -> None:
-        if access_policy is not None:
-            if not await access_policy.can_read(request, file):
-                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+    async def _resolve_access(
+        request: Request,
+        file: str,
+        operation: Literal["read", "delete", "write", "list"],
+    ) -> str:
+        normalized = normalize_uri(file)
+        canonical = canonical_path_location(file) or normalized
+        if access_policy is None:
+            return normalized if mapping_policy is not None else canonical
 
-    async def _validate_delete(request: Request, file: str) -> None:
-        if access_policy is not None:
-            if not await access_policy.can_delete(request, file):
+        # Resolving policies return the canonical location that was authorized.
+        # Explicit mapping policies translate from the caller-facing namespace
+        # and therefore receive the normalized external location.
+        resolver = getattr(access_policy, f"resolve_{operation}", None)
+        if resolver is not None:
+            resolved: str | None = await resolver(request, file)
+            if resolved is None:
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+            return normalized if mapping_policy is not None else resolved
 
-    async def _validate_write(request: Request, file: str) -> None:
-        if access_policy is not None:
-            if not await access_policy.can_write(request, file):
-                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        validator = getattr(access_policy, f"can_{operation}")
+        if not await validator(request, normalized):
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+        return normalized if mapping_policy is not None else canonical
 
-    async def _validate_list(request: Request, file: str) -> None:
-        if access_policy is not None:
-            if not await access_policy.can_list(request, file):
-                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+    async def _validate_read(request: Request, file: str) -> str:
+        return await _resolve_access(request, file, "read")
+
+    async def _validate_delete(request: Request, file: str) -> str:
+        return await _resolve_access(request, file, "delete")
+
+    async def _validate_write(request: Request, file: str) -> str:
+        return await _resolve_access(request, file, "write")
+
+    async def _validate_list(request: Request, file: str) -> str:
+        return await _resolve_access(request, file, "list")
 
     def _validate_mutating_request(request: Request) -> None:
         if request.headers.get(VIEW_REQUEST_HEADER) != VIEW_REQUEST_HEADER_VALUE:
@@ -158,22 +183,19 @@ def view_server_app(
         log: str,
         header_only: str | None = Query(None, alias="header-only"),
     ) -> Response:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _validate_read(request, log)
         body, etag = await get_log_file(await _map_file(request, file), header_only)
         headers = {"ETag": etag} if etag is not None else {}
         return Response(content=body, media_type="application/json", headers=headers)
 
     @app.get("/log-size/{log:path}")
     async def api_log_size(request: Request, log: str) -> int:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _validate_read(request, log)
         return await get_log_size(await _map_file(request, file))
 
     @app.get("/log-info/{log:path}", response_model_exclude_none=True)
     async def api_log_info(request: Request, log: str) -> LogInfo:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _validate_read(request, log)
         return await get_log_info(
             await _map_file(request, file),
             generate_direct_url=generate_direct_urls,
@@ -182,16 +204,14 @@ def view_server_app(
     @app.delete("/log-delete/{log:path}")
     async def api_log_delete(request: Request, log: str) -> bool:
         _validate_mutating_request(request)
-        file = normalize_uri(log)
-        await _validate_delete(request, file)
+        file = await _validate_delete(request, log)
         await delete_log(await _map_file(request, file))
         return True
 
     @app.post("/log-edit/{log:path}", response_model=EvalLog)
     async def api_log_edit(request: Request, log: str, update: LogUpdate) -> Response:
         _validate_mutating_request(request)
-        file = normalize_uri(log)
-        await _validate_write(request, file)
+        file = await _validate_write(request, log)
         if_match = request.headers.get("If-Match")
         try:
             contents, new_etag = await apply_log_edits(
@@ -217,8 +237,7 @@ def view_server_app(
         start: int = Query(...),
         end: int = Query(...),
     ) -> Response:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _validate_read(request, log)
         mapped_file = await _map_file(request, file)
 
         # Get actual file size to clamp the requested range
@@ -259,8 +278,7 @@ def view_server_app(
         request: Request,
         log: str,
     ) -> Response:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
+        file = await _validate_read(request, log)
 
         mapped_file = await _map_file(request, file)
 
@@ -295,7 +313,7 @@ def view_server_app(
     ) -> LogDirResponse:
         if log_dir is None:
             log_dir = default_dir
-        await _validate_list(request, log_dir)
+        log_dir = await _validate_list(request, log_dir)
         return get_log_dir(log_dir)
 
     @app.get("/log-files", response_class=InspectJsonResponse)
@@ -305,7 +323,7 @@ def view_server_app(
     ) -> LogFilesResponse:
         if log_dir is None:
             log_dir = default_dir
-        await _validate_list(request, log_dir)
+        log_dir = await _validate_list(request, log_dir)
 
         client_etag = request.headers.get("If-None-Match")
         mtime = 0.0
@@ -332,7 +350,7 @@ def view_server_app(
     ) -> LogListingResponse | Response:
         if log_dir is None:
             log_dir = default_dir
-        await _validate_list(request, log_dir)
+        log_dir = await _validate_list(request, log_dir)
         listing = await get_logs(
             await _map_file(request, log_dir),
             recursive=recursive,
@@ -365,7 +383,7 @@ def view_server_app(
             eval_set_dir = base_dir
 
         # validate that the directory can be listed
-        await _validate_list(request, eval_set_dir)
+        eval_set_dir = await _validate_list(request, eval_set_dir)
 
         # return the eval set info for this directory
         return read_eval_set_info(
@@ -388,7 +406,7 @@ def view_server_app(
             flow_dir = base_dir
 
         # validate that the directory can be listed
-        await _validate_list(request, flow_dir)
+        flow_dir = await _validate_list(request, flow_dir)
 
         mapped_dir = await _map_file(request, flow_dir)
         fs = filesystem(mapped_dir)
@@ -410,12 +428,12 @@ def view_server_app(
     async def api_log_headers(
         request: Request, file: list[str] = Query([])
     ) -> list[EvalLog]:
-        files = [normalize_uri(f) for f in file]
+        files = list(file)
         mapped_files: list[str] = [""] * len(files)
 
         async def _validate_and_map(idx: int, f: str) -> None:
-            await _validate_read(request, f)
-            mapped_files[idx] = await _map_file(request, f)
+            resolved = await _validate_read(request, f)
+            mapped_files[idx] = await _map_file(request, resolved)
 
         async with anyio.create_task_group() as tg:
             for i, f in enumerate(files):
@@ -443,8 +461,7 @@ def view_server_app(
     async def api_pending_samples(
         request: Request, response: Response, log: str = Query(...)
     ) -> Samples | Response:
-        file = urllib.parse.unquote(log)
-        await _validate_read(request, file)
+        file = await _validate_read(request, log)
 
         client_etag = request.headers.get("If-None-Match")
 
@@ -463,8 +480,7 @@ def view_server_app(
         request: Request, log_file: str, message: str
     ) -> Response:
         _validate_mutating_request(request)
-        file = urllib.parse.unquote(log_file)
-        await _validate_read(request, file)
+        file = await _validate_read(request, log_file)
 
         logger = logging.getLogger(__name__)
         logger.warning(f"[CLIENT MESSAGE] ({file}): {message}")
@@ -486,8 +502,7 @@ def view_server_app(
         after_message_pool_id: int | None = Query(None, alias="after-message-pool-id"),
         after_call_pool_id: int | None = Query(None, alias="after-call-pool-id"),
     ) -> SampleData | Response:
-        file = urllib.parse.unquote(log)
-        await _validate_read(request, file)
+        file = await _validate_read(request, log)
 
         buffer = sample_buffer(await _map_file(request, file))
         sample_data = buffer.get_sample_data(
@@ -522,8 +537,7 @@ def view_server_app(
         max_segments: int | None = Query(None, alias="max-segments"),
         tail: bool = Query(False),
     ) -> PendingSampleUrls | Response:
-        file = urllib.parse.unquote(log)
-        await _validate_read(request, file)
+        file = await _validate_read(request, log)
 
         mapped = await _map_file(request, file)
         body = await build_pending_sample_urls(
@@ -547,7 +561,28 @@ def view_server_app(
 
     scout_router = get_scout_search_router()
     if scout_router is not None:
-        app.include_router(scout_router, prefix="/scout")
+
+        async def _validate_scout_route_scope(request: Request) -> None:
+            encoded_dir = request.path_params.get("dir")
+            if encoded_dir is None:
+                return
+            try:
+                padding = "=" * (-len(encoded_dir) % 4)
+                transcript_dir = base64.urlsafe_b64decode(
+                    encoded_dir + padding
+                ).decode()
+            except (binascii.Error, UnicodeDecodeError, ValueError):
+                raise HTTPException(status_code=400, detail="Invalid transcript path")
+            transcript_dir = await _validate_read(request, transcript_dir)
+            request.path_params["dir"] = (
+                base64.urlsafe_b64encode(transcript_dir.encode()).decode().rstrip("=")
+            )
+
+        app.include_router(
+            scout_router,
+            prefix="/scout",
+            dependencies=[Depends(_validate_scout_route_scope)],
+        )
 
     return app
 
@@ -603,10 +638,25 @@ class _InspectStaticFiles(StaticFiles):
 class OnlyDirAccessPolicy(AccessPolicy):
     def __init__(self, dir: str) -> None:
         super().__init__()
-        self.dir = dir
+        self._scope = PathScope.parse("directory", dir)
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.dir) and ".." not in file
+        return self._scope.allows(file)
+
+    def _resolve_log_dir(self, file: str) -> str | None:
+        return self._scope.resolve(file)
+
+    async def resolve_read(self, request: Request, file: str) -> str | None:
+        return self._resolve_log_dir(file)
+
+    async def resolve_delete(self, request: Request, file: str) -> str | None:
+        return self._resolve_log_dir(file)
+
+    async def resolve_list(self, request: Request, dir: str) -> str | None:
+        return self._resolve_log_dir(dir)
+
+    async def resolve_write(self, request: Request, file: str) -> str | None:
+        return self._resolve_log_dir(file)
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)
@@ -621,6 +671,56 @@ class OnlyDirAccessPolicy(AccessPolicy):
         return self._validate_log_dir(file)
 
 
+class ScopedAuthorizationAccessPolicy(AccessPolicy):
+    def _request_scope(self, request: Request) -> PathScope | None:
+        scope_values = request.headers.getlist(VIEW_SCOPE_HEADER)
+        kind_values = request.headers.getlist(VIEW_SCOPE_KIND_HEADER)
+        if len(scope_values) != 1 or len(kind_values) != 1:
+            return None
+        kind = kind_values[0]
+        if kind not in ("directory", "file"):
+            return None
+        try:
+            return PathScope.parse_canonical(
+                kind=cast(PathScopeKind, kind),
+                location=scope_values[0],
+            )
+        except ValueError:
+            return None
+
+    async def can_read(self, request: Request, file: str) -> bool:
+        return await self.resolve_read(request, file) is not None
+
+    async def resolve_read(self, request: Request, file: str) -> str | None:
+        scope = self._request_scope(request)
+        return scope.resolve(file) if scope is not None else None
+
+    async def can_delete(self, request: Request, file: str) -> bool:
+        return await self.resolve_delete(request, file) is not None
+
+    async def resolve_delete(self, request: Request, file: str) -> str | None:
+        scope = self._request_scope(request)
+        return scope.resolve(file) if scope is not None else None
+
+    async def can_list(self, request: Request, dir: str) -> bool:
+        return await self.resolve_list(request, dir) is not None
+
+    async def resolve_list(self, request: Request, dir: str) -> str | None:
+        scope = self._request_scope(request)
+        return (
+            scope.resolve(dir)
+            if scope is not None and scope.kind == "directory"
+            else None
+        )
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        return await self.resolve_write(request, file) is not None
+
+    async def resolve_write(self, request: Request, file: str) -> str | None:
+        scope = self._request_scope(request)
+        return scope.resolve(file) if scope is not None else None
+
+
 def view_server(
     log_dir: str,
     recursive: bool = True,
@@ -629,7 +729,11 @@ def view_server(
     authorization: str | None = None,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
+    scoped_authorization: bool = False,
 ) -> None:
+    if scoped_authorization and not authorization:
+        raise ValueError("Scoped authorization requires request authorization.")
+
     # get filesystem and resolve log_dir to full path
     fs = filesystem(log_dir)
     if not fs.exists(log_dir):
@@ -637,9 +741,16 @@ def view_server(
     log_dir = fs.info(log_dir).name
 
     # setup server
+    if scoped_authorization:
+        access_policy: AccessPolicy | None = ScopedAuthorizationAccessPolicy()
+    elif authorization:
+        access_policy = None
+    else:
+        access_policy = OnlyDirAccessPolicy(log_dir)
+
     api = view_server_app(
         mapping_policy=None,
-        access_policy=OnlyDirAccessPolicy(log_dir) if not authorization else None,
+        access_policy=access_policy,
         default_dir=log_dir,
         recursive=recursive,
         fs_options=fs_options,
