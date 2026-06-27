@@ -189,6 +189,7 @@
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - OpenRouter: Always replay `reasoning_content` in addition to `reasoning_details` for Deepseek v4.
 - Scoring: Set `Score.answer` on model_graded parse failure.
+- Scoring: `model_graded_qa` / `model_graded_fact` now mark a sample unscored (instead of `INCORRECT`) when the judge's output does not match the grade regex, tagging `unscored_reason="grade_parse_failure"` so judge-parse failures leave the rate and stay visible rather than inflating the `INCORRECT` count.
 - Task Display: Add column to indicate the agent/solver for each task.
 - Transcript: Various improvements to transcript event subscriber delivery.
 - Transcript: Complete samples from buffer history database rather than in-memory list.
