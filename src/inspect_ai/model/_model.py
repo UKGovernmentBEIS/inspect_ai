@@ -1680,6 +1680,17 @@ or return ``None`` to allow default processing to continue.
 """
 
 
+ModelResolver: TypeAlias = Callable[[str], "Model | str | None"]
+"""Dynamic per-request model resolver for the agent bridge.
+
+Receives the model name a client requested and returns the ``Model`` (or model
+spec string) to use instead, or ``None`` to defer to the bridge's normal
+resolution (aliases / fallback / ``get_model``). Lets a bridge express a routing
+*policy* (e.g. route every request to the model under test) without enumerating
+every possible model name as an alias.
+"""
+
+
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")

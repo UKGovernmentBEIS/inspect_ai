@@ -98,7 +98,12 @@ async def inspect_anthropic_api_request_impl(
 ) -> Message | BetaMessage:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
+    model = resolve_inspect_model(
+        bridge_model_name,
+        bridge.model_aliases,
+        bridge.model,
+        model_resolver=bridge.model_resolver,
+    )
 
     # tools
     anthropic_tools: list[ToolParamDef] | None = json_data.get("tools", None)

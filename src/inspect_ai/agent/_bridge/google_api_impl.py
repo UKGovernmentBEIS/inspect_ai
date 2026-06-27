@@ -67,7 +67,12 @@ async def inspect_google_api_request_impl(
 ) -> dict[str, Any]:
     # resolve model
     bridge_model_name = str(json_data.get("model", "inspect"))
-    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
+    model = resolve_inspect_model(
+        bridge_model_name,
+        bridge.model_aliases,
+        bridge.model,
+        model_resolver=bridge.model_resolver,
+    )
 
     # extract request components
     contents: list[dict[str, Any]] = json_data.get("contents", [])

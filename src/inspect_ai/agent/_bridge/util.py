@@ -15,6 +15,7 @@ from inspect_ai.model._model import (
     GenerateInput,
     Model,
     ModelGenerateFilter,
+    ModelResolver,
     active_model,
     get_model,
     model_roles,
@@ -330,9 +331,18 @@ def resolve_inspect_model(
     model_name: str,
     model_aliases: dict[str, str | Model] | None = None,
     fallback_model: str | None = None,
+    *,
+    model_resolver: ModelResolver | None = None,
 ) -> Model:
     if model_aliases and model_name in model_aliases:
         return get_model(model_aliases[model_name])
+
+    # Dynamic routing policy: checked after explicit aliases, before the static
+    # fallback. Returning None defers to the fallback / normal resolution below.
+    if model_resolver is not None:
+        resolved = model_resolver(model_name)
+        if resolved is not None:
+            return resolved if isinstance(resolved, Model) else get_model(resolved)
 
     if fallback_model is not None:
         if model_name != "inspect" or not fallback_model.startswith("inspect/"):
