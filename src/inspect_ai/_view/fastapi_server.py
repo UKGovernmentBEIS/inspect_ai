@@ -657,7 +657,7 @@ class ScopedAuthorizationAccessPolicy(AccessPolicy):
         if kind not in ("directory", "file"):
             return None
         try:
-            return PathScope.parse(
+            return PathScope.parse_canonical(
                 kind=cast(PathScopeKind, kind),
                 location=scope_values[0],
             )

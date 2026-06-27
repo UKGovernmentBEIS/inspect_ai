@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import anyio
@@ -16,6 +16,7 @@ from inspect_ai._view.path_scope import (
     VIEW_SCOPE_HEADER,
     VIEW_SCOPE_KIND_HEADER,
     PathScope,
+    _local_path_from_file_uri,
 )
 
 
@@ -65,6 +66,28 @@ def test_local_directory_scope_resolves_symlinks(tmp_path: Path) -> None:
     assert not scope.allows(str(nested_escape / "secret.eval"))
 
 
+def test_local_directory_scope_retains_selected_symlink_target(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    selected = tmp_path / "selected"
+    first.mkdir()
+    second.mkdir()
+    (first / "allowed.eval").write_text("allowed", encoding="utf-8")
+    (second / "secret.eval").write_text("secret", encoding="utf-8")
+    try:
+        selected.symlink_to(first, target_is_directory=True)
+    except OSError:
+        pytest.skip("Creating directory symlinks is not supported")
+
+    scope = PathScope.parse("directory", str(selected))
+    selected.unlink()
+    selected.symlink_to(second, target_is_directory=True)
+
+    assert not scope.allows(str(selected / "secret.eval"))
+
+
 def test_local_file_scope_is_exact(tmp_path: Path) -> None:
     selected = tmp_path / "selected.eval"
     sibling = tmp_path / "sibling.eval"
@@ -105,6 +128,36 @@ def test_http_scopes_are_exact_file_only(scheme: str) -> None:
     assert not scope.allows(f"{selected}?token=value")
 
 
+@pytest.mark.parametrize("scheme", ["http", "https"])
+def test_signed_http_file_scopes_require_the_exact_query(scheme: str) -> None:
+    selected = f"{scheme}://example.test/logs/run.eval?expires=60&signature=selected"
+    scope = PathScope.parse("file", selected)
+
+    assert scope.allows(selected)
+    assert not scope.allows(
+        f"{scheme}://example.test/logs/run.eval?expires=60&signature=other"
+    )
+    assert not scope.allows(f"{scheme}://example.test/logs/run.eval")
+
+
+def test_remote_directory_scopes_reject_queries() -> None:
+    with pytest.raises(ValueError, match="cannot contain a query"):
+        PathScope.parse("directory", "s3://bucket/logs?version=selected")
+
+    scope = PathScope.parse("directory", "s3://bucket/logs")
+    assert not scope.allows("s3://bucket/logs/run.eval?version=selected")
+
+
+def test_file_uri_parsing_supports_windows_unc_paths() -> None:
+    assert _local_path_from_file_uri(
+        "file://server/share/logs/run.eval", windows=True
+    ) == str(PureWindowsPath("//server/share/logs/run.eval"))
+    assert (
+        _local_path_from_file_uri("file://server/share/logs/run.eval", windows=False)
+        is None
+    )
+
+
 def test_scoped_authorization_directory_policy() -> None:
     policy = fastapi_server.ScopedAuthorizationAccessPolicy()
     request = _request(
@@ -129,6 +182,46 @@ def test_scoped_authorization_file_policy() -> None:
     assert asyncio.run(policy.can_write(request, "https://example.test/run.eval"))
     assert not asyncio.run(policy.can_read(request, "https://example.test/other.eval"))
     assert not asyncio.run(policy.can_list(request, "https://example.test"))
+
+
+def test_scoped_authorization_uses_a_canonical_local_scope(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    selected = tmp_path / "selected"
+    first.mkdir()
+    second.mkdir()
+    (second / "secret.eval").write_text("secret", encoding="utf-8")
+    try:
+        selected.symlink_to(first, target_is_directory=True)
+    except OSError:
+        pytest.skip("Creating directory symlinks is not supported")
+
+    request = _request(
+        (VIEW_SCOPE_KIND_HEADER, "directory"),
+        (VIEW_SCOPE_HEADER, first.resolve().as_uri()),
+    )
+    selected.unlink()
+    selected.symlink_to(second, target_is_directory=True)
+
+    policy = fastapi_server.ScopedAuthorizationAccessPolicy()
+    assert not asyncio.run(policy.can_read(request, str(selected / "secret.eval")))
+
+
+def test_canonical_local_scope_rejects_relative_and_symlink_paths(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "target"
+    selected = tmp_path / "selected"
+    target.mkdir()
+    try:
+        selected.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("Creating directory symlinks is not supported")
+
+    with pytest.raises(ValueError, match="Invalid viewer path scope"):
+        PathScope.parse_canonical("directory", "relative/logs")
+    with pytest.raises(ValueError, match="Invalid viewer path scope"):
+        PathScope.parse_canonical("directory", str(selected))
 
 
 @pytest.mark.parametrize(
