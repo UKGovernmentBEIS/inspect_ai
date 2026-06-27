@@ -129,6 +129,7 @@ def reconstruct_eval_sample(
         attachments=attachments,
         model_usage=summary.model_usage,
         role_usage=summary.role_usage,
+        model_fallbacks=summary.model_fallbacks,
         started_at=summary.started_at,
         completed_at=summary.completed_at,
         total_time=summary.total_time,

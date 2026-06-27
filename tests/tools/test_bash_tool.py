@@ -9,6 +9,8 @@ from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import bash
+from inspect_ai.tool._tool_def import tool_registry_info
+from inspect_ai.tool._tool_info import parse_tool_info
 
 
 @skip_if_no_docker
@@ -137,6 +139,59 @@ def test_bash_chmodless_script() -> None:
     tool_response = get_tool_response(sample.messages, tool_call)
     assert tool_response is not None
     assert "Permission denied" in str(tool_response.content)
+
+
+def test_bash_default_description_unchanged() -> None:
+    """The opt-in background flag must not alter the default tool."""
+    info = parse_tool_info(bash())
+    assert info.description == "Use this function to execute bash commands."
+
+    # the model-facing name comes from the registry, not the raw function name
+    name, _, parallel, viewer, _, _ = tool_registry_info(bash())
+    assert name == "bash"
+    assert parallel is True
+    assert viewer is not None
+
+
+def test_bash_background_guidance() -> None:
+    info = parse_tool_info(bash(background=True))
+    assert info.name == "bash"
+    description = info.description
+    # the background pattern is present
+    assert "nohup" in description
+    assert 'echo "PID $!"' in description
+    assert "ps -p" in description
+    assert "tail -n 50" in description
+    # command parameter description is preserved through the ToolDef wrap
+    assert (
+        info.parameters.properties["command"].description
+        == "The bash command to execute."
+    )
+
+    # viewer and parallel survive the ToolDef wrap
+    name, _, parallel, viewer, _, _ = tool_registry_info(bash(background=True))
+    assert name == "bash"
+    assert parallel is True
+    assert viewer is not None
+
+
+def test_bash_background_timeout_templated() -> None:
+    description = parse_tool_info(bash(background=True, timeout=120)).description
+    assert "longer than 120 seconds" in description
+    assert "longer than 120s is itself terminated" in description
+
+
+def test_bash_background_no_timeout_omits_deadline() -> None:
+    description = parse_tool_info(bash(background=True)).description
+    # with no configured timeout there is no kill deadline to warn about
+    assert "terminates any command" not in description
+    assert "sleep" not in description.lower()
+
+
+def test_bash_background_no_eval_cueing() -> None:
+    """Model-facing guidance must not reference the sandbox / evaluation."""
+    for tool in (bash(background=True), bash(background=True, timeout=60)):
+        assert "sandbox" not in parse_tool_info(tool).description.lower()
 
 
 @skip_if_no_docker

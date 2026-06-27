@@ -23,16 +23,22 @@ from __future__ import annotations
 import contextlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Callable, Protocol, TypeVar
+from typing import Callable, Literal, Protocol, TypeVar
 
 T = TypeVar("T")
 
 
 @dataclass
 class ResumeCheckpoint:
-    """Per-sample resume info: where the on-disk checkpoint lives."""
+    """Per-sample resume info: where the on-disk checkpoint lives.
+
+    ``attempt`` distinguishes mid-agent resume from scoring-phase
+    resume; the sample source reads the latest parseable checkpoint
+    file to decide which.
+    """
 
     sample_checkpoints_dir: str
+    attempt: Literal["initial", "resume", "resume_for_scoring"]
 
 
 class Checkpointer(Protocol):
@@ -44,12 +50,18 @@ class Checkpointer(Protocol):
     """
 
     @property
-    def is_resuming(self) -> bool:
-        """True iff this sample is being resumed from a prior checkpoint.
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
+        """Why this session is running.
 
-        Agents can branch on this to skip one-time setup that was
-        already performed on the original run, or to log/handle resume
-        specially. Stable across the lifetime of the session.
+        Stable across the lifetime of the session. Agents typically
+        branch as follows:
+
+        - ``"initial"`` — fresh start; perform one-time setup.
+        - ``"resume"`` — prior agent loop crashed; framework state has
+          been rehydrated, agent continues from where it left off.
+        - ``"resume_for_scoring"`` — prior agent loop finished cleanly
+          but scoring crashed; agent should restore tracked state and
+          return immediately so scoring can re-run.
         """
         ...
 
@@ -134,6 +146,29 @@ class Checkpointer(Protocol):
         ...
 
 
+class CheckpointerSetup(Protocol):
+    """Per-sample setup object stored on ActiveSample.
+
+    Enters to yield the agent-facing :class:`Checkpointer` and closes any
+    cached resources at sample teardown. ``close()`` is intentionally here,
+    not on ``Checkpointer``, so agents don't see lifecycle concerns.
+    """
+
+    async def __aenter__(self) -> Checkpointer: ...
+
+    async def __aexit__(self, *exc: object) -> None: ...
+
+    def close(self) -> None: ...
+
+    def current(self) -> Checkpointer | None:
+        """The :class:`Checkpointer` the agent has entered, or ``None``.
+
+        Returns the cached session once ``__aenter__`` has run, else
+        ``None``. Backs :func:`current_checkpointer`.
+        """
+        ...
+
+
 @contextlib.asynccontextmanager
 async def checkpointer() -> AsyncIterator[Checkpointer]:
     """Enter the checkpointer bound to the active sample.
@@ -156,3 +191,38 @@ async def checkpointer() -> AsyncIterator[Checkpointer]:
     async with active.checkpointer as cp:
         async with cp.span_session():
             yield cp
+
+
+def current_checkpointer() -> Checkpointer | None:
+    """Return the checkpointer the active agent has entered, or ``None``.
+
+    Unlike :func:`checkpointer` — an async context manager that *opens* a
+    session — this is a plain accessor for the session the owning agent has
+    *already* opened. Use it from a sub-component that runs INSIDE the
+    owner's ``async with checkpointer()`` scope and needs to register a
+    slice of resumable state via :meth:`Checkpointer.track`: a custom
+    ``model`` agent passed to ``react()``, or a tool.
+
+    The session is shared and singular, so:
+
+    - Do **not** re-enter :func:`checkpointer` from a sub-component — that
+      opens a duplicate ``span_session``.
+    - ``track`` keys share one namespace and collide (raising
+      ``ValueError``) across components; prefix yours uniquely (the agent
+      bridge uses ``"bridge_*"`` keys, for example).
+    - This borrows the owner's session; it is not a way to run a *nested*
+      agent loop. There is one turn counter, one trigger, and one final
+      checkpoint per session, so a nested loop driving its own
+      :meth:`Checkpointer.tick` is not supported.
+
+    Returns ``None`` outside an active sample, or before the owner has
+    opened ``async with checkpointer()``.
+    """
+    # Function-scoped import to avoid a load-time cycle with
+    # `inspect_ai.log._samples`.
+    from inspect_ai.log._samples import sample_active
+
+    active = sample_active()
+    if active is None:
+        return None
+    return active.checkpointer.current()

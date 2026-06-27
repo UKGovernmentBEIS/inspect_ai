@@ -1,10 +1,13 @@
 import inspect
 import warnings
-from typing import Sequence, cast
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Iterator, Sequence, cast
 
 from typing_extensions import TypeIs
 
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai._util.json import to_json_str_safe
+from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
 from inspect_ai.model._model import (
@@ -20,12 +23,91 @@ from inspect_ai.model._model import (
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_choice import ToolChoice
-from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
 )
+
+# Generation-tuning fields a scaffold may set on a bridged request that describe
+# *how* the underlying model generates. These are the Inspect model's province
+# (the scaffold computes them for its assumed --model, not the model actually
+# serving the request), so by default the bridge drops them and lets the model
+# config / provider defaults govern generation. Structural fields the scaffold
+# legitimately controls (system_message, stop_seqs, response_schema,
+# parallel_tool_calls, seed, extra_body/headers) are deliberately NOT listed here.
+_GENERATION_PARAM_FIELDS: tuple[str, ...] = (
+    "max_tokens",
+    "temperature",
+    "top_p",
+    "top_k",
+    "frequency_penalty",
+    "presence_penalty",
+    "num_choices",
+    "logprobs",
+    "top_logprobs",
+    "prompt_logprobs",
+    "logit_bias",
+    "effort",
+    "reasoning_effort",
+    "reasoning_tokens",
+    "reasoning_summary",
+)
+
+
+def clear_generation_params(config: GenerateConfig) -> None:
+    """Clear generation-tuning params from a bridged request config (in place).
+
+    Used when a bridge is configured not to forward client generation parameters
+    (the default): the dropped fields then fall back to the resolved Inspect model
+    config and provider defaults during ``resolve_generate_config``.
+    """
+    for field in _GENERATION_PARAM_FIELDS:
+        setattr(config, field, None)
+
+
+_bridge_model_generate: ContextVar[bool] = ContextVar(
+    "_bridge_model_generate", default=False
+)
+
+
+@contextmanager
+def bridge_model_generate() -> Iterator[None]:
+    """Mark the enclosed block as a bridged model generation.
+
+    Installed by `bridge_generate` around its `model.generate()` call so that
+    consumers can recognise `ModelEvent`s originating from a bridged agent.
+    """
+    token = _bridge_model_generate.set(True)
+    try:
+        yield
+    finally:
+        _bridge_model_generate.reset(token)
+
+
+def in_bridge_model_generate() -> bool:
+    """Is the current model generation routed through the agent bridge?
+
+    `True` while inside `bridge_generate`'s call to `model.generate()`. Because
+    transcript subscriber callbacks fire synchronously in the emitting task's
+    context, this is reliably `True` when a bridged `ModelEvent` is observed by
+    a subscriber (e.g. the ACP live router) and `False` for ordinary
+    react-style generation.
+
+    Bridged scaffolds run their own tool calls, so no `ToolEvent` is ever
+    emitted for them — tool calls live only on
+    `ModelEvent.output.message.tool_calls`. Consumers that render tool calls use
+    this to decide whether they must synthesize tool-call cards from the
+    `ModelEvent` (rather than wait for a `ToolEvent` that will never arrive).
+
+    Covers every bridge configuration: in-process `agent_bridge()` and
+    `sandbox_agent_bridge()`, with or without a `ModelEventSink`, since all
+    route through `bridge_generate`.
+    """
+    return _bridge_model_generate.get()
+
 
 _filter_type_cache: dict[int, bool] = {}
 
@@ -57,6 +139,80 @@ def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
     return result
 
 
+def _operator_message_key(message: ChatMessageUser) -> str:
+    """Content key for an operator user message (identity- and source-independent).
+
+    Hashes the message with ``id`` and ``source`` cleared so the key depends only
+    on the content the scaffold replays identically across turns — independent of
+    the per-instance ``id`` and of whether the source has been restored yet. Uses
+    the same ``message_json_hash`` the bridge uses elsewhere.
+    """
+    keyed = message.model_copy(update={"id": None, "source": None})
+    return message_json_hash(to_json_str_safe(keyed))
+
+
+def _restore_operator_message_source(
+    bridge: AgentBridge, input: list[ChatMessage]
+) -> None:
+    """Restore ``source="operator"`` on operator messages re-entering via a bridge.
+
+    A bridged scaffold (claude_code, codex, …) round-trips operator interventions
+    through its own conversation store, so an operator message comes back as a
+    plain ``ChatMessageUser`` (``source=None``) — losing the provenance the ACP
+    transport stamped at submit time. We restore it here, at the single
+    ``bridge_generate`` chokepoint shared by every bridged agent, mutating the
+    messages in place so the restored source persists in BOTH the recorded
+    ``ModelEvent`` input and ``bridge.state.messages`` (and thus the eval log and
+    the ACP TUI).
+
+    The signal is entirely on the ``bridge`` object — the only thing reliably
+    threaded into ``bridge_generate`` for both in-process and sandbox bridges. The
+    scaffold calls :meth:`AgentBridge.note_operator_message` when it injects an
+    operator message (incrementing ``_pending_operator``); we never reach into the
+    ACP transport or the agent channel.
+
+    Two parts:
+
+    - **First recognition** (positional): when an injection is pending, the
+      operator turn is the LATEST user message (queued sends coalesce into one).
+      Stamp it, record its content key, and consume all pending. Positional
+      recognition is robust to the scaffold reformatting the content on re-emit
+      (multiblock / coalescing / whitespace) — we never match the originally
+      submitted text.
+    - **Carry-forward** (re-recognition): the round-trip drops ``source`` every
+      turn, and the final logged conversation is taken from a later turn where the
+      operator sits mid-history. So on every turn we re-stamp any user message
+      whose content key was recorded. This keys on the bridge's own stable
+      content hash (reconstructed-to-reconstructed, stable because the scaffold
+      replays a past turn identically) — the same content-stability the bridge's
+      id allocation already relies on. Skipped (no hashing) when no operator has
+      ever been seen.
+    """
+    # carry-forward: re-stamp previously-recognized operators
+    if bridge._operator_keys:
+        for message in input:
+            if (
+                isinstance(message, ChatMessageUser)
+                and message.source != "operator"
+                and _operator_message_key(message) in bridge._operator_keys
+            ):
+                message.source = "operator"
+
+    # first recognition: stamp the latest user message and consume all pending.
+    # Stop at the latest user message regardless of its source: if carry-forward
+    # already stamped it (operator re-sent identical content), there is nothing
+    # new to stamp — falling through to an earlier turn would wrongly stamp the
+    # task.
+    if bridge._pending_operator > 0:
+        for message in reversed(input):
+            if isinstance(message, ChatMessageUser):
+                if message.source != "operator":
+                    bridge._operator_keys.add(_operator_message_key(message))
+                    message.source = "operator"
+                break
+        bridge._pending_operator = 0
+
+
 async def bridge_generate(
     bridge: AgentBridge,
     model: Model,
@@ -73,6 +229,12 @@ async def bridge_generate(
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
     """
+    # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
+    # claude_code re-emits an operator message as a plain user message). Done
+    # before compaction/recording so the restored source persists in both the
+    # ModelEvent input and state.messages (and thus the eval log).
+    _restore_operator_message_source(bridge, input)
+
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
@@ -98,8 +260,12 @@ async def bridge_generate(
         # Apply filter if we have it (can either return output or alternate inputs)
         output: ModelOutput | None = None
         if bridge.filter:
+            # tool_to_tool_info (via ToolDef) preserves `options` — including
+            # the INTERNAL_TOOL_TYPE marker — so the filter sees the same
+            # ToolInfo the model provider would. parse_tool_info re-derives
+            # from the function signature and drops options.
             tool_info = [
-                parse_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
+                tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
                 for tool in tools
             ]
             if _is_model_filter(bridge.filter):
@@ -121,7 +287,7 @@ async def bridge_generate(
         # (instead of going straight to the transcript) so the caller can
         # control when / under which span events appear.
         if output is None:
-            with use_model_event_sink(bridge.model_event_sink):
+            with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
                 output = await model.generate(
                     input=input_messages,
                     tool_choice=tool_choice,

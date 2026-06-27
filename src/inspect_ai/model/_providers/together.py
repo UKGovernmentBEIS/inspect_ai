@@ -1,9 +1,11 @@
 import os
+from functools import partial
 from json import dumps
+from logging import getLogger
 from typing import Any, cast
 
 import httpx
-from openai import APIStatusError
+from openai import APIStatusError, LengthFinishReasonError
 from openai.types.chat import (
     ChatCompletion,
 )
@@ -25,8 +27,9 @@ from .._model_output import (
     ModelUsage,
     StopReason,
     as_stop_reason,
+    collect_stop_details,
 )
-from .._openai import chat_message_assistant_from_openai
+from .._openai import chat_message_assistant_from_openai, openai_stop_details
 from ._together_batch import TogetherBatcher
 from .openai_compatible import OpenAICompatibleAPI
 from .util import (
@@ -35,6 +38,8 @@ from .util import (
     model_base_url,
 )
 from .util.chatapi import ChatAPIHandler, classify_chat_api_error
+
+logger = getLogger(__name__)
 
 
 def chat_choices_from_response_together(
@@ -75,6 +80,9 @@ def chat_choices_from_response_together(
                 response.model, choice.message, tools
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
+            stop_details=collect_stop_details(
+                "together", logger, partial(openai_stop_details, choice)
+            ),
             logprobs=logprobs,
         )
         for choice, logprobs in zip(choices, logprobs_models)
@@ -89,6 +97,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         emulate_tools: bool = False,
+        stream: bool | None = None,
     ) -> None:
         super().__init__(
             model_name=model_name,
@@ -98,6 +107,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             service="Together",
             service_base_url="https://api.together.xyz/v1",
             emulate_tools=emulate_tools,
+            stream=stream,
         )
         self._batcher: TogetherBatcher | None = None
 
@@ -160,12 +170,22 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
         self._resolve_batcher(config)
-        return (
-            await self._batcher.generate_for_request(request)
-            if self._batcher
-            else cast(
-                ChatCompletion, await self.client.chat.completions.create(**request)
-            )
+        if self._batcher:
+            return await self._batcher.generate_for_request(request)
+        # honor streaming (batching and streaming are mutually exclusive)
+        if self.stream or self.should_stream(config):
+            async with self.client.chat.completions.stream(**request) as stream:
+                try:
+                    return await stream.get_final_completion()
+                except LengthFinishReasonError as ex:
+                    # When structured output (response_format) or tools are in
+                    # play, the SDK raises on a length-truncated stream rather
+                    # than returning the partial completion. Fall back to the
+                    # partial completion so it is handled like the
+                    # non-streaming path (stop_reason="max_tokens").
+                    return ex.completion
+        return cast(
+            ChatCompletion, await self.client.chat.completions.create(**request)
         )
 
     def _resolve_batcher(self, config: GenerateConfig) -> None:
@@ -307,7 +327,7 @@ class TogetherRESTAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     # Together uses a default of 512 so we bump it up
     @override

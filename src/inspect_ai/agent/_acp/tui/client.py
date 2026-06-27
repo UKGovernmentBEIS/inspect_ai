@@ -43,6 +43,7 @@ from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_EVENT_METHOD,
     INSPECT_LIST_SAMPLES_METHOD,
+    INTERACTIVE_META_KEY,
     PICKER_META_KEY,
     PLAN_RENDERING_META_KEY,
     RAW_EVENTS_META_KEY,
@@ -150,11 +151,13 @@ class SessionRow:
     session_id: str | None
     """ACP session uuid; passed to ``session/load`` on attach.
 
-    ``None`` when the sample's agent has not claimed ACP (no
-    ``before_turn`` call yet, or no ACP-aware scaffold). Such rows
+    Set for every attachable sample — including observe-only custom
+    solvers. ``None`` only when there's nothing to attach to (no
+    transport, the noop placeholder, or a finalized session). Such rows
     appear in the picker dimmed + non-attachable; activation surfaces
     a toast pointing at the intervention docs instead of opening a
-    session screen."""
+    session screen. Whether an attachable row is *drivable* is carried
+    separately by :attr:`interactive`."""
 
     task: str
     sample_id: str
@@ -184,6 +187,14 @@ class SessionRow:
     ``False`` for back-compat with older servers that don't carry the
     field on the ``inspect/list_sessions`` response or binding-
     confirmation ``_meta``."""
+
+    interactive: bool = True
+    """Whether the session has a bound agent turn loop the operator can
+    drive (``session/prompt`` / ``session/cancel``). ``False`` for
+    observe-only samples — custom solvers, the pre-bind window, or the
+    scoring window. The session screen hides the composer for
+    non-interactive sessions (lifecycle controls stay available).
+    Default ``True`` for back-compat with servers that omit the flag."""
 
     pending: Literal["approval", "question"] | None = None
     """Set when the sample is parked on a human-in-the-loop request
@@ -290,9 +301,11 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
     samples = response.get("samples", []) if isinstance(response, dict) else []
     rows: list[SessionRow] = []
     for s in samples:
-        # ``sessionId`` is ``None`` for samples whose agent has not
-        # claimed ACP. Preserve the None — the picker treats such
-        # rows as dimmed + unselectable-on-attach.
+        # ``sessionId`` is ``None`` only for unattachable samples (no
+        # transport / noop / finalized). Preserve the None — the picker
+        # treats such rows as dimmed + unselectable-on-attach. Attachable
+        # rows carry a real id; ``interactive`` says whether they're
+        # also drivable.
         pending_raw = s.get("pending")
         pending: Literal["approval", "question"] | None = (
             pending_raw if pending_raw in ("approval", "question") else None
@@ -310,6 +323,7 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
                 total_messages=int(s.get("totalMessages") or 0),
                 total_tokens=int(s.get("totalTokens") or 0),
                 fails_on_error=bool(s.get("failsOnError", False)),
+                interactive=bool(s.get("interactive", True)),
                 pending=pending,
             )
         )
@@ -1040,15 +1054,26 @@ def _refresh_row_from_binding_meta(
     under :data:`PICKER_META_KEY`. The TUI's :class:`SessionState`
     drops the whole notification as cosmetic bind chrome, so this
     runs BEFORE that drop and pulls out the fields that drive
-    operator UI (currently just ``failsOnError`` — the cancel-sample
-    modal needs it to gate the ``[e] error`` action even on the
-    direct-attach path that never enumerated through the picker).
+    operator UI on the direct-attach path that never enumerated through
+    the picker:
 
-    No-op when the notification carries no picker meta, when no entry
-    matches our session id, or when the entry's ``failsOnError`` is
-    already what the row holds — keeps subscriber spam quiet.
+    - ``failsOnError`` (per-entry under :data:`PICKER_META_KEY`) — the
+      cancel-sample modal gates its ``[e] error`` action on it.
+    - ``inspect.interactive`` (on the OUTER ``_meta``, not the entry) —
+      the session screen hides the composer for observe-only sessions.
+
+    No-op when the notification carries neither signal or when the
+    values already match what the row holds — keeps subscriber spam
+    quiet.
     """
     meta = getattr(notification, "field_meta", None) or {}
+
+    # Interactivity rides on the outer _meta of the binding confirmation
+    # (the picker notification doesn't carry it, so it's absent there).
+    interactive_raw = meta.get(INTERACTIVE_META_KEY)
+    if isinstance(interactive_raw, bool) and interactive_raw != session.row.interactive:
+        session.row = replace(session.row, interactive=interactive_raw)
+
     entries = meta.get(PICKER_META_KEY)
     if not isinstance(entries, list):
         return

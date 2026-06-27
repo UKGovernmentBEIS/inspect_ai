@@ -39,7 +39,7 @@ from inspect_ai.util._json import json_schema
 @agent
 def completions_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        async with agent_bridge():
+        async with agent_bridge(forward_generation_config=True):
 
             class Message(BaseModel):
                 text: str
@@ -141,7 +141,7 @@ def bridge_filter_agent(type: Literal["output", "config"]) -> Agent:
 @agent
 def responses_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        async with agent_bridge():
+        async with agent_bridge(forward_generation_config=True):
             async with AsyncOpenAI() as client:
                 responses_tools = (
                     [
@@ -245,6 +245,109 @@ def responses_computer_agent() -> Agent:
     return execute
 
 
+READ_FILE_TOOL: dict[str, Any] = {
+    "type": "function",
+    "name": "read_file",
+    "description": "Read the contents of a file given its path",
+    "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string"}},
+        "required": ["path"],
+        "additionalProperties": False,
+    },
+    "strict": True,
+}
+
+TOOL_SEARCH_TOOL: dict[str, Any] = {
+    "type": "tool_search",
+    "execution": "client",
+    "description": "Search the local tool registry for tools matching a query",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Natural language description of the desired tool",
+            }
+        },
+        "required": ["query"],
+        "additionalProperties": False,
+    },
+}
+
+
+@agent
+def responses_tool_search_agent() -> Agent:
+    """Exercises the full tool_search (execution=client) round-trip.
+
+    Round 1 advertises only the tool_search tool and expects the model to emit a
+    tool_search_call. We then do client-side "discovery" (return a read_file tool
+    via tool_search_output) and, on round 2, expect the model to call the
+    discovered tool. This verifies the bridge passes tool_search end-to-end.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge():
+            async with AsyncOpenAI() as client:
+                input_items: list[Any] = [
+                    {
+                        "role": "user",
+                        "content": (
+                            "You have a tool_search tool. First search for a tool "
+                            "to read files, then use the discovered tool to read "
+                            "'/tmp/example.txt'."
+                        ),
+                    }
+                ]
+
+                # round 1: only tool_search is available
+                response = await client.responses.create(  # type: ignore[call-overload]
+                    model="inspect",
+                    input=input_items,
+                    tools=[TOOL_SEARCH_TOOL],
+                    tool_choice="auto",
+                )
+                search_calls = [
+                    o for o in response.output if o.type == "tool_search_call"
+                ]
+                assert len(search_calls) >= 1, "expected a tool_search_call"
+
+                # client-side discovery: echo the model output and return the
+                # discovered tool via tool_search_output
+                input_items.extend(o.model_dump() for o in response.output)
+                for call in search_calls:
+                    input_items.append(
+                        {
+                            "type": "tool_search_output",
+                            "call_id": call.call_id,
+                            "tools": [READ_FILE_TOOL],
+                            "execution": "client",
+                            "status": "completed",
+                        }
+                    )
+
+                # round 2: the discovered tool is now available
+                response2 = await client.responses.create(  # type: ignore[call-overload]
+                    model="inspect",
+                    input=input_items,
+                    tools=[TOOL_SEARCH_TOOL, READ_FILE_TOOL],
+                    tool_choice="auto",
+                )
+                fn_calls = [o for o in response2.output if o.type == "function_call"]
+                assert any(c.name == "read_file" for c in fn_calls), (
+                    "expected a call to the discovered read_file tool"
+                )
+
+                message = ChatMessageAssistant(
+                    content=response2.output_text or "ok", source="generate"
+                )
+                state.messages.append(message)
+                state.output = ModelOutput.from_message(message)
+                return state
+
+    return execute
+
+
 @agent
 def anthropic_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
@@ -269,7 +372,7 @@ def anthropic_agent(tools: bool) -> Agent:
             else:
                 return None
 
-        async with agent_bridge(state) as bridge:
+        async with agent_bridge(state, forward_generation_config=True) as bridge:
             async with AsyncAnthropic() as client:
                 await client.messages.create(  # type: ignore[call-overload]
                     model="inspect",
@@ -318,6 +421,59 @@ def anthropic_web_search_agent() -> Agent:
                         }
                     ],
                     tool_choice={"type": "any"},
+                )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def anthropic_web_search_multiturn_agent() -> Agent:
+    """Two-call scaffold whose follow-up request replays the searched turn.
+
+    With web search dynamic filtering (claude 4.6 and later) the assistant
+    turn contains nested server tool blocks (code_execution -> web_search w/
+    caller link) which must round trip through the bridge with order,
+    nesting, and callers intact (else the API fails the second call with
+    `source tool ... not found`).
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with AsyncAnthropic() as client:
+                tools: Any = [
+                    {
+                        "type": "web_search_20260209",
+                        "name": "web_search",
+                        "max_uses": 5,
+                    }
+                ]
+                messages: Any = [
+                    {
+                        "role": "user",
+                        "content": user_prompt(state.messages).text,
+                    }
+                ]
+                response = await client.messages.create(
+                    model="inspect",
+                    max_tokens=4096,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice={"type": "any"},
+                )
+
+                # follow-up turn replays the assistant turn (including its
+                # server tool blocks) back through the bridge
+                messages = messages + [
+                    {"role": "assistant", "content": response.content},
+                    {"role": "user", "content": "Answer in one short sentence."},
+                ]
+                await client.messages.create(
+                    model="inspect",
+                    max_tokens=4096,
+                    messages=messages,
+                    tools=tools,
                 )
 
             return bridge.state
@@ -411,7 +567,7 @@ def google_agent(tools: bool) -> Agent:
             else:
                 return None
 
-        async with agent_bridge(state) as bridge:
+        async with agent_bridge(state, forward_generation_config=True) as bridge:
             client = genai.Client(api_key="inspect")
 
             generation_config: dict[str, Any] = {
@@ -666,6 +822,13 @@ def test_bridged_web_search_tool_openai():
 
 
 @skip_if_no_openai
+def test_bridged_tool_search_openai():
+    # tool_search is only supported on newer models (e.g. gpt-5.2+)
+    log = eval(bridged_task(responses_tool_search_agent()), model="openai/gpt-5.2")[0]
+    assert log.status == "success"
+
+
+@skip_if_no_openai
 def test_bridged_code_execution_tool_openai():
     log = eval(
         code_execution_task(responses_code_interpreter_agent()),
@@ -710,6 +873,26 @@ def test_bridged_web_search_tool_anthropic():
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"max_uses": 5' in log_json
     check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
+def test_bridged_web_search_tool_anthropic_filtering():
+    # claude-sonnet-4-6 gates to the web_search_20260209 (dynamic filtering)
+    # backend; the scaffold's second call replays the searched assistant turn
+    # through the bridge (nested server tool blocks w/ caller links)
+    log = eval(
+        web_search_task(anthropic_web_search_multiturn_agent()),
+        model="anthropic/claude-sonnet-4-6",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"max_uses": 5' in log_json
+    # the dynamic filtering backend was actually engaged
+    assert '"type": "web_search_20260209"' in log_json
+    check_server_tool_use(log, "web_search")
+    # both scaffold calls completed (the second replays the first turn)
+    assert log.samples
+    model_events = [e for e in log.samples[0].events if e.event == "model"]
+    assert len(model_events) >= 2
 
 
 @skip_if_no_anthropic

@@ -14,6 +14,7 @@ from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
     BeforeModelGenerate,
     Hooks,
+    ModelRetry,
     ModelUsageData,
     RunEnd,
     RunStart,
@@ -48,6 +49,7 @@ class MockHooks(Hooks):
         self.sample_event_events: list[SampleEvent] = []
         self.sample_end_events: list[SampleEnd] = []
         self.model_usage_events: list[ModelUsageData] = []
+        self.model_retry_events: list[ModelRetry] = []
         self.before_model_generate_events: list[BeforeModelGenerate] = []
 
     def assert_no_events(self) -> None:
@@ -62,6 +64,7 @@ class MockHooks(Hooks):
         assert not self.sample_event_events
         assert not self.sample_end_events
         assert not self.model_usage_events
+        assert not self.model_retry_events
         assert not self.before_model_generate_events
 
     def enabled(self) -> bool:
@@ -99,6 +102,9 @@ class MockHooks(Hooks):
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
         self.model_usage_events.append(data)
+
+    async def on_model_retry(self, data: ModelRetry) -> None:
+        self.model_retry_events.append(data)
 
     async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
         self.before_model_generate_events.append(data)
@@ -201,6 +207,23 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.sample_end_events) == 1
         assert len(h.model_usage_events) == 1
         assert len(h.before_model_generate_events) == 1
+
+
+def test_model_retry_hook(mock_hooks: MockHooks) -> None:
+    import anyio
+
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    anyio.run(emit_model_retry, "mockllm/model", 2, 1.5)
+
+    assert len(mock_hooks.model_retry_events) == 1
+    retry = mock_hooks.model_retry_events[0]
+    assert retry.model_name == "mockllm/model"
+    assert retry.attempt == 2
+    assert retry.wait_time == 1.5
+    # no active sample in this context, so eval/sample ids are None
+    assert retry.sample_id is None
+    assert retry.eval_id is None
 
 
 def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:

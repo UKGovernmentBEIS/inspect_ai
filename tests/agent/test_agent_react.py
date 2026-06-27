@@ -202,6 +202,20 @@ def test_react_agent_custom_prompt() -> None:
     )
 
 
+def test_react_default_prompt_encourages_parallel_tools() -> None:
+    # the default assistant prompt should encourage parallel tool calls and no
+    # longer carry the old sequential "send more messages" framing.
+    from inspect_ai.agent._types import PARALLEL_TOOLS_PROMPT
+
+    log = run_react_agent(tools=[addition()])
+    assert log.samples
+    system_msg = next(
+        m for m in log.samples[0].messages if isinstance(m, ChatMessageSystem)
+    )
+    assert PARALLEL_TOOLS_PROMPT in system_msg.text
+    assert "send more messages with additional tool calls" not in system_msg.text
+
+
 def test_react_agent_custom_submit() -> None:
     log = run_react_agent(
         prompt=AgentPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE), tools=[addition()]

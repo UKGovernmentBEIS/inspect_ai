@@ -23,6 +23,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from acp.exceptions import RequestError
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
@@ -30,8 +31,8 @@ from inspect_ai.agent._acp.connection import (
     Bound,
     ConnectionHandler,
 )
-from inspect_ai.agent._acp.inspect_ext import PICKER_META_KEY
-from inspect_ai.agent._acp.picker import PickerTarget
+from inspect_ai.agent._acp.inspect_ext import INTERACTIVE_META_KEY, PICKER_META_KEY
+from inspect_ai.agent._acp.picker import PickerTarget, SampleListing
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.session_router import Forwarders
 
@@ -82,6 +83,8 @@ def _make_sample(
     total_messages: int = 0,
     total_tokens: int = 0,
     fails_on_error: bool = True,
+    is_interactive: bool | None = None,
+    is_attachable: bool | None = None,
 ) -> Any:
     sample = MagicMock()
     sample.id = sample_id
@@ -114,11 +117,15 @@ def _make_sample(
     else:
         session = MagicMock()
         session.session_id = session_id
-        # Match production semantics: noop placeholder is not attachable,
-        # real bound sessions are. Without this the MagicMock's
-        # auto-generated ``is_attachable`` is truthy, and the picker's
-        # ``is_attachable`` filter doesn't strip the noop sentinel.
-        session.is_attachable = session_id != "noop"
+        # Match production semantics: noop placeholder is neither
+        # interactive nor attachable, real bound sessions are both.
+        # Without this the MagicMock's auto-generated attributes are
+        # truthy, and the picker's ``is_interactive`` filter wouldn't
+        # strip the noop sentinel. Override either independently to model
+        # an observe-only sample (attachable but not interactive).
+        default = session_id != "noop"
+        session.is_interactive = default if is_interactive is None else is_interactive
+        session.is_attachable = default if is_attachable is None else is_attachable
         active.acp_transport = session
     return active
 
@@ -463,6 +470,134 @@ async def test_auto_bind_stops_old_forwarders_before_changing_binding(
     )
 
 
+async def test_load_session_observe_only_records_non_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Binding an observe-only sessionId records ``Bound.interactive=False``.
+
+    The id isn't in the interactive picker list but is surfaced by
+    ``list_all_samples`` as an attachable-but-not-interactive sample
+    (custom solver). The fallback resolver binds it and snapshots the
+    non-interactive status for the binding's lifetime.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection.list_picker_targets", lambda: []
+    )
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection.list_all_samples",
+        lambda: [
+            SampleListing(
+                session_id="obs-uuid",
+                task="t",
+                sample_id="s",
+                epoch=0,
+                interactive=False,
+            )
+        ],
+    )
+    monkeypatch.setattr(handler, "_schedule_after_response", MagicMock())
+
+    await handler.load_session(cwd="/tmp", session_id="obs-uuid")
+
+    assert handler.state.binding == Bound(
+        wire_session_id="obs-uuid",
+        target_session_id="obs-uuid",
+        interactive=False,
+    )
+
+
+async def test_inspect_attach_observe_only_records_non_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``inspect/attach`` to an observe-only target records ``interactive=False``."""
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection.list_picker_targets", lambda: []
+    )
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection.list_all_samples",
+        lambda: [
+            SampleListing(
+                session_id="obs-uuid",
+                task="t",
+                sample_id="s",
+                epoch=0,
+                interactive=False,
+            )
+        ],
+    )
+    monkeypatch.setattr(handler, "_schedule_after_response", MagicMock())
+
+    resp = await handler.inspect_attach(cwd="/tmp", target="t/s/0")
+
+    assert resp.session_id == "obs-uuid"
+    assert handler.state.binding == Bound(
+        wire_session_id="obs-uuid",
+        target_session_id="obs-uuid",
+        interactive=False,
+    )
+
+
+async def test_load_session_interactive_target_records_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A drivable picker target binds with ``Bound.interactive=True`` (tier-1 path)."""
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection.list_picker_targets",
+        lambda: [
+            PickerTarget(session_id="live-uuid", task="t", sample_id="s", epoch=0)
+        ],
+    )
+    monkeypatch.setattr(handler, "_schedule_after_response", MagicMock())
+
+    await handler.load_session(cwd="/tmp", session_id="live-uuid")
+
+    assert handler.state.binding == Bound(
+        wire_session_id="live-uuid",
+        target_session_id="live-uuid",
+        interactive=True,
+    )
+
+
+async def test_prompt_rejected_on_observe_only_binding() -> None:
+    """``session/prompt`` on a non-interactive binding → invalid_request.
+
+    The snapshot ``Bound.interactive=False`` gates this before any live
+    lookup; the reason distinguishes it from the scoring-window case.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    handler.state.binding = Bound(
+        wire_session_id="wire", target_session_id="tgt", interactive=False
+    )
+    with pytest.raises(RequestError) as exc:
+        await handler.prompt(prompt=[{"type": "text", "text": "hi"}], session_id="wire")
+    assert exc.value.code == -32600  # invalid_request
+    assert exc.value.data is not None
+    assert "not interactive" in exc.value.data["reason"]
+
+
+async def test_cancel_dropped_on_observe_only_binding() -> None:
+    """``session/cancel`` on a non-interactive binding is silently dropped.
+
+    The snapshot gate returns before any ``_find_live_session`` lookup,
+    so no turn cancel is attempted. Notifications can't return errors.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    handler.state.binding = Bound(
+        wire_session_id="wire", target_session_id="tgt", interactive=False
+    )
+    # Must not raise and must not touch the (absent) live session. The
+    # snapshot gate returns before any lookup; reaching one would raise.
+    await handler.cancel(session_id="wire")
+
+
 async def test_post_bind_setup_noops_when_generation_advanced(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -576,7 +711,13 @@ async def test_forwarders_uses_immutable_wire_session_id(
     captured_wire: list[str] = []
 
     class _CapturingTranscriptor:
-        def __init__(self, wire: str, *, filter_subagents: bool = True) -> None:
+        def __init__(
+            self,
+            wire: str,
+            *,
+            filter_subagents: bool = True,
+            snapshot: Any = None,
+        ) -> None:
             captured_wire.append(wire)
 
         def process(self, _event: Any) -> list[Any]:
@@ -1388,6 +1529,54 @@ async def test_inspect_attach_direct_target_auto_binds(
             assert params["sessionId"] == "uuid-b"
             assert "Bound to" in params["update"]["content"]["text"]
             assert "t2" in params["update"]["content"]["text"]
+            # Interactive bind: the _meta flag is True.
+            assert params["_meta"][INTERACTIVE_META_KEY] is True
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_attach_binds_observe_only_target(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """A non-interactive (observe-only) sample can be direct-attached.
+
+    The sample is attachable but has no bound agent turn loop
+    (``is_interactive`` False) — a custom solver. ``inspect/attach``
+    resolves it via the observe-only fallback and binds, returning the
+    canonical sessionId so the client can observe its event stream.
+    """
+    stub_targets(
+        [
+            _make_sample(
+                task="solver_task",
+                sample_id="s1",
+                epoch=0,
+                session_id="uuid-observe",
+                agent_name="my_solver",
+                is_interactive=False,
+                is_attachable=True,
+            )
+        ]
+    )
+    async with acp_server(eval_id="evt-ins-observe", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request(
+                "inspect/attach",
+                {"cwd": "/tmp", "mcpServers": [], "target": "solver_task/s1/0"},
+            )
+            assert "result" in resp, resp
+            assert resp["result"]["sessionId"] == "uuid-observe"
+            # Binding confirmation lands for the observe-only target,
+            # advertising the non-interactive state via text + _meta.
+            notif = await client.next_notification()
+            params = notif["params"]
+            assert params["sessionId"] == "uuid-observe"
+            assert "Observing" in params["update"]["content"]["text"]
+            assert params["_meta"][INTERACTIVE_META_KEY] is False
         finally:
             await client.close()
 

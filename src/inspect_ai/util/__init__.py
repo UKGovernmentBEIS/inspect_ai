@@ -7,6 +7,7 @@ from inspect_ai._util.registry import (
     registry_create,
     registry_info,
 )
+from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
@@ -18,22 +19,25 @@ from inspect_ai.util._limit import (
     message_limit,
     sample_limits,
     suspend_token_limit,
+    suspend_turn_limit,
     time_limit,
     token_limit,
+    turn_limit,
     working_limit,
 )
 
 from ._background import background
 from ._checkpoint import (
     CheckpointConfig,
+    Checkpointer,
     CheckpointSampleConfig,
     CheckpointTrigger,
     Manual,
-    Retention,
     TimeInterval,
     TokenInterval,
     TurnInterval,
     checkpointer,
+    current_checkpointer,
 )
 from ._collect import collect
 from ._concurrency import AdaptiveConcurrency, concurrency
@@ -116,6 +120,7 @@ __all__ = [
     "is_dockerfile",
     "JSONType",
     "JSONSchema",
+    "StrEnum",
     "json_schema",
     "Limit",
     "message_limit",
@@ -155,7 +160,9 @@ __all__ = [
     "background",
     "cost_limit",
     "suspend_token_limit",
+    "suspend_turn_limit",
     "token_limit",
+    "turn_limit",
     "time_limit",
     "working_limit",
     "trace_action",
@@ -176,12 +183,13 @@ __all__ = [
     "ExecRemoteStreamingOptions",
     "ExecStderr",
     "ExecStdout",
+    "checkpointer",
+    "current_checkpointer",
+    "Checkpointer",
     "CheckpointConfig",
     "CheckpointSampleConfig",
     "CheckpointTrigger",
-    "checkpointer",
     "Manual",
-    "Retention",
     "TimeInterval",
     "TokenInterval",
     "TurnInterval",

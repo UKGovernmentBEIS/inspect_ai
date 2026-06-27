@@ -1,8 +1,7 @@
 """Host egress: ship sample staging dir → remote sample checkpoints dir.
 
 Runs at the end of each fire when the resolved sample checkpoints dir
-is remote. Mirrors the in-sandbox egress protocol (Appendix B of
-``design/plans/checkpointing-working.md``): manifest of files already
+is remote. Mirrors the in-sandbox egress protocol: manifest of files already
 shipped, diff against the live staging dir, ship new files in a safe
 order, then atomically update the manifest.
 
@@ -41,6 +40,7 @@ from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
+from ._layout.schemas import Checkpoint
 
 logger = getLogger(__name__)
 
@@ -72,7 +72,11 @@ def seed_manifest(staging_dir: str) -> int:
     the destination. Returns the entry count for diagnostics.
     """
     staging = Path(staging_dir)
-    files = _scan_new_files(staging, shipped=set())
+    files = [
+        rel
+        for rel in _scan_new_files(staging, shipped=set())
+        if _committed_checkpoint_or_other(staging, rel)
+    ]
     _write_manifest(staging / MANIFEST_FILENAME, set(files))
     return len(files)
 
@@ -87,7 +91,11 @@ async def host_egress(*, staging_dir: str, destination_dir: str) -> None:
     staging = Path(staging_dir)
     manifest_path = staging / MANIFEST_FILENAME
     shipped = _read_manifest(manifest_path)
-    new_files = _scan_new_files(staging, shipped)
+    new_files = [
+        rel
+        for rel in _scan_new_files(staging, shipped)
+        if _committed_checkpoint_or_other(staging, rel)
+    ]
     if not new_files:
         return
     ordered = _safe_order(new_files)
@@ -133,6 +141,16 @@ def _scan_new_files(staging: Path, shipped: set[str]) -> list[str]:
             continue
         new.append(rel_s)
     return new
+
+
+def _committed_checkpoint_or_other(staging: Path, rel: str) -> bool:
+    if not _CHECKPOINT_FILE_RE.match(Path(rel).name):
+        return True
+    try:
+        Checkpoint.model_validate_json((staging / rel).read_bytes())
+    except Exception:
+        return False
+    return True
 
 
 def _safe_order(files: list[str]) -> list[str]:

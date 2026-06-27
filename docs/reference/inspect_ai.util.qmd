@@ -79,6 +79,18 @@ description: Miscellaneous utility functions.
 ### InputResult
 ### InputResult
 
+## Checkpointing
+
+### checkpointer
+### Checkpointer
+### CheckpointConfig
+### CheckpointSampleConfig
+### CheckpointTrigger
+### TimeInterval
+### TokenInterval
+### TurnInterval
+### Manual
+
 ## Registry
 
 ### registry_info
@@ -88,6 +100,7 @@ description: Miscellaneous utility functions.
 
 ## JSON
 
+### StrEnum
 ### JSONType
 ### JSONSchema
 ### json_schema
@@ -107,3 +120,5 @@ description: Miscellaneous utility functions.
 ### ComposeService
 ### ComposeBuild
 ### ComposeHealthcheck
+
+

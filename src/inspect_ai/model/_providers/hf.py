@@ -139,20 +139,28 @@ class HuggingFaceAPI(ModelAPI):
         # tokenizer
         if tokenizer:
             self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
-                tokenizer, trust_remote_code=trust_remote_code
+                tokenizer,
+                token=self.api_key,
+                trust_remote_code=trust_remote_code,
             )
         elif model_path:
             if tokenizer_path:
                 self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
-                    tokenizer_path, trust_remote_code=trust_remote_code
+                    tokenizer_path,
+                    token=self.api_key,
+                    trust_remote_code=trust_remote_code,
                 )
             else:
                 self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
-                    model_path, trust_remote_code=trust_remote_code
+                    model_path,
+                    token=self.api_key,
+                    trust_remote_code=trust_remote_code,
                 )
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
-                model_name, trust_remote_code=trust_remote_code
+                model_name,
+                token=self.api_key,
+                trust_remote_code=trust_remote_code,
             )
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -173,7 +181,7 @@ class HuggingFaceAPI(ModelAPI):
     ) -> ModelOutput:
         # create handler
         handler: ChatAPIHandler | None = (
-            HFHandler(self.model_name) if len(tools) > 0 else None
+            HFHandler(self.model_name, self.model_family()) if len(tools) > 0 else None
         )
 
         # create chat
@@ -296,10 +304,11 @@ class HuggingFaceAPI(ModelAPI):
                 json_schema_dump(tool, exclude=JSON_SCHEMA_EXTENDED_FIELDS)
                 for tool in tools
             ]
-            if "mistral" in self.model_name.lower():
+            family = self.model_family().lower()
+            if "mistral" in family:
                 hf_messages = shorten_tool_id(hf_messages)
                 tools_list = tools_to_mistral_format(tools_list)
-            elif "qwen" in self.model_name.lower():
+            elif "qwen" in family:
                 hf_messages = inspect_tools_to_string(hf_messages)
 
         hf_messages = message_content_to_string(hf_messages)

@@ -38,7 +38,7 @@ from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.util._checkpoint.config import CheckpointConfig
+from inspect_ai.util._checkpoint.config import CheckpointConfig, normalize_checkpoint
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
@@ -78,7 +78,7 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         model_roles: dict[str, str | Model] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
-        checkpoint: CheckpointConfig | None = None,
+        checkpoint: CheckpointConfig | bool | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
@@ -86,6 +86,7 @@ class Task:
         score_on_error: bool | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
+        turn_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
         cost_limit: float | None = None,
@@ -113,9 +114,10 @@ class Task:
             config: Model generation config for default model (does not apply to model roles)
             model_roles: Named roles for use in `get_model()`.
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
-            checkpoint: Checkpoint configuration for this task. Overridden by
-                eval-level `checkpoint` when set; overrides any sample-level
-                `checkpoint`.
+            checkpoint: Checkpoint configuration for this task, or `True` to
+                enable checkpointing with the default trigger (every 500k
+                tokens). Overridden by eval-level `checkpoint` when set;
+                overrides any sample-level `checkpoint`.
             approval: Tool use approval policies.
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             epochs: Epochs to repeat samples for and optional score
@@ -131,6 +133,7 @@ class Task:
                 as 'error'. Only takes effect after retries (if any) are exhausted.
             message_limit: Limit on total messages used for each sample.
             token_limit: Limit on total tokens used for each sample.
+            turn_limit: Limit on total turns (model generations) used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
@@ -183,7 +186,7 @@ class Task:
         self.config = config
         self.model_roles = resolve_model_roles(model_roles)
         self.sandbox = resolve_sandbox_environment(sandbox)
-        self.checkpoint = checkpoint
+        self.checkpoint = normalize_checkpoint(checkpoint)
         self.approval = resolve_approval(approval)
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
@@ -193,6 +196,7 @@ class Task:
         self.score_on_error = score_on_error
         self.message_limit = message_limit
         self.token_limit = token_limit
+        self.turn_limit = turn_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
         self.cost_limit = cost_limit
@@ -255,7 +259,7 @@ def task_with(
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
-    checkpoint: CheckpointConfig | None | NotGiven = NOT_GIVEN,
+    checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
     approval: str
     | ApprovalPolicyConfig
     | list[ApprovalPolicy]
@@ -267,6 +271,7 @@ def task_with(
     score_on_error: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
     token_limit: int | None | NotGiven = NOT_GIVEN,
+    turn_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
     cost_limit: float | None | NotGiven = NOT_GIVEN,
@@ -297,9 +302,10 @@ def task_with(
         config: Model generation config for default model (does not apply to model roles)
         model_roles: Named roles for use in `get_model()`.
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
-        checkpoint: Checkpoint configuration for this task. Overridden by
-            eval-level `checkpoint` when set; overrides any sample-level
-            `checkpoint`.
+        checkpoint: Checkpoint configuration for this task, or `True` to
+            enable checkpointing with the default trigger (every 500k
+            tokens). Overridden by eval-level `checkpoint` when set;
+            overrides any sample-level `checkpoint`.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         epochs: Epochs to repeat samples for and optional score
@@ -315,6 +321,7 @@ def task_with(
             as 'error'. Only takes effect after retries (if any) are exhausted.
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -357,7 +364,7 @@ def task_with(
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
     if not isinstance(checkpoint, NotGiven):
-        task.checkpoint = checkpoint
+        task.checkpoint = normalize_checkpoint(checkpoint)
     if not isinstance(approval, NotGiven):
         task.approval = resolve_approval(approval)
     if not isinstance(epochs, NotGiven):
@@ -374,6 +381,8 @@ def task_with(
         task.message_limit = message_limit
     if not isinstance(token_limit, NotGiven):
         task.token_limit = token_limit
+    if not isinstance(turn_limit, NotGiven):
+        task.turn_limit = turn_limit
     if not isinstance(time_limit, NotGiven):
         task.time_limit = time_limit
     if not isinstance(working_limit, NotGiven):

@@ -34,7 +34,7 @@ We can use the `addition()` tool in an evaluation by passing it to the `use_tool
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.dataset ipmort Sample
+from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.scorer import match
 

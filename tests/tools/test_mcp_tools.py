@@ -403,6 +403,38 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
 
 
 @skip_if_no_mcp_package
+async def test_sandbox_kill_failure_does_not_propagate(monkeypatch):
+    """A failing `mcp_kill_server` during teardown must be swallowed, not raised.
+
+    The kill RPC runs inside the `sandbox_client` task-group teardown. If it
+    raises (e.g. broken/slow transport), the exception corrupts cancel-scope
+    unwinding and surfaces as an inscrutable "Attempted to exit a cancel scope
+    ..." RuntimeError that masks the real failure. Teardown must be best-effort.
+    """
+    from mcp import StdioServerParameters
+
+    async def _fake_exec_scalar_request(*args: Any, **kwargs: Any) -> Any:
+        if kwargs.get("method") == "mcp_launch_server":
+            return 1
+        if kwargs.get("method") == "mcp_kill_server":
+            raise RuntimeError("simulated kill failure")
+        return None
+
+    sandbox_module = _patch_sandbox_module(monkeypatch, _fake_exec_scalar_request)
+    monkeypatch.setattr(
+        sandbox_module, "exec_scalar_request", _fake_exec_scalar_request
+    )
+
+    server_params = StdioServerParameters(command="fake")
+    # Entering and exiting must complete cleanly despite the failing kill.
+    async with sandbox_module.sandbox_client(server_params) as (
+        read_stream,
+        write_stream,
+    ):
+        await write_stream.aclose()
+
+
+@skip_if_no_mcp_package
 async def test_mcp_connection_refcount():
     server = _test_server()
 

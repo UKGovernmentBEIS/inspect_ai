@@ -81,7 +81,7 @@ class TranscriptView(ScrollableContainer):
             # if we have either a new sample or a new event count then proceed
             if (
                 sample.id != self._sample_id
-                or len(sample.transcript.events) != self._sample_events
+                or sample.transcript.history.event_count != self._sample_events
             ):
                 # update (scrolling to end if we are already close to it)
                 new_sample = sample.id != self._sample_id
@@ -92,14 +92,16 @@ class TranscriptView(ScrollableContainer):
                 async with self.batch():
                     await self.remove_children()
                     await self.mount_all(
-                        self._widgets_for_events(sample.transcript.events)
+                        self._widgets_for_events(
+                            sample.transcript.history.resident_events
+                        )
                     )
                 if scroll_to_end:
                     self.scroll_end(animate=not new_sample)
 
                 # set members
                 self._sample_id = sample.id
-                self._sample_events = len(sample.transcript.events)
+                self._sample_events = sample.transcript.history.event_count
 
         # if we aren't active then save as a pending sample
         else:

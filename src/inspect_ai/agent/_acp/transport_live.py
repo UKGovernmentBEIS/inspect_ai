@@ -265,9 +265,34 @@ class _TranscriptCapture:
     def snapshot(self) -> Sequence[Any]:
         if self._captured is None:
             return []
-        # list() the events sequence so callers iterating concurrently
-        # with new ``_event`` appends don't see size changes mid-iteration.
-        return list(self._captured.events)[self._attach_index :]
+        # Read the full logical history from the router's attach index
+        # forward via the `events` view (provider-backed on a bounded,
+        # already-evicted transcript). This MUST NOT be a resident-only
+        # window, for two reasons:
+        #
+        #   * Span context. The sub-agent depth filter
+        #     (`_filter_subagent_events` / `ReplayTranscriptor`) classifies
+        #     each event by walking the AGENT_SPAN begin/end markers from
+        #     attach forward. A truncated resident window can elide the
+        #     outer/sub-agent SpanBegin events, which makes in-progress
+        #     sub-agent model events replay as top-level conversation (and
+        #     misfires the "first-is-outer" rule onto a nested span).
+        #     Starting at `attach_index` mirrors exactly what the live
+        #     router observed, so replay and live classify identically.
+        #
+        #   * Cap semantics. `_run_replay` caps each stream to the last
+        #     `REPLAY_MAX_EVENTS` of its OWN universe (filtered semantic /
+        #     full raw). The "last N semantic events" guarantee only holds
+        #     when the filter runs over the full since-attach history; over
+        #     a raw-bounded window, score/info/span noise can crowd the
+        #     conversation out.
+        #
+        # Reading through the provider is safe for content because the
+        # buffer history provider now resolves `attachment://` refs back to
+        # their underlying values (see `_materialize_events`), matching the
+        # un-condensed resident events. Slicing returns a fresh list, so a
+        # concurrent `_event` append can't change size mid-iteration.
+        return self._captured.events[self._attach_index :]
 
 
 class _CancelSnapshot:
@@ -560,11 +585,13 @@ class LiveAcpTransport:
         # interactive plumbing (e.g. an agent CLI in stdin-streaming
         # mode).
         self._clear_live: Callable[[], None] | None = None
-        # Test-only override for :attr:`is_attachable`. Production code
+        # Test-only override for :attr:`is_interactive`. Production code
         # leaves this at ``None`` (the property derives from ``_ref`` +
         # ``_agent_completed``). Test fixtures that hand-wire a session
         # without going through the real bind flow can set this to
-        # ``True`` to make the picker treat the session as attachable.
+        # ``True`` to make the picker treat the session as interactive
+        # (drivable). Named ``_attachable_override`` for historical
+        # reasons; it governs the interactivity axis.
         self._attachable_override: bool | None = None
 
     @property
@@ -578,24 +605,37 @@ class LiveAcpTransport:
         return self._ref
 
     @property
-    def is_attachable(self) -> bool:
+    def is_interactive(self) -> bool:
         """True iff a channel is bound and the agent loop is still live.
 
-        Returns False (a) before the first :meth:`maybe_bind` (sample
-        setup window) and (b) after :meth:`finalize` has marked the
-        transport agent-completed (scoring window). Either state means
-        the session can't actually drive an agent loop and shouldn't
-        show up in pickers.
+        The *interactivity* axis (drive the turn loop via
+        ``session/prompt`` / ``session/cancel``). Returns False (a)
+        before the first :meth:`maybe_bind` (sample setup window) and
+        (b) after the agent loop has exited (scoring window). Either
+        state means the turn loop can't be driven.
 
         Tests that exercise picker/forwarding behavior without going
         through the real bind flow can set
         :attr:`_attachable_override` to True to flag a hand-wired
-        session as attachable. Production paths leave it at the
+        session as interactive. Production paths leave it at the
         default (``None`` → derived from ``_ref`` + ``_agent_completed``).
         """
         if self._attachable_override is not None:
             return self._attachable_override
         return self._ref is not None and not self._agent_completed
+
+    @property
+    def is_attachable(self) -> bool:
+        """True iff a client may attach to this transport at all.
+
+        The broad gate (observe-only attach): True from ``__aenter__``
+        until :meth:`finalize`, regardless of channel binding — so a
+        client can attach to any running sample (including custom
+        solvers that never bind a channel, the pre-bind window, and the
+        scoring window) and receive its event stream. Drivable attach
+        additionally requires :attr:`is_interactive`.
+        """
+        return not self._finalized
 
     def maybe_bind(self, channel: "AgentChannel", ref: "AgentRef") -> bool:
         """Accept the (channel, ref) pair as the active producer target if none is bound.

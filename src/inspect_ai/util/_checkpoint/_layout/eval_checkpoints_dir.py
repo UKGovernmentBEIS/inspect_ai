@@ -17,19 +17,23 @@ from inspect_ai._util.file import basename, dirname
 from ..config import CheckpointConfig
 
 _LOG_SUFFIX = ".eval"
+_RECOVERED_SUFFIX = "-recovered"
 
 
 def log_basename(log_location: str) -> str:
-    """Return the log's basename with any trailing ``.eval`` stripped.
+    """Return the log's basename with recovery and log suffixes stripped.
 
     Used to derive the per-eval ``<log-base>.checkpoints/`` directory
     name (durable, alongside the log) and the matching per-eval working
     dir under ``inspect_cache_dir("checkpoints")/`` (ephemeral, host
-    cache). Single owner of the ``.eval`` suffix convention.
+    cache). Single owner of the ``.eval`` / ``-recovered`` suffix
+    conventions.
     """
     base = basename(log_location)
     if base.endswith(_LOG_SUFFIX):
         base = base[: -len(_LOG_SUFFIX)]
+    if base.endswith(_RECOVERED_SUFFIX):
+        base = base[: -len(_RECOVERED_SUFFIX)]
     return base
 
 

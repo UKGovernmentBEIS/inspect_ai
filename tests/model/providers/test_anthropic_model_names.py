@@ -20,6 +20,7 @@ DETECTION_METHODS = [
     "is_claude_4_6",
     "is_claude_4_7",
     "is_claude_4_8",
+    "is_claude_5",
     "is_claude_4_opus",
     "is_thinking_model",
     "is_claude_latest",
@@ -34,6 +35,7 @@ def _make_stub(model_name: str) -> object:
 
     stub = _Stub()
     stub.service_model_name = lambda: model_name  # type: ignore[attr-defined]
+    stub.model_family = lambda: model_name  # type: ignore[attr-defined]
 
     # Bind all detection methods (and private helpers) from AnthropicAPI
     import types
@@ -74,6 +76,7 @@ _CLAUDE_3 = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": False,
     "is_thinking_model": False,
     "is_claude_latest": False,
@@ -90,6 +93,7 @@ _CLAUDE_3_5 = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": False,
     "is_thinking_model": False,
     "is_claude_latest": False,
@@ -106,6 +110,7 @@ _CLAUDE_3_7 = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -122,6 +127,7 @@ _CLAUDE_4_0_SONNET = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -138,6 +144,7 @@ _CLAUDE_4_0_OPUS = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -154,6 +161,7 @@ _CLAUDE_4_1_OPUS = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -170,6 +178,7 @@ _CLAUDE_4_5_SONNET = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -186,6 +195,7 @@ _CLAUDE_4_5_OPUS = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -202,6 +212,7 @@ _CLAUDE_4_5_HAIKU = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -218,6 +229,7 @@ _CLAUDE_4_6_SONNET = {
     "is_claude_4_6": True,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -234,6 +246,7 @@ _CLAUDE_4_6_OPUS = {
     "is_claude_4_6": True,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -250,6 +263,7 @@ _CLAUDE_4_7_OPUS = {
     "is_claude_4_6": False,
     "is_claude_4_7": True,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -271,6 +285,7 @@ _CLAUDE_4_8_OPUS = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": True,
+    "is_claude_5": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -287,6 +302,7 @@ _CLAUDE_FUTURE = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": True,
@@ -303,6 +319,7 @@ _CLAUDE_FUTURE_4_MINOR = {
     "is_claude_4_6": False,
     "is_claude_4_7": False,
     "is_claude_4_8": False,
+    "is_claude_5": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": True,
@@ -311,6 +328,13 @@ _CLAUDE_FUTURE_4_MINOR = {
 _CLAUDE_FUTURE_4_MINOR_OPUS = {
     **_CLAUDE_FUTURE_4_MINOR,
     "is_claude_4_opus": True,
+}
+
+# Claude 5 (any claude-*-5) is a known frontier version, not "latest"/unknown.
+_CLAUDE_5 = {
+    **_CLAUDE_FUTURE,
+    "is_claude_5": True,
+    "is_claude_latest": False,
 }
 
 
@@ -516,12 +540,43 @@ def test_claude_4_6_opus(model_name: str) -> None:
 # ── Future models (is_claude_latest) ─────────────────────────────────────────
 
 
+# ── Claude 5 (any claude-*-5) ─────────────────────────────────────────────────
+# Detection matches any claude-<name>-5, so it covers the GA/limited Fable and
+# Mythos names AND forward-compat variants: point releases (claude-fable-5-1),
+# tier-named (claude-opus-5-0), and new codenames (claude-saga-5). All are
+# treated as known Claude 5 (is_claude_5 True, is_claude_latest False).
+
+
 @pytest.mark.parametrize(
     "model_name",
     [
-        # Future major version
-        "claude-sonnet-5-20260101",
+        # GA + limited-release names (no tier word)
+        "claude-fable-5",
+        "claude-mythos-5",
+        # Bedrock
+        "anthropic.claude-fable-5",
+        # Point releases (hyphen + dot forms)
+        "claude-fable-5-1",
+        "claude-mythos-5-1",
+        # Tier-named / codename variants (forward-compat)
         "claude-opus-5-0",
+        "claude-sonnet-5-20260101",
+        "claude-saga-5",
+    ],
+)
+def test_claude_5(model_name: str) -> None:
+    _check_model(model_name, _CLAUDE_5)
+
+
+# ── Future major versions (newer than Claude 5) ──────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        # Genuinely future major version — still caught by is_claude_latest()
+        "claude-opus-6-0",
+        "claude-sonnet-6-20270101",
     ],
 )
 def test_future_major_version(model_name: str) -> None:

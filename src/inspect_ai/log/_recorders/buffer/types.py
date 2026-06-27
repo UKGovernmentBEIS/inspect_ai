@@ -1,6 +1,7 @@
 import abc
+from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING, Literal, TypeAlias
+from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
 
 from pydantic import BaseModel, JsonValue
 
@@ -12,6 +13,27 @@ if TYPE_CHECKING:
     from .history import SampleHistory
 
 JsonData: TypeAlias = dict[str, JsonValue]
+
+
+class TranscriptEventSink(Protocol):
+    def merge_message_pool_entry(self, msg_id: str, message: str) -> int: ...
+
+    def merge_call_pool_entry(self, call_hash: str, call: str) -> int: ...
+
+    def attachment_refs_from_json(self, value: str) -> set[str]: ...
+
+    def merge_attachment_refs(
+        self,
+        refs: set[str],
+        attachment_lookup: Callable[[str], str | None],
+    ) -> None: ...
+
+    def merge_condensed_event(
+        self,
+        logical_id: str,
+        event: Mapping[str, JsonValue],
+        attachment_lookup: Callable[[str], str | None],
+    ) -> None: ...
 
 
 class Samples(BaseModel):
@@ -133,6 +155,18 @@ class SampleBuffer(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def sample_has_event(self, id: str | int, epoch: int, event_id: str) -> bool:
+        """Return whether the sample contains an event with ``event_id``."""
+        ...
+
+    @abc.abstractmethod
+    def export_transcript_events(
+        self, id: str | int, epoch: int, transcript_store: TranscriptEventSink
+    ) -> int:
+        """Export a sample's full event history into a transcript event sink."""
+        ...
+
+    @abc.abstractmethod
     def open_sample_history_tail(
         self,
         id: str | int,
@@ -148,8 +182,14 @@ class SampleBuffer(abc.ABC):
         id: str | int,
         epoch: int,
         start: int,
+        limit: int | None = None,
     ) -> AbstractContextManager["SampleHistory"]:
-        """Open a consistent sample-history snapshot from ``start`` onward."""
+        """Open a consistent sample-history snapshot from ``start`` onward.
+
+        ``limit`` caps the number of events read (``None`` = through the end),
+        so cursored page readers don't materialize the full remaining history
+        to serve one page.
+        """
         ...
 
     @abc.abstractmethod

@@ -1,5 +1,4 @@
 import contextlib
-from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging import getLogger
@@ -19,6 +18,7 @@ if TYPE_CHECKING:
     from inspect_ai.agent._acp.transport import AcpTransport
     from inspect_ai.agent._channel import ExecutionObserver
     from inspect_ai.hooks._hooks import SampleEvent
+    from inspect_ai.log._log import EvalRetryError
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 
 import anyio
@@ -26,7 +26,7 @@ from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
-from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer import CheckpointerSetup, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
@@ -56,13 +56,21 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
-        checkpointer: AbstractAsyncContextManager[Checkpointer],
+        checkpointer: CheckpointerSetup,
         eval_id: str,
         eval_set_id: str | None = None,
         run_id: str | None = None,
         agent_name: str | None = None,
+        error_retries: "list[EvalRetryError] | None" = None,
+        sample_uuid: str,
     ) -> None:
         self.id = uuid()
+        # The uuid the logged `EvalSample` will carry (== `TaskState.uuid`).
+        # Distinct from `self.id` (this attempt's `ActiveSample` identity):
+        # `sample_uuid` is stable across the running→terminal transition, so
+        # the control channel uses it as the event-cursor nonce — a cursor
+        # handed out while running stays valid once the sample is logged.
+        self.sample_uuid = sample_uuid
         self.started: float | None = None
         self.tg: TaskGroup | None = None
         self.completed: float | None = None
@@ -80,6 +88,7 @@ class ActiveSample:
         self.total_messages = 0
         self.total_tokens = 0
         self.total_cost: float | None = None
+        self.fallback_models: list[str] = []
         self.transcript = transcript
         self.sandboxes = sandboxes
         self.checkpointer = checkpointer
@@ -87,6 +96,11 @@ class ActiveSample:
         self.run_id = run_id
         self.eval_id = eval_id
         self.agent_name = agent_name
+        # Prior failed attempts for this sample (genuine errors only):
+        # sample-level `retry_on_error` plus task-level retries seeded via the
+        # sample source. Empty on the first attempt. The control channel
+        # surfaces these as the running sample's error history.
+        self.error_retries: list[EvalRetryError] = error_retries or []
         self._interrupt_action: Literal["score", "error"] | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
@@ -140,6 +154,11 @@ class ActiveSample:
         self.on_interrupt: (
             Callable[[Literal["user_cancel", "limit", "system"]], None] | None
         ) = None
+
+    @property
+    def retries(self) -> int:
+        """Number of prior failed attempts for this sample (0 on first run)."""
+        return len(self.error_retries)
 
     def start(self, tg: TaskGroup) -> None:
         self.started = datetime.now(timezone.utc).timestamp()
@@ -252,6 +271,8 @@ async def active_sample(
     eval_set_id: str | None = None,
     run_id: str | None = None,
     agent_name: str | None = None,
+    error_retries: "list[EvalRetryError] | None" = None,
+    sample_uuid: str,
 ) -> AsyncGenerator[ActiveSample, None]:
     if sample.id is None:
         raise ValueError("active_sample requires sample.id to be set")
@@ -281,6 +302,8 @@ async def active_sample(
         run_id=run_id,
         eval_id=eval_id,
         agent_name=agent_name,
+        error_retries=error_retries,
+        sample_uuid=sample_uuid,
     )
 
     _active_samples.append(active)
@@ -311,6 +334,7 @@ async def active_sample(
                         "ActiveSample on_complete hook raised",
                         exc_info=True,
                     )
+        active.checkpointer.close()
         active.complete()
         _active_samples.remove(active)
         _sample_active.set(None)
@@ -362,6 +386,12 @@ def set_active_sample_total_messages(total_messages: int) -> None:
     active = sample_active()
     if active:
         active.total_messages = total_messages
+
+
+def set_active_sample_fallback_models(fallback_models: list[str]) -> None:
+    active = sample_active()
+    if active:
+        active.fallback_models = fallback_models
 
 
 _active_model_event: ContextVar[ModelEvent | None] = ContextVar(
