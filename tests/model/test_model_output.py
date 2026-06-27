@@ -2,9 +2,10 @@ import math
 from pathlib import Path
 
 from inspect_ai.log._file import read_eval_log
+from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._model import compute_model_cost
 from inspect_ai.model._model_data.model_data import ModelCost
-from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
 
 
 def test_completion_deserialization() -> None:
@@ -148,3 +149,14 @@ def test_compute_model_cost_no_double_billing_cached_tokens() -> None:
     # total: 0.0036
     expected = (400 * 3.0 + 100 * 15.0 + 600 * 1.5) / 1_000_000
     assert math.isclose(cost, expected)
+
+
+def test_empty_model_output_properties_do_not_raise() -> None:
+    # An empty ModelOutput (no choices) is a real state, e.g. AgentState.output
+    # synthesizes one when history has no assistant message. Its convenience
+    # properties must not raise IndexError.
+    output = ModelOutput()
+    assert output.empty
+    assert output.stop_reason == "unknown"
+    assert isinstance(output.message, ChatMessageAssistant)
+    assert output.message.text == ""
