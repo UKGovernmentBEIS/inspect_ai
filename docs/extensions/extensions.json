@@ -253,6 +253,17 @@
     ]
   },
   {
+    "id": "optstop",
+    "name": "Optstop",
+    "url": "https://github.com/UKGovernmentBEIS/optstop",
+    "desc": "Adaptive optimal stopping algorithms to help efficiently determine when enough data has been collected to make reliable inferences.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/UKGovernmentBEIS/optstop",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
     "id": "evaljobs",
     "name": "Evaljobs",
     "url": "https://github.com/dvsrepo/evaljobs",
