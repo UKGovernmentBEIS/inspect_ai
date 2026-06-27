@@ -475,12 +475,13 @@ def _partition_dict_scores(scores: list[Score]) -> list[Score]:
     # dict, so differing keys across epochs either crash with a KeyError or
     # silently drop the extra keys. Reject the inconsistency up front.
     if result:
-        keys = set(result[0].value.keys())  # type: ignore
+        keys = set(result[0].as_dict().keys())
         for score in result[1:]:
-            if set(score.value.keys()) != keys:  # type: ignore
+            score_keys = set(score.as_dict().keys())
+            if score_keys != keys:
                 raise ValueError(
                     "Cannot reduce dictionary scores with mismatched keys: "
-                    f"{sorted(keys)} vs {sorted(score.value.keys())}. "  # type: ignore
+                    f"{sorted(keys)} vs {sorted(score_keys)}. "
                     "Every epoch must score the same keys; return a NaN score to "
                     "mark an individual epoch as unscored."
                 )
@@ -507,12 +508,13 @@ def _partition_list_scores(scores: list[Score]) -> list[Score]:
     # list, so differing lengths across epochs either crash with an IndexError
     # or silently drop the trailing values. Reject the inconsistency up front.
     if result:
-        length = len(result[0].value)  # type: ignore
+        length = len(result[0].as_list())
         for score in result[1:]:
-            if len(score.value) != length:  # type: ignore
+            score_length = len(score.as_list())
+            if score_length != length:
                 raise ValueError(
                     "Cannot reduce list scores with mismatched lengths: "
-                    f"{length} vs {len(score.value)}. "  # type: ignore
+                    f"{length} vs {score_length}. "
                     "Every epoch must produce the same number of values; return a "
                     "NaN score to mark an individual epoch as unscored."
                 )
