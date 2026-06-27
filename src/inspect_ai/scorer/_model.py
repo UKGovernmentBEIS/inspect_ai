@@ -295,7 +295,9 @@ First, write out in a step by step manner your reasoning about the criterion to 
 """
 
 
-_GRADE_SPACING = r"[\s\u200b\u200c\u200d\ufeff\u2060]*"
+# Whitespace plus zero-width / formatting marks that can appear around a
+# verdict separator in model output or pasted text.
+_GRADE_SPACING = r"[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*"
 
 DEFAULT_GRADE_PATTERN = (
     rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}([CPI])"
