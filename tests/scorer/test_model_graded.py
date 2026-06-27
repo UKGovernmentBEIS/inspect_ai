@@ -10,7 +10,7 @@ from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
-from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
+from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelName
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import INCORRECT, Target, model_graded_fact, model_graded_qa
@@ -357,7 +357,7 @@ def test_model_graded_custom_grade_pattern_preserves_capture_case() -> None:
         grade_pattern=r"(?is).*RESULT:\s*([ab])",
     )
     state = TaskState(
-        model="mockllm/model",
+        model=ModelName("mockllm/model"),
         sample_id=1,
         epoch=1,
         input="Question",
@@ -366,6 +366,7 @@ def test_model_graded_custom_grade_pattern_preserves_capture_case() -> None:
     )
     score = asyncio.run(scorer(state, Target("Criterion")))
 
+    assert score is not None
     assert score.value == "a"
 
 
