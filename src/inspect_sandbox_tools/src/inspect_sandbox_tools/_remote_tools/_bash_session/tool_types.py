@@ -15,6 +15,11 @@ class InteractParams(BashBaseParams):
     within this period, the function will return an empty string.
     """
     idle_timeout: float
+    max_output_bytes: int | None = None
+    """
+    Maximum response size allowed by the host. The sandbox keeps the returned
+    shell output below this value before JSON-RPC serialization.
+    """
     input: str | None = None
 
 
