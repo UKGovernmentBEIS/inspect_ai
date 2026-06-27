@@ -76,6 +76,26 @@ def test_all_nan_simple_reducers() -> None:
     assert _is_nan(pass_k_5_threshold(simple_scores).value)
 
 
+def test_empty_simple_reducers() -> None:
+    # An empty score list reaches the reducer when a sample produced no scores;
+    # every reducer should fall back to NaN instead of raising IndexError.
+    empty_scores: list[Score] = []
+
+    assert _is_nan(avg_reducer(empty_scores).value)
+    assert _is_nan(median_reducer(empty_scores).value)
+    assert _is_nan(mode_reducer(empty_scores).value)
+    assert _is_nan(max_reducer(empty_scores).value)
+    assert _is_nan(at_least_3_reducer(empty_scores).value)
+    assert _is_nan(pass_at_2_no_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_3_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_5_no_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_5_threshhold(empty_scores).value)
+    assert _is_nan(pass_k_2_no_threshold(empty_scores).value)
+    assert _is_nan(pass_k_3_threshold(empty_scores).value)
+    assert _is_nan(pass_k_5_no_threshold(empty_scores).value)
+    assert _is_nan(pass_k_5_threshold(empty_scores).value)
+
+
 def test_list_reducers() -> None:
     _test_list_reducers_impl(include_nan=False)
 
