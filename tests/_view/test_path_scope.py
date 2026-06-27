@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import urllib.parse
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
@@ -11,6 +12,7 @@ from fastapi import APIRouter
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
+from inspect_ai._util.file import filesystem
 from inspect_ai._view import fastapi_server
 from inspect_ai._view.path_scope import (
     VIEW_SCOPE_HEADER,
@@ -115,6 +117,13 @@ def test_remote_directory_scope_requires_same_authority_and_components() -> None
         assert not scope.allows(location)
 
 
+def test_remote_file_scope_resolves_alias_to_authorized_location() -> None:
+    selected = "memory://bucket/logs/secret.eval"
+    scope = PathScope.parse("file", selected)
+
+    assert scope.resolve("memory://bucket/logs//secret.eval") == selected
+
+
 @pytest.mark.parametrize("scheme", ["http", "https"])
 def test_http_scopes_are_exact_file_only(scheme: str) -> None:
     selected = f"{scheme}://example.test/logs/run.eval"
@@ -138,6 +147,45 @@ def test_signed_http_file_scopes_require_the_exact_query(scheme: str) -> None:
         f"{scheme}://example.test/logs/run.eval?expires=60&signature=other"
     )
     assert not scope.allows(f"{scheme}://example.test/logs/run.eval")
+
+
+def test_signed_query_values_use_canonical_rfc3986_encoding() -> None:
+    selected = (
+        "https://example.test/run.eval?"
+        "credential=team%2Fmember&label=hello%20world"
+    )
+    scope = PathScope.parse("file", selected)
+
+    assert (
+        scope.resolve(
+            "https://example.test/run.eval?"
+            "credential=team/member&label=hello world"
+        )
+        == selected
+    )
+
+
+def test_scoped_authorization_canonicalizes_signed_query_values() -> None:
+    selected = (
+        "https://example.test/run.eval?"
+        "credential=team%2Fmember&label=hello%20world"
+    )
+    request = _request(
+        (VIEW_SCOPE_KIND_HEADER, "file"),
+        (VIEW_SCOPE_HEADER, selected),
+    )
+    policy = fastapi_server.ScopedAuthorizationAccessPolicy()
+
+    assert (
+        asyncio.run(
+            policy.resolve_read(
+                request,
+                "https://example.test/run.eval?"
+                "credential=team/member&label=hello world",
+            )
+        )
+        == selected
+    )
 
 
 def test_remote_directory_scopes_reject_queries() -> None:
@@ -182,6 +230,61 @@ def test_scoped_authorization_file_policy() -> None:
     assert asyncio.run(policy.can_write(request, "https://example.test/run.eval"))
     assert not asyncio.run(policy.can_read(request, "https://example.test/other.eval"))
     assert not asyncio.run(policy.can_list(request, "https://example.test"))
+
+
+def test_scoped_authorization_uses_resolved_remote_location() -> None:
+    selected = "memory://bucket/logs/secret.eval"
+    alias = "memory://bucket/logs//secret.eval"
+    fs = filesystem(selected)
+    fs.fs.pipe_file(fs.fs._strip_protocol(selected), b"selected")
+    fs.fs.pipe_file(fs.fs._strip_protocol(alias), b"alias")
+
+    app = fastapi_server.view_server_app(
+        access_policy=fastapi_server.ScopedAuthorizationAccessPolicy()
+    )
+    headers = {
+        VIEW_SCOPE_KIND_HEADER: "file",
+        VIEW_SCOPE_HEADER: selected,
+    }
+    encoded_alias = urllib.parse.quote(alias, safe="")
+
+    with TestClient(app) as client:
+        response = client.get(
+            f"/log-bytes/{encoded_alias}?start=0&end=7",
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    assert response.content == b"selected"
+
+
+def test_boolean_access_policy_still_uses_canonical_location() -> None:
+    class AllowAccess(fastapi_server.AccessPolicy):
+        async def can_read(self, request: Request, file: str) -> bool:
+            return True
+
+        async def can_delete(self, request: Request, file: str) -> bool:
+            return True
+
+        async def can_list(self, request: Request, dir: str) -> bool:
+            return True
+
+        async def can_write(self, request: Request, file: str) -> bool:
+            return True
+
+    selected = "memory://bucket/boolean/secret.eval"
+    alias = "memory://bucket/boolean//secret.eval"
+    fs = filesystem(selected)
+    fs.fs.pipe_file(fs.fs._strip_protocol(selected), b"selected")
+    fs.fs.pipe_file(fs.fs._strip_protocol(alias), b"alias")
+    app = fastapi_server.view_server_app(access_policy=AllowAccess())
+    encoded_alias = urllib.parse.quote(alias, safe="")
+
+    with TestClient(app) as client:
+        response = client.get(f"/log-bytes/{encoded_alias}?start=0&end=7")
+
+    assert response.status_code == 200
+    assert response.content == b"selected"
 
 
 def test_scoped_authorization_uses_a_canonical_local_scope(tmp_path: Path) -> None:
@@ -319,10 +422,16 @@ def test_mounted_scout_routes_use_inspect_path_scope(
             f"/scout/transcripts/{encode('s3://bucket/logs')}/item",
             headers=headers,
         )
+        canonicalized = client.get(
+            f"/scout/transcripts/{encode('s3://bucket/logs//team')}/item",
+            headers=headers,
+        )
         rejected = client.get(
             f"/scout/transcripts/{encode('s3://other/logs')}/item",
             headers=headers,
         )
 
     assert allowed.status_code == 200
+    assert canonicalized.status_code == 200
+    assert canonicalized.json()["dir"] == encode("s3://bucket/logs/team")
     assert rejected.status_code == 403

@@ -18,12 +18,26 @@ PathScopeKind = Literal["directory", "file"]
 _WINDOWS_DRIVE_PATH = re.compile(r"^[A-Za-z]:[\\/]")
 
 
+def canonical_path_location(location: str) -> str | None:
+    """Resolve a local or remote location to the value used for filesystem I/O."""
+    local = _canonical_local_path(location)
+    if local is not None:
+        return str(local)
+    remote = _canonical_remote_path(location)
+    return remote.location() if remote is not None else None
+
+
 @dataclass(frozen=True)
 class _RemotePath:
     scheme: str
     authority: str
     path: PurePosixPath
     query: str
+
+    def location(self) -> str:
+        return urllib.parse.urlunsplit(
+            (self.scheme, self.authority, self.path.as_posix(), self.query, "")
+        )
 
 
 @dataclass(frozen=True)
@@ -64,31 +78,40 @@ class PathScope:
                 raise ValueError("Viewer directory scopes cannot contain a query")
         return cls(kind=kind, _local=local, _remote=remote)
 
-    def allows(self, location: str) -> bool:
+    def resolve(self, location: str) -> str | None:
+        """Resolve an allowed location to the exact URI used for I/O."""
         if self._local is not None:
             candidate = _canonical_local_path(location)
             if candidate is None:
-                return False
+                return None
             if self.kind == "file":
-                return candidate == self._local
-            return candidate.is_relative_to(self._local)
+                return str(candidate) if candidate == self._local else None
+            return str(candidate) if candidate.is_relative_to(self._local) else None
 
         remote_candidate = _canonical_remote_path(location)
         if remote_candidate is None or self._remote is None:
-            return False
+            return None
         if (
             remote_candidate.scheme != self._remote.scheme
             or remote_candidate.authority != self._remote.authority
         ):
-            return False
+            return None
         if self.kind == "file":
-            return (
+            allowed = (
                 remote_candidate.path == self._remote.path
                 and remote_candidate.query == self._remote.query
             )
+            return remote_candidate.location() if allowed else None
         if remote_candidate.query:
-            return False
-        return remote_candidate.path.is_relative_to(self._remote.path)
+            return None
+        return (
+            remote_candidate.location()
+            if remote_candidate.path.is_relative_to(self._remote.path)
+            else None
+        )
+
+    def allows(self, location: str) -> bool:
+        return self.resolve(location) is not None
 
 
 def _canonical_local_path(
@@ -195,5 +218,22 @@ def _canonical_remote_path(location: str) -> _RemotePath | None:
         scheme=protocol.lower(),
         authority=parsed.netloc.lower(),
         path=PurePosixPath(path),
-        query=parsed.query,
+        query=_canonical_query(parsed.query),
     )
+
+
+def _canonical_query(query: str) -> str:
+    if not query:
+        return ""
+
+    def encode(value: str) -> str:
+        return urllib.parse.quote(urllib.parse.unquote(value), safe="-._~")
+
+    fields: list[str] = []
+    for field in query.split("&"):
+        if "=" in field:
+            name, value = field.split("=", 1)
+            fields.append(f"{encode(name)}={encode(value)}")
+        else:
+            fields.append(encode(field))
+    return "&".join(fields)
