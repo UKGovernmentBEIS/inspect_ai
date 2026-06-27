@@ -22,6 +22,7 @@
 - Control Channel: `inspect ctl` reads now use a 15s timeout and retry a busy eval up to 8 times (printing a status on each timeout) before failing with a non-zero exit, instead of silently dropping a momentarily-unresponsive eval from the listing.
 - Control Channel: Stop printing a misleading "Control server did not shut down cleanly" warning when an eval is interrupted with Ctrl-C (the cancellation is now re-raised as the expected teardown it is).
 - Scoring: Support `model` and `model_roles` overrides for re-scoring (`inspect score --model` / `--model-role`).
+- Scoring: Harden default model-graded verdict extraction so words ending in "grade", zero-width formatting marks around the verdict separator, and lowercase verdict letters no longer silently score incorrectly.
 - OpenRouter: Surface the provider-reported per-request cost (summing `cost` and, for BYOK routes, `cost_details.upstream_inference_cost`) as `ModelUsage.total_cost`, taking precedence over Inspect's local per-token estimate; a `cost_limit` may now be used with OpenRouter models even when they have no static pricing entry (enforced at runtime from the reported cost).
 - Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
 - Inspect View: Require frontend-only headers for mutations and use non-GET routes for log deletion and client messages.
