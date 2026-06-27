@@ -61,7 +61,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import inline_media_data_uri
+from inspect_ai._util.images import as_data_uri, inline_media_data_uri
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
@@ -738,10 +738,12 @@ def content_from_openai(
             )
         ]
     elif content["type"] == "input_audio":
+        audio_format = content["input_audio"]["format"]
+        mime_type = "audio/mpeg" if audio_format == "mp3" else "audio/wav"
         return [
             ContentAudio(
-                audio=content["input_audio"]["data"],
-                format=content["input_audio"]["format"],
+                audio=as_data_uri(mime_type, content["input_audio"]["data"]),
+                format=audio_format,
             )
         ]
     elif content["type"] == "refusal":

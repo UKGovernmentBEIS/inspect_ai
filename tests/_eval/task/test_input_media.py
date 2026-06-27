@@ -3,7 +3,7 @@ from pathlib import Path
 
 from inspect_ai import Task, TaskSource, eval
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import ContentImage
+from inspect_ai._util.content import ContentAudio, ContentImage
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.model import (
@@ -20,6 +20,10 @@ def image_input(reference: str) -> list[ChatMessage]:
     return [ChatMessageUser(content=[ContentImage(image=reference)])]
 
 
+def audio_input(reference: str) -> list[ChatMessage]:
+    return [ChatMessageUser(content=[ContentAudio(audio=reference, format="mp3")])]
+
+
 def image_reference(state: TaskState) -> str:
     assert not isinstance(state.input, str)
     content = state.input[0].content
@@ -27,6 +31,15 @@ def image_reference(state: TaskState) -> str:
     image = content[0]
     assert isinstance(image, ContentImage)
     return image.image
+
+
+def audio_reference(state: TaskState) -> str:
+    assert not isinstance(state.input, str)
+    content = state.input[0].content
+    assert isinstance(content, list)
+    audio = content[0]
+    assert isinstance(audio, ContentAudio)
+    return audio.audio
 
 
 def logged_image_reference(sample: EvalSample) -> str:
@@ -107,6 +120,34 @@ def test_fixed_input_uses_configured_media_resolver() -> None:
         )
 
     assert seen == ["data:image/png;base64,dHJ1c3RlZA=="]
+
+
+def test_fixed_audio_without_extension_uses_declared_format(
+    tmp_path: Path,
+) -> None:
+    audio = tmp_path / "input"
+    audio.write_bytes(b"trusted-audio")
+    seen: list[str] = []
+
+    @solver
+    def record_input() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            seen.append(audio_reference(state))
+            return state
+
+        return solve
+
+    eval(
+        Task(
+            dataset=[Sample(id="sample", input=audio_input(str(audio)))],
+            solver=record_input(),
+        ),
+        model="mockllm/model",
+        display="none",
+    )
+
+    assert seen[0].startswith("data:audio/mpeg;base64,")
+    assert base64.b64decode(seen[0].split("base64,", 1)[1]) == b"trusted-audio"
 
 
 def test_pending_sample_replacement_does_not_inherit_authority(

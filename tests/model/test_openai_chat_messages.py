@@ -1,7 +1,10 @@
 import pytest
 
-from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai.model._openai import messages_from_openai
+from inspect_ai._util.content import ContentAudio, ContentReasoning, ContentText
+from inspect_ai.model._openai import (
+    messages_from_openai,
+    openai_chat_completion_part,
+)
 from inspect_ai.model._openai_responses import (
     _openai_input_items_from_chat_message_assistant,
 )
@@ -202,3 +205,28 @@ async def test_user_message_passthrough():
     assert len(chat_msgs) == 1
     msg = chat_msgs[0]
     assert msg.content == user_content
+
+
+async def test_user_input_audio_is_normalized_to_data_uri():
+    audio_data = "aGVsbG8="
+    messages = [
+        DummyMessage(
+            "user",
+            content=[
+                {
+                    "type": "input_audio",
+                    "input_audio": {"data": audio_data, "format": "mp3"},
+                }
+            ],
+        ),
+    ]
+
+    chat_msgs = await messages_from_openai(messages)
+    content = chat_msgs[0].content
+    assert isinstance(content, list)
+    audio = content[0]
+    assert isinstance(audio, ContentAudio)
+    assert audio.audio == f"data:audio/mpeg;base64,{audio_data}"
+
+    serialized = await openai_chat_completion_part(audio)
+    assert serialized["input_audio"] == {"data": audio_data, "format": "mp3"}
