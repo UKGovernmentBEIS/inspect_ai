@@ -6,6 +6,7 @@ from functools import reduce
 from typing import Any
 
 import numpy as np
+import pytest
 
 from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.score import score
@@ -128,6 +129,65 @@ def test_all_nan_list_reducers() -> None:
     assert_list_nan(reduced)
     reduced = pass_k_2_no_threshold(list_scores).value
     assert_list_nan(reduced)
+
+
+def test_list_reducers_mismatched_lengths_raise() -> None:
+    # Lists that differ in length across epochs can't be reduced index-by-index.
+    # Depending on which epoch came first this previously either crashed with a
+    # cryptic IndexError or silently dropped the trailing values; now it should
+    # raise a clear ValueError pointing at the inconsistency.
+    list_score_sets = [
+        [
+            Score(value=[1, 2, 3]),
+            Score(value=[1, 2]),
+        ],
+        [
+            Score(value=[1, 2]),
+            Score(value=[1, 2, 3]),
+        ],
+    ]
+
+    for list_scores in list_score_sets:
+        for reducer in [
+            avg_reducer,
+            median_reducer,
+            mode_reducer,
+            max_reducer,
+            at_least_3_reducer,
+            pass_at_2_no_threshhold,
+            pass_k_2_no_threshold,
+        ]:
+            with pytest.raises(ValueError, match="mismatched length"):
+                reducer(list_scores)
+
+
+def test_dict_reducers_mismatched_keys_raise() -> None:
+    # Dicts with different keys across epochs can't be reduced key-by-key. The
+    # missing key previously surfaced as a cryptic KeyError (or was silently
+    # ignored); now it should raise a clear ValueError.
+    dict_score_sets = [
+        [
+            Score(value={"coolness": 5, "spiciness": 1}),
+            Score(value={"coolness": 4}),
+        ],
+        [
+            Score(value={"coolness": 4}),
+            Score(value={"coolness": 5, "spiciness": 1}),
+        ],
+    ]
+
+    for dict_scores in dict_score_sets:
+        for reducer in [
+            avg_reducer,
+            median_reducer,
+            mode_reducer,
+            max_reducer,
+            at_least_3_reducer,
+            pass_at_2_no_threshhold,
+            pass_k_2_no_threshold,
+        ]:
+            with pytest.raises(ValueError, match="mismatched key"):
+                reducer(dict_scores)
 
 
 def test_nan_root_list_reducers() -> None:

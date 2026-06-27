@@ -457,7 +457,8 @@ def _partition_dict_scores(scores: list[Score]) -> list[Score]:
     r"""Return the subset of scores whose value is a dict.
 
     Skips scores with NaN-at-root (treated as unscored). Raises ValueError
-    if any score has a value that is neither a dict nor a NaN scalar.
+    if any score has a value that is neither a dict nor a NaN scalar, or if the
+    dict-shaped scores don't all share the same keys.
     """
     result: list[Score] = []
     for score in scores:
@@ -469,6 +470,21 @@ def _partition_dict_scores(scores: list[Score]) -> list[Score]:
             raise ValueError(
                 "Attempting to reduce a dictionary score for a non-dictionary value"
             )
+
+    # Reducers walk the keys of the first dict and look them up in every other
+    # dict, so differing keys across epochs either crash with a KeyError or
+    # silently drop the extra keys. Reject the inconsistency up front.
+    if result:
+        keys = set(result[0].as_dict().keys())
+        for score in result[1:]:
+            score_keys = set(score.as_dict().keys())
+            if score_keys != keys:
+                raise ValueError(
+                    "Cannot reduce dictionary scores with mismatched keys: "
+                    f"{sorted(keys)} vs {sorted(score_keys)}. "
+                    "Every epoch must score the same keys; return a NaN score to "
+                    "mark an individual epoch as unscored."
+                )
     return result
 
 
@@ -476,7 +492,8 @@ def _partition_list_scores(scores: list[Score]) -> list[Score]:
     r"""Return the subset of scores whose value is a list.
 
     Skips scores with NaN-at-root (treated as unscored). Raises ValueError
-    if any score has a value that is neither a list nor a NaN scalar.
+    if any score has a value that is neither a list nor a NaN scalar, or if the
+    list-shaped scores don't all share the same length.
     """
     result: list[Score] = []
     for score in scores:
@@ -486,6 +503,21 @@ def _partition_list_scores(scores: list[Score]) -> list[Score]:
             continue
         else:
             raise ValueError("Attempting to reduce a list score for a non-list value")
+
+    # Reducers walk the indices of the first list and read them from every other
+    # list, so differing lengths across epochs either crash with an IndexError
+    # or silently drop the trailing values. Reject the inconsistency up front.
+    if result:
+        length = len(result[0].as_list())
+        for score in result[1:]:
+            score_length = len(score.as_list())
+            if score_length != length:
+                raise ValueError(
+                    "Cannot reduce list scores with mismatched lengths: "
+                    f"{length} vs {score_length}. "
+                    "Every epoch must produce the same number of values; return a "
+                    "NaN score to mark an individual epoch as unscored."
+                )
     return result
 
 
