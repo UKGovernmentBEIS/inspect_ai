@@ -82,7 +82,12 @@ async def materialize_sample_input(sample: Sample, plan: TaskInputMediaPlan) -> 
             expected = authorized.get((message_index, content_index))
             if media is not None and expected == media and not is_data_uri(media[1]):
                 contents.append(
-                    _content_with_reference(content, await materialize_media(media[1]))
+                    _content_with_reference(
+                        content,
+                        await materialize_media(
+                            media[1], mime_type=_media_mime_type(content)
+                        ),
+                    )
                 )
             else:
                 contents.append(content)
@@ -143,6 +148,21 @@ def _content_with_reference(content: Content, reference: str) -> Content:
         return content.model_copy(update={"document": reference})
     else:
         return content
+
+
+def _media_mime_type(content: Content) -> str | None:
+    if isinstance(content, ContentAudio):
+        return "audio/mpeg" if content.format == "mp3" else "audio/wav"
+    elif isinstance(content, ContentVideo):
+        return {
+            "mp4": "video/mp4",
+            "mpeg": "video/mpeg",
+            "mov": "video/quicktime",
+        }[content.format]
+    elif isinstance(content, ContentDocument):
+        return content.mime_type
+    else:
+        return None
 
 
 def state_without_base64_content(state: TaskState) -> TaskState:

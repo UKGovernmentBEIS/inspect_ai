@@ -2,8 +2,11 @@ import base64
 import os
 import tempfile
 from contextvars import Token
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import anyio
+import httpx
 import pytest
 
 from inspect_ai._util.images import (
@@ -246,6 +249,86 @@ class TestFileAsDataUri:
         assert not called
         assert result == uri
 
+    async def test_mime_type_hint_for_extensionless_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "audio"
+        path.write_bytes(b"audio")
+
+        uri = await file_as_data_uri(str(path), mime_type="audio/mpeg")
+
+        assert uri.startswith("data:audio/mpeg;base64,")
+
+
+class TestFileAsDataHttp:
+    async def test_response_content_type_is_used(self) -> None:
+        request = httpx.Request("GET", "https://example.com/download")
+        response = httpx.Response(
+            200,
+            content=b"audio",
+            headers={"content-type": "audio/mpeg; charset=binary"},
+            request=request,
+        )
+
+        with patch.object(
+            httpx.AsyncClient,
+            "get",
+            new=AsyncMock(return_value=response),
+        ):
+            data, mime_type = await file_as_data(str(request.url))
+
+        assert data == b"audio"
+        assert mime_type == "audio/mpeg"
+
+    async def test_generic_content_type_falls_back_to_url(self) -> None:
+        request = httpx.Request("GET", "https://example.com/audio.mp3")
+        response = httpx.Response(
+            200,
+            content=b"audio",
+            headers={"content-type": "application/octet-stream"},
+            request=request,
+        )
+
+        with patch.object(
+            httpx.AsyncClient,
+            "get",
+            new=AsyncMock(return_value=response),
+        ):
+            _, mime_type = await file_as_data(str(request.url))
+
+        assert mime_type == "audio/mpeg"
+
+    async def test_generic_content_type_falls_back_to_hint(self) -> None:
+        request = httpx.Request("GET", "https://example.com/audio.bin")
+        response = httpx.Response(
+            200,
+            content=b"audio",
+            headers={"content-type": "application/octet-stream"},
+            request=request,
+        )
+
+        with patch.object(
+            httpx.AsyncClient,
+            "get",
+            new=AsyncMock(return_value=response),
+        ):
+            _, mime_type = await file_as_data(str(request.url), mime_type="audio/mpeg")
+
+        assert mime_type == "audio/mpeg"
+
+    @pytest.mark.parametrize("status_code", [302, 404, 500])
+    async def test_non_success_status_rejected(self, status_code: int) -> None:
+        request = httpx.Request("GET", "https://example.com/media")
+        response = httpx.Response(status_code, request=request)
+
+        with (
+            patch.object(
+                httpx.AsyncClient,
+                "get",
+                new=AsyncMock(return_value=response),
+            ),
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            await file_as_data(str(request.url))
+
 
 class TestInlineMedia:
     def test_inline_media_data(self) -> None:
@@ -256,6 +339,12 @@ class TestInlineMedia:
     def test_inline_media_data_uri(self) -> None:
         uri = "data:application/pdf;base64,aGVsbG8="
         assert inline_media_data_uri(uri, "document") == uri
+
+    def test_inline_media_data_uri_does_not_decode(self) -> None:
+        uri = "data:image/png;base64,aGVsbG8="
+        with patch("inspect_ai._util.images.base64.b64decode") as decode:
+            assert inline_media_data_uri(uri, "image") == uri
+        decode.assert_not_called()
 
     def test_non_inline_media_rejected(self) -> None:
         with pytest.raises(UnresolvedMediaError, match="materialized"):
