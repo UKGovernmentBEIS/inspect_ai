@@ -151,15 +151,13 @@ def test_signed_http_file_scopes_require_the_exact_query(scheme: str) -> None:
 
 def test_signed_query_values_use_canonical_rfc3986_encoding() -> None:
     selected = (
-        "https://example.test/run.eval?"
-        "credential=team%2Fmember&label=hello%20world"
+        "https://example.test/run.eval?credential=team%2Fmember&label=hello%20world"
     )
     scope = PathScope.parse("file", selected)
 
     assert (
         scope.resolve(
-            "https://example.test/run.eval?"
-            "credential=team/member&label=hello world"
+            "https://example.test/run.eval?credential=team/member&label=hello world"
         )
         == selected
     )
@@ -167,8 +165,7 @@ def test_signed_query_values_use_canonical_rfc3986_encoding() -> None:
 
 def test_scoped_authorization_canonicalizes_signed_query_values() -> None:
     selected = (
-        "https://example.test/run.eval?"
-        "credential=team%2Fmember&label=hello%20world"
+        "https://example.test/run.eval?credential=team%2Fmember&label=hello%20world"
     )
     request = _request(
         (VIEW_SCOPE_KIND_HEADER, "file"),
