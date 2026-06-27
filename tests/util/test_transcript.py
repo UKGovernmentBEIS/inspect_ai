@@ -2,7 +2,11 @@ from rich.markdown import Markdown
 from rich.text import Text
 
 from inspect_ai._util.content import ContentReasoning
-from inspect_ai._util.transcript import content_display, transcript_reasoning
+from inspect_ai._util.transcript import (
+    content_display,
+    html_escape_markdown,
+    transcript_reasoning,
+)
 
 
 def test_content_display_no_truncation():
@@ -74,3 +78,22 @@ def test_transcript_reasoning_redacted():
     assert len(result) == 2
     assert isinstance(result[0], Markdown)
     assert "Reasoning encrypted by model provider." in result[0].markup
+
+
+def test_html_escape_markdown_escapes_outside_codeblocks():
+    assert "&lt;b&gt;hi&lt;/b&gt;" in html_escape_markdown("<b>hi</b>")
+
+
+def test_html_escape_markdown_preserves_codeblock_contents():
+    result = html_escape_markdown("```\n<b>code</b>\n```")
+    # content inside a fenced block is left as-is (not escaped)
+    assert "<b>code</b>" in result
+
+
+def test_html_escape_markdown_backticks_in_string_do_not_break_fence():
+    # A "```" string literal inside the code block must not close the block;
+    # the <b> tag after the real closing fence is outside it and must be escaped.
+    content = '```python\na = "```"\n```\n<b>dangerous</b>'
+    result = html_escape_markdown(content)
+    assert "&lt;b&gt;dangerous&lt;/b&gt;" in result
+    assert "<b>dangerous</b>" not in result
