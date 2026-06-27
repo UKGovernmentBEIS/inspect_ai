@@ -40,11 +40,13 @@ def test_dotted_key_integer_value_parsed() -> None:
 
 def test_multiple_m_flags_together() -> None:
     """Multiple -M flags parse correctly as a combined dict."""
-    result = parse_cli_args([
-        "speculative-config.method=mtp",
-        "speculative-config.num_speculative_tokens=1",
-        "tool-call-parser=glm47",
-    ])
+    result = parse_cli_args(
+        [
+            "speculative-config.method=mtp",
+            "speculative-config.num_speculative_tokens=1",
+            "tool-call-parser=glm47",
+        ]
+    )
     assert result == {
         "speculative_config.method": "mtp",
         "speculative_config.num_speculative_tokens": 1,
