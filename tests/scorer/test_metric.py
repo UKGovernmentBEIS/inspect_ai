@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Callable, cast
 
 import pytest
@@ -289,6 +290,14 @@ def test_accuracy_handles_empty_scores() -> None:
     # An empty score list must not raise; mirror the std()/var() convention of
     # returning 0 for insufficient data instead of a ZeroDivisionError.
     assert accuracy()([]) == 0.0
+
+
+def test_mean_handles_empty_scores() -> None:
+    # An empty score list should return 0 like accuracy()/std()/var(), instead
+    # of np.mean([]) producing a nan and a "Mean of empty slice" RuntimeWarning.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert mean()([]) == 0.0
 
 
 @metric
