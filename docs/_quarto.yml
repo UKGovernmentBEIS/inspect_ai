@@ -93,8 +93,8 @@ inspect-docs:
         - href: agents.qmd
         - href: react-agent.qmd
         - href: deepagent.qmd
-        # - text: Checkpointing
-        #   href: checkpointing.qmd
+        - text: Checkpointing
+          href: checkpointing.qmd
         - text: Intervention
           href: intervention.qmd
         - href: multi-agent.qmd
@@ -119,7 +119,8 @@ inspect-docs:
         - href: setting-limits.qmd
         - href: control-channel.qmd
         - href: early-stopping.qmd
-        - href: tracing.qmd   
+        - href: task-source.qmd
+        - href: tracing.qmd
     - text: Analysis
       href: analysis.qmd
       contents:

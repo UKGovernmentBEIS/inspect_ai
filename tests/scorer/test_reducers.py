@@ -14,6 +14,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
     Score,
     ScoreReducer,
+    Value,
     ValueToFloat,
     at_least,
     match,
@@ -73,6 +74,26 @@ def test_all_nan_simple_reducers() -> None:
     assert _is_nan(pass_k_3_threshold(simple_scores).value)
     assert _is_nan(pass_k_5_no_threshold(simple_scores).value)
     assert _is_nan(pass_k_5_threshold(simple_scores).value)
+
+
+def test_empty_simple_reducers() -> None:
+    # An empty score list reaches the reducer when a sample produced no scores;
+    # every reducer should fall back to NaN instead of raising IndexError.
+    empty_scores: list[Score] = []
+
+    assert _is_nan(avg_reducer(empty_scores).value)
+    assert _is_nan(median_reducer(empty_scores).value)
+    assert _is_nan(mode_reducer(empty_scores).value)
+    assert _is_nan(max_reducer(empty_scores).value)
+    assert _is_nan(at_least_3_reducer(empty_scores).value)
+    assert _is_nan(pass_at_2_no_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_3_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_5_no_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_5_threshhold(empty_scores).value)
+    assert _is_nan(pass_k_2_no_threshold(empty_scores).value)
+    assert _is_nan(pass_k_3_threshold(empty_scores).value)
+    assert _is_nan(pass_k_5_no_threshold(empty_scores).value)
+    assert _is_nan(pass_k_5_threshold(empty_scores).value)
 
 
 def test_list_reducers() -> None:
@@ -243,6 +264,19 @@ def test_nan_root_first_score_dict_reducers() -> None:
 
     assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
     assert max_reducer(dict_scores).value == {"coolness": 4, "spiciness": 1}
+
+
+def test_dict_reducer_value_to_float_applied_once() -> None:
+    # A custom value_to_float should be applied once per value, like the scalar
+    # and list branches. Halving isn't idempotent, so applying it twice in the
+    # dict branch halves each value again (mean 1.5 instead of 3.0).
+    def half(value: Value) -> float:
+        assert isinstance(value, (int, float))
+        return value / 2
+
+    dict_scores = [Score(value={"x": 4}), Score(value={"x": 8})]
+    assert mean_score(value_to_float=half)(dict_scores).value == {"x": 3.0}
+    assert median_score(value_to_float=half)(dict_scores).value == {"x": 3.0}
 
 
 def test_score_unscored() -> None:
@@ -555,7 +589,9 @@ def test_no_reducer():
 def test_default_reducer():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
     log = eval(task, model="mockllm/model", epochs=4)[0]
-    assert log.eval.config.epochs_reducer == ["mean"]
+    # the default is not recorded so that recompute can distinguish an
+    # explicit reducer choice from the (per-scorer) auto-selected default
+    assert log.eval.config.epochs_reducer is None
 
 
 def test_eval_reducer():

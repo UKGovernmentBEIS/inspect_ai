@@ -11,7 +11,12 @@ from rich.prompt import Prompt
 from rich.table import Table
 from typing_extensions import Unpack
 
-from inspect_ai._cli.util import int_or_bool_flag_callback, parse_cli_config
+from inspect_ai._cli.util import (
+    int_or_bool_flag_callback,
+    parse_cli_args,
+    parse_cli_config,
+    parse_model_role_cli_args,
+)
 from inspect_ai._display import display
 from inspect_ai._display.core.results import task_scores
 from inspect_ai._display.core.rich import rich_theme
@@ -27,6 +32,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
+from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer._metric import Metric, MetricSpec
 
 from .common import CommonOptions, common_options, process_common_options
@@ -34,6 +40,31 @@ from .common import CommonOptions, common_options, process_common_options
 
 @click.command("score")
 @click.argument("log-file", type=str, required=True)
+@click.option(
+    "--model",
+    type=str,
+    envvar="INSPECT_SCORE_MODEL",
+    help="Model used for re-scoring (overrides the primary model recorded in the log).",
+)
+@click.option(
+    "--model-base-url",
+    type=str,
+    help="Base URL for model API",
+)
+@click.option(
+    "-M",
+    multiple=True,
+    type=str,
+    envvar="INSPECT_SCORE_MODEL_ARGS",
+    help="One or more native model arguments (e.g. -M arg=value)",
+)
+@click.option(
+    "--model-role",
+    multiple=True,
+    type=str,
+    envvar="INSPECT_SCORE_MODEL_ROLE",
+    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Merged over the model roles recorded in the log.',
+)
 @click.option(
     "--scorer",
     type=str,
@@ -88,6 +119,10 @@ def score_command(
     log_file: str,
     overwrite: bool | None,
     output_file: str | None,
+    model: str | None,
+    model_base_url: str | None,
+    m: tuple[str, ...] | None,
+    model_role: tuple[str, ...] | None,
     scorer: str | None,
     s: tuple[str, ...] | None,
     metric: tuple[str, ...] | None,
@@ -103,6 +138,10 @@ def score_command(
             log_dir=common["log_dir"],
             log_file=log_file,
             output_file=output_file,
+            model=model,
+            model_base_url=model_base_url,
+            m=m,
+            model_role=model_role,
             scorer=scorer,
             s=s,
             metric=metric,
@@ -125,12 +164,23 @@ async def score(
     action: ScoreAction | None,
     log_level: str | None,
     output_file: str | None = None,
+    model: str | None = None,
+    model_base_url: str | None = None,
+    m: tuple[str, ...] | None = None,
+    model_role: tuple[str, ...] | None = None,
     stream: int | bool = False,
 ) -> None:
     platform_init()
 
     init_eval_context(log_level, None, log_refusals=True)
     scorer_args = parse_cli_config(args=s, config=None)
+    model_args = parse_cli_args(m)
+    model_roles = parse_model_role_cli_args(model_role) if model_role else None
+    override_model: Model | None = (
+        get_model(model, base_url=model_base_url, **model_args)
+        if model is not None
+        else None
+    )
 
     recorder = create_recorder_for_location(log_file, log_dir)
     eval_log = await recorder.read_log(log_file, header_only=bool(stream))
@@ -189,6 +239,8 @@ async def score(
         log=eval_log,
         scorers=scorers,
         metrics=metrics,
+        model=override_model,
+        model_roles=model_roles,
         action=action,
         copy=False,
         samples=read_sample,

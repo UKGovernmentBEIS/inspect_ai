@@ -2920,6 +2920,17 @@
       "EvalMetric": {
         "description": "Metric for evaluation score.",
         "properties": {
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
           "metadata": {
             "anyOf": [
               {
@@ -11132,8 +11143,8 @@
       }
     },
     "/log-delete/{log}": {
-      "get": {
-        "operationId": "api_log_delete_log_delete__log__get",
+      "delete": {
+        "operationId": "api_log_delete_log_delete__log__delete",
         "parameters": [
           {
             "in": "path",
@@ -11150,7 +11161,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Api Log Delete Log Delete  Log  Get",
+                  "title": "Response Api Log Delete Log Delete  Log  Delete",
                   "type": "boolean"
                 }
               }
@@ -11366,8 +11377,8 @@
       }
     },
     "/log-message": {
-      "get": {
-        "operationId": "api_log_message_log_message_get",
+      "post": {
+        "operationId": "api_log_message_log_message_post",
         "parameters": [
           {
             "in": "query",

@@ -28,10 +28,16 @@ def test_wait_for_shutdown_cancel_leaves_no_blocked_thread() -> None:
     and forcing a second Ctrl+C. The wait now awaits a loop-native event,
     so cancellation leaves no thread behind.
     """
-    from inspect_ai._control.server import ControlServer, wait_for_shutdown_async
+    from inspect_ai._control.server import (
+        ControlServer,
+        request_keep_alive,
+        reset_keep_alive,
+        wait_for_shutdown_async,
+    )
 
     async def scenario() -> int:
         server = ControlServer(run_id="test")
+        request_keep_alive()  # so the park actually blocks
         before = _worker_threads()
         task = asyncio.ensure_future(wait_for_shutdown_async(server))
         try:
@@ -42,31 +48,95 @@ def test_wait_for_shutdown_cancel_leaves_no_blocked_thread() -> None:
             await asyncio.sleep(0.1)  # give any spawned worker time to appear
             return _worker_threads() - before
         finally:
-            # Release any abandoned worker so a reintroduced regression
-            # fails the assertion instead of hanging the suite at exit.
-            server.shutdown_event.set()
+            reset_keep_alive()
 
     leaked = asyncio.run(scenario())
     assert leaked == 0, f"cancelled shutdown wait leaked {leaked} worker thread(s)"
 
 
-def test_wait_for_shutdown_returns_when_event_set() -> None:
-    """Setting the shutdown event releases the wait promptly."""
-    from inspect_ai._control.server import ControlServer, wait_for_shutdown_async
+def test_stop_reraises_cancellation_without_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A Ctrl-C teardown must not log "did not shut down cleanly".
+
+    Regression: on Ctrl-C the eval's cancel scope tears down both the uvicorn
+    serve task and the ``stop()`` drain together, so ``asyncio.wait_for`` raises
+    ``CancelledError``. The drain used to catch that alongside ``Exception`` and
+    log a misleading ``Control server did not shut down cleanly`` warning (and
+    swallow the cancellation). ``stop()`` must instead re-raise the
+    cancellation, log nothing, and still run its discovery/socket cleanup.
+    """
+    import logging
+
+    from inspect_ai._control.server import ControlServer
+
+    class _StubUvicorn:
+        def __init__(self) -> None:
+            self.should_exit = False
+
+    async def scenario() -> bool:
+        server = ControlServer(run_id="test")
+        server._uvicorn_server = _StubUvicorn()
+        # A stand-in for uvicorn's serve task that never drains on its own, so
+        # the only way out of the drain's wait_for is the outer cancellation.
+        serve_task: asyncio.Task[None] = asyncio.ensure_future(asyncio.sleep(3600))
+        server._serve_task = serve_task
+
+        cleaned_up = False
+
+        async def _stop_and_track() -> None:
+            nonlocal cleaned_up
+            try:
+                await server.stop()
+            finally:
+                # stop()'s own finally must have run its cleanup before the
+                # cancellation propagates out of it.
+                cleaned_up = serve_task.cancelled() or serve_task.done()
+
+        stop_task = asyncio.ensure_future(_stop_and_track())
+        await asyncio.sleep(0.1)  # let stop() reach its wait_for
+        stop_task.cancel()  # simulate the eval cancel scope tearing down
+        with contextlib.suppress(asyncio.CancelledError):
+            await stop_task
+        # the cancellation must have propagated (stop did not swallow it)...
+        assert stop_task.cancelled()
+        return cleaned_up
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai._control.server"):
+        cleaned_up = asyncio.run(scenario())
+
+    assert cleaned_up, "stop() must still tear down the serve task on cancellation"
+    assert "did not shut down cleanly" not in caplog.text
+
+
+def test_wait_for_shutdown_returns_when_released() -> None:
+    """Releasing keep-alive (POST /release) wakes the park promptly."""
+    from inspect_ai._control.server import (
+        ControlServer,
+        request_keep_alive,
+        request_release,
+        reset_keep_alive,
+        wait_for_shutdown_async,
+    )
 
     async def scenario() -> None:
         server = ControlServer(run_id="test")
+        request_keep_alive()
 
-        async def _set_soon() -> None:
+        async def _release_soon() -> None:
             await asyncio.sleep(0.05)
-            server.shutdown_event.set()
+            request_release()
+            await server.notify_park_change()
 
         # asyncio.wait_for (not asyncio.timeout, which is 3.11+) keeps this
         # runnable + type-checkable on Python 3.10.
-        await asyncio.wait_for(
-            asyncio.gather(_set_soon(), wait_for_shutdown_async(server)),
-            timeout=5,
-        )
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(_release_soon(), wait_for_shutdown_async(server)),
+                timeout=5,
+            )
+        finally:
+            reset_keep_alive()
 
     asyncio.run(scenario())
 
@@ -349,11 +419,11 @@ def test_resolve_ctl_server_values() -> None:
     """The ``ctl_server`` param resolves to ``(enabled, keep_alive)``.
 
     ``None`` and ``True`` are the default-on shape, ``False`` disables,
-    ``"keep-alive"`` enables + parks. The CLI string spellings are accepted
+    ``"keep"`` enables + parks. The CLI string spellings are accepted
     case-insensitively so programmatic callers can forward a flag or
     ``INSPECT_EVAL_CTL_SERVER`` env value verbatim. Any other string is
     rejected rather than silently treated as ``True`` — it's more likely a
-    typo of ``keep-alive``, and dropping the requested park would strand the
+    typo of ``keep``, and dropping the requested park would strand the
     user.
     """
     from inspect_ai._control.server import resolve_ctl_server
@@ -362,6 +432,8 @@ def test_resolve_ctl_server_values() -> None:
     assert resolve_ctl_server(None) == (True, False)
     assert resolve_ctl_server(True) == (True, False)
     assert resolve_ctl_server(False) == (False, False)
+    assert resolve_ctl_server("keep") == (True, True)
+    # `keep-alive` is still accepted as a legacy alias for `keep`
     assert resolve_ctl_server("keep-alive") == (True, True)
 
     # CLI / env-var spellings forwarded verbatim
@@ -372,6 +444,7 @@ def test_resolve_ctl_server_values() -> None:
     assert resolve_ctl_server("no") == (False, False)
     assert resolve_ctl_server("0") == (False, False)
     assert resolve_ctl_server("TRUE") == (True, False)
+    assert resolve_ctl_server("KEEP") == (True, True)
     assert resolve_ctl_server("Keep-Alive") == (True, True)
 
     with pytest.raises(PrerequisiteError, match="keepalive"):
@@ -406,57 +479,95 @@ def test_control_server_disabled_binds_nothing(
     asyncio.run(run())
 
 
-def test_release_latches_before_the_park() -> None:
+def test_release_before_park_skips_it() -> None:
     """A release received while the eval is still running means "exit when done".
 
-    The route latches process-wide (not just the per-server event): the
-    standalone park's wait must return immediately, and the eval-set park —
-    which binds a FRESH server after the run's server is gone — must see the
-    latch too. The latch resets at the outermost run boundary so a prior
-    run's release can't leak into the next run's park.
+    The intent is process-wide: the standalone park's wait must return
+    immediately, and the eval-set park — which binds a FRESH server after the
+    run's server is gone — must see it too. The intent resets at the outermost
+    run boundary so a prior run's release can't leak into the next run's park.
     """
     from inspect_ai._control.server import (
         ControlServer,
-        release_requested,
+        keep_alive_intent,
+        request_keep_alive,
         request_release,
-        reset_release_requested,
+        reset_keep_alive,
         wait_for_shutdown_async,
     )
 
-    reset_release_requested()
+    reset_keep_alive()
     try:
-        assert not release_requested()
-
-        # mid-run release latches...
+        # a mid-run release wins the last word over an earlier keep...
+        request_keep_alive()
         request_release()
-        assert release_requested()
+        assert keep_alive_intent() is False
 
         # ...so a later park's wait returns immediately, even on a fresh
-        # server whose own event was never set (the eval-set park shape)
+        # server (the eval-set park shape)
         async def park() -> None:
             await asyncio.wait_for(
                 wait_for_shutdown_async(ControlServer(run_id="fresh")), timeout=5
             )
 
         asyncio.run(park())
-
-        # the next run clears the latch
-        reset_release_requested()
-        assert not release_requested()
     finally:
-        reset_release_requested()
+        reset_keep_alive()
 
 
-async def test_release_route_sets_the_latch() -> None:
-    """POST /release latches process-wide in addition to the server event."""
+def test_keep_after_release_rearms_the_park() -> None:
+    """A keep -> release -> keep while running leaves the process parking.
+
+    The regression: release used to latch irreversibly, so a keep that
+    followed it was ignored. Now the intent is last-write-wins and the park
+    re-checks it, so the final keep re-arms the park — it blocks until a
+    *subsequent* release.
+    """
     from inspect_ai._control.server import (
         ControlServer,
-        release_requested,
-        reset_release_requested,
+        keep_alive_intent,
+        request_keep_alive,
+        request_release,
+        reset_keep_alive,
+        wait_for_shutdown_async,
     )
 
-    reset_release_requested()
+    reset_keep_alive()
     try:
+
+        async def scenario() -> None:
+            server = ControlServer(run_id="test")
+            request_keep_alive()
+            request_release()
+            request_keep_alive()  # last write wins
+            assert keep_alive_intent() is True
+
+            park = asyncio.ensure_future(wait_for_shutdown_async(server))
+            await asyncio.sleep(0.1)
+            assert not park.done()  # still parked, despite the earlier release
+
+            # a fresh release now wakes it
+            request_release()
+            await server.notify_park_change()
+            await asyncio.wait_for(park, timeout=5)
+
+        asyncio.run(scenario())
+    finally:
+        reset_keep_alive()
+
+
+async def test_release_route_clears_the_intent() -> None:
+    """POST /release latches keep-alive off process-wide."""
+    from inspect_ai._control.server import (
+        ControlServer,
+        keep_alive_intent,
+        request_keep_alive,
+        reset_keep_alive,
+    )
+
+    reset_keep_alive()
+    try:
+        request_keep_alive()
         server = ControlServer(run_id="test")
         app = server._build_app()
         transport = httpx.ASGITransport(app=app)
@@ -466,26 +577,129 @@ async def test_release_route_sets_the_latch() -> None:
             response = await client.post("/release")
             assert response.status_code == 200
 
-        assert release_requested()
-        assert server.shutdown_event.is_set()
+        assert keep_alive_intent() is False
     finally:
-        reset_release_requested()
+        reset_keep_alive()
 
 
-def test_eval_set_park_skipped_when_release_latched() -> None:
-    """A latched release makes the eval-set park return without binding.
+def test_eval_set_park_skipped_when_intent_off() -> None:
+    """An off intent makes the eval-set park return without binding.
 
-    The eval-set park binds a fresh server (fresh event), so the latch is
-    the only carrier of a release received during the run. A regression
-    here would bind a real control server and park forever — bounded by
-    the wait_for timeout.
+    The eval-set park binds a fresh server, so the module-level intent is the
+    only carrier of a release received during the run. A regression here would
+    bind a real control server and park forever — bounded by the wait_for
+    timeout.
     """
-    from inspect_ai._control.server import request_release, reset_release_requested
+    from inspect_ai._control.server import request_release, reset_keep_alive
     from inspect_ai._eval.evalset import _keep_alive_park
 
-    reset_release_requested()
+    reset_keep_alive()
     try:
-        request_release()
+        request_release()  # intent off
         asyncio.run(asyncio.wait_for(_keep_alive_park("set-1"), timeout=5))
     finally:
-        reset_release_requested()
+        reset_keep_alive()
+
+
+def test_keep_alive_intent_last_write_wins() -> None:
+    """Keep / release toggle a single intent; the last call wins."""
+    from inspect_ai._control.server import (
+        keep_alive_intent,
+        request_keep_alive,
+        request_release,
+        reset_keep_alive,
+    )
+
+    reset_keep_alive()
+    try:
+        assert keep_alive_intent() is False  # default
+        request_keep_alive()
+        assert keep_alive_intent() is True
+        request_release()
+        assert keep_alive_intent() is False
+        request_keep_alive()
+        assert keep_alive_intent() is True  # a later keep overrides the release
+    finally:
+        reset_keep_alive()
+
+
+async def test_keep_route_sets_the_intent() -> None:
+    """POST /keep latches keep-alive on process-wide."""
+    from inspect_ai._control.server import (
+        ControlServer,
+        keep_alive_intent,
+        reset_keep_alive,
+    )
+
+    reset_keep_alive()
+    try:
+        server = ControlServer(run_id="test")
+        app = server._build_app()
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            response = await client.post("/keep")
+            assert response.status_code == 200
+
+        assert keep_alive_intent() is True
+    finally:
+        reset_keep_alive()
+
+
+async def test_evals_endpoint_decorates_keep_alive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GET /evals stamps each task summary with the live keep-alive status."""
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.server import (
+        ControlServer,
+        request_keep_alive,
+        reset_keep_alive,
+    )
+
+    async def _two_rows(started_at: float) -> list[dict]:
+        return [{"task_id": "a"}, {"task_id": "b"}]
+
+    monkeypatch.setattr(server_mod, "current_eval_summaries", _two_rows)
+
+    reset_keep_alive()
+    try:
+
+        async def _get() -> list[dict]:
+            app = ControlServer(run_id="test")._build_app()
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://localhost"
+            ) as client:
+                return (await client.get("/evals")).json()
+
+        # off by default
+        rows = await _get()
+        assert [r["keep_alive"] for r in rows] == [False, False]
+
+        # flips on for every row once keep-alive is latched
+        request_keep_alive()
+        rows = await _get()
+        assert [r["keep_alive"] for r in rows] == [True, True]
+    finally:
+        reset_keep_alive()
+
+
+def test_keep_alive_intent_resets() -> None:
+    """The keep-alive intent clears at the outermost run boundary."""
+    from inspect_ai._control.server import (
+        keep_alive_intent,
+        request_keep_alive,
+        reset_keep_alive,
+    )
+
+    reset_keep_alive()
+    try:
+        assert not keep_alive_intent()
+        request_keep_alive()
+        assert keep_alive_intent()
+        reset_keep_alive()
+        assert not keep_alive_intent()
+    finally:
+        reset_keep_alive()

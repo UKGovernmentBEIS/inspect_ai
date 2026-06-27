@@ -17,6 +17,8 @@ description: Tasks, evaluation, and scoring.
 ### Epochs
 ### TaskInfo
 ### Tasks
+### TaskSource
+### enqueue_task
 
 ## Scanning
 
@@ -30,3 +32,4 @@ description: Tasks, evaluation, and scoring.
 ## Decorators
 
 ### task
+### task_source
