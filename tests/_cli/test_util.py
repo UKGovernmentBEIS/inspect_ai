@@ -110,24 +110,29 @@ def test_parse_model_role_cli_args(monkeypatch, test_case):
 
 
 @pytest.mark.parametrize(
-    ("args", "expected_substring"),
+    ("args", "expected_error", "expected_substring"),
     [
         (
             ("grader={model: mockllm/model, temperature: 0.5, max_tokens: 1000",),
+            ValueError,
             "Could not parse model role arguments",
         ),  # invalid yaml format - missing closing brace
         (
             ("grader={model: mockllm/model, temperature: oops, max_tokens: 1000}",),
+            ValueError,
             "Invalid config",
         ),  # invalid temperature value
         (
             ("grader={model: mockllm/model, model_args: not_a_dict}",),
+            TypeError,
             "model_args must be a dict",
         ),  # model_args is not a dict
     ],
 )
-def test_parse_model_role_cli_invalid_args_raises_error(args, expected_substring):
-    with pytest.raises(TypeError) as e:
+def test_parse_model_role_cli_invalid_args_raises_error(
+    args, expected_error, expected_substring
+):
+    with pytest.raises(expected_error) as e:
         parse_model_role_cli_args(args)
     assert expected_substring in str(e.value)
 
