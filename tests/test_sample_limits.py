@@ -536,6 +536,43 @@ def test_cost_data_without_cost_limit_tracks_cost() -> None:
     assert find_limit_event(log) is None
 
 
+def test_cost_data_keyed_by_full_model_string_tracks_cost() -> None:
+    # Regression for routed providers (together, hf-inference-providers, custom
+    # routed providers): set_model_info / set_model_cost / --model-cost-config key
+    # cost under the user-facing model string, which differs from canonical_name()
+    # when the provider strips a route prefix. mockllm reproduces the mismatch:
+    # str(model) is "mockllm/model" but canonical_name() is "model", so registering
+    # under the full string must still be found when recording usage.
+    set_model_info(
+        "mockllm/model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model("mockllm/model", custom_outputs=[output])
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+    )
+    log = eval(
+        task,
+        model=model,
+    )[0]
+    assert log.status == "success"
+    # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
+    usage = list(log.stats.model_usage.values())[0]
+    assert usage.total_cost == pytest.approx(0.007)
+    assert find_limit_event(log) is None
+
+
 def test_two_models_both_with_cost_data_tracks_cost() -> None:
     set_model_info(
         "model",

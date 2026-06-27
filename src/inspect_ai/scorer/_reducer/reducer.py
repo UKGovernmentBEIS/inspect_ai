@@ -516,6 +516,11 @@ def _nan_score(scores: list[Score]) -> Score:
         value: the reduced Value
         scores: ths list of scores being reduced
     """
+    # An empty list still routes here via `_first_scored` returning None; there
+    # are no fields to carry over, so return a bare NaN score rather than
+    # indexing `scores[0]`.
+    if not scores:
+        return Score(value=float("nan"))
     return Score(
         value=float("nan"),
         # retain remaining fields only if equal across all Scores
