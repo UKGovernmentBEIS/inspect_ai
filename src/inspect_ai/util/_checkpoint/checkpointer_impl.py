@@ -480,6 +480,11 @@ class _EnteredCheckpointer:
                 state = sample_state()
                 if not state:
                     raise RuntimeError("Checkpointer must find sample state")
+                # Task flush hook: mem -> disk before the snapshot, so what it
+                # writes lands in this checkpoint. Runs inside _fire_once, so a
+                # raise routes through _fire's max_consecutive_failures handling.
+                if self._config.on_checkpoint is not None:
+                    await self._config.on_checkpoint(state)
                 await self._write_host_context(
                     self._context_dir,
                     state.store,

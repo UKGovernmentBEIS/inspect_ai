@@ -893,6 +893,57 @@ async def test_limit_exceeded_chains_original_error(dirs: _Dirs) -> None:
     assert isinstance(excinfo.value.__cause__, _FlakyError)
 
 
+# --- on_checkpoint hook ---------------------------------------------------
+
+
+async def test_on_checkpoint_fires_on_each_fire(dirs: _Dirs) -> None:
+    calls: list[object] = []
+
+    async def on_checkpoint(state: object) -> None:
+        calls.append(state)
+
+    cp = _counting(
+        ResolvedCheckpointConfig(trigger=Manual(), on_checkpoint=on_checkpoint),
+        dirs,
+    )
+    await cp.checkpoint()
+    await cp.checkpoint()
+    assert len(calls) == 2  # fired once per fire
+
+
+async def test_on_checkpoint_failure_is_recorded_and_counted(dirs: _Dirs) -> None:
+    from inspect_ai.event._info import InfoEvent
+    from inspect_ai.util._checkpoint.checkpointer_impl import (
+        CheckpointFailureLimitExceeded,
+    )
+
+    async def on_checkpoint(state: object) -> None:
+        raise RuntimeError("flush failed")
+
+    cp = _counting(
+        ResolvedCheckpointConfig(
+            trigger=Manual(),
+            on_checkpoint=on_checkpoint,
+            max_consecutive_failures=1,
+        ),
+        dirs,
+    )
+    # First failure is tolerated (recorded, counted).
+    await cp.checkpoint()
+    infos = [
+        e
+        for e in dirs.events
+        if isinstance(e, InfoEvent)
+        and e.source == "checkpoint"
+        and isinstance(e.data, dict)
+        and e.data.get("event") == "checkpoint_failed"
+    ]
+    assert len(infos) == 1
+    # Second consecutive failure trips the limit.
+    with pytest.raises(CheckpointFailureLimitExceeded):
+        await cp.checkpoint()
+
+
 # === Outer-facade tests =====================================================
 
 
