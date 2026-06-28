@@ -330,6 +330,37 @@ class TestFileAsDataHttp:
             await file_as_data(str(request.url))
 
 
+class TestFileAsDataSniffing:
+    @pytest.mark.parametrize(
+        ("data", "expected_mime_type"),
+        [
+            pytest.param(b"\x89PNG\r\n\x1a\n", "image/png", id="png"),
+            pytest.param(b"\xff\xd8\xff\xe0", "image/jpeg", id="jpeg"),
+            pytest.param(b"GIF87a", "image/gif", id="gif87a"),
+            pytest.param(b"GIF89a", "image/gif", id="gif89a"),
+            pytest.param(b"RIFF\x00\x00\x00\x00WEBP", "image/webp", id="webp"),
+            pytest.param(b"BM\x00\x00", "image/bmp", id="bmp"),
+            pytest.param(
+                b"unknown",
+                "application/octet-stream",
+                id="unknown",
+            ),
+        ],
+    )
+    async def test_extensionless_file(
+        self,
+        tmp_path: Path,
+        data: bytes,
+        expected_mime_type: str,
+    ) -> None:
+        path = tmp_path / "media"
+        path.write_bytes(data)
+
+        _, mime_type = await file_as_data(str(path))
+
+        assert mime_type == expected_mime_type
+
+
 class TestInlineMedia:
     def test_inline_media_data(self) -> None:
         data, mime_type = inline_media_data("data:image/png;base64,aGVsbG8=", "image")

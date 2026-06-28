@@ -1,6 +1,8 @@
 import os
 
+from inspect_ai._util.content import ContentImage
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.log import EvalRetryError, EvalSample
 from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
     condense_event,
@@ -43,6 +45,58 @@ def test_log_attachments_migration():
 
     # also confirm that we've preserved (now deprecated) transcript
     assert len(log.samples[0].transcript.events) > 0
+
+
+def test_retry_event_attachments_round_trip() -> None:
+    image_data_uri = "data:image/png;base64," + ("A" * 120)
+    event = ModelEvent(
+        model="test-model",
+        input=[
+            ChatMessageUser(content=[ContentImage(image=image_data_uri)]),
+        ],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        error_retries=[
+            EvalRetryError(
+                message="retry",
+                traceback="",
+                traceback_ansi="",
+                events=[event],
+            )
+        ],
+    )
+
+    condensed = condense_sample(sample, log_images=True)
+    assert condensed.error_retries is not None
+    condensed_events = condensed.error_retries[0].events
+    assert condensed_events is not None
+    condensed_event = condensed_events[0]
+    assert isinstance(condensed_event, ModelEvent)
+    condensed_content = condensed_event.input[0].content
+    assert isinstance(condensed_content, list)
+    condensed_image = condensed_content[0]
+    assert isinstance(condensed_image, ContentImage)
+    assert condensed_image.image.startswith(ATTACHMENT_PROTOCOL)
+
+    resolved = resolve_sample_attachments(condensed, "full")
+    assert resolved.error_retries is not None
+    resolved_events = resolved.error_retries[0].events
+    assert resolved_events is not None
+    resolved_event = resolved_events[0]
+    assert isinstance(resolved_event, ModelEvent)
+    resolved_content = resolved_event.input[0].content
+    assert isinstance(resolved_content, list)
+    resolved_image = resolved_content[0]
+    assert isinstance(resolved_image, ContentImage)
+    assert resolved_image.image == image_data_uri
 
 
 # def test_transcript_incremental_condense():

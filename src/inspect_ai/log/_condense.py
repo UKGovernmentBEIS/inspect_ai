@@ -174,6 +174,25 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     events_context = WalkContext(message_cache={}, only_core=False)
     messages_context = WalkContext(message_cache={}, only_core=False)
     condensed_events = walk_events(sample.events, events_fn, events_context)
+    retry_events_context = WalkContext(message_cache={}, only_core=False)
+    condensed_error_retries = (
+        [
+            retry.model_copy(
+                update={
+                    "events": walk_events(
+                        retry.events,
+                        events_fn,
+                        retry_events_context,
+                    )
+                    if retry.events is not None
+                    else None
+                }
+            )
+            for retry in sample.error_retries
+        ]
+        if sample.error_retries is not None
+        else None
+    )
 
     # condense events
     existing = sample.events_data
@@ -206,6 +225,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
                 sample.messages, messages_fn, messages_context
             ),
             "events": condensed_events,
+            "error_retries": condensed_error_retries,
             "attachments": attachments,
             "events_data": events_data,
         }
@@ -323,12 +343,35 @@ def resolve_sample_attachments(
     resolved_events = walk_events(sample.events, content_fn, context)
     resolved_events = resolve_model_event_inputs(resolved_events, resolved_pool)
     resolved_events = resolve_model_event_calls(resolved_events, resolved_call_pool)
+    retry_events_context = WalkContext(
+        message_cache={},
+        only_core=resolve_attachments == "core",
+    )
+    resolved_error_retries = (
+        [
+            retry.model_copy(
+                update={
+                    "events": walk_events(
+                        retry.events,
+                        content_fn,
+                        retry_events_context,
+                    )
+                    if retry.events is not None
+                    else None
+                }
+            )
+            for retry in sample.error_retries
+        ]
+        if sample.error_retries is not None
+        else None
+    )
 
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, content_fn, context),
             "messages": walk_chat_messages(sample.messages, content_fn, context),
             "events": resolved_events,
+            "error_retries": resolved_error_retries,
             "attachments": {},
             "events_data": None,
         }
