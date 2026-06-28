@@ -235,13 +235,10 @@ def run_code(
             code: Python code to execute.
         """
         try:
-            if timeout is None:
-                result = await executor.execute(code)
-            else:
-                result = await asyncio.wait_for(
-                    executor.execute(code),
-                    timeout=timeout,
-                )
+            result = await asyncio.wait_for(
+                executor.execute(code),
+                timeout=timeout,
+            )
         except asyncio.TimeoutError:
             return [
                 ContentText(
