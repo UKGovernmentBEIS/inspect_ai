@@ -252,10 +252,43 @@ def test_pending_sync_respects_log_shared_interval(
 
     release_first.set()
 
-    _assert_event(second_started, "pending sync did not run")
+    assert second_started.wait(timeout=throttle_interval + 1), (
+        "pending sync did not run"
+    )
     assert recorder.calls == 2
     assert recorder.max_active_calls == 1
     assert sync_times[1] - sync_times[0] >= throttle_interval * 0.9
+
+
+def test_sync_worker_thread_identity_is_reused(
+    shared_db: SampleBufferDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_call = threading.Event()
+    second_call = threading.Event()
+    sync_threads: list[threading.Thread] = []
+    recorder = SyncRecorder()
+
+    def recording_sync(
+        db: SampleBufferDatabase,
+        filestore: SampleBufferFilestore,
+    ) -> None:
+        sync_threads.append(threading.current_thread())
+        if recorder.next_call() == 1:
+            first_call.set()
+        else:
+            second_call.set()
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", recording_sync)
+
+    _request_sync(shared_db, "first")
+    _assert_event(first_call, "first sync did not run")
+
+    _request_sync(shared_db, "second")
+    _assert_event(second_call, "second sync did not run")
+
+    assert len(sync_threads) == 2
+    assert sync_threads[0] is sync_threads[1]
 
 
 def test_sync_exception_does_not_prevent_later_sync(
@@ -277,13 +310,15 @@ def test_sync_exception_does_not_prevent_later_sync(
 
     _request_sync(shared_db, "first")
     _wait_until(
-        lambda: recorder.calls >= 1 and shared_db._sync_thread is None,
-        "sync worker did not recover after exception",
+        lambda: recorder.calls >= 1 and shared_db._sync_thread is not None,
+        "sync worker did not remain available after exception",
     )
+    first_thread = shared_db._sync_thread
 
     _request_sync(shared_db, "second")
 
     _assert_event(second_call, "second sync did not run")
+    assert shared_db._sync_thread is first_thread
 
 
 def test_sync_request_pending_when_thread_reference_exists_but_not_alive(
@@ -461,8 +496,25 @@ def test_base_exception_finalizes_sync_worker_state(
 
     monkeypatch.setattr(database_module, "sync_to_filestore", sync_that_stops)
 
+    # The shared_db fixture's start_sample() spawns a live background sync
+    # worker. Shut it down before driving _sync_to_filestore() synchronously,
+    # otherwise that worker can win the race for the forced-due sync request,
+    # consume it, and exit — leaving this thread's direct call blocked forever
+    # in _sync_wakeup.wait(timeout=None).
+    with shared_db._sync_lock:
+        shared_db._sync_closed = True
+        shared_db._sync_wakeup.notify_all()
+        background_worker = shared_db._sync_thread
+    if background_worker is not None and (
+        background_worker is not threading.current_thread()
+    ):
+        background_worker.join(timeout=5)
+    shared_db._sync_closed = False
+
     shared_db._sync_thread = threading.current_thread()
+    shared_db._sync_requested = True
     shared_db._sync_pending = True
+    _force_sync_due(shared_db)
 
     sync_filestore = shared_db._sync_filestore
     assert sync_filestore is not None

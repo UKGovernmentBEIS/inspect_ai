@@ -16,11 +16,11 @@ from typing import Any
 from textual.app import App
 from textual.binding import Binding
 
+from inspect_ai._util.sockets import parse_host_port
 from inspect_ai.agent._acp.discovery import (
     TargetAddress,
     TargetResolutionError,
     list_discovered_evals,
-    parse_host_port,
 )
 
 from . import client as _client
@@ -266,6 +266,7 @@ class InspectAcpApp(App[None]):
                 state=state,
                 on_session_update=state.consume,
                 on_request_permission=state.consume_approval_request,
+                on_request_elicitation=state.consume_elicitation_request,
                 on_inspect_event=state.consume_inspect_event,
                 notify=_notify,
             )

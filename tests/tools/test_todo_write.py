@@ -20,7 +20,7 @@ async def test_todo_write_basic() -> None:
         ],
         explanation="Making progress",
     )
-    assert result == "Plan updated"
+    assert result == "Todo list updated"
 
 
 def test_todo_write_via_mockllm() -> None:

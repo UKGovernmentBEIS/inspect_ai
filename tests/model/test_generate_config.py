@@ -54,7 +54,7 @@ def test_generate_config_drops_unknown_fields_when_deserializing() -> None:
 
 def test_adaptive_connections_defaults() -> None:
     a = AdaptiveConcurrency()
-    assert a.min == 4
+    assert a.min == 10
     assert a.start == 20
     assert a.max == 100
     # advanced tuning fields default to documented values

@@ -263,6 +263,11 @@ def truncate(text: str, length: int, overflow: str = "...", pad: bool = True) ->
         return text + (" " * (length - len(text))) if pad else text
 
     overflow_length = len(overflow)
+    if length < overflow_length:
+        # Not enough room for the overflow indicator; clip to length so the
+        # result never grows past it (a negative slice index would otherwise
+        # keep most of the text and still append the indicator).
+        return text[: max(0, length)]
     truncated = text[: length - overflow_length] + overflow
 
     return truncated

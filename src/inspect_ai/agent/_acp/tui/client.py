@@ -31,6 +31,7 @@ from acp.router import MessageRouter, Route
 from acp.schema import (
     AllowedOutcome,
     DeniedOutcome,
+    ElicitationSchema,
     RequestPermissionRequest,
     RequestPermissionResponse,
     SessionNotification,
@@ -42,11 +43,16 @@ from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_EVENT_METHOD,
     INSPECT_LIST_SAMPLES_METHOD,
+    INTERACTIVE_META_KEY,
     PICKER_META_KEY,
     PLAN_RENDERING_META_KEY,
     RAW_EVENTS_META_KEY,
 )
-from inspect_ai.agent._acp.tui.state import PendingApproval, SessionState
+from inspect_ai.agent._acp.tui.state import (
+    PendingApproval,
+    PendingElicitation,
+    SessionState,
+)
 
 # JSON-RPC error code for ``invalid_params`` (per JSON-RPC 2.0). The
 # server returns this from ``session/load`` when the requested
@@ -76,6 +82,13 @@ CLIENT_INFO = {"name": "inspect-acp-tui", "version": "1"}
 (plan rendering, raw events). The TUI is Inspect-aware."""
 
 CLIENT_CAPABILITIES = {
+    # Opt in to ``elicitation/create`` (ACP 0.10+, form-mode only).
+    # Empty object on ``form`` matches the spec's ``ElicitationFormCapabilities``
+    # which is a marker — its mere presence advertises support. Without
+    # this the server-side Phase 5 capability gate would leave us off
+    # the elicitation registry and ``ask_user`` would fall through to
+    # the in-proc panel / console handlers.
+    "elicitation": {"form": {}},
     "_meta": {
         PLAN_RENDERING_META_KEY: True,
         RAW_EVENTS_META_KEY: [
@@ -87,7 +100,7 @@ CLIENT_CAPABILITIES = {
             "span_begin",
             "span_end",
         ],
-    }
+    },
 }
 """ACP ``clientCapabilities`` advertised in ``initialize``.
 
@@ -138,11 +151,13 @@ class SessionRow:
     session_id: str | None
     """ACP session uuid; passed to ``session/load`` on attach.
 
-    ``None`` when the sample's agent has not claimed ACP (no
-    ``before_turn`` call yet, or no ACP-aware scaffold). Such rows
+    Set for every attachable sample — including observe-only custom
+    solvers. ``None`` only when there's nothing to attach to (no
+    transport, the noop placeholder, or a finalized session). Such rows
     appear in the picker dimmed + non-attachable; activation surfaces
     a toast pointing at the intervention docs instead of opening a
-    session screen."""
+    session screen. Whether an attachable row is *drivable* is carried
+    separately by :attr:`interactive`."""
 
     task: str
     sample_id: str
@@ -172,6 +187,20 @@ class SessionRow:
     ``False`` for back-compat with older servers that don't carry the
     field on the ``inspect/list_sessions`` response or binding-
     confirmation ``_meta``."""
+
+    interactive: bool = True
+    """Whether the session has a bound agent turn loop the operator can
+    drive (``session/prompt`` / ``session/cancel``). ``False`` for
+    observe-only samples — custom solvers, the pre-bind window, or the
+    scoring window. The session screen hides the composer for
+    non-interactive sessions (lifecycle controls stay available).
+    Default ``True`` for back-compat with servers that omit the flag."""
+
+    pending: Literal["approval", "question"] | None = None
+    """Set when the sample is parked on a human-in-the-loop request
+    routed through ACP — ``"approval"`` for tool-call permission,
+    ``"question"`` for ``ask_user``. ``None`` otherwise. Drives the
+    picker's ``pending`` column and primary sort tier."""
 
 
 async def enumerate_sessions(
@@ -272,9 +301,15 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
     samples = response.get("samples", []) if isinstance(response, dict) else []
     rows: list[SessionRow] = []
     for s in samples:
-        # ``sessionId`` is ``None`` for samples whose agent has not
-        # claimed ACP. Preserve the None — the picker treats such
-        # rows as dimmed + unselectable-on-attach.
+        # ``sessionId`` is ``None`` only for unattachable samples (no
+        # transport / noop / finalized). Preserve the None — the picker
+        # treats such rows as dimmed + unselectable-on-attach. Attachable
+        # rows carry a real id; ``interactive`` says whether they're
+        # also drivable.
+        pending_raw = s.get("pending")
+        pending: Literal["approval", "question"] | None = (
+            pending_raw if pending_raw in ("approval", "question") else None
+        )
         rows.append(
             SessionRow(
                 eval_id=eval_id,
@@ -288,6 +323,8 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
                 total_messages=int(s.get("totalMessages") or 0),
                 total_tokens=int(s.get("totalTokens") or 0),
                 fails_on_error=bool(s.get("failsOnError", False)),
+                interactive=bool(s.get("interactive", True)),
+                pending=pending,
             )
         )
     return rows
@@ -328,6 +365,7 @@ class AttachedSession:
         state: SessionState,
         on_session_update: Callable[[SessionNotification], None] | None = None,
         on_request_permission: Callable[[PendingApproval], None] | None = None,
+        on_request_elicitation: Callable[[PendingElicitation], None] | None = None,
         on_inspect_event: Callable[[dict[str, Any]], None] | None = None,
         notify: Callable[[str, NotifySeverity], None] | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -351,6 +389,7 @@ class AttachedSession:
         self._state = state
         self._on_session_update_cb = on_session_update
         self._on_request_permission_cb = on_request_permission
+        self._on_request_elicitation_cb = on_request_elicitation
         self._on_inspect_event_cb = on_inspect_event
         self._notify = notify
         self._sleep = sleep
@@ -608,6 +647,7 @@ class AttachedSession:
             session_ref=self,
             on_session_update=self._on_session_update_cb,
             on_request_permission=self._on_request_permission_cb,
+            on_request_elicitation=self._on_request_elicitation_cb,
             on_inspect_event=self._on_inspect_event_cb,
         )
         conn = Connection(
@@ -727,6 +767,7 @@ async def attach_session(
     state: SessionState,
     on_session_update: Callable[[SessionNotification], None] | None = None,
     on_request_permission: Callable[[PendingApproval], None] | None = None,
+    on_request_elicitation: Callable[[PendingElicitation], None] | None = None,
     on_inspect_event: Callable[[dict[str, Any]], None] | None = None,
     notify: Callable[[str, NotifySeverity], None] | None = None,
 ) -> AttachedSession:
@@ -785,6 +826,7 @@ async def attach_session(
         state=state,
         on_session_update=on_session_update,
         on_request_permission=on_request_permission,
+        on_request_elicitation=on_request_elicitation,
         on_inspect_event=on_inspect_event,
         notify=notify,
     )
@@ -802,6 +844,7 @@ def _build_session_router(
     session_ref: "AttachedSession",
     on_session_update: Callable[[SessionNotification], None] | None,
     on_request_permission: Callable[[PendingApproval], None] | None,
+    on_request_elicitation: Callable[[PendingElicitation], None] | None,
     on_inspect_event: Callable[[dict[str, Any]], None] | None,
 ) -> MessageRouter:
     """Build the route table for ONE connection cycle.
@@ -819,6 +862,9 @@ def _build_session_router(
     router = MessageRouter()
     if on_request_permission is not None:
         _register_permission_route(router, on_request_permission)
+
+    if on_request_elicitation is not None:
+        _register_elicitation_route(router, on_request_elicitation)
 
     if on_session_update is not None:
 
@@ -1008,15 +1054,26 @@ def _refresh_row_from_binding_meta(
     under :data:`PICKER_META_KEY`. The TUI's :class:`SessionState`
     drops the whole notification as cosmetic bind chrome, so this
     runs BEFORE that drop and pulls out the fields that drive
-    operator UI (currently just ``failsOnError`` — the cancel-sample
-    modal needs it to gate the ``[e] error`` action even on the
-    direct-attach path that never enumerated through the picker).
+    operator UI on the direct-attach path that never enumerated through
+    the picker:
 
-    No-op when the notification carries no picker meta, when no entry
-    matches our session id, or when the entry's ``failsOnError`` is
-    already what the row holds — keeps subscriber spam quiet.
+    - ``failsOnError`` (per-entry under :data:`PICKER_META_KEY`) — the
+      cancel-sample modal gates its ``[e] error`` action on it.
+    - ``inspect.interactive`` (on the OUTER ``_meta``, not the entry) —
+      the session screen hides the composer for observe-only sessions.
+
+    No-op when the notification carries neither signal or when the
+    values already match what the row holds — keeps subscriber spam
+    quiet.
     """
     meta = getattr(notification, "field_meta", None) or {}
+
+    # Interactivity rides on the outer _meta of the binding confirmation
+    # (the picker notification doesn't carry it, so it's absent there).
+    interactive_raw = meta.get(INTERACTIVE_META_KEY)
+    if isinstance(interactive_raw, bool) and interactive_raw != session.row.interactive:
+        session.row = replace(session.row, interactive=interactive_raw)
+
     entries = meta.get(PICKER_META_KEY)
     if not isinstance(entries, list):
         return
@@ -1045,6 +1102,101 @@ def _register_permission_route(
         Route(
             method="session/request_permission",
             func=_make_permission_handler(on_request_permission),
+            kind="request",
+        )
+    )
+
+
+def _make_elicitation_handler(
+    on_request_elicitation: Callable[[PendingElicitation], None],
+) -> Callable[[Any], Coroutine[Any, Any, dict[str, Any]]]:
+    """Build the ``elicitation/create`` handler closure.
+
+    Mirrors :func:`_make_permission_handler` one-for-one:
+
+    - Validates ``params`` to the standard ACP wire shape for a
+      session-scoped form elicitation —
+      ``{message, mode: "form", sessionId, toolCallId?, requestedSchema}``.
+      The installed ``acp.schema`` 0.10 splits this across two Pydantic
+      classes (``CreateFormElicitationRequest`` + ``ElicitationFormSessionMode``)
+      and offers no merged validator; we read the fields directly and
+      let :class:`ElicitationSchema.model_validate` police the schema
+      shape.
+    - Creates a :class:`PendingElicitation` (with a fresh
+      ``asyncio.Event``) and hands it to the screen-side callback,
+      which parks it on :attr:`SessionState.pending_elicitation` via
+      :meth:`SessionState.consume_elicitation_request`.
+    - Parks on ``pending.event``. The card's submit / decline button
+      (or one of the session cancel paths via
+      :meth:`SessionState.resolve_elicitation`) fires the event and
+      populates the resolution fields.
+    - Returns the JSON-RPC response dict mapping back to ACP's
+      discriminated union: ``{action: "accept", content: {...}}`` /
+      ``{action: "decline"}`` / ``{action: "cancel"}``.
+
+    Cancellation: ``asyncio.CancelledError`` (screen unmount /
+    disconnect) sets the pending as cancelled and fires the event so
+    any other reader sees a consistent state, then re-raises.
+    """
+
+    async def _handler(params: Any) -> dict[str, Any]:
+        if not isinstance(params, dict):
+            raise ValueError(
+                f"elicitation/create params must be a dict, got {type(params).__name__}"
+            )
+        mode = params.get("mode")
+        if mode != "form":
+            # Phase 6a supports form-mode only; URL-mode is deferred per
+            # the elicitation design doc's "Out of scope" section.
+            raise ValueError(
+                f"elicitation/create mode={mode!r} is not supported; "
+                "Inspect TUI only handles form-mode elicitation"
+            )
+        message = params.get("message")
+        if not isinstance(message, str):
+            raise ValueError("elicitation/create missing required 'message' field")
+        raw_schema = params.get("requestedSchema")
+        if raw_schema is None:
+            raise ValueError(
+                "elicitation/create form-mode missing required 'requestedSchema' field"
+            )
+        schema = ElicitationSchema.model_validate(raw_schema)
+        tool_call_id_raw = params.get("toolCallId")
+        tool_call_id = tool_call_id_raw if isinstance(tool_call_id_raw, str) else None
+        pending = PendingElicitation(
+            message=message,
+            requested_schema=schema,
+            event=asyncio.Event(),
+            tool_call_id=tool_call_id,
+        )
+        try:
+            on_request_elicitation(pending)
+            await pending.event.wait()
+        except (asyncio.CancelledError, Exception):
+            if not pending.event.is_set():
+                pending.action = "cancel"
+                pending.event.set()
+            raise
+        # action is set by resolve_elicitation; defensive default is
+        # cancel so a half-resolved state never leaks an accept with no
+        # content out onto the wire.
+        action = pending.action or "cancel"
+        if action == "accept":
+            return {"action": "accept", "content": pending.content or {}}
+        return {"action": action}
+
+    return _handler
+
+
+def _register_elicitation_route(
+    router: MessageRouter,
+    on_request_elicitation: Callable[[PendingElicitation], None],
+) -> None:
+    """Register the elicitation/create handler on the client router."""
+    router.add_route(
+        Route(
+            method="elicitation/create",
+            func=_make_elicitation_handler(on_request_elicitation),
             kind="request",
         )
     )

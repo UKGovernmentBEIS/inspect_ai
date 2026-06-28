@@ -56,6 +56,7 @@ from .common import (
 )
 from .util import (
     SectionedCommand,
+    ctl_server_flag_callback,
     int_bool_or_str_flag_callback,
     int_bool_or_str_retry_flag_callback,
     int_or_bool_flag_callback,
@@ -119,7 +120,7 @@ MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (
 ADAPTIVE_CONNECTIONS_HELP = (
     "Adaptive concurrency for Model API connections, automatically scaling "
     "between bounds based on rate-limit feedback (default: enabled, with "
-    "min=4, start=20, max=100). Pass `false` to opt out, an integer N for "
+    "min=10, start=20, max=100). Pass `false` to opt out, an integer N for "
     "a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or "
     "`min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and "
     "`--batch` take precedence."
@@ -131,7 +132,24 @@ TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
 ATTEMPT_TIMEOUT_HELP = "Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."
 CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration."
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
-CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for default (every 5 turns), --checkpoint=turn:N / time:Ns/m/h/d / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
+CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for the default (every 500k tokens), --checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / turn:N / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
+
+
+def _notification_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> bool | str | None:
+    """Resolve `--notification`: bare flag -> True, path -> str, absent -> None."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return value if isinstance(value, bool) else None
+    if value == "__bare__":
+        return True
+    if value.lower() in ("true", "yes", "1"):
+        return True
+    if value.lower() in ("false", "no", "0"):
+        return None
+    return value
 
 
 def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -340,6 +358,35 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Config file for tool call approval.",
     )
     @click.option(
+        "--notification",
+        "notification",
+        is_flag=False,
+        flag_value="__bare__",
+        default=None,
+        callback=_notification_callback,
+        # Disable Click auto_envvar_prefix lookup for this option.
+        # The root CLI sets ``auto_envvar_prefix="INSPECT"``, which
+        # would otherwise auto-bind ``INSPECT_EVAL_NOTIFICATION`` as
+        # this option's value — colliding with the same env var
+        # ``build_apprise(True)`` reads as the URL/config payload.
+        # The collision would let a user who exports the URL turn
+        # notifications on without passing the flag, or crash plain
+        # ``inspect eval`` runs when the env var holds a URL string
+        # that ``build_apprise`` then rejects as a non-file path.
+        allow_from_autoenv=False,
+        help=(
+            "Send out-of-band notifications when a human-in-the-loop "
+            "interaction (`ask_user` or human approval) is posted. Bare "
+            "`--notification` reads URL(s) from the "
+            "`INSPECT_EVAL_NOTIFICATION` environment variable (a single "
+            "Apprise URL, a comma-separated list, or a path to an Apprise "
+            "config file). `--notification <path>` reads from an Apprise "
+            "YAML/text config file. URLs are not accepted directly on the "
+            "command line so secrets never end up in shell history. "
+            "Requires `pip install apprise`."
+        ),
+    )
+    @click.option(
         "--sandbox",
         type=str,
         help="Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml'",
@@ -355,11 +402,10 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--checkpoint",
         is_flag=False,
-        flag_value="turn:5",
+        flag_value="default",
         default=None,
         help=CHECKPOINT_HELP,
         envvar="INSPECT_EVAL_CHECKPOINT",
-        hidden=True,
     )
     @click.option(
         "--acp-server",
@@ -373,9 +419,33 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "default AF_UNIX socket; pass an integer to bind a TCP loopback "
             "port (e.g. `--acp-server=4444`); pass `host:port` to bind on a "
             "specific interface (e.g. `--acp-server=0.0.0.0:4444`); pass a "
-            "filesystem path for a custom UNIX socket."
+            "filesystem path for a custom UNIX socket. When this flag is set, "
+            "all human-in-the-loop interactions (`approver: human` and the "
+            "`ask_user` tool) route exclusively through attached ACP clients; "
+            "the in-proc Textual panel and console handlers are bypassed. If "
+            "no client is connected when an interaction fires, the eval parks "
+            "until one attaches."
         ),
         envvar="INSPECT_EVAL_ACP_SERVER",
+    )
+    @click.option(
+        "--ctl-server",
+        is_flag=False,
+        flag_value="true",
+        default=None,
+        callback=ctl_server_flag_callback,
+        help=(
+            "Control-channel server for this eval process (default: enabled "
+            "on an AF_UNIX socket — the endpoint the `inspect ctl` CLI, "
+            "scripted agents, and TUIs query). Pass `false` to disable it. "
+            "Pass `keep` to also keep the process running "
+            "after the eval finishes so its state and results stay readable; "
+            "the process exits when `inspect ctl release` is run (or POST "
+            "/release is sent to the control endpoint). Without `keep` "
+            "the process exits as soon as the eval body returns, taking the "
+            "control surface with it."
+        ),
+        envvar="INSPECT_EVAL_CTL_SERVER",
     )
     @click.option(
         "--limit",
@@ -485,6 +555,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help="Limit on total tokens used for each sample.",
         envvar="INSPECT_EVAL_TOKEN_LIMIT",
+    )
+    @click.option(
+        "--turn-limit",
+        type=int,
+        help="Limit on total turns (model generations) used for each sample.",
+        envvar="INSPECT_EVAL_TURN_LIMIT",
     )
     @click.option(
         "--cost-limit",
@@ -740,6 +816,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(
+        "--fallback-models",
+        type=str,
+        help="Fallback models (comma-separated, tried in order) when the model's safety classifiers refuse the request. Anthropic Claude API only.",
+        envvar="INSPECT_EVAL_FALLBACK_MODELS",
+    )
+    @click.option(
         "--verbosity",
         type=click.Choice(["low", "medium", "high"]),
         help='Constrains the verbosity of the model\'s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)',
@@ -904,10 +986,12 @@ def _eval_command_impl(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
+    notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -939,8 +1023,9 @@ def _eval_command_impl(
     internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    fallback_models: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
-    effort: Literal["low", "medium", "high"] | None,
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
@@ -951,6 +1036,7 @@ def _eval_command_impl(
     modalities: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     cost_limit: float | None,
@@ -1019,6 +1105,7 @@ def _eval_command_impl(
         metadata=metadata,
         trace=trace,
         approval=approval,
+        notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         checkpoint=checkpoint,
@@ -1030,6 +1117,7 @@ def _eval_command_impl(
         sample_shuffle=sample_shuffle,
         message_limit=message_limit,
         token_limit=token_limit,
+        turn_limit=turn_limit,
         time_limit=time_limit,
         working_limit=working_limit,
         cost_limit=cost_limit,
@@ -1055,6 +1143,7 @@ def _eval_command_impl(
         no_score=no_score,
         no_score_display=no_score_display,
         acp_server=acp_server,
+        ctl_server=ctl_server,
         is_eval_set=False,
         **config,
     )
@@ -1140,6 +1229,7 @@ def eval_set_command(
     solver: str | None,
     trace: bool | None,
     approval: str | None,
+    notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
     m: tuple[str, ...] | None,
@@ -1169,6 +1259,7 @@ def eval_set_command(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1200,8 +1291,9 @@ def eval_set_command(
     internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    fallback_models: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
-    effort: Literal["low", "medium", "high"] | None,
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
@@ -1212,6 +1304,7 @@ def eval_set_command(
     modalities: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     cost_limit: float | None,
@@ -1289,6 +1382,7 @@ def eval_set_command(
         metadata=metadata,
         trace=trace,
         approval=approval,
+        notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         checkpoint=checkpoint,
@@ -1300,6 +1394,7 @@ def eval_set_command(
         sample_shuffle=sample_shuffle,
         message_limit=message_limit,
         token_limit=token_limit,
+        turn_limit=turn_limit,
         cost_limit=cost_limit,
         model_cost_config=model_cost_config,
         time_limit=time_limit,
@@ -1325,6 +1420,7 @@ def eval_set_command(
         no_score=no_score,
         no_score_display=no_score_display,
         acp_server=acp_server,
+        ctl_server=ctl_server,
         is_eval_set=True,
         retry_attempts=retry_attempts,
         retry_immediate=retry_immediate,
@@ -1532,10 +1628,12 @@ def eval_exec(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
+    notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1544,6 +1642,7 @@ def eval_exec(
     sample_shuffle: int | None,
     message_limit: int | None,
     token_limit: int | None,
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     cost_limit: float | None,
@@ -1704,6 +1803,7 @@ def eval_exec(
             metadata=eval_metadata,
             trace=trace,
             approval=approval,
+            notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
             checkpoint=parse_checkpoint(checkpoint),
@@ -1722,6 +1822,7 @@ def eval_exec(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -1741,6 +1842,7 @@ def eval_exec(
             score=score,
             score_display=score_display,
             acp_server=acp_server,
+            ctl_server=ctl_server,
         )
         | kwargs
     )
@@ -1834,6 +1936,8 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
         if key in config_keys and value is not None:
             if key == "stop_seqs":
                 value = value.split(",")
+            if key == "fallback_models":
+                value = [m.strip() for m in value.split(",")]
             if key == "logprobs" and value is False:
                 value = None
             if key == "logit_bias" and value is not None:
@@ -2085,6 +2189,21 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_ACP_SERVER",
 )
 @click.option(
+    "--ctl-server",
+    is_flag=False,
+    flag_value="true",
+    default=None,
+    callback=ctl_server_flag_callback,
+    help=(
+        "Control-channel server for the retried eval's process (default: "
+        "enabled). Pass `false` to disable it; pass `keep` "
+        "to keep the process running after the retried eval finishes so "
+        "external clients (the `inspect ctl` CLI, scripted agents) can still "
+        "query its state. Run `inspect ctl release` to release."
+    ),
+    envvar="INSPECT_EVAL_CTL_SERVER",
+)
+@click.option(
     "--max-connections",
     type=int,
     help=MAX_CONNECTIONS_HELP,
@@ -2120,12 +2239,11 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.option(
     "--checkpoint",
     is_flag=False,
-    flag_value="turn:5",
+    flag_value="default",
     default=None,
     help=CHECKPOINT_HELP
-    + " For resume to find sidecars, pass the same `--checkpoint` value used on the original eval.",
+    + " For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval.",
     envvar="INSPECT_EVAL_CHECKPOINT",
-    hidden=True,
 )
 @scanner_options
 @common_options
@@ -2152,6 +2270,7 @@ def eval_retry_command(
     no_score: bool | None,
     no_score_display: bool | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     max_connections: int | None,
     adaptive_connections: str | None,
     max_retries: int | None,
@@ -2273,6 +2392,7 @@ def eval_retry_command(
         score=score,
         score_display=score_display,
         acp_server=acp_server,
+        ctl_server=ctl_server,
         scanner=eval_scanner,
         max_retries=max_retries,
         timeout=timeout,

@@ -27,6 +27,7 @@ from ._file import (
     read_eval_log_sample,
     read_eval_log_sample_summaries,
     read_eval_log_samples,
+    read_eval_log_samples_by_id,
     write_eval_log,
     write_eval_log_async,
     write_log_dir_manifest,
@@ -54,17 +55,19 @@ from ._log import (
     EventsData,
 )
 from ._metric import recompute_metrics
-from ._pool import resolve_sample_events_data
 from ._recover import (
     RecoverableEvalLog,
     RecoveryNotAvailable,
     recover_eval_log,
     recoverable_eval_logs,
 )
+from ._resolve import resolve_sample_events_data
 from ._retry import retryable_eval_logs
 from ._score import edit_score
 from ._transcript import (
     Transcript,
+    TranscriptHistory,
+    TranscriptHistoryUnavailableError,
     transcript,
 )
 
@@ -91,14 +94,17 @@ __all__ = [
     "EvalStatus",
     "EvalLogInfo",
     "Transcript",
+    "TranscriptHistory",
+    "TranscriptHistoryUnavailableError",
     "transcript",
     "convert_eval_logs",
     "list_eval_logs",
     "read_eval_log",
     "read_eval_log_async",
     "read_eval_log_sample",
-    "read_eval_log_samples",
     "read_eval_log_sample_summaries",
+    "read_eval_log_samples",
+    "read_eval_log_samples_by_id",
     "condense_sample",
     "condense_events",
     "EventsData",

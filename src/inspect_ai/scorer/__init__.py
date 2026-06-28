@@ -22,6 +22,7 @@ from ._metric import (
     value_to_float,
 )
 from ._metrics.accuracy import accuracy
+from ._metrics.categorical import categorical, frequency
 from ._metrics.grouped import grouped
 from ._metrics.krippendorff import krippendorff_alpha
 from ._metrics.mean import mean
@@ -70,9 +71,11 @@ __all__ = [
     "answer",
     "at_least",
     "bootstrap_stderr",
+    "categorical",
     "choice",
     "exact",
     "f1",
+    "frequency",
     "grouped",
     "includes",
     "krippendorff_alpha",

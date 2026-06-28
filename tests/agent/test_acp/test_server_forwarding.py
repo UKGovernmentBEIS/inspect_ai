@@ -48,6 +48,12 @@ from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 
+# Heavy socket-integration suite: real AF_UNIX round-trips + agent evals
+# (~1.3s+ per test). Marked slow to keep it off the per-PR CI critical path
+# (the slow suite runs in a separate environment); lighter ACP tests still run
+# on every PR.
+pytestmark = pytest.mark.slow
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -319,7 +325,7 @@ async def test_session_prompt_marks_connection_as_active_driver(
     """
     session, _tr = _make_live_session_with_transcript()
     mark_calls: list[Any] = []
-    session.mark_active_approver_client = (  # type: ignore[method-assign]
+    session.mark_active_session_client = (  # type: ignore[method-assign]
         lambda client: mark_calls.append(client)
     )
 
@@ -376,7 +382,7 @@ async def test_session_load_marks_connection_as_active_driver(
     """
     session, _tr = _make_live_session_with_transcript()
     mark_calls: list[Any] = []
-    session.mark_active_approver_client = (  # type: ignore[method-assign]
+    session.mark_active_session_client = (  # type: ignore[method-assign]
         lambda client: mark_calls.append(client)
     )
 

@@ -241,6 +241,13 @@ class TaskScreenApp(App[TR]):
         finally:
             pass
 
+    def update_task_count(self, n: int) -> None:
+        # tasks injected into a live (TaskSource-driven) run are new task_ids, so
+        # grow the "completed / total" denominator (retries reuse a task_id and
+        # are deduped in update_title, so they must not call this)
+        self._total_tasks += n
+        self.update_display()
+
     # compose use
     def compose(self) -> ComposeResult:
         yield AppTitlebar()
@@ -506,6 +513,7 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         with self.app.suspend_app():
             # get rich console
@@ -536,7 +544,8 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
                 input = console.export_text(clear=False, styles=False)
                 input_ansi = console.export_text(clear=True, styles=True)
                 console.record = False
-                transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+                if record_event:
+                    transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
 
                 # print one blank line
                 console.print("")

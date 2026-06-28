@@ -12,6 +12,7 @@ Two test styles:
 from typing import Any, cast
 
 import anyio
+import pytest
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
@@ -60,6 +61,12 @@ from inspect_ai.model._model_output import (
 from inspect_ai.tool._tool import Tool, tool
 
 from ._capture import acp_test_active_sample
+
+# Heavy socket-integration suite: real AF_UNIX round-trips + agent evals
+# (~1.3s+ per test). Marked slow to keep it off the per-PR CI critical path
+# (the slow suite runs in a separate environment); lighter ACP tests still run
+# on every PR.
+pytestmark = pytest.mark.slow
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -157,21 +164,59 @@ def _chunk_text(chunk: ContentChunk) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_depth_counter_increments_and_decrements_on_agent_spans() -> None:
-    """SpanBegin(type=agent) increments depth; matching SpanEnd decrements."""
+def test_outer_agent_span_is_consumed_without_changing_depth() -> None:
+    """The FIRST agent span is the outer boundary — its contents emit.
+
+    Reflects the as_solver / agent.run convention: the framework
+    opens an ``AGENT_SPAN_TYPE`` span around the agent body, and
+    the ACP router subscribes BEFORE that span opens (acp_session
+    is entered earlier in the sample lifecycle). The router must
+    consume the outer boundary markers without ticking depth or
+    every event inside — i.e. the whole conversation — gets
+    filtered as a sub-agent.
+    """
     tr = Transcript()
     token = _transcript.set(tr)
     try:
         session = _new_session()
         router, _ = _attach_router(session)
         assert router._depth_tracker.depth == 0
-        tr._event(_span_begin("a"))
+        tr._event(_span_begin("outer"))
+        # Outer span begin consumed; depth stays at 0 so events
+        # inside the outer agent emit normally.
+        assert router._depth_tracker.depth == 0
+        tr._event(_span_end("outer"))
+        assert router._depth_tracker.depth == 0
+    finally:
+        _transcript.reset(token)
+
+
+def test_sub_agent_span_inside_outer_increments_depth() -> None:
+    """Sub-agent span nested inside the outer ticks depth to 1.
+
+    Mirrors the as_tool / handoff pattern: the parent agent
+    invokes a sub-agent which opens its own ``AGENT_SPAN_TYPE``.
+    The first agent span we see is the outer (consumed); the
+    nested one is the actual sub-agent boundary whose contents
+    should be filtered.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        router, _ = _attach_router(session)
+        tr._event(_span_begin("outer"))
+        assert router._depth_tracker.depth == 0
+        tr._event(_span_begin("sub"))
         assert router._depth_tracker.depth == 1
-        tr._event(_span_begin("b"))
+        tr._event(_span_begin("nested"))
         assert router._depth_tracker.depth == 2
-        tr._event(_span_end("b"))
+        tr._event(_span_end("nested"))
         assert router._depth_tracker.depth == 1
-        tr._event(_span_end("a"))
+        tr._event(_span_end("sub"))
+        assert router._depth_tracker.depth == 0
+        tr._event(_span_end("outer"))
+        # Outer end consumed without decrement — already at 0.
         assert router._depth_tracker.depth == 0
     finally:
         _transcript.reset(token)
@@ -193,16 +238,37 @@ def test_depth_counter_ignores_non_agent_spans() -> None:
 
 
 def test_sub_agent_filter_drops_events_at_depth_one() -> None:
-    """Events emitted while a sub-agent boundary is open do not publish."""
+    """Events emitted while a sub-agent boundary is open do not publish.
+
+    Opens an outer agent span first (consumed without depth
+    change), then a real sub-agent span — events between sub-agent
+    begin/end must be filtered. Events between outer begin and
+    sub-agent begin DO publish (they belong to the outer agent's
+    own conversation).
+    """
     tr = Transcript()
     token = _transcript.set(tr)
     try:
         session = _new_session()
         _, published = _attach_router(session)
-        tr._event(_span_begin("inner"))
+        tr._event(_span_begin("outer"))
+        tr._event(_model_event(text="visible"))
+        tr._event(_span_begin("sub"))
         tr._event(_model_event(text="hidden"))
-        tr._event(_span_end("inner"))
-        assert published == []
+        tr._event(_span_end("sub"))
+        tr._event(_model_event(text="visible-2"))
+        tr._event(_span_end("outer"))
+        # Two model events published — the two emitted at the
+        # outer depth. The middle one (inside the sub-agent) was
+        # filtered. ``content`` on an ``AgentMessageChunk`` is a
+        # :class:`TextContentBlock` whose ``.text`` carries the
+        # model output we set via ``_model_event(text=...)``.
+        texts = [
+            getattr(n.update.content, "text", None)
+            for n in published
+            if getattr(n.update, "content", None) is not None
+        ]
+        assert texts == ["visible", "visible-2"]
     finally:
         _transcript.reset(token)
 

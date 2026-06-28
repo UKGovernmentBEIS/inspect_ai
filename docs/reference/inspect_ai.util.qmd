@@ -38,7 +38,6 @@ description: Miscellaneous utility functions.
 ### display_counter
 ### display_type
 ### DisplayType
-### input_screen
 
 ## Utilities
 
@@ -72,6 +71,26 @@ description: Miscellaneous utility functions.
 ### ExecStderr
 ### ExecCompleted
 
+## Intervention
+
+### notify
+### request_input
+### InputRequest
+### InputResult
+### InputResult
+
+## Checkpointing
+
+### checkpointer
+### Checkpointer
+### CheckpointConfig
+### CheckpointSampleConfig
+### CheckpointTrigger
+### TimeInterval
+### TokenInterval
+### TurnInterval
+### Manual
+
 ## Registry
 
 ### registry_info
@@ -81,6 +100,7 @@ description: Miscellaneous utility functions.
 
 ## JSON
 
+### StrEnum
 ### JSONType
 ### JSONSchema
 ### json_schema
@@ -100,3 +120,5 @@ description: Miscellaneous utility functions.
 ### ComposeService
 ### ComposeBuild
 ### ComposeHealthcheck
+
+

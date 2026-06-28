@@ -352,3 +352,27 @@ async def test_messages_to_openai_preserves_reasoning_details_for_non_gemini() -
 
     payload = converted[0]
     assert "reasoning_details" in payload
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_replays_reasoning_content_for_deepseek_v4() -> None:
+    """DeepSeek v4 requires reasoning_content in assistant tool-call history."""
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._providers.openrouter import (
+        OPENROUTER_REASONING_DETAILS_SIGNATURE,
+    )
+
+    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
+        '[{"type": "reasoning.text", "text": "considered options", "id": "r1"}]'
+    )
+    msg = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="considered options", signature=signature)],
+    )
+
+    api = _make_api("deepseek/deepseek-v4-pro")
+    converted = await api.messages_to_openai([msg])
+
+    payload = converted[0]
+    assert payload["reasoning_content"] == "considered options"  # type: ignore[typeddict-item]
+    assert "reasoning_details" in payload

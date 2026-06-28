@@ -75,7 +75,14 @@ def main() -> None:
 
     # user-provided website overrides (merged with extension defaults)
     user_website: YamlDict = config.get("website") or {}
-    user_navbar: YamlDict = user_website.get("navbar") or {}
+    # `inspect-docs.navbar` is an alias for `website.navbar`. Quarto deep-merges
+    # `website.navbar` natively (dict-on-dict) but never sees the inspect-docs
+    # namespace, so values set there must be forwarded into the generated navbar
+    # ourselves (see `_build_navbar`). On conflict `website.navbar` wins, since
+    # Quarto merges it on top of our generated output regardless.
+    website_navbar: YamlDict = user_website.get("navbar") or {}
+    opts_navbar: YamlDict = opts.get("navbar") or {}
+    user_navbar: YamlDict = {**opts_navbar, **website_navbar}
 
     # create default .gitignore if none exists; never overwrite existing one
     gitignore = Path(".gitignore")
@@ -126,28 +133,41 @@ def main() -> None:
     # generate derived website metadata
     repo: str | None = opts.get("repo")
     if repo is not None:
-        generated = generate_website_metadata(opts, repo, user_navbar)
+        generated = generate_website_metadata(opts, repo, user_navbar, opts_navbar)
 
     # build sidebar: user navigation + reference sidebar
     sidebars: list[YamlDict] = []
+    # `inspect-docs.sidebar` may be:
+    #   False        -> no sidebar
+    #   "unified"    -> fold the reference sidebar into the main sidebar
+    #   {<props>}    -> a dict of Quarto sidebar properties (e.g.
+    #                   `collapse-level`, `style`) merged onto the generated
+    #                   Main sidebar. Use `collapse-level: 1` for the
+    #                   quarto.org style where only the selected top-level
+    #                   section is expanded.
     sidebar_opt = opts.get("sidebar", has_navigation)
     show_sidebar = sidebar_opt is not False
+    sidebar_overrides: YamlDict = sidebar_opt if isinstance(sidebar_opt, dict) else {}
     # Auto-fold into the main sidebar when the user has opted in via
     # `sidebar: "unified"` OR is using single-page reference mode
     # (reference/index.qmd as the only reference file).
     ref_dir_for_simple = Path("reference")
-    simple_reference = (
-        ref_dir_for_simple.is_dir() and _is_simple_reference(ref_dir_for_simple)
+    simple_reference = ref_dir_for_simple.is_dir() and _is_simple_reference(
+        ref_dir_for_simple
     )
     unified_sidebar = simple_reference or sidebar_opt == "unified"
     if show_sidebar:
-        sidebars.append(
-            {
-                "title": "Main",
-                "style": "docked",
-                "contents": nav_to_sidebar(navigation),
-            }
-        )
+        main_sidebar: YamlDict = {
+            "title": "Main",
+            "style": "docked",
+            "contents": nav_to_sidebar(navigation),
+        }
+        # user-supplied properties win, but never clobber the generated
+        # structure (title/contents)
+        for key, value in sidebar_overrides.items():
+            if key not in ("title", "contents"):
+                main_sidebar[key] = value
+        sidebars.append(main_sidebar)
 
     # resolve module name and CLI binary name (with pyproject auto-discovery)
     module_name: str | None = opts.get("module") or discover_module_name()
@@ -196,11 +216,9 @@ def main() -> None:
                     main_contents.append(entry)
                 elif ref_index_href:
                     # Simple mode with no pre-existing Reference nav: append a leaf.
-                    main_contents.append(
-                        {"text": "Reference", "href": ref_index_href}
-                    )
+                    main_contents.append({"text": "Reference", "href": ref_index_href})
                 if ref_contents:
-                    sidebars[0]["collapse-level"] = 2
+                    sidebars[0].setdefault("collapse-level", 2)
             else:
                 sidebars.extend(ref_sidebar)
 
@@ -336,9 +354,19 @@ def _build_footer(
 
 
 def _build_navbar(
-    opts: YamlDict, repo_url: str, title: str, user_navbar: YamlDict
+    opts: YamlDict,
+    repo_url: str,
+    title: str,
+    user_navbar: YamlDict,
+    forward_navbar: YamlDict,
 ) -> YamlDict:
-    """Build website.navbar, skipping left/right when the user provides them."""
+    """Build website.navbar, skipping left/right when the user provides them.
+
+    `user_navbar` is the combined user config (from both `website.navbar` and
+    `inspect-docs.navbar`) used to decide which sides to auto-generate.
+    `forward_navbar` is the `inspect-docs.navbar` alias block, which Quarto
+    does not merge natively, so its values are emitted here verbatim.
+    """
     navbar: YamlDict = {
         "title": title,
         "background": "light",
@@ -351,18 +379,22 @@ def _build_navbar(
         navbar["left"] = nav_to_navbar(opts.get("navigation", []))
     if "right" not in user_navbar:
         navbar["right"] = navbar_right(repo_url)
+    # forward inspect-docs.navbar values (Quarto only merges website.navbar)
+    navbar.update(forward_navbar)
     return navbar
 
 
 def generate_website_metadata(
-    opts: YamlDict, repo: str, user_navbar: YamlDict
+    opts: YamlDict, repo: str, user_navbar: YamlDict, opts_navbar: YamlDict
 ) -> YamlDict:
     """Generate derived website metadata from inspect-docs config.
 
-    `user_navbar` is the user's own `website.navbar` block (if any)
-    from `_quarto.yml`. When the user provides `left` or `right` keys
-    directly, we skip generating those sides so the user's values are
-    kept verbatim.
+    `user_navbar` is the user's combined navbar config (from `website.navbar`
+    and the `inspect-docs.navbar` alias). When the user provides `left` or
+    `right` keys via either, we skip generating those sides so the user's
+    values are kept verbatim. `opts_navbar` is just the `inspect-docs.navbar`
+    alias block, forwarded into the generated navbar (Quarto only merges
+    `website.navbar` natively).
     """
     title: str = opts.get("title", "")
     description: str = opts.get("description", "")
@@ -376,7 +408,7 @@ def generate_website_metadata(
             "description": description,
             "site-url": site_url,
             "repo-url": repo_url,
-            "navbar": _build_navbar(opts, repo_url, title, user_navbar),
+            "navbar": _build_navbar(opts, repo_url, title, user_navbar, opts_navbar),
             "page-footer": _build_footer(opts, repo, repo_url, title, org_name),
         }
     }

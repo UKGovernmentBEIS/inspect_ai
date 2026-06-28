@@ -44,6 +44,54 @@ anthropic:
           snapshot: "20260415"
           aliases:
             - anthropic.claude-opus-4-7
+    claude-opus-4-8:
+      display_name: Claude Opus 4.8
+      release_date: 2026-05-28
+      knowledge_cutoff_date: 2026-01-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking supported, but server-side default effort is `high`
+      # (unlike 4.6/4.7 which default to adaptive auto-selection).
+      # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      reasoning_effort_default: high
+      versions:
+        claude-opus-4-8:
+          snapshot: "20260528"
+          aliases:
+            - anthropic.claude-opus-4-8
+    claude-fable-5:
+      display_name: Claude Fable 5
+      release_date: 2026-06-09
+      knowledge_cutoff_date: 2026-01-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking is always on for Claude 5; effort controls depth, and
+      # the server-side default effort is `high` (like Opus 4.8).
+      # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      reasoning_effort_default: high
+      versions:
+        claude-fable-5:
+          snapshot: "20260609"
+          aliases:
+            - anthropic.claude-fable-5
+    claude-mythos-5:
+      display_name: Claude Mythos 5
+      release_date: 2026-06-09
+      knowledge_cutoff_date: 2026-01-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking is always on for Claude 5; effort controls depth, and
+      # the server-side default effort is `high` (like Opus 4.8).
+      # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      reasoning_effort_default: high
+      versions:
+        claude-mythos-5:
+          snapshot: "20260609"
+          aliases:
+            - anthropic.claude-mythos-5
     claude-haiku-4-5:
       display_name: Claude Haiku 4.5
       release_date: 2025-10-01

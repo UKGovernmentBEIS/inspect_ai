@@ -280,6 +280,24 @@ class ComposeService(ComposeModel):
     pull_policy: str | None = Field(default=None)
     """Image pull policy (e.g. ``always``, ``never``, ``missing``, ``build``)."""
 
+    platform: str | None = Field(default=None)
+    """Target platform for the container (e.g. ``linux/amd64``)."""
+
+    extra_hosts: list[str] | dict[str, str] | None = Field(default=None)
+    """Extra ``/etc/hosts`` entries. List (``"host:ip"``) or mapping form per Compose spec."""
+
+    cap_add: list[str] | None = Field(default=None)
+    """Linux capabilities to add (e.g. ``["SYS_PTRACE"]``)."""
+
+    cap_drop: list[str] | None = Field(default=None)
+    """Linux capabilities to drop (e.g. ``["ALL"]``)."""
+
+    security_opt: list[str] | None = Field(default=None)
+    """Container security options (e.g. ``["seccomp=unconfined"]``)."""
+
+    tmpfs: str | list[str] | None = Field(default=None)
+    """Paths mounted as a tmpfs. Single path or list of paths."""
+
     deploy: ComposeDeploy | None = Field(default=None)
     """Deployment configuration including resources."""
 
@@ -288,6 +306,9 @@ class ComposeService(ComposeModel):
 
     mem_reservation: str | None = Field(default=None)
     """Memory reservation (shortcut for deploy.resources.reservations.memory)."""
+
+    memswap_limit: str | int | None = Field(default=None)
+    """Total memory + swap limit (e.g. ``20g``, ``256m``, or bytes as int)."""
 
     cpus: float | None = Field(default=None)
     """CPU limit (shortcut for deploy.resources.limits.cpus)."""

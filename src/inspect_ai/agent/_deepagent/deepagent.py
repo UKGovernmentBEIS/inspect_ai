@@ -7,6 +7,7 @@ from typing import Literal, Sequence
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._react import react
 from inspect_ai.agent._types import (
+    DEFAULT_SUBMIT_PROMPT,
     AgentAttempts,
     AgentContinue,
     AgentPrompt,
@@ -14,18 +15,35 @@ from inspect_ai.agent._types import (
 )
 from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.model._compaction import CompactionStrategy
+from inspect_ai.model._compaction import CompactionAuto, CompactionStrategy
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool import Tool, ToolSource
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tools._memory import memory as memory_tool
 from inspect_ai.tool._tools._skill import Skill
+from inspect_ai.tool._tools._skill import skill as skill_fn
+from inspect_ai.tool._tools._todo_write import todo_write as todo_write_tool
 
+from .agent_tool import (
+    BackgroundRegistry,
+    _has_memory_tool,
+    agent_tool,
+    background_registry,
+)
 from .general import general
+from .lifecycle_tools import (
+    agent_cancel,
+    agent_list,
+    agent_status,
+    agent_wait,
+    background_on_continue,
+)
 from .plan import plan
 from .prompt import build_system_prompt, expand_prompt_placeholders
 from .research import research
 from .subagent import Subagent
-from .task_tool import task_tool
+
+DEFAULT_MAX_BACKGROUND = 8
 
 
 @agent(description="Autonomous agent for complex, multi-step tasks.")
@@ -36,6 +54,7 @@ def deepagent(
     memory: bool = True,
     todo_write: bool = True,
     web_search: bool | Tool = False,
+    background: bool | int = False,
     skills: list[str | Path | Skill] | None = None,
     model: str | Model | None = None,
     attempts: int | AgentAttempts = 1,
@@ -52,9 +71,9 @@ def deepagent(
 
     A batteries-included agent that bundles the patterns popularized by
     Claude Code and Codex CLI into a single
-    entry point. Builds on `react()` with subagent delegation via a task
-    tool, persistent memory, structured planning, and an opinionated
-    system prompt.
+    entry point. Builds on `react()` with subagent delegation via an
+    agent tool, persistent memory, structured planning, and an
+    opinionated system prompt.
 
     Args:
         tools: Additional tools beyond defaults. Flow to the top-level
@@ -67,6 +86,15 @@ def deepagent(
         web_search: Include web_search tool for all agents. Pass True
             for default config, or a pre-configured web_search() tool
             instance for custom setup.
+        background: Background subagent dispatch. ``False`` (the
+            default) disables background dispatch — the ``agent``
+            tool's schema omits the ``background`` parameter and the
+            lifecycle tools (agent_status, agent_wait, agent_cancel,
+            agent_list) are not surfaced. ``True`` enables background
+            dispatch with a cap of 8 concurrent running agents. Pass a
+            positive integer to enable with that as the cap. ``0`` or
+            negative values raise ``ValueError`` — use ``False`` to
+            disable.
         skills: Skills available to the agent.
         model: Model to use.
         attempts: Number of submission attempts.
@@ -89,12 +117,11 @@ def deepagent(
             prompt entirely.
         max_depth: Maximum subagent recursion depth.
     """
+    background_enabled, max_background = _resolve_background(background)
 
     async def execute(state: AgentState) -> AgentState:
         # All setup runs per-sample inside execute() so there is no
         # shared mutable state across concurrent samples.
-        from inspect_ai.model._compaction import CompactionAuto
-
         resolved_compaction = CompactionAuto() if compaction == "auto" else compaction
 
         resolved_subagents = (
@@ -134,10 +161,6 @@ def deepagent(
         if ws_tool_instance:
             parent_tools.append(ws_tool_instance)
         if todo_write:
-            from inspect_ai.tool._tools._todo_write import (
-                todo_write as todo_write_tool,
-            )
-
             parent_tools.append(todo_write_tool())
 
         _apply_parent_tools_to_general(resolved_subagents, parent_tools)
@@ -145,7 +168,7 @@ def deepagent(
         def get_messages() -> list[ChatMessage]:
             return list(state.messages)
 
-        task = task_tool(
+        agent = agent_tool(
             subagents=resolved_subagents,
             parent_tools=parent_tools,
             parent_model=model,
@@ -155,20 +178,20 @@ def deepagent(
             get_messages=get_messages,
             retry_refusals=retry_refusals,
             approval=approval,
+            background_enabled=background_enabled,
         )
 
-        # Top-level tools = parent tools + task + memory + skills
+        # Top-level tools = parent tools + agent + lifecycle + memory + skills
         all_tools: list[Tool | ToolDef | ToolSource] = list(parent_tools)
-        all_tools.append(task)
+        all_tools.append(agent)
+        if background_enabled:
+            all_tools.extend(
+                [agent_status(), agent_wait(), agent_cancel(), agent_list()]
+            )
         if memory:
-            from inspect_ai.agent._deepagent.task_tool import _has_memory_tool
-            from inspect_ai.tool._tools._memory import memory as memory_tool
-
             if not _has_memory_tool(all_tools):
                 all_tools.append(memory_tool())
         if skills:
-            from inspect_ai.tool._tools._skill import skill as skill_fn
-
             all_tools.append(skill_fn(skills))
 
         if prompt is not None:
@@ -178,6 +201,7 @@ def deepagent(
                 memory=memory,
                 todo_write=todo_write,
                 instructions=instructions,
+                background=background_enabled,
             )
         else:
             system_prompt = build_system_prompt(
@@ -185,9 +209,8 @@ def deepagent(
                 memory=memory,
                 todo_write=todo_write,
                 instructions=instructions,
+                background=background_enabled,
             )
-
-        from inspect_ai.agent._types import DEFAULT_SUBMIT_PROMPT
 
         agent_prompt = AgentPrompt(
             instructions=system_prompt,
@@ -196,6 +219,14 @@ def deepagent(
             submit_prompt=None,
         )
 
+        # When background dispatch is enabled, wrap on_continue with a
+        # forgetting-backstop reminder of any active background agents.
+        effective_on_continue: str | AgentContinue | None
+        if background_enabled:
+            effective_on_continue = background_on_continue(on_continue)
+        else:
+            effective_on_continue = on_continue
+
         inner = react(
             tools=all_tools,
             prompt=agent_prompt,
@@ -203,14 +234,46 @@ def deepagent(
             submit=submit,
             attempts=attempts,
             compaction=resolved_compaction,
-            on_continue=on_continue,
+            on_continue=effective_on_continue,
             retry_refusals=retry_refusals,
             approval=approval,
         )
 
-        return await inner(state)
+        # The background registry lives for the duration of inner(state) so
+        # the agent tool and lifecycle tools can read it via the ContextVar.
+        if background_enabled:
+            with background_registry(BackgroundRegistry(max_background=max_background)):
+                return await inner(state)
+        else:
+            return await inner(state)
 
     return execute
+
+
+def _resolve_background(background: bool | int) -> tuple[bool, int]:
+    """Resolve ``background`` to ``(enabled, max_background)``.
+
+    ``True`` → (True, DEFAULT_MAX_BACKGROUND); ``False`` → (False, 0);
+    positive int → (True, that int). ``0`` or negative raises ValueError.
+
+    Validation order is critical: ``bool`` is a subclass of ``int`` in
+    Python, so ``isinstance(True, int)`` is True. We check ``is True`` /
+    ``is False`` first to disambiguate.
+    """
+    if background is True:
+        return True, DEFAULT_MAX_BACKGROUND
+    if background is False:
+        return False, 0
+    if isinstance(background, int):
+        if background < 1:
+            raise ValueError(
+                f"background must be True, False, or a positive integer, "
+                f"got {background!r}. Use False to disable background dispatch."
+            )
+        return True, background
+    raise ValueError(
+        f"background must be True, False, or a positive integer, got {background!r}."
+    )
 
 
 def _resolve_web_search(web_search: Tool | bool) -> Tool | None:

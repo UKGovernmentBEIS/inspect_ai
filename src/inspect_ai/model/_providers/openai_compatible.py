@@ -41,6 +41,8 @@ from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
     OpenAIResponseError,
+    is_gpt_5_model,
+    is_o_series_model,
     messages_to_openai,
     model_output_from_openai,
     needs_max_completion_tokens,
@@ -64,6 +66,7 @@ class OpenAICompatibleAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         service: str | None = None,
         service_base_url: str | None = None,
+        api_key_var: str | None = None,
         emulate_tools: bool = False,
         responses_api: bool | None = None,
         responses_store: bool | None = None,
@@ -83,9 +86,12 @@ class OpenAICompatibleAPI(ModelAPI):
         else:
             self.service = service
 
-        # compute api key
+        # Compute API key env var name (e.g. HF_API_KEY). Callers may provide a
+        # non-standard env var (e.g. HF_TOKEN). Ensure the API key override
+        # hooks in ModelAPI receive the env var name the value actually came
+        # from.
         service_env_name = self.service.upper().replace("-", "_")
-        api_key_var = f"{service_env_name}_API_KEY"
+        api_key_var = api_key_var or f"{service_env_name}_API_KEY"
 
         super().__init__(
             model_name=model_name,
@@ -182,6 +188,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 client=self.client,
                 http_hooks=self._http_hooks,
                 model_name=self.service_model_name(),
+                model_family=self.model_family(),
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
@@ -193,7 +200,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
                 synthesize_phase=self.responses_phase,
-                model_info=ModelInfo(),
+                model_info=ModelInfo(self.model_family()),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
             )
@@ -330,7 +337,7 @@ class OpenAICompatibleAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -356,10 +363,7 @@ class OpenAICompatibleAPI(ModelAPI):
             schema_exclude=self.schema_exclude_fields,
         )
 
-        if (
-            needs_max_completion_tokens(self.service_model_name())
-            and "max_tokens" in params
-        ):
+        if needs_max_completion_tokens(self.model_family()) and "max_tokens" in params:
             params["max_completion_tokens"] = params.pop("max_tokens")
 
         return params
@@ -435,38 +439,44 @@ def _resolve_chat_choice(
 
 
 class ModelInfo(ResponsesModelInfo):
+    def __init__(self, model_family: str = "") -> None:
+        self.model_family = model_family.lower()
+
     def has_reasoning_options(self) -> bool:
         return True
 
     def reasoning_only_fallback(self) -> bool:
         return True
 
-    def is_gpt(self) -> bool:
+    def is_latest(self) -> bool:
         return False
+
+    def is_gpt(self) -> bool:
+        return "gpt" in self.model_family
 
     def is_gpt_5_plus(self) -> bool:
-        return False
+        return "gpt-5." in self.model_family
 
     def is_gpt_5(self) -> bool:
-        return False
+        return is_gpt_5_model(self.model_family)
 
     def is_gpt_5_pro(self) -> bool:
-        return False
+        return self.is_gpt_5() and "-pro" in self.model_family
 
     def is_gpt_5_chat(self) -> bool:
-        return False
+        return self.is_gpt_5() and "-chat" in self.model_family
 
     def is_o_series(self) -> bool:
-        return False
+        return is_o_series_model(self.model_family)
 
     def is_o1(self) -> bool:
-        return False
+        return "o1" in self.model_family
 
     def is_o3_mini(self) -> bool:
-        return False
+        return "o3-mini" in self.model_family
 
     def is_deep_research(self) -> bool:
-        return False
+        return "deep-research" in self.model_family
 
     def is_codex(self) -> bool:
-        return False
+        return "codex" in self.model_family
