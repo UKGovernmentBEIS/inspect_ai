@@ -253,3 +253,36 @@ def test_zero_max_consecutive_failures_is_set_not_inherited() -> None:
     )
     assert out is not None
     assert out.max_consecutive_failures == 0
+
+
+def test_merge_attaches_task_callbacks() -> None:
+    from inspect_ai.util._checkpoint import Manual
+    from inspect_ai.util._checkpoint.config import (
+        CheckpointConfig,
+        merge_checkpoint_configs,
+    )
+
+    async def on_checkpoint(state: object) -> None:
+        return None
+
+    async def on_resume(state: object) -> str:
+        return "resumed"
+
+    resolved = merge_checkpoint_configs(
+        CheckpointConfig(trigger=Manual()),
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
+    )
+    assert resolved is not None
+    assert resolved.on_checkpoint is on_checkpoint
+    assert resolved.on_resume is on_resume
+
+
+def test_merge_disabled_ignores_callbacks() -> None:
+    from inspect_ai.util._checkpoint.config import merge_checkpoint_configs
+
+    async def on_resume(state: object) -> None:
+        return None
+
+    # No task/eval config -> checkpointing disabled -> None regardless of callbacks
+    assert merge_checkpoint_configs(None, None, None, on_resume=on_resume) is None
