@@ -6,8 +6,11 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
+from pydantic_core import to_jsonable_python
+
 from inspect_ai._util.content import (
     Content,
+    ContentBase,
     ContentText,
 )
 from inspect_ai._util.exception import TerminateSampleError
@@ -180,7 +183,7 @@ class RunCodeToolBridge:
 
         try:
             result = await self._execute_inspect_tool_call(tool_def, arguments)
-            value = self._project_result(result)
+            value = self._project_result(result, tool_def.name)
             artifact_count = len(self.artifacts) - artifacts_before
             call.result_preview = _preview(f"{value!r} | artifacts={artifact_count}")
             return value
@@ -188,19 +191,45 @@ class RunCodeToolBridge:
             call.error = str(exc)
             raise
 
-    def _project_result(self, result: Any) -> Any:
+    def _project_result(self, result: Any, tool_name: str) -> Any:
         """Project a raw Inspect ToolResult into a Monty runtime value.
 
-        Scalars (str/int/float/bool) cross the boundary natively so code can
-        chain them into later calls or compute on them. Rich Content is
-        projected to text, with non-text content preserved as artifacts.
+        Three cases:
+          - Scalars (str/int/float/bool) cross natively so code can chain them
+            into later calls or compute on them.
+          - Rich Content (text/image/...) is projected to text, with non-text
+            content preserved as artifacts.
+          - Structured data (list/dict/BaseModel) is converted to native Python
+            so code can index/iterate/aggregate over it. Monty accepts native
+            lists and dicts of primitives.
         """
         if isinstance(result, (str, int, float, bool)):
             return result
-        content = result if isinstance(result, list) else [result]
-        text, new_artifacts = _content_to_runtime_value(content)
-        self.artifacts.extend(new_artifacts)
-        return text
+
+        if self._is_content_result(result):
+            content = result if isinstance(result, list) else [result]
+            text, new_artifacts = _content_to_runtime_value(content)
+            self.artifacts.extend(new_artifacts)
+            return text
+
+        try:
+            return to_jsonable_python(result, fallback=lambda value: str(value))
+        except Exception as exc:
+            from inspect_ai.tool._tool import ToolError
+
+            raise ToolError(
+                f"run_code: tool '{tool_name}' returned a value that can't be "
+                f"projected into the runtime ({type(result).__name__}): {exc}"
+            ) from exc
+
+    @staticmethod
+    def _is_content_result(result: Any) -> bool:
+        """Whether a tool result carries Inspect Content (vs. structured data)."""
+        if isinstance(result, ContentBase):
+            return True
+        if isinstance(result, list):
+            return any(isinstance(item, ContentBase) for item in result)
+        return False
 
     async def _execute_inspect_tool_call(
         self,

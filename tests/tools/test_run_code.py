@@ -597,6 +597,76 @@ await add_numbers(a=x, b=40)
     assert result[0].text == "43"
 
 
+def list_channels_tool() -> Tool:
+    async def execute() -> list:
+        """List channel names.
+
+        Returns:
+            Channel names.
+        """
+        return ["general", "random", "engineering"]
+
+    return ToolDef(
+        execute, name="list_channels", description="List channels."
+    ).as_tool()
+
+
+def transactions_tool() -> Tool:
+    async def execute() -> list:
+        """List transactions.
+
+        Returns:
+            Transactions.
+        """
+        return [{"id": 1, "amount": 10}, {"id": 2, "amount": 32}]
+
+    return ToolDef(
+        execute, name="get_transactions", description="List transactions."
+    ).as_tool()
+
+
+@pytest.mark.anyio
+async def test_external_functions_preserve_structured_return_type():
+    external_functions = external_functions_for_tool_defs(
+        _tool_defs([list_channels_tool()])
+    )
+
+    result = await external_functions["list_channels"]()
+
+    assert result == ["general", "random", "engineering"]
+    assert isinstance(result, list)
+
+
+@pytest.mark.anyio
+async def test_run_code_iterates_structured_tool_result_with_monty():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(tools=[transactions_tool()], execute_code=True)
+
+    result = await tool(
+        code="""
+txs = await get_transactions()
+total = sum(t["amount"] for t in txs)
+f"{len(txs)} txs total={total}"
+"""
+    )
+
+    assert result[0].text == "2 txs total=42"
+
+
+def test_project_result_raises_on_unprojectable_value():
+    # Neither scalar, Content, nor JSON-serializable: raise instead of
+    # degrading to text, and leave artifacts untouched.
+    bridge = RunCodeToolBridge([])
+    circular: dict = {}
+    circular["self"] = circular
+
+    with pytest.raises(ToolError):
+        bridge._project_result(circular, "demo_tool")
+
+    assert bridge.artifacts == []
+
+
 @pytest.mark.anyio
 async def test_run_code_can_call_wrapped_tools_with_asyncio_gather():
     pytest.importorskip("pydantic_monty")
