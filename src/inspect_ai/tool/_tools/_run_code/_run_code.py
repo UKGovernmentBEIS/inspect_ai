@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Sequence
+from typing import Literal
 
 from inspect_ai._util.content import (
     Content,
@@ -35,6 +36,26 @@ def _tool_signature(tool_def: ToolDef) -> str:
         args.append(f"{name}: {typ}{optional}")
 
     return f"await {tool_def.name}({', '.join(args)})"
+
+
+def _resolve_executor(
+    executor: RunCodeExecutor | Literal["monty", "stub"],
+    *,
+    tool_defs: list[ToolDef],
+    max_inner_tool_calls: int | None,
+) -> RunCodeExecutor:
+    """Resolve a run_code executor name or custom executor."""
+    if isinstance(executor, str):
+        if executor == "monty":
+            return MontyRunCodeExecutor(
+                tool_defs=tool_defs,
+                max_inner_tool_calls=max_inner_tool_calls,
+            )
+        if executor == "stub":
+            return StubRunCodeExecutor()
+        raise ValueError(f"Unknown run_code executor: {executor}")
+
+    return executor
 
 
 def _format_run_code_result(
@@ -180,8 +201,7 @@ def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
 def run_code(
     tools: Sequence[Tool] | None = None,
     timeout: int | None = None,
-    executor: RunCodeExecutor | None = None,
-    execute_code: bool = False,
+    executor: RunCodeExecutor | Literal["monty", "stub"] = "stub",
     max_inner_tool_calls: int | None = None,
     include_tool_call_trace: bool = False,
     max_output_chars: int | None = 20_000,
@@ -191,8 +211,9 @@ def run_code(
     Args:
         tools: Tools that code executed by run_code may call.
         timeout: Maximum execution time in seconds.
-        executor: Executor used to run code. Intended for tests and alternative backends.
-        execute_code: Whether to execute code using the Monty-backed executor.
+        executor: Executor used to run code. Use "stub" for the placeholder executor,
+            "monty" for the Pydantic Monty-backed executor, or pass a custom
+            RunCodeExecutor for tests / alternative backends.
         max_inner_tool_calls: Maximum number of allowlisted tool calls from inside run_code.
         include_tool_call_trace: Whether to include a compact trace of inner tool calls in the result.
         max_output_chars: Maximum number of characters returned by run_code.
@@ -201,13 +222,10 @@ def run_code(
     tool_def_by_name = _tool_def_by_name(tool_defs)
     tool_defs = list(tool_def_by_name.values())
     usage_description = _run_code_usage_description(tool_defs)
-    executor = executor or (
-        MontyRunCodeExecutor(
-            tool_defs=tool_defs,
-            max_inner_tool_calls=max_inner_tool_calls,
-        )
-        if execute_code
-        else StubRunCodeExecutor()
+    executor = _resolve_executor(
+        executor,
+        tool_defs=tool_defs,
+        max_inner_tool_calls=max_inner_tool_calls,
     )
 
     async def execute(code: str) -> list[Content]:

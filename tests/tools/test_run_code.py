@@ -143,7 +143,7 @@ async def test_run_code_returns_executor_error():
 async def test_run_code_executes_simple_code_with_monty():
     pytest.importorskip("pydantic_monty")
 
-    tool = run_code(execute_code=True)
+    tool = run_code(executor="monty")
     result = await tool(code="1 + 1")
 
     assert "2" in result[0].text
@@ -153,7 +153,7 @@ async def test_run_code_executes_simple_code_with_monty():
 async def test_run_code_raises_tool_error_on_monty_syntax_error():
     pytest.importorskip("pydantic_monty")
 
-    tool = run_code(execute_code=True)
+    tool = run_code(executor="monty")
 
     with pytest.raises(ToolError) as exc_info:
         await tool(code="def foo(:")
@@ -165,7 +165,7 @@ async def test_run_code_raises_tool_error_on_monty_syntax_error():
 async def test_run_code_raises_tool_error_on_monty_runtime_error():
     pytest.importorskip("pydantic_monty")
 
-    tool = run_code(execute_code=True)
+    tool = run_code(executor="monty")
 
     with pytest.raises(ToolError) as exc_info:
         await tool(code="1/0")
@@ -177,7 +177,7 @@ async def test_run_code_raises_tool_error_on_monty_runtime_error():
 async def test_run_code_returns_falsy_results():
     pytest.importorskip("pydantic_monty")
 
-    tool = run_code(execute_code=True)
+    tool = run_code(executor="monty")
 
     for code, expected in [
         ("0", "0"),
@@ -215,7 +215,7 @@ def test_external_functions_reject_duplicate_tool_names():
 async def test_run_code_can_call_wrapped_tool_with_monty():
     pytest.importorskip("pydantic_monty")
 
-    tool = run_code(tools=[dummy_tool()], execute_code=True)
+    tool = run_code(tools=[dummy_tool()], executor="monty")
 
     result = await tool(code='await dummy_tool("hello")')
 
@@ -296,7 +296,7 @@ async def test_run_code_monty_raises_tool_error_on_max_tool_calls():
 
     tool = run_code(
         tools=[dummy_tool()],
-        execute_code=True,
+        executor="monty",
         max_inner_tool_calls=1,
     )
 
@@ -380,7 +380,7 @@ async def test_run_code_can_include_inner_tool_trace_with_monty():
 
     tool = run_code(
         tools=[dummy_tool()],
-        execute_code=True,
+        executor="monty",
         include_tool_call_trace=True,
     )
 
@@ -539,7 +539,7 @@ async def test_run_code_can_call_multiple_wrapped_tools_with_monty():
 
     tool = run_code(
         tools=[dummy_tool(), second_dummy_tool()],
-        execute_code=True,
+        executor="monty",
     )
 
     result = await tool(
@@ -588,7 +588,7 @@ async def test_run_code_chains_typed_tool_results_with_monty():
 
     # the first result feeds the second call; the int must survive the
     # Monty boundary so the second call validates against the int schema
-    tool = run_code(tools=[add_numbers_tool()], execute_code=True)
+    tool = run_code(tools=[add_numbers_tool()], executor="monty")
 
     result = await tool(
         code="""
@@ -643,7 +643,7 @@ async def test_external_functions_preserve_structured_return_type():
 async def test_run_code_iterates_structured_tool_result_with_monty():
     pytest.importorskip("pydantic_monty")
 
-    tool = run_code(tools=[transactions_tool()], execute_code=True)
+    tool = run_code(tools=[transactions_tool()], executor="monty")
 
     result = await tool(
         code="""
@@ -675,7 +675,7 @@ async def test_run_code_can_call_wrapped_tools_with_asyncio_gather():
 
     tool = run_code(
         tools=[dummy_tool(), second_dummy_tool()],
-        execute_code=True,
+        executor="monty",
         include_tool_call_trace=True,
     )
 
@@ -828,7 +828,7 @@ async def test_run_code_monty_uses_inspect_approval_for_inner_tool_calls():
 
     tool = run_code(
         tools=[approval_probe_tool()],
-        execute_code=True,
+        executor="monty",
     )
 
     with approval(
@@ -870,7 +870,7 @@ async def test_run_code_monty_runs_inner_tool_when_approval_allows_it():
 
     tool = run_code(
         tools=[approval_probe_tool()],
-        execute_code=True,
+        executor="monty",
     )
 
     with approval(
@@ -923,7 +923,7 @@ async def test_run_code_bridge_collects_image_artifacts():
 @pytest.mark.anyio
 async def test_run_code_artifacts_appear_in_result():
     pytest.importorskip("pydantic_monty")
-    tool = run_code(tools=[image_tool()], execute_code=True)
+    tool = run_code(tools=[image_tool()], executor="monty")
 
     result = await tool(code="await image_tool()")
 
