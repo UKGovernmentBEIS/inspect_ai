@@ -204,7 +204,7 @@ def run_code(
     executor: RunCodeExecutor | Literal["monty", "stub"] = "stub",
     max_inner_tool_calls: int | None = None,
     include_tool_call_trace: bool = False,
-    max_output_chars: int | None = 20_000,
+    max_output_chars: int | None = None,
 ) -> Tool:
     """Run Python code that can orchestrate selected tools.
 
@@ -216,7 +216,7 @@ def run_code(
             RunCodeExecutor for tests / alternative backends.
         max_inner_tool_calls: Maximum number of allowlisted tool calls from inside run_code.
         include_tool_call_trace: Whether to include a compact trace of inner tool calls in the result.
-        max_output_chars: Maximum number of characters returned by run_code.
+        max_output_chars: Maximum number of characters returned by run_code. If None, output is not truncated.
     """
     tool_defs = _tool_defs(tools)
     tool_def_by_name = _tool_def_by_name(tool_defs)

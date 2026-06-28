@@ -427,6 +427,21 @@ async def test_run_code_truncates_output():
     assert "truncated" in result[0].text
 
 
+@pytest.mark.anyio
+async def test_run_code_does_not_truncate_output_by_default():
+    long_text = "x" * 25_000
+
+    class LongOutputExecutor:
+        async def execute(self, code: str) -> RunCodeResult:
+            return RunCodeResult(output=[ContentText(text=long_text)])
+
+    tool = run_code(executor=LongOutputExecutor())
+
+    result = await tool(code="ignored")
+
+    assert result == [ContentText(text=long_text)]
+
+
 def test_truncate_content_preserves_trailing_image():
     content = [
         ContentText(text="x" * 100),
