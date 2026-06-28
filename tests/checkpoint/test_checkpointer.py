@@ -2155,6 +2155,11 @@ async def test_on_resume_populates_restored_and_emits_event(dirs: _Dirs) -> None
     ]
     assert len(resume_events) == 1
     assert resume_events[0].data["attempt"] == "resume"
+    assert resume_events[0].data["report"] == {
+        "transparent": False,
+        "message": "redo step 9",
+        "data": {"lost": ["out.json"]},
+    }
 
 
 async def test_on_resume_str_shorthand(dirs: _Dirs) -> None:
@@ -2187,6 +2192,7 @@ async def test_on_resume_str_shorthand(dirs: _Dirs) -> None:
 async def test_resume_without_callback_leaves_restored_none(dirs: _Dirs) -> None:
     from unittest.mock import patch
 
+    from inspect_ai.event._info import InfoEvent
     from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 
     setup = _CheckpointerSetup(
@@ -2205,6 +2211,17 @@ async def test_resume_without_callback_leaves_restored_none(dirs: _Dirs) -> None
         cp = await setup.__aenter__()
 
     assert cp.restored is None
+    resume_events = [
+        e
+        for e in dirs.events
+        if isinstance(e, InfoEvent)
+        and e.source == "checkpoint"
+        and isinstance(e.data, dict)
+        and e.data.get("event") == "resume"
+    ]
+    assert len(resume_events) == 1
+    assert resume_events[0].data["report"] is None
+    assert resume_events[0].data["attempt"] == "resume"
 
 
 async def test_on_resume_exception_fails_resume(dirs: _Dirs) -> None:
