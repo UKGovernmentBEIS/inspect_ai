@@ -2071,3 +2071,32 @@ async def test_materialize_pooled_model_event_expands_seed_payload(
     assert seeded_model.call is not None
     assert seeded_model.call.call_refs is None
     assert seeded_model.call.request == call_request
+
+
+def test_resume_report_defaults_and_coercion() -> None:
+    from inspect_ai.util._checkpoint.report import (
+        ResumeReport,
+        resolve_resume_report,
+    )
+
+    # defaults
+    r = ResumeReport()
+    assert r.transparent is False
+    assert r.message is None
+    assert r.data is None
+
+    # str shorthand coerces to a message report
+    coerced = resolve_resume_report("redo step 9")
+    assert coerced == ResumeReport(message="redo step 9")
+
+    # passthrough and None
+    report = ResumeReport(transparent=True)
+    assert resolve_resume_report(report) is report
+    assert resolve_resume_report(None) is None
+
+
+def test_resume_report_exported_from_util() -> None:
+    from inspect_ai.util import ResumeReport as Exported
+    from inspect_ai.util._checkpoint.report import ResumeReport
+
+    assert Exported is ResumeReport

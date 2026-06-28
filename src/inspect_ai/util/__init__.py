@@ -39,6 +39,7 @@ from ._checkpoint import (
     checkpointer,
     current_checkpointer,
 )
+from ._checkpoint.report import ResumeReport
 from ._collect import collect
 from ._concurrency import AdaptiveConcurrency, concurrency
 from ._console import input_screen
@@ -190,6 +191,7 @@ __all__ = [
     "CheckpointSampleConfig",
     "CheckpointTrigger",
     "Manual",
+    "ResumeReport",
     "TimeInterval",
     "TokenInterval",
     "TurnInterval",
