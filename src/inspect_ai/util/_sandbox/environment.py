@@ -89,6 +89,44 @@ class SandboxConnection(BaseModel):
     """Optional container name (does not apply to all sandboxes)."""
 
 
+class SandboxFingerprint(BaseModel):
+    """Resolved runtime fingerprint of a sandbox environment.
+
+    Captured while a sample's sandbox is live, this records what the sandbox
+    *actually resolved to* (image digest, OS, packages, ...) as opposed to the
+    `SandboxEnvironmentSpec` recipe, which only records the (often mutable)
+    configuration. All fields are optional so partial/degraded probes (e.g. a
+    non-docker provider that has no host-side image) remain valid.
+    """
+
+    type: str
+    """Sandbox type name (e.g. 'docker', 'local', etc.)"""
+
+    image: str | None = Field(default=None)
+    """Image reference (e.g. 'repo:tag') if known."""
+
+    image_id: str | None = Field(default=None)
+    """Resolved image id (e.g. 'sha256:...')."""
+
+    repo_digests: list[str] | None = Field(default=None)
+    """Registry content digests (e.g. 'repo@sha256:...')."""
+
+    os: str | None = Field(default=None)
+    """Operating system description (e.g. /etc/os-release PRETTY_NAME)."""
+
+    kernel: str | None = Field(default=None)
+    """Kernel release (e.g. `uname -r`)."""
+
+    packages: dict[str, str] | None = Field(default=None)
+    """Selected package versions (name -> version)."""
+
+    network_profile: str | None = Field(default=None)
+    """Network profile (e.g. 'none', 'bridge', docker NetworkMode)."""
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Additional fingerprint fields recorded by custom probes."""
+
+
 class SandboxEnvironment(abc.ABC):
     """Environment for executing arbitrary code from tools.
 

@@ -18,6 +18,7 @@ from .environment import (
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
+    SandboxFingerprint,
 )
 from .events import SandboxTimeoutError
 from .exec_remote import (
@@ -57,6 +58,7 @@ __all__ = [
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
     "SandboxConnection",
+    "SandboxFingerprint",
     "SandboxTimeoutError",
     "sandboxenv",
     "sandbox",

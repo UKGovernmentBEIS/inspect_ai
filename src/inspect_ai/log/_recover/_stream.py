@@ -326,6 +326,7 @@ def _write_sample_streaming(
             # Not reconstructable from buffer -- emit nulls.
             _write_json_field(stream, "timelines", None, comma=True)
             _write_json_field(stream, "invalidation", None, comma=True)
+            _write_json_field(stream, "sandbox_fingerprint", None, comma=True)
 
             _write_json_field(stream, "error", error, comma=True)
             _write_json_field(stream, "error_retries", None, comma=True)
