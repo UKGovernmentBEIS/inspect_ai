@@ -5,7 +5,9 @@ from inspect_ai import Task, TaskSource, eval
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import ContentAudio, ContentImage, ContentVideo
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalLog, EvalSample
+from inspect_ai.log._condense import ATTACHMENT_PROTOCOL, resolve_sample_attachments
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -175,6 +177,89 @@ def test_fixed_audio_without_extension_uses_declared_format(
     assert base64.b64decode(seen[0].split("base64,", 1)[1]) == b"trusted-audio"
 
 
+def test_media_materialization_failure_is_retried() -> None:
+    resolver_calls = [0]
+    seen: list[str] = []
+
+    async def resolver(uri: str) -> str:
+        assert uri == "test://bucket/input.png"
+        resolver_calls[0] += 1
+        if resolver_calls[0] == 1:
+            raise RuntimeError("transient media failure")
+        return "data:image/png;base64,dHJ1c3RlZA=="
+
+    @solver
+    def record_input() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            seen.append(image_reference(state))
+            return state
+
+        return solve
+
+    with media_resolver("test", resolver):
+        logs = eval(
+            Task(
+                dataset=[
+                    Sample(
+                        id="sample",
+                        input=image_input("test://bucket/input.png"),
+                    )
+                ],
+                solver=record_input(),
+            ),
+            model="mockllm/model",
+            display="none",
+            log_images=False,
+            retry_on_error=1,
+        )
+
+    assert resolver_calls == [2]
+    assert seen == ["data:image/png;base64,dHJ1c3RlZA=="]
+    assert logs[0].status == "success"
+    assert logs[0].samples is not None
+    assert logs[0].samples[0].error_retries is not None
+    assert len(logs[0].samples[0].error_retries) == 1
+
+
+def test_media_materialization_failure_does_not_cancel_siblings(
+    tmp_path: Path,
+) -> None:
+    seen: list[str | int] = []
+
+    @solver
+    def record_sample() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            seen.append(state.sample_id)
+            return state
+
+        return solve
+
+    logs = eval(
+        Task(
+            dataset=[
+                Sample(
+                    id="missing",
+                    input=image_input(str(tmp_path / "missing.png")),
+                ),
+                Sample(id="ok", input="ok"),
+            ],
+            solver=record_sample(),
+        ),
+        model="mockllm/model",
+        display="none",
+        fail_on_error=False,
+        log_images=False,
+        max_samples=1,
+    )
+
+    assert logs[0].status == "success"
+    assert seen == ["ok"]
+    assert logs[0].samples is not None
+    samples = {sample.id: sample for sample in logs[0].samples}
+    assert samples["missing"].error is not None
+    assert samples["ok"].error is None
+
+
 def test_no_log_images_preserves_audio_and_video_formats(tmp_path: Path) -> None:
     audio = tmp_path / "input.wav"
     audio.write_bytes(b"trusted-audio")
@@ -281,6 +366,54 @@ def test_no_log_images_strips_media_from_retry_history(tmp_path: Path) -> None:
 
     persisted_log = Path(logs[0].location).read_text()
     assert encoded_image not in persisted_log
+
+
+def test_realtime_retry_preserves_changed_media_attachment(tmp_path: Path) -> None:
+    image = tmp_path / "input.png"
+    first_bytes = b"first-attempt-media"
+    second_bytes = b"second-attempt-media"
+    image.write_bytes(first_bytes)
+    attempts = [0]
+
+    @solver
+    def retry_after_media_change() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempts[0] += 1
+            state = await generate(state)
+            if attempts[0] == 1:
+                image.write_bytes(second_bytes)
+                raise RuntimeError("retry sample")
+            return state
+
+        return solve
+
+    logs = eval(
+        Task(
+            dataset=[Sample(id="sample", input=image_input(str(image)))],
+            solver=retry_after_media_change(),
+        ),
+        model="mockllm/model",
+        display="none",
+        log_dir=str(tmp_path / "logs"),
+        log_images=True,
+        log_realtime=True,
+        retry_on_error=1,
+    )
+
+    assert attempts == [2]
+    assert logs[0].samples is not None
+    sample = resolve_sample_attachments(logs[0].samples[0], "full")
+    assert sample.error_retries is not None
+    assert len(sample.error_retries) == 1
+    retry_events = sample.error_retries[0].events
+    assert retry_events is not None
+    retry_event = next(event for event in retry_events if isinstance(event, ModelEvent))
+    retry_content = retry_event.input[0].content
+    assert isinstance(retry_content, list)
+    retry_image = retry_content[0]
+    assert isinstance(retry_image, ContentImage)
+    assert ATTACHMENT_PROTOCOL not in retry_image.image
+    assert base64.b64decode(retry_image.image.split("base64,", 1)[1]) == first_bytes
 
 
 def test_pending_sample_replacement_does_not_inherit_authority(

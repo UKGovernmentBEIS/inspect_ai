@@ -1,5 +1,6 @@
 import os
 
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import ContentImage
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalRetryError, EvalSample
@@ -97,6 +98,44 @@ def test_retry_event_attachments_round_trip() -> None:
     resolved_image = resolved_content[0]
     assert isinstance(resolved_image, ContentImage)
     assert resolved_image.image == image_data_uri
+
+
+def test_recondense_without_images_removes_existing_media_attachments() -> None:
+    image_data_uri = "data:image/png;base64," + ("A" * 120)
+    message = ChatMessageUser(content=[ContentImage(image=image_data_uri)])
+    event = ModelEvent(
+        model="test-model",
+        input=[message],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input=[message],
+        target="target",
+        messages=[message],
+        events=[event],
+        error_retries=[
+            EvalRetryError(
+                message="retry",
+                traceback="",
+                traceback_ansi="",
+                events=[event],
+            )
+        ],
+    )
+
+    with_images = condense_sample(sample, log_images=True)
+    assert image_data_uri in with_images.attachments.values()
+
+    without_images = condense_sample(with_images, log_images=False)
+    serialized = without_images.model_dump_json()
+    assert image_data_uri not in serialized
+    assert image_data_uri not in without_images.attachments.values()
+    assert BASE_64_DATA_REMOVED in serialized
 
 
 # def test_transcript_incremental_condense():
