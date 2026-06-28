@@ -58,7 +58,8 @@ class StoreModel(BaseModel):
             temp_data[self._ns_name(name)] = value
             self._validate_store(temp_data)
 
-            # update the store and sync the underlying __dict__
+            # coerce on write so reads return the canonical typed form
+            value = self._coerce_value(name, value)
             self.store.set(self._ns_name(name), value)
             self.__dict__[name] = value
         else:
@@ -122,6 +123,11 @@ class StoreModel(BaseModel):
         """
         ns_name = self._ns_name(field_name)
         raw_value = self.store.get(ns_name)
+
+        # already-coerced object still cached in the store: skip the rebuild
+        if raw_value is self.__dict__.get(field_name):
+            return raw_value
+
         coerced_value = self._coerce_value(field_name, raw_value)
 
         # If we coerced the value (created a new object), update the store
