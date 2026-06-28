@@ -1,4 +1,5 @@
 import errno
+import shlex
 import shutil
 import stat
 import tempfile
@@ -16,7 +17,6 @@ from inspect_ai.util._sandbox.docker.docker import (
     _validate_staged_read_file,
 )
 from inspect_ai.util._sandbox.docker.util import ComposeProject
-from inspect_ai.util._subprocess import ExecResult
 
 
 def _environment() -> DockerSandboxEnvironment:
@@ -28,15 +28,6 @@ def _environment() -> DockerSandboxEnvironment:
         env=None,
     )
     return DockerSandboxEnvironment("default", project, "/work")
-
-
-def _exec_result(success: bool) -> ExecResult[str]:
-    return ExecResult(
-        success=success,
-        returncode=0 if success else 1,
-        stdout="",
-        stderr="",
-    )
 
 
 @pytest.mark.parametrize("file", [".", "./", "..", "../", "dir/.", "dir/../"])
@@ -61,7 +52,7 @@ async def test_read_file_uses_precreated_random_destination(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     environment = _environment()
-    exec_mock = AsyncMock(return_value=_exec_result(True))
+    exec_mock = AsyncMock()
     monkeypatch.setattr(environment, "exec", exec_mock)
 
     async def copy_file(
@@ -82,6 +73,7 @@ async def test_read_file_uses_precreated_random_destination(
         staged_path = Path(cwd) / dest
         assert staged_path.parent.resolve(strict=True) == Path(cwd).resolve(strict=True)
         assert stat.S_ISREG(staged_path.lstat().st_mode)
+        assert len(staged_path.read_bytes()) == 32
         staged_path.write_bytes(b"hello\r\n")
 
     monkeypatch.setattr(docker_module, "compose_cp", copy_file)
@@ -89,63 +81,81 @@ async def test_read_file_uses_precreated_random_destination(
     result = await environment.read_file("/sandbox/source.txt", text=False)
 
     assert result == b"hello\r\n"
-    exec_mock.assert_awaited_once_with(["test", "-f", "/sandbox/source.txt"])
+    exec_mock.assert_not_awaited()
 
 
-async def test_read_file_rejects_directory_source_before_copy(
+async def test_read_file_allows_empty_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     environment = _environment()
-    exec_mock = AsyncMock(side_effect=[_exec_result(False), _exec_result(True)])
-    copy_mock = AsyncMock()
-    monkeypatch.setattr(environment, "exec", exec_mock)
+
+    async def copy_empty_file(
+        src: str,
+        dest: str,
+        project: ComposeProject,
+        cwd: str | Path | None = None,
+        output_limit: int | None = None,
+    ) -> None:
+        assert cwd is not None
+        (Path(cwd) / dest).write_bytes(b"")
+
+    monkeypatch.setattr(docker_module, "compose_cp", copy_empty_file)
+
+    assert await environment.read_file("empty", text=False) == b""
+
+
+async def test_read_file_maps_directory_copy_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment = _environment()
+    copy_mock = AsyncMock(side_effect=RuntimeError("cannot copy directory"))
     monkeypatch.setattr(docker_module, "compose_cp", copy_mock)
 
     with pytest.raises(IsADirectoryError) as ex:
         await environment.read_file("directory")
 
     assert "directory" in str(ex.value)
-    copy_mock.assert_not_awaited()
+    copy_mock.assert_awaited_once()
 
 
-async def test_read_file_rejects_special_source_before_copy(
+async def test_read_file_rejects_successful_copy_without_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     environment = _environment()
-    exec_mock = AsyncMock(
-        side_effect=[
-            _exec_result(False),
-            _exec_result(False),
-            _exec_result(True),
-        ]
+
+    async def copy_nothing(
+        src: str,
+        dest: str,
+        project: ComposeProject,
+        cwd: str | Path | None = None,
+        output_limit: int | None = None,
+    ) -> None:
+        assert cwd is not None
+        staged_path = Path(cwd) / dest
+        assert stat.S_ISREG(staged_path.lstat().st_mode)
+        assert len(staged_path.read_bytes()) == 32
+
+    monkeypatch.setattr(docker_module, "compose_cp", copy_nothing)
+    monkeypatch.setattr(
+        docker_module,
+        "verify_read_file_size",
+        lambda _: pytest.fail("Canary should be checked before the size limit"),
     )
-    copy_mock = AsyncMock()
-    monkeypatch.setattr(environment, "exec", exec_mock)
-    monkeypatch.setattr(docker_module, "compose_cp", copy_mock)
 
     with pytest.raises(OSError) as ex:
-        await environment.read_file("special")
+        await environment.read_file("socket")
 
     assert ex.value.errno == errno.EINVAL
-    assert "special" in str(ex.value)
-    copy_mock.assert_not_awaited()
+    assert ex.value.filename == "socket"
 
 
 async def test_read_file_preserves_missing_file_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     environment = _environment()
-    exec_mock = AsyncMock(
-        side_effect=[
-            _exec_result(False),
-            _exec_result(False),
-            _exec_result(False),
-        ]
-    )
     copy_mock = AsyncMock(
         side_effect=RuntimeError("Could not find the file in the container")
     )
-    monkeypatch.setattr(environment, "exec", exec_mock)
     monkeypatch.setattr(docker_module, "compose_cp", copy_mock)
 
     with pytest.raises(FileNotFoundError) as ex:
@@ -159,7 +169,6 @@ async def test_read_file_rejects_non_regular_copy_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     environment = _environment()
-    monkeypatch.setattr(environment, "exec", AsyncMock(return_value=_exec_result(True)))
 
     async def copy_directory(
         src: str,
@@ -186,7 +195,6 @@ async def test_read_file_reports_original_path_for_unreadable_copy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     environment = _environment()
-    monkeypatch.setattr(environment, "exec", AsyncMock(return_value=_exec_result(True)))
 
     async def copy_file(
         src: str,
@@ -290,6 +298,25 @@ async def test_docker_read_file_contains_untrusted_sources(
         assert link_directory.success
         fifo = await docker_environment.exec(["mkfifo", f"{container_root}/fifo"])
         assert fifo.success
+        socket_path = f"{container_root}/socket"
+        socket_script = (
+            "import socket,time;"
+            "sock=socket.socket(socket.AF_UNIX);"
+            f"sock.bind({socket_path!r});"
+            "sock.listen();"
+            "time.sleep(600)"
+        )
+        socket = await docker_environment.exec(
+            [
+                "sh",
+                "-c",
+                f"python -c {shlex.quote(socket_script)} "
+                f"</dev/null >{shlex.quote(f'{container_root}/socket.log')} 2>&1 & "
+                f"while [ ! -S {shlex.quote(socket_path)} ]; do sleep 0.01; done",
+            ],
+            timeout=10,
+        )
+        assert socket.success
 
         assert (
             await docker_environment.read_file(f"{container_root}/marker.txt")
@@ -312,6 +339,19 @@ async def test_docker_read_file_contains_untrusted_sources(
         with pytest.raises(OSError) as ex:
             await docker_environment.read_file(f"{container_root}/fifo")
         assert ex.value.errno == errno.EINVAL
+
+        with pytest.raises(OSError) as ex:
+            await docker_environment.read_file(socket_path)
+        assert ex.value.errno == errno.EINVAL
+
+        remove_test = await docker_environment.exec(
+            ["sh", "-c", "rm -f /bin/test /usr/bin/test"]
+        )
+        assert remove_test.success
+        assert (
+            await docker_environment.read_file(f"{container_root}/marker.txt")
+            == "sandbox-marker"
+        )
         assert not host_escape.exists()
     finally:
         _remove_host_path(host_escape)

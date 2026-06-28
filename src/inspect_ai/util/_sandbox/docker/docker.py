@@ -55,6 +55,8 @@ from .util import ComposeProject, task_project_name
 
 logger = getLogger(__name__)
 
+_READ_FILE_STAGING_CANARY_BYTES = 32
+
 
 @sandboxenv(name="docker")
 class DockerSandboxEnvironment(SandboxEnvironment):
@@ -446,13 +448,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # resolve relative file paths
         file = self.container_file(file)
-        await self._validate_read_file_source(file, original_file)
 
         # Copy the contents to a host temp file
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             temp_root = Path(temp_dir).resolve(strict=True)
             dest_fd, dest_file = tempfile.mkstemp(dir=temp_root, prefix="read-")
-            os.close(dest_fd)
+            # Keep an existing regular destination so directory copies fail, while
+            # detecting sources (such as sockets) that Docker silently skips.
+            staging_canary = os.urandom(_READ_FILE_STAGING_CANARY_BYTES)
+            with os.fdopen(dest_fd, "wb") as f:
+                f.write(staging_canary)
             dest_path = Path(dest_file)
             _validate_staged_read_file(temp_root, dest_path, original_file)
 
@@ -488,10 +493,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     raise
 
             _validate_staged_read_file(temp_root, dest_path, original_file)
-            verify_read_file_size(str(dest_path))
 
             # read and return w/ appropriate encoding
             try:
+                if _staged_read_file_matches_canary(dest_path, staging_canary):
+                    raise OSError(
+                        errno.EINVAL,
+                        "Docker read_file did not produce a regular file.",
+                        original_file,
+                    )
+                verify_read_file_size(str(dest_path))
                 if text:
                     with open(dest_path, "r", newline="", encoding="utf-8") as f:
                         return f.read()
@@ -502,23 +513,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise PermissionError(
                     errno.EACCES, "Permission denied.", original_file
                 ) from ex
-
-    async def _validate_read_file_source(self, file: str, original_file: str) -> None:
-        if await self._container_path_test("-f", file):
-            return
-        if await self._container_path_test("-d", file):
-            raise _is_directory_error(original_file)
-        if await self._container_path_test("-e", file):
-            raise OSError(errno.EINVAL, "Path is not a regular file.", original_file)
-
-    async def _container_path_test(self, operator: str, file: str) -> bool:
-        result = await self.exec(["test", operator, file])
-        if result.returncode not in (0, 1):
-            raise RuntimeError(
-                f"Failed to inspect sandbox path '{file}': "
-                f"{result.stderr or result.stdout}"
-            )
-        return result.success
 
     @override
     async def connection(self, *, user: str | None = None) -> SandboxConnection:
@@ -585,6 +579,13 @@ def _is_directory_alias(file: str) -> bool:
 
 def _is_directory_error(file: str) -> IsADirectoryError:
     return IsADirectoryError(errno.EISDIR, "Is a directory.", file)
+
+
+def _staged_read_file_matches_canary(dest_path: Path, canary: bytes) -> bool:
+    if dest_path.stat().st_size != len(canary):
+        return False
+    with dest_path.open("rb") as f:
+        return f.read() == canary
 
 
 def _validate_staged_read_file(
