@@ -11,7 +11,6 @@ from inspect_ai.tool._tools._run_code._bridge import (
     RunCodeMaxToolCallsExceededError,
     RunCodeToolBridge,
     _preview,
-    external_functions_for_tool_defs,
 )
 from inspect_ai.tool._tools._run_code._run_code import (
     _format_run_code_result,
@@ -194,7 +193,8 @@ async def test_run_code_returns_falsy_results():
 @pytest.mark.anyio
 async def test_external_functions_call_wrapped_tool():
     tool_defs = _tool_defs([dummy_tool()])
-    external_functions = external_functions_for_tool_defs(tool_defs)
+    bridge = RunCodeToolBridge(tool_defs)
+    external_functions = bridge.external_functions()
 
     assert "dummy_tool" in external_functions
 
@@ -205,9 +205,10 @@ async def test_external_functions_call_wrapped_tool():
 
 def test_external_functions_reject_duplicate_tool_names():
     tool_defs = _tool_defs([dummy_tool(), dummy_tool()])
+    bridge = RunCodeToolBridge(tool_defs)
 
     with pytest.raises(ValueError, match="Duplicate"):
-        external_functions_for_tool_defs(tool_defs)
+        bridge.external_functions()
 
 
 @pytest.mark.anyio
@@ -570,9 +571,8 @@ def add_numbers_tool() -> Tool:
 
 @pytest.mark.anyio
 async def test_external_functions_preserve_scalar_return_type():
-    external_functions = external_functions_for_tool_defs(
-        _tool_defs([add_numbers_tool()])
-    )
+    bridge = RunCodeToolBridge(_tool_defs([add_numbers_tool()]))
+    external_functions = bridge.external_functions()
 
     result = await external_functions["add_numbers"](2, 3)
 
@@ -628,9 +628,8 @@ def transactions_tool() -> Tool:
 
 @pytest.mark.anyio
 async def test_external_functions_preserve_structured_return_type():
-    external_functions = external_functions_for_tool_defs(
-        _tool_defs([list_channels_tool()])
-    )
+    bridge = RunCodeToolBridge(_tool_defs([list_channels_tool()]))
+    external_functions = bridge.external_functions()
 
     result = await external_functions["list_channels"]()
 

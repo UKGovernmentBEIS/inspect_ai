@@ -290,13 +290,3 @@ class RunCodeToolBridge:
                 return recoverable_error
             raise
         return result
-
-
-def external_functions_for_tool_defs(
-    tool_defs: list[ToolDef],
-    *,
-    max_inner_tool_calls: int | None = None,
-) -> dict[str, Callable[..., Any]]:
-    """Create Monty external functions for allowlisted Inspect tools."""
-    bridge = RunCodeToolBridge(tool_defs, max_inner_tool_calls=max_inner_tool_calls)
-    return bridge.external_functions()
