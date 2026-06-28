@@ -174,9 +174,9 @@ def chat_content_without_base64_content(content: Content) -> Content:
     if isinstance(content, ContentImage) and is_data_uri(content.image):
         return ContentImage(image=BASE_64_DATA_REMOVED, detail=content.detail)
     elif isinstance(content, ContentAudio) and is_data_uri(content.audio):
-        return ContentAudio(audio=BASE_64_DATA_REMOVED, format="mp3")
+        return ContentAudio(audio=BASE_64_DATA_REMOVED, format=content.format)
     elif isinstance(content, ContentVideo) and is_data_uri(content.video):
-        return ContentVideo(video=BASE_64_DATA_REMOVED, format="mp4")
+        return ContentVideo(video=BASE_64_DATA_REMOVED, format=content.format)
     elif isinstance(content, ContentDocument) and is_data_uri(content.document):
         return ContentDocument(
             document=BASE_64_DATA_REMOVED,

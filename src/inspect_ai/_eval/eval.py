@@ -5,6 +5,7 @@ import os
 import sys
 from contextlib import nullcontext
 from contextvars import Token, copy_context
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -1183,7 +1184,10 @@ def _resolve_enqueued_tasks(
     # generate-config ContextVars, so running it in the caller's context would
     # swap that sample's active model out from under it; the copy keeps those
     # mutations local to resolution.
-    resolved = copy_context().run(resolve)
+    resolved = [
+        replace(resolved_task, input_media_policy="inline_only")
+        for resolved_task in copy_context().run(resolve)
+    ]
     if not resolved:
         raise ValueError("No tasks to enqueue (resolution produced none).")
     resolve_model_costs(resolved, cost_limit)

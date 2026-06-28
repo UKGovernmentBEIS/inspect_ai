@@ -129,6 +129,9 @@ async def file_as_data(file: str, mime_type: str | None = None) -> tuple[bytes, 
                 hint=mime_type,
             )
 
+    if resolved_mime_type in _GENERIC_MIME_TYPES:
+        resolved_mime_type = _sniff_image_mime_type(file_bytes) or resolved_mime_type
+
     # return bytes and type
     return file_bytes, resolved_mime_type
 
@@ -203,6 +206,20 @@ def _mime_matches_kind(mime_type: str, kind: MediaKind) -> bool:
     if kind == "document":
         return True
     return mime_type.startswith(f"{kind}/")
+
+
+def _sniff_image_mime_type(data: bytes) -> str | None:
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data.startswith(b"BM"):
+        return "image/bmp"
+    return None
 
 
 def _select_mime_type(
