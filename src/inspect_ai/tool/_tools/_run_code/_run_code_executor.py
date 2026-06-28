@@ -39,14 +39,6 @@ class StubRunCodeExecutor:
     """Placeholder executor used until real code execution is implemented."""
 
     async def execute(self, code: str) -> RunCodeResult:
-        """Execute code.
-
-        Args:
-            code: Python code to execute.
-
-        Returns:
-            Placeholder execution result.
-        """
         return RunCodeResult(
             output=[ContentText(text="run_code execution is not implemented yet")]
         )
@@ -65,14 +57,6 @@ class MontyRunCodeExecutor:
         self.max_tool_calls = max_inner_tool_calls
 
     async def execute(self, code: str) -> RunCodeResult:
-        """Execute code.
-
-        Args:
-            code: Python code to execute.
-
-        Returns:
-            Result of the code execution.
-        """
         try:
             import pydantic_monty
             from pydantic_monty import MontyError
