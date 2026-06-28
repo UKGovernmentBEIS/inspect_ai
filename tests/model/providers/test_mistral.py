@@ -166,7 +166,7 @@ async def test_mistral_output_url_is_not_fetched_on_replay():
 
 
 @skip_if_no_mistral_package
-async def test_mistral_chat_forwards_config_extra_headers():
+async def test_mistral_chat_forwards_config_extra_headers() -> None:
     """config.extra_headers must reach the chat completions request.
 
     The conversation-api path already merges them; this covers the chat path.
