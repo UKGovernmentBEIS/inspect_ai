@@ -7,7 +7,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.approval import ApprovalPolicy, approval, auto_approver
 from inspect_ai.tool import Tool, ToolDef, ToolError, run_code
 from inspect_ai.tool._tools._run_code._bridge import (
-    RunCodeInnerToolCall,
+    RunCodeInnerToolCallTraceEntry,
     RunCodeMaxToolCallsExceededError,
     RunCodeToolBridge,
     _preview,
@@ -232,13 +232,13 @@ async def test_run_code_bridge_records_inner_tool_call():
     result = await external_functions["dummy_tool"]("hello")
 
     assert result == "hello"
-    assert len(bridge.calls) == 1
-    assert bridge.calls[0].name == "dummy_tool"
-    assert bridge.calls[0].args_preview == "('hello',)"
-    assert bridge.calls[0].kwargs_preview == "{}"
-    assert "hello" in bridge.calls[0].result_preview
-    assert "artifacts=0" in bridge.calls[0].result_preview
-    assert bridge.calls[0].error is None
+    assert len(bridge.call_trace) == 1
+    assert bridge.call_trace[0].name == "dummy_tool"
+    assert bridge.call_trace[0].args_preview == "('hello',)"
+    assert bridge.call_trace[0].kwargs_preview == "{}"
+    assert "hello" in bridge.call_trace[0].result_preview
+    assert "artifacts=0" in bridge.call_trace[0].result_preview
+    assert bridge.call_trace[0].error is None
 
 
 @pytest.mark.anyio
@@ -257,7 +257,7 @@ async def test_run_code_bridge_enforces_max_tool_calls():
     ):
         await external_functions["dummy_tool"]("second")
 
-    assert len(bridge.calls) == 1
+    assert len(bridge.call_trace) == 1
 
 
 def failing_tool() -> Tool:
@@ -285,9 +285,9 @@ async def test_run_code_bridge_records_inner_tool_error():
     with pytest.raises(RuntimeError, match="inner boom"):
         await external_functions["failing_tool"]("x")
 
-    assert len(bridge.calls) == 1
-    assert bridge.calls[0].name == "failing_tool"
-    assert bridge.calls[0].error == "inner boom"
+    assert len(bridge.call_trace) == 1
+    assert bridge.call_trace[0].name == "failing_tool"
+    assert bridge.call_trace[0].error == "inner boom"
 
 
 @pytest.mark.anyio
@@ -314,8 +314,8 @@ await dummy_tool("second")
 def test_format_run_code_result_without_trace():
     result = RunCodeResult(
         output=[ContentText(text="hello")],
-        inner_tool_calls=[
-            RunCodeInnerToolCall(
+        inner_tool_call_trace=[
+            RunCodeInnerToolCallTraceEntry(
                 name="dummy_tool",
                 args_preview="('x',)",
                 kwargs_preview="{}",
@@ -335,8 +335,8 @@ def test_format_run_code_result_without_trace():
 def test_format_run_code_result_with_trace():
     result = RunCodeResult(
         output=[ContentText(text="hello")],
-        inner_tool_calls=[
-            RunCodeInnerToolCall(
+        inner_tool_call_trace=[
+            RunCodeInnerToolCallTraceEntry(
                 name="dummy_tool",
                 args_preview="('x',)",
                 kwargs_preview="{}",
@@ -359,7 +359,9 @@ def test_format_run_code_result_with_error_trace():
     result = RunCodeResult(
         output=[],
         error="boom",
-        inner_tool_calls=[RunCodeInnerToolCall(name="dummy_tool", error="inner boom")],
+        inner_tool_call_trace=[
+            RunCodeInnerToolCallTraceEntry(name="dummy_tool", error="inner boom")
+        ],
     )
 
     formatted = _format_run_code_result(
@@ -526,9 +528,9 @@ async def test_run_code_bridge_can_call_multiple_wrapped_tools():
     assert result_1 == "a"
     assert result_2 == "second:b"
 
-    assert len(bridge.calls) == 2
-    assert bridge.calls[0].name == "dummy_tool"
-    assert bridge.calls[1].name == "second_dummy_tool"
+    assert len(bridge.call_trace) == 2
+    assert bridge.call_trace[0].name == "dummy_tool"
+    assert bridge.call_trace[1].name == "second_dummy_tool"
 
 
 @pytest.mark.anyio

@@ -49,15 +49,23 @@ def _format_run_code_result(
         [ContentText(text=output)] if isinstance(output, str) else list(output)
     )
 
-    if not include_tool_call_trace or not result.inner_tool_calls:
+    if not include_tool_call_trace or not result.inner_tool_call_trace:
         return content
 
     trace_lines = ["", "Inner tool calls:"]
-    for call in result.inner_tool_calls:
-        status = "error" if call.error else "ok"
-        trace_lines.append(f"- {call.name}: {status}")
-        if call.error:
-            trace_lines.append(f"  error: {call.error}")
+    for trace_entry in result.inner_tool_call_trace:
+        status = "error" if trace_entry.error else "ok"
+        trace_lines.append(f"- {trace_entry.name}: {status}")
+
+        if trace_entry.args_preview != "()":
+            trace_lines.append(f"  args: {trace_entry.args_preview}")
+        if trace_entry.kwargs_preview != "{}":
+            trace_lines.append(f"  kwargs: {trace_entry.kwargs_preview}")
+
+        if trace_entry.error:
+            trace_lines.append(f"  error: {trace_entry.error}")
+        elif trace_entry.result_preview is not None:
+            trace_lines.append(f"  result: {trace_entry.result_preview}")
 
     content.append(ContentText(text="\n".join(trace_lines)))
     return content

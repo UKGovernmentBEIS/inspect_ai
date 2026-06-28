@@ -132,8 +132,13 @@ class RunCodeMaxToolCallsExceededError(RuntimeError):
 
 
 @dataclass
-class RunCodeInnerToolCall:
-    """A tool call made from inside run_code."""
+class RunCodeInnerToolCallTraceEntry:
+    """One compact preview entry in the run_code inner tool-call trace.
+
+    The actual Inspect ToolCall / ToolEvent path keeps full mapped arguments.
+    This trace intentionally stores bounded previews so optional run_code
+    tracing does not duplicate large intermediate values into model context.
+    """
 
     name: str
     args_preview: str = ""
@@ -153,7 +158,7 @@ class RunCodeToolBridge:
     ) -> None:
         self.tool_defs = tool_defs
         self.max_tool_calls = max_inner_tool_calls
-        self.calls: list[RunCodeInnerToolCall] = []
+        self.call_trace: list[RunCodeInnerToolCallTraceEntry] = []
         self.artifacts: list[Content] = []
 
     def external_functions(self) -> dict[str, Callable[..., Any]]:
@@ -176,27 +181,32 @@ class RunCodeToolBridge:
         return external_functions
 
     async def _call_tool(self, tool_def: ToolDef, *args: Any, **kwargs: Any) -> Any:
-        if self.max_tool_calls is not None and len(self.calls) >= self.max_tool_calls:
+        if (
+            self.max_tool_calls is not None
+            and len(self.call_trace) >= self.max_tool_calls
+        ):
             raise RunCodeMaxToolCallsExceededError(self.max_tool_calls)
 
         arguments = _tool_call_arguments(tool_def, args, kwargs)
 
-        call = RunCodeInnerToolCall(
+        call_trace_entry = RunCodeInnerToolCallTraceEntry(
             name=tool_def.name,
             args_preview=_preview(args),
             kwargs_preview=_preview(kwargs),
         )
-        self.calls.append(call)
+        self.call_trace.append(call_trace_entry)
         artifacts_before = len(self.artifacts)
 
         try:
             result = await self._execute_inspect_tool_call(tool_def, arguments)
             value = self._project_result(result, tool_def.name)
             artifact_count = len(self.artifacts) - artifacts_before
-            call.result_preview = _preview(f"{value!r} | artifacts={artifact_count}")
+            call_trace_entry.result_preview = _preview(
+                f"{value!r} | artifacts={artifact_count}"
+            )
             return value
         except Exception as exc:
-            call.error = str(exc)
+            call_trace_entry.error = str(exc)
             raise
 
     def _project_result(self, result: Any, tool_name: str) -> Any:

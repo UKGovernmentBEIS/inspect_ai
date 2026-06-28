@@ -6,7 +6,7 @@ from typing import Protocol
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolDef, ToolError
 
-from ._bridge import RunCodeInnerToolCall, RunCodeToolBridge
+from ._bridge import RunCodeInnerToolCallTraceEntry, RunCodeToolBridge
 
 
 @dataclass
@@ -15,7 +15,9 @@ class RunCodeResult:
 
     output: list[Content]
     error: str | None = None
-    inner_tool_calls: list[RunCodeInnerToolCall] = field(default_factory=list)
+    inner_tool_call_trace: list[RunCodeInnerToolCallTraceEntry] = field(
+        default_factory=list
+    )
 
 
 class RunCodeExecutor(Protocol):
@@ -107,7 +109,7 @@ class MontyRunCodeExecutor:
 
             return RunCodeResult(
                 output=contents,
-                inner_tool_calls=bridge.calls,
+                inner_tool_call_trace=bridge.call_trace,
             )
         except MontyError as exc:
             raise ToolError(str(exc))
@@ -115,5 +117,5 @@ class MontyRunCodeExecutor:
             return RunCodeResult(
                 output=[],
                 error=str(exc),
-                inner_tool_calls=bridge.calls,
+                inner_tool_call_trace=bridge.call_trace,
             )
