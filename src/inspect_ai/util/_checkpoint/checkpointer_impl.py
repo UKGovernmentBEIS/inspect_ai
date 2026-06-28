@@ -42,6 +42,7 @@ from inspect_ai.model._assistant_internal import (
     init_sample_assistant_internal,
 )
 from inspect_ai.solver._task_state import sample_state
+from inspect_ai.util._checkpoint.report import ResumeReport, resolve_resume_report
 from inspect_ai.util._restic import (
     ResticBackupSummary,
     list_changed_files,
@@ -137,12 +138,33 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         )
         if result.host.assistant_internal is not None:
             init_sample_assistant_internal(result.host.assistant_internal)
+        # On a real resume, run the task's on_resume handler (deterministic
+        # repair + a ResumeReport) and record the resume in the transcript.
+        # Surfacing the report to the model is the agent's job, not ours.
+        restored: ResumeReport | None = None
+        if self._resume_checkpoint is not None:
+            if self._config.on_resume is not None:
+                state = sample_state()
+                if state is None:
+                    raise RuntimeError("on_resume requires active sample state")
+                restored = resolve_resume_report(await self._config.on_resume(state))
+            transcript()._event(
+                InfoEvent(
+                    source="checkpoint",
+                    data={
+                        "event": "resume",
+                        "attempt": self._resume_checkpoint.attempt,
+                        "report": restored.model_dump() if restored else None,
+                    },
+                )
+            )
         reset_transcript_store = self._reset_transcript_store_on_next_enter
         self._cached = _EnteredCheckpointer(
             config=self._config,
             hydration=result,
             resume_checkpoint=self._resume_checkpoint,
             reset_transcript_store=reset_transcript_store,
+            restored=restored,
         )
         self._reset_transcript_store_on_next_enter = False
         self._entered = True
@@ -216,6 +238,7 @@ class _EnteredCheckpointer:
         hydration: HydrationResult,
         resume_checkpoint: ResumeCheckpoint | None,
         reset_transcript_store: bool,
+        restored: ResumeReport | None = None,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = hydration.sample_checkpoints_dir
@@ -227,6 +250,7 @@ class _EnteredCheckpointer:
         self._restic_password = hydration.restic_password
         self._sandbox_backup_paths = hydration.sandbox_backup_paths
         self._resume_checkpoint = resume_checkpoint
+        self._restored = restored
         self._agent_state: dict[str, Any] = (
             hydration.host.agent_state if hydration.host.agent_state is not None else {}
         )
@@ -277,6 +301,10 @@ class _EnteredCheckpointer:
         if self._resume_checkpoint is None:
             return "initial"
         return self._resume_checkpoint.attempt
+
+    @property
+    def restored(self) -> ResumeReport | None:
+        return self._restored
 
     async def tick(self) -> None:
         self._turn += 1
