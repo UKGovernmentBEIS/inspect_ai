@@ -8,6 +8,7 @@ from inspect_ai.util._early_stopping import EarlyStopping
 
 if TYPE_CHECKING:
     from inspect_ai.scorer._scorers import Scorers
+    from inspect_ai.util._checkpoint.report import ResumeReport
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
@@ -70,6 +71,9 @@ class Task:
         setup: Solver | list[Solver] | None = None,
         solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
+        on_checkpoint: Callable[[TaskState], Awaitable[None]] | None = None,
+        on_resume: Callable[[TaskState], Awaitable["ResumeReport | str | None"]]
+        | None = None,
         scorer: "Scorers" | None = None,
         metrics: list[Metric | dict[str, list[Metric]]]
         | dict[str, list[Metric]]
@@ -108,6 +112,11 @@ class Task:
             cleanup: Optional cleanup function for task. Called after
                 all solvers and scorers have run for each sample (including if an
                 exception occurs during the run)
+            on_checkpoint: Optional callback invoked after each checkpoint is
+                written. Receives the current TaskState.
+            on_resume: Optional callback invoked when a sample is resumed from
+                a checkpoint. Receives the current TaskState and may return a
+                ResumeReport, a string message, or None.
             scorer: Scorer used to evaluate model output.
             metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
             model: Default model for task (Optional, defaults to eval model).
@@ -180,6 +189,8 @@ class Task:
         self.setup = setup
         self.solver = resolve_solver(solver)
         self.cleanup = cleanup
+        self.on_checkpoint = on_checkpoint
+        self.on_resume = on_resume
         self.scorer = resolve_scorer_metrics(resolve_scorer(scorer), metrics)
         self.metrics = metrics
         self.model = resolve_model(model)
@@ -250,6 +261,10 @@ def task_with(
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
+    on_checkpoint: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
+    on_resume: Callable[[TaskState], Awaitable["ResumeReport | str | None"]]
+    | None
+    | NotGiven = NOT_GIVEN,
     scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
     | dict[str, list[Metric]]
@@ -296,6 +311,11 @@ def task_with(
         cleanup: Optional cleanup function for task. Called after
             all solvers and scorers have run for each sample (including if an
             exception occurs during the run)
+        on_checkpoint: Optional callback invoked after each checkpoint is
+            written. Receives the current TaskState.
+        on_resume: Optional callback invoked when a sample is resumed from
+            a checkpoint. Receives the current TaskState and may return a
+            ResumeReport, a string message, or None.
         scorer: Scorer used to evaluate model output.
         metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
         model: Default model for task (Optional, defaults to eval model).
@@ -351,6 +371,10 @@ def task_with(
         task.solver = resolve_solver(solver)
     if not isinstance(cleanup, NotGiven):
         task.cleanup = cleanup
+    if not isinstance(on_checkpoint, NotGiven):
+        task.on_checkpoint = on_checkpoint
+    if not isinstance(on_resume, NotGiven):
+        task.on_resume = on_resume
     if not isinstance(scorer, NotGiven):
         task.scorer = resolve_scorer(scorer)
     if not isinstance(metrics, NotGiven):

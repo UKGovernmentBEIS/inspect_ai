@@ -2298,3 +2298,38 @@ async def test_on_resume_exception_fails_resume(dirs: _Dirs) -> None:
     ):
         with pytest.raises(RuntimeError, match="cannot reconnect"):
             await setup.__aenter__()
+
+
+# === Task.on_checkpoint / Task.on_resume =====================================
+
+
+def test_task_stores_checkpoint_callbacks() -> None:
+    from inspect_ai import Task, task_with
+    from inspect_ai.dataset import Sample
+
+    async def on_checkpoint(state: object) -> None:
+        return None
+
+    async def on_resume(state: object) -> None:
+        return None
+
+    t = Task(
+        dataset=[Sample(input="hi")],
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
+    )
+    assert t.on_checkpoint is on_checkpoint
+    assert t.on_resume is on_resume
+
+    # defaults are None
+    t2 = Task(dataset=[Sample(input="hi")])
+    assert t2.on_checkpoint is None
+    assert t2.on_resume is None
+
+    # task_with overrides
+    async def on_resume2(state: object) -> str:
+        return "x"
+
+    t3 = task_with(t, on_resume=on_resume2)
+    assert t3.on_resume is on_resume2
+    assert t3.on_checkpoint is on_checkpoint  # unchanged
