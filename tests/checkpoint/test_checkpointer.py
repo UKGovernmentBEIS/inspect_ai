@@ -1262,6 +1262,12 @@ def test_attempt_noop_initial() -> None:
     assert _NoopCheckpointer().attempt == "initial"
 
 
+def test_noop_checkpointer_restored_is_none() -> None:
+    from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+    assert _NoopCheckpointer().restored is None
+
+
 def test_attempt_reflects_resume_checkpoint() -> None:
     from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 

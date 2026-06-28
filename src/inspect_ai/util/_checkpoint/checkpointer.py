@@ -25,6 +25,8 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Callable, Literal, Protocol, TypeVar
 
+from inspect_ai.util._checkpoint.report import ResumeReport
+
 T = TypeVar("T")
 
 
@@ -62,6 +64,16 @@ class Checkpointer(Protocol):
         - ``"resume_for_scoring"`` — prior agent loop finished cleanly
           but scoring crashed; agent should restore tracked state and
           return immediately so scoring can re-run.
+        """
+        ...
+
+    @property
+    def restored(self) -> ResumeReport | None:
+        """The report returned by ``Task.on_resume`` for this resume, or ``None``.
+
+        ``None`` on a fresh run or when ``on_resume`` returned nothing.
+        Transient: never persisted across checkpoints. Reading it is the
+        agent's job; Inspect does not surface it to the model.
         """
         ...
 
