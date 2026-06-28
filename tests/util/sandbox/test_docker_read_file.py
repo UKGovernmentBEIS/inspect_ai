@@ -5,18 +5,21 @@ import stat
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
+from inspect_ai.util._sandbox.docker import compose as compose_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
 from inspect_ai.util._sandbox.docker.docker import (
     DockerSandboxEnvironment,
     _validate_staged_read_file,
 )
 from inspect_ai.util._sandbox.docker.util import ComposeProject
+from inspect_ai.util._subprocess import ExecResult
 
 
 def _environment() -> DockerSandboxEnvironment:
@@ -61,11 +64,13 @@ async def test_read_file_uses_precreated_random_destination(
         project: ComposeProject,
         cwd: str | Path | None = None,
         output_limit: int | None = None,
+        timeout_retry: bool = True,
     ) -> None:
         assert src == "default:/sandbox/source.txt"
         assert project is environment._project
         assert cwd is not None
         assert output_limit is not None
+        assert not timeout_retry
         assert dest not in (".", "..")
         assert "/" not in dest
         assert "\\" not in dest
@@ -95,8 +100,10 @@ async def test_read_file_allows_empty_file(
         project: ComposeProject,
         cwd: str | Path | None = None,
         output_limit: int | None = None,
+        timeout_retry: bool = True,
     ) -> None:
         assert cwd is not None
+        assert not timeout_retry
         (Path(cwd) / dest).write_bytes(b"")
 
     monkeypatch.setattr(docker_module, "compose_cp", copy_empty_file)
@@ -129,8 +136,10 @@ async def test_read_file_rejects_successful_copy_without_output(
         project: ComposeProject,
         cwd: str | Path | None = None,
         output_limit: int | None = None,
+        timeout_retry: bool = True,
     ) -> None:
         assert cwd is not None
+        assert not timeout_retry
         staged_path = Path(cwd) / dest
         assert stat.S_ISREG(staged_path.lstat().st_mode)
         assert len(staged_path.read_bytes()) == 32
@@ -176,8 +185,10 @@ async def test_read_file_rejects_non_regular_copy_result(
         project: ComposeProject,
         cwd: str | Path | None = None,
         output_limit: int | None = None,
+        timeout_retry: bool = True,
     ) -> None:
         assert cwd is not None
+        assert not timeout_retry
         staged_path = Path(cwd) / dest
         staged_path.unlink()
         staged_path.mkdir()
@@ -202,8 +213,10 @@ async def test_read_file_reports_original_path_for_unreadable_copy(
         project: ComposeProject,
         cwd: str | Path | None = None,
         output_limit: int | None = None,
+        timeout_retry: bool = True,
     ) -> None:
         assert cwd is not None
+        assert not timeout_retry
         (Path(cwd) / dest).write_text("secret")
 
     def permission_denied(*args: object, **kwargs: object) -> None:
@@ -217,6 +230,42 @@ async def test_read_file_reports_original_path_for_unreadable_copy(
 
     assert ex.value.errno == errno.EACCES
     assert ex.value.filename == "unreadable.txt"
+
+
+async def test_read_file_does_not_retry_mutated_staging_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    environment = _environment()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("safe")
+    attempts = 0
+
+    async def copy_attempt(args: str | list[str], **kwargs: object) -> ExecResult[str]:
+        nonlocal attempts
+        attempts += 1
+        assert isinstance(args, list)
+        cwd = Path(cast(str | Path, kwargs["cwd"]))
+        staged_path = cwd / args[-1]
+
+        if attempts == 1:
+            staged_path.unlink()
+            try:
+                staged_path.symlink_to(outside)
+            except OSError:
+                pytest.skip("Host does not permit creating symlinks")
+            raise TimeoutError("Copy stalled after extracting a symlink")
+
+        # Docker Compose resolves an existing destination symlink before copying.
+        staged_path.write_text("overwritten")
+        return ExecResult(success=True, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(compose_module, "subprocess", copy_attempt)
+
+    with pytest.raises(TimeoutError):
+        await environment.read_file("source.txt")
+
+    assert attempts == 1
+    assert outside.read_text() == "safe"
 
 
 def test_validate_staged_read_file_rejects_outside_symlink(tmp_path: Path) -> None:
@@ -270,7 +319,6 @@ def _remove_host_path(path: Path) -> None:
 
 
 @skip_if_no_docker
-@pytest.mark.slow
 async def test_docker_read_file_contains_untrusted_sources(
     docker_environment: DockerSandboxEnvironment,
 ) -> None:

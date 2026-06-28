@@ -469,6 +469,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     project=self._project,
                     cwd=temp_root,
                     output_limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE,
+                    # A failed copy may replace the destination with a symlink.
+                    # Never retry against a path previously exposed to Docker.
+                    timeout_retry=False,
                 )
             except RuntimeError as ex:
                 # extract the message and normalise case
