@@ -8,6 +8,7 @@ from inspect_ai.approval import ApprovalPolicy, approval, auto_approver
 from inspect_ai.tool import Tool, ToolDef, ToolError, run_code
 from inspect_ai.tool._tools._run_code._bridge import (
     RunCodeInnerToolCall,
+    RunCodeMaxToolCallsExceededError,
     RunCodeToolBridge,
     _preview,
     external_functions_for_tool_defs,
@@ -976,3 +977,19 @@ async def test_run_code_bridge_converts_recoverable_tool_errors():
     assert isinstance(result, str)
     assert "file_not_found:" in result
     assert "missing.txt" in result
+
+@pytest.mark.anyio
+async def test_run_code_bridge_raises_custom_error_on_max_tool_calls():
+    bridge = RunCodeToolBridge(
+        _tool_defs([dummy_tool()]),
+        max_inner_tool_calls=1,
+    )
+    external_functions = bridge.external_functions()
+
+    await external_functions["dummy_tool"]("first")
+
+    with pytest.raises(RunCodeMaxToolCallsExceededError) as exc_info:
+        await external_functions["dummy_tool"]("second")
+
+    assert exc_info.value.max_tool_calls == 1
+    assert "Maximum run_code inner tool calls exceeded: 1" in str(exc_info.value)

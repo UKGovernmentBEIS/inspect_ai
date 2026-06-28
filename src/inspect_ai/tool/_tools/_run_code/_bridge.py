@@ -120,6 +120,15 @@ def _recoverable_tool_error_message(exc: Exception, tool_name: str) -> str | Non
 
     return None
 
+class RunCodeMaxToolCallsExceededError(RuntimeError):
+    """Raised when run_code exceeds its configured inner tool-call limit."""
+
+    def __init__(self, max_tool_calls: int) -> None:
+        self.max_tool_calls = max_tool_calls
+        super().__init__(
+            f"Maximum run_code inner tool calls exceeded: {max_tool_calls}"
+        )
+
 
 @dataclass
 class RunCodeInnerToolCall:
@@ -167,9 +176,7 @@ class RunCodeToolBridge:
 
     async def _call_tool(self, tool_def: ToolDef, *args: Any, **kwargs: Any) -> Any:
         if self.max_tool_calls is not None and len(self.calls) >= self.max_tool_calls:
-            raise RuntimeError(
-                f"Maximum run_code inner tool calls exceeded: {self.max_tool_calls}"
-            )
+            raise RunCodeMaxToolCallsExceededError(self.max_tool_calls)
 
         arguments = _tool_call_arguments(tool_def, args, kwargs)
 
