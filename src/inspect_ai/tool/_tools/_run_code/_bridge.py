@@ -120,6 +120,7 @@ def _recoverable_tool_error_message(exc: Exception, tool_name: str) -> str | Non
 
     return None
 
+
 class RunCodeMaxToolCallsExceededError(RuntimeError):
     """Raised when run_code exceeds its configured inner tool-call limit."""
 

@@ -977,6 +977,7 @@ async def test_run_code_bridge_converts_recoverable_tool_errors():
     assert "file_not_found:" in result
     assert "missing.txt" in result
 
+
 @pytest.mark.anyio
 async def test_run_code_bridge_raises_custom_error_on_max_tool_calls():
     bridge = RunCodeToolBridge(
