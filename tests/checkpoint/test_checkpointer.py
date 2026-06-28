@@ -2205,8 +2205,10 @@ async def test_on_resume_populates_restored_and_emits_event(dirs: _Dirs) -> None
         and e.data.get("event") == "resume"
     ]
     assert len(resume_events) == 1
-    assert resume_events[0].data["attempt"] == "resume"
-    assert resume_events[0].data["report"] == {
+    event_data = resume_events[0].data
+    assert isinstance(event_data, dict)
+    assert event_data["attempt"] == "resume"
+    assert event_data["report"] == {
         "transparent": False,
         "message": "redo step 9",
         "data": {"lost": ["out.json"]},
@@ -2271,8 +2273,10 @@ async def test_resume_without_callback_leaves_restored_none(dirs: _Dirs) -> None
         and e.data.get("event") == "resume"
     ]
     assert len(resume_events) == 1
-    assert resume_events[0].data["report"] is None
-    assert resume_events[0].data["attempt"] == "resume"
+    event_data = resume_events[0].data
+    assert isinstance(event_data, dict)
+    assert event_data["report"] is None
+    assert event_data["attempt"] == "resume"
 
 
 async def test_on_resume_exception_fails_resume(dirs: _Dirs) -> None:
