@@ -159,6 +159,9 @@ async def test_view_directory() -> None:
     [
         ("/tmp/test.txt", "/memories"),
         ("/memories/../etc/passwd", "Invalid path|traversal"),
+        ("/memories_secret/x.txt", "Invalid path"),
+        ("/memories/\x00.txt", "null byte"),
+        ("memories/relative.txt", "must start with /memories"),
     ],
 )
 async def test_path_validation(path: str, match: str) -> None:
@@ -166,6 +169,28 @@ async def test_path_validation(path: str, match: str) -> None:
     tool = memory()
     with pytest.raises(ToolError, match=match):
         await tool(command="create", path=path, file_text="bad")
+
+
+async def test_path_canonicalization_single_key() -> None:
+    """`..` segments collapse so two spellings map to one stored file."""
+    tool = memory()
+    await tool(command="create", path="/memories/a/../b.txt", file_text="canon")
+    # the canonical spelling reads back the same file (un-fixed code 404s here)
+    content = await tool(command="view", path="/memories/b.txt")
+    assert isinstance(content, str) and "canon" in content
+
+
+async def test_instance_isolates_memory_stores() -> None:
+    """Two memory tools with distinct instances seed independently."""
+    tool_a = memory(initial_data={"/memories/a.txt": "A"}, instance="a")
+    tool_b = memory(initial_data={"/memories/b.txt": "B"}, instance="b")
+    a = await tool_a(command="view", path="/memories/a.txt")
+    b = await tool_b(command="view", path="/memories/b.txt")
+    assert isinstance(a, str) and "A" in a
+    assert isinstance(b, str) and "B" in b
+    # instance a does not see instance b's seeded file
+    with pytest.raises(ToolError, match="does not exist"):
+        await tool_a(command="view", path="/memories/b.txt")
 
 
 async def test_create_with_parent_dirs() -> None:
