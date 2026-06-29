@@ -154,6 +154,16 @@ class NoOpAcpTransport:
 
         return _noop_unsubscribe
 
+    def subscribe_turn_state(
+        self, callback: Callable[[str], None]
+    ) -> Callable[[], None]:
+        """No-op subscribe — no turn scope binds on the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
     def attach_approver_client(self, client: ApproverClient) -> Callable[[], None]:
         """No-op attach — no approver clients can attach to the no-op session."""
 

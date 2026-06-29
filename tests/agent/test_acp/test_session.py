@@ -420,6 +420,52 @@ async def test_after_cancel_drain_no_double_fire_when_submit_already_cleared() -
             assert len(resolved) == 1
 
 
+async def test_turn_state_relays_from_bound_channel_to_subscribers() -> None:
+    """``subscribe_turn_state`` fires when the bound channel enters/exits its scope.
+
+    The transport subscribes to ``channel.subscribe_turn_state`` during
+    ``maybe_bind`` and fans the transition out to its own subscriber
+    list — the per-connection forwarder hooks here to emit
+    ``inspect/turn_state``. Without this relay an ACP client has no
+    clean "agent is working" signal: ``session/prompt`` returns
+    immediately and the agent drains the prompt at its own boundary.
+    """
+    from inspect_ai.agent._channel import agent_channel
+
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            assert acp.maybe_bind(ch, ch._ref()) is True
+            states: list[str] = []
+            acp.subscribe_turn_state(lambda s: states.append(s))
+            with ch.turn_scope():
+                assert states == ["started"]
+            assert states == ["started", "ended"]
+
+
+async def test_turn_state_unbind_drops_channel_subscription() -> None:
+    """After ``unbind`` the transport no longer relays the channel's turn state."""
+    from inspect_ai.agent._channel import agent_channel
+
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            ref = ch._ref()
+            assert acp.maybe_bind(ch, ref) is True
+            states: list[str] = []
+            acp.subscribe_turn_state(lambda s: states.append(s))
+            acp.unbind(ref)
+            with ch.turn_scope():
+                pass
+            assert states == []
+
+
+def test_noop_session_subscribe_turn_state_is_noop() -> None:
+    noop = current_acp_transport()
+    assert noop.session_id == "noop"
+    unsub = noop.subscribe_turn_state(lambda s: None)
+    unsub()
+    unsub()
+
+
 async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
     """Cancel-cancel (without intervening submit) re-fires + keeps pending.
 

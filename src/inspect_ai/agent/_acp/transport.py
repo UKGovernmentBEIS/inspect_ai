@@ -383,6 +383,20 @@ class AcpTransport(Protocol):
         """
         ...
 
+    def subscribe_turn_state(
+        self, callback: Callable[[str], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired on the bound channel's turn-scope transitions.
+
+        Receives ``"started"`` / ``"ended"`` / ``"cancelled"`` as the
+        agent enters and exits :meth:`AgentChannel.turn_scope`. Used
+        by per-connection forwarders to emit ``inspect/turn_state``
+        so an ACP client has an exact "agent is working" signal.
+        Returns an idempotent unsubscribe callable. No-op session
+        returns a no-op unsubscribe.
+        """
+        ...
+
     def attach_approver_client(self, client: ApproverClient) -> Callable[[], None]:
         """Register an ACP client capable of handling approval prompts.
 
