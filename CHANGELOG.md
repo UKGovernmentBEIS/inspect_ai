@@ -37,6 +37,7 @@
 - Bugfix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bugfix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
 - Bugfix: Header-only reads of `.json` eval logs no longer parse the entire `samples` array, making header reads of large logs dramatically faster (e.g. a 29MB S3 log: ~47s -> ~0.4s).
+- Memory tool: Canonicalize `/memories` paths lexically so equivalent spellings map to one file and traversal can't escape the root, prune empty directories left by a file delete, and add an `instance` argument to `memory()` for independent per-instance stores.
 
 ## 0.3.241 (22 June 2026)
 
