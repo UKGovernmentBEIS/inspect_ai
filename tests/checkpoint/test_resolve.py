@@ -253,3 +253,46 @@ def test_zero_max_consecutive_failures_is_set_not_inherited() -> None:
     )
     assert out is not None
     assert out.max_consecutive_failures == 0
+
+
+# --- veto (checkpoint=False) overrides ---------------------------------
+
+
+def test_task_veto_overrides_eval_enable() -> None:
+    from inspect_ai.util._checkpoint.config import CheckpointDisabled
+
+    out = merge_checkpoint_configs(
+        CheckpointDisabled(), None, CheckpointConfig(trigger=TurnInterval(every=1))
+    )
+    assert out is None
+
+
+def test_eval_veto_overrides_task_enable() -> None:
+    from inspect_ai.util._checkpoint.config import CheckpointDisabled
+
+    out = merge_checkpoint_configs(
+        CheckpointConfig(trigger=TurnInterval(every=1)), None, CheckpointDisabled()
+    )
+    assert out is None
+
+
+def test_task_veto_overrides_sample_config() -> None:
+    from inspect_ai.util._checkpoint.config import CheckpointDisabled
+
+    out = merge_checkpoint_configs(
+        CheckpointDisabled(),
+        CheckpointSampleConfig(trigger=TurnInterval(every=1)),
+        None,
+    )
+    assert out is None
+
+
+def test_veto_is_per_task_not_eval_wide() -> None:
+    from inspect_ai.util._checkpoint.config import CheckpointDisabled
+
+    # One shared eval enable; a vetoing task resolves to disabled while a
+    # non-vetoing task under the same eval config stays enabled. Proves the
+    # veto is per-task (no shared-state leak).
+    eval_cfg = CheckpointConfig(trigger=TurnInterval(every=1))
+    assert merge_checkpoint_configs(CheckpointDisabled(), None, eval_cfg) is None
+    assert merge_checkpoint_configs(None, None, eval_cfg) is not None

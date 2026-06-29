@@ -168,6 +168,8 @@ def merge_checkpoint_configs(
     is enabled but no layer (including the sample) set a ``trigger``,
     the trigger defaults to :data:`DEFAULT_CHECKPOINT_TRIGGER`.
     """
+    if checkpoint_vetoed(task, eval_):
+        return None
     if task is None and eval_ is None:
         return None
 
