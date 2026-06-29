@@ -8,7 +8,10 @@ from inspect_ai.util._early_stopping import EarlyStopping
 
 if TYPE_CHECKING:
     from inspect_ai.scorer._scorers import Scorers
-    from inspect_ai.util._checkpoint.report import ResumeReport
+    from inspect_ai.util._checkpoint.config import (
+        OnCheckpointCallback,
+        OnResumeCallback,
+    )
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
@@ -71,9 +74,8 @@ class Task:
         setup: Solver | list[Solver] | None = None,
         solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
-        on_checkpoint: Callable[[TaskState], Awaitable[None]] | None = None,
-        on_resume: Callable[[TaskState], Awaitable["ResumeReport | str | None"]]
-        | None = None,
+        on_checkpoint: OnCheckpointCallback | None = None,
+        on_resume: OnResumeCallback | None = None,
         scorer: "Scorers" | None = None,
         metrics: list[Metric | dict[str, list[Metric]]]
         | dict[str, list[Metric]]
@@ -112,11 +114,19 @@ class Task:
             cleanup: Optional cleanup function for task. Called after
                 all solvers and scorers have run for each sample (including if an
                 exception occurs during the run)
-            on_checkpoint: Optional callback invoked after each checkpoint is
-                written. Receives the current TaskState.
-            on_resume: Optional callback invoked when a sample is resumed from
-                a checkpoint. Receives the current TaskState and may return a
-                ResumeReport, a string message, or None.
+            on_checkpoint: Callback invoked before each checkpoint snapshot is
+                taken, so state it flushes to the sandbox/store is captured by
+                that checkpoint. May fire many times (including the final
+                checkpoint on clean completion); must be idempotent.
+            on_resume: Callback invoked after a sample is restored on resume,
+                before the agent resumes. Receives the TaskState and the resume
+                ``attempt`` ('resume' or 'resume_for_scoring'). At call time
+                ``state.store``, the transcript, and the sandbox are restored,
+                but ``state.messages``/``state.output`` are NOT yet restored
+                (the agent restores those itself) — use ``state.store``/sandbox,
+                not ``state.messages``. May return a ``ResumeReport`` (or a
+                ``str`` shorthand, or ``None``) surfaced to the agent via
+                ``checkpointer().restored``.
             scorer: Scorer used to evaluate model output.
             metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
             model: Default model for task (Optional, defaults to eval model).
@@ -261,10 +271,8 @@ def task_with(
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
-    on_checkpoint: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
-    on_resume: Callable[[TaskState], Awaitable["ResumeReport | str | None"]]
-    | None
-    | NotGiven = NOT_GIVEN,
+    on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
+    on_resume: OnResumeCallback | None | NotGiven = NOT_GIVEN,
     scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
     | dict[str, list[Metric]]
@@ -311,11 +319,19 @@ def task_with(
         cleanup: Optional cleanup function for task. Called after
             all solvers and scorers have run for each sample (including if an
             exception occurs during the run)
-        on_checkpoint: Optional callback invoked after each checkpoint is
-            written. Receives the current TaskState.
-        on_resume: Optional callback invoked when a sample is resumed from
-            a checkpoint. Receives the current TaskState and may return a
-            ResumeReport, a string message, or None.
+        on_checkpoint: Callback invoked before each checkpoint snapshot is
+            taken, so state it flushes to the sandbox/store is captured by
+            that checkpoint. May fire many times (including the final
+            checkpoint on clean completion); must be idempotent.
+        on_resume: Callback invoked after a sample is restored on resume,
+            before the agent resumes. Receives the TaskState and the resume
+            ``attempt`` ('resume' or 'resume_for_scoring'). At call time
+            ``state.store``, the transcript, and the sandbox are restored,
+            but ``state.messages``/``state.output`` are NOT yet restored
+            (the agent restores those itself) — use ``state.store``/sandbox,
+            not ``state.messages``. May return a ``ResumeReport`` (or a
+            ``str`` shorthand, or ``None``) surfaced to the agent via
+            ``checkpointer().restored``.
         scorer: Scorer used to evaluate model output.
         metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
         model: Default model for task (Optional, defaults to eval model).

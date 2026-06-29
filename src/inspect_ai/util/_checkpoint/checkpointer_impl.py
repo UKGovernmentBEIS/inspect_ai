@@ -147,14 +147,18 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
                 state = sample_state()
                 if state is None:
                     raise RuntimeError("on_resume requires active sample state")
-                restored = resolve_resume_report(await self._config.on_resume(state))
+                restored = resolve_resume_report(
+                    await self._config.on_resume(state, self._resume_checkpoint.attempt)
+                )
             transcript()._event(
                 InfoEvent(
                     source="checkpoint",
                     data={
                         "event": "resume",
                         "attempt": self._resume_checkpoint.attempt,
-                        "report": restored.model_dump() if restored else None,
+                        "report": restored.model_dump(mode="json")
+                        if restored
+                        else None,
                     },
                 )
             )

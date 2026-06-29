@@ -2173,7 +2173,7 @@ async def test_on_resume_populates_restored_and_emits_event(dirs: _Dirs) -> None
 
     seen: list[object] = []
 
-    async def on_resume(state: object) -> ResumeReport:
+    async def on_resume(state: object, attempt: str) -> ResumeReport:
         seen.append(state)
         return ResumeReport(message="redo step 9", data={"lost": ["out.json"]})
 
@@ -2221,7 +2221,7 @@ async def test_on_resume_str_shorthand(dirs: _Dirs) -> None:
     from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
     from inspect_ai.util._checkpoint.report import ResumeReport
 
-    async def on_resume(state: object) -> str:
+    async def on_resume(state: object, attempt: str) -> str:
         return "partial restore"
 
     setup = _CheckpointerSetup(
@@ -2284,7 +2284,7 @@ async def test_on_resume_exception_fails_resume(dirs: _Dirs) -> None:
 
     from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 
-    async def on_resume(state: object) -> None:
+    async def on_resume(state: object, attempt: str) -> None:
         raise RuntimeError("cannot reconnect")
 
     setup = _CheckpointerSetup(
@@ -2314,7 +2314,7 @@ def test_task_stores_checkpoint_callbacks() -> None:
     async def on_checkpoint(state: object) -> None:
         return None
 
-    async def on_resume(state: object) -> None:
+    async def on_resume(state: object, attempt: str) -> None:
         return None
 
     t = Task(
@@ -2331,7 +2331,7 @@ def test_task_stores_checkpoint_callbacks() -> None:
     assert t2.on_resume is None
 
     # task_with overrides
-    async def on_resume2(state: object) -> str:
+    async def on_resume2(state: object, attempt: str) -> str:
         return "x"
 
     t3 = task_with(t, on_resume=on_resume2)

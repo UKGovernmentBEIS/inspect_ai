@@ -265,7 +265,7 @@ def test_merge_attaches_task_callbacks() -> None:
     async def on_checkpoint(state: object) -> None:
         return None
 
-    async def on_resume(state: object) -> str:
+    async def on_resume(state: object, attempt: str) -> str:
         return "resumed"
 
     resolved = merge_checkpoint_configs(
@@ -281,7 +281,7 @@ def test_merge_attaches_task_callbacks() -> None:
 def test_merge_disabled_ignores_callbacks() -> None:
     from inspect_ai.util._checkpoint.config import merge_checkpoint_configs
 
-    async def on_resume(state: object) -> None:
+    async def on_resume(state: object, attempt: str) -> None:
         return None
 
     # No task/eval config -> checkpointing disabled -> None regardless of callbacks
@@ -293,7 +293,7 @@ def test_task_callbacks_reach_resolved_config() -> None:
     from inspect_ai.dataset import Sample
     from inspect_ai.util._checkpoint.config import merge_checkpoint_configs
 
-    async def on_resume(state: object) -> str:
+    async def on_resume(state: object, attempt: str) -> str:
         return "resumed"
 
     async def on_checkpoint(state: object) -> None:
