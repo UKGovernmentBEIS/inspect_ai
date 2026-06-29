@@ -747,7 +747,12 @@ class OpenAIAPI(ModelAPI):
     def _get_reasoning_params_for_config(
         self, config: GenerateConfig | None
     ) -> Reasoning | None:
-        """Get reasoning parameters from config for compact/count_tokens calls."""
+        """Get reasoning parameters from config for the token-count call.
+
+        Only used by ``_count_tokens_native()`` for the
+        ``responses.input_tokens.count`` endpoint. ``compact()`` does not
+        accept reasoning parameters (see the comment in that method).
+        """
         if config is None:
             return None
 
