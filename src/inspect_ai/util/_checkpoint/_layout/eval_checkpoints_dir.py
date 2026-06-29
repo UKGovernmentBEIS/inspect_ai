@@ -64,8 +64,6 @@ def eval_checkpoints_dir_from_config(
     ``checkpoints_location`` override (eval layer wins over task;
     sample layer cannot set this field).
     """
-    # A task- or eval-layer veto (checkpoint=False) means no checkpoints dir,
-    # so a vetoed task neither writes checkpoints nor resumes.
     if checkpoint_vetoed(task, eval_):
         return None
     if task is None and eval_ is None:
