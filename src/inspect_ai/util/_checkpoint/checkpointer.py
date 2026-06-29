@@ -72,8 +72,32 @@ class Checkpointer(Protocol):
         """The report returned by ``Task.on_resume`` for this resume, or ``None``.
 
         ``None`` on a fresh run or when ``on_resume`` returned nothing.
-        Transient: never persisted across checkpoints. Reading it is the
-        agent's job; Inspect does not surface it to the model.
+
+        Read-anytime and session-scoped: set once when the resumed session is
+        entered, returned unchanged on every access for that session's
+        lifetime, not persisted across checkpoints, and never auto-cleared.
+        Reads are idempotent, so independent consumers (agent, scorer, a
+        logging hook) can each inspect it without disturbing the others.
+
+        Inspect does not surface it to the model; delivering it is the agent's
+        job, and the consumer owns dedupe ("have I shown this already?"). Two
+        shapes:
+
+        - An agent with a once-per-sample entry reads it once before its loop::
+
+            cp = current_checkpointer()
+            report = cp.restored if cp is not None else None
+            if report and report.message and not report.transparent:
+                state.messages.append(ChatMessageUser(content=report.message))
+
+        - A per-turn callback guards with a one-shot flag so it injects only on
+          the first turn after resume. A resumed sample is a fresh process, so
+          a closure flag starts ``False`` and fires exactly once.
+
+        ``current_checkpointer()`` is ``None`` when checkpointing is off, so
+        guard it as above rather than dereferencing directly. Across multiple
+        resumes the conversation gathers one notice per resume, which is the
+        intended audit trail, not a bug.
         """
         ...
 
