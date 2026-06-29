@@ -138,9 +138,6 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         )
         if result.host.assistant_internal is not None:
             init_sample_assistant_internal(result.host.assistant_internal)
-        # On a real resume, run the task's on_resume handler (deterministic
-        # repair + a ResumeReport) and record the resume in the transcript.
-        # Surfacing the report to the model is the agent's job, not ours.
         restored: ResumeReport | None = None
         if self._resume_checkpoint is not None:
             if self._config.on_resume is not None:

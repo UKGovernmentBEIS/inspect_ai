@@ -909,7 +909,7 @@ async def test_on_checkpoint_fires_on_each_fire(dirs: _Dirs) -> None:
     )
     await cp.checkpoint()
     await cp.checkpoint()
-    assert len(calls) == 2  # fired once per fire
+    assert len(calls) == 2
 
 
 async def test_on_checkpoint_failure_is_recorded_and_counted(dirs: _Dirs) -> None:
@@ -2142,7 +2142,6 @@ def test_resume_report_defaults_and_coercion() -> None:
         resolve_resume_report,
     )
 
-    # defaults
     r = ResumeReport()
     assert r.transparent is False
     assert r.message is None
@@ -2152,7 +2151,6 @@ def test_resume_report_defaults_and_coercion() -> None:
     coerced = resolve_resume_report("redo step 9")
     assert coerced == ResumeReport(message="redo step 9")
 
-    # passthrough and None
     report = ResumeReport(transparent=True)
     assert resolve_resume_report(report) is report
     assert resolve_resume_report(None) is None
@@ -2400,12 +2398,10 @@ def test_task_stores_checkpoint_callbacks() -> None:
     assert t.on_checkpoint is on_checkpoint
     assert t.on_resume is on_resume
 
-    # defaults are None
     t2 = Task(dataset=[Sample(input="hi")])
     assert t2.on_checkpoint is None
     assert t2.on_resume is None
 
-    # task_with overrides
     async def on_resume2(state: object, attempt: str) -> str:
         return "x"
 
