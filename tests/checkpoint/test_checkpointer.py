@@ -496,6 +496,53 @@ def _checkpoint_resume_events(count: int) -> list[Event]:
     return _wrap_prior_run(events, parent_span_id="current")
 
 
+def _checkpoint_resume_events_with_failed_fires(
+    count: int, failed_at: int, n_failures: int = 1
+) -> list[Event]:
+    """Like ``_checkpoint_resume_events``, but with failed-fire retry spans.
+
+    Checkpoint ``failed_at`` is preceded by ``n_failures`` failed-fire retry
+    spans: a ``checkpoint {failed_at}`` span_begin + interior work + span_end
+    with NO ``CheckpointEvent`` — the on-disk fingerprint of a tolerated
+    (non-fatal) capture failure that reopened the same-named span.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _wrap_prior_run
+
+    events: list[Event] = []
+    for checkpoint_id in range(1, count + 1):
+        if checkpoint_id == failed_at:
+            for attempt in range(n_failures):
+                fail_span_id = f"checkpoint-{checkpoint_id}-fail-{attempt}"
+                events.extend(
+                    [
+                        SpanBeginEvent(
+                            id=fail_span_id,
+                            name=f"checkpoint {checkpoint_id}",
+                            type="checkpoint",
+                        ),
+                        InfoEvent(
+                            uuid=f"work-{checkpoint_id}-fail-{attempt}",
+                            data=f"work {checkpoint_id} failed fire {attempt}",
+                        ),
+                        SpanEndEvent(id=fail_span_id),
+                    ]
+                )
+        span_id = f"checkpoint-{checkpoint_id}"
+        events.extend(
+            [
+                SpanBeginEvent(
+                    id=span_id,
+                    name=f"checkpoint {checkpoint_id}",
+                    type="checkpoint",
+                ),
+                InfoEvent(uuid=f"work-{checkpoint_id}", data=f"work {checkpoint_id}"),
+                SpanEndEvent(id=span_id),
+                CheckpointEvent.from_details(_make_checkpoint(checkpoint_id)),
+            ]
+        )
+    return _wrap_prior_run(events, parent_span_id="current")
+
+
 def test_synthesize_trailing_checkpoint_event(tmp_path: Path) -> None:
     """Hydrate reconstructs the trailing CheckpointEvent from a checkpoint file."""
     from inspect_ai.util._checkpoint.hydrate import (
@@ -681,6 +728,66 @@ def test_validate_resume_state_allows_unreadable_interior_checkpoint_entry(
     _validate_resume_state(events, str(sample_root), 3)
 
 
+def test_validate_resume_state_accepts_failed_fire_retry_span(
+    tmp_path: Path,
+) -> None:
+    """Resume must accept duplicate ``checkpoint K`` spans from failed fires.
+
+    A tolerated capture failure leaves a duplicate ``checkpoint K`` span
+    (no ``CheckpointEvent K``); resume must accept it rather than reject
+    the whole run.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 3)
+    events = _checkpoint_resume_events_with_failed_fires(3, failed_at=2)
+
+    _validate_resume_state(events, str(sample_root), 3)
+
+
+def test_validate_resume_state_accepts_multiple_consecutive_failed_fires(
+    tmp_path: Path,
+) -> None:
+    """`consecutive_failures > 1`: the same `checkpoint K` span repeats.
+
+    The same span repeats several times before its `CheckpointEvent K` commits.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 3)
+    events = _checkpoint_resume_events_with_failed_fires(3, failed_at=3, n_failures=3)
+
+    _validate_resume_state(events, str(sample_root), 3)
+
+
+def test_validate_resume_state_rejects_nonsequential_checkpoint_events(
+    tmp_path: Path,
+) -> None:
+    """Out-of-sequence CheckpointEvent.checkpoint_id triggers the ordered-walk check.
+
+    The ordered walk in ``_validate_resume_state`` has two sequential-order
+    checks: one on checkpoint *span names* (SpanBeginEvent.name) and a
+    distinct one on *CheckpointEvent.checkpoint_id*. This test covers the
+    second branch by leaving span names intact (so the span-name check passes)
+    while corrupting the checkpoint_id of the second ``CheckpointEvent`` so
+    that it is out of sequence.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    events = _checkpoint_resume_events(2)
+    for event in events:
+        if isinstance(event, CheckpointEvent) and event.checkpoint_id == 2:
+            event.checkpoint_id = 3
+            break
+
+    with pytest.raises(RuntimeError, match="CheckpointEvents not sequential"):
+        _validate_resume_state(events, str(sample_root), 2)
+
+
 def test_validate_resume_state_rejects_missing_prior_run_wrap(tmp_path: Path) -> None:
     from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
 
@@ -755,8 +862,43 @@ def test_validate_resume_state_rejects_latest_committed_count_mismatch(
     _write_checkpoint_files(sample_root, 2)
     events = _checkpoint_resume_events(2)
 
-    with pytest.raises(RuntimeError, match="expected 1 checkpoint spans"):
+    with pytest.raises(RuntimeError, match="expected 1 committed checkpoints"):
         _validate_resume_state(events, str(sample_root), 1)
+
+
+def test_validate_resume_state_rejects_commit_without_span(tmp_path: Path) -> None:
+    """A committed checkpoint with no preceding span_begin is rejected.
+
+    Distinct from a tolerated retry, which repeats the span before the commit.
+    """
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    events = _checkpoint_resume_events(2)
+    # Drop the `checkpoint 2` span_begin AND its paired span_end, keeping the
+    # CheckpointEvent 2 — a commit with no matching span.
+    drop_ids = {
+        e.id
+        for e in events
+        if isinstance(e, SpanBeginEvent)
+        and e.type == "checkpoint"
+        and e.name == "checkpoint 2"
+    }
+    events = [
+        e
+        for e in events
+        if not (
+            (isinstance(e, SpanBeginEvent) and e.id in drop_ids)
+            or (isinstance(e, SpanEndEvent) and e.id in drop_ids)
+        )
+    ]
+
+    with pytest.raises(
+        RuntimeError, match="has no preceding 'checkpoint 2' span_begin"
+    ):
+        _validate_resume_state(events, str(sample_root), 2)
 
 
 # --- tracing (inspect trace anomalies / dump --filter checkpoint) ---------
