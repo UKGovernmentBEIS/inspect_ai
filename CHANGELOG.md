@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: `as_html_id()` no longer raises `IndexError` for input that reduces to an empty string, returning a prefixed id instead.
+
 ## 0.3.243 (30 June 2026)
 
 - Bugfix: Elapsed-time displays (e.g. the running-sample clock and timers) no longer render an impossible `:60` seconds when the elapsed time has a fractional second.
@@ -47,7 +51,6 @@
 - Bugfix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bugfix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
 - Bugfix: Header-only reads of `.json` eval logs no longer parse the entire `samples` array, making header reads of large logs dramatically faster (e.g. a 29MB S3 log: ~47s -> ~0.4s).
-
 
 ## 0.3.241 (22 June 2026)
 
