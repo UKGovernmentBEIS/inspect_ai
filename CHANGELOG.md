@@ -1,3 +1,7 @@
+## Unreleased
+
+- Sandbox: Link plain HTTP sandbox ports (e.g. 80, 8080) as `http://` instead of `https://` in the running-samples port-mappings panel.
+
 ## 0.3.243 (30 June 2026)
 
 - Bugfix: Elapsed-time displays (e.g. the running-sample clock and timers) no longer render an impossible `:60` seconds when the elapsed time has a fractional second.
