@@ -1,0 +1,194 @@
+[
+  {
+    "source": "historical",
+    "output": "The answer is \\boxed{42}",
+    "target": "42",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "\\boxed{\\frac{1}{2}}",
+    "target": "0.5",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "\\boxed{42}",
+    "target": "43",
+    "expected": "I"
+  },
+  {
+    "source": "historical",
+    "output": "The answer is 42",
+    "target": "42",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "\\boxed{\\sqrt2}",
+    "target": "$\\sqrt{2}$",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "\\boxed{33.5\\%}",
+    "target": "0.335",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "The answer is $$42$$",
+    "target": "42",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "\\boxed{\\sqrt{\\sqrt{2}}}",
+    "target": "2**(1/4)",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "$\\{1,2,3\\}$",
+    "target": "$\\{3, 2, 1\\}$",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "$\\left(1, 2\\right)$",
+    "target": "$\\left(1, 2\\right)$",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "\\boxed{1.5 \\times 10^3}",
+    "target": "1500",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "\\boxed{x^2 - x^2}",
+    "target": "0",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "-1 + sqrt(3)",
+    "target": "\\sqrt{3} - 1",
+    "expected": "C"
+  },
+  {
+    "source": "historical",
+    "output": "(3*sqrt(5))/7",
+    "target": "\\frac{3\\sqrt{5}}{7}",
+    "expected": "C"
+  },
+  {
+    "source": "MATH-500",
+    "output": "\\left( 3, \\frac{\\pi}{2} \\right)",
+    "target": "\\left(3,\\frac{\\pi}{2}\\right)",
+    "expected": "C"
+  },
+  {
+    "source": "MATH",
+    "output": "(-\\infty,-8)\\cup (8,\\infty)",
+    "target": "(-\\infty,-8)\\cup (8,\\infty)",
+    "expected": "C"
+  },
+  {
+    "source": "MATH",
+    "output": "\\begin{pmatrix} 1/\\sqrt{2} & 1/\\sqrt{2} \\\\ -1/\\sqrt{2} & 1/\\sqrt{2} \\end{pmatrix}",
+    "target": "\\begin{pmatrix} 1/\\sqrt{2} & 1/\\sqrt{2} \\\\ -1/\\sqrt{2} & 1/\\sqrt{2} \\end{pmatrix}",
+    "expected": "C"
+  },
+  {
+    "source": "IMO-AnswerBench",
+    "output": "odd $n$",
+    "target": "odd $n$",
+    "expected": "C"
+  },
+  {
+    "source": "IMO-AnswerBench",
+    "output": "$g(x)=\\frac{1}{3} ((2x)^a +(2x)^{-a})$ for some $a>0$",
+    "target": "$g(x)=\\frac{1}{3} ((2x)^a +(2x)^{-a})$ for some $a>0$",
+    "expected": "C"
+  },
+  {
+    "source": "IMO-AnswerBench",
+    "output": "$\\lfloor\\varphi n\\rfloor$, where $\\varphi = \\frac{\\sqrt{5}+1}{2}",
+    "target": "$\\lfloor\\varphi n\\rfloor$, where $\\varphi = \\frac{\\sqrt{5}+1}{2}",
+    "expected": "C"
+  },
+  {
+    "source": "MathArena",
+    "output": "2,3,\\frac{3+i\\sqrt{3}}{2},\\frac{3-i\\sqrt{3}}{2}",
+    "target": "2,3,\\frac{3+i\\sqrt{3}}{2},\\frac{3-i\\sqrt{3}}{2}",
+    "expected": "C"
+  },
+  {
+    "source": "MathArena HMMT",
+    "output": "\\boxed{\\binom{2026}{1013}}",
+    "target": "\\binom{2026}{1013}",
+    "expected": "C"
+  },
+  {
+    "source": "resource regression",
+    "output": "\\boxed{2024^{4046}}",
+    "target": "2024^{4046}",
+    "expected": "C"
+  },
+  {
+    "source": "resource regression",
+    "output": "\\boxed{1/2004!}",
+    "target": "1/2004!",
+    "expected": "C"
+  },
+  {
+    "source": "resource regression",
+    "output": "\\boxed{2^{2025}}",
+    "target": "3^{2025}",
+    "expected": "I"
+  },
+  {
+    "source": "normalization",
+    "output": "\\boxed{10\\text{ cm}}",
+    "target": "10",
+    "expected": "C"
+  },
+  {
+    "source": "normalization",
+    "output": "\\boxed{\\$15,\\!000}",
+    "target": "15000",
+    "expected": "C"
+  },
+  {
+    "source": "relations",
+    "output": "x=2",
+    "target": "2=x",
+    "expected": "C"
+  },
+  {
+    "source": "relations",
+    "output": "x<2",
+    "target": "2>x",
+    "expected": "C"
+  },
+  {
+    "source": "model output mutation",
+    "output": "\\boxed{\\;\\angle APC = 74^\\circ\\;}",
+    "target": "74^\\circ",
+    "expected": "C"
+  },
+  {
+    "source": "model output mutation",
+    "output": "\\beginboxed{8\\sqrt{6}}",
+    "target": "8\\sqrt{6}",
+    "expected": "C"
+  },
+  {
+    "source": "model output mutation",
+    "output": "\\boxed{74°}",
+    "target": "74^\\circ",
+    "expected": "C"
+  }
+]

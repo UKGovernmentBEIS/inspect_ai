@@ -1,10 +1,18 @@
-"""Mathematical expression scorer using Math-Verify library."""
+"""Safe mathematical answer extraction, parsing, and comparison."""
 
-from typing import TYPE_CHECKING, Any
+from __future__ import annotations
 
-import regex
+import ast
+import math as stdlib_math
+import re
+from dataclasses import dataclass
+from typing import Any, Literal
 
-from inspect_ai._util.error import pip_dependency_error
+import anyio
+from anyio.lowlevel import RunVar
+from anyio.to_process import run_sync
+
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
@@ -12,967 +20,1165 @@ from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
 
-if TYPE_CHECKING:
+_PARSER_PACKAGE = "latex2sympy2-extended"
+_PARSER_VERSION = "1.11.0"
+_ANTLR_PACKAGE = "antlr4-python3-runtime"
+_ANTLR_REQUIREMENT = (
+    "antlr4-python3-runtime>=4.9.3,<=4.13.2,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1"
+)
+
+_MAX_COMPLETION_CHARS = 1_000_000
+_MAX_CANDIDATE_CHARS = 4_096
+_MAX_NESTING = 64
+_MAX_COMMANDS = 256
+_MAX_OPERATORS = 1_024
+_MAX_DIGIT_RUN = 256
+_MAX_TOTAL_DIGITS = 2_048
+_MAX_MATRIX_CELLS = 256
+_MAX_EXPRESSION_NODES = 512
+_MAX_EXPRESSION_DEPTH = 64
+_MAX_EXPRESSION_ARGS = 128
+_MAX_SYMBOLS = 64
+_MAX_SYMBOL_CHARS = 128
+_MAX_INTEGER_BITS = 4_096
+_SYMBOLIC_POWER_EXPONENT_LIMIT = 10_000
+_MAX_FACTORIAL_ARGUMENT = 10_000
+
+_TARGET_TIMEOUT_SECONDS = 2.0
+_ANSWER_TIMEOUT_SECONDS = 2.0
+_COLD_WORKER_TIMEOUT_SECONDS = 10.0
+_MATH_WORKERS = 4
+
+_BOX_START = re.compile(
+    r"(?:\\(?:beginboxed|boxed|fbox)|(?<![A-Za-z\\])(?:boxed|fbox|oxed))\s*\{"
+)
+_ANSWER_MARKER = re.compile(r"(?i)(?:final\s+answer|answer|result)\s*(?:is\b|[:=])\s*")
+_NUMBER = re.compile(
+    r"[-+]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)"
+    r"(?:[eE][-+]?\d+)?\s*%?"
+)
+_PERCENT_SUFFIX = re.compile(
+    r"\s*(?:\\?%|\\text\s*\{\s*(?:percent(?:age)?|pct)\s*\}|"
+    r"\s+(?:percent(?:age)?|pct))\s*$",
+    re.IGNORECASE,
+)
+_LATEX_NUMBER = re.compile(r"[+-]?(?:\d+|\d*\.\d+)(?:E[+-]?\d+)?\Z")
+_LATEX_COMMA_NUMBER = re.compile(r"\s*-?\d{1,3}(?:,\d{3})+(?:\.\d+)?\s*\Z")
+_DIGIT_RUN = re.compile(r"\d+")
+_COMMAND = re.compile(r"\\[A-Za-z]+")
+_WORD = re.compile(r"[A-Za-z]{2,}")
+_CODE_SHAPED = re.compile(
+    r"__|"
+    r"\b(?:breakpoint|compile|eval|exec|getattr|globals|import|locals|open|"
+    r"setattr)\s*\(|"
+    r"\b(?:builtins|os|pathlib|subprocess|sys)\s*\."
+)
+_EAGER_PARSER_OPERATION = re.compile(
+    r"\\begin\{[vV]matrix\}|"
+    r"\\(?:det|gcd|lcm)\b|"
+    r"\\xrightarrow|"
+    r"\\\||"
+    r"\\operatorname\s*\{\s*(?:"
+    r"cols|diag|diagonalize|eig|eigen|eigenvals|eigenvalues|eigenvects|"
+    r"eigenvectors|eye|gcd|hstack|lcm|nullspace|norm|ones|orth|ortho|"
+    r"orthogonal|orthogonalize|rank|ref|rows|rref|svd|trace|tr|vstack|"
+    r"zeros"
+    r")\s*\}",
+    re.IGNORECASE,
+)
+_UNEVALUATED_LATEX_CONSTRUCTOR = re.compile(r"\\(?:binom|gamma)\b", re.IGNORECASE)
+
+_PLAIN_FUNCTIONS = {
+    "abs",
+    "acos",
+    "acosh",
+    "asin",
+    "asinh",
+    "atan",
+    "atanh",
+    "binomial",
+    "ceil",
+    "cos",
+    "cosh",
+    "exp",
+    "factorial",
+    "floor",
+    "ln",
+    "log",
+    "max",
+    "min",
+    "sin",
+    "sinh",
+    "sqrt",
+    "tan",
+    "tanh",
+}
+
+_ParseStatus = Literal[
+    "correct",
+    "incorrect",
+    "answer_parse_error",
+    "answer_limit",
+]
+
+
+class _MathParseError(ValueError):
     pass
 
 
-# ============================================================================
-# STAGE 1: PREPROCESSING
-# ============================================================================
+class _MathLimitError(_MathParseError):
+    pass
 
 
-def replace_unicode(text: str) -> str:
-    """Replace unicode mathematical characters with LaTeX equivalents.
-
-    Args:
-        text: Raw text that may contain unicode math characters.
-
-    Returns:
-        Text with unicode characters replaced by LaTeX commands.
-    """
-    # Remove non-printable control characters (ASCII 0-31 except whitespace, and DEL)
-    # This removes characters like backspace (\x08) that can corrupt pattern matching
-    # Keep: \t (tab), \n (newline), \r (carriage return)
-    text = regex.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]", "", text)
-
-    # Replace unicode box-drawing characters with \boxed{}
-    text = text.replace("\u23a7", r"\boxed{")
-    text = text.replace("\u23ab", r"}")
-    text = text.replace("\n\u2502", r"\boxed{")
-    text = text.replace("\u2502", r"}")
-    text = text.replace("\n\u2503", r"\boxed{")
-    text = text.replace("\u2503", r"}")
-    text = text.replace("\n\uf8f0", r"\boxed{")
-    text = text.replace("\uf8fb", r"}")
-
-    # Replace mathematical unicode characters
-    text = text.replace("\u221a", r"\sqrt")  # Square root symbol
-    text = text.replace("\u00d7", r"\cdot")  # Multiplication sign
-    text = text.replace("\u202f", r" ")  # Narrow no-break space
-    text = text.replace("\u2212", "-")  # Minus sign
-    text = text.replace("\u03c0", r"\pi")  # Pi symbol
-
-    return text
+class _MathUnsafeError(_MathParseError):
+    pass
 
 
-# ============================================================================
-# STAGE 2: EXTRACTION
-# ============================================================================
-
-# Regex patterns for extracting mathematical answers from text
-# Pattern: (\\boxed|\\fbox)\s*\{((?:[^{}]|\{(?2)\})*)\}
-# Explanation: Matches \boxed{...} or \fbox{...} with support for nested braces
-#   - (\\boxed|\\fbox)  : Match either \boxed or \fbox command
-#   - \s*               : Optional whitespace (including unicode spaces)
-#   - \{                : Opening brace (escaped)
-#   - (?:               : Non-capturing group for content
-#     [^{}]             : Match any character except braces
-#     |                 : OR
-#     \{(?2)\}          : Recursively match nested braces ((?2) refers to group 2)
-#   )*                  : Repeat zero or more times
-#   - \}                : Closing brace (escaped)
-_BOXED_CONTENT_PATTERN = r"(\\boxed|\\fbox)\s*\{((?:[^{}]|\{(?2)\})*)\}"
-
-# Pattern: (boxed|fbox|oxed)\s*\{((?:[^{}]|\{(?2)\})*)\}
-# Same as above but without backslash (for already-processed text)
-# Note: \s* allows for spaces like "boxed {77}" or unicode spaces
-# Note: Also matches "oxed" to handle cases where \b was interpreted as backspace
-_BOXED_CONTENT_NO_BACKSLASH = r"(boxed|fbox|oxed)\s*\{((?:[^{}]|\{(?2)\})*)\}"
-
-# Pattern: \b\d+\b
-# Explanation: Match whole integers with word boundaries
-#   - \b    : Word boundary (ensures we match complete numbers)
-#   - \d+   : One or more digits
-#   - \b    : Word boundary
-_INTEGER_PATTERN = r"\b\d+\b"
+@dataclass(frozen=True)
+class _ParsedValue:
+    expression: Any | None
+    text: str | None
+    source: str
+    expensive: bool = False
 
 
-def remove_inner_boxed(match: str) -> str:
-    r"""Remove nested boxed expressions, keeping only outermost content.
-
-    Args:
-        match: Text containing potentially nested \boxed{} or \fbox{}.
-
-    Returns:
-        Content with inner boxed expressions removed.
-
-    Examples:
-        >>> remove_inner_boxed(r"\boxed{\frac{1}{2}}")
-        "\\frac{1}{2}"
-        >>> remove_inner_boxed(r"\boxed{\boxed{42}}")
-        "42"
-    """
-    matches = list(regex.finditer(_BOXED_CONTENT_PATTERN, match))
-    if not matches:
-        return match
-    for m in matches:
-        match = match.replace(m.group(0), m.group(2))
-    return match
+@dataclass(frozen=True)
+class _ExpressionInfo:
+    expensive: bool
 
 
-def find_last_boxed_content(text: str) -> str | None:
-    r"""Extract content from the last \boxed{} or \fbox{} in text.
-
-    Args:
-        text: Text potentially containing boxed expressions.
-
-    Returns:
-        Content of the last boxed expression, or None if not found.
-
-    Examples:
-        >>> find_last_boxed_content(r"The answer is \boxed{42}")
-        "42"
-        >>> find_last_boxed_content(r"\boxed{10} and \boxed{42}")
-        "42"
-        >>> find_last_boxed_content("No boxed content here")
-        None
-    """
-    matches = list(regex.finditer(_BOXED_CONTENT_NO_BACKSLASH, text))
-
-    if not matches:
-        return None
-
-    last_match = remove_inner_boxed(matches[-1].group(2))
-    return last_match
+@dataclass(frozen=True)
+class _WorkerScore:
+    status: _ParseStatus
+    answer: str | None
+    reason: str | None = None
 
 
-def extract_last_integer(text: str) -> int | None:
-    """Fallback: extract the last integer found in text.
+@dataclass
+class _MathWorkerContext:
+    queue: anyio.CapacityLimiter
+    process_limiter: anyio.CapacityLimiter
+    started: bool = False
 
-    Args:
-        text: Text to search for integers.
 
-    Returns:
-        The last integer found, or None if no integers exist.
+_MATH_WORKER_CONTEXT: RunVar[_MathWorkerContext] = RunVar("math_worker_context")
 
-    Examples:
-        >>> extract_last_integer("The answer is 42")
-        42
-        >>> extract_last_integer("Results: 10, 20, 30")
-        30
-        >>> extract_last_integer("No numbers here")
-        None
-    """
-    matches = list(regex.finditer(_INTEGER_PATTERN, text))
-    if not matches:
-        return None
+
+def _math_worker_context() -> _MathWorkerContext:
     try:
-        return int(matches[-1].group())
-    except Exception as e:
-        print(f"Error extracting last integer: {e}")
-        return None
+        return _MATH_WORKER_CONTEXT.get()
+    except LookupError:
+        context = _MathWorkerContext(
+            queue=anyio.CapacityLimiter(_MATH_WORKERS),
+            process_limiter=anyio.CapacityLimiter(_MATH_WORKERS),
+        )
+        _MATH_WORKER_CONTEXT.set(context)
+        return context
 
 
-# ============================================================================
-# STAGE 3: NORMALIZATION
-# ============================================================================
-
-# Regex patterns for normalizing LaTeX strings
-
-# Pattern: \\{2,}\n?\(
-# Explanation: Match multiple backslashes followed by optional newline and opening paren
-#   - \\{2,}  : Two or more backslashes
-#   - \n?     : Optional newline character
-#   - \(      : Opening parenthesis
-_LEADING_BACKSLASHES_PAREN = r"\\{2,}\n?\("
-
-# Pattern: \\begin{align[^}]*}(.*?)\\end{align[^}]*}
-# Explanation: Match align environment and capture its content
-#   - \\begin{align[^}]*}  : Match \begin{align} or \begin{align*}
-#   - (.*?)                : Capture content (non-greedy)
-#   - \\end{align[^}]*}    : Match corresponding \end{align} or \end{align*}
-_ALIGN_ENVIRONMENT = r"\\begin{align[^}]*}(.*?)\\end{align[^}]*}"
-
-# Pattern: (?<=\d),(?=\d)
-# Explanation: Match comma between digits (for removing thousands separators)
-#   - (?<=\d)  : Positive lookbehind - preceded by a digit
-#   - ,        : The comma to remove
-#   - (?=\d)   : Positive lookahead - followed by a digit
-#   Example: "1,234" → "1234"
-_COMMA_BETWEEN_DIGITS = r"(?<=\d),(?=\d)"
-
-# Pattern: \\sqrt\s*([^\s{}]*)
-# Explanation: Match \sqrt followed by space and capture non-braced content
-#   - \\sqrt   : The \sqrt command
-#   - \s*      : Optional whitespace
-#   - ([^\s{}]*) : Capture any non-whitespace, non-brace characters
-#   Example: "\sqrt 2" → "\sqrt{2}"
-_SQRT_WITHOUT_BRACES = r"\\sqrt\s*([^\s{}]*)"
-
-# Pattern: \\text\{.*?\}
-# Explanation: Match \text{...} environments and remove them
-#   - \\text   : The \text command
-#   - \{       : Opening brace
-#   - .*?      : Any content (non-greedy)
-#   - \}       : Closing brace
-_TEXT_ENVIRONMENT = r"\\text\{.*?\}"
-
-# Pattern: \\mathrm\{(.*?)\}
-# Explanation: Match \mathrm{...} and capture content to unwrap it
-#   - \\mathrm : The \mathrm command
-#   - \{       : Opening brace
-#   - (.*?)    : Capture content (non-greedy)
-#   - \}       : Closing brace
-_MATHRM_ENVIRONMENT = r"\\mathrm\{(.*?)\}"
-
-
-def strip(s: str) -> str:
-    r"""Strip whitespace and LaTeX newlines from string edges.
-
-    Args:
-        s: String to strip.
-
-    Returns:
-        Stripped string.
-
-    Examples:
-        >>> strip("  42  ")
-        "42"
-        >>> strip(r"\n42\n")
-        "42"
-        >>> strip(r"\\ 42")
-        "42"
-    """
-    s = s.strip()
-    # Remove LaTeX newlines from edges (careful: plain .strip() would remove "\" in "\begin")
-    while s.startswith(r"\n"):
-        s = s[2:]
-    while s.endswith(r"\n"):
-        s = s[:-2]
-    # Remove LaTeX spacing from start
-    while s.startswith("\\ "):
-        s = s[2:]
-    # Remove multiple backslashes followed by opening paren (e.g., "\\\\(x)")
-    while regex.match(_LEADING_BACKSLASHES_PAREN, s):
-        s = s[3:]
-    return s
-
-
-def normalize_string(s: str) -> str:
-    r"""Normalize a LaTeX string for parsing.
-
-    Removes sizing commands, alignment environments, converts brackets,
-    and performs various LaTeX-to-parseable transformations.
-
-    Args:
-        s: The LaTeX string to normalize.
-
-    Returns:
-        The normalized string.
-
-    Examples:
-        >>> normalize_string(r"$\left[\frac{1}{2}\right]$")
-        r"(\frac{1}{2})"
-        >>> normalize_string("x = 42")
-        "42"
-        >>> normalize_string(r"\text{answer: }42")
-        "42"
-    """
-    # Remove LaTeX sizing commands that don't affect mathematical meaning
-    s = s.replace(r"\left", "").replace(r"\right", "")
-    s = s.replace(r"\Bigl", "").replace(r"\Bigr", "")
-    s = s.replace(r"\bigl", "").replace(r"\bigr", "")
-    s = (
-        s.replace(r"\Big", "")
-        .replace(r"\big", "")
-        .replace(r"\Large", "")
-        .replace(r"\large", "")
-    )
-
-    # Remove align environments and their alignment markers (&) and line breaks (\\)
-    s = regex.sub(
-        _ALIGN_ENVIRONMENT,
-        lambda m: m.group(1).replace("&", "").replace("\\\\", ""),
-        s,
-        flags=regex.DOTALL,
-    )
-
-    # Convert all bracket types to parentheses for uniform parsing
-    s = s.replace("[", "(")
-    s = s.replace("]", ")")
-    s = s.replace("\\{", "(")  # LaTeX sets become lists
-    s = s.replace("\\}", ")")
-
-    # Remove mathematical delimiters and spacing commands
-    s = s.replace("$", "")  # Remove inline math delimiters
-    s = s.replace("\\ ", " ")  # LaTeX space to regular space
-    s = s.replace(r"\hline", "")  # Remove table lines
-    s = s.replace(r"\vline", "")
-    s = s.replace(r"\quad", " ")  # Quad space to regular space
-
-    # Normalize unicode characters to ASCII equivalents
-    s = s.replace("−", "-")  # Unicode minus
-    s = s.replace("–", "-")  # En dash
-    s = s.replace("·", " \\cdot ")  # Middle dot to cdot
-
-    # Remove degree symbols
-    s = s.replace("^\\circ", " ")
-    s = s.replace("^{\\circ}", " ")
-
-    # Remove display style command
-    s = s.replace("\\displaystyle", "")
-
-    # Convert escaped parentheses to regular ones
-    s = s.replace("\\(", "(")
-    s = s.replace("\\)", ")")
-    s = s.replace("{,}", "")  # Remove empty comma groups (o4-mini quirk)
-
-    # Remove trailing period if present
-    if s.endswith("."):
-        s = s[:-1]
-
-    # Remove thousands separators (1,234 → 1234)
-    s = regex.sub(_COMMA_BETWEEN_DIGITS, "", s)
-    s = s.replace("{,}", "")
-
-    # Fix \sqrt without braces: "\sqrt 2" → "\sqrt{2}"
-    if "\\sqrt " in s:
-        s = regex.sub(_SQRT_WITHOUT_BRACES, r"\\sqrt{\1}", s)
-
-    # Remove text annotations: "\text{answer: }42" → "42"
-    s = regex.sub(_TEXT_ENVIRONMENT, "", s)
-
-    # Unwrap \mathrm{...} to plain text
-    s = regex.sub(_MATHRM_ENVIRONMENT, r" \1 ", s)
-
-    # Dataset-specific: Replace Fibonacci F_30 with its value
-    s = s.replace("F_{30}", "832040")
-
-    # Extract value after equals sign (keep only the answer part)
-    if "=" in s:
-        s = s.split("=")[-1]
-
-    # Handle approximate values: keep only the left side
-    if "\\approx" in s:
-        s = s.split("\\approx")[0]
-        if s.endswith("("):  # Remove dangling opening paren
-            s = s[:-1]
-
-    return strip(s)
-
-
-def remove_outer_brackets(s: str) -> str:
-    """Remove matching outer parentheses if they wrap the entire expression.
-
-    Args:
-        s: String potentially wrapped in parentheses.
-
-    Returns:
-        String with outer parentheses removed if they matched.
-
-    Examples:
-        >>> remove_outer_brackets("(42)")
-        "42"
-        >>> remove_outer_brackets("((1+2))")
-        "1+2"
-        >>> remove_outer_brackets("(1)+(2)")
-        "(1)+(2)"
-    """
-    while True:
-        if not s:
-            return s
-        opening = s[0]
-        closing = s[-1]
-
-        if opening == "(" and closing == ")":
-            count = 0
-            matched = True
-            for i, char in enumerate(s):
-                if char == opening:
-                    count += 1
-                elif char == closing:
-                    count -= 1
-                if count == 0 and i != len(s) - 1:
-                    matched = False
-                    break
-
-            if matched:
-                s = s[1:-1]
-                continue
-        break
-
-    return s
-
-
-def remove_invalid_characters(text: str) -> str:
-    r"""Remove LaTeX spacing commands that interfere with parsing.
-
-    Args:
-        text: Text containing LaTeX spacing commands.
-
-    Returns:
-        Text with spacing commands removed.
-
-    Examples:
-        >>> remove_invalid_characters(r"1\,234")
-        "1234"
-        >>> remove_invalid_characters(r"x\;=\;42")
-        "x=42"
-    """
-    # Remove LaTeX spacing commands:
-    # \; - thick space (5/18 em)
-    # \: - medium space (4/18 em)
-    # \, - thin space (3/18 em)
-    # \! - negative thin space (-3/18 em)
-    text = regex.sub(r"\\;", "", text)
-    text = regex.sub(r"\\:", "", text)
-    text = regex.sub(r"\\,", "", text)
-    text = regex.sub(r"\\!", "", text)
+def _replace_unicode(text: str) -> str:
+    text = re.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]", "", text)
+    replacements = {
+        "\u23a7": r"\boxed{",
+        "\u23ab": "}",
+        "\n\u2502": r"\boxed{",
+        "\u2502": "}",
+        "\n\u2503": r"\boxed{",
+        "\u2503": "}",
+        "\n\uf8f0": r"\boxed{",
+        "\uf8fb": "}",
+        "\u221a": r"\sqrt",
+        "\u00d7": r"\cdot",
+        "\u00f7": "/",
+        "\u202f": " ",
+        "\u2212": "-",
+        "\u2013": "-",
+        "\u03c0": r"\pi",
+        "\u00b0": r"^\circ",
+        "\u221e": r"\infty",
+        "\u2264": r"\le",
+        "\u2265": r"\ge",
+        "\u2260": r"\ne",
+        "\u222a": r"\cup",
+        "\u2229": r"\cap",
+    }
+    for source, replacement in replacements.items():
+        text = text.replace(source, replacement)
     return text
 
 
-# ============================================================================
-# STAGE 4: PARSING
-# ============================================================================
-
-# Regex patterns for converting LaTeX mathematical expressions to Python syntax
-# These patterns are applied iteratively to handle nested expressions
-
-# Pattern: sqrt(\d+)
-# Explanation: Match sqrt followed by digits without braces
-#   - sqrt     : Literal "sqrt"
-#   - (\d+)    : Capture one or more digits
-#   Example: "sqrt2" → "sqrt{2}"
-_SQRT_MISSING_BRACES = r"sqrt(\d+)"
-
-# Pattern: frac(\d)
-# Explanation: Match frac followed by single digit without braces
-#   - frac     : Literal "frac"
-#   - (\d)     : Capture single digit
-#   Example: "frac1" → "frac{1}"
-_FRAC_MISSING_BRACES = r"frac(\d)"
-
-# Pattern: (\d+(\.\d+)?)\s*%
-# Explanation: Match number followed by percent sign
-#   - (\d+(\.\d+)?)  : Capture integer or decimal number
-#   - \s*            : Optional whitespace
-#   - %              : Percent sign
-#   Example: "33.5%" → "(33.5/100)"
-_PERCENTAGE = r"(\d+(\.\d+)?)\s*%"
-
-# Pattern: \\*(?:dfrac|tfrac|frac)\{([^{}]*)\}\{([^{}]*)\}
-# Explanation: Match LaTeX fraction commands
-#   - \\*                : Optional backslash(es)
-#   - (?:dfrac|tfrac|frac) : Match any fraction command
-#   - \{([^{}]*)\}       : First braced group (numerator)
-#   - \{([^{}]*)\}       : Second braced group (denominator)
-#   Example: "\frac{1}{2}" → "(1)/(2)"
-_LATEX_FRACTION = r"\\*(?:dfrac|tfrac|frac)\{([^{}]*)\}\{([^{}]*)\}"
-
-# Pattern: \\*binom\{([^{}]*)\}\{([^{}]*)\}
-# Explanation: Match LaTeX binomial coefficient
-#   - \\*binom         : Binomial command
-#   - \{([^{}]*)\}     : First argument (n)
-#   - \{([^{}]*)\}     : Second argument (k)
-#   Example: "\binom{5}{2}" → "binomial(5, 2)"
-_LATEX_BINOM = r"\\*binom\{([^{}]*)\}\{([^{}]*)\}"
-
-# Pattern: \\*sqrt\[(.*?)\]\{(.*?)\}
-# Explanation: Match n-th root notation
-#   - \\*sqrt          : Square root command
-#   - \[(.*?)\]        : Optional bracket for root degree (n)
-#   - \{(.*?)\}        : Braced content (radicand)
-#   Example: "\sqrt[3]{8}" → "(8)**(1/(3))"
-_LATEX_NTH_ROOT = r"\\*sqrt\[(.*?)\]\{(.*?)\}"
-
-# Pattern: \\*sqrt\{(.*?)\}
-# Explanation: Match square root
-#   - \\*sqrt          : Square root command
-#   - \{(.*?)\}        : Braced content
-#   Example: "\sqrt{2}" → "(2)**(1/2)"
-_LATEX_SQRT = r"\\*sqrt\{(.*?)\}"
-
-# Pattern: \{(\d+)\}
-# Explanation: Match braced digits to convert to parens
-#   - \{       : Opening brace
-#   - (\d+)    : One or more digits
-#   - \}       : Closing brace
-#   Example: "{42}" → "(42)"
-_BRACED_DIGITS = r"\{(\d+)\}"
-
-# Pattern: \bi\b
-# Explanation: Match standalone 'i' (imaginary unit) with word boundaries
-#   - \b       : Word boundary
-#   - i        : The letter 'i'
-#   - \b       : Word boundary
-#   Example: "2 + 3i" → "2 + 3I" (for SymPy's imaginary unit)
-_IMAGINARY_I = r"\bi\b"
-
-# Patterns for implicit multiplication handling
-# Pattern: (\d|(?<![a-zA-Z])[a-zA-Z]{1,2}(?![a-zA-Z]))\(
-# Explanation: Number or variable followed by opening paren
-#   - (\d|...)         : Digit OR...
-#   - (?<![a-zA-Z])    : Not preceded by letter (negative lookbehind)
-#   - [a-zA-Z]{1,2}    : One or two letters
-#   - (?![a-zA-Z])     : Not followed by letter (negative lookahead)
-#   - \(               : Opening paren
-#   Example: "2(x+1)" → "2*(x+1)", "x(2)" → "x*(2)"
-_IMPLICIT_MULT_BEFORE_PAREN = r"(\d|(?<![a-zA-Z])[a-zA-Z]{1,2}(?![a-zA-Z]))\("
-
-# Pattern: \)(\d|(?<![a-zA-Z])[a-zA-Z]{1,2}(?![a-zA-Z]))
-# Explanation: Closing paren followed by number or variable
-#   Example: "(x+1)2" → "(x+1)*2"
-_IMPLICIT_MULT_AFTER_PAREN = r"\)(\d|(?<![a-zA-Z])[a-zA-Z]{1,2}(?![a-zA-Z]))"
-
-# Pattern: (?<=\d)((?<![a-zA-Z])[a-zA-Z]{1,2}(?![a-zA-Z]))
-# Explanation: Variable after digit
-#   Example: "2x" → "2*x", "3pi" → "3*pi"
-_IMPLICIT_MULT_DIGIT_VAR = r"(?<=\d)((?<![a-zA-Z])[a-zA-Z]{1,2}(?![a-zA-Z]))"
-
-# Pattern: ((?<![a-zA-Z])[a-zA-Z]{1,2}(?![a-zA-Z]))(?=\d)
-# Explanation: Variable before digit
-#   Example: "x2" → "x*2"
-_IMPLICIT_MULT_VAR_DIGIT = r"((?<![a-zA-Z])[a-zA-Z]{1,2}(?![a-zA-Z]))(?=\d)"
-
-# Pattern: \{([^{}]*)\}
-# Explanation: Convert remaining braces to lists
-#   - \{       : Opening brace
-#   - ([^{}]*) : Capture content without nested braces
-#   - \}       : Closing brace
-#   Example: "{1, 2, 3}" → "[1, 2, 3]"
-_BRACES_TO_LIST = r"\{([^{}]*)\}"
-
-
-def _parse_integer(text: str) -> int | None:
-    """Try to parse text as a simple integer.
-
-    Args:
-        text: Text to parse.
-
-    Returns:
-        Integer value if successful, None otherwise.
-    """
-    if text.isdigit():
-        return int(text)
+def _balanced_content(text: str, opening: int) -> tuple[str, int] | None:
+    depth = 0
+    for index in range(opening, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+            if depth > _MAX_NESTING:
+                return None
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                end = min(index, opening + _MAX_CANDIDATE_CHARS + 2)
+                return text[opening + 1 : end], index + 1
     return None
 
 
-def _parse_float(text: str) -> int | float | None:
-    """Try to parse text as a float (returns int if whole number).
+def _boxed_candidates(text: str) -> list[str]:
+    candidates: list[str] = []
+    position = 0
+    while len(candidates) < _MAX_COMMANDS:
+        match = _BOX_START.search(text, position)
+        if match is None:
+            break
+        parsed = _balanced_content(text, match.end() - 1)
+        if parsed is None:
+            position = match.end()
+            continue
+        content, position = parsed
+        candidates.append(content)
+    return candidates
 
-    Args:
-        text: Text to parse.
 
-    Returns:
-        Numeric value if successful, None otherwise.
-    """
+def _last_single_dollar_math(text: str) -> str | None:
+    positions: list[int] = []
+    for index, char in enumerate(text):
+        if char == "$" and (index == 0 or text[index - 1] != "\\"):
+            if index + 1 < len(text) and text[index + 1] == "$":
+                continue
+            if index > 0 and text[index - 1] == "$":
+                continue
+            positions.append(index)
+    last_match: str | None = None
+    for index in range(0, len(positions) - 1, 2):
+        last_match = text[positions[index] + 1 : positions[index + 1]]
+    return last_match
+
+
+def _last_delimited_math(text: str) -> str | None:
+    matches: list[tuple[int, str]] = []
+    for opening, closing in (("$$", "$$"), (r"\[", r"\]"), (r"\(", r"\)")):
+        end = text.rfind(closing)
+        if end < 0:
+            continue
+        start = text.rfind(opening, 0, end)
+        if start >= 0:
+            matches.append((end, text[start + len(opening) : end]))
+
+    single_dollar = _last_single_dollar_math(text)
+    if single_dollar is not None:
+        end = text.rfind("$")
+        matches.append((end, single_dollar))
+
+    if not matches:
+        return None
+    return max(matches, key=lambda item: item[0])[1]
+
+
+def _strip_delimiters(text: str) -> str:
+    text = text.strip()
+    while len(text) >= 4 and text.startswith("**") and text.endswith("**"):
+        text = text[2:-2].strip()
+    for opening, closing in (
+        ("$$", "$$"),
+        (r"\[", r"\]"),
+        (r"\(", r"\)"),
+        ("$", "$"),
+    ):
+        if (
+            text.startswith(opening)
+            and text.endswith(closing)
+            and (opening != "$" or text.count("$") == 2)
+        ):
+            text = text[len(opening) : -len(closing)].strip()
+    text = re.sub(r"^(?:(?:\\[,;:!]|\\quad|\\qquad)\s*)+", "", text)
+    text = re.sub(r"(?:(?:\\[,;:!]|\\quad|\\qquad)\s*)+$", "", text)
+    return text.rstrip(" \t\r\n.,;:")
+
+
+def _append_candidate(candidates: list[str], candidate: str | None) -> None:
+    if candidate is None:
+        return
+    candidate = _strip_delimiters(candidate)
+    if candidate and candidate not in candidates:
+        candidates.append(candidate)
+
+
+def _answer_candidates(text: str) -> list[str]:
+    text = _replace_unicode(text)
+    if len(text) > _MAX_COMPLETION_CHARS:
+        raise _MathLimitError("model output is too long")
+
+    candidates: list[str] = []
+    boxes = _boxed_candidates(text)
+    if boxes:
+        _append_candidate(candidates, boxes[-1])
+
+    last_marker: re.Match[str] | None = None
+    for match in _ANSWER_MARKER.finditer(text):
+        last_marker = match
+    if last_marker is not None:
+        suffix = text[last_marker.end() :]
+        _append_candidate(candidates, suffix.splitlines()[0] if suffix else None)
+
+    if _is_short_composite_answer(text):
+        _append_candidate(candidates, text)
+
+    _append_candidate(candidates, _last_delimited_math(text))
+
+    if len(text) <= _MAX_CANDIDATE_CHARS and not _is_short_composite_answer(text):
+        _append_candidate(candidates, text)
+
+    nonempty_lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if nonempty_lines:
+        _append_candidate(candidates, nonempty_lines[-1])
+
+    last_number: str | None = None
+    for match in _NUMBER.finditer(text):
+        last_number = match.group(0)
+    _append_candidate(candidates, last_number)
+
+    return candidates
+
+
+def _target_candidates(text: str) -> list[str]:
+    text = _replace_unicode(text)
+    candidates: list[str] = []
+    boxes = _boxed_candidates(text)
+    if boxes:
+        _append_candidate(candidates, boxes[-1])
+    _append_candidate(candidates, text)
+    return candidates
+
+
+def _contains_nested_latex_power(text: str) -> bool:
+    index = 0
+    while True:
+        index = text.find("^", index)
+        if index < 0:
+            return False
+        cursor = index + 1
+        while cursor < len(text) and text[cursor].isspace():
+            cursor += 1
+        if cursor < len(text) and text[cursor] == "{":
+            parsed = _balanced_content(text, cursor)
+            if (
+                parsed is not None
+                and "^" in parsed[0]
+                and not re.search(r"[A-Za-z]", parsed[0])
+            ):
+                return True
+        index += 1
+
+
+def _validate_candidate(candidate: str) -> None:
+    if not candidate:
+        raise _MathParseError("answer is empty")
+    if len(candidate) > _MAX_CANDIDATE_CHARS:
+        raise _MathLimitError("expression is too long")
+    if _CODE_SHAPED.search(candidate):
+        raise _MathUnsafeError("expression contains non-mathematical code syntax")
+    if _EAGER_PARSER_OPERATION.search(candidate):
+        raise _MathLimitError("expression requests an eager mathematical operation")
+    if _contains_nested_latex_power(candidate):
+        raise _MathLimitError("expression contains a nested exponent")
+
+    digit_runs = _DIGIT_RUN.findall(candidate)
+    if any(len(run) > _MAX_DIGIT_RUN for run in digit_runs):
+        raise _MathLimitError("expression contains an oversized numeric literal")
+    if sum(len(run) for run in digit_runs) > _MAX_TOTAL_DIGITS:
+        raise _MathLimitError("expression contains too many digits")
+    if len(_COMMAND.findall(candidate)) > _MAX_COMMANDS:
+        raise _MathLimitError("expression contains too many LaTeX commands")
+    if sum(candidate.count(operator) for operator in "+-*/^=!<>") > _MAX_OPERATORS:
+        raise _MathLimitError("expression contains too many operators")
+
+    depth = 0
+    max_depth = 0
+    pairs = {")": "(", "]": "[", "}": "{"}
+    stack: list[str] = []
+    for char in candidate:
+        if char in "([{":
+            stack.append(char)
+            depth += 1
+            max_depth = max(max_depth, depth)
+        elif char in ")]}":
+            if stack and stack[-1] == pairs[char]:
+                stack.pop()
+                depth -= 1
+    if max_depth > _MAX_NESTING:
+        raise _MathLimitError("expression is nested too deeply")
+
+    matrix_rows = candidate.count(r"\\") + 1
+    matrix_columns = candidate.count("&") + 1
+    if matrix_rows * matrix_columns > _MAX_MATRIX_CELLS:
+        raise _MathLimitError("expression contains an oversized matrix")
+
+
+def _looks_like_prose(candidate: str) -> bool:
+    if "\\" in candidate or any(char in candidate for char in "=+-*/^<>[]{}()"):
+        return False
+    return len(_WORD.findall(candidate)) >= 2
+
+
+def _is_short_composite_answer(candidate: str) -> bool:
+    if len(candidate) > 512 or candidate.count("\n") > 2:
+        return False
+    if "$" not in candidate and r"\(" not in candidate and r"\[" not in candidate:
+        return False
+    if "\n" in candidate and candidate.count("$") >= 4:
+        return True
+    outside_math = re.sub(
+        r"\$\$.*?\$\$|\$.*?\$|\\\(.*?\\\)|\\\[.*?\\\]", " ", candidate, flags=re.DOTALL
+    )
+    return bool(_WORD.search(outside_math))
+
+
+def _normalize_text(candidate: str) -> str:
+    candidate = _strip_delimiters(candidate)
+    candidate = re.sub(r"\\(?:text|mathrm|mbox)\s*\{([^{}]*)\}", r"\1", candidate)
+    candidate = candidate.replace(r"\ ", " ")
+    candidate = re.sub(r"\s+", " ", candidate)
+    return candidate.strip(" \t\r\n.,;:").casefold()
+
+
+def _split_plain_equation(text: str) -> tuple[str, str] | None:
+    depth = 0
+    split_at: int | None = None
+    for index, char in enumerate(text):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth = max(0, depth - 1)
+        elif char == "=" and depth == 0:
+            previous = text[index - 1] if index else ""
+            following = text[index + 1] if index + 1 < len(text) else ""
+            if previous in "<>!=" or following == "=":
+                continue
+            if split_at is not None:
+                return None
+            split_at = index
+    if split_at is None:
+        return None
+    return text[:split_at], text[split_at + 1 :]
+
+
+class _PlainExpressionBuilder(ast.NodeVisitor):
+    def __init__(self, sympy: Any) -> None:
+        self.sympy = sympy
+        self.nodes = 0
+
+    def visit(self, node: ast.AST) -> Any:
+        self.nodes += 1
+        if self.nodes > _MAX_EXPRESSION_NODES:
+            raise _MathLimitError("plain expression contains too many nodes")
+        return super().visit(node)
+
+    def generic_visit(self, node: ast.AST) -> Any:
+        raise _MathParseError(
+            f"unsupported plain expression syntax: {type(node).__name__}"
+        )
+
+    def visit_Expression(self, node: ast.Expression) -> Any:
+        return self.visit(node.body)
+
+    def visit_Constant(self, node: ast.Constant) -> Any:
+        value = node.value
+        if isinstance(value, bool) or value is None or isinstance(value, str):
+            raise _MathParseError("unsupported literal")
+        if isinstance(value, int):
+            if value.bit_length() > _MAX_INTEGER_BITS:
+                raise _MathLimitError("integer literal is too large")
+            return self.sympy.Integer(value)
+        if isinstance(value, float):
+            if not stdlib_math.isfinite(value):
+                raise _MathLimitError("non-finite numeric literal")
+            return self.sympy.Float(repr(value))
+        if isinstance(value, complex):
+            if not (
+                stdlib_math.isfinite(value.real) and stdlib_math.isfinite(value.imag)
+            ):
+                raise _MathLimitError("non-finite complex literal")
+            return self.sympy.Add(
+                self.sympy.Float(repr(value.real)),
+                self.sympy.Mul(
+                    self.sympy.Float(repr(value.imag)),
+                    self.sympy.I,
+                    evaluate=False,
+                ),
+                evaluate=False,
+            )
+        raise _MathParseError("unsupported literal")
+
+    def visit_Name(self, node: ast.Name) -> Any:
+        constants = {
+            "E": self.sympy.E,
+            "I": self.sympy.I,
+            "e": self.sympy.E,
+            "i": self.sympy.I,
+            "inf": self.sympy.oo,
+            "infinity": self.sympy.oo,
+            "pi": self.sympy.pi,
+        }
+        return constants.get(node.id, self.sympy.Symbol(node.id))
+
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
+        operand = self.visit(node.operand)
+        if isinstance(node.op, ast.UAdd):
+            return operand
+        if isinstance(node.op, ast.USub):
+            return self.sympy.Mul(-1, operand, evaluate=False)
+        raise _MathParseError("unsupported unary operator")
+
+    def visit_BinOp(self, node: ast.BinOp) -> Any:
+        left = self.visit(node.left)
+        right = self.visit(node.right)
+        if isinstance(node.op, ast.Add):
+            return self.sympy.Add(left, right, evaluate=False)
+        if isinstance(node.op, ast.Sub):
+            return self.sympy.Add(
+                left, self.sympy.Mul(-1, right, evaluate=False), evaluate=False
+            )
+        if isinstance(node.op, ast.Mult):
+            return self.sympy.Mul(left, right, evaluate=False)
+        if isinstance(node.op, ast.Div):
+            return self.sympy.Mul(
+                left, self.sympy.Pow(right, -1, evaluate=False), evaluate=False
+            )
+        if isinstance(node.op, ast.Pow):
+            return self.sympy.Pow(left, right, evaluate=False)
+        if isinstance(node.op, ast.Mod):
+            return self.sympy.Mod(left, right, evaluate=False)
+        raise _MathParseError("unsupported binary operator")
+
+    def visit_Call(self, node: ast.Call) -> Any:
+        if (
+            not isinstance(node.func, ast.Name)
+            or node.func.id not in _PLAIN_FUNCTIONS
+            or node.keywords
+        ):
+            raise _MathParseError("unsupported function call")
+        args = [self.visit(arg) for arg in node.args]
+        name = node.func.id
+        if name == "sqrt" and len(args) == 1:
+            return self.sympy.Pow(args[0], self.sympy.S.Half, evaluate=False)
+        if name == "factorial" and len(args) == 1:
+            return self.sympy.factorial(args[0], evaluate=False)
+        if name == "binomial" and len(args) == 2:
+            return self.sympy.binomial(*args, evaluate=False)
+        if name == "abs" and len(args) == 1:
+            return self.sympy.Abs(args[0], evaluate=False)
+        if name in {"ceil", "floor"} and len(args) == 1:
+            function = self.sympy.ceiling if name == "ceil" else self.sympy.floor
+            return function(args[0], evaluate=False)
+        if name in {"log", "ln"} and 1 <= len(args) <= 2:
+            base = args[1] if len(args) == 2 else self.sympy.E
+            return self.sympy.log(args[0], base, evaluate=False)
+        if name in {"min", "max"} and args:
+            function = self.sympy.Min if name == "min" else self.sympy.Max
+            return function(*args, evaluate=False)
+        functions = {
+            "acos": self.sympy.acos,
+            "acosh": self.sympy.acosh,
+            "asin": self.sympy.asin,
+            "asinh": self.sympy.asinh,
+            "atan": self.sympy.atan,
+            "atanh": self.sympy.atanh,
+            "cos": self.sympy.cos,
+            "cosh": self.sympy.cosh,
+            "exp": self.sympy.exp,
+            "sin": self.sympy.sin,
+            "sinh": self.sympy.sinh,
+            "tan": self.sympy.tan,
+            "tanh": self.sympy.tanh,
+        }
+        function = functions.get(name)
+        if function is None or len(args) != 1:
+            raise _MathParseError("unsupported function arguments")
+        return function(args[0], evaluate=False)
+
+    def visit_Tuple(self, node: ast.Tuple) -> Any:
+        return self.sympy.Tuple(*(self.visit(element) for element in node.elts))
+
+    def visit_List(self, node: ast.List) -> Any:
+        return self.sympy.Tuple(*(self.visit(element) for element in node.elts))
+
+    def visit_Set(self, node: ast.Set) -> Any:
+        return self.sympy.FiniteSet(
+            *(self.visit(element) for element in node.elts), evaluate=False
+        )
+
+    def visit_Compare(self, node: ast.Compare) -> Any:
+        values = [
+            self.visit(node.left),
+            *(self.visit(item) for item in node.comparators),
+        ]
+        relations: list[Any] = []
+        for left, operator, right in zip(
+            values[:-1], node.ops, values[1:], strict=True
+        ):
+            if isinstance(operator, ast.Eq):
+                relation = self.sympy.Eq(left, right, evaluate=False)
+            elif isinstance(operator, ast.NotEq):
+                relation = self.sympy.Ne(left, right, evaluate=False)
+            elif isinstance(operator, ast.Lt):
+                relation = self.sympy.StrictLessThan(left, right, evaluate=False)
+            elif isinstance(operator, ast.LtE):
+                relation = self.sympy.LessThan(left, right, evaluate=False)
+            elif isinstance(operator, ast.Gt):
+                relation = self.sympy.StrictGreaterThan(left, right, evaluate=False)
+            elif isinstance(operator, ast.GtE):
+                relation = self.sympy.GreaterThan(left, right, evaluate=False)
+            else:
+                raise _MathParseError("unsupported comparison")
+            relations.append(relation)
+        if len(relations) == 1:
+            return relations[0]
+        return self.sympy.And(*relations, evaluate=False)
+
+
+def _parse_plain_expression(candidate: str, sympy: Any) -> Any | None:
+    if "\\" in candidate or re.search(r"\^\s*\{", candidate):
+        return None
+    text = candidate.strip()
+    text = text.replace("\u00d7", "*").replace("\u00f7", "/").replace("^", "**")
+
+    equation = _split_plain_equation(text)
+    if equation is not None:
+        left_text, right_text = equation
+        left = _parse_plain_expression(left_text, sympy)
+        right = _parse_plain_expression(right_text, sympy)
+        if left is None or right is None:
+            raise _MathParseError("invalid equation")
+        return sympy.Eq(left, right, evaluate=False)
+
     try:
-        float_text = float(text)
-        if int(float_text) == float_text:
-            return int(float_text)
-        return float_text
-    except (ValueError, OverflowError):
-        # OverflowError: int(float("inf")); ValueError: int(float("nan"))
-        # or float() of non-numeric text. In all cases this isn't a usable
-        # primitive float — let the caller fall through to symbolic parsing.
+        parsed = ast.parse(text, mode="eval")
+    except (SyntaxError, ValueError):
+        return None
+    return _PlainExpressionBuilder(sympy).visit(parsed)
+
+
+def _looks_complex(candidate: str) -> bool:
+    return bool(
+        re.search(
+            r"\\mathbb\{C\}|\\(?:i|imath)\b|(?<![A-Za-z])i(?![A-Za-z])|"
+            r"\\(?:arg|Re|Im)\b",
+            candidate,
+        )
+    )
+
+
+def _parse_latex_number(text: str, sympy: Any) -> Any:
+    normalized = text.replace(",", "").strip()
+    if not _LATEX_NUMBER.fullmatch(normalized):
+        raise _MathParseError("invalid numeric token from LaTeX parser")
+    if "." in normalized or "E" in normalized:
+        return sympy.Float(normalized)
+    return sympy.Integer(normalized)
+
+
+def _parse_latex_expression(candidate: str, sympy: Any) -> Any:
+    from latex2sympy2_extended import (  # type: ignore[import-untyped]
+        NormalizationConfig,
+        normalize_latex,
+    )
+    from latex2sympy2_extended.latex2sympy2 import (  # type: ignore[import-untyped]
+        ConversionConfig,
+        _Latex2Sympy,
+    )
+
+    normalized_candidate = re.sub(
+        r"\\(?:left|right|Bigl|Bigr|bigl|bigr|Big|big|Large|large)\b",
+        "",
+        candidate,
+    )
+    normalized_candidate = normalize_latex(
+        normalized_candidate,
+        NormalizationConfig(
+            basic_latex=True,
+            units=True,
+            malformed_operators=True,
+            nits=True,
+            boxed="last",
+            equations=False,
+        ),
+    )
+
+    if _LATEX_COMMA_NUMBER.fullmatch(normalized_candidate):
+        return _parse_latex_number(normalized_candidate, sympy)
+
+    class _InspectLatex2Sympy(_Latex2Sympy):  # type: ignore[misc]
+        def parse_number(self, text: str) -> Any:
+            return _parse_latex_number(text, sympy)
+
+    converter = _InspectLatex2Sympy(
+        variable_values=None,
+        is_real=not _looks_complex(candidate),
+        convert_degrees=False,
+        config=ConversionConfig(
+            interpret_as_mixed_fractions=True,
+            interpret_simple_eq_as_assignment=False,
+            interpret_contains_as_eq=True,
+            lowercase_symbols=True,
+        ),
+    )
+
+    def parse() -> Any:
+        return converter.parse(normalized_candidate)
+
+    if _UNEVALUATED_LATEX_CONSTRUCTOR.search(normalized_candidate):
+        with sympy.evaluate(False):
+            return parse()
+    return parse()
+
+
+def _parse_expression(candidate: str, sympy: Any) -> Any | None:
+    try:
+        expression = _parse_plain_expression(candidate, sympy)
+    except _MathLimitError:
+        raise
+    except Exception:
+        expression = None
+
+    if expression is not None:
+        return expression
+
+    try:
+        return _parse_latex_expression(candidate, sympy)
+    except Exception:
         return None
 
 
-def _preprocess_latex_for_sympify(text: str) -> str:
-    """Apply iterative regex transformations to prepare LaTeX for sympify.
+def _percentage_base(candidate: str) -> str | None:
+    match = _PERCENT_SUFFIX.search(candidate)
+    if match is None:
+        return None
+    return candidate[: match.start()].rstrip() or None
 
-    Converts LaTeX commands (frac, sqrt, etc.) to Python-parseable format.
 
-    Args:
-        text: LaTeX text to preprocess.
+def _integer_too_large(value: Any) -> bool:
+    try:
+        return abs(int(value)).bit_length() > _MAX_INTEGER_BITS
+    except (TypeError, ValueError, OverflowError):
+        return True
 
-    Returns:
-        Preprocessed string ready for sympify.
-    """
-    # Fix missing braces and convert percentages
-    if bool(regex.search(_SQRT_MISSING_BRACES, text)):
-        text = regex.sub(_SQRT_MISSING_BRACES, r"sqrt{\1}", text)
-    if bool(regex.search(_FRAC_MISSING_BRACES, text)):
-        text = regex.sub(_FRAC_MISSING_BRACES, r"frac{\1}", text)
-    if bool(regex.search(r"%", text)):
-        text = regex.sub(_PERCENTAGE, r"(\1/100)", text)
 
-    latex_str = text
+def _validate_expression(expression: Any, sympy: Any) -> _ExpressionInfo:
+    if isinstance(expression, sympy.MatrixBase):
+        rows, columns = expression.shape
+        if rows * columns > _MAX_MATRIX_CELLS:
+            raise _MathLimitError("parsed matrix is too large")
+        roots = list(expression)
+    elif isinstance(expression, sympy.Basic):
+        roots = [expression]
+    else:
+        raise _MathParseError("parser returned an unsupported value")
 
-    # First pass: convert LaTeX commands to Python operators
-    # Run iteratively (max 5 times) to handle nested expressions
-    for _ in range(5):
-        init_str = latex_str
+    nodes = 0
+    symbols: set[str] = set()
+    expensive = False
+    stack = [(root, 1) for root in roots]
+    while stack:
+        node, depth = stack.pop()
+        nodes += 1
+        if nodes > _MAX_EXPRESSION_NODES:
+            raise _MathLimitError("parsed expression contains too many nodes")
+        if depth > _MAX_EXPRESSION_DEPTH:
+            raise _MathLimitError("parsed expression is nested too deeply")
 
-        # Convert fractions: \frac{1}{2} → (1)/(2)
-        latex_str = regex.sub(_LATEX_FRACTION, r"(\1)/(\2)", latex_str)
+        if isinstance(node, sympy.Integer) and _integer_too_large(node):
+            raise _MathLimitError("parsed integer is too large")
+        if isinstance(node, sympy.Rational) and (
+            _integer_too_large(node.p) or _integer_too_large(node.q)
+        ):
+            raise _MathLimitError("parsed rational is too large")
+        if isinstance(node, sympy.Symbol):
+            symbols.add(node.name)
+            if len(node.name) > _MAX_SYMBOL_CHARS:
+                raise _MathLimitError("parsed symbol is too long")
+            if len(symbols) > _MAX_SYMBOLS:
+                raise _MathLimitError("parsed expression contains too many symbols")
 
-        # Convert binomial coefficients: \binom{n}{k} → binomial(n, k)
-        latex_str = regex.sub(_LATEX_BINOM, r"binomial(\1, \2)", latex_str)
+        if isinstance(node, sympy.Pow):
+            exponent = node.exp
+            if isinstance(exponent, sympy.Integer):
+                try:
+                    if abs(int(exponent)) > _SYMBOLIC_POWER_EXPONENT_LIMIT:
+                        expensive = True
+                except (TypeError, ValueError, OverflowError):
+                    expensive = True
+            elif isinstance(exponent, sympy.Pow):
+                expensive = True
 
-        # Convert n-th roots: \sqrt[3]{8} → (8)**(1/(3))
-        latex_str = regex.sub(_LATEX_NTH_ROOT, r"(\2)**(1/(\1))", latex_str)
+        function_name = getattr(getattr(node, "func", None), "__name__", "")
+        if function_name == "factorial" and node.args:
+            argument = node.args[0]
+            if isinstance(argument, sympy.Integer):
+                try:
+                    value = abs(int(argument))
+                except (TypeError, ValueError, OverflowError):
+                    value = _MAX_FACTORIAL_ARGUMENT + 1
+                if value > _MAX_FACTORIAL_ARGUMENT:
+                    raise _MathLimitError("factorial argument is too large")
+                if value > 100:
+                    expensive = True
+        if function_name in {
+            "Derivative",
+            "Integral",
+            "Limit",
+            "Product",
+            "Sum",
+        }:
+            expensive = True
 
-        # Convert square roots: \sqrt{2} → (2)**(1/2)
-        latex_str = regex.sub(_LATEX_SQRT, r"(\1)**(1/2)", latex_str)
+        args = getattr(node, "args", ())
+        if len(args) > _MAX_EXPRESSION_ARGS:
+            raise _MathLimitError("parsed expression has too many arguments")
+        stack.extend((arg, depth + 1) for arg in args if isinstance(arg, sympy.Basic))
 
-        # Convert operators and constants
-        latex_str = latex_str.replace("^", "**")  # Exponentiation
-        latex_str = latex_str.replace("\\cdot", "*").replace("\\times", "*")
-        latex_str = (
-            latex_str.replace("\\pi", " pi ")  # Pi constant
-            .replace("\\e", " E ")  # Euler's number
-            .replace("\\i", " I ")  # Imaginary unit
+    return _ExpressionInfo(expensive=expensive)
+
+
+def _parse_candidate(candidate: str) -> _ParsedValue:
+    import sympy  # type: ignore[import-untyped]
+
+    candidate = _strip_delimiters(candidate)
+    _validate_candidate(candidate)
+
+    expression: Any | None = None
+    percentage_base = _percentage_base(candidate)
+    if percentage_base is not None:
+        expression = _parse_expression(percentage_base, sympy)
+        if expression is not None:
+            expression = sympy.Mul(
+                expression,
+                sympy.UnevaluatedExpr(sympy.Rational(1, 100)),
+                evaluate=False,
+            )
+
+    if expression is None and (
+        _looks_like_prose(candidate) or _is_short_composite_answer(candidate)
+    ):
+        return _ParsedValue(None, _normalize_text(candidate), candidate)
+
+    if expression is None:
+        expression = _parse_expression(candidate, sympy)
+
+    if expression is not None:
+        try:
+            info = _validate_expression(expression, sympy)
+        except _MathParseError:
+            raise
+        except Exception as ex:
+            raise _MathParseError("could not validate mathematical answer") from ex
+        return _ParsedValue(expression, None, candidate, info.expensive)
+
+    equation = _split_plain_equation(candidate)
+    if equation is not None:
+        _, right = equation
+        try:
+            return _parse_candidate(right)
+        except _MathParseError:
+            pass
+
+    normalized_text = _normalize_text(candidate)
+    if normalized_text and _WORD.search(normalized_text):
+        return _ParsedValue(None, normalized_text, candidate)
+    raise _MathParseError("could not parse mathematical answer")
+
+
+def _parse_first(candidates: list[str]) -> _ParsedValue:
+    parse_error: _MathParseError | None = None
+    for candidate in candidates:
+        try:
+            return _parse_candidate(candidate)
+        except (_MathLimitError, _MathUnsafeError):
+            raise
+        except _MathParseError as ex:
+            parse_error = ex
+    raise parse_error or _MathParseError("could not extract mathematical answer")
+
+
+def _is_numeric_expression(expression: Any, sympy: Any) -> bool:
+    return isinstance(expression, sympy.Expr) and not expression.free_symbols
+
+
+def _numeric_equivalent(left: Any, right: Any, sympy: Any) -> bool:
+    if not (
+        _is_numeric_expression(left, sympy) and _is_numeric_expression(right, sympy)
+    ):
+        return False
+    try:
+        left_value = complex(sympy.N(left, 30))
+        right_value = complex(sympy.N(right, 30))
+        if not all(
+            stdlib_math.isfinite(value)
+            for value in (
+                left_value.real,
+                left_value.imag,
+                right_value.real,
+                right_value.imag,
+            )
+        ):
+            return False
+        error = abs(left_value - right_value)
+        scale = max(abs(left_value), abs(right_value), 1e-10)
+        return error < 1e-10 or error / scale < 1e-10
+    except (ArithmeticError, TypeError, ValueError):
+        return False
+
+
+def _expression_equivalent(left: _ParsedValue, right: _ParsedValue, sympy: Any) -> bool:
+    if left.text is not None or right.text is not None:
+        return (
+            left.text is not None and right.text is not None and left.text == right.text
         )
-        latex_str = regex.sub(_IMAGINARY_I, "I", latex_str)  # Standalone 'i' → 'I'
 
-        # Stop if no changes (convergence)
-        if init_str == latex_str:
-            break
+    left_expression = left.expression
+    right_expression = right.expression
+    if left_expression is None or right_expression is None:
+        return False
 
-    # Second pass: handle remaining braces and operators
-    # This catches any nested expressions that emerged from the first pass
-    for _ in range(5):
-        init_str = latex_str
-
-        # Convert braced digits to parens: {42} → (42)
-        latex_str = regex.sub(_BRACED_DIGITS, r"(\1)", latex_str)
-
-        # Repeat LaTeX command conversions for newly exposed nested content
-        latex_str = regex.sub(_LATEX_FRACTION, r"(\1)/(\2)", latex_str)
-        latex_str = regex.sub(_LATEX_BINOM, r"binomial(\1, \2)", latex_str)
-        latex_str = regex.sub(_LATEX_NTH_ROOT, r"(\2)**(1/(\1))", latex_str)
-        latex_str = regex.sub(_LATEX_SQRT, r"(\1)**(1/2)", latex_str)
-
-        # Re-apply operator conversions
-        latex_str = latex_str.replace("^", "**")
-        latex_str = latex_str.replace("\\cdot", "*").replace("\\times", "*")
-        latex_str = (
-            latex_str.replace("\\pi", " pi ")
-            .replace("\\e", " E ")
-            .replace("\\i", " I ")
+    if isinstance(right_expression, sympy.Equality) and not bool(
+        getattr(left_expression, "is_Relational", False)
+    ):
+        right = _ParsedValue(
+            right_expression.rhs,
+            None,
+            right.source,
+            right.expensive,
         )
-        latex_str = regex.sub(_IMAGINARY_I, "I", latex_str)
+        right_expression = right.expression
 
-        if init_str == latex_str:
-            break
+    try:
+        if left_expression == right_expression:
+            return True
+    except Exception:
+        pass
 
-    # Add explicit multiplication where it's implicit in mathematical notation
-    # Example: 2(x+1) → 2*(x+1), (x+1)2 → (x+1)*2, 2x → 2*x
-    latex_str = regex.sub(_IMPLICIT_MULT_BEFORE_PAREN, r"\1*(", latex_str)
-    latex_str = regex.sub(_IMPLICIT_MULT_AFTER_PAREN, r")*\1", latex_str)
-    latex_str = regex.sub(_IMPLICIT_MULT_DIGIT_VAR, r"*\1", latex_str)
-    latex_str = regex.sub(_IMPLICIT_MULT_VAR_DIGIT, r"\1*", latex_str)
+    if left.expensive or right.expensive:
+        return False
 
-    # Convert remaining braces to Python lists (for set notation)
-    # Example: {1, 2, 3} → [1, 2, 3]
-    latex_str = regex.sub(
-        _BRACES_TO_LIST,
-        lambda m: "[" + m.group(1).replace(",", ", ") + "]",
-        latex_str,
+    if isinstance(left_expression, sympy.MatrixBase) or isinstance(
+        right_expression, sympy.MatrixBase
+    ):
+        if not (
+            isinstance(left_expression, sympy.MatrixBase)
+            and isinstance(right_expression, sympy.MatrixBase)
+            and left_expression.shape == right_expression.shape
+        ):
+            return False
+        return all(
+            _expression_equivalent(
+                _ParsedValue(left_item, None, left.source),
+                _ParsedValue(right_item, None, right.source),
+                sympy,
+            )
+            for left_item, right_item in zip(
+                left_expression, right_expression, strict=True
+            )
+        )
+
+    try:
+        equals = left_expression.equals(right_expression)
+        if equals is True:
+            return True
+    except Exception:
+        pass
+
+    return _numeric_equivalent(left_expression, right_expression, sympy)
+
+
+def _parse_targets_worker(targets: tuple[str, ...]) -> str | None:
+    from sympy.core.cache import clear_cache  # type: ignore[import-untyped]
+
+    try:
+        if not targets:
+            return "target is empty"
+        last_error: _MathParseError | None = None
+        for target in targets:
+            try:
+                _parse_first(_target_candidates(target))
+                return None
+            except _MathParseError as ex:
+                last_error = ex
+        return str(last_error or "could not parse mathematical target")
+    finally:
+        clear_cache()
+
+
+def _score_answer_worker(completion: str, targets: tuple[str, ...]) -> _WorkerScore:
+    import sympy  # type: ignore[import-untyped]
+    from sympy.core.cache import clear_cache  # type: ignore[import-untyped]
+
+    try:
+        try:
+            answer = _parse_first(_answer_candidates(completion))
+        except _MathLimitError as ex:
+            return _WorkerScore("answer_limit", None, str(ex))
+        except _MathParseError as ex:
+            return _WorkerScore("answer_parse_error", None, str(ex))
+
+        parsed_targets: list[_ParsedValue] = []
+        for target_text in targets:
+            try:
+                parsed_targets.append(_parse_first(_target_candidates(target_text)))
+            except _MathParseError:
+                continue
+        if not parsed_targets:
+            raise RuntimeError("validated math target could not be reparsed")
+        correct = any(
+            _expression_equivalent(target_value, answer, sympy)
+            for target_value in parsed_targets
+        )
+        return _WorkerScore(
+            "correct" if correct else "incorrect",
+            answer.source[:_MAX_CANDIDATE_CHARS],
+        )
+    finally:
+        clear_cache()
+
+
+def _dependency_error() -> Exception:
+    return pip_dependency_error(
+        "math() scorer", [f"{_PARSER_PACKAGE}=={_PARSER_VERSION}"]
     )
 
-    return latex_str
+
+def _supported_antlr_version(installed: str) -> bool:
+    return (
+        installed == "4.9.3" or installed.startswith("4.11.") or installed == "4.13.2"
+    )
 
 
-# ============================================================================
-# STAGE 5: COMPARISON
-# ============================================================================
+def _check_dependency() -> None:
+    from importlib.metadata import PackageNotFoundError, version
 
-# Note: Functions _sympify_latex, latex2sympy_fixed, parse_primitives,
-# check_answers, parse_answer, and extract_answer are defined within the
-# math() scorer function below since they require the sympy optional dependency.
+    try:
+        parser_version = version(_PARSER_PACKAGE)
+        antlr_version = version(_ANTLR_PACKAGE)
+    except PackageNotFoundError:
+        raise _dependency_error() from None
+
+    if parser_version != _PARSER_VERSION:
+        raise PrerequisiteError(
+            f"ERROR: math() scorer requires {_PARSER_PACKAGE}=={_PARSER_VERSION} "
+            f"(you have {parser_version}).\n\n"
+            f"Install with: pip install {_PARSER_PACKAGE}=={_PARSER_VERSION}"
+        )
+
+    if not _supported_antlr_version(antlr_version):
+        raise PrerequisiteError(
+            f"ERROR: math() scorer requires {_ANTLR_PACKAGE} 4.9.3, 4.11.x, "
+            f"or 4.13.2 (you have {antlr_version}).\n\n"
+            f'Install with: pip install "{_ANTLR_REQUIREMENT}"'
+        )
+
+    try:
+        import latex2sympy2_extended  # noqa: F401
+        import sympy  # noqa: F401
+    except ImportError:
+        raise _dependency_error() from None
 
 
-# ============================================================================
-# PUBLIC API
-# ============================================================================
+def _status_metadata(status: str) -> dict[str, str]:
+    return {"math_scorer_status": status}
 
 
 @scorer(metrics=[accuracy(), stderr()])
 def math() -> Scorer:
     """Create a mathematical expression scorer.
 
-    Extracts answers from model output and compares them to target answers
-    using mathematical equivalence checking.
-
-    Returns:
-        Scorer function for evaluating mathematical answers.
+    Extracts a bounded final answer from model output, parses it without
+    evaluating Python, and compares it to each target under bounded symbolic
+    work.
     """
-    try:
-        import sympy  # type: ignore
-        from sympy import N  # type: ignore
-        from sympy.parsing.latex import parse_latex  # type: ignore
-        from sympy.parsing.sympy_parser import (  # type: ignore
-            implicit_application,  # type: ignore
-            implicit_multiplication_application,  # type: ignore
-            parse_expr,  # type: ignore
-            standard_transformations,  # type: ignore
-        )
-    except ImportError:
-        raise pip_dependency_error("math() scorer", ["sympy"]) from None
-
-    def _sympify_latex(latex_str: str) -> Any:
-        """Convert preprocessed LaTeX string to SymPy expression.
-
-        Args:
-            latex_str: Preprocessed LaTeX string.
-
-        Returns:
-            SymPy expression or None if conversion fails.
-        """
-        try:
-            if latex_str == "None":
-                return sympy.core.symbol.Symbol("None")
-            else:
-                transformations = standard_transformations + (
-                    implicit_multiplication_application,
-                    implicit_application,
-                )
-                latex_str = parse_expr(latex_str, transformations=transformations)
-                return sympy.sympify(
-                    latex_str,
-                    locals={  # type: ignore[arg-type]
-                        "binomial": sympy.binomial,
-                        "pi": sympy.pi,
-                        "E": sympy.E,
-                        "e": sympy.E,
-                        "I": sympy.I,
-                    },
-                )
-        except Exception as e:
-            print(f"Couldn't parse {latex_str} with sympify: {e}")
-            return None
-
-    def latex2sympy_fixed(latex: str) -> Any:
-        """Fallback parser using SymPy's native LaTeX parser.
-
-        Args:
-            latex: LaTeX string to parse.
-
-        Returns:
-            SymPy expression with constants replaced.
-        """
-        # Fix subscripts: _123 → _{123}
-        # Pattern: _([0-9]+)
-        # Explanation: Match underscore followed by digits without braces
-        #   - _         : Underscore (subscript in LaTeX)
-        #   - ([0-9]+)  : One or more digits
-        #   Example: "x_123" → "x_{123}"
-        latex = regex.sub(r"_([0-9]+)", r"_{\1}", latex)
-        latex_parsed = parse_latex(latex)
-        # replace constants like pi and e with their numerical value
-        known_constants: dict[str, Any] = {
-            "pi": sympy.pi,
-            "e": sympy.E,
-            "I": 1j,
-            "i": 1j,
-        }
-
-        # Replace any symbol in expr that is in our known_constants dictionary.
-        if latex_parsed is not None:
-            expr = latex_parsed.xreplace(
-                {
-                    s: known_constants[s.name]
-                    for s in latex_parsed.free_symbols
-                    if s.name in known_constants
-                }
-            )
-            return expr
-        return latex_parsed
-
-    def parse_primitives(text: str) -> Any:
-        """Parse mathematical text into SymPy expression.
-
-        Pipeline:
-        1. Try integer parsing
-        2. Try float parsing
-        3. Try sympify with LaTeX preprocessing (primary method)
-        4. Fall back to latex2sympy_fixed() (backup method)
-
-        Args:
-            text: Mathematical text to parse.
-
-        Returns:
-            Parsed expression (int, float, complex, or SymPy object) or None.
-        """
-        # Step 1: Try simple integer parsing
-        int_result = _parse_integer(text)
-        if int_result is not None:
-            return int_result
-
-        # Step 2: Try float parsing
-        float_result = _parse_float(text)
-        if float_result is not None:
-            return float_result
-
-        # Step 3: Try sympify with LaTeX preprocessing (primary method)
-        latex_str = _preprocess_latex_for_sympify(text)
-        sympy_result = _sympify_latex(latex_str)
-        if sympy_result is not None:
-            return sympy_result
-
-        # Step 4: Fall back to latex2sympy_fixed (backup method)
-        text_no_eq = text
-        try:
-            if "=" in text_no_eq:
-                # rfind is used to remove the last occurence of "="
-                text_no_eq = text_no_eq[text_no_eq.rfind("=") + 1 :]
-            output_val = latex2sympy_fixed(text_no_eq)
-
-            try:
-                float_val = float(N(output_val, 101))
-                if (
-                    float_val.is_integer()
-                    or float("inf") == float_val
-                    or float("-inf") == float_val
-                ):
-                    return int(
-                        N(latex2sympy_fixed(text_no_eq), 50001)
-                    )  # important for large ints
-                return float_val
-            except:  # noqa: E722
-                try:
-                    complex_val = complex(N(output_val, 101))
-                    return complex_val
-                except:  # noqa: E722
-                    return output_val
-        except Exception as e:
-            print(f"Error: Custom parsing error {e}, {text_no_eq}")
-            return None
-
-    def check_answers(ans1: Any, ans2: Any) -> bool:
-        """Check if two parsed answers are mathematically equivalent.
-
-        Uses SymPy's equals() method when available, otherwise uses
-        approximate equality for numerical values.
-
-        Args:
-            ans1: First parsed answer.
-            ans2: Second parsed answer.
-
-        Returns:
-            True if answers are equivalent, False otherwise.
-        """
-
-        def _both_have_equals(a: Any, b: Any) -> bool:
-            return (
-                hasattr(a, "equals")
-                and callable(getattr(a, "equals"))
-                and hasattr(b, "equals")
-                and callable(getattr(b, "equals"))
-            )
-
-        def _approx_equal(ans1: Any, ans2: Any) -> bool:
-            err = abs(N(ans1 - ans2))
-            if err >= 1e-10:
-                return False
-            denom = max(abs(N(ans1)), abs(N(ans2)))
-            if denom < 1e-10:
-                return True
-            return bool(err / denom < 1e-10)
-
-        if ans1 is None or ans2 is None:
-            return False
-        if isinstance(ans1, list) != isinstance(ans2, list):
-            return False
-        if isinstance(ans1, list) and isinstance(ans2, list):
-            # Lists arise from brace-delimited sets like "{1, 2}", so compare
-            # as multisets: sort by string repr (elements may be heterogeneous
-            # SymPy / numeric types) and check element-wise equivalence.
-            if len(ans1) != len(ans2):
-                return False
-            sorted1 = sorted(ans1, key=str)
-            sorted2 = sorted(ans2, key=str)
-            return all(check_answers(a, b) for a, b in zip(sorted1, sorted2))
-
-        try:
-            if _both_have_equals(ans1, ans2):
-                return bool(ans1.equals(ans2))  # type: ignore[union-attr]
-            if isinstance(ans1, str) or isinstance(ans2, str):
-                return bool(ans1 == ans2)
-            return _approx_equal(ans1, ans2)
-        except Exception:
-            return False
-
-    def parse_answer(text: str) -> Any:
-        """Parse a mathematical answer string into a SymPy expression.
-
-        Pipeline: Normalization → Parsing
-
-        Args:
-            text: Mathematical text to parse.
-
-        Returns:
-            Parsed expression or None.
-        """
-        text_normalized_1 = remove_invalid_characters(text)
-        text_normalized_2 = remove_outer_brackets(normalize_string(text_normalized_1))
-        answer = parse_primitives(text_normalized_2)
-        return answer
-
-    def extract_answer(text: str) -> Any:
-        """Extract and parse the final answer from model output.
-
-        Pipeline: Preprocessing → Extraction → Normalization → Parsing
-
-        Args:
-            text: Raw model output text.
-
-        Returns:
-            Parsed answer or None.
-        """
-        text_normalized = replace_unicode(text)
-
-        # Try to extract boxed content first
-        answer = find_last_boxed_content(text_normalized)
-
-        # If no boxed content, use the full text
-        if answer is None:
-            answer = text_normalized
-
-        # Check for multiple equals signs (ambiguous)
-        if answer.count("=") > 1:
-            print(f"Warning: more than one '=' in answer {answer}")
-            return None
-
-        # Try to parse the extracted/normalized answer
-        parsed_answer = parse_answer(answer)
-
-        # If parsing succeeded, validate it's not nonsense
-        if parsed_answer is not None:
-            # Check if the result contains unexpected free symbols (variables)
-            # Expected symbols: I (imaginary unit), pi, E (Euler's number)
-            # If we have other symbols, it's likely garbage from parsing plain text
-            if hasattr(parsed_answer, "free_symbols"):
-                unexpected_symbols = {
-                    s.name
-                    for s in parsed_answer.free_symbols
-                    if s.name not in {"I", "pi", "E", "e"}
-                }
-                # If there are unexpected symbols, the parser interpreted
-                # plain text as variables (e.g., "The answer is 42" → T*h*e*...)
-                # In this case, reject the parse and fall back to integer extraction
-                if not unexpected_symbols:
-                    return parsed_answer
-            else:
-                # No free symbols (it's a number), return it
-                return parsed_answer
-
-        # Fallback 1: Try to extract integer from the answer string
-        integer_from_answer = extract_last_integer(answer)
-        if integer_from_answer is not None:
-            return integer_from_answer
-
-        # Fallback 2: Try to extract integer from the full normalized text
-        # (in case the answer extraction was too restrictive)
-        return extract_last_integer(text_normalized)
+    _check_dependency()
 
     async def score(state: TaskState, target: Target) -> Score:
-        result = extract_answer(state.output.completion)
-        target_expr = parse_answer(target.text)
+        worker = _math_worker_context()
+        targets = tuple(target)
+        try:
+            async with worker.queue:
+                target_timeout = (
+                    _TARGET_TIMEOUT_SECONDS
+                    if worker.started
+                    else _COLD_WORKER_TIMEOUT_SECONDS
+                )
+                with anyio.fail_after(target_timeout):
+                    target_error = await run_sync(
+                        _parse_targets_worker,
+                        targets,
+                        cancellable=True,
+                        limiter=worker.process_limiter,
+                    )
+            worker.started = True
+        except TimeoutError:
+            worker.started = False
+            return Score.unscored(
+                explanation="Mathematical target exceeded the parsing time limit.",
+                metadata=_status_metadata("target_timeout"),
+            )
+        except anyio.BrokenWorkerProcess as ex:
+            worker.started = False
+            raise RuntimeError(
+                "math() scorer worker process exited unexpectedly while parsing "
+                "the target."
+            ) from ex
 
-        if check_answers(result, target_expr):
-            return Score(
-                value=CORRECT,
-                answer=str(result),
-                explanation=state.output.completion,
+        if target_error is not None:
+            return Score.unscored(
+                explanation=f"Could not parse mathematical target: {target_error}.",
+                metadata=_status_metadata("target_parse_error"),
             )
 
+        try:
+            async with worker.queue:
+                with anyio.fail_after(_ANSWER_TIMEOUT_SECONDS):
+                    result = await run_sync(
+                        _score_answer_worker,
+                        state.output.completion,
+                        targets,
+                        cancellable=True,
+                        limiter=worker.process_limiter,
+                    )
+        except TimeoutError:
+            worker.started = False
+            return Score(
+                value=INCORRECT,
+                explanation="Mathematical answer exceeded the scoring time limit.",
+                metadata=_status_metadata("answer_timeout"),
+            )
+        except anyio.BrokenWorkerProcess as ex:
+            worker.started = False
+            raise RuntimeError(
+                "math() scorer worker process exited unexpectedly while scoring "
+                "the model answer."
+            ) from ex
+
+        if result.status == "correct":
+            return Score(
+                value=CORRECT,
+                answer=result.answer,
+                explanation=state.output.completion,
+                metadata=_status_metadata(result.status),
+            )
+        if result.status == "incorrect":
+            return Score(
+                value=INCORRECT,
+                answer=result.answer,
+                explanation=state.output.completion,
+                metadata=_status_metadata(result.status),
+            )
         return Score(
             value=INCORRECT,
-            answer=str(result),
-            explanation=state.output.completion,
+            answer=result.answer,
+            explanation=(
+                f"Could not parse mathematical answer: {result.reason}."
+                if result.status == "answer_parse_error"
+                else f"Mathematical answer exceeded a complexity limit: {result.reason}."
+            ),
+            metadata=_status_metadata(result.status),
         )
 
     return score
