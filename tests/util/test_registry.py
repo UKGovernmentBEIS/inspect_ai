@@ -1,3 +1,5 @@
+from typing import Any
+
 from inspect_ai import Task, eval, task
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
@@ -123,6 +125,16 @@ def test_registry_kwargs() -> None:
 def _extract(fn, *args, **kwargs):
     """Helper to call extract_named_params with apply_defaults=True."""
     return extract_named_params(fn, True, *args, **kwargs)
+
+
+def test_extract_named_params_flattens_kwargs() -> None:
+    # Regression test for #4374: **kwargs are captured at the top level so a
+    # registry round-trip replays them as keyword arguments, rather than
+    # re-nesting them under the variadic parameter's name on each round-trip.
+    def factory(template: str, **kwargs: Any) -> None: ...
+
+    params = extract_named_params(factory, False, "t", value="correct", n=3)
+    assert params == {"template": "t", "value": "correct", "n": 3}
 
 
 def test_repr_params_serialization() -> None:

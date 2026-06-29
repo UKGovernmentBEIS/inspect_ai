@@ -134,14 +134,24 @@ def extract_named_params(
     # bind arguments to params
     named_params: dict[str, Any] = {}
 
+    signature = inspect.signature(type)
     if apply_defaults:
-        bound_params = inspect.signature(type).bind_partial(*args, **kwargs)
+        bound_params = signature.bind_partial(*args, **kwargs)
         bound_params.apply_defaults()
     else:
-        bound_params = inspect.signature(type).bind(*args, **kwargs)
+        bound_params = signature.bind(*args, **kwargs)
 
     for param, value in bound_params.arguments.items():
-        named_params[param] = registry_value(value)
+        kind = signature.parameters[param].kind
+        # Flatten **kwargs into the top level rather than nesting it under the
+        # variadic parameter's name. Otherwise a registry round-trip replays the
+        # captured dict as a keyword arg literally named after the variadic
+        # parameter, re-nesting it on every round-trip (#4374).
+        if kind == inspect.Parameter.VAR_KEYWORD and isinstance(value, dict):
+            for kwarg, kwarg_value in value.items():
+                named_params[kwarg] = registry_value(kwarg_value)
+        else:
+            named_params[param] = registry_value(value)
 
     # callables are not serializable so use their names
     for param in named_params.keys():
