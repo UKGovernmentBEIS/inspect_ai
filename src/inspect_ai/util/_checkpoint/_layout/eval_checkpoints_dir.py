@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from inspect_ai._util.file import basename, dirname
 
-from ..config import CheckpointConfig
+from ..config import CheckpointConfig, checkpoint_vetoed
 
 _LOG_SUFFIX = ".eval"
 _RECOVERED_SUFFIX = "-recovered"
@@ -63,6 +63,10 @@ def eval_checkpoints_dir_from_config(
     honoring an explicit ``checkpoints_location`` override (eval layer
     wins over task; sample layer cannot set this field).
     """
+    # A task- or eval-layer veto (checkpoint=False) means no checkpoints dir,
+    # so a vetoed task neither writes checkpoints nor resumes.
+    if checkpoint_vetoed(task, eval_):
+        return None
     if task is None and eval_ is None:
         return None
     override: str | None = None

@@ -296,3 +296,36 @@ def test_veto_is_per_task_not_eval_wide() -> None:
     eval_cfg = CheckpointConfig(trigger=TurnInterval(every=1))
     assert merge_checkpoint_configs(CheckpointDisabled(), None, eval_cfg) is None
     assert merge_checkpoint_configs(None, None, eval_cfg) is not None
+
+
+def test_eval_dir_task_veto_returns_none() -> None:
+    from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
+        eval_checkpoints_dir_from_config,
+    )
+    from inspect_ai.util._checkpoint.config import CheckpointDisabled
+
+    out = eval_checkpoints_dir_from_config(
+        "/logs/run.eval",
+        CheckpointDisabled(),
+        CheckpointConfig(trigger=TurnInterval(every=1)),
+    )
+    assert out is None
+
+
+def test_eval_dir_enabled_returns_dir() -> None:
+    from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
+        eval_checkpoints_dir_from_config,
+    )
+
+    out = eval_checkpoints_dir_from_config(
+        "/logs/run.eval", None, CheckpointConfig(trigger=TurnInterval(every=1))
+    )
+    assert out is not None
+
+
+def test_eval_dir_no_config_returns_none() -> None:
+    from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
+        eval_checkpoints_dir_from_config,
+    )
+
+    assert eval_checkpoints_dir_from_config("/logs/run.eval", None, None) is None
