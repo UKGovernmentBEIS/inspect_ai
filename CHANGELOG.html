@@ -194,16 +194,16 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.241 (22 June 2026)</a></li>
-  <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.240 (15 June 2026)</a></li>
-  <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.239 (09 June 2026)</a></li>
-  <li><a href="#june-2026-3" id="toc-june-2026-3" class="nav-link" data-scroll-target="#june-2026-3">0.3.238 (08 June 2026)</a></li>
-  <li><a href="#june-2026-4" id="toc-june-2026-4" class="nav-link" data-scroll-target="#june-2026-4">0.3.237 (07 June 2026)</a></li>
-  <li><a href="#june-2026-5" id="toc-june-2026-5" class="nav-link" data-scroll-target="#june-2026-5">0.3.236 (06 June 2026)</a></li>
-  <li><a href="#june-2026-6" id="toc-june-2026-6" class="nav-link" data-scroll-target="#june-2026-6">0.3.235 (03 June 2026)</a></li>
-  <li><a href="#june-2026-7" id="toc-june-2026-7" class="nav-link" data-scroll-target="#june-2026-7">0.3.234 (02 June 2026)</a></li>
-  <li><a href="#june-2026-8" id="toc-june-2026-8" class="nav-link" data-scroll-target="#june-2026-8">0.3.233 (01 June 2026)</a></li>
+  <li><a href="#june-2026" id="toc-june-2026" class="nav-link active" data-scroll-target="#june-2026">0.3.242 (29 June 2026)</a></li>
+  <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.241 (22 June 2026)</a></li>
+  <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.240 (15 June 2026)</a></li>
+  <li><a href="#june-2026-3" id="toc-june-2026-3" class="nav-link" data-scroll-target="#june-2026-3">0.3.239 (09 June 2026)</a></li>
+  <li><a href="#june-2026-4" id="toc-june-2026-4" class="nav-link" data-scroll-target="#june-2026-4">0.3.238 (08 June 2026)</a></li>
+  <li><a href="#june-2026-5" id="toc-june-2026-5" class="nav-link" data-scroll-target="#june-2026-5">0.3.237 (07 June 2026)</a></li>
+  <li><a href="#june-2026-6" id="toc-june-2026-6" class="nav-link" data-scroll-target="#june-2026-6">0.3.236 (06 June 2026)</a></li>
+  <li><a href="#june-2026-7" id="toc-june-2026-7" class="nav-link" data-scroll-target="#june-2026-7">0.3.235 (03 June 2026)</a></li>
+  <li><a href="#june-2026-8" id="toc-june-2026-8" class="nav-link" data-scroll-target="#june-2026-8">0.3.234 (02 June 2026)</a></li>
+  <li><a href="#june-2026-9" id="toc-june-2026-9" class="nav-link" data-scroll-target="#june-2026-9">0.3.233 (01 June 2026)</a></li>
   <li><a href="#may-2026" id="toc-may-2026" class="nav-link" data-scroll-target="#may-2026">0.3.232 (31 May 2026)</a></li>
   <li><a href="#may-2026-1" id="toc-may-2026-1" class="nav-link" data-scroll-target="#may-2026-1">0.3.231 (30 May 2026)</a></li>
   <li><a href="#may-2026-2" id="toc-may-2026-2" class="nav-link" data-scroll-target="#may-2026-2">0.3.230 (30 May 2026)</a></li>
@@ -442,42 +442,51 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="june-2026" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026">0.3.242 (29 June 2026)</h2>
 <ul>
 <li>Log: Shared sample buffer files synced to S3 (via <code>--log-shared</code>) are now tagged <code>inspect-ephemeral=true</code> so they can be targeted by an S3 lifecycle rule.</li>
 <li>Log: Reading sample summaries from an in-progress <code>.eval</code> on a remote filesystem (e.g.&nbsp;S3) now fetches the per-sample journal summary files concurrently, reducing load time for logs with many samples.</li>
 <li>Log: Sample event condensing is now linear, not quadratic, in conversation length.</li>
 <li>Eval: Warn when non-empty <code>task_args</code> are passed but cannot be applied to any task. (#4194)</li>
+<li>Eval Set: Fix <code>KeyError</code> at finalisation when a provider rewrites its own model name mid-run (e.g.&nbsp;vLLM resolving a <code>base:adapter</code> LoRA spec to <code>base</code>).</li>
+<li>Eval Logs: Add <code>read_eval_log_samples_by_id()</code> to concurrently read a specific subset of samples by <code>(id, epoch)</code> (#2873).</li>
 <li>Model API: Keep the connection-pool/adaptive-concurrency scope stable when a provider’s <code>api_key</code> is a short-lived credential.</li>
 <li>HuggingFace: Forward an explicitly supplied API key when loading tokenizers for private or gated models.</li>
+<li>HuggingFace: Fixed model weights being loaded a second time (wasting GPU memory and risking OOM) when recording usage, checking the context window for compaction, or validating cost limits.</li>
 <li>NNterp: Forward an explicitly supplied API key when loading private or gated Hugging Face models and tokenizers.</li>
 <li>OpenAI-compatible providers: Report the source environment variable (e.g.&nbsp;<code>CLOUDFLARE_API_TOKEN</code>, <code>HF_TOKEN</code>) to API key override hooks rather than the derived <code>*_API_KEY</code> name.</li>
 <li>AzureAI: Offer <code>AZUREAI_API_KEY</code> values to API key override hooks.</li>
 <li>AzureAI: Honor an explicitly supplied <code>api_key</code> instead of replacing it with an environment credential.</li>
 <li>Google: Retry truncated response streams (<code>ClientPayloadError</code> wrapping a <code>PayloadEncodingError</code>, e.g.&nbsp;a connection reset mid-body) instead of crashing the sample.</li>
+<li>Model Info: Look up custom cost/info registrations under both the user-facing model string and the canonical name, so configured costs aren’t dropped for routed providers (e.g.&nbsp;<code>together</code>, <code>hf-inference-providers</code>, custom routed providers).</li>
+<li>Agent Bridge: Forward the Google <code>generationConfig</code> structured-output schema (<code>responseSchema</code>/<code>responseJsonSchema</code>) instead of dropping it.</li>
+<li>Agent Bridge: Forward Anthropic <code>output_config.effort</code> for adaptive thinking.</li>
 <li>Sandbox Tools: Lower the glibc build floor from 2.31 to 2.17 (build against a conda-forge CPython) so injected tools run on older glibc sandboxes including Ubuntu 16.04 and 18.04.</li>
 <li>Control Channel: <code>inspect ctl tasks</code> now pins each eval’s reported start to its first sample’s start instead of letting it drift forward as early samples finish.</li>
 <li>Control Channel: <code>inspect ctl</code> reads now use a 15s timeout and retry a busy eval up to 8 times (printing a status on each timeout) before failing with a non-zero exit, instead of silently dropping a momentarily-unresponsive eval from the listing.</li>
 <li>Control Channel: Stop printing a misleading “Control server did not shut down cleanly” warning when an eval is interrupted with Ctrl-C (the cancellation is now re-raised as the expected teardown it is).</li>
-<li>Inspect view: Require frontend-only headers for mutations and use non-GET routes for log deletion and client messages.</li>
-<li>Inspect view: Improve MathJax Sanitization</li>
-<li>Inspect view: Fix stale running status on nav</li>
-<li>Inspect view: Fix broken commit links for ssh-style GitHub origins</li>
-<li>Inspect view: Cap oversized tool/text output to prevent resize layerization stalls</li>
-<li>Inspect view: Fix event panel nav pills never expanding back from picker mode</li>
-<li>Inspect view: Fix inline MathJax stacking under inherited white-space: pre-wrap</li>
-<li>Inspect view: guard Inspect view mutation requests</li>
 <li>Scoring: Support <code>model</code> and <code>model_roles</code> overrides for re-scoring (<code>inspect score --model</code> / <code>--model-role</code>).</li>
+<li>Scoring: Harden default model-graded verdict extraction so words ending in “grade”, zero-width formatting marks around the verdict separator, and lowercase verdict letters no longer silently score incorrectly.</li>
 <li>Sandbox: <code>self_check</code> now verifies that a large (~1 MiB) command argument round-trips correctly through <code>exec</code>.</li>
-<li>Bug fix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.</li>
-<li>Bug fix: Make the no-op trailing-separator strip in <code>FileSystem.is_writeable()</code> actually take effect, avoiding a double-separator write-test path for direct callers.</li>
+<li>Sandbox: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#override_sandbox_output_limit">override_sandbox_output_limit()</a></span> context manager to temporarily raise the exec-output and/or read-file size caps for the current context.</li>
+<li>Inspect View: Require frontend-only headers for mutations and use non-GET routes for log deletion and client messages.</li>
+<li>Inspect View: Improve MathJax Sanitization</li>
+<li>Inspect View: Fix stale running status on nav</li>
+<li>Inspect View: Fix broken commit links for ssh-style GitHub origins</li>
+<li>Inspect View: Cap oversized tool/text output to prevent resize layerization stalls</li>
+<li>Inspect View: Fix event panel nav pills never expanding back from picker mode</li>
+<li>Inspect View: Fix inline MathJax stacking under inherited white-space: pre-wrap</li>
+<li>Inspect View: guard Inspect view mutation requests</li>
 <li>Security: <code>git_context()</code> now redacts credentials embedded in the git remote URL (e.g.&nbsp;<code>https://user:token@host</code>) before recording <code>origin</code>, preventing tokens from leaking into eval logs and downstream consumers.</li>
 <li>Security: Apply the <code>data</code> tar filter when extracting sandbox checkpoint egress tarballs on the host, preventing a sandboxed agent from writing files outside the destination repo via crafted <code>..</code>/absolute-path/symlink entries.</li>
+<li>Bugfix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.</li>
+<li>Bugfix: Make the no-op trailing-separator strip in <code>FileSystem.is_writeable()</code> actually take effect, avoiding a double-separator write-test path for direct callers.</li>
+<li>Bugfix: Header-only reads of <code>.json</code> eval logs no longer parse the entire <code>samples</code> array, making header reads of large logs dramatically faster (e.g.&nbsp;a 29MB S3 log: ~47s -&gt; ~0.4s).</li>
 </ul>
 </section>
-<section id="june-2026" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026">0.3.241 (22 June 2026)</h2>
+<section id="june-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-1">0.3.241 (22 June 2026)</h2>
 <ul>
 <li>Task Sources: Drive a running eval from code with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span>.</li>
 <li>Checkpointing: Added support for periodically saving sample state so long-running evals can resume mid-sample after a crash.</li>
@@ -506,8 +515,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#subprocess">subprocess()</a></span> no longer deadlocks on timeout/cancel when asyncio’s child watcher misses the process exit (observed under heavy <code>docker compose exec</code> load); the shielded post-kill <code>process.wait()</code> is now bounded.</li>
 </ul>
 </section>
-<section id="june-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-1">0.3.240 (15 June 2026)</h2>
+<section id="june-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-2">0.3.240 (15 June 2026)</h2>
 <ul>
 <li>Anthropic: Support for server-side refusal fallback via the <code>fallback_models</code> generate config (Claude 5+ on the first-party Anthropic API).</li>
 <li>Anthropic: <code>cache_ttl</code> model arg for specifying the prompt cache TTL (“5m” or “1h”).</li>
@@ -539,14 +548,14 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix a rare <code>OperationalError: unable to open database file</code> when concurrent evals share a log directory.</li>
 </ul>
 </section>
-<section id="june-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-2">0.3.239 (09 June 2026)</h2>
+<section id="june-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-3">0.3.239 (09 June 2026)</h2>
 <ul>
 <li>Anthropic: Explicitly classify Claude 5 (Fable/Mythos) models instead of relying on “latest”</li>
 </ul>
 </section>
-<section id="june-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-3">0.3.238 (08 June 2026)</h2>
+<section id="june-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-4">0.3.238 (08 June 2026)</h2>
 <ul>
 <li>Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled.</li>
 <li>ACP: Render tool calls for agent-bridge agents (e.g.&nbsp;<code>claude_code</code>, <code>codex_cli</code>).</li>
@@ -562,8 +571,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Improve log list responsiveness during bulk sync</li>
 </ul>
 </section>
-<section id="june-2026-4" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-4">0.3.237 (07 June 2026)</h2>
+<section id="june-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-5">0.3.237 (07 June 2026)</h2>
 <ul>
 <li>Model API: <code>ChatCompletionChoice.stop_details</code> (<code>StopDetails</code>/<code>StopCategory</code>) surfaces a model’s refusal/safety category and explanation when available.</li>
 <li>Transcript: <code>transcript().events</code> now resolves content attachments (large text, images) instead of returning bare <code>attachment://</code> references when reads are served from the bounded-history provider.</li>
@@ -571,8 +580,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Remove ACP patch for connection initialization order issue (resolved in ACP 0.10.1).</li>
 </ul>
 </section>
-<section id="june-2026-5" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-5">0.3.236 (06 June 2026)</h2>
+<section id="june-2026-6" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-6">0.3.236 (06 June 2026)</h2>
 <ul>
 <li>Model API: Add <code>ModelInfo.family</code> and <code>ModelAPI.model_family()</code>. Provider capability and request-shape checks now consult a registered <code>ModelInfo.family</code> before falling back to model-name matching, while preserving the configured model name for provider requests.</li>
 <li>Together: Support the <code>stream</code> model arg (e.g.&nbsp;<code>-M stream=true</code>) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to <code>stop_reason="max_tokens"</code> instead of raising.</li>
@@ -602,23 +611,23 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Agent bridge checks for google.genai more defensively (ensure that module not found is raised).</li>
 </ul>
 </section>
-<section id="june-2026-6" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-6">0.3.235 (03 June 2026)</h2>
+<section id="june-2026-7" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-7">0.3.235 (03 June 2026)</h2>
 <ul>
 <li>OpenAI: Don’t filter <code>tool_search</code> tool in agent bridge for providers derived from OpenAIAPI.</li>
 <li>Model Info: Defer to explicit calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#set_model_info">set_model_info()</a></span> when computing input tokens for unknown models.</li>
 </ul>
 </section>
-<section id="june-2026-7" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-7">0.3.234 (02 June 2026)</h2>
+<section id="june-2026-8" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-8">0.3.234 (02 June 2026)</h2>
 <ul>
 <li>OpenAI: Map Inspect <code>todo_write</code> tool to native OpenAI/Codex <code>update_plan</code> tool.</li>
 <li>OpenAI: Support <a href="https://inspect.aisi.org.uk/providers.html#openai-on-aws-bedrock">OpenAI models on AWS Bedrock</a> via the <code>openai/bedrock/&lt;model&gt;</code> qualifier.</li>
 <li>Bugfix: Fix crash when running <code>bash_session</code> with realtime logging enabled (the default), caused by a non-serializable sandbox object being written to the sample store. The sandbox is now re-resolved per call rather than cached in the store.</li>
 </ul>
 </section>
-<section id="june-2026-8" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-8">0.3.233 (01 June 2026)</h2>
+<section id="june-2026-9" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-9">0.3.233 (01 June 2026)</h2>
 <ul>
 <li>Anthropic: Render mid-conversation system messages as <code>&lt;system-reminder&gt;</code> user turns for pre-4.8 models.</li>
 <li>Anthropic: Accept inline <code>role: "system"</code> messages from bridged Anthropic-API clients.</li>

@@ -428,6 +428,7 @@
   "SandboxConnection": "inspect_ai.util.qmd#sandboxconnection",
   "sandboxenv": "inspect_ai.util.qmd#sandboxenv",
   "sandbox_service": "inspect_ai.util.qmd#sandbox_service",
+  "override_sandbox_output_limit": "inspect_ai.util.qmd#override_sandbox_output_limit",
   "ExecRemoteProcess": "inspect_ai.util.qmd#execremoteprocess",
   "ExecRemoteStreamingOptions": "inspect_ai.util.qmd#execremotestreamingoptions",
   "ExecRemoteAwaitableOptions": "inspect_ai.util.qmd#execremoteawaitableoptions",
