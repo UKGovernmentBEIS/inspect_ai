@@ -189,8 +189,10 @@ def eval(
         checkpoint: Checkpoint configuration for this eval, or `True` to
             enable checkpointing with the default trigger (every 500k
             tokens) — equivalent to the bare `--checkpoint` CLI flag.
-            Overrides any task- or sample-level `checkpoint` when set.
-            A task can opt out with `Task(checkpoint=False)`, which overrides this enable for that task only.
+            Overrides any task- or sample-level `checkpoint` that enables
+            checkpointing when set. A task can opt out with
+            `Task(checkpoint=False)`, which overrides this enable for that
+            task only.
         acp_server: Expose this eval over an Agent Client Protocol server.
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
