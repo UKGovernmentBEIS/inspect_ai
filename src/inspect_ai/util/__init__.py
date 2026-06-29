@@ -33,13 +33,13 @@ from ._checkpoint import (
     CheckpointSampleConfig,
     CheckpointTrigger,
     Manual,
+    ResumeReport,
     TimeInterval,
     TokenInterval,
     TurnInterval,
     checkpointer,
     current_checkpointer,
 )
-from ._checkpoint.report import ResumeReport
 from ._collect import collect
 from ._concurrency import AdaptiveConcurrency, concurrency
 from ._console import input_screen

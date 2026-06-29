@@ -26,8 +26,8 @@ class ResumeReport(BaseModel):
 
 
 def resolve_resume_report(
-    value: "ResumeReport | str | None",
-) -> "ResumeReport | None":
+    value: ResumeReport | str | None,
+) -> ResumeReport | None:
     """Coerce an ``on_resume`` return value to a ``ResumeReport | None``.
 
     A bare ``str`` is shorthand for ``ResumeReport(message=value)``.
