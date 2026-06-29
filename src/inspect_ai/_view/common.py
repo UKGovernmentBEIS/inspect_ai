@@ -67,18 +67,30 @@ def normalize_uri(uri: str) -> str:
         return f"file://{path}"
 
 
+class LogDirInfo(BaseModel):
+    """A configured log directory.
+
+    Attributes:
+        log_dir: Resolved path/URI the client sends back as `?log_dir=`.
+        aliased: Display string with the home directory replaced by `~`.
+    """
+
+    log_dir: str
+    aliased: str
+
+
 class AppConfig(BaseModel):
     """Application configuration returned by GET /app-config."""
 
     inspect_version: str
     scout_version: str | None = None
+    log_dirs: list[LogDirInfo] = []
 
 
-def get_app_config() -> AppConfig:
-    """Return app config, including installed inspect and scout versions.
+def get_app_config(log_dirs: list[str] = []) -> AppConfig:
+    """Return app config: installed versions plus configured log directories.
 
-    `inspect_scout` is an optional dependency, so `scout_version` is None when
-    it isn't installed.
+    `inspect_scout` is optional, so `scout_version` is None when absent.
     """
     try:
         scout_version: str | None = version("inspect_scout")
@@ -87,6 +99,7 @@ def get_app_config() -> AppConfig:
     return AppConfig(
         inspect_version=version(PKG_NAME),
         scout_version=scout_version,
+        log_dirs=[LogDirInfo(log_dir=d, aliased=aliased_path(d)) for d in log_dirs],
     )
 
 

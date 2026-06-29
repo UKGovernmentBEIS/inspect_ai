@@ -103,12 +103,15 @@ class InspectJsonResponse(JSONResponse):
 def view_server_app(
     mapping_policy: FileMappingPolicy | None = None,
     access_policy: AccessPolicy | None = None,
-    default_dir: str = "",
+    default_dirs: list[str] = [],
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
 ) -> "FastAPI":
     app = FastAPI()
+
+    def _default_dir() -> str:
+        return default_dirs[0] if default_dirs else ""
 
     @app.exception_handler(FileNotFoundError)
     async def _file_not_found(_request: Request, _exc: FileNotFoundError) -> Response:
@@ -294,7 +297,7 @@ def view_server_app(
         log_dir: str | None = Query(None, alias="log_dir"),
     ) -> LogDirResponse:
         if log_dir is None:
-            log_dir = default_dir
+            log_dir = _default_dir()
         await _validate_list(request, log_dir)
         return get_log_dir(log_dir)
 
@@ -304,7 +307,7 @@ def view_server_app(
         log_dir: str | None = Query(None, alias="log_dir"),
     ) -> LogFilesResponse:
         if log_dir is None:
-            log_dir = default_dir
+            log_dir = _default_dir()
         await _validate_list(request, log_dir)
 
         client_etag = request.headers.get("If-None-Match")
@@ -331,7 +334,7 @@ def view_server_app(
         log_dir: str | None = Query(None, alias="log_dir"),
     ) -> LogListingResponse | Response:
         if log_dir is None:
-            log_dir = default_dir
+            log_dir = _default_dir()
         await _validate_list(request, log_dir)
         listing = await get_logs(
             await _map_file(request, log_dir),
@@ -356,7 +359,7 @@ def view_server_app(
         sub_dir: str = Query(None, alias="dir"),
     ) -> EvalSet | None:
         # resolve the eval-set directory (using the log_dir and dir params)
-        base_dir = log_dir if log_dir else default_dir
+        base_dir = log_dir if log_dir else _default_dir()
         if sub_dir and base_dir:
             eval_set_dir = base_dir + "/" + sub_dir.lstrip("/")
         elif sub_dir:
@@ -379,7 +382,7 @@ def view_server_app(
         sub_dir: str = Query(None, alias="dir"),
     ) -> Response:
         # resolve the eval-set directory (using the log_dir and dir params)
-        base_dir = log_dir if log_dir else default_dir
+        base_dir = log_dir if log_dir else _default_dir()
         if sub_dir and base_dir:
             flow_dir = base_dir + "/" + sub_dir.lstrip("/")
         elif sub_dir:
@@ -543,7 +546,7 @@ def view_server_app(
 
     @app.get("/app-config", response_model=AppConfig)
     async def api_app_config() -> AppConfig:
-        return get_app_config()
+        return get_app_config(log_dirs=default_dirs)
 
     scout_router = get_scout_search_router()
     if scout_router is not None:
@@ -601,12 +604,12 @@ class _InspectStaticFiles(StaticFiles):
 
 
 class OnlyDirAccessPolicy(AccessPolicy):
-    def __init__(self, dir: str) -> None:
+    def __init__(self, dirs: list[str]) -> None:
         super().__init__()
-        self.dir = dir
+        self.dirs = dirs
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.dir) and ".." not in file
+        return ".." not in file and any(file.startswith(d) for d in self.dirs)
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)
@@ -621,8 +624,30 @@ class OnlyDirAccessPolicy(AccessPolicy):
         return self._validate_log_dir(file)
 
 
+def resolve_log_dirs(log_dirs: list[str]) -> list[str]:
+    """Ensure each log directory exists and return its canonical name.
+
+    Creates the directory if absent and returns the name reported by the
+    underlying filesystem (which re-attaches the scheme for `s3://` paths).
+    An unreachable or inaccessible directory raises, so startup fails fast.
+
+    Args:
+        log_dirs: Raw directory paths/URIs (local, `s3://`, `file://`).
+
+    Returns:
+        Canonical directory names, in the same order.
+    """
+    resolved: list[str] = []
+    for log_dir in log_dirs:
+        fs = filesystem(log_dir)
+        if not fs.exists(log_dir):
+            fs.mkdir(log_dir, True)
+        resolved.append(fs.info(log_dir).name)
+    return resolved
+
+
 def view_server(
-    log_dir: str,
+    log_dirs: list[str],
     recursive: bool = True,
     host: str = DEFAULT_SERVER_HOST,
     port: int = DEFAULT_VIEW_PORT,
@@ -630,17 +655,13 @@ def view_server(
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
 ) -> None:
-    # get filesystem and resolve log_dir to full path
-    fs = filesystem(log_dir)
-    if not fs.exists(log_dir):
-        fs.mkdir(log_dir, True)
-    log_dir = fs.info(log_dir).name
+    resolved_dirs = resolve_log_dirs(log_dirs)
 
     # setup server
     api = view_server_app(
         mapping_policy=None,
-        access_policy=OnlyDirAccessPolicy(log_dir) if not authorization else None,
-        default_dir=log_dir,
+        access_policy=OnlyDirAccessPolicy(resolved_dirs) if not authorization else None,
+        default_dirs=resolved_dirs,
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
@@ -667,7 +688,7 @@ def view_server(
     filter_fastapi_log()
 
     # run app
-    display().print(f"Inspect View: {log_dir}")
+    display().print(f"Inspect View: {', '.join(resolved_dirs)}")
 
     async def run_server() -> None:
         config = uvicorn.Config(
