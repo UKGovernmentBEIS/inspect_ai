@@ -211,8 +211,8 @@ def run_code(
     Args:
         tools: Tools that code executed by run_code may call.
         timeout: Maximum execution time in seconds.
-        executor: Executor used to run code. Use "stub" for the placeholder executor,
-            "monty" for the Pydantic Monty-backed executor, or pass a custom
+        executor: Executor used to run code. Use "monty" for the Pydantic Monty-backed executor,
+            "stub" for the placeholder executor, or pass a custom
             RunCodeExecutor for tests / alternative backends.
         max_inner_tool_calls: Maximum number of allowlisted tool calls from inside run_code.
         include_tool_call_trace: Whether to include a compact trace of inner tool calls in the result.
