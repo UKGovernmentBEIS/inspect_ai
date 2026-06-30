@@ -18,7 +18,9 @@ from pydantic import BaseModel
 from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
+from inspect_ai._eval.evalset import EvalSet
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import (
@@ -113,6 +115,23 @@ class LogListingResponse(BaseModel):
 
 def get_log_dir(log_dir: str) -> LogDirResponse:
     return LogDirResponse(log_dir=aliased_path(log_dir))
+
+
+async def read_eval_set_info_async(
+    eval_set_dir: str, afs: AsyncFilesystem
+) -> EvalSet | None:
+    """Read the `eval-set.json` manifest for `eval_set_dir` via the async filesystem.
+
+    Async counterpart to `read_eval_set_info`. Reads the manifest through
+    `AsyncFilesystem` (riding the shared client) rather than bouncing sync fsspec
+    through a threadpool — see the fsspec/`to_thread` warning in CLAUDE.md.
+    Returns None when the manifest is absent.
+    """
+    sep = filesystem(eval_set_dir).sep
+    manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
+    if not await afs.exists(manifest):
+        return None
+    return EvalSet.model_validate_json(await afs.read_file(manifest))
 
 
 async def get_log_files(
@@ -576,7 +595,23 @@ async def list_eval_logs_async(
     """
     # async filesystem if we can
     fs = filesystem(log_dir, fs_options)
-    if fs.is_async():
+    if fs.is_s3():
+        # S3: list via the shared async filesystem (one warm aioboto3 client +
+        # connection pool, reused across requests when the view server binds it).
+        # iter_files(detail=True) is a single list_objects_v2 sweep that returns
+        # FileInfo (name/size/mtime) — no separate existence precheck or per-file
+        # stat — and a missing prefix simply yields nothing.
+        async with AsyncFilesystem() as afs:
+            logs = [
+                info
+                async for info in afs.iter_files(
+                    log_dir, recursive=recursive, detail=True
+                )
+            ]
+        # resolve to eval logs (async fan-out so header reads on
+        # non-conforming filenames don't block the event loop)
+        return await log_files_from_ls_async(logs, formats, descending)
+    elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
             # Attempt existence check with robust handling for Azure-style auth issues.
             try:

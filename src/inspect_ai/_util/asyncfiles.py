@@ -4,12 +4,23 @@ import functools
 import io
 import logging
 import shutil
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from types import TracebackType
-from typing import Any, AsyncIterator, BinaryIO, Callable, Coroutine, TypeVar, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    BinaryIO,
+    Callable,
+    Coroutine,
+    Iterator,
+    Literal,
+    TypeVar,
+    cast,
+    overload,
+)
 from urllib.parse import urlparse
 
 import anyio
@@ -385,17 +396,44 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             filesystem(remote).get_file(remote, local)
 
+    @overload
+    def iter_files(
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        detail: Literal[False] = False,
+    ) -> AsyncIterator[str]: ...
+
+    @overload
+    def iter_files(
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        detail: Literal[True],
+    ) -> AsyncIterator[FileInfo]: ...
+
     async def iter_files(
-        self, base: str, pattern: str = "*", *, recursive: bool = False
-    ) -> AsyncIterator[str]:
-        """Yield URIs of files under `base`.
+        self,
+        base: str,
+        pattern: str = "*",
+        *,
+        recursive: bool = False,
+        detail: bool = False,
+    ) -> AsyncIterator[str | FileInfo]:
+        """Yield files under `base` — URIs, or `FileInfo` when ``detail=True``.
 
         Matching is fnmatch-on-basename (case-sensitive). When `recursive`
         is False, only direct children of `base` are considered; otherwise
         any file at any depth under `base` is considered.
 
         The `pattern` argument matches the basename only; it must not
-        contain `/`.
+        contain `/`. With ``detail=True`` each match is a `FileInfo`
+        (name/size/mtime/etag) built from metadata the listing already
+        returns — no extra stat calls.
         """
         if is_s3_filename(base):
             bucket, prefix = s3_bucket_and_key(base)
@@ -408,9 +446,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     kwargs["Delimiter"] = "/"
                 async for page in paginator.paginate(**kwargs):
                     for obj in page.get("Contents", []):
-                        key = obj["Key"]
-                        if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
-                            yield f"s3://{bucket}/{key}"
+                        if fnmatchcase(obj["Key"].rsplit("/", 1)[-1], pattern):
+                            yield (
+                                _s3_obj_to_file_info(bucket, obj)
+                                if detail
+                                else f"s3://{bucket}/{obj['Key']}"
+                            )
             else:
                 results = await anyio.to_thread.run_sync(
                     s3_iter_files,
@@ -419,24 +460,32 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     prefix,
                     pattern,
                     recursive,
+                    detail,
                 )
                 for r in results:
                     yield r
         else:
-            fs = filesystem(base).fs
+            fsw = filesystem(base)
+            fs = fsw.fs
             if recursive:
-                paths = fs.find(base)
-                if isinstance(paths, dict):
-                    paths = list(paths.keys())
-                for path in paths:
-                    if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
-                        yield path
+                if detail:
+                    found = fs.find(base, detail=True)
+                    for path, info in found.items():
+                        if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
+                            yield fsw._file_info(info)
+                else:
+                    paths = fs.find(base)
+                    if isinstance(paths, dict):
+                        paths = list(paths.keys())
+                    for path in paths:
+                        if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
+                            yield path
             else:
                 for entry in fs.ls(base, detail=True):
                     if entry["type"] == "file":
                         name = entry["name"]
                         if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
-                            yield name
+                            yield fsw._file_info(entry) if detail else name
 
     async def iter_dirs(
         self, base: str, pattern: str = "*", *, recursive: bool = False
@@ -601,6 +650,25 @@ def _s3_head_to_file_info(filename: str, response: dict[str, Any]) -> FileInfo:
     return FileInfo(name=filename, type="file", size=size, mtime=mtime, etag=etag)
 
 
+def _s3_obj_to_file_info(bucket: str, obj: dict[str, Any]) -> FileInfo:
+    """Build a FileInfo from a `list_objects_v2` `Contents` entry.
+
+    Mirrors `FileSystem._file_info`: name is the full `s3://` URI and mtime is
+    `LastModified` in milliseconds, so listings match the fsspec-built path.
+    """
+    last_modified = obj.get("LastModified")
+    mtime = last_modified.timestamp() * 1000 if last_modified else None
+    etag_raw = obj.get("ETag")
+    etag = cast(str, etag_raw).strip('"') if etag_raw else None
+    return FileInfo(
+        name=f"s3://{bucket}/{obj['Key']}",
+        type="file",
+        size=cast(int, obj.get("Size", 0)),
+        mtime=mtime,
+        etag=etag,
+    )
+
+
 def s3_info(s3: Any, bucket: str, key: str, filename: str) -> FileInfo:
     response = s3.head_object(Bucket=bucket, Key=key)
     return _s3_head_to_file_info(filename, response)
@@ -691,18 +759,26 @@ def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
 
 
 def s3_iter_files(
-    s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
-) -> list[str]:
+    s3: Any,
+    bucket: str,
+    prefix: str,
+    pattern: str,
+    recursive: bool,
+    detail: bool = False,
+) -> list[str | FileInfo]:
     paginator = s3.get_paginator("list_objects_v2")
     kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
     if not recursive:
         kwargs["Delimiter"] = "/"
-    results: list[str] = []
+    results: list[str | FileInfo] = []
     for page in paginator.paginate(**kwargs):
         for obj in page.get("Contents", []):
-            key = obj["Key"]
-            if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
-                results.append(f"s3://{bucket}/{key}")
+            if fnmatchcase(obj["Key"].rsplit("/", 1)[-1], pattern):
+                results.append(
+                    _s3_obj_to_file_info(bucket, obj)
+                    if detail
+                    else f"s3://{bucket}/{obj['Key']}"
+                )
     return results
 
 
@@ -791,6 +867,28 @@ def get_async_filesystem() -> AsyncFilesystem:
             "Use 'async with AsyncFilesystem()' to establish one."
         )
     return fs
+
+
+@contextmanager
+def bind_async_filesystem(fs: AsyncFilesystem) -> Iterator[None]:
+    """Bind `fs` as the shared AsyncFilesystem for the current context.
+
+    Unlike ``async with AsyncFilesystem()``, this neither creates nor closes a
+    filesystem — the caller owns ``fs``'s lifecycle. Within the bound scope (and
+    any child tasks that inherit the context), ``get_async_filesystem()`` and
+    ``async with AsyncFilesystem()`` reuse ``fs``, so downstream S3 access shares
+    its client and connection pool.
+
+    Intended for binding a single long-lived, pre-warmed filesystem around a
+    unit of work — e.g. per-request in ASGI middleware — so reads don't re-pay
+    client/connection setup. Safe to nest; the previous binding is restored on
+    exit.
+    """
+    token = _current_async_fs.set(fs)
+    try:
+        yield
+    finally:
+        _current_async_fs.reset(token)
 
 
 @functools.cache
