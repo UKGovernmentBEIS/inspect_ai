@@ -9,12 +9,13 @@ from pydantic_core import from_json
 from typing_extensions import override
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.atomic_write import atomic_write_bytes
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
     get_deserializing_context,
 )
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import absolute_file_path, file, filesystem
+from inspect_ai._util.file import absolute_file_path, file, filesystem, local_path
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
@@ -265,8 +266,14 @@ class JSONRecorder(FileRecorder):
             log_bytes = eval_log_json(log)
 
             with trace_action(logger, "Log Write", location):
-                with file(location, "wb") as f:
-                    f.write(log_bytes)
+                if fs.is_local():
+                    # Atomic write for local paths: temp file + fsync +
+                    # rename so an interrupted write can't corrupt the
+                    # existing log on disk (#2949).
+                    atomic_write_bytes(local_path(location), log_bytes, fsync=True)
+                else:
+                    with file(location, "wb") as f:
+                        f.write(log_bytes)
 
     @classmethod
     async def _merge_disk_samples_for_header_only(
