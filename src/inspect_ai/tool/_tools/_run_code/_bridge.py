@@ -65,11 +65,10 @@ def _content_to_runtime_value(
                 # All other content types are preserved as artifacts.
                 collected_artifacts.append(item)
 
-    artifact_count = len(content) - len(text_parts)
     if text_parts:
         return "\n".join(text_parts), collected_artifacts
 
-    return f"[{artifact_count} non-text artifact(s) generated]", collected_artifacts
+    return f"[{len(collected_artifacts)} non-text artifact(s) generated]", collected_artifacts
 
 
 def _recoverable_tool_error_message(exc: Exception, tool_name: str) -> str | None:
