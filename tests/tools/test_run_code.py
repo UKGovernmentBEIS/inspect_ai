@@ -45,11 +45,12 @@ def test_run_code_accepts_empty_tools_list():
 
 
 @pytest.mark.anyio
-async def test_run_code_tool_executes_stub():
-    tool = run_code()
-    result = await tool(code="return 1")
-    assert isinstance(result, list)
-    assert "not implemented" in result[0].text.lower()
+async def test_run_code_tool_executes_stub_when_requested():
+    tool = run_code(executor="stub")
+
+    result = await tool(code="1")
+
+    assert "not implemented" in result[0].text
 
 
 def dummy_tool() -> Tool:
@@ -502,7 +503,7 @@ def test_run_code_usage_description_without_tools():
     description = _run_code_usage_description([])
 
     assert "Write Python code" in description
-    assert "No inner Inspect tools are available" in description
+    assert "No inner tools are available" in description
 
 
 def test_run_code_usage_description_with_tools_mentions_await():
@@ -991,7 +992,7 @@ async def test_run_code_bridge_converts_recoverable_tool_errors():
     result = await external_functions["file_not_found_tool"]("missing.txt")
 
     assert isinstance(result, str)
-    assert "file_not_found:" in result
+    assert result.startswith("file_not_found: ")
     assert "missing.txt" in result
 
 

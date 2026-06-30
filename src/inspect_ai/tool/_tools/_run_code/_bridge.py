@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import uuid4
 
 from pydantic_core import to_jsonable_python
@@ -15,6 +15,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.tool import ToolDef
+from inspect_ai.tool._tool import ToolApprovalError, ToolError, ToolParsingError
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
@@ -68,27 +69,60 @@ def _content_to_runtime_value(
     if text_parts:
         return "\n".join(text_parts), collected_artifacts
 
-    return f"[{len(collected_artifacts)} non-text artifact(s) generated]", collected_artifacts
+    return (
+        f"[{len(collected_artifacts)} non-text artifact(s) generated]",
+        collected_artifacts,
+    )
 
 
-def _recoverable_tool_error_message(exc: Exception, tool_name: str) -> str | None:
-    """Convert known recoverable tool exceptions to model-visible text.
+class RunCodeToolCallError(NamedTuple):
+    type: str
+    message: str
+
+
+def _format_tool_error(error: RunCodeToolCallError) -> str:
+    return f"{error.type}: {error.message}"
+
+
+def _exception_to_tool_error(
+    exc: Exception,
+    tool_name: str,
+) -> RunCodeToolCallError | None:
+    """Convert known recoverable tool exceptions to model-visible errors.
 
     This mirrors the kinds of tool failures that Inspect's higher-level
     execute_tools(...) path normally converts into ToolCallError messages.
     Unknown exceptions intentionally return None so they still propagate.
     """
+    if isinstance(exc, ToolParsingError):
+        return RunCodeToolCallError(type="parsing", message=exc.message)
+
+    if isinstance(exc, ToolApprovalError):
+        return RunCodeToolCallError(type="approval", message=exc.message)
+
+    if isinstance(exc, ToolError):
+        return RunCodeToolCallError(type="unknown", message=exc.message)
+
     if isinstance(exc, (TimeoutError, SandboxTimeoutError)):
-        return "timeout: Command timed out before completing."
+        return RunCodeToolCallError(
+            type="timeout",
+            message="Command timed out before completing.",
+        )
 
     if isinstance(exc, UnicodeDecodeError):
-        return f"unicode_decode: Error decoding bytes to {exc.encoding}: {exc.reason}"
+        return RunCodeToolCallError(
+            type="unicode_decode",
+            message=f"Error decoding bytes to {exc.encoding}: {exc.reason}.",
+        )
 
     if isinstance(exc, ValueError):
         if "embedded null byte" in str(exc):
-            return (
-                "parsing: "
-                f"An argument to tool '{tool_name}' contained an embedded null byte."
+            return RunCodeToolCallError(
+                type="parsing",
+                message=(
+                    f"An argument to tool '{tool_name}' contained an embedded "
+                    "null byte."
+                ),
             )
         return None
 
@@ -96,26 +130,32 @@ def _recoverable_tool_error_message(exc: Exception, tool_name: str) -> str | Non
         err = f"{exc.strerror or str(exc)}."
         if isinstance(exc.filename, str):
             err = f"{err} Filename '{exc.filename}'."
-        return f"permission: {err}"
+        return RunCodeToolCallError(type="permission", message=err)
 
     if isinstance(exc, FileNotFoundError):
         if isinstance(exc.filename, str):
             err = f"File '{exc.filename}' was not found."
         else:
             err = exc.strerror or str(exc)
-        return f"file_not_found: {err}"
+        return RunCodeToolCallError(type="file_not_found", message=err)
 
     if isinstance(exc, IsADirectoryError):
         err = f"{exc.strerror or str(exc)}."
         if isinstance(exc.filename, str):
             err = f"{err} Filename '{exc.filename}'."
-        return f"is_a_directory: {err}"
+        return RunCodeToolCallError(type="is_a_directory", message=err)
 
     if isinstance(exc, OutputLimitExceededError):
-        return f"limit: The tool exceeded its output limit of {exc.limit_str}."
+        return RunCodeToolCallError(
+            type="limit",
+            message=f"The tool exceeded its output limit of {exc.limit_str}.",
+        )
 
     if isinstance(exc, LimitExceededError):
-        return f"limit: The tool exceeded its {exc.type} limit of {exc.limit_str}."
+        return RunCodeToolCallError(
+            type="limit",
+            message=f"The tool exceeded its {exc.type} limit of {exc.limit_str}.",
+        )
 
     return None
 
@@ -217,7 +257,7 @@ class RunCodeToolBridge:
           - Rich Content (text/image/...) is projected to text, with non-text
             content preserved as artifacts.
           - JSON-serializable structured data is converted to native Python values
-  so code can index, iterate, and aggregate over it.
+        so code can index, iterate, and aggregate over it.
         """
         if isinstance(result, (str, int, float, bool)):
             return result
@@ -261,7 +301,6 @@ class RunCodeToolBridge:
         from inspect_ai.event._tool import ToolEvent
         from inspect_ai.model._call_tools import call_tool
         from inspect_ai.model._chat_message import ChatMessageAssistant
-        from inspect_ai.tool._tool import ToolApprovalError, ToolError, ToolParsingError
         from inspect_ai.tool._tool_call import ToolCall
 
         call = ToolCall(
@@ -287,15 +326,10 @@ class RunCodeToolBridge:
             )
         except TerminateSampleError:
             raise
-        except ToolParsingError as ex:
-            return f"parsing: {ex.message}"
-        except ToolApprovalError as ex:
-            return f"approval: {ex.message}"
-        except ToolError as ex:
-            return f"unknown: {ex.message}"
         except Exception as ex:
-            recoverable_error = _recoverable_tool_error_message(ex, call.function)
-            if recoverable_error is not None:
-                return recoverable_error
+            tool_error = _exception_to_tool_error(ex, call.function)
+            if tool_error is not None:
+                return _format_tool_error(tool_error)
             raise
+
         return result
