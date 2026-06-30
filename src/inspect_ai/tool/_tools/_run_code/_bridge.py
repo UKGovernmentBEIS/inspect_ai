@@ -216,9 +216,8 @@ class RunCodeToolBridge:
             into later calls or compute on them.
           - Rich Content (text/image/...) is projected to text, with non-text
             content preserved as artifacts.
-          - Structured data (list/dict/BaseModel) is converted to native Python
-            so code can index/iterate/aggregate over it. Monty accepts native
-            lists and dicts of primitives.
+          - JSON-serializable structured data is converted to native Python values
+  so code can index, iterate, and aggregate over it.
         """
         if isinstance(result, (str, int, float, bool)):
             return result
