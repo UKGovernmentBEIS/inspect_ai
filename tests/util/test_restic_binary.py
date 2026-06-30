@@ -19,6 +19,7 @@ from __future__ import annotations
 import bz2
 import hashlib
 import io
+import urllib.error
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -183,3 +184,69 @@ def test_vendored_sums_cover_all_supported_platforms() -> None:
         archive_name = _archive_filename(version, platform)
         digest = _extract_expected_hash(sums_text, archive_name)
         assert len(digest) == 64
+
+
+async def test_archive_download_retries_transient_then_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("tenacity.nap.time.sleep", lambda _s: None)
+    archive_name = _archive_filename(_version(), PLATFORM)
+    calls = {"n": 0}
+
+    def flaky(url: str, *args: object, **kwargs: object) -> io.BytesIO:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise urllib.error.URLError("temporary failure")
+        return io.BytesIO(bz2.compress(FAKE_BINARY))
+
+    with (
+        _patch_cache_dir(tmp_path),
+        _patch_sums_file(tmp_path, _sums_for(archive_name)),
+        _patch_urlopen(flaky),
+    ):
+        result = await resolve_restic(PLATFORM)
+        assert result.exists()
+        assert result.read_bytes() == FAKE_BINARY
+    assert calls["n"] == 3
+
+
+async def test_archive_download_does_not_retry_permanent_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("tenacity.nap.time.sleep", lambda _s: None)
+    archive_name = _archive_filename(_version(), PLATFORM)
+    calls = {"n": 0}
+
+    def not_found(url: str, *args: object, **kwargs: object) -> io.BytesIO:
+        calls["n"] += 1
+        raise urllib.error.HTTPError(url, 404, "Not Found", hdrs=None, fp=None)  # type: ignore[arg-type]
+
+    with (
+        _patch_cache_dir(tmp_path),
+        _patch_sums_file(tmp_path, _sums_for(archive_name)),
+        _patch_urlopen(not_found),
+    ):
+        with pytest.raises(RuntimeError, match="Failed to download"):
+            await resolve_restic(PLATFORM)
+    assert calls["n"] == 1
+
+
+async def test_archive_download_gives_up_after_max_attempts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("tenacity.nap.time.sleep", lambda _s: None)
+    archive_name = _archive_filename(_version(), PLATFORM)
+    calls = {"n": 0}
+
+    def always_fail(url: str, *args: object, **kwargs: object) -> io.BytesIO:
+        calls["n"] += 1
+        raise urllib.error.URLError("down")
+
+    with (
+        _patch_cache_dir(tmp_path),
+        _patch_sums_file(tmp_path, _sums_for(archive_name)),
+        _patch_urlopen(always_fail),
+    ):
+        with pytest.raises(RuntimeError, match="Failed to download"):
+            await resolve_restic(PLATFORM)
+    assert calls["n"] == 5

@@ -2,7 +2,9 @@
 
 The :func:`resolve_restic` coroutine returns a path to a usable restic
 executable for a requested platform, downloading and caching it on demand.
-``Platform`` identifiers match restic's upstream release filenames.
+The archive download retries transient network failures; the binary is
+verified against the vendored ``SHA256SUMS`` file. ``Platform`` identifiers
+match restic's upstream release filenames.
 """
 
 from __future__ import annotations
@@ -15,14 +17,24 @@ import re
 import shutil
 import stat
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Literal
 
 import anyio
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_exponential_jitter,
+)
 
 from inspect_ai._util.appdirs import inspect_cache_dir
+from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.httpx import log_httpx_retry_attempt
 
 Platform = Literal[
     "linux_amd64",
@@ -44,6 +56,7 @@ SUPPORTED_PLATFORMS: tuple[Platform, ...] = (
 _VERSION_FILE = Path(__file__).parent / "version.txt"
 _SHA256SUMS_FILE = Path(__file__).parent / "SHA256SUMS"
 _RELEASE_BASE_URL = "https://github.com/restic/restic/releases/download"
+_DOWNLOAD_TIMEOUT = 30  # per-socket-op timeout; a stall becomes a retryable error
 
 
 def _current_platform() -> Platform:
@@ -124,9 +137,10 @@ def cache_path(platform: Platform, version: str | None = None) -> Path:
 async def resolve_restic(platform: Platform | None = None) -> Path:
     """Return a path to a usable restic binary for the given platform.
 
-    Downloads the archive on cache miss; the expected checksum is read from
-    the vendored ``SHA256SUMS`` file (no network fetch). Fails fast on a
-    SHA256 mismatch.
+    Downloads the archive on cache miss, retrying transient network failures;
+    the expected checksum is read from the vendored ``SHA256SUMS`` file (no
+    network fetch). Fails fast on a SHA256 mismatch or a permanent download
+    error.
 
     Args:
         platform: Target platform. Defaults to the current host platform.
@@ -135,8 +149,9 @@ async def resolve_restic(platform: Platform | None = None) -> Path:
         Absolute path to the cached executable.
 
     Raises:
-        RuntimeError: on download failure, SHA256 mismatch, missing vendored
-            checksum entry, decompression error, or unsupported platform.
+        RuntimeError: on download failure (after retries), SHA256 mismatch,
+            missing vendored checksum entry, decompression error, or
+            unsupported platform.
     """
     target = platform or _current_platform()
     return await anyio.to_thread.run_sync(_resolve_blocking, target)
@@ -170,6 +185,21 @@ def _resolve_blocking(platform: Platform) -> Path:
     return target
 
 
+def _urllib_should_retry(ex: BaseException) -> bool:
+    """Return True for transient urllib/network errors worth retrying.
+
+    Mirrors ``httpx_should_retry``'s status policy (408/429/5xx) for HTTP
+    errors and retries connection/timeout-level failures. ``HTTPError`` is
+    checked first because it subclasses ``URLError``, so a permanent status
+    (e.g. 404) correctly returns False.
+    """
+    if isinstance(ex, urllib.error.HTTPError):
+        return is_retryable_http_status(ex.code)
+    if isinstance(ex, (urllib.error.URLError, TimeoutError, ConnectionError)):
+        return True
+    return False
+
+
 def _download_archive(version: str, platform: Platform, dest_dir: Path) -> Path:
     url = _archive_url(version, platform)
     suffix = f".{_archive_extension(platform)}"
@@ -178,9 +208,23 @@ def _download_archive(version: str, platform: Platform, dest_dir: Path) -> Path:
     )
     os.close(fd)
     tmp = Path(tmp_path)
-    try:
-        with urllib.request.urlopen(url) as resp, tmp.open("wb") as dst:
+
+    @retry(
+        wait=wait_exponential_jitter(),
+        stop=stop_after_attempt(5) | stop_after_delay(60),
+        retry=retry_if_exception(_urllib_should_retry),
+        before_sleep=log_httpx_retry_attempt(f"download {url}"),
+        reraise=True,
+    )
+    def _attempt() -> None:
+        with (
+            urllib.request.urlopen(url, timeout=_DOWNLOAD_TIMEOUT) as resp,
+            tmp.open("wb") as dst,
+        ):
             shutil.copyfileobj(resp, dst)
+
+    try:
+        _attempt()
     except Exception as ex:
         tmp.unlink(missing_ok=True)
         raise RuntimeError(f"Failed to download {url}: {ex}") from ex
