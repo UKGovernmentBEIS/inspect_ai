@@ -10,31 +10,20 @@ match restic's upstream release filenames.
 from __future__ import annotations
 
 import bz2
-import hashlib
 import os
 import platform as _platform
 import re
 import shutil
 import stat
 import tempfile
-import urllib.error
-import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Literal
 
 import anyio
-from tenacity import (
-    retry,
-    retry_if_exception,
-    stop_after_attempt,
-    stop_after_delay,
-    wait_exponential_jitter,
-)
 
 from inspect_ai._util.appdirs import inspect_cache_dir
-from inspect_ai._util.http import is_retryable_http_status
-from inspect_ai._util.httpx import log_httpx_retry_attempt
+from inspect_ai._util.download import download
 
 Platform = Literal[
     "linux_amd64",
@@ -56,7 +45,9 @@ SUPPORTED_PLATFORMS: tuple[Platform, ...] = (
 _VERSION_FILE = Path(__file__).parent / "version.txt"
 _SHA256SUMS_FILE = Path(__file__).parent / "SHA256SUMS"
 _RELEASE_BASE_URL = "https://github.com/restic/restic/releases/download"
-_DOWNLOAD_TIMEOUT = 30  # per-socket-op timeout; a stall becomes a retryable error
+# Socket timeout (seconds) for the binary download, raised above download()'s
+# 5s default to tolerate the larger transfer on slower links.
+_DOWNLOAD_TIMEOUT = 30
 
 
 def _current_platform() -> Platform:
@@ -165,10 +156,17 @@ def _resolve_blocking(platform: Platform) -> Path:
 
     target.parent.mkdir(parents=True, exist_ok=True)
     archive_name = _archive_filename(version, platform)
+    expected_sha256 = _extract_expected_hash(_SHA256SUMS_FILE.read_text(), archive_name)
 
-    archive_tmp = _download_archive(version, platform, target.parent)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix="restic-archive-",
+        suffix=f".{_archive_extension(platform)}",
+        dir=target.parent,
+    )
+    os.close(fd)
+    archive_tmp = Path(tmp_path)
     try:
-        _verify_sha256(archive_tmp, archive_name)
+        _download_archive(version, platform, expected_sha256, archive_tmp)
         binary_tmp = _extract(archive_tmp, platform, target.parent, version)
     finally:
         archive_tmp.unlink(missing_ok=True)
@@ -185,60 +183,21 @@ def _resolve_blocking(platform: Platform) -> Path:
     return target
 
 
-def _urllib_should_retry(ex: BaseException) -> bool:
-    """Return True for transient urllib/network errors worth retrying.
+def _download_archive(
+    version: str, platform: Platform, sha256: str, dest: Path
+) -> None:
+    """Download the restic archive to ``dest`` and verify it against ``sha256``.
 
-    Mirrors ``httpx_should_retry``'s status policy (408/429/5xx) for HTTP
-    errors and retries connection/timeout-level failures. ``HTTPError`` is
-    checked first because it subclasses ``URLError``, so a permanent status
-    (e.g. 404) correctly returns False.
+    Delegates retry, streaming, checksum verification, and atomic write to the
+    shared :func:`inspect_ai._util.download.download` helper, translating its
+    failure modes (checksum mismatch, HTTP error, exhausted retries) into the
+    ``RuntimeError`` contract documented by :func:`resolve_restic`.
     """
-    if isinstance(ex, urllib.error.HTTPError):
-        return is_retryable_http_status(ex.code)
-    if isinstance(ex, (urllib.error.URLError, TimeoutError, ConnectionError)):
-        return True
-    return False
-
-
-def _download_archive(version: str, platform: Platform, dest_dir: Path) -> Path:
     url = _archive_url(version, platform)
-    suffix = f".{_archive_extension(platform)}"
-    fd, tmp_path = tempfile.mkstemp(
-        prefix="restic-archive-", suffix=suffix, dir=dest_dir
-    )
-    os.close(fd)
-    tmp = Path(tmp_path)
-
-    @retry(
-        wait=wait_exponential_jitter(),
-        stop=stop_after_attempt(5) | stop_after_delay(60),
-        retry=retry_if_exception(_urllib_should_retry),
-        before_sleep=log_httpx_retry_attempt(f"download {url}"),
-        reraise=True,
-    )
-    def _attempt() -> None:
-        with (
-            urllib.request.urlopen(url, timeout=_DOWNLOAD_TIMEOUT) as resp,
-            tmp.open("wb") as dst,
-        ):
-            shutil.copyfileobj(resp, dst)
-
     try:
-        _attempt()
+        download(url, sha256, dest, timeout=_DOWNLOAD_TIMEOUT)
     except Exception as ex:
-        tmp.unlink(missing_ok=True)
         raise RuntimeError(f"Failed to download {url}: {ex}") from ex
-    return tmp
-
-
-def _verify_sha256(archive: Path, archive_name: str) -> None:
-    sums_text = _SHA256SUMS_FILE.read_text()
-    expected = _extract_expected_hash(sums_text, archive_name)
-    actual = _file_sha256(archive)
-    if actual != expected:
-        raise RuntimeError(
-            f"SHA256 mismatch for {archive_name}: expected {expected}, got {actual}"
-        )
 
 
 def _extract_expected_hash(sums_text: str, archive_name: str) -> str:
@@ -252,14 +211,6 @@ def _extract_expected_hash(sums_text: str, archive_name: str) -> str:
         f"regenerate it after a restic version bump "
         f"(see src/inspect_ai/util/_restic/README.md)."
     )
-
-
-def _file_sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def _extract(archive: Path, platform: Platform, dest_dir: Path, version: str) -> Path:
