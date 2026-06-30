@@ -26,6 +26,7 @@
 - Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
 - Sandbox: Added `override_sandbox_output_limit()` context manager to temporarily raise the exec-output and/or read-file size caps for the current context.
 - Inspect View: Require frontend-only headers for mutations and use non-GET routes for log deletion and client messages.
+- Inspect View: Validate Host and browser origins, prevent framing, and require authorization or explicit acknowledgement for non-loopback binds.
 - Inspect View: Improve MathJax Sanitization
 - Inspect View: Fix stale running status on nav
 - Inspect View: Fix broken commit links for ssh-style GitHub origins
