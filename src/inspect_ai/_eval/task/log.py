@@ -1,5 +1,6 @@
 import logging
 from importlib import metadata as importlib_metadata
+from importlib.metadata import Distribution
 from typing import TYPE_CHECKING, Any, cast
 
 import anyio
@@ -10,11 +11,15 @@ from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.git import git_context
+from inspect_ai._util.git import git_context, redact_url_credentials
+from inspect_ai._util.package import (
+    get_distribution_direct_url,
+    get_distribution_for_object,
+)
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (
     registry_log_name,
-    registry_package_name,
+    registry_lookup,
     registry_params,
 )
 from inspect_ai.dataset import Dataset
@@ -80,25 +85,55 @@ def resolve_revision() -> EvalRevision | None:
     )
 
 
-def resolve_external_registry_package_version(
-    task_registry_name: str | None,
-) -> tuple[str, str] | None:
+def resolve_task_distribution(task_registry_name: str | None) -> Distribution | None:
+    """The installed distribution that provides an external task.
+
+    Resolves the actual *distribution* (e.g. ``harder-tasks-judge-run``) that
+    ships the task — even when the task belongs to a namespace package whose
+    import name (e.g. ``harder_tasks``) is not itself a distribution. Returns
+    None for builtin tasks, local-file tasks, and tasks not installed from a
+    package.
+    """
     if task_registry_name is None:
         return None
-
-    package_name = registry_package_name(task_registry_name)
-
-    is_external = package_name != PKG_NAME
-    if package_name is None or not is_external:
+    task = registry_lookup("task", task_registry_name)
+    if task is None:
         return None
-
-    try:
-        package_version = importlib_metadata.version(package_name)
-    except importlib_metadata.PackageNotFoundError:
-        logger.warning(f"Could not resolve version for {package_name=}")
+    distribution = get_distribution_for_object(task)
+    if distribution is None:
         return None
+    # exclude inspect_ai itself (builtin tasks)
+    if distribution.name.replace("-", "_").lower() == PKG_NAME:
+        return None
+    return distribution
 
-    return package_name, package_version
+
+def resolve_package_revision(distribution: Distribution | None) -> EvalRevision | None:
+    """Resolve the git revision of a task's installed distribution.
+
+    Reads PEP 610 ``direct_url.json`` so tasks installed from a git URL record
+    the exact commit that was checked out, even when the eval process has no
+    local git working tree (the common case for remotely-executed tasks). The
+    returned revision omits ``dirty`` — an installed package has no working tree
+    to be dirty.
+    """
+    if distribution is None:
+        return None
+    direct_url = get_distribution_direct_url(distribution)
+    if (
+        direct_url is None
+        or direct_url.vcs_info is None
+        or direct_url.vcs_info.vcs != "git"
+    ):
+        return None
+    return EvalRevision(
+        type="git",
+        # direct_url.json can carry embedded credentials when the package was
+        # installed from an authenticated git URL; redact them as git_context()
+        # does so tokens never reach the eval log.
+        origin=redact_url_credentials(direct_url.url.removeprefix("git+")),
+        commit=direct_url.vcs_info.commit_id,
+    )
 
 
 def _is_high_throughput(sample_count: int) -> bool:
@@ -140,13 +175,10 @@ class TaskLogger:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
         }
-        revision = resolve_revision()
-        resolved_registry = resolve_external_registry_package_version(
-            task_registry_name
-        )
-        if resolved_registry:
-            external_package, external_package_version = resolved_registry
-            packages[external_package] = external_package_version
+        task_distribution = resolve_task_distribution(task_registry_name)
+        revision = resolve_package_revision(task_distribution) or resolve_revision()
+        if task_distribution is not None:
+            packages[task_distribution.name] = task_distribution.version
 
         # redact authentication oriented model_args
         model_args = model_args_for_log(model_args)
