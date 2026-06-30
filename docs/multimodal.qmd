@@ -63,6 +63,27 @@ input = [
 ]
 ```
 
+Paths and URLs in the fixed task dataset are materialized before they enter the
+sample's runtime message state. The dataset is therefore trusted configuration
+when it contains non-inline media references.
+
+Media introduced later by a tool, solver, agent bridge, or dynamically-created
+task must already be a data URL. Trusted runtime code that intentionally needs
+to materialize a path or URL can do so explicitly:
+
+``` python
+from inspect_ai.model import ContentImage
+from inspect_ai.util import materialize_media
+
+image = ContentImage(
+    image=await materialize_media("picture.png")
+)
+```
+
+`materialize_media()` can read files, fetch URLs, and invoke configured media
+resolvers. Do not call it on model- or tool-controlled references unless that
+access is intentionally authorized.
+
 ### Detail
 
 Some providers support a `detail` option that control over how the model processes the image and generates its textual understanding. Valid options are `auto` (the default), `low`, and `high`. See the [Open AI documentation](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding) for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the `detail` parameter. For example, here we explicitly specify image detail:
@@ -274,12 +295,19 @@ The File API lets you store up to 20GB of files per project, with a per-file max
 
 ## Logging
 
-By default, full base64 encoded copies of media files are included in the log file. Media file logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of media files could become unwieldy (i.e. if your `.json` log file grows to 100MB or larger as a result).
+By default, inline media bytes are retained in the log file. Media logging does
+not fetch unresolved runtime paths or URLs. Media file logging will not create
+performance problems when using `.eval` logs, however if you are using `.json`
+logs then large numbers of media files could become unwieldy (i.e. if your
+`.json` log file grows to 100MB or larger as a result).
 
 You can disable all media logging using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable media logging:
 
 ``` bash
 inspect eval images.py --log-format=json --no-log-images
 ```
+
+This controls retention only. Trusted media in the fixed task input is still
+materialized for submission to the model, then removed from the completed log.
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.

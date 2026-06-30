@@ -9,9 +9,12 @@ surface — hooks, a callback, etc. — is layered on top and tested separately.
 import pytest
 
 from inspect_ai import Task, eval, task
+from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import enqueue_task
+from inspect_ai._util.content import ContentImage
 from inspect_ai.dataset import Sample
-from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.model import ChatMessageUser, get_model
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 
 @task
@@ -83,14 +86,134 @@ def test_enqueue_task_chains_across_batches() -> None:
     assert len({log.eval.run_id for log in logs}) == 1
 
 
+def test_enqueued_task_media_is_inline_only(tmp_path) -> None:
+    secret = tmp_path / "secret.png"
+    secret.write_bytes(b"runtime-selected")
+    seen: list[str] = []
+
+    @solver
+    def child_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            assert not isinstance(state.input, str)
+            content = state.input[0].content
+            assert isinstance(content, list)
+            image = content[0]
+            assert isinstance(image, ContentImage)
+            seen.append(image.image)
+            return state
+
+        return solve
+
+    @solver
+    def enqueue_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(
+                Task(
+                    dataset=[
+                        Sample(
+                            id="child",
+                            input=[
+                                ChatMessageUser(
+                                    content=[ContentImage(image=str(secret))]
+                                )
+                            ],
+                        )
+                    ],
+                    solver=child_solver(),
+                    name="child-media",
+                )
+            )
+            return state
+
+        return solve
+
+    logs = eval(
+        Task(
+            dataset=[Sample(id="parent", input="parent")],
+            solver=enqueue_child(),
+            name="parent-media",
+        ),
+        model="mockllm/model",
+        display="none",
+    )
+
+    assert seen == [str(secret)]
+    child_sample = next(
+        sample for log in logs for sample in (log.samples or []) if sample.id == "child"
+    )
+    content = child_sample.messages[-1].content
+    assert isinstance(content, list)
+    image = content[0]
+    assert isinstance(image, ContentImage)
+    assert image.image == str(secret)
+
+
+def test_enqueued_resolved_task_media_is_inline_only(tmp_path) -> None:
+    secret = tmp_path / "secret.png"
+    secret.write_bytes(b"runtime-selected")
+    seen: list[str] = []
+
+    @solver
+    def child_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            assert not isinstance(state.input, str)
+            content = state.input[0].content
+            assert isinstance(content, list)
+            image = content[0]
+            assert isinstance(image, ContentImage)
+            seen.append(image.image)
+            return state
+
+        return solve
+
+    child = Task(
+        dataset=[
+            Sample(
+                id="child",
+                input=[ChatMessageUser(content=[ContentImage(image=str(secret))])],
+            )
+        ],
+        solver=child_solver(),
+        name="child-resolved-media",
+    )
+    resolved_child = resolve_tasks(
+        child,
+        {},
+        get_model("mockllm/model"),
+        None,
+        None,
+        None,
+    )[0]
+    assert resolved_child.input_media_policy == "trusted_pre_run"
+
+    @solver
+    def enqueue_resolved_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(resolved_child)
+            return state
+
+        return solve
+
+    eval(
+        Task(
+            dataset=[Sample(id="parent", input="parent")],
+            solver=enqueue_resolved_child(),
+            name="parent-resolved-media",
+        ),
+        model="mockllm/model",
+        display="none",
+    )
+
+    assert seen == [str(secret)]
+    assert resolved_child.input_media_policy == "trusted_pre_run"
+
+
 def test_enqueue_task_does_not_leak_active_model() -> None:
     # enqueue_task() resolves the added task against every model in the run,
     # calling init_active_model() per model. That resolution must not leak into
     # the caller: a solver running under one model must still see that model via
     # get_model() after enqueuing. Two models make the leak observable — the
     # resolution loop would otherwise leave the *last* model active.
-    from inspect_ai.model import get_model
-
     mismatches: list[tuple[str, str]] = []
 
     @solver

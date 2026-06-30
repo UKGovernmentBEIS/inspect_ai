@@ -11,8 +11,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._openai import chat_choices_from_openai, model_output_from_openai
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -717,9 +716,7 @@ async def process_content(content: list[Content] | str) -> str | list[dict[str, 
         if item.type == "text":
             processed_content.append({"type": "text", "text": item.text})
         elif item.type == "image":
-            image_url = item.image
-            if not is_http_url(image_url):
-                image_url = await file_as_data_uri(image_url)
+            image_url = inline_media_data_uri(item.image, "image")
 
             processed_content.append(
                 {

@@ -40,8 +40,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
@@ -325,8 +324,7 @@ async def mistral_content_chunk(
     if isinstance(content, ContentText):
         return TextChunk(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
-        # resolve image to url
-        image_url = await file_as_data_uri(content.image)
+        image_url = inline_media_data_uri(content.image, "image")
         return ImageURLChunk(
             image_url=ImageURL(
                 url=image_url,
@@ -336,15 +334,10 @@ async def mistral_content_chunk(
     elif isinstance(content, ContentReasoning):
         return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     elif isinstance(content, ContentDocument):
-        if is_http_url(content.document):
-            return DocumentURLChunk(
-                document_url=content.document, document_name=content.filename
-            )
-        else:
-            file_data_uri = await file_as_data_uri(content.document)
-            return DocumentURLChunk(
-                document_url=file_data_uri, document_name=content.filename
-            )
+        file_data_uri = inline_media_data_uri(content.document, "document")
+        return DocumentURLChunk(
+            document_url=file_data_uri, document_name=content.filename
+        )
 
     else:
         raise ValueError(

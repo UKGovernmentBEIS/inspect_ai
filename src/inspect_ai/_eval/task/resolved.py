@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Set
+from typing import Any, Literal, Set
 
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.run import EvalSampleSource
@@ -7,6 +7,8 @@ from inspect_ai.model import Model
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util import SandboxEnvironmentSpec
 from inspect_ai.util._checkpoint.config import CheckpointConfig
+
+InputMediaPolicy = Literal["trusted_pre_run", "inline_only"]
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,7 @@ class ResolvedTask:
     sample_source: EvalSampleSource | None = field(default=None)
     initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
+    input_media_policy: InputMediaPolicy = field(default="inline_only")
 
     @property
     def has_sandbox(self) -> bool:

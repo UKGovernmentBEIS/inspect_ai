@@ -168,10 +168,10 @@ from .enqueue import get_task_enqueuer
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
-    sample_with_base64_content,
+    TaskInputMediaPlan,
+    materialize_sample_input,
     sample_without_base64_content,
     state_without_base64_content,
-    states_with_base64_content,
 )
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
@@ -274,6 +274,8 @@ class TaskRunOptions:
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
     task_source: "TaskSource | None" = field(default=None)
     """Run-level task source notified as this task's samples/task complete."""
+    input_media_plan: TaskInputMediaPlan = field(default_factory=dict)
+    """Exact media references authorized before this task began executing."""
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -684,8 +686,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sample_uuid: str | None = None,
                     ) -> tuple[Sample, TaskState]:
                         sample = deepcopy(sample_store[sample_index])
-                        if log_images:
-                            sample = await sample_with_base64_content(sample)
                         state = deepcopy(
                             TaskState(
                                 sample_id=sample.id or 0,
@@ -710,6 +710,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         task_name=task.name,
                         log_location=profile.log_location,
                         create_sample_state=create_sample_state,
+                        input_media_plan=options.input_media_plan,
                         sandbox=sandbox,
                         checkpoint=checkpoint,
                         eval_checkpoint=eval_checkpoint,
@@ -1040,6 +1041,7 @@ async def task_run_sample(
     task_name: str,
     log_location: str,
     create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
+    input_media_plan: TaskInputMediaPlan,
     sandbox: SandboxEnvironmentSpec | None,
     checkpoint: CheckpointConfig | None,
     eval_checkpoint: CheckpointConfig | None,
@@ -1235,6 +1237,18 @@ async def task_run_sample(
             limit: EvalSampleLimit | None = None
             sample_summary: EvalSampleSummary | None = None
             attempt_started = False
+            sample_row_started = False
+
+            def make_sample_summary() -> EvalSampleSummary:
+                return EvalSampleSummary(
+                    id=sample_id,
+                    epoch=state.epoch,
+                    uuid=state.uuid,
+                    input=sample.input,
+                    choices=sample.choices,
+                    target=sample.target,
+                    metadata=sample.metadata or {},
+                )
 
             async def emit_attempt_end(will_retry: bool) -> None:
                 if sample_summary is None or not attempt_started:
@@ -1258,6 +1272,38 @@ async def task_run_sample(
             )
 
             try:
+                # Open the realtime sample row before media I/O so a
+                # materialization failure can be logged and retried normally.
+                sample_summary = make_sample_summary()
+                if logger is not None and sample_id in input_media_plan:
+                    await logger.start_sample(sample_summary)
+                    sample_row_started = True
+
+                materialized_sample = await materialize_sample_input(
+                    sample, input_media_plan
+                )
+                sample.input = materialized_sample.input
+                state = deepcopy(
+                    TaskState(
+                        sample_id=state.sample_id,
+                        epoch=state.epoch,
+                        model=state.model,
+                        input=sample.input,
+                        target=state.target,
+                        choices=sample.choices,
+                        messages=sample_messages(sample),
+                        message_limit=state.message_limit,
+                        token_limit=state.token_limit,
+                        cost_limit=state.cost_limit,
+                        completed=False,
+                        metadata=state.metadata,
+                        sample_uuid=state.uuid,
+                    )
+                )
+                set_sample_state(state)
+                init_subtask_store(state.store)
+                sample_summary = make_sample_summary()
+
                 # sample init event (remove file bodies as they have content or absolute paths)
                 event_sample = sample.model_copy(
                     update=dict(files={k: "" for k in sample.files.keys()})
@@ -1266,17 +1312,6 @@ async def task_run_sample(
                 )
                 transcript()._event(
                     SampleInitEvent(sample=event_sample, state=state_jsonable(state))
-                )
-
-                # construct sample summary, used by both emit_sample_init and emit_sample_start
-                sample_summary = EvalSampleSummary(
-                    id=sample_id,
-                    epoch=state.epoch,
-                    uuid=state.uuid,
-                    input=sample.input,
-                    choices=sample.choices,
-                    target=sample.target,
-                    metadata=sample.metadata or {},
                 )
 
                 # emit sample init before sandbox creation
@@ -1398,7 +1433,7 @@ async def task_run_sample(
 
                             try:
                                 # emit/log sample start
-                                if logger is not None:
+                                if logger is not None and not sample_row_started:
                                     await logger.start_sample(sample_summary)
 
                                 # only emit the sample start once: not on retries
@@ -1637,12 +1672,8 @@ async def task_run_sample(
                 if not error or (retry_on_error == 0) or (cancelled_error is not None):
                     progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
-                    # if we are logging images then be sure to base64 images injected by solvers
-                    if log_images:
-                        state = (await states_with_base64_content([state]))[0]
-
-                    # otherwise ensure there are no base64 images in sample or messages
-                    else:
+                    # ensure there are no base64 images in sample or messages
+                    if not log_images:
                         sample = sample_without_base64_content(sample)
                         state = state_without_base64_content(state)
 
@@ -1733,6 +1764,7 @@ async def task_run_sample(
             task_name=task_name,
             log_location=log_location,
             create_sample_state=create_sample_state,
+            input_media_plan=input_media_plan,
             sandbox=sandbox,
             checkpoint=checkpoint,
             eval_checkpoint=eval_checkpoint,

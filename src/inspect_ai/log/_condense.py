@@ -163,9 +163,18 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     Returns:
        EvalSample: Eval sample in condensed form.
     """
-    attachments: dict[str, str] = dict(sample.attachments)
-    events_fn = events_attachment_fn(attachments, log_images)
-    messages_fn = messages_attachment_fn(attachments, log_images)
+    existing_attachments = dict(sample.attachments)
+    attachments = dict(existing_attachments)
+    events_fn = _existing_attachments_content_fn(
+        existing_attachments,
+        attachments,
+        events_attachment_fn(attachments, log_images),
+    )
+    messages_fn = _existing_attachments_content_fn(
+        existing_attachments,
+        attachments,
+        messages_attachment_fn(attachments, log_images),
+    )
     # The events and messages walks rewrite content differently (events_fn
     # pools long text as attachments; messages_fn leaves it inline), so they
     # must not share a message cache: sample.messages contains the same
@@ -174,11 +183,45 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     events_context = WalkContext(message_cache={}, only_core=False)
     messages_context = WalkContext(message_cache={}, only_core=False)
     condensed_events = walk_events(sample.events, events_fn, events_context)
+    retry_events_context = WalkContext(message_cache={}, only_core=False)
+    condensed_error_retries = (
+        [
+            retry.model_copy(
+                update={
+                    "events": walk_events(
+                        retry.events,
+                        events_fn,
+                        retry_events_context,
+                    )
+                    if retry.events is not None
+                    else None
+                }
+            )
+            for retry in sample.error_retries
+        ]
+        if sample.error_retries is not None
+        else None
+    )
 
     # condense events
     existing = sample.events_data
-    existing_msgs = existing["messages"] if existing else []
-    existing_calls = existing["calls"] if existing else []
+    existing_context = WalkContext(message_cache={}, only_core=False)
+    existing_msgs = (
+        [
+            walk_chat_message(message, events_fn, existing_context)
+            for message in existing["messages"]
+        ]
+        if existing
+        else []
+    )
+    existing_calls = (
+        [
+            walk_json_value(call, events_fn, existing_context)
+            for call in existing["calls"]
+        ]
+        if existing
+        else []
+    )
 
     msg_index = _build_msg_index(existing_msgs)
     condensed_events, _, new_msgs = condense_model_event_inputs(
@@ -206,6 +249,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
                 sample.messages, messages_fn, messages_context
             ),
             "events": condensed_events,
+            "error_retries": condensed_error_retries,
             "attachments": attachments,
             "events_data": events_data,
         }
@@ -257,6 +301,27 @@ def messages_attachment_fn(
                 return BASE_64_DATA_REMOVED
         else:
             return text
+
+    return fn
+
+
+def _existing_attachments_content_fn(
+    existing: Mapping[str, str],
+    attachments: MutableMapping[str, str],
+    content_fn: Callable[[str], str],
+) -> Callable[[str], str]:
+    """Apply a content policy to values referenced by existing attachments."""
+
+    def fn(text: str) -> str:
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            hash = text.removeprefix(ATTACHMENT_PROTOCOL)
+            value = existing.get(hash)
+            if value is not None:
+                rewritten = content_fn(value)
+                if rewritten != text:
+                    attachments.pop(hash, None)
+                return rewritten
+        return content_fn(text)
 
     return fn
 
@@ -323,12 +388,35 @@ def resolve_sample_attachments(
     resolved_events = walk_events(sample.events, content_fn, context)
     resolved_events = resolve_model_event_inputs(resolved_events, resolved_pool)
     resolved_events = resolve_model_event_calls(resolved_events, resolved_call_pool)
+    retry_events_context = WalkContext(
+        message_cache={},
+        only_core=resolve_attachments == "core",
+    )
+    resolved_error_retries = (
+        [
+            retry.model_copy(
+                update={
+                    "events": walk_events(
+                        retry.events,
+                        content_fn,
+                        retry_events_context,
+                    )
+                    if retry.events is not None
+                    else None
+                }
+            )
+            for retry in sample.error_retries
+        ]
+        if sample.error_retries is not None
+        else None
+    )
 
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, content_fn, context),
             "messages": walk_chat_messages(sample.messages, content_fn, context),
             "events": resolved_events,
+            "error_retries": resolved_error_retries,
             "attachments": {},
             "events_data": None,
         }

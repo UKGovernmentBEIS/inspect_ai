@@ -38,8 +38,7 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -739,9 +738,7 @@ async def _grok_content_item(content: Content) -> chat_pb2.Content:
 
         return chat_pb2.Content(
             image_url={
-                "image_url": content.image
-                if is_http_url(content.image)
-                else await file_as_data_uri(content.image),
+                "image_url": inline_media_data_uri(content.image, "image"),
                 "detail": detail,
             }
         )

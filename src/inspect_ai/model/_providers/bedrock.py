@@ -15,7 +15,7 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
-from inspect_ai._util.images import file_as_data
+from inspect_ai._util.images import inline_media_data
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.log._samples import set_active_model_event_call
@@ -934,7 +934,7 @@ async def converse_chat_message(
                 if c.type == "text":
                     tool_result_content.append(ConverseToolResultContent(text=c.text))
                 elif c.type == "image":
-                    image_data, image_type = await file_as_data(c.image)
+                    image_data, image_type = inline_media_data(c.image, "image")
                     tool_result_content.append(
                         ConverseToolResultContent(
                             image=ConverseImage(
@@ -973,7 +973,7 @@ async def converse_contents(
         result: list[ConverseMessageContent] = []
         for c in content:
             if c.type == "image":
-                image_data, image_type = await file_as_data(c.image)
+                image_data, image_type = inline_media_data(c.image, "image")
                 result.append(
                     ConverseMessageContent(
                         image=ConverseImage(
