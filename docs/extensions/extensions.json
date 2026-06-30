@@ -165,6 +165,17 @@
     ]
   },
   {
+    "id": "inspect-claim-support",
+    "name": "Inspect Claim Support",
+    "url": "https://github.com/avalyset/inspect-claim-support",
+    "desc": "Faithfulness / claim-support scorer \u2014 checks whether a claimed answer is substantiated by the transcript. Absence of evidence is not treated as support.",
+    "author": "Eirik Botten Nicolaysen",
+    "author_url": "https://github.com/avalyset",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "inspect-swe",
     "name": "Inspect SWE",
     "url": "https://meridianlabs-ai.github.io/inspect_swe/",
@@ -248,6 +259,17 @@
     "desc": "Platform for running Inspect AI evaluations on cloud infrastructure.",
     "author": "METR",
     "author_url": "https://github.com/METR/hawk",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "optstop",
+    "name": "Optstop",
+    "url": "https://github.com/UKGovernmentBEIS/optstop",
+    "desc": "Adaptive optimal stopping algorithms to help efficiently determine when enough data has been collected to make reliable inferences.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/UKGovernmentBEIS/optstop",
     "categories": [
       "Tooling"
     ]
