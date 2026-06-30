@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Literal, Protocol
 
+from pydantic import JsonValue
+
 
 @dataclass(frozen=True)
 class Manual:
@@ -112,9 +114,22 @@ CheckpointTrigger = (
 config types. See :mod:`._engine` for the runtime dispatch."""
 
 
+@dataclass(frozen=True)
+class TriggerFire:
+    """Result of a :meth:`Trigger.tick` that fired."""
+
+    kind: CheckpointTriggerKind
+    """Which trigger fired."""
+
+    metadata: dict[str, JsonValue] | None = None
+    """Trigger-specific fire details (e.g. configured threshold vs.
+    actual usage at fire time). Recorded on the checkpoint file as
+    ``trigger_metadata``."""
+
+
 class Trigger(Protocol):
     """Runtime trigger — one instance per checkpointed session."""
 
-    def tick(self) -> CheckpointTriggerKind | None:
-        """Advance the trigger's state; return the kind that fired, or ``None``."""
+    def tick(self) -> TriggerFire | None:
+        """Advance the trigger's state; return the fire details, or ``None``."""
         ...

@@ -1,8 +1,9 @@
 import os
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar, Token
 from pathlib import Path
+from typing import Literal
 
 _DEFAULT_MAX_EXEC_OUTPUT_SIZE = 10 * 1024**2
 _DEFAULT_MAX_READ_FILE_SIZE = 100 * 1024**2
@@ -127,18 +128,46 @@ def override_max_exec_output_size(limit: int) -> Iterator[None]:
 def override_max_read_file_size(limit: int) -> Iterator[None]:
     """Temporarily override the max read file size for the current context.
 
-    Updates both MAX_READ_FILE_SIZE and MAX_READ_FILE_SIZE_STR (they share a
-    ContextVar), so the enforced limit and its reported string stay consistent.
-    The override is scoped to the current async context and restored on exit.
+    Use this to read a file that is legitimately larger than the default
+    read file cap (e.g. a checkpoint egress tarball) without raising the
+    limit for unrelated reads. The override is scoped to the current async
+    context and restored on exit.
 
     Args:
-        limit: Read file size limit (in bytes) to apply within the context.
+        limit: File size limit (in bytes) to apply within the context.
     """
     token = _max_read_file_size_var.set(limit)
     try:
         yield
     finally:
         _max_read_file_size_var.reset(token)
+
+
+@contextmanager
+def override_sandbox_output_limit(
+    limit: int, *targets: Literal["exec", "read_file"]
+) -> Iterator[None]:
+    """Temporarily override sandbox output limits for the current context.
+
+    Convenience wrapper that delegates to `override_max_exec_output_size`
+    and/or `override_max_read_file_size`, applying `limit` to each named
+    target. The overrides are scoped to the current async context and
+    restored on exit.
+
+    Args:
+        limit: Size limit (in bytes) to apply within the context.
+        *targets: Which limits to override — `"exec"` (exec output) and/or
+            `"read_file"` (file reads). If omitted, both are overridden.
+    """
+    overrides = {
+        "exec": override_max_exec_output_size,
+        "read_file": override_max_read_file_size,
+    }
+    selected = targets or ("exec", "read_file")
+    with ExitStack() as stack:
+        for target in selected:
+            stack.enter_context(overrides[target](limit))
+        yield
 
 
 class OutputLimitExceededError(Exception):

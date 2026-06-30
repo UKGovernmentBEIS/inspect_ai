@@ -236,6 +236,63 @@ def test_token_limit_does_not_apply_to_scorer():
     assert log.status == "success"
 
 
+def test_turn_limit():
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(mock_model_output(tokens=1)),
+    )
+    turn_limit = 2
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        turn_limit=turn_limit,
+    )
+
+    log = eval(task, model=model)[0]
+    # turn_limit(2) allows 2 generations; the 3rd records the turn and exceeds.
+    total_generations = sum(
+        usage.total_tokens for usage in log.stats.model_usage.values()
+    )
+    assert total_generations == 3
+    check_limit_event(log, "turn")
+    # The limit which halted the sample is recorded on the sample.
+    assert log.samples
+    assert log.samples[0].limit is not None
+    assert log.samples[0].limit.type == "turn"
+    assert log.samples[0].limit.limit == turn_limit
+
+
+def test_turn_limit_does_not_apply_to_scorer():
+    @scorer(metrics=[mean()])
+    def generating_scorer(model: Model) -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            # Many generations in the scorer must not count against the turn limit.
+            for _ in range(5):
+                await model.generate("Hello")
+            return Score(value=1)
+
+        return score
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[mock_model_output(tokens=1) for _ in range(5)],
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello only.", target="Hello")],
+        solver=[],  # No solvers; straight to scorer.
+        scorer=generating_scorer(model=model),
+        # The turn limit should only apply to the solvers, not the scorer.
+        turn_limit=1,
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert find_limit_event(log) is None
+    assert log.status == "success"
+    assert log.samples[0].scores["generating_scorer"].value == 1
+
+
 def test_time_limit():
     log = eval(Task(solver=sleep_for_solver(3)), model="mockllm/model", time_limit=2)[0]
     check_limit_event(log, "time")
@@ -451,6 +508,43 @@ def test_model_without_cost_data_errors() -> None:
 def test_cost_data_without_cost_limit_tracks_cost() -> None:
     set_model_info(
         "model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model("mockllm/model", custom_outputs=[output])
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+    )
+    log = eval(
+        task,
+        model=model,
+    )[0]
+    assert log.status == "success"
+    # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
+    usage = list(log.stats.model_usage.values())[0]
+    assert usage.total_cost == pytest.approx(0.007)
+    assert find_limit_event(log) is None
+
+
+def test_cost_data_keyed_by_full_model_string_tracks_cost() -> None:
+    # Regression for routed providers (together, hf-inference-providers, custom
+    # routed providers): set_model_info / set_model_cost / --model-cost-config key
+    # cost under the user-facing model string, which differs from canonical_name()
+    # when the provider strips a route prefix. mockllm reproduces the mismatch:
+    # str(model) is "mockllm/model" but canonical_name() is "model", so registering
+    # under the full string must still be found when recording usage.
+    set_model_info(
+        "mockllm/model",
         ModelInfo(
             cost=ModelCost(
                 input=1000.0,

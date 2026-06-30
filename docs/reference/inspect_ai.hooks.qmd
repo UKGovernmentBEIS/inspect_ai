@@ -12,6 +12,7 @@ description: Hook into Inspect lifecycle events.
 
 ### ApiKeyOverride
 ### ModelUsageData
+### ModelRetry
 ### EvalSetStart
 ### EvalSetEnd
 ### RunEnd

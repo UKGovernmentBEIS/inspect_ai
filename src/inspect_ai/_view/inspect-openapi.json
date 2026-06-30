@@ -1227,6 +1227,20 @@
             "title": "Trigger",
             "type": "string"
           },
+          "trigger_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Metadata"
+          },
           "turn": {
             "title": "Turn",
             "type": "integer"
@@ -2648,6 +2662,17 @@
             ],
             "title": "Token Limit"
           },
+          "turn_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Limit"
+          },
           "working_limit": {
             "anyOf": [
               {
@@ -2895,6 +2920,17 @@
       "EvalMetric": {
         "description": "Metric for evaluation score.",
         "properties": {
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
           "metadata": {
             "anyOf": [
               {
@@ -3644,6 +3680,7 @@
               "working",
               "message",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"
@@ -7909,6 +7946,7 @@
               "time",
               "working",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"
@@ -11105,8 +11143,8 @@
       }
     },
     "/log-delete/{log}": {
-      "get": {
-        "operationId": "api_log_delete_log_delete__log__get",
+      "delete": {
+        "operationId": "api_log_delete_log_delete__log__delete",
         "parameters": [
           {
             "in": "path",
@@ -11123,7 +11161,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Api Log Delete Log Delete  Log  Get",
+                  "title": "Response Api Log Delete Log Delete  Log  Delete",
                   "type": "boolean"
                 }
               }
@@ -11339,8 +11377,8 @@
       }
     },
     "/log-message": {
-      "get": {
-        "operationId": "api_log_message_log_message_get",
+      "post": {
+        "operationId": "api_log_message_log_message_post",
         "parameters": [
           {
             "in": "query",

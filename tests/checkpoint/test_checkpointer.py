@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -22,6 +21,7 @@ from typing import Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import JsonValue
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
 
 from inspect_ai.event._checkpoint import CheckpointEvent
@@ -41,6 +41,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.util import current_checkpointer
 from inspect_ai.util._checkpoint import (
     Manual,
     TimeInterval,
@@ -55,6 +56,7 @@ from inspect_ai.util._checkpoint.checkpointer_impl import (
     CheckpointFailureLimitExceeded,
     _CheckpointerSetup,
     _EnteredCheckpointer,
+    _scan_next_checkpoint_id,
 )
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
@@ -163,9 +165,13 @@ class _CountingCheckpointer(_EnteredCheckpointer):
     fire_count: int = 0
 
     async def _fire(
-        self, trigger: CheckpointTriggerKind, *, final: bool = False
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
     ) -> None:
-        await super()._fire(trigger, final=final)
+        await super()._fire(trigger, metadata=metadata, final=final)
         self.fire_count += 1
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
@@ -213,7 +219,11 @@ class _FlakyCheckpointer(_EnteredCheckpointer):
     attempts: int = 0
 
     async def _fire_once(
-        self, trigger: CheckpointTriggerKind, *, final: bool = False
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
     ) -> None:
         self.attempts += 1
         if self.should_fail:
@@ -405,21 +415,26 @@ async def test_fire_includes_events_emitted_before_checkpointer_construction(
 
 
 async def test_fire_reopens_checkpoint_span_after_failure(dirs: _Dirs) -> None:
+    from inspect_ai.util._span import current_span_id
+
     cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
-    assert cp._current_span_cm is None
-    await cp._open_next_span()
-    open_before = cp._current_span_cm
-    assert open_before is not None
 
     async def fail_write_host_context(*_args: object) -> None:
         raise RuntimeError("write failed")
 
-    with patch.object(cp, "_write_host_context", side_effect=fail_write_host_context):
-        await cp.checkpoint()
+    async with cp.span_session():
+        open_before = current_span_id()
+        assert open_before is not None
 
-    assert cp._current_span_cm is not None
-    assert cp._current_span_cm is not open_before
-    await cp._close_current_span()
+        with patch.object(
+            cp, "_write_host_context", side_effect=fail_write_host_context
+        ):
+            await cp.checkpoint()
+
+        reopened = current_span_id()
+        assert reopened is not None
+        assert reopened != open_before
+    assert current_span_id() is None
 
 
 # --- hydrate: resume-state validation -------------------------------------
@@ -449,6 +464,16 @@ def _write_checkpoint_files(sample_root: Path, count: int) -> None:
         (sample_root / f"ckpt-{checkpoint_id:05d}.json").write_text(
             checkpoint.model_dump_json()
         )
+
+
+async def test_scan_next_checkpoint_id_reuses_torn_checkpoint_id(
+    tmp_path: Path,
+) -> None:
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    (sample_root / "ckpt-00003.json").write_text("{")
+
+    assert await _scan_next_checkpoint_id(str(sample_root)) == 3
 
 
 def _checkpoint_resume_events(count: int) -> list[Event]:
@@ -946,13 +971,6 @@ def _patch_restic(tmp_path: Path) -> Iterator[None]:
         yield
 
 
-@contextmanager
-def _patch_checkpointing_enabled() -> Iterator[None]:
-    """Set INSPECT_CHECKPOINTING=1 so `build_impl()` runs its real path."""
-    with patch.dict(os.environ, {"INSPECT_CHECKPOINTING": "1"}):
-        yield
-
-
 @pytest.fixture
 def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
     """Active sample fixture; redirects on-disk writes under tmp_path."""
@@ -963,7 +981,6 @@ def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
         _patch_cache_dir(tmp_path),
         _patch_restic(tmp_path),
         _patch_sample_runtime([]),
-        _patch_checkpointing_enabled(),
     ):
         yield fake
 
@@ -1038,6 +1055,124 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     assert (context / "events_data.json").is_file()
     assert (context / "attachments.json").is_file()
     assert (context / "store.json").is_file()
+
+
+# === nested re-entry: sub-agent loops (agent-as-tool / handoff / deepagent) ==
+
+
+async def test_nested_checkpointer_entry_yields_inert_session(
+    active_sample: _FakeActiveSample,
+) -> None:
+    """A nested ``checkpointer()`` borrows an inert session, not the owner's.
+
+    A react sub-agent run inside another (agent-as-tool, handoff, deepagent
+    task) re-enters the per-sample session; it gets a no-op, so ``track`` can't
+    collide and ``tick`` can't drive the owner's trigger.
+    """
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=1))
+    assert active_sample.sample.id is not None
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=active_sample.sample.id,
+        epoch=active_sample.epoch,
+    )
+    log = Path(active_sample.log_location)
+    sample_dir = log.parent / f"{log.stem}.checkpoints" / "1__0"
+
+    async with checkpointer() as outer:
+        outer.track("messages", lambda: ["a"], ["a"], value_type=list[str])
+        async with checkpointer() as inner:
+            assert inner is not outer
+            assert isinstance(inner, _NoopCheckpointer)
+            # same key the owner tracks: a real session raises, the no-op returns initial
+            restored = inner.track(
+                "messages", lambda: ["b"], ["b"], value_type=list[str]
+            )
+            assert restored == ["b"]
+            await inner.tick()
+
+        # owner's session intact: it still owns "messages" (re-track collides),
+        # and the inert nested tick fired nothing despite every=1
+        with pytest.raises(ValueError, match="unique"):
+            outer.track("messages", lambda: ["a"], ["a"], value_type=list[str])
+        assert sample_dir.is_dir()
+        assert not list(sample_dir.glob("ckpt-*.json"))
+
+
+async def test_nested_checkpointer_preserves_owner_session_lifecycle(
+    active_sample: _FakeActiveSample,
+) -> None:
+    """A nested ``checkpointer()`` exit must not tear down the owner's session.
+
+    The owner stays reachable via ``current_checkpointer()`` and fires its one
+    ``agent_complete`` finalize on its *own* clean exit, not early on the nested
+    exit.
+    """
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+
+    active_sample.sample.id = "s_nested"
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=Manual())
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=active_sample.sample.id,
+        epoch=active_sample.epoch,
+    )
+    log = Path(active_sample.log_location)
+    sample_dir = log.parent / f"{log.stem}.checkpoints" / "s_nested__0"
+
+    async with checkpointer() as outer:
+        async with checkpointer():
+            pass
+        # the nested exit left the owner's session live and un-finalized
+        assert current_checkpointer() is outer
+        assert sample_dir.is_dir()
+        assert not list(sample_dir.glob("ckpt-*.json"))
+
+    # the owner's clean exit fires exactly one agent_complete checkpoint
+    assert sorted(p.name for p in sample_dir.glob("ckpt-*.json")) == ["ckpt-00001.json"]
+    final = Checkpoint.model_validate_json((sample_dir / "ckpt-00001.json").read_text())
+    assert final.trigger == "agent_complete"
+
+
+async def test_nested_checkpointer_body_exception_does_not_disturb_owner(
+    active_sample: _FakeActiveSample,
+) -> None:
+    """An exception from a nested scope unwinds without disturbing the owner.
+
+    A raising sub-agent unwinds through the inert no-op, so the owner's one-shot
+    finalize isn't spent early and its span scope isn't wedged.
+    """
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+
+    active_sample.sample.id = "s_nested_exc"
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=Manual())
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=active_sample.sample.id,
+        epoch=active_sample.epoch,
+    )
+    log = Path(active_sample.log_location)
+    sample_dir = log.parent / f"{log.stem}.checkpoints" / "s_nested_exc__0"
+
+    async with checkpointer() as outer:
+        with pytest.raises(ValueError, match="boom"):
+            async with checkpointer():
+                raise ValueError("boom")
+        # the caught nested exception left the owner live and un-finalized
+        assert current_checkpointer() is outer
+        assert sample_dir.is_dir()
+        assert not list(sample_dir.glob("ckpt-*.json"))
+        await outer.tick()  # span session not wedged; Manual() never fires
+
+    # the owner still fires exactly one agent_complete on its own clean exit
+    assert sorted(p.name for p in sample_dir.glob("ckpt-*.json")) == ["ckpt-00001.json"]
+    final = Checkpoint.model_validate_json((sample_dir / "ckpt-00001.json").read_text())
+    assert final.trigger == "agent_complete"
 
 
 # === _write_host_context: condensed events round-trip =======================
@@ -1180,6 +1315,59 @@ async def test_track_not_registered_no_file(tmp_path: Path) -> None:
     cp = _make_cp()
 
     assert await _write_agent_state(tmp_path, cp) is None
+
+
+# === _write_host_context: assistant internal ================================
+
+
+@contextmanager
+def _populated_assistant_internal() -> Iterator[None]:
+    """Populate anthropic assistant-internal state; reset on exit."""
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._providers.anthropic import assistant_internal
+
+    init_sample_assistant_internal()
+    assistant_internal().thinking_blocks["h1"] = {
+        "type": "thinking",
+        "thinking": "hmm",
+        "signature": "sig",
+    }
+    try:
+        yield
+    finally:
+        init_sample_assistant_internal()
+
+
+async def test_write_host_context_includes_assistant_internal(tmp_path: Path) -> None:
+    """Provider-recorded state lands in assistant_internal.json and reads back."""
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    with _populated_assistant_internal():
+        cp = _make_cp()
+        work = tmp_path / "work"
+        work.mkdir()
+        await cp._write_host_context(str(work), Store())
+
+        data = json.loads((work / "assistant_internal.json").read_text())
+        assert data["anthropic"]["thinking_blocks"]["h1"]["thinking"] == "hmm"
+        assert host_context.read(str(work)).assistant_internal == data
+
+
+async def test_write_host_context_skips_empty_assistant_internal(
+    tmp_path: Path,
+) -> None:
+    """With nothing recorded, assistant_internal.json is not written."""
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    init_sample_assistant_internal()
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+
+    assert not (work / "assistant_internal.json").exists()
+    assert host_context.read(str(work)).assistant_internal is None
 
 
 def test_track_noop_session() -> None:

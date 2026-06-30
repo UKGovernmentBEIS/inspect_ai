@@ -1280,7 +1280,7 @@ class AnthropicAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.service_model_name()}"
+        return f"{self.initial_api_key}:{self.service_model_name()}"
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -2546,7 +2546,15 @@ async def assistant_message_blocks(
         elif block_param["type"] == "compaction":
             blocks.append(BetaCompactionBlock.model_validate(block_param))
         elif block_param["type"] == "fallback":
-            blocks.append(BetaFallbackBlock.model_validate(block_param))
+            # BetaFallbackBlock requires a server-side refusal `trigger` (added in
+            # anthropic 0.110.0); inspect only round-trips `from`/`to`, so
+            # synthesize one when the param doesn't carry it -- mirroring the
+            # server_tool_use "synthesize a default caller" pattern above.
+            blocks.append(
+                BetaFallbackBlock.model_validate(
+                    {"trigger": {"type": "refusal"}, **block_param}
+                )
+            )
         else:
             logger.warning(
                 f"Unexpecxted assistant message block type: {block_param['type']}"
@@ -2737,8 +2745,118 @@ def assistant_internal() -> _AssistantInternal:
     return _anthropic_assistant_internal.get()
 
 
-def init_sample_anthropic_assistant_internal() -> None:
-    _anthropic_assistant_internal.set(_AssistantInternal())
+def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> None:
+    """Initialize (``value is None``) or restore the sample's assistant internal.
+
+    Restore (``value`` from a prior :func:`dump_anthropic_assistant_internal`)
+    mutates the current instance in place rather than rebinding the context
+    var, so the restored state is visible outside the restoring task — see
+    ``inspect_ai.model._assistant_internal``.
+    """
+    if value is None:
+        _anthropic_assistant_internal.set(_AssistantInternal())
+        return
+    assert isinstance(value, dict)
+    internal = assistant_internal()
+    internal.thinking_blocks.update(
+        cast("dict[str, Any]", value.get("thinking_blocks", {}))
+    )
+    internal.tool_call_internal_names.update(
+        cast("dict[str, str | None]", value.get("tool_call_internal_names", {}))
+    )
+    internal.server_mcp_tool_uses.update(
+        {
+            tool_use_id: (use, result)
+            for tool_use_id, (use, result) in cast(
+                "dict[str, Any]", value.get("server_mcp_tool_uses", {})
+            ).items()
+        }
+    )
+    # Spans were dumped as an identity-deduped table with the two maps
+    # holding indices into it; rebuilding from the table restores the
+    # object sharing between (and within) the maps.
+    spans = [
+        _ServerToolSpan(
+            blocks=cast("list[_ServerToolSpanBlockParam]", span["blocks"]),
+            content_ids=cast("list[str]", span["content_ids"]),
+            open_use_ids=set(cast("list[str]", span["open_use_ids"])),
+        )
+        for span in cast("list[dict[str, Any]]", value.get("spans", []))
+    ]
+    internal.server_tool_spans.update(
+        {
+            message_id: [spans[index] for index in indexes]
+            for message_id, indexes in cast(
+                "dict[str, list[int]]", value.get("server_tool_spans", {})
+            ).items()
+        }
+    )
+    internal.server_tool_span_index.update(
+        {
+            content_id: spans[index]
+            for content_id, index in cast(
+                "dict[str, int]", value.get("server_tool_span_index", {})
+            ).items()
+        }
+    )
+
+
+def dump_anthropic_assistant_internal() -> JsonValue | None:
+    """Dump the sample's assistant internal as a JSON value (``None`` if empty).
+
+    Block params are the SDK's ``TypedDict`` request params — plain dicts
+    at runtime, so they serialize as-is and restore via cast with no
+    validation (corrupt data surfaces at request time, as it would have
+    in-memory). ``_ServerToolSpan`` objects are shared between
+    ``server_tool_spans`` and ``server_tool_span_index`` (and the index can
+    hold spans absent from the message map), so spans are dumped once into
+    a table and the maps reference table indices.
+    """
+    internal = assistant_internal()
+    span_table: list[_ServerToolSpan] = []
+    span_indexes: dict[int, int] = {}
+    for span in (
+        *(s for spans in internal.server_tool_spans.values() for s in spans),
+        *internal.server_tool_span_index.values(),
+    ):
+        if id(span) not in span_indexes:
+            span_indexes[id(span)] = len(span_table)
+            span_table.append(span)
+
+    if not (
+        internal.thinking_blocks
+        or internal.tool_call_internal_names
+        or internal.server_mcp_tool_uses
+        or span_table
+    ):
+        return None
+    return cast(
+        JsonValue,
+        {
+            "thinking_blocks": dict(internal.thinking_blocks),
+            "tool_call_internal_names": dict(internal.tool_call_internal_names),
+            "server_mcp_tool_uses": {
+                tool_use_id: list(use_result)
+                for tool_use_id, use_result in internal.server_mcp_tool_uses.items()
+            },
+            "spans": [
+                {
+                    "blocks": span.blocks,
+                    "content_ids": span.content_ids,
+                    "open_use_ids": sorted(span.open_use_ids),
+                }
+                for span in span_table
+            ],
+            "server_tool_spans": {
+                message_id: [span_indexes[id(span)] for span in spans]
+                for message_id, spans in internal.server_tool_spans.items()
+            },
+            "server_tool_span_index": {
+                content_id: span_indexes[id(span)]
+                for content_id, span in internal.server_tool_span_index.items()
+            },
+        },
+    )
 
 
 _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
@@ -3160,6 +3278,10 @@ def content_and_tool_calls_from_assistant_content_blocks(
                 fb = dict(block)
                 if "from_" in fb and "from" not in fb:
                     fb["from"] = fb.pop("from_")
+                # BetaFallbackBlock requires a server-side refusal `trigger`
+                # (added in anthropic 0.110.0); scaffold-echoed history doesn't
+                # carry it, so synthesize one. inspect never reads `trigger`.
+                fb.setdefault("trigger", {"type": "refusal"})
                 content_blocks.append(BetaFallbackBlock.model_validate(fb))
             else:
                 content_blocks.append(content_block_adapter.validate_python(block))

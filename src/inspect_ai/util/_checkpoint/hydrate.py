@@ -115,6 +115,13 @@ class _HostHydrationResult:
     store: dict[str, JsonValue] = field(default_factory=dict)
     """From ``store.json`` — restored into the sample Store."""
 
+    assistant_internal: JsonValue | None = None
+    """From ``assistant_internal.json`` — restored into the per-provider
+    assistant-internal context vars. Restored by ``_CheckpointerSetup.
+    __aenter__`` rather than ``_push_host_state``: the push runs in a
+    child task, and the restore must run where the solver's context is
+    current."""
+
 
 @dataclass
 class HydrationResult:
@@ -576,6 +583,7 @@ def _load_host_state(
         call_pool=ctx.call_pool,
         attachments=ctx.attachments,
         store=ctx.store,
+        assistant_internal=ctx.assistant_internal,
     )
 
 
