@@ -31,9 +31,11 @@ def _pending_model_event() -> ModelEvent:
 
 
 def test_partial_output_reaches_subscriber_and_preserves_pending() -> None:
-    """Each flush mutates ``event.output`` and fires ``_event_updated``;
+    """Each flush mutates ``event.output`` and fires ``_event_updated``.
+
     ``pending`` stays ``True`` so the existing ``complete()`` path remains
-    the sole place that clears it (the ACP event mapper depends on this)."""
+    the sole place that clears it (the ACP event mapper depends on this).
+    """
     t = Transcript()
     init_transcript(t)
     event = _pending_model_event()
@@ -83,9 +85,11 @@ def test_asserts_when_event_not_pending() -> None:
 
 
 def test_complete_overwrites_partial() -> None:
-    """The streaming snapshots are provisional — the final output replaces
-    them wholesale, so a partial that dropped (e.g.) server-tool blocks is
-    fully reconciled on completion."""
+    """The streaming snapshots are provisional.
+
+    The final output replaces them wholesale, so a partial that dropped
+    (e.g.) server-tool blocks is fully reconciled on completion.
+    """
     t = Transcript()
     init_transcript(t)
     event = _pending_model_event()
@@ -105,13 +109,13 @@ def test_complete_overwrites_partial() -> None:
 
 
 async def test_mockllm_stream_chunks_emits_partials_then_terminal() -> None:
-    """End-to-end: mockllm ``stream_chunks=N`` drives N partial flushes
-    (``pending=True``) followed by exactly one terminal (``pending=None``).
+    """End-to-end: mockllm ``stream_chunks=N`` drives N partials then one terminal.
 
-    This exercises the full provider path — ``Model.generate`` creating the
+    Exercises the full provider path — ``Model.generate`` creating the
     pending ``ModelEvent``, ``track_active_model_event`` wrapping the API call,
-    mockllm publishing growing-prefix partials, and ``complete()`` clearing
-    ``pending`` — without an API call."""
+    mockllm publishing growing-prefix partials (``pending=True``), and
+    ``complete()`` clearing ``pending`` — without an API call.
+    """
     t = Transcript()
     init_transcript(t)
 

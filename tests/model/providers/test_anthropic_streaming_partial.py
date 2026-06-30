@@ -183,7 +183,7 @@ async def test_pause_turn_partial_output_monotone() -> None:
             self.messages = _FakeMessages()
 
     api = AnthropicAPI.__new__(AnthropicAPI)
-    api._batcher = None  # type: ignore[attr-defined]
+    api._batcher = None
     api.client = _FakeClient()  # type: ignore[assignment]
     api.service_model_name = lambda: "claude-sonnet-4-6"  # type: ignore[method-assign]
     api.cache_diagnostics_enabled = lambda config: False  # type: ignore[method-assign]
