@@ -126,7 +126,7 @@ def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
         )
 
     lines = [
-        "The code may call the following allowlisted Inspect tools as async functions.",
+        "The code may call the following allowlisted tools as async functions.",
         "Use `await` when calling them:",
         "",
     ]
@@ -167,7 +167,7 @@ def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
     if tool_defs:
         lines.extend(
             [
-                "You may call the allowlisted tools listed below, but ONLY from within the Python code passed to run_code.",
+                "You may call the tools listed below, but ONLY from within the Python code passed to run_code.",
                 "Do NOT call them directly as regular tools — they are only available inside the Python execution environment.",
                 "",
                 "Use `await` when calling these tools, or `asyncio.gather(...)` to run multiple calls concurrently.",
@@ -189,7 +189,7 @@ def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
     else:
         lines.extend(
             [
-                "No inner Inspect tools are available.",
+                "No inner tools are available.",
                 "The code can only use the Python execution environment.",
             ]
         )
