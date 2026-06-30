@@ -18,7 +18,7 @@ import stat
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Literal
+from typing import Final, Literal
 
 import anyio
 
@@ -42,12 +42,12 @@ SUPPORTED_PLATFORMS: tuple[Platform, ...] = (
     "windows_amd64",
 )
 
-_VERSION_FILE = Path(__file__).parent / "version.txt"
-_SHA256SUMS_FILE = Path(__file__).parent / "SHA256SUMS"
-_RELEASE_BASE_URL = "https://github.com/restic/restic/releases/download"
+_VERSION_FILE: Final = Path(__file__).parent / "version.txt"
+_SHA256SUMS_FILE: Final = Path(__file__).parent / "SHA256SUMS"
+_RELEASE_BASE_URL: Final = "https://github.com/restic/restic/releases/download"
 # Socket timeout (seconds) for the binary download, raised above download()'s
 # 5s default to tolerate the larger transfer on slower links.
-_DOWNLOAD_TIMEOUT = 30
+_DOWNLOAD_TIMEOUT: Final = 30
 
 
 def _current_platform() -> Platform:
@@ -156,7 +156,7 @@ def _resolve_blocking(platform: Platform) -> Path:
 
     target.parent.mkdir(parents=True, exist_ok=True)
     archive_name = _archive_filename(version, platform)
-    expected_sha256 = _extract_expected_hash(_SHA256SUMS_FILE.read_text(), archive_name)
+    expected_sha256 = _extract_expected_hash(_read_sha256sums(), archive_name)
 
     fd, tmp_path = tempfile.mkstemp(
         prefix="restic-archive-",
@@ -198,6 +198,22 @@ def _download_archive(
         download(url, sha256, dest, timeout=_DOWNLOAD_TIMEOUT)
     except Exception as ex:
         raise RuntimeError(f"Failed to download {url}: {ex}") from ex
+
+
+def _read_sha256sums() -> str:
+    """Read the vendored ``SHA256SUMS``, raising RuntimeError if it is unreadable.
+
+    Honors :func:`resolve_restic`'s RuntimeError contract on a broken install
+    (data file missing from the wheel, unreadable permissions) rather than
+    leaking an ``OSError``.
+    """
+    try:
+        return _SHA256SUMS_FILE.read_text()
+    except OSError as ex:
+        raise RuntimeError(
+            f"Vendored SHA256SUMS unreadable at {_SHA256SUMS_FILE} "
+            f"(corrupt installation?): {ex}"
+        ) from ex
 
 
 def _extract_expected_hash(sums_text: str, archive_name: str) -> str:

@@ -175,6 +175,18 @@ async def test_missing_vendored_entry_raises_before_download(tmp_path: Path) -> 
         download_mock.assert_not_called()
 
 
+async def test_unreadable_vendored_sums_raises_runtime_error(tmp_path: Path) -> None:
+    missing = tmp_path / "nonexistent" / "SHA256SUMS"
+    with (
+        _patch_cache_dir(tmp_path),
+        patch("inspect_ai.util._restic.resolver._SHA256SUMS_FILE", missing),
+        _patch_download(_download_writes_archive) as download_mock,
+    ):
+        with pytest.raises(RuntimeError, match="unreadable"):
+            await resolve_restic(PLATFORM)
+        download_mock.assert_not_called()
+
+
 def test_vendored_sums_cover_all_supported_platforms() -> None:
     """Check the committed SHA256SUMS covers every supported platform.
 
