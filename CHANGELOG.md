@@ -4,6 +4,7 @@
 - Bugfix: A `react` sub-agent nested inside another `react` (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.
 - Checkpointing: Run `restic backup` with `--quiet` so its progress output can't overflow the sandbox output cap on long backups.
 - Eval Logs: Record the installed task package's git commit in `EvalSpec.revision`, resolving the actual distribution (namespace-package aware).
+- Control: `inspect ctl tasks` no longer drops eval processes owned by another user, which were previously misreported as dead.
 
 ## 0.3.242 (29 June 2026)
 
