@@ -536,7 +536,15 @@ class TaskLogger:
         # an on-demand flush writes everything pending, so quiesce the stale
         # timer first (it would otherwise wake to find nothing left to do)
         await self._stop_stale_flush_timer()
-        return await self._flush_pending_samples()
+        try:
+            return await self._flush_pending_samples()
+        except Exception:
+            # the flush failed with samples still pending; re-arm the stale-flush
+            # timer we stopped above so they're retried automatically rather than
+            # stranded until the next sample completes (mirrors the stale path's
+            # own on-failure re-arm). The error still propagates to the caller.
+            await self._arm_stale_flush_timer()
+            raise
 
     def buffer_config(
         self, log_buffer: int | None = None, log_shared: int | None = None

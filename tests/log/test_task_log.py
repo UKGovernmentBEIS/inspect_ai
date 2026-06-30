@@ -367,6 +367,29 @@ async def test_log_finish_cancels_stale_timer_rearmed_by_racing_flush() -> None:
 
 
 @pytest.mark.anyio
+async def test_flush_samples_failure_rearms_stale_timer() -> None:
+    # an on-demand flush stops the stale timer before flushing; if the flush
+    # fails it must re-arm so below-threshold pending samples are still retried
+    # automatically (not stranded until the next sample completes), and the
+    # error still propagates to the caller.
+    recorder = _FlushRecorder()
+    recorder.fail_times = 1
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(flush_buffer=10, buffer_db=buffer_db, recorder=recorder)
+    logger._stale_flush_interval = 60
+    logger.flush_pending = [("sample", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        with pytest.raises(RuntimeError, match="flush failed"):
+            await logger.flush_samples()
+
+        # samples weren't dropped, and a stale timer is now armed to retry them
+        assert logger.flush_pending == [("sample", 1)]
+        assert buffer_db.removed == []
+        assert logger._stale_flush_cancel_scope is not None
+
+
+@pytest.mark.anyio
 async def test_task_logger_threshold_flush_prevents_racing_stale_start(
     monkeypatch,
 ) -> None:
