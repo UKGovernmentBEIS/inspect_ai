@@ -93,12 +93,14 @@ def test_get_distribution_for_object_namespace_package():
     file_a.locate.return_value = "/fake/site-packages/ns_pkg/task_a.py"
     dist_a = MagicMock()
     dist_a.files = [file_a]
+    dist_a.read_text.return_value = None  # not an editable install
 
     # dist-b: has a file whose realpath DOES match fake_origin
     file_b = MagicMock()
     file_b.locate.return_value = fake_origin
     dist_b = MagicMock()
     dist_b.files = [file_b]
+    dist_b.read_text.return_value = None
 
     fake_spec = MagicMock()
     fake_spec.origin = fake_origin
@@ -145,12 +147,14 @@ def test_get_distribution_for_object_fast_path_falls_through_on_shadowing():
     file_shadow.locate.return_value = "/fake/site-packages/ns_pkg/other.py"
     dist_shadow = MagicMock()
     dist_shadow.files = [file_shadow]
+    dist_shadow.read_text.return_value = None  # not an editable install
 
     # The distribution that actually ships the module.
     file_b = MagicMock()
     file_b.locate.return_value = fake_origin
     dist_b = MagicMock()
     dist_b.files = [file_b]
+    dist_b.read_text.return_value = None
 
     fake_spec = MagicMock()
     fake_spec.origin = fake_origin
@@ -206,3 +210,82 @@ def test_get_distribution_for_object_fast_path_trusts_name_when_files_unknown():
         result = get_distribution_for_object(obj)
 
     assert result is dist
+
+
+def _editable_dist(source_root: str) -> MagicMock:
+    """A MagicMock distribution whose RECORD lists no sources (editable install)."""
+    dist = MagicMock()
+    # editable RECORDs list only the .pth and metadata, never the source tree
+    dist.files = []
+    dist.read_text.return_value = (
+        '{"url": "file://%s", "dir_info": {"editable": true}}' % source_root
+    )
+    return dist
+
+
+def test_get_distribution_for_object_editable_fast_path():
+    """Editable install (import == dist name) verifies via the source root."""
+    source_root = "/fake/workspace/my_pkg"
+    fake_spec = MagicMock()
+    fake_spec.origin = f"{source_root}/src/my_pkg/task.py"
+
+    dist = _editable_dist(source_root)
+
+    obj = MagicMock()
+    obj.__module__ = "my_pkg.task"
+
+    with (
+        patch(
+            "inspect_ai._util.package.importlib.util.find_spec", return_value=fake_spec
+        ),
+        patch("inspect_ai._util.package.Distribution.from_name", return_value=dist),
+        patch(
+            "inspect_ai._util.package.os.path.realpath", side_effect=os.path.realpath
+        ),
+    ):
+        result = get_distribution_for_object(obj)
+
+    assert result is dist
+
+
+def test_get_distribution_for_object_editable_namespace_disambiguates_by_root():
+    """Editable namespace dists are disambiguated by their source roots."""
+    fake_origin = "/fake/workspace/ns-task-b/src/ns_pkg/task_b.py"
+
+    dist_a = _editable_dist("/fake/workspace/ns-task-a")  # wrong root
+    dist_b = _editable_dist("/fake/workspace/ns-task-b")  # contains fake_origin
+
+    fake_spec = MagicMock()
+    fake_spec.origin = fake_origin
+
+    def fake_from_name(name: str):
+        if name == "ns_pkg":
+            raise PackageNotFoundError(name)
+        if name == "ns-task-a":
+            return dist_a
+        if name == "ns-task-b":
+            return dist_b
+        raise PackageNotFoundError(name)
+
+    obj = MagicMock()
+    obj.__module__ = "ns_pkg.task_b"
+
+    with (
+        patch(
+            "inspect_ai._util.package.importlib.util.find_spec", return_value=fake_spec
+        ),
+        patch(
+            "inspect_ai._util.package.Distribution.from_name",
+            side_effect=fake_from_name,
+        ),
+        patch(
+            "inspect_ai._util.package.packages_distributions",
+            return_value={"ns_pkg": ["ns-task-a", "ns-task-b"]},
+        ),
+        patch(
+            "inspect_ai._util.package.os.path.realpath", side_effect=os.path.realpath
+        ),
+    ):
+        result = get_distribution_for_object(obj)
+
+    assert result is dist_b

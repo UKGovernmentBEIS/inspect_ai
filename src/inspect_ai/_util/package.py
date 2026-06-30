@@ -11,6 +11,8 @@ from importlib.metadata import (
     packages_distributions,
 )
 from typing import Any, Literal
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from pydantic import BaseModel, Field
 
@@ -184,10 +186,13 @@ def get_distribution_for_object(obj: Any) -> Distribution | None:
 
 
 def _distribution_ships_origin(distribution: Distribution, origin: str) -> bool:
-    """Whether `distribution`'s installed files include the file at `origin`.
+    """Whether `distribution` provides the module file at `origin`.
 
-    `origin` must already be a realpath; each candidate file is resolved the
-    same way before comparison.
+    `origin` must already be a realpath. Handles both regular installs (the
+    module file is listed in the distribution's ``RECORD``) and editable
+    installs (whose ``RECORD`` lists only a ``.pth`` and metadata, not the
+    source tree — there we test whether ``origin`` lives under the editable
+    source root recorded in PEP 610 ``direct_url.json``).
     """
     for file in distribution.files or []:
         try:
@@ -195,7 +200,36 @@ def _distribution_ships_origin(distribution: Distribution, origin: str) -> bool:
                 return True
         except Exception:
             continue
-    return False
+    editable_root = _editable_source_root(distribution)
+    return editable_root is not None and _path_is_within(origin, editable_root)
+
+
+def _editable_source_root(distribution: Distribution) -> str | None:
+    """The realpath of an editable install's source root, else None.
+
+    Returns None for non-editable installs and for editable installs whose
+    `direct_url.json` records a non-local (e.g. VCS) URL.
+    """
+    direct_url = get_distribution_direct_url(distribution)
+    if (
+        direct_url is None
+        or direct_url.dir_info is None
+        or not direct_url.dir_info.editable
+    ):
+        return None
+    parsed = urlparse(direct_url.url)
+    if parsed.scheme != "file":
+        return None
+    return os.path.realpath(url2pathname(parsed.path))
+
+
+def _path_is_within(path: str, root: str) -> bool:
+    """Whether realpath `path` is `root` itself or nested under it."""
+    try:
+        return os.path.commonpath([path, root]) == root
+    except ValueError:
+        # different drives / mixed absolute-relative — not comparable
+        return False
 
 
 def package_is_installed_editable(package: str) -> bool:
