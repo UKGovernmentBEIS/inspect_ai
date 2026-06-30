@@ -11,7 +11,7 @@ from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.git import git_context
+from inspect_ai._util.git import git_context, redact_url_credentials
 from inspect_ai._util.package import (
     get_distribution_direct_url,
     get_distribution_for_object,
@@ -127,7 +127,10 @@ def resolve_package_revision(distribution: Distribution | None) -> EvalRevision 
         return None
     return EvalRevision(
         type="git",
-        origin=direct_url.url.removeprefix("git+"),
+        # direct_url.json can carry embedded credentials when the package was
+        # installed from an authenticated git URL; redact them as git_context()
+        # does so tokens never reach the eval log.
+        origin=redact_url_credentials(direct_url.url.removeprefix("git+")),
         commit=direct_url.vcs_info.commit_id,
     )
 

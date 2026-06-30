@@ -758,6 +758,25 @@ class TestResolvePackageRevision:
         assert result is not None
         assert result.origin == "https://github.com/METR/harder-tasks"
 
+    def test_redacts_credentials_in_origin(self):
+        # a private package installed from an authenticated git URL records the
+        # credentialed URL in direct_url.json; it must not leak into the log
+        dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
+        direct_url = DirectUrl(
+            url="git+https://x-access-token:ghs_secret@github.com/METR/harder-tasks",
+            vcs_info=VcsInfo(
+                vcs="git", commit_id="523c14f000000000000000000000000000000000"
+            ),
+        )
+        with patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
+        ):
+            result = resolve_package_revision(dist)
+        assert result is not None
+        assert result.origin == "https://github.com/METR/harder-tasks"
+        assert "ghs_secret" not in result.origin
+
 
 def test_package_and_revision_logged_for_git_install():
     task = Task()
