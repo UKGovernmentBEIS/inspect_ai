@@ -76,6 +76,12 @@
   author: "[CIMO Labs](https://cimolabs.com)"
   categories: ["Analysis"]
 
+- name: "[Inspect Claim Support](https://github.com/avalyset/inspect-claim-support)"
+  description: |
+    Faithfulness / claim-support scorer — checks whether a claimed answer is substantiated by the transcript. Absence of evidence is not treated as support.
+  author: "[Eirik Botten Nicolaysen](https://github.com/avalyset)"
+  categories: ["Analysis"]
+
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
   description: |
     Workflow orchestration for reproducibly running evals at scale.
@@ -86,6 +92,12 @@
   description: |
     Platform for running Inspect AI evaluations on cloud infrastructure. 
   author: "[METR](https://github.com/METR/hawk)"
+  categories: ["Tooling"]
+
+- name: "[Optstop](https://github.com/UKGovernmentBEIS/optstop)"
+  description: |
+    Adaptive optimal stopping algorithms to help efficiently determine when enough data has been collected to make reliable inferences.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/optstop)"
   categories: ["Tooling"]
 
 - name: "[Evaljobs](https://github.com/dvsrepo/evaljobs)"
