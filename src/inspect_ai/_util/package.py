@@ -220,7 +220,13 @@ def _editable_source_root(distribution: Distribution) -> str | None:
     parsed = urlparse(direct_url.url)
     if parsed.scheme != "file":
         return None
-    return os.path.realpath(url2pathname(parsed.path))
+    root = url2pathname(parsed.path)
+    # PEP 610 allows `subdirectory` (relative to the URL root) for local dirs
+    # too; without it every workspace member shares the repo root and namespace
+    # disambiguation can't tell them apart.
+    if direct_url.subdirectory:
+        root = os.path.join(root, direct_url.subdirectory)
+    return os.path.realpath(root)
 
 
 def _path_is_within(path: str, root: str) -> bool:

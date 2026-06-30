@@ -1,3 +1,4 @@
+import json
 import os
 from importlib.metadata import PackageNotFoundError
 from unittest.mock import MagicMock, patch
@@ -212,14 +213,15 @@ def test_get_distribution_for_object_fast_path_trusts_name_when_files_unknown():
     assert result is dist
 
 
-def _editable_dist(source_root: str) -> MagicMock:
+def _editable_dist(source_root: str, subdirectory: str | None = None) -> MagicMock:
     """A MagicMock distribution whose RECORD lists no sources (editable install)."""
     dist = MagicMock()
     # editable RECORDs list only the .pth and metadata, never the source tree
     dist.files = []
-    dist.read_text.return_value = (
-        '{"url": "file://%s", "dir_info": {"editable": true}}' % source_root
-    )
+    direct_url = {"url": "file://%s" % source_root, "dir_info": {"editable": True}}
+    if subdirectory is not None:
+        direct_url["subdirectory"] = subdirectory
+    dist.read_text.return_value = json.dumps(direct_url)
     return dist
 
 
@@ -254,6 +256,51 @@ def test_get_distribution_for_object_editable_namespace_disambiguates_by_root():
 
     dist_a = _editable_dist("/fake/workspace/ns-task-a")  # wrong root
     dist_b = _editable_dist("/fake/workspace/ns-task-b")  # contains fake_origin
+
+    fake_spec = MagicMock()
+    fake_spec.origin = fake_origin
+
+    def fake_from_name(name: str):
+        if name == "ns_pkg":
+            raise PackageNotFoundError(name)
+        if name == "ns-task-a":
+            return dist_a
+        if name == "ns-task-b":
+            return dist_b
+        raise PackageNotFoundError(name)
+
+    obj = MagicMock()
+    obj.__module__ = "ns_pkg.task_b"
+
+    with (
+        patch(
+            "inspect_ai._util.package.importlib.util.find_spec", return_value=fake_spec
+        ),
+        patch(
+            "inspect_ai._util.package.Distribution.from_name",
+            side_effect=fake_from_name,
+        ),
+        patch(
+            "inspect_ai._util.package.packages_distributions",
+            return_value={"ns_pkg": ["ns-task-a", "ns-task-b"]},
+        ),
+        patch(
+            "inspect_ai._util.package.os.path.realpath", side_effect=os.path.realpath
+        ),
+    ):
+        result = get_distribution_for_object(obj)
+
+    assert result is dist_b
+
+
+def test_get_distribution_for_object_editable_namespace_honors_subdirectory():
+    """Editable namespace dists sharing a repo root split by `subdirectory`."""
+    repo_root = "/fake/workspace"
+    fake_origin = f"{repo_root}/packages/b/src/ns_pkg/task_b.py"
+
+    # Both record the same repo root, distinguished only by `subdirectory`.
+    dist_a = _editable_dist(repo_root, subdirectory="packages/a")
+    dist_b = _editable_dist(repo_root, subdirectory="packages/b")
 
     fake_spec = MagicMock()
     fake_spec.origin = fake_origin
