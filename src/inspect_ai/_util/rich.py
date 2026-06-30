@@ -16,6 +16,8 @@ from rich.traceback import Traceback
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.text import truncate_lines
 
+_traceback_cache: dict[str, tuple[str, str]] = {}
+
 
 def tool_result_display(
     text: str, max_lines: int = 100, style: str | Style = ""
@@ -118,6 +120,10 @@ def format_traceback(
     """Format exception traceback as plain text and ANSI-colored."""
     traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
 
+    cached = _traceback_cache.get(traceback_text)
+    if cached is not None:
+        return cached
+
     if not truncated:
         with open(os.devnull, "w") as f:
             console = Console(record=True, file=f, legacy_windows=True)
@@ -126,4 +132,6 @@ def format_traceback(
     else:
         traceback_ansi = traceback_text
 
-    return traceback_text, traceback_ansi
+    result = traceback_text, traceback_ansi
+    _traceback_cache[traceback_text] = result
+    return result
