@@ -134,3 +134,75 @@ def test_get_distribution_for_object_namespace_package():
         result = get_distribution_for_object(obj)
 
     assert result is dist_b
+
+
+def test_get_distribution_for_object_fast_path_falls_through_on_shadowing():
+    """A same-named distribution that doesn't ship the module falls through."""
+    fake_origin = "/fake/site-packages/ns_pkg/task_b.py"
+
+    # A distribution literally named "ns_pkg" exists but ships unrelated files.
+    file_shadow = MagicMock()
+    file_shadow.locate.return_value = "/fake/site-packages/ns_pkg/other.py"
+    dist_shadow = MagicMock()
+    dist_shadow.files = [file_shadow]
+
+    # The distribution that actually ships the module.
+    file_b = MagicMock()
+    file_b.locate.return_value = fake_origin
+    dist_b = MagicMock()
+    dist_b.files = [file_b]
+
+    fake_spec = MagicMock()
+    fake_spec.origin = fake_origin
+
+    def fake_from_name(name: str):
+        if name == "ns_pkg":
+            return dist_shadow
+        if name == "dist-b":
+            return dist_b
+        raise PackageNotFoundError(name)
+
+    obj = MagicMock()
+    obj.__module__ = "ns_pkg.task_b"
+
+    with (
+        patch(
+            "inspect_ai._util.package.importlib.util.find_spec", return_value=fake_spec
+        ),
+        patch(
+            "inspect_ai._util.package.Distribution.from_name",
+            side_effect=fake_from_name,
+        ),
+        patch(
+            "inspect_ai._util.package.packages_distributions",
+            return_value={"ns_pkg": ["ns_pkg", "dist-b"]},
+        ),
+        patch(
+            "inspect_ai._util.package.os.path.realpath", side_effect=os.path.realpath
+        ),
+    ):
+        result = get_distribution_for_object(obj)
+
+    assert result is dist_b
+
+
+def test_get_distribution_for_object_fast_path_trusts_name_when_files_unknown():
+    """A same-named distribution with no RECORD is trusted on the name match."""
+    fake_spec = MagicMock()
+    fake_spec.origin = "/fake/site-packages/some_pkg/__init__.py"
+
+    dist = MagicMock()
+    dist.files = None  # e.g. an editable install without a RECORD
+
+    obj = MagicMock()
+    obj.__module__ = "some_pkg"
+
+    with (
+        patch(
+            "inspect_ai._util.package.importlib.util.find_spec", return_value=fake_spec
+        ),
+        patch("inspect_ai._util.package.Distribution.from_name", return_value=dist),
+    ):
+        result = get_distribution_for_object(obj)
+
+    assert result is dist

@@ -151,30 +151,51 @@ def get_distribution_for_object(obj: Any) -> Distribution | None:
         return None
     if spec is None or spec.origin is None:
         return None
+    origin = os.path.realpath(spec.origin)
 
     # Fast path: a distribution named like the top-level import package
-    # (the common case where import name == distribution name).
+    # (the common case where import name == distribution name). Confirm it
+    # actually ships the module before trusting it — a local module or a
+    # namespace subpackage can share a top-level name with an unrelated
+    # installed distribution, in which case we must fall through to the scan.
     top_level = module_name.split(".")[0]
     try:
-        return Distribution.from_name(top_level)
+        distribution = Distribution.from_name(top_level)
     except PackageNotFoundError:
         pass
+    else:
+        # Trust the name match unless the distribution lists its files and
+        # they positively exclude this module (the namespace / shadowing case).
+        if distribution.files is None or _distribution_ships_origin(
+            distribution, origin
+        ):
+            return distribution
 
     # Namespace package / name mismatch: among the distributions that provide
     # the top-level import name, find the one whose files include this module.
-    origin = os.path.realpath(spec.origin)
     for dist_name in packages_distributions().get(top_level, []):
         try:
             distribution = Distribution.from_name(dist_name)
         except PackageNotFoundError:
             continue
-        for file in distribution.files or []:
-            try:
-                if os.path.realpath(str(file.locate())) == origin:
-                    return distribution
-            except Exception:
-                continue
+        if _distribution_ships_origin(distribution, origin):
+            return distribution
     return None
+
+
+def _distribution_ships_origin(distribution: Distribution, origin: str) -> bool:
+    """Whether `distribution`'s installed files include the file at `origin`.
+
+    `origin` must already be a realpath; each candidate file is resolved the
+    same way before comparison.
+    """
+    for file in distribution.files or []:
+        try:
+            if os.path.realpath(str(file.locate())) == origin:
+                return True
+        except Exception:
+            continue
+    return False
 
 
 def package_is_installed_editable(package: str) -> bool:
