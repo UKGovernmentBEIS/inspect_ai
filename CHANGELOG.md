@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Bugfix: Elapsed-time displays (e.g. the running-sample clock and timers) no longer render an impossible `:60` seconds when the elapsed time has a fractional second.
+- Bugfix: A `react` sub-agent nested inside another `react` (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.
+- Checkpointing: Run `restic backup` with `--quiet` so its progress output can't overflow the sandbox output cap on long backups.
 - OpenRouter: Surface the provider-reported per-request cost (summing `cost` and, for BYOK routes, `cost_details.upstream_inference_cost`) as `ModelUsage.total_cost`, taking precedence over Inspect's local per-token estimate; a `cost_limit` may now be used with OpenRouter models even when they have no static pricing entry (enforced at runtime from the reported cost).
 
 ## 0.3.242 (29 June 2026)
