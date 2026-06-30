@@ -496,9 +496,12 @@ def buffer_command(
     """View or change a running eval's sample-buffer parameters.
 
     With no options, shows the current config. Pass `--samples N` to change how
-    many completed samples buffer before a write to the log (use it with
-    `inspect ctl flush` to control how promptly results reach S3), and/or
-    `--shared S` to retune the shared-log event sync interval in seconds.
+    many completed samples buffer before a write to the log, and/or `--shared S`
+    to retune the shared-log event sync interval in seconds.
+
+    `--samples` changes the threshold for future writes only — it does not flush
+    samples already buffered. Lowering it takes effect from the next completed
+    sample; to write what's already pending now, run `inspect ctl flush`.
 
     TASK selects which running eval to target — a task-id prefix or task name
     (as listed by `inspect ctl tasks`); omit it when only one eval is running.

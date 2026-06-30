@@ -548,6 +548,13 @@ class TaskLogger:
         to a minimum of 1); ``log_shared`` *retunes* an already-running
         shared-log sync interval (in seconds).
 
+        Updating ``log_buffer`` changes the threshold for *future* writes only —
+        it does not flush samples already buffered under the previous threshold.
+        Lowering it therefore takes effect when the next sample finalizes and
+        crosses the new threshold; to write what's already pending now, use
+        ``inspect ctl flush``. (Keeping the directive policy-only avoids coupling
+        a parameter change to a possibly-remote write.)
+
         ``log_shared`` cannot turn shared sync on at runtime: a buffer started
         without it has no filestore (a normal CLI run passes ``log_shared=0``),
         so the request is rejected and reported back as ``log_shared=None``
