@@ -170,7 +170,8 @@ def errors_command(task: str | None, as_json: bool) -> None:
     retries, showing the latest error message. Drill into a single sample's
     full error history (including prior attempts) with `inspect ctl sample`.
 
-    TASK selects the task as in `inspect ctl samples`.
+    TASK selects which running eval to target — a task-id prefix or task name
+    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
     """
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
@@ -220,7 +221,8 @@ def sample_command(
 ) -> None:
     """Show one sample's error detail, including errors from prior attempts.
 
-    TASK selects the task as in `inspect ctl samples`; SAMPLE_ID is the
+    TASK selects which running eval to target (a task-id prefix or task name,
+    as listed by `inspect ctl tasks`); SAMPLE_ID is the
     sample's id (as shown by `inspect ctl samples`); EPOCH defaults to 1.
 
     Surfaces the current error (if the sample failed) and the error from each
@@ -310,7 +312,8 @@ def events_command(
 ) -> None:
     """Read one running sample's transcript events (cursored pull).
 
-    TASK selects the task as in `inspect ctl samples`; SAMPLE_ID is the
+    TASK selects which running eval to target (a task-id prefix or task name,
+    as listed by `inspect ctl tasks`); SAMPLE_ID is the
     sample's id; EPOCH defaults to 1.
 
     Returns a page of events plus a `next` cursor — pass it back via `--since`
@@ -430,7 +433,8 @@ def flush_command(task: str | None, as_json: bool) -> None:
     the samples become readable / analyzable in the log without waiting. Safe to
     repeat — a flush with nothing pending writes nothing.
 
-    TASK selects the task as in `inspect ctl samples`.
+    TASK selects which running eval to target — a task-id prefix or task name
+    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
     """
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
@@ -496,7 +500,8 @@ def buffer_command(
     `inspect ctl flush` to control how promptly results reach S3), and/or
     `--shared S` to retune the shared-log event sync interval in seconds.
 
-    TASK selects the task as in `inspect ctl samples`.
+    TASK selects which running eval to target — a task-id prefix or task name
+    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
     """
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
@@ -508,7 +513,7 @@ def buffer_command(
 
     target = _resolve_target_eval(summaries, task)
     changing = log_buffer is not None or log_shared is not None
-    config = _fetch_buffer_config(
+    config = _exec_buffer_config(
         target["socket_path"],
         target["eval_id"],
         log_buffer=log_buffer,
@@ -578,8 +583,11 @@ _REQUEST_ATTEMPTS = 8
 # A mutation (flush / buffer set) is issued once — it isn't idempotent, so it
 # must not be retried — but it gets the same total wall-clock budget a retried
 # read would consume (one attempt of `_REQUEST_ATTEMPTS * _REQUEST_TIMEOUT`, ie.
-# 2 min) so a slow remote (eg. S3) write isn't cut short.
+# 2 min) so a slow remote (eg. S3) write isn't cut short. That budget is the
+# *read* leg; connect over the local UDS is effectively instant, so it's capped
+# short rather than getting the full budget too.
 _MUTATION_TIMEOUT = _REQUEST_ATTEMPTS * _REQUEST_TIMEOUT
+_CONNECT_TIMEOUT = 10.0
 
 
 class _ServerUnreachable(Exception):
@@ -883,7 +891,9 @@ def _post_flush(socket_path: str, eval_id: str) -> dict[str, Any]:
         # so give the single attempt the full mutation budget (see
         # `_MUTATION_TIMEOUT`).
         with httpx.Client(
-            transport=transport, base_url="http://localhost", timeout=_MUTATION_TIMEOUT
+            transport=transport,
+            base_url="http://localhost",
+            timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
         ) as client:
             response = client.post(f"/evals/{eval_id}/flush")
             if response.status_code == 404:
@@ -902,7 +912,7 @@ def _post_flush(socket_path: str, eval_id: str) -> dict[str, Any]:
     return result if isinstance(result, dict) else {}
 
 
-def _fetch_buffer_config(
+def _exec_buffer_config(
     socket_path: str,
     eval_id: str,
     *,
@@ -930,7 +940,7 @@ def _fetch_buffer_config(
             with httpx.Client(
                 transport=transport,
                 base_url="http://localhost",
-                timeout=_MUTATION_TIMEOUT,
+                timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
             ) as client:
                 response = client.post(path, params=params)
         else:

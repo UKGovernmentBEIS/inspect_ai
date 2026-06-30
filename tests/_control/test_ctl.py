@@ -532,7 +532,7 @@ def test_buffer_read_retries_timeout_then_succeeds(
     """A buffer read (GET) retries a busy eval on timeout, like the other reads."""
     import httpx
 
-    from inspect_ai._cli.ctl import _fetch_buffer_config
+    from inspect_ai._cli.ctl import _exec_buffer_config
 
     counter = _stub_httpx(
         monkeypatch,
@@ -542,7 +542,7 @@ def test_buffer_read_retries_timeout_then_succeeds(
             {"log_buffer": 10, "pending": 2, "log_shared": None},
         ],
     )
-    config = _fetch_buffer_config(
+    config = _exec_buffer_config(
         "/tmp/x.sock", "e1", log_buffer=None, log_shared=None, set_values=False
     )
     assert config == {"log_buffer": 10, "pending": 2, "log_shared": None}
@@ -557,11 +557,11 @@ def test_buffer_set_does_not_retry_timeout(
     """A buffer update (POST) is single-shot — a mutation must not be retried."""
     import httpx
 
-    from inspect_ai._cli.ctl import _fetch_buffer_config
+    from inspect_ai._cli.ctl import _exec_buffer_config
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")])
     with pytest.raises(click.exceptions.Exit) as exc_info:
-        _fetch_buffer_config(
+        _exec_buffer_config(
             "/tmp/x.sock", "e1", log_buffer=3, log_shared=None, set_values=True
         )
     assert exc_info.value.exit_code == 1
