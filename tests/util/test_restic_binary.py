@@ -1,12 +1,17 @@
 """Tests for the restic binary resolver.
 
-Three contracts:
+Contracts:
 1. A pre-existing cache file short-circuits without invoking the network.
-2. A cache miss downloads, verifies SHA256, and populates the cache.
-3. A SHA256 mismatch raises and leaves the cache untouched.
+2. A cache miss downloads the archive, verifies it against the vendored
+   SHA256SUMS (read from disk, not fetched), and populates the cache.
+3. The SHA256SUMS file is read locally; only the archive is fetched.
+4. A SHA256 mismatch raises and leaves the cache untouched.
+5. A missing vendored SHA256SUMS entry raises with a regenerate hint.
+6. The committed SHA256SUMS covers every supported platform.
 
-All tests mock at the urllib layer; no network, no fixtures on disk other
-than what the test itself writes.
+The archive is mocked at the urllib layer; the expected checksum comes from a
+patched vendored SHA256SUMS file. No network, no on-disk fixtures other than
+what the test itself writes.
 """
 
 from __future__ import annotations
@@ -22,8 +27,11 @@ from unittest.mock import patch
 import pytest
 
 from inspect_ai.util._restic.resolver import (
+    SUPPORTED_PLATFORMS,
     Platform,
     _archive_filename,
+    _extract_expected_hash,
+    _version,
     cache_path,
     resolve_restic,
 )
@@ -49,24 +57,35 @@ def _patch_cache_dir(tmp_path: Path) -> Iterator[None]:
         yield
 
 
-def _make_urlopen(sums_text: str) -> Callable[[str], io.BytesIO]:
-    """Dispatch by URL: SHA256SUMS or archive bytes."""
+@contextmanager
+def _patch_sums_file(tmp_path: Path, sums_text: str) -> Iterator[None]:
+    """Point the vendored SHA256SUMS path at a tmp file with controlled content."""
+    sums_file = tmp_path / "SHA256SUMS"
+    sums_file.write_text(sums_text)
+    with patch("inspect_ai.util._restic.resolver._SHA256SUMS_FILE", sums_file):
+        yield
 
-    def fake(url: str) -> io.BytesIO:
-        if url.endswith("SHA256SUMS"):
-            return io.BytesIO(sums_text.encode())
+
+def _archive_urlopen() -> Callable[..., io.BytesIO]:
+    """Urlopen stub returning the fake compressed archive for any URL."""
+
+    def fake(url: str, *args: object, **kwargs: object) -> io.BytesIO:
         return io.BytesIO(bz2.compress(FAKE_BINARY))
 
     return fake
 
 
 @contextmanager
-def _patch_urlopen(side_effect: Callable[[str], io.BytesIO]) -> Iterator[None]:
+def _patch_urlopen(side_effect: Callable[..., io.BytesIO]) -> Iterator[None]:
     with patch(
         "inspect_ai.util._restic.resolver.urllib.request.urlopen",
         side_effect=side_effect,
     ):
         yield
+
+
+def _sums_for(archive_name: str, digest: str = FAKE_BINARY_SHA) -> str:
+    return f"{digest}  {archive_name}\n"
 
 
 async def test_cache_hit_short_circuits(tmp_path: Path) -> None:
@@ -85,10 +104,13 @@ async def test_cache_hit_short_circuits(tmp_path: Path) -> None:
 
 
 async def test_cache_miss_downloads_and_populates(tmp_path: Path) -> None:
-    archive_name = _archive_filename(_read_version(), PLATFORM)
-    sums_text = f"{FAKE_BINARY_SHA}  {archive_name}\n"
+    archive_name = _archive_filename(_version(), PLATFORM)
 
-    with _patch_cache_dir(tmp_path), _patch_urlopen(_make_urlopen(sums_text)):
+    with (
+        _patch_cache_dir(tmp_path),
+        _patch_sums_file(tmp_path, _sums_for(archive_name)),
+        _patch_urlopen(_archive_urlopen()),
+    ):
         target = cache_path(PLATFORM)
         assert not target.exists()
 
@@ -97,26 +119,67 @@ async def test_cache_miss_downloads_and_populates(tmp_path: Path) -> None:
         assert target.exists()
         assert target.read_bytes() == FAKE_BINARY
 
-        # Second call should be a cache hit; rewrite the cache to a sentinel
-        # and verify the resolver returns the same path without re-downloading.
+        # Second call is a cache hit: rewrite the cache to a sentinel and
+        # verify the resolver returns it without re-downloading.
         target.write_bytes(b"sentinel")
         second = await resolve_restic(PLATFORM)
         assert second == target
         assert target.read_bytes() == b"sentinel"
 
 
-async def test_sha256_mismatch_raises_and_leaves_cache_clean(tmp_path: Path) -> None:
-    archive_name = _archive_filename(_read_version(), PLATFORM)
-    sums_text = f"{'0' * 64}  {archive_name}\n"
+async def test_sums_are_read_locally_not_fetched(tmp_path: Path) -> None:
+    archive_name = _archive_filename(_version(), PLATFORM)
 
-    with _patch_cache_dir(tmp_path), _patch_urlopen(_make_urlopen(sums_text)):
+    with (
+        _patch_cache_dir(tmp_path),
+        _patch_sums_file(tmp_path, _sums_for(archive_name)),
+    ):
+        with patch(
+            "inspect_ai.util._restic.resolver.urllib.request.urlopen",
+            side_effect=_archive_urlopen(),
+        ) as urlopen:
+            await resolve_restic(PLATFORM)
+
+    assert urlopen.call_count == 1
+    called_url = urlopen.call_args.args[0]
+    assert called_url.endswith(archive_name)
+    assert not called_url.endswith("SHA256SUMS")
+
+
+async def test_sha256_mismatch_raises_and_leaves_cache_clean(tmp_path: Path) -> None:
+    archive_name = _archive_filename(_version(), PLATFORM)
+
+    with (
+        _patch_cache_dir(tmp_path),
+        _patch_sums_file(tmp_path, _sums_for(archive_name, "0" * 64)),
+        _patch_urlopen(_archive_urlopen()),
+    ):
         target = cache_path(PLATFORM)
         with pytest.raises(RuntimeError, match="SHA256 mismatch"):
             await resolve_restic(PLATFORM)
         assert not target.exists()
 
 
-def _read_version() -> str:
-    from inspect_ai.util._restic.resolver import _version
+async def test_missing_vendored_entry_raises_with_hint(tmp_path: Path) -> None:
+    with (
+        _patch_cache_dir(tmp_path),
+        _patch_sums_file(tmp_path, _sums_for("some-other-file.bz2")),
+        _patch_urlopen(_archive_urlopen()),
+    ):
+        with pytest.raises(RuntimeError, match="regenerate"):
+            await resolve_restic(PLATFORM)
 
-    return _version()
+
+def test_vendored_sums_cover_all_supported_platforms() -> None:
+    """Check the committed SHA256SUMS covers every supported platform.
+
+    Guards against a forgotten regeneration after a restic version bump.
+    """
+    from inspect_ai.util._restic.resolver import _SHA256SUMS_FILE
+
+    sums_text = _SHA256SUMS_FILE.read_text()
+    version = _version()
+    for platform in SUPPORTED_PLATFORMS:
+        archive_name = _archive_filename(version, platform)
+        digest = _extract_expected_hash(sums_text, archive_name)
+        assert len(digest) == 64

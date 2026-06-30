@@ -42,6 +42,7 @@ SUPPORTED_PLATFORMS: tuple[Platform, ...] = (
 )
 
 _VERSION_FILE = Path(__file__).parent / "version.txt"
+_SHA256SUMS_FILE = Path(__file__).parent / "SHA256SUMS"
 _RELEASE_BASE_URL = "https://github.com/restic/restic/releases/download"
 
 
@@ -115,10 +116,6 @@ def _archive_url(version: str, platform: Platform) -> str:
     return f"{_RELEASE_BASE_URL}/v{version}/{_archive_filename(version, platform)}"
 
 
-def _sha256sums_url(version: str) -> str:
-    return f"{_RELEASE_BASE_URL}/v{version}/SHA256SUMS"
-
-
 def cache_path(platform: Platform, version: str | None = None) -> Path:
     """Return the cache path where the decompressed binary lives for a platform."""
     return inspect_cache_dir("bin") / _binary_filename(version or _version(), platform)
@@ -127,7 +124,9 @@ def cache_path(platform: Platform, version: str | None = None) -> Path:
 async def resolve_restic(platform: Platform | None = None) -> Path:
     """Return a path to a usable restic binary for the given platform.
 
-    Downloads on cache miss. Fail-fast on any error (no retries).
+    Downloads the archive on cache miss; the expected checksum is read from
+    the vendored ``SHA256SUMS`` file (no network fetch). Fails fast on a
+    SHA256 mismatch.
 
     Args:
         platform: Target platform. Defaults to the current host platform.
@@ -136,8 +135,8 @@ async def resolve_restic(platform: Platform | None = None) -> Path:
         Absolute path to the cached executable.
 
     Raises:
-        RuntimeError: on download failure, SHA256 mismatch, decompression error,
-            or unsupported platform.
+        RuntimeError: on download failure, SHA256 mismatch, missing vendored
+            checksum entry, decompression error, or unsupported platform.
     """
     target = platform or _current_platform()
     return await anyio.to_thread.run_sync(_resolve_blocking, target)
@@ -154,7 +153,7 @@ def _resolve_blocking(platform: Platform) -> Path:
 
     archive_tmp = _download_archive(version, platform, target.parent)
     try:
-        _verify_sha256(archive_tmp, archive_name, version)
+        _verify_sha256(archive_tmp, archive_name)
         binary_tmp = _extract(archive_tmp, platform, target.parent, version)
     finally:
         archive_tmp.unlink(missing_ok=True)
@@ -188,14 +187,8 @@ def _download_archive(version: str, platform: Platform, dest_dir: Path) -> Path:
     return tmp
 
 
-def _verify_sha256(archive: Path, archive_name: str, version: str) -> None:
-    sums_url = _sha256sums_url(version)
-    try:
-        with urllib.request.urlopen(sums_url) as resp:
-            sums_text = resp.read().decode("utf-8")
-    except Exception as ex:
-        raise RuntimeError(f"Failed to fetch {sums_url}: {ex}") from ex
-
+def _verify_sha256(archive: Path, archive_name: str) -> None:
+    sums_text = _SHA256SUMS_FILE.read_text()
     expected = _extract_expected_hash(sums_text, archive_name)
     actual = _file_sha256(archive)
     if actual != expected:
@@ -210,7 +203,11 @@ def _extract_expected_hash(sums_text: str, archive_name: str) -> str:
         match = pattern.match(line.strip())
         if match and match.group(2) == archive_name:
             return match.group(1).lower()
-    raise RuntimeError(f"No SHA256 entry for {archive_name} in SHA256SUMS")
+    raise RuntimeError(
+        f"No SHA256 entry for {archive_name} in the vendored SHA256SUMS; "
+        f"regenerate it after a restic version bump "
+        f"(see src/inspect_ai/util/_restic/README.md)."
+    )
 
 
 def _file_sha256(path: Path) -> str:

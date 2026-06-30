@@ -28,6 +28,8 @@ include = ["inspect_ai*"]
 inspect_ai = [
     "binaries/*",
     "tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+    "util/_restic/version.txt",
+    "util/_restic/SHA256SUMS",
     "**/*.tcss",
     "**/*.yml",
     "_view/dist/**/*",
