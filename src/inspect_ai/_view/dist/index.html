@@ -7,23 +7,17 @@
     <title>Inspect View</title>
     <link rel="icon" href="./assets/favicon.svg" />
 
-    <script>
-      // Forward the theme (dark or light) onto the root html element
-      // this parameter will tend to appear when the view is hosted within
-      // an iframe (e.g. in vscode)
-      const urlParams = new URLSearchParams(window.location.search);
-      const theme = urlParams.get("inspectLogviewThemeCategory");
-      if (theme) {
-        document.documentElement.setAttribute("data-text-highlight", theme);
-        document.documentElement.setAttribute("data-bs-theme", theme);
-      }
-    </script>
+    <script>"use strict";(()=>{var p=["system","light","dark","readable-system","readable-light","readable-dark"],h=e=>p.includes(e),m=(e,t)=>{try{let a=e.getItem(t);if(!a)return"readable-system";let r=JSON.parse(a);if(r&&typeof r=="object"&&"state"in r){let n=r.state;if(n&&typeof n=="object"&&"themePreference"in n){let s=n.themePreference;if(h(s))return s}}return"readable-system"}catch{return"readable-system"}};var l=e=>{let t=e.startsWith("readable-")?"readable":"default";return{isDark:e==="dark"||e.endsWith("-dark"),variant:t}},b=e=>{if(e.isVscodeWebview){if(e.preference==="readable-light"||e.preference==="readable-dark"||e.preference==="readable-system"||!e.explicitParam){let s=y();return{kind:"apply-variant-only",variant:e.preference.startsWith("readable-")?"readable":"default",hostIsDark:s}}let n=l(e.explicitParam);return{kind:"apply",isDark:n.isDark,variant:n.variant,toggleBodyClass:!1}}let t;e.preference!=="system"&&e.preference!=="readable-system"?t=e.preference:e.explicitParam?t=e.explicitParam:t=e.prefersDark?"dark":"light",e.preference==="readable-system"&&!t.startsWith("readable-")&&(t=`readable-${t}`);let{isDark:a,variant:r}=l(t);return{kind:"apply",isDark:a,variant:r,toggleBodyClass:!0}},o=null,i=!1,d=!1,y=()=>{if(typeof document>"u"||!document.body)return null;let e=document.body.classList;return e.contains("vscode-high-contrast-light")?!1:e.contains("vscode-high-contrast")||e.contains("vscode-dark")?!0:e.contains("vscode-light")?!1:null},k=()=>typeof window.acquireVsCodeApi=="function",c=()=>{if(d||typeof MutationObserver>"u"||!document.body)return;d=!0;let e=document.body.className;new MutationObserver(()=>{document.body.className!==e&&(e=document.body.className,o?.())}).observe(document.body,{attributes:!0,attributeFilter:["class"]})},f=e=>{let t=()=>{c();let a=new URLSearchParams(window.location.search),r=b({preference:e.readPreference?e.readPreference():"system",explicitParam:a.get(e.queryParamName),isVscodeWebview:k(),prefersDark:window.matchMedia("(prefers-color-scheme: dark)").matches});r.kind==="apply-variant-only"?(r.variant==="readable"?document.documentElement.setAttribute("data-theme-variant","readable"):document.documentElement.removeAttribute("data-theme-variant"),r.hostIsDark!==null&&document.documentElement.setAttribute("data-bs-theme",r.hostIsDark?"dark":"light")):r.kind==="apply"&&(document.documentElement.setAttribute("data-bs-theme",r.isDark?"dark":"light"),r.variant==="readable"?document.documentElement.setAttribute("data-theme-variant","readable"):document.documentElement.removeAttribute("data-theme-variant"),r.toggleBodyClass&&document.body?.classList.toggle("vscode-dark",r.isDark))};return o=t,window.__APPLY_BROWSER_THEME__=t,i||(i=!0,window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>o?.())),c(),t};var u="inspect-view-user-settings";var v=f({queryParamName:"inspectLogviewThemeCategory",readPreference:()=>m(localStorage,u)});v();})();</script>
     <script type="module" crossorigin src="./assets/index.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/jsx-runtime.js">
     <link rel="modulepreload" crossorigin href="./assets/chunk-DfAF0w94.js">
     <link rel="stylesheet" crossorigin href="./assets/index.css">
   </head>
 
   <body style="min-width: 450px">
+    <script>
+      window.__APPLY_BROWSER_THEME__?.();
+    </script>
     <div id="app"></div>
   </body>
 </html>

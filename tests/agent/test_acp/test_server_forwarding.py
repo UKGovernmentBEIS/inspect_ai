@@ -1,7 +1,7 @@
 """Phase 10 integration tests for the per-connection forwarder.
 
 Exercises the full inbound/outbound forwarding pipeline against a
-real :class:`LiveAcpSession` registered as an active sample.
+real :class:`LiveAcpTransport` registered as an active sample.
 ``_find_live_session`` (in ``_server``) walks the ``active_samples()``
 list — these tests patch that list so the forwarder can resolve a
 target. Notifications go over a real AF_UNIX loopback socket and
@@ -39,14 +39,20 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.inspect_ext import REPLAY_META_KEY
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.agent._acp.session_router import REPLAY_MAX_EVENTS
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+
+# Heavy socket-integration suite: real AF_UNIX round-trips + agent evals
+# (~1.3s+ per test). Marked slow to keep it off the per-PR CI critical path
+# (the slow suite runs in a separate environment); lighter ACP tests still run
+# on every PR.
+pytestmark = pytest.mark.slow
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -100,7 +106,7 @@ def _make_active_sample(
     active.started = None
     active.total_tokens = 0
     active.fails_on_error = True
-    active.acp_session = acp_session
+    active.acp_transport = acp_session
     return active
 
 
@@ -214,15 +220,16 @@ async def _connect(server: Any) -> _RpcClient:
     return _RpcClient(reader, writer)
 
 
-def _make_live_session_with_transcript() -> tuple[LiveAcpSession, Transcript]:
-    """Build a LiveAcpSession with a real Transcript wired up.
+def _make_live_session_with_transcript() -> tuple[LiveAcpTransport, Transcript]:
+    """Build a LiveAcpTransport with a real Transcript wired up.
 
     Bypasses ``__aenter__`` (which would also try to attach the Phase
     6 router via ``transcript()`` and register on the active sample).
     For Phase 10 forwarder tests we want the session and its
     transcript without any extra coupling.
     """
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
+    session._attachable_override = True
     tr = Transcript()
     session._transcript = tr
     return session, tr
@@ -318,7 +325,7 @@ async def test_session_prompt_marks_connection_as_active_driver(
     """
     session, _tr = _make_live_session_with_transcript()
     mark_calls: list[Any] = []
-    session.mark_active_approver_client = (  # type: ignore[method-assign]
+    session.mark_active_session_client = (  # type: ignore[method-assign]
         lambda client: mark_calls.append(client)
     )
 
@@ -375,7 +382,7 @@ async def test_session_load_marks_connection_as_active_driver(
     """
     session, _tr = _make_live_session_with_transcript()
     mark_calls: list[Any] = []
-    session.mark_active_approver_client = (  # type: ignore[method-assign]
+    session.mark_active_session_client = (  # type: ignore[method-assign]
         lambda client: mark_calls.append(client)
     )
 
@@ -662,7 +669,7 @@ async def test_server_stop_lets_in_flight_session_ended_reach_client(
     Previously :meth:`AcpServer.stop` called ``conn.close()`` before
     the per-connection forwarders had a chance to finish their EOF
     cleanup. The semantic forwarder's last act — sending
-    ``inspect/session_ended`` after ``LiveAcpSession.finalize`` closes
+    ``inspect/session_ended`` after ``LiveAcpTransport.finalize`` closes
     pubsub — would then hit ``ConnectionError("Connection closed")``
     and the client would never see the lifecycle pill flip to
     ``complete``.
@@ -702,7 +709,7 @@ async def test_server_stop_lets_in_flight_session_ended_reach_client(
                     return
 
             collector = asyncio.create_task(_collect())
-            # Simulate ``LiveAcpSession.finalize()`` closing pubsub
+            # Simulate ``LiveAcpTransport.finalize()`` closing pubsub
             # — the trigger for the forwarder's EOF cleanup branch.
             # NO sleep here: we want to exercise the exact race the
             # production fix targets. Closing pubsub then immediately
@@ -1063,7 +1070,7 @@ async def test_picker_selection_live_forwarding_uses_wire_session_id(
     """After picker selection, live notifications arrive keyed to the wire id.
 
     The Phase 6 router publishes ``SessionNotification`` keyed to the
-    target's ``LiveAcpSession.session_id``. After a picker selection
+    target's ``LiveAcpTransport.session_id``. After a picker selection
     the connection's wire id is the synthetic control id minted at
     ``session/new`` time — it differs from the chosen target's id.
     The forwarder must rewrite the outbound notification's session_id
@@ -1439,7 +1446,7 @@ async def test_plan_policy_stash_cleared_on_rebind(
 async def test_session_ended_notification_fires_when_live_session_exits(
     short_data_dir: Path, register_target
 ) -> None:
-    """Bound LiveAcpSession exit fires ``inspect/session_ended`` on the wire.
+    """Bound LiveAcpTransport exit fires ``inspect/session_ended`` on the wire.
 
     Even though the underlying transport stays open (the connection
     is reusable for picking another sample via the picker), the
@@ -1460,7 +1467,7 @@ async def test_session_ended_notification_fires_when_live_session_exits(
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
             await _drain_bind_preamble(client)
 
-            # Simulate the LiveAcpSession exiting: close all subscriber
+            # Simulate the LiveAcpTransport exiting: close all subscriber
             # streams. The semantic forwarder sees EOF on its
             # subscriber stream, fires the session_ended notification,
             # then exits naturally.
@@ -1469,7 +1476,7 @@ async def test_session_ended_notification_fires_when_live_session_exits(
             notif = await client.next_notification()
             assert notif["method"] == "inspect/session_ended"
             # The wire session id is whatever the bind handed us — for
-            # the auto/load paths it equals the LiveAcpSession's id;
+            # the auto/load paths it equals the LiveAcpTransport's id;
             # for picker selection it's the synthetic control id. We
             # just need a non-empty string so the client's identity
             # guard can match.

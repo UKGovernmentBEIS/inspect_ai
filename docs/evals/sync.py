@@ -16,15 +16,15 @@ import yaml
 HERE = Path(__file__).parent
 OVERLAY_FILE = HERE / "evals_overrides.yml"
 
-CATEGORY_VOCAB = {
+CATEGORY_ORDER = [
     "Coding",
     "Assistants",
-    "Cybersecurity",
-    "Safeguards",
-    "Mathematics",
     "Reasoning",
     "Knowledge",
+    "Cybersecurity",
+    "Safeguards",
     "Science",
+    "Mathematics",
     "Biology",
     "Chemistry",
     "Physics",
@@ -32,10 +32,12 @@ CATEGORY_VOCAB = {
     "Finance",
     "Medicine",
     "Law",
+    "Behavior",
     "Multimodal",
     "Scheming",
-    "Behavior",
-}
+]
+
+CATEGORY_VOCAB = set(CATEGORY_ORDER)
 
 
 def _first_sentence(text: str) -> str:
@@ -151,7 +153,7 @@ def _to_record(
         "contributors": list(data.get("contributors") or []),
         "samples": _derive_samples(tasks),
         "featured": False,
-        "url": f"https://ukgovernmentbeis.github.io/inspect_evals/evals/{group.lower()}/{slug}/",
+        "url": f"https://ukgovernmentbeis.github.io/inspect_evals/evals/{slug}/",
     }
 
 

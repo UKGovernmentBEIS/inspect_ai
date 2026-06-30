@@ -14,7 +14,7 @@ from inspect_ai._util.working import sample_waiting_for
 logger = getLogger(__name__)
 
 
-_DEFAULT_MIN = 4
+_DEFAULT_MIN = 10
 _DEFAULT_START = 20
 _DEFAULT_MAX = 100
 
@@ -79,14 +79,23 @@ class AdaptiveConcurrency(BaseModel):
                     "expected 'min-max' or 'min-start-max'"
                 )
 
-        # struct form: clamp implicit start when min/max are provided but
-        # start is not, so AdaptiveConcurrency(min=1, max=15) just works
-        if isinstance(data, dict) and "start" not in data:
-            min_val = data.get("min", _DEFAULT_MIN)
+        # struct form: clamp implicit min/start when max is provided but they
+        # are not, so AdaptiveConcurrency(max=8) and AdaptiveConcurrency(min=1,
+        # max=15) just work without bounds-validation errors from the defaults
+        if isinstance(data, dict):
             max_val = data.get("max", _DEFAULT_MAX)
-            if isinstance(min_val, int) and isinstance(max_val, int):
+            if (
+                "min" not in data
+                and isinstance(max_val, int)
+                and max_val < _DEFAULT_MIN
+            ):
                 data = dict(data)
-                data["start"] = max(min_val, min(_DEFAULT_START, max_val))
+                data["min"] = max_val
+            if "start" not in data:
+                min_val = data.get("min", _DEFAULT_MIN)
+                if isinstance(min_val, int) and isinstance(max_val, int):
+                    data = dict(data)
+                    data["start"] = max(min_val, min(_DEFAULT_START, max_val))
 
         return data
 

@@ -5,9 +5,10 @@ import os
 import urllib.parse
 from collections.abc import AsyncIterable
 from functools import partial
+from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from logging import getLogger
-from typing import Any, AsyncIterator, Literal, Tuple, cast
+from typing import Any, AsyncIterator, Literal, NamedTuple, Tuple, cast
 
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
@@ -18,12 +19,14 @@ from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import (
     azure_warning_hint,
     normalize_azure_listing_name,
     should_suppress_azure_error,
 )
+from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
@@ -31,10 +34,13 @@ from inspect_ai.log._file import (
     log_file_info_async,
     log_files_from_ls_async,
     read_eval_log_async,
+    write_eval_log_async,
 )
+from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import PendingSampleUrls, SegmentRef
+from inspect_ai.log._recorders.eval import s3_head_etag
 
 logger = getLogger(__name__)
 
@@ -59,6 +65,29 @@ def normalize_uri(uri: str) -> str:
             path = path[1:]
 
         return f"file://{path}"
+
+
+class AppConfig(BaseModel):
+    """Application configuration returned by GET /app-config."""
+
+    inspect_version: str
+    scout_version: str | None = None
+
+
+def get_app_config() -> AppConfig:
+    """Return app config, including installed inspect and scout versions.
+
+    `inspect_scout` is an optional dependency, so `scout_version` is None when
+    it isn't installed.
+    """
+    try:
+        scout_version: str | None = version("inspect_scout")
+    except PackageNotFoundError:
+        scout_version = None
+    return AppConfig(
+        inspect_version=version(PKG_NAME),
+        scout_version=scout_version,
+    )
 
 
 class LogDirResponse(BaseModel):
@@ -144,41 +173,125 @@ def log_files_response(
     )
 
 
-async def get_log_file(file: str, header_only_param: str | None) -> bytes:
+class LogPayload(NamedTuple):
+    """An eval log's serialized JSON bytes plus its optional ETag.
+
+    The ETag is populated only when the underlying recorder surfaces one
+    (today that means S3-hosted logs). Callers should forward it as an
+    HTTP `ETag` response header when present.
+    """
+
+    contents: bytes
+    etag: str | None
+
+
+async def get_log_file(file: str, header_only_param: str | None) -> LogPayload:
+    """Read a log file and return its JSON bytes plus the optional ETag."""
     # resolve header_only
     header_only_mb = int(header_only_param) if header_only_param is not None else None
     header_only = resolve_header_only(file, header_only_mb)
 
-    contents: bytes | None = None
+    log: EvalLog | None = None
     if header_only:
         try:
             log = await read_eval_log_async(file, header_only=True)
-            contents = eval_log_json(log)
         except ValueError as ex:
             logger.info(
                 f"Unable to read headers from log file {file}: {ex}. "
                 + "The file may include a NaN or Inf value. Falling back to reading entire file."
             )
 
-    if contents is None:  # normal read
+    if log is None:  # normal read
         log = await read_eval_log_async(file, header_only=False)
-        contents = eval_log_json(log)
 
-    return contents
+    return LogPayload(contents=eval_log_json(log), etag=log.etag)
+
+
+class LogInProgressError(ValueError):
+    """Raised when an edit is attempted on a log whose recorder is still running.
+
+    `EvalLog.status == "started"` means the recorder owns the file and is
+    actively appending samples; viewer-driven edits would race that
+    write loop. Callers should map this to HTTP 409 (Conflict) so the
+    client can distinguish it from validation errors (400) and ETag
+    conflicts (412).
+    """
+
+
+async def apply_log_edits(
+    file: str,
+    update: LogUpdate,
+    if_match_etag: str | None = None,
+) -> LogPayload:
+    """Apply tag/metadata edits to a log and persist them.
+
+    Reads the header, applies `update.edits` via `edit_eval_log`, and writes
+    the new header back without touching sample data. Returns the updated
+    header serialized as JSON and the new ETag (S3 only — None elsewhere),
+    so the caller can both refresh its cached view and chain a follow-up
+    conditional edit in a single round-trip.
+
+    Args:
+        file: Path or URI of the log to edit.
+        update: Edits + provenance to apply.
+        if_match_etag: When set on an S3 path, the write is conditional on
+            the current S3 ETag matching this value. Raises
+            `WriteConflictError` on mismatch. Ignored for non-S3 paths.
+
+    Raises:
+        LogInProgressError: If the log's status is "started" (the recorder
+            is still running). The caller should surface this as a 409.
+    """
+    log = await read_eval_log_async(file, header_only=True)
+    # Refuse to write while the recorder is still appending — any header
+    # we write would race the recorder's own header flush at end-of-eval.
+    if log.status == "started":
+        raise LogInProgressError(
+            "Cannot edit a log while it is in progress. "
+            "Wait for the eval to finish (status != 'started'), then try again."
+        )
+    log = edit_eval_log(log, update.edits, update.provenance)
+    await write_eval_log_async(
+        log, location=file, if_match_etag=if_match_etag, header_only=True
+    )
+    # Capture the post-write ETag on S3 via a HEAD — far cheaper than
+    # re-parsing the zip header, since we only need the ETag header on
+    # the response, not the body. Skipped on local filesystems where
+    # there's no ETag concept.
+    new_etag: str | None = None
+    if filesystem(file).is_s3():
+        new_etag = await s3_head_etag(file)
+    return LogPayload(contents=eval_log_json(log), etag=new_etag)
 
 
 async def get_log_size(log_file: str) -> int:
+    size, _etag = await _stat_log(log_file)
+    return size
+
+
+async def _stat_log(log_file: str) -> tuple[int, str | None]:
+    """One ``fs.info`` call → ``(size, etag)``.
+
+    ETag is populated for S3 paths (where ``_file_info`` lifts it from the
+    head_object response) and ``None`` elsewhere. Sharing the call lets
+    `get_log_info` surface both fields without a second round-trip.
+    """
     fs = filesystem(log_file)
     if fs.is_async():
         info = fs._file_info(await async_connection(log_file)._info(log_file))
     else:
         info = fs.info(log_file)
-    return info.size
+    return info.size, info.etag
 
 
 class LogInfo(BaseModel):
     size: int
     direct_url: str | None = None
+    # S3 ETag of the log file at the time of this lookup. Used by the
+    # viewer client to prime an `If-Match` header on the first edit so
+    # concurrent-modification protection covers the initial save, not
+    # just chained saves within a session.
+    etag: str | None = None
 
 
 async def get_direct_url(path: str) -> str | None:
@@ -256,16 +369,16 @@ async def get_log_info(
     log_file: str,
     generate_direct_url: bool = False,
 ) -> LogInfo:
-    """Return file size and optionally a direct URL for the log file.
+    """Return file size, optional direct URL, and S3 ETag for the log file.
 
     Args:
         log_file: Path to the log file.
         generate_direct_url: If True and the file is on S3, include a
             presigned URL in the response.
     """
-    size = await get_log_size(log_file)
+    size, etag = await _stat_log(log_file)
     direct_url = await get_direct_url(log_file) if generate_direct_url else None
-    return LogInfo(size=size, direct_url=direct_url)
+    return LogInfo(size=size, direct_url=direct_url, etag=etag)
 
 
 async def delete_log(log_file: str) -> None:

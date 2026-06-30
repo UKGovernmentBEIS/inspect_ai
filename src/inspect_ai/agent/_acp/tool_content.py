@@ -40,7 +40,7 @@ from inspect_ai._util.url import (
     is_http_url,
 )
 from inspect_ai.event._tool import ToolEvent
-from inspect_ai.tool._tool_call import ToolCallContent
+from inspect_ai.tool._tool_call import ToolCallContent, substitute_tool_call_content
 
 # Built-in Inspect tool name → ACP ``ToolKind`` mapping. The kind
 # is what tells the editor "render this row with a file icon" vs
@@ -207,6 +207,19 @@ def descriptive_title(fn: str, arguments: dict[str, Any] | None) -> str:
     if fn in ("think", "todo_write", "update_plan"):
         return fn
 
+    # Generic fallback for user-defined tools without a named heuristic
+    # above: surface the first non-empty string-valued argument so the
+    # card line is distinguishable in a list of many parallel calls.
+    # Argument iteration follows the model's tool-call argument dict
+    # which preserves declaration order (Python 3.7+ insertion order),
+    # so "first" matches the function signature's first string arg.
+    # Tools that want a different preview register a custom viewer.
+    for value in args.values():
+        if isinstance(value, str):
+            summary = _short_summary(value)
+            if summary:
+                return f"{fn} {summary}"
+
     return fn
 
 
@@ -249,8 +262,20 @@ def content_blocks_from_view(
 
 
 def _content_from_view(event: ToolEvent) -> list[ContentToolCallContent] | None:
-    """ToolEvent-flavored adapter around :func:`content_blocks_from_view`."""
-    return content_blocks_from_view(event.view)
+    """ToolEvent-flavored adapter around :func:`content_blocks_from_view`.
+
+    Substitutes ``{{param}}`` placeholders in the view from the call's
+    ``arguments`` first. Tool viewers emit placeholders (e.g. ``{{content}}``
+    in the Write card) that the web viewer fills in via
+    ``substituteToolCallContent`` (``tool.ts``); the ACP path must do the same
+    or editors/TUI render the literal ``{{content}}``. This covers both real
+    ``ToolEvent``s and the synthesized bridged tool cards (claude_code/codex),
+    which both flow through here via ``_content_for_start`` / ``_content_for_update``.
+    """
+    view = event.view
+    if view is not None:
+        view = substitute_tool_call_content(view, event.arguments)
+    return content_blocks_from_view(view)
 
 
 # Cap result-as-content payloads so a multi-megabyte tool output

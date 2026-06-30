@@ -14,13 +14,14 @@ from inspect_ai._util.error import EvalError
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.log._pool import (
+from inspect_ai.event._pool import (
     resolve_model_event_calls,
     resolve_model_event_inputs,
 )
+from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.types import (
     CallPoolData,
+    EventData,
     MessagePoolData,
     SampleData,
 )
@@ -75,8 +76,10 @@ def reconstruct_eval_sample(
     """
     summary = _summary_with_uuid_fallback(summary)
 
+    deduped_event_data = collapse_event_versions(sample_data.events)
+
     events = _deserialize_events(
-        [event_data.event for event_data in sample_data.events]
+        [event_data.event for event_data in deduped_event_data]
     )
 
     # Buffer-DB rows store events condensed; without resolving here,
@@ -126,6 +129,7 @@ def reconstruct_eval_sample(
         attachments=attachments,
         model_usage=summary.model_usage,
         role_usage=summary.role_usage,
+        model_fallbacks=summary.model_fallbacks,
         started_at=summary.started_at,
         completed_at=summary.completed_at,
         total_time=summary.total_time,
@@ -133,6 +137,9 @@ def reconstruct_eval_sample(
         uuid=summary.uuid,
         error=error,
     )
+
+
+_LIST_EVENT_ADAPTER: TypeAdapter[list[Event]] = TypeAdapter(list[Event])
 
 
 def _deserialize_message_pool(
@@ -156,8 +163,50 @@ def _deserialize_events(event_dicts: list[dict[str, Any]]) -> list[Event]:
     """Deserialize event JSON dicts into typed Event objects."""
     if not event_dicts:
         return []
-    adapter: TypeAdapter[list[Event]] = TypeAdapter(list[Event])
-    return adapter.validate_python(event_dicts, context=get_deserializing_context())
+    return _LIST_EVENT_ADAPTER.validate_python(
+        event_dicts, context=get_deserializing_context()
+    )
+
+
+class EventVersionCollapser:
+    """Incremental collapser for duplicate event_id rows.
+
+    Preserves first-insertion order and substitutes the latest payload
+    for each event_id. Rows with a falsy `event_id` are kept as unique
+    slots and never replaced.
+    """
+
+    def __init__(self) -> None:
+        self._latest_by_event_id: dict[str, int] = {}
+        self._slots: list[EventData] = []
+
+    def add(self, event_data: EventData) -> None:
+        if not event_data.event_id:
+            self._slots.append(event_data)
+            return
+        slot = self._latest_by_event_id.get(event_data.event_id)
+        if slot is None:
+            self._latest_by_event_id[event_data.event_id] = len(self._slots)
+            self._slots.append(event_data)
+        else:
+            self._slots[slot] = event_data
+
+    def events(self) -> list[EventData]:
+        return self._slots
+
+
+def collapse_event_versions(events: list[EventData]) -> list[EventData]:
+    """Collapse duplicate event_id rows to one logical event per UUID.
+
+    The buffer DB events table is insert-only: every `_event_updated()` writes
+    a new row with the same `event_id`. This collapses such rows to a single
+    entry at the first-insertion position, with the latest payload. Rows
+    without an `event_id` are kept as unique logical events.
+    """
+    collapser = EventVersionCollapser()
+    for ev in events:
+        collapser.add(ev)
+    return collapser.events()
 
 
 class MessageAccumulator:

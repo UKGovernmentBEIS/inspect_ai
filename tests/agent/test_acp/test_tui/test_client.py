@@ -49,6 +49,8 @@ def _make_active_sample(
     total_messages: int = 0,
     total_tokens: int = 0,
     fails_on_error: bool = True,
+    is_attachable: bool = True,
+    is_interactive: bool = True,
 ) -> Any:
     sample = MagicMock()
     sample.id = sample_id
@@ -66,9 +68,20 @@ def _make_active_sample(
     active.total_messages = total_messages
     active.total_tokens = total_tokens
     active.fails_on_error = fails_on_error
+    # ``pending_interaction`` is read by ``list_all_samples`` into
+    # ``SampleListing.pending`` and JSON-serialized. Same MagicMock-
+    # leak hazard as the fields above — must be a real ``None`` /
+    # ``"approval"`` / ``"question"`` for the wire serializer to
+    # round-trip cleanly.
+    active.pending_interaction = None
     sess = MagicMock()
     sess.session_id = session_id
-    active.acp_session = sess
+    # MUST be real bools — list_picker_targets / list_all_samples read
+    # these into wire-serialized listings; a bare MagicMock attribute
+    # leaks a non-serializable object into the JSON-RPC response.
+    sess.is_attachable = is_attachable
+    sess.is_interactive = is_interactive
+    active.acp_transport = sess
     return active
 
 
@@ -139,6 +152,42 @@ async def test_enumerate_returns_rows_with_new_fields(
         assert row.agent_name == "react"
         assert row.started_at == 1_700_000_111.0
         assert row.target is target
+        assert row.interactive is True
+
+
+@skip_if_trio
+@unix_only
+async def test_enumerate_marks_observe_only_sample_non_interactive(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """An attachable-but-not-interactive sample enumerates with a real id.
+
+    ``inspect/list_samples`` surfaces every attachable sample, including
+    observe-only ones (no bound agent turn loop) — they carry a live
+    ``session_id`` so a client can attach to watch, with
+    ``interactive=False`` so the TUI hides the composer.
+    """
+    stub_targets(
+        [
+            _make_active_sample(
+                task="t1",
+                sample_id="s1",
+                epoch=0,
+                session_id="uuid-observe",
+                agent_name=None,
+                is_attachable=True,
+                is_interactive=False,
+            ),
+        ]
+    )
+    async with acp_server(eval_id="evt-obs", transport=True) as server:
+        assert server is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        rows = await enumerate_sessions([("evt-obs", target)])
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.session_id == "uuid-observe"
+        assert row.interactive is False
 
 
 @skip_if_trio
@@ -232,17 +281,26 @@ expand from one source rather than re-typing the list."""
 
 
 def test_client_capabilities_advertises_plan_rendering_and_event_subscription() -> None:
-    """Unit check: the constant ships ``inspect.plan_rendering`` + raw-event subscription.
+    """Unit check: the constant ships ``inspect.plan_rendering`` + raw-event subscription + ``elicitation.form``.
 
     Both ``_list_for_target`` and ``attach_session`` send this dict
     verbatim in their ``initialize`` request, so a single
     structure-level assertion covers both code paths.
+
+    ``elicitation.form`` lives at the top level (not under
+    ``_meta``) because it's a standard ACP capability — empty
+    object is the spec's marker shape for
+    ``ElicitationFormCapabilities``. Without advertising it the
+    server-side Phase 5 capability gate leaves us off the
+    elicitation registry and ``ask_user`` falls through to the
+    in-proc panel / console handlers.
     """
     assert CLIENT_CAPABILITIES == {
+        "elicitation": {"form": {}},
         "_meta": {
             "inspect.plan_rendering": True,
             "inspect.raw_events": _EXPECTED_RAW_EVENTS,
-        }
+        },
     }
 
 

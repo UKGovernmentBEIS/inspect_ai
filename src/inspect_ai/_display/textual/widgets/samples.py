@@ -36,6 +36,7 @@ from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.port_names import get_service_by_port
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.vscode import EXTENSION_COMMAND_OPEN_SAMPLE, VSCodeCommand
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import ActiveSample
 
@@ -330,6 +331,7 @@ class SampleInfo(Vertical):
         super().__init__()
         self._sample: ActiveSample | None = None
         self._sandbox_count: int | None = None
+        self._fallback_models: list[str] | None = None
 
     def compose(self) -> ComposeResult:
         with Horizontal():
@@ -350,25 +352,30 @@ class SampleInfo(Vertical):
         yield SampleVNC()
 
     def on_mount(self) -> None:
-        # Interrupt button only shows when the sample has a live ACP session.
+        # Interrupt button only shows when the sample has a live, bound agent
+        # loop (``is_interactive``) — see the note in ``sync_sample``.
         self.query_one("#interrupt-sample", Button).display = False
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        # Interrupt button visibility tracks the sample's ACP session and
-        # has to be re-evaluated even when the sample identity hasn't
-        # changed (a sample can gain/lose its live session over time).
-        # Also hide it while the toolbar is in prompt mode so a repeat
-        # click can't fire a duplicate cancel_current_turn (which would
-        # record a redundant InterruptEvent) before the operator submits.
+        # Interrupt button visibility tracks whether the sample's ACP session
+        # has a bound, live agent loop (``is_interactive``) and has to be
+        # re-evaluated even when the sample identity hasn't changed (a sample
+        # becomes interactive when its react loop binds and loses it once the
+        # agent completes / scoring begins). Note that a Live session is opened
+        # for *every* sample regardless of agent kind, so ``acp_transport`` and
+        # ``session_id`` are not sufficient on their own — a plain solver task
+        # has a session but never binds a channel, so ``is_interactive`` is
+        # False and the button stays hidden. Also hide it while the toolbar is
+        # in prompt mode so a repeat click can't fire a duplicate
+        # cancel_current_turn (which would record a redundant InterruptEvent)
+        # before the operator submits.
         interrupt_btn = self.query_one("#interrupt-sample", Button)
-        acp = sample.acp_session if sample is not None else None
+        acp = sample.acp_transport if sample is not None else None
         try:
             in_prompt = self.app.query_one(SampleToolbar).in_prompt_mode
         except NoMatches:
             in_prompt = False
-        interrupt_btn.display = (
-            acp is not None and acp.session_id != "noop" and not in_prompt
-        )
+        interrupt_btn.display = acp is not None and acp.is_interactive and not in_prompt
 
         if sample is None:
             self.display = False
@@ -379,17 +386,25 @@ class SampleInfo(Vertical):
             await limits.sync_sample(sample)
 
             new_sandbox_count = len(sample.sandboxes)
-            # bail if we've already processed this sample
-            if self._sample == sample and self._sandbox_count == new_sandbox_count:
+            # bail if we've already processed this sample (fallbacks can
+            # arrive mid-sample, so they participate in the change check)
+            if (
+                self._sample == sample
+                and self._sandbox_count == new_sandbox_count
+                and self._fallback_models == sample.fallback_models
+            ):
                 return
 
             # set sample
             self._sample = sample
             self._sandbox_count = new_sandbox_count
+            self._fallback_models = sample.fallback_models
 
             # update UI
             self.display = True
             title = f"{task_display_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
+            if sample.fallback_models:
+                title = f"{title} [italic](fallback → {', '.join(sample.fallback_models)})[/italic]"
             self.query_one(Collapsible).title = title
             sandboxes = self.query_one(SandboxesView)
             await sandboxes.sync_sample(sample)
@@ -429,17 +444,18 @@ class SampleInfo(Vertical):
         sample = self._sample
         if sample is None:
             return
-        acp = sample.acp_session
-        if acp is None or acp.session_id == "noop":
+        acp = sample.acp_transport
+        if acp is None or not acp.is_interactive:
             return
         # Hide the button immediately so a fast double-click can't fire
         # cancel_current_turn() twice before sync_sample re-evaluates
         # visibility. sync_sample will re-show it once prompt mode exits
         # (and the ACP session is still live).
         event.button.display = False
-        # Fire-and-forget cancel; the agent's react() loop will catch
-        # TurnCancelled inside turn_scope and block in after_cancel
-        # until our prompt submission queues a user message.
+        # Fire-and-forget cancel: the transport forwards via
+        # ``ref.interrupt(Cancel(...))`` to the agent's bound channel
+        # scope, which raises :exc:`AgentInterrupted`; react then drains
+        # any redirect we queue via prompt-mode submission.
         acp.cancel_current_turn()
         # Switch the toolbar (sibling widget) into prompt mode.
         try:
@@ -659,14 +675,14 @@ class SampleToolbar(Horizontal):
         # buttons with an interject Input + Send button. Driven by the
         # Interrupt button on the SampleInfo header.
         self._prompt_mode: bool = False
-        # Subscriptions on the current sample's AcpSession (multi-client
+        # Subscriptions on the current sample's AcpTransport (multi-client
         # interrupt-prompt coordination). When a sibling client triggers
         # the cancel, the interrupted hook fires and we enter prompt
         # mode locally; when a sibling client submits the resumption
         # text, the resolved hook fires and we exit prompt mode without
         # waiting for the user to type in this TUI. Only the in-proc
         # TUI subscribes — generic ACP clients have no modal state to
-        # coordinate. See AcpSession.subscribe_interrupted /
+        # coordinate. See AcpTransport.subscribe_interrupted /
         # subscribe_prompt_resolved.
         self._unsubscribe_interrupted: Callable[[], None] | None = None
         self._unsubscribe_prompt_resolved: Callable[[], None] | None = None
@@ -680,7 +696,7 @@ class SampleToolbar(Horizontal):
         """True while the toolbar is awaiting an interject submission.
 
         SampleInfo reads this to hide the Interrupt button so a repeat
-        click can't fire a second :meth:`AcpSession.cancel_current_turn`
+        click can't fire a second :meth:`AcpTransport.cancel_current_turn`
         (which would record a redundant InterruptEvent) while we're
         already waiting on the operator's reply.
         """
@@ -800,13 +816,18 @@ class SampleToolbar(Horizontal):
             return
         if self.sample:
             if event.button.id == self.TIMEOUT_TOOL_CALL:
-                last_event = (
-                    self.sample.transcript.events[-1]
-                    if self.sample.transcript.events
-                    else None
-                )
-                if isinstance(last_event, ToolEvent):
-                    last_event._cancel()
+                # Under parallel tool calls multiple ToolEvents can be
+                # pending at once. Each owns its own per-call CancelScope
+                # (see _call_tools.py run_one), so fan out the cancel to
+                # every pending sibling.
+                pending_tools = [
+                    ev
+                    for ev in self.sample.transcript.pending_events
+                    if isinstance(ev, ToolEvent)
+                ]
+                if pending_tools:
+                    for tool_event in pending_tools:
+                        tool_event._cancel()
                     event.button.disabled = True
                     event.button.tooltip = self.TIMEOUT_TOOL_CALL_DISABLED
             elif event.button.id in (self.CANCEL_SCORE_OUTPUT, self.CANCEL_RAISE_ERROR):
@@ -843,14 +864,14 @@ class SampleToolbar(Horizontal):
         if not clean:
             return
         sample = self.sample
-        if sample is None or sample.acp_session is None:
+        if sample is None or sample.acp_transport is None:
             self._exit_prompt_mode()
             return
-        sample.acp_session.submit_user_message(ChatMessageUser(content=clean))
+        sample.acp_transport.submit_user_message(ChatMessageUser(content=clean))
         self._exit_prompt_mode()
 
     def _sync_interrupt_subscriptions(self, sample: ActiveSample | None) -> None:
-        """Keep our subscriptions aligned with the sample's AcpSession.
+        """Keep our subscriptions aligned with the sample's AcpTransport.
 
         Subscribes to ``subscribe_interrupted`` and
         ``subscribe_prompt_resolved`` on the bound session, capturing
@@ -866,7 +887,7 @@ class SampleToolbar(Horizontal):
         the cancel arrived before the TUI was subscribed (sample
         switch, late attach, reattach window).
         """
-        target_session = sample.acp_session if sample is not None else None
+        target_session = sample.acp_transport if sample is not None else None
         target_id = target_session.session_id if target_session is not None else None
 
         # No change → no work.
@@ -949,12 +970,19 @@ class SampleToolbar(Horizontal):
         if self._prompt_mode:
             return
         sample = self.sample
-        if sample is None or sample.acp_session is None:
+        if sample is None or sample.acp_transport is None:
             return
-        if sample.acp_session.session_id != originating_session_id:
+        if sample.acp_transport.session_id != originating_session_id:
             # Sample switched between event-fire and execution.
             return
-        if not sample.acp_session.interrupt_pending:
+        if sample.interrupt_action is not None:
+            # Terminal cancel (Cancel Score/Error) routes through the same
+            # cancel_current_turn() -> mark_interrupted() path as a
+            # pause-to-inject interrupt, but here the sample is being torn
+            # down and scored — popping the interject prompt would leave the
+            # input bar stuck on screen until scoring finishes.
+            return
+        if not sample.acp_transport.interrupt_pending:
             # Already resolved (e.g. another client submitted the
             # resumption text first, or after_cancel drained a
             # pre-queued message).
@@ -972,15 +1000,13 @@ class SampleToolbar(Horizontal):
         if not self._prompt_mode:
             return
         sample = self.sample
-        if sample is None or sample.acp_session is None:
+        if sample is None or sample.acp_transport is None:
             return
-        if sample.acp_session.session_id != originating_session_id:
+        if sample.acp_transport.session_id != originating_session_id:
             return
         self._exit_prompt_mode()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        from inspect_ai.event._model import ModelEvent
-
         # is it a new sample?
         new_sample = sample != self.sample
 
@@ -991,12 +1017,12 @@ class SampleToolbar(Horizontal):
             sample is None
             or new_sample
             or sample.completed
-            or sample.acp_session is None
+            or sample.acp_transport is None
         ):
             self._exit_prompt_mode()
 
         # Multi-client interrupt-prompt coordination: keep our hook
-        # subscriptions aligned with the sample's current AcpSession so
+        # subscriptions aligned with the sample's current AcpTransport so
         # a cancel triggered by a sibling client (Phase 13 ACP bridge)
         # auto-enters prompt mode locally, and a resumption text
         # submitted by a sibling client auto-exits it.
@@ -1032,39 +1058,75 @@ class SampleToolbar(Horizontal):
                 cancel_with_error.disabled = False
                 cancel_with_error.tooltip = self.CANCEL_RAISE_ERROR_ENABLED
 
-            # if we have a pending event then start the clock and show pending status
-            last_event = (
-                sample.transcript.events[-1]
-                if len(sample.transcript.events) > 0
-                else None
-            )
-            if last_event and last_event.pending:
+            # Resolve the pending state from the transcript's sidecar.
+            # ``pending_events`` is maintained by ``_event``/``_event_updated``
+            # so it's O(in-flight) to read regardless of total
+            # transcript length — important for the once-per-second
+            # ``update_display`` cadence and for future DB-backed
+            # transcripts where ``events`` may not be in memory.
+            #
+            # Pending state classification:
+            #   - Only pending ModelEvent → "Generating...", no timeout
+            #     button (model calls aren't cancellable from this
+            #     affordance).
+            #   - Any pending ToolEvent → "Executing..." / "Executing N
+            #     tools...", timeout button visible. This case wins
+            #     even when a nested ModelEvent is also pending
+            #     (sub-agents / handoffs / parallel-tool-internal
+            #     generation) because the operator's intent in that
+            #     mixed state is to cancel the tool(s), not the inner
+            #     model call.
+            pending_model: ModelEvent | None = None
+            earliest_pending_tool: ToolEvent | None = None
+            pending_tool_count = 0
+            for ev in sample.transcript.pending_events:
+                if isinstance(ev, ModelEvent):
+                    if pending_model is None:
+                        pending_model = ev
+                elif isinstance(ev, ToolEvent):
+                    if earliest_pending_tool is None:
+                        earliest_pending_tool = ev
+                    pending_tool_count += 1
+
+            if earliest_pending_tool is not None:
                 pending_status.visible = True
                 pending_caption = cast(
                     Static, self.query_one("#" + self.PENDING_CAPTION)
                 )
-                if isinstance(last_event, ModelEvent):
-                    # see if there are retries in play
-                    if last_event.retries:
-                        suffix = "retry" if last_event.retries == 1 else "retries"
-                        pending_caption_text = (
-                            f"Generating ({last_event.retries:,} {suffix})..."
-                        )
-                    else:
-                        pending_caption_text = "Generating..."
+                if pending_tool_count > 1:
+                    pending_caption_text = f"Executing {pending_tool_count} tools..."
+                    timeout_tooltip = (
+                        "Cancel the tool calls and report a timeout to the model."
+                    )
                 else:
                     pending_caption_text = "Executing..."
+                    timeout_tooltip = self.TIMEOUT_TOOL_CALL_ENABLED
                 status_group.styles.width = max(22, len(pending_caption_text))
-
                 pending_caption.update(
                     Text.from_markup(f"[italic]{pending_caption_text}[/italic]")
                 )
-
-                timeout_tool.display = isinstance(last_event, ToolEvent)
+                timeout_tool.display = True
                 timeout_tool.disabled = False
-                timeout_tool.tooltip = self.TIMEOUT_TOOL_CALL_ENABLED
-
-                clock.start(last_event.timestamp.timestamp())
+                timeout_tool.tooltip = timeout_tooltip
+                clock.start(earliest_pending_tool.timestamp.timestamp())
+            elif pending_model is not None:
+                pending_status.visible = True
+                pending_caption = cast(
+                    Static, self.query_one("#" + self.PENDING_CAPTION)
+                )
+                if pending_model.retries:
+                    suffix = "retry" if pending_model.retries == 1 else "retries"
+                    pending_caption_text = (
+                        f"Generating ({pending_model.retries:,} {suffix})..."
+                    )
+                else:
+                    pending_caption_text = "Generating..."
+                status_group.styles.width = max(22, len(pending_caption_text))
+                pending_caption.update(
+                    Text.from_markup(f"[italic]{pending_caption_text}[/italic]")
+                )
+                timeout_tool.display = False
+                clock.start(pending_model.timestamp.timestamp())
             else:
                 pending_status.visible = False
                 timeout_tool.display = False

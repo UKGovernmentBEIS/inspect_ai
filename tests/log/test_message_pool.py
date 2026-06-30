@@ -12,6 +12,16 @@ from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.event import Event, Timeline, TimelineEvent, TimelineSpan
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._pool import (
+    _call_hash,
+    _call_pool_json,
+    _compress_refs,
+    _expand_refs,
+    _msg_hash,
+    _msg_pool_json,
+    _msg_pool_jsonable,
+)
+from inspect_ai.event._validate import validate_chat_messages
 from inspect_ai.log._condense import (
     condense_events,
     condense_sample,
@@ -29,12 +39,9 @@ from inspect_ai.log._log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._pool import (
-    _compress_refs,
-    _expand_refs,
-    resolve_sample_events_data,
-)
+from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.model._chat_message import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
@@ -42,6 +49,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool_call import ToolCall
 
 
 def _make_sample_with_repeated_inputs() -> EvalSample:
@@ -1020,7 +1028,7 @@ def test_resolve_call_empty_refs_preserves_request():
     then sets request[default_key] = [], adding a spurious 'messages' key
     and potentially masking the original 'input' field.
     """
-    from inspect_ai.log._pool import resolve_model_event_calls
+    from inspect_ai.event._pool import resolve_model_event_calls
 
     call = ModelCall(
         request={"model": "test", "input": "What is 2+2?"},
@@ -1044,3 +1052,45 @@ def test_resolve_call_empty_refs_preserves_request():
     # request must be unchanged — no spurious keys, 'input' preserved
     assert resolved_call.request == {"model": "test", "input": "What is 2+2?"}
     assert "messages" not in resolved_call.request
+
+
+def test_msg_hash_stable_across_serialization_roundtrip() -> None:
+    """Insert-time hash must equal rebuild-time hash (_build_msg_index re-parses pool JSON)."""
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="x" * 200, metadata={"b": 1, "a": [1, {"k": "v"}]}),
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="t" * 150),
+                ContentReasoning(reasoning="r" * 150),
+            ],
+            tool_calls=[ToolCall(id="tc1", function="f", arguments={"x": 1})],
+        ),
+    ]
+    for msg in messages:
+        [reparsed] = validate_chat_messages([json.loads(msg.model_dump_json())])
+        assert _msg_hash(reparsed) == _msg_hash(msg)
+
+    # the hash excludes .id: same content under different ids hashes equal
+    a = ChatMessageUser(content="same content")
+    b = ChatMessageUser(content="same content")
+    assert a.id != b.id
+    assert _msg_hash(a) == _msg_hash(b)
+
+
+def test_pool_json_helpers_roundtrip_to_own_hash() -> None:
+    """Stored pool bytes must re-hash to the hash stored beside them.
+
+    This is the invariant `_msg_pool_json`/`_call_pool_json` own: a pool
+    row written by one process and re-parsed by another (resume/re-seed)
+    must land on its own hash, or every resume duplicates the pool. The
+    unsorted dict fields here are the case that breaks if storage and
+    hash disagree on key order.
+    """
+    msg = ChatMessageUser(content="hello", metadata={"b": 1, "a": 2})
+    stored = _msg_pool_json(_msg_pool_jsonable(msg))
+    [reparsed] = validate_chat_messages([json.loads(stored)])
+    assert _msg_hash(reparsed) == _msg_hash(msg)
+
+    call_msg: JsonValue = {"role": "user", "b": 1, "a": 2}
+    stored_call = _call_pool_json(call_msg)
+    assert _call_hash(json.loads(stored_call)) == _call_hash(call_msg)

@@ -1,9 +1,9 @@
-"""Phase 7 tests for the ``ActiveSample.acp_session`` registration lifecycle.
+"""Phase 7 tests for the ``ActiveSample.acp_transport`` registration lifecycle.
 
 The TUI runs in a sibling task to the agent and cannot reach the
-ContextVar-installed :class:`AcpSession` directly. Phase 7 publishes
+ContextVar-installed :class:`AcpTransport` directly. Phase 7 publishes
 the live session on the current :class:`ActiveSample` so the TUI can
-read ``sample.acp_session`` to gate its Interrupt button and dispatch
+read ``sample.acp_transport`` to gate its Interrupt button and dispatch
 ``cancel_current_turn`` / ``submit_user_message`` from outside the
 agent task.
 
@@ -12,8 +12,8 @@ These tests cover the registration path independently of the TUI.
 
 from unittest.mock import MagicMock
 
-from inspect_ai.agent._acp.session import _NOOP_SESSION_ID, acp_session
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport import _NOOP_SESSION_ID, acp_session
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._samples import ActiveSample, active_sample
 from inspect_ai.log._samples import _sample_active as samples_var
@@ -40,13 +40,14 @@ def _make_active_sample() -> ActiveSample:
         sandboxes={},
         checkpointer=_NoopCheckpointer(),
         eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
     )
 
 
 async def test_acp_session_field_is_none_without_acp_session() -> None:
     """Baseline: an ActiveSample never touched by acp_session() has None."""
     active = _make_active_sample()
-    assert active.acp_session is None
+    assert active.acp_transport is None
 
 
 async def test_live_acp_session_registers_on_active_sample() -> None:
@@ -55,7 +56,7 @@ async def test_live_acp_session_registers_on_active_sample() -> None:
     token = samples_var.set(active)
     try:
         async with acp_session() as acp:
-            assert active.acp_session is acp
+            assert active.acp_transport is acp
             assert acp.session_id != _NOOP_SESSION_ID
     finally:
         samples_var.reset(token)
@@ -67,7 +68,7 @@ async def test_acp_session_field_persists_post_exit_until_finalize() -> None:
     The agent's ``async with acp_session()`` block exits *before* the
     task runner's scoring + logging block runs. We want scoring events
     to still reach attached ACP clients via the bound session — so
-    ``__aexit__`` keeps ``ActiveSample.acp_session`` pointing at the
+    ``__aexit__`` keeps ``ActiveSample.acp_transport`` pointing at the
     session. The eventual full teardown runs via :meth:`finalize`,
     invoked by ``active_sample().__aexit__`` when the sample is fully
     done. Here we drive ``finalize`` by hand to pin the contract.
@@ -76,13 +77,13 @@ async def test_acp_session_field_persists_post_exit_until_finalize() -> None:
     token = samples_var.set(active)
     try:
         async with acp_session() as acp:
-            assert active.acp_session is acp
+            assert active.acp_transport is acp
         # Post-agent: binding still alive so scoring events reach clients.
-        assert active.acp_session is acp
+        assert active.acp_transport is acp
         # finalize() is what active_sample() calls during teardown.
-        assert isinstance(acp, LiveAcpSession)
+        assert isinstance(acp, LiveAcpTransport)
         await acp.finalize()
-        assert active.acp_session is None
+        assert active.acp_transport is None
     finally:
         samples_var.reset(token)
 
@@ -99,25 +100,25 @@ async def test_sub_agent_shadow_does_not_clobber_outer_registration() -> None:
     token = samples_var.set(active)
     try:
         async with acp_session() as outer:
-            assert active.acp_session is outer
+            assert active.acp_transport is outer
             async with acp_session() as inner:
                 # Inner is a no-op shadow because outer is already live.
                 assert inner.session_id == _NOOP_SESSION_ID
                 # Outer registration is still in place.
-                assert active.acp_session is outer
+                assert active.acp_transport is outer
             # After inner exits, outer is still registered.
-            assert active.acp_session is outer
+            assert active.acp_transport is outer
         # Outer exited split-phase — binding survives until finalize.
-        assert active.acp_session is outer
-        assert isinstance(outer, LiveAcpSession)
+        assert active.acp_transport is outer
+        assert isinstance(outer, LiveAcpTransport)
         await outer.finalize()
-        assert active.acp_session is None
+        assert active.acp_transport is None
     finally:
         samples_var.reset(token)
 
 
 async def test_noop_session_does_not_touch_active_sample() -> None:
-    """A no-op session must never write to ActiveSample.acp_session.
+    """A no-op session must never write to ActiveSample.acp_transport.
 
     Two scenarios:
     1. No active sample context at all → no error, field stays unset.
@@ -140,7 +141,7 @@ async def test_noop_session_does_not_touch_active_sample() -> None:
         async with acp_session() as outer:
             async with acp_session():
                 # field still points at outer
-                assert active.acp_session is outer
+                assert active.acp_transport is outer
     finally:
         samples_var.reset(token)
 
@@ -149,14 +150,15 @@ async def test_aexit_unbound_session_does_full_teardown() -> None:
     """An unbound session (no ActiveSample) tears down fully on ``__aexit__``.
 
     The split-phase entry only triggers when bound. Standalone use
-    (tests that construct ``LiveAcpSession()`` without an
+    (tests that construct ``LiveAcpTransport()`` without an
     ActiveSample) preserves the original behavior: ``__aexit__`` is
     the single termination signal.
     """
     # No active sample registered.
     token = samples_var.set(None)
     try:
-        session = LiveAcpSession()
+        session = LiveAcpTransport()
+        session._attachable_override = True
         await session.__aenter__()
         stream = session.attach()
         await session.__aexit__(None, None, None)
@@ -176,13 +178,13 @@ async def test_finalize_idempotent() -> None:
     token = samples_var.set(active)
     try:
         async with acp_session() as acp:
-            assert active.acp_session is acp
-        assert isinstance(acp, LiveAcpSession)
+            assert active.acp_transport is acp
+        assert isinstance(acp, LiveAcpTransport)
         await acp.finalize()
-        assert active.acp_session is None
+        assert active.acp_transport is None
         # Re-finalize: no error, still cleared.
         await acp.finalize()
-        assert active.acp_session is None
+        assert active.acp_transport is None
     finally:
         samples_var.reset(token)
 
@@ -206,15 +208,15 @@ async def test_post_agent_subscribers_still_receive_published_updates() -> None:
             acp.publish({"k": "v1"})
             assert await stream.receive() == {"k": "v1"}
         # After split-phase exit: still alive, still bound.
-        assert active.acp_session is acp
+        assert active.acp_transport is acp
         acp.publish({"k": "v2"})
         assert await stream.receive() == {"k": "v2"}
         # finalize is what closes things.
-        assert isinstance(acp, LiveAcpSession)
+        assert isinstance(acp, LiveAcpTransport)
         await acp.finalize()
         with pytest.raises(anyio.EndOfStream):
             await stream.receive()
-        assert active.acp_session is None
+        assert active.acp_transport is None
     finally:
         samples_var.reset(token)
 
@@ -240,15 +242,15 @@ async def test_consecutive_agents_handover_finalizes_predecessor() -> None:
         # A is parked (split-phase). Now B enters.
         async with acp_session() as agent_b:
             assert agent_b.session_id != session_a_id
-            assert active.acp_session is agent_b
+            assert active.acp_transport is agent_b
             # A's subscriber saw EOF when B's __aenter__ finalized A.
             with pytest.raises(anyio.EndOfStream):
                 await stream_a.receive()
         # B is now parked. Finalize manually (active_sample would
         # ordinarily do this).
-        assert isinstance(agent_b, LiveAcpSession)
+        assert isinstance(agent_b, LiveAcpTransport)
         await agent_b.finalize()
-        assert active.acp_session is None
+        assert active.acp_transport is None
     finally:
         samples_var.reset(token)
 
@@ -264,21 +266,23 @@ async def test_aexit_identity_guard_protects_active_registration() -> None:
     active = _make_active_sample()
     token = samples_var.set(active)
     try:
-        session_a = LiveAcpSession()
-        session_b = LiveAcpSession()
+        session_a = LiveAcpTransport()
+        session_a._attachable_override = True
+        session_b = LiveAcpTransport()
+        session_b._attachable_override = True
         # Enter A first so it registers on active.
         await session_a.__aenter__()
-        assert active.acp_session is session_a
+        assert active.acp_transport is session_a
         # Now overwrite the registration with B (simulating B winning a race).
-        active.acp_session = session_b
+        active.acp_transport = session_b
         # A's __aexit__ + finalize must NOT clear the field — B owns it.
         await session_a.__aexit__(None, None, None)
         await session_a.finalize()
-        assert active.acp_session is session_b
+        assert active.acp_transport is session_b
         # Clean up B properly (bound → split-phase exit, then finalize).
         await session_b.__aexit__(None, None, None)
         await session_b.finalize()
-        assert active.acp_session is None
+        assert active.acp_transport is None
     finally:
         samples_var.reset(token)
 
@@ -308,13 +312,13 @@ async def test_live_acp_session_registers_lifecycle_callbacks() -> None:
         assert active.on_complete is None
         assert active.on_interrupt is None
         async with acp_session() as acp:
-            assert isinstance(acp, LiveAcpSession)
+            assert isinstance(acp, LiveAcpTransport)
             assert active.on_complete is not None
             assert active.on_complete.__self__ is acp
-            assert active.on_complete.__func__ is LiveAcpSession.finalize
+            assert active.on_complete.__func__ is LiveAcpTransport.finalize
             assert active.on_interrupt is not None
             assert active.on_interrupt.__self__ is acp
-            assert active.on_interrupt.__func__ is LiveAcpSession.cancel_current_turn
+            assert active.on_interrupt.__func__ is LiveAcpTransport.cancel_current_turn
         # Bound exit parks — callbacks survive until finalize().
         assert active.on_complete is not None
         assert active.on_interrupt is not None
@@ -336,17 +340,19 @@ async def test_finalize_identity_guard_protects_callbacks() -> None:
     active = _make_active_sample()
     token = samples_var.set(active)
     try:
-        session_a = LiveAcpSession()
-        session_b = LiveAcpSession()
+        session_a = LiveAcpTransport()
+        session_a._attachable_override = True
+        session_b = LiveAcpTransport()
+        session_b._attachable_override = True
         await session_a.__aenter__()
         # B wins a race and takes over (also rewriting callbacks).
-        active.acp_session = session_b
+        active.acp_transport = session_b
         active.on_complete = session_b.finalize
         active.on_interrupt = session_b.cancel_current_turn
         # A's finalize must not clear B's slots.
         await session_a.__aexit__(None, None, None)
         await session_a.finalize()
-        assert active.acp_session is session_b
+        assert active.acp_transport is session_b
         # B's bound methods compared via __self__ + __func__ (see the
         # registration test for the rationale).
         assert active.on_complete is not None
@@ -356,7 +362,7 @@ async def test_finalize_identity_guard_protects_callbacks() -> None:
         # Clean up B.
         await session_b.__aexit__(None, None, None)
         await session_b.finalize()
-        assert active.acp_session is None
+        assert active.acp_transport is None
         assert active.on_complete is None
         assert active.on_interrupt is None
     finally:
@@ -421,7 +427,7 @@ async def test_active_sample_exit_calls_on_complete_hook() -> None:
     End-to-end pin: an ACP-aware binder registers itself via
     ``on_complete``; when the sample's full lifetime ends, the hook
     is fired exactly once with no arguments. Mirror of how
-    ``LiveAcpSession.finalize`` lands in production.
+    ``LiveAcpTransport.finalize`` lands in production.
     """
     fired: list[str] = []
 
@@ -442,6 +448,7 @@ async def test_active_sample_exit_calls_on_complete_hook() -> None:
         fails_on_error=False,
         transcript=Transcript(),
         eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
     ) as active:
         active.on_complete = _on_complete
         assert fired == []
@@ -477,6 +484,7 @@ async def test_active_sample_exit_on_complete_failure_is_logged_not_raised() -> 
         fails_on_error=False,
         transcript=Transcript(),
         eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
     ) as active:
         active.on_complete = _bad
     # Reaching here = teardown didn't raise. `active.completed` was
@@ -490,7 +498,7 @@ async def test_limit_exceeded_records_interrupt_event_with_limit_source() -> Non
 
     Pins the cause-propagation chain:
     ``ActiveSample.limit_exceeded`` → ``_fire_on_interrupt("limit")`` →
-    registered ``on_interrupt`` (= ``LiveAcpSession.cancel_current_turn``)
+    registered ``on_interrupt`` (= ``LiveAcpTransport.cancel_current_turn``)
     → ``record_interrupt_event(source="limit")``. Regression: pre-fix,
     every limit hit was recorded as ``source="user_cancel"`` because
     the hook had no cause discriminator and ``cancel_current_turn``
@@ -507,7 +515,7 @@ async def test_limit_exceeded_records_interrupt_event_with_limit_source() -> Non
     init_transcript(active.transcript)
     try:
         async with acp_session() as acp:
-            assert isinstance(acp, LiveAcpSession)
+            assert isinstance(acp, LiveAcpTransport)
             # Fake a task group so limit_exceeded can fire the cancel
             # scope without actually tearing anything down.
             active.tg = MagicMock()
@@ -538,7 +546,7 @@ async def test_user_cancel_via_interrupt_records_user_cancel_source() -> None:
     init_transcript(active.transcript)
     try:
         async with acp_session() as acp:
-            assert isinstance(acp, LiveAcpSession)
+            assert isinstance(acp, LiveAcpTransport)
             active.tg = MagicMock()
             active.interrupt("score")
             tr = acp._transcript_capture.transcript()
@@ -575,7 +583,7 @@ async def test_limit_cancel_stamps_limit_sentinel_on_in_flight_model_event() -> 
     init_transcript(active.transcript)
     try:
         async with acp_session() as acp:
-            assert isinstance(acp, LiveAcpSession)
+            assert isinstance(acp, LiveAcpTransport)
             # Synthesise an in-flight ModelEvent so the snapshot path
             # has something to stamp. Mirrors what _model.py does at
             # generate() entry.
@@ -612,7 +620,7 @@ async def test_limit_cancel_stamps_limit_message_on_in_flight_tool_event() -> No
     init_transcript(active.transcript)
     try:
         async with acp_session() as acp:
-            assert isinstance(acp, LiveAcpSession)
+            assert isinstance(acp, LiveAcpTransport)
             tool_ev = ToolEvent(
                 id="tc-1",
                 function="bash",
@@ -646,7 +654,7 @@ async def test_user_cancel_stamps_operator_sentinel_on_in_flight_model_event() -
     init_transcript(active.transcript)
     try:
         async with acp_session() as acp:
-            assert isinstance(acp, LiveAcpSession)
+            assert isinstance(acp, LiveAcpTransport)
             ev = ModelEvent(
                 model="m",
                 input=[],

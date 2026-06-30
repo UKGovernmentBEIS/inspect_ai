@@ -36,6 +36,7 @@ class Progress(Protocol):
 class TaskSpec:
     name: str
     model: ModelName
+    agent: str | None
 
 
 CancelType = Literal["abort", "retry"] | None
@@ -53,6 +54,7 @@ class TaskProfile:
     name: str
     file: str | None
     model: ModelName
+    agent: str | None
     dataset: str
     scorer: str
     samples: int
@@ -111,6 +113,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         yield rich.get_console()
 
@@ -169,3 +172,12 @@ class Display(Protocol):
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
 
     def display_counter(self, caption: str, value: str) -> None: ...
+
+    def update_task_count(self, n: int) -> None:
+        """Add ``n`` to the displayed total task count.
+
+        Called when tasks are injected into a live (TaskSource-driven) run so
+        the "completed / total" denominator reflects the growing set. No-op by
+        default; displays that show a total override this.
+        """
+        return None

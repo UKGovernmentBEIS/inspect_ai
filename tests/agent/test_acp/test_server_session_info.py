@@ -21,8 +21,14 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.log._transcript import Transcript
+
+# Heavy socket-integration suite: real AF_UNIX round-trips + agent evals
+# (~1.3s+ per test). Marked slow to keep it off the per-PR CI critical path
+# (the slow suite runs in a separate environment); lighter ACP tests still run
+# on every PR.
+pytestmark = pytest.mark.slow
 
 
 @pytest.fixture
@@ -67,7 +73,7 @@ def _make_active_sample(
     active.started = None
     active.total_tokens = 0
     active.fails_on_error = True
-    active.acp_session = acp_session
+    active.acp_transport = acp_session
     return active
 
 
@@ -82,8 +88,9 @@ def register_target(monkeypatch):
     return _register
 
 
-def _make_live_session_with_transcript() -> LiveAcpSession:
-    session = LiveAcpSession()
+def _make_live_session_with_transcript() -> LiveAcpTransport:
+    session = LiveAcpTransport()
+    session._attachable_override = True
     session._transcript = Transcript()
     return session
 

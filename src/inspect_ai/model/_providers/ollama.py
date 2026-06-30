@@ -3,6 +3,7 @@ from typing import Any
 from typing_extensions import override
 
 from .._generate_config import GenerateConfig
+from .._reasoning import clamp_reasoning_effort_to_low_medium_high
 from .openai_compatible import OpenAICompatibleAPI
 
 
@@ -47,8 +48,12 @@ class OllamaAPI(OpenAICompatibleAPI):
         if "reasoning_effort" in params:
             del params["reasoning_effort"]
         if config.reasoning_effort is not None:
-            params.setdefault("extra_body", {})["reasoning"] = {
-                "effort": config.reasoning_effort,
-            }
+            # Ollama's API accepts low/medium/high; clamp the extended effort
+            # values (minimal/xhigh/max) so requests aren't rejected.
+            clamped = clamp_reasoning_effort_to_low_medium_high(config.reasoning_effort)
+            if clamped is not None:
+                params.setdefault("extra_body", {})["reasoning"] = {
+                    "effort": clamped,
+                }
 
         return params

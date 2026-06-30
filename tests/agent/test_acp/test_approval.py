@@ -35,7 +35,7 @@ from acp.schema import (
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.acp import (
     _approval_from_response,
@@ -82,39 +82,24 @@ def _cancelled() -> RequestPermissionResponse:
 
 
 class _StubSession:
-    """Minimal AcpSession-like for ``_request_from_driver_with_fallback``.
+    """Minimal AcpTransport-like for ``_request_from_driver_with_fallback``.
 
-    Reports a fixed driver chain plus the three primitives the shim
-    needs: ``approver_driver_chain`` (snapshot), ``has_ever_had_approver_client``
-    (the one-way bit), and ``subscribe_approver_attach`` (callback
-    list, mirroring the registry's pattern).
+    Reports a fixed driver chain plus the attach-subscribe primitive
+    the shim uses to park-and-retry on chain exhaustion.
 
     Tests that exercise wait-and-retry mutate ``clients`` then call
     ``trigger_attach()`` to fire subscribers — that's the only signal
     the shim uses to re-snapshot the chain.
     """
 
-    def __init__(
-        self,
-        clients: list[Any] | None = None,
-        ever_attached: bool | None = None,
-    ) -> None:
+    def __init__(self, clients: list[Any] | None = None) -> None:
         # ``Any``-typed so tests can pass real ``ConnectionHandler``
         # instances alongside ``_StubClient`` stubs.
         self.clients: list[Any] = list(clients) if clients else []
-        # Default: ever_attached follows whether any client was present
-        # at construction. Tests can override to simulate "operator
-        # was here, all clients dropped" (clients=[], ever=True).
-        self._ever_attached = (
-            ever_attached if ever_attached is not None else bool(self.clients)
-        )
         self._attach_subscribers: list = []
 
     def approver_driver_chain(self) -> list:
         return list(self.clients)
-
-    def has_ever_had_approver_client(self) -> bool:
-        return self._ever_attached
 
     def subscribe_approver_attach(self, cb):
         self._attach_subscribers.append(cb)
@@ -133,7 +118,6 @@ class _StubSession:
         Caller is responsible for mutating ``self.clients`` first if
         the shim is expected to find a fresh client on retry.
         """
-        self._ever_attached = True
         for cb in list(self._attach_subscribers):
             cb()
 
@@ -398,8 +382,9 @@ async def test_all_clients_raise_then_waits_for_attach() -> None:
     Replaces the previous "all-fail → None" behavior. The previous
     semantic blocked on stdin in --acp-server mode when an operator
     disconnected mid-approval; the new semantic re-issues the
-    approval to whoever attaches next. Headless ``inspect eval``
-    isn't affected — it returns earlier via ``has_ever_had_approver_client``.
+    approval to whoever attaches next. Under exclusive routing
+    (committed by ``--acp-server``) this also covers the very first
+    interaction — the entry never falls through to the in-proc panel.
     """
     a = _StubClient(exc=ConnectionError("a down"))
     b = _StubClient(exc=ConnectionError("b down"))
@@ -428,33 +413,19 @@ async def test_all_clients_raise_then_waits_for_attach() -> None:
     assert len(survivor.received) == 1
 
 
-async def test_empty_chain_returns_none_when_never_attached() -> None:
-    """No client ever attached → ``None`` so caller falls back to in-proc panel.
-
-    Distinguishes "no operator has ever connected via ``inspect acp``"
-    (panel fallback OK — TTY is available) from "operator attached
-    then disconnected" (must park; see
-    ``test_all_clients_raise_then_waits_for_attach``).
-    """
-    choices: list[ApprovalDecision] = ["approve", "reject"]
-    session = _StubSession([], ever_attached=False)
-    result = await _request_from_driver_with_fallback(
-        session, _trivial_request(), choices
-    )
-    assert result is None
-
-
 @skip_if_trio
-async def test_empty_chain_waits_when_ever_attached() -> None:
-    """Operator attached then dropped → park, do NOT fall through to panel.
+async def test_empty_chain_parks_until_attach() -> None:
+    """Empty chain → park on attach (no silent fallback to in-proc panel).
 
-    Pinned regression of the bug this whole work fixes: the previous
-    behavior fell through to panel_approval on empty chain, which
-    blocked on stdin in --acp-server headless mode and silently
-    routed past the editor approval UI in --acp-server + TTY mode.
+    Under exclusive routing (``--acp-server`` committed the eval to
+    ACP), the shim parks on the attach event whether or not a client
+    has ever attached before. Previously it returned ``None`` on the
+    never-attached case, which let the dispatcher fall through to the
+    in-proc panel — that fallthrough was the notification-driven race
+    documented in ``design/acp/elicitation.md`` "Routing policy".
     """
     survivor = _StubClient(response=_selected("approve"))
-    session = _StubSession([], ever_attached=True)
+    session = _StubSession([])
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
     shim_task = asyncio.create_task(
@@ -491,7 +462,7 @@ async def test_no_lost_attach_signal_during_snapshot() -> None:
 
     class _RacingSession(_StubSession):
         def __init__(self) -> None:
-            super().__init__([], ever_attached=True)
+            super().__init__([])
             self._first_snapshot = True
 
         def approver_driver_chain(self):
@@ -527,7 +498,7 @@ async def test_no_busy_spin_on_spurious_attach() -> None:
     multiple spurious attaches before the real survivor lands.
     """
     survivor = _StubClient(response=_selected("approve"))
-    session = _StubSession([], ever_attached=True)
+    session = _StubSession([])
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
     shim_task = asyncio.create_task(
@@ -582,7 +553,7 @@ async def test_cancellation_unwinds_park() -> None:
     backend-agnostic cancellation handling the parked shim could
     leak into the next sample.
     """
-    session = _StubSession([], ever_attached=True)
+    session = _StubSession([])
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
     shim_task = asyncio.create_task(
@@ -772,11 +743,11 @@ async def test_driver_chain_falls_through_stale_handler_after_rebind() -> None:
 
 @pytest.fixture
 def patch_sample_active(monkeypatch):
-    """Patch sample_active to return a stub sample with an AcpSession."""
+    """Patch sample_active to return a stub sample with an AcpTransport."""
 
     def _patch(session: Any | None) -> None:
         sample = MagicMock()
-        sample.acp_session = session
+        sample.acp_transport = session
         monkeypatch.setattr(
             "inspect_ai.log._samples.sample_active",
             lambda: sample if session is not None else None,
@@ -785,7 +756,47 @@ def patch_sample_active(monkeypatch):
     return _patch
 
 
-async def test_entry_returns_none_when_no_active_sample(monkeypatch) -> None:
+@pytest.fixture
+def acp_server_running(monkeypatch):
+    """Patch ``acp_server_accepting_clients`` to ``True`` for entry tests.
+
+    The real accessor reads a ContextVar set by the ``acp_server``
+    context manager and defaults to ``False``. Tests run outside that
+    scope, so without this fixture the entry would short-circuit
+    before the routing logic runs. Use this for tests that exercise
+    the in-ACP-mode path; omit it for tests that want the
+    ``return None`` / fall-through path.
+    """
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.server.acp_server_accepting_clients",
+        lambda: True,
+    )
+
+
+async def test_entry_returns_none_when_acp_server_not_running(
+    patch_sample_active,
+) -> None:
+    """``--acp-server`` not active → entry returns None (let in-proc handle it).
+
+    Default ContextVar state is "no AcpServer accepting external
+    clients", so no fixture flip is needed for this case — the entry
+    short-circuits before touching ``sample_active``.
+    """
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    patch_sample_active(session)
+    result = await request_human_approval_via_acp(
+        message="please confirm",
+        call=_make_call(),
+        view=_make_view(),
+        choices=["approve", "reject"],
+    )
+    assert result is None
+
+
+async def test_entry_returns_none_when_no_active_sample(
+    monkeypatch, acp_server_running
+) -> None:
     """sample_active() returns None → entry returns None (let in-proc handle it)."""
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: None)
     result = await request_human_approval_via_acp(
@@ -797,7 +808,9 @@ async def test_entry_returns_none_when_no_active_sample(monkeypatch) -> None:
     assert result is None
 
 
-async def test_entry_returns_none_when_no_acp_session(patch_sample_active) -> None:
+async def test_entry_returns_none_when_no_acp_session(
+    patch_sample_active, acp_server_running
+) -> None:
     """Sample exists but acp_session is None → fall through."""
     patch_sample_active(None)
     result = await request_human_approval_via_acp(
@@ -809,23 +822,206 @@ async def test_entry_returns_none_when_no_acp_session(patch_sample_active) -> No
     assert result is None
 
 
-async def test_entry_returns_none_when_no_clients(patch_sample_active) -> None:
-    """ACP session exists but no clients attached → fall through."""
-    session = LiveAcpSession()
+@skip_if_trio
+async def test_entry_parks_when_live_with_no_clients(
+    patch_sample_active, acp_server_running
+) -> None:
+    """Live ACP transport + no clients → entry parks, no fallback to panel.
+
+    Pinned regression of the notification race: previously the entry
+    returned ``None`` when no client had ever attached, which let the
+    dispatcher fall through to the in-proc panel before the operator
+    could open ``inspect acp``. Under exclusive routing the entry
+    parks until a client arrives — the panel never sees this
+    interaction. See ``design/acp/elicitation.md`` "Routing policy".
+    """
+    session = LiveAcpTransport()
+    session._attachable_override = True
     patch_sample_active(session)
-    result = await request_human_approval_via_acp(
-        message="please confirm",
-        call=_make_call(),
-        view=_make_view(),
-        choices=["approve", "reject"],
+
+    shim_task = asyncio.create_task(
+        request_human_approval_via_acp(
+            message="please confirm",
+            call=_make_call(),
+            view=_make_view(),
+            choices=["approve", "reject"],
+        )
     )
-    assert result is None
+    await asyncio.sleep(0.05)
+    assert not shim_task.done()  # parked on subscribe_approver_attach
+
+    survivor = _StubClient(response=_selected("approve"))
+    session.attach_approver_client(survivor)
+    session.notify_approver_attach(survivor)
+
+    result = await shim_task
+    assert result is not None
+    assert result.decision == "approve"
+
+
+class _PendingSample:
+    """Stub sample exposing the pending-interaction counter API.
+
+    Mirrors :class:`ActiveSample`'s contract just enough for the
+    routing shim: ``_pending_approvals`` / ``_pending_questions``
+    counters that the shim increments/decrements, and a derived
+    ``pending_interaction`` property the picker reads. Used by tests
+    that exercise the set/clear contract under concurrent waits.
+    """
+
+    def __init__(self) -> None:
+        self._pending_approvals = 0
+        self._pending_questions = 0
+        self.acp_transport: Any = None
+
+    @property
+    def pending_interaction(self) -> str | None:
+        if self._pending_approvals > 0:
+            return "approval"
+        if self._pending_questions > 0:
+            return "question"
+        return None
 
 
 @skip_if_trio
-async def test_entry_routes_to_attached_client(patch_sample_active) -> None:
+async def test_entry_marks_pending_interaction_during_park(
+    monkeypatch, acp_server_running
+) -> None:
+    """Sample's ``pending_interaction`` flips to "approval" during the wait.
+
+    The picker reads ``ActiveSample.pending_interaction`` to surface
+    its ``pending`` column and float waiting samples to the top.
+    Pinned regression of the contract: counter ticks up on entry,
+    back to zero in `finally`.
+    """
+    sample = _PendingSample()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    sample.acp_transport = session
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    shim_task = asyncio.create_task(
+        request_human_approval_via_acp(
+            message="please confirm",
+            call=_make_call(),
+            view=_make_view(),
+            choices=["approve", "reject"],
+        )
+    )
+    # Wait long enough for the entry to set the flag and park on attach.
+    await asyncio.sleep(0.05)
+    assert not shim_task.done()
+    assert sample.pending_interaction == "approval"
+
+    # Resolve so the finally block can run.
+    survivor = _StubClient(response=_selected("approve"))
+    session.attach_approver_client(survivor)
+    session.notify_approver_attach(survivor)
+    result = await shim_task
+    assert result is not None
+    assert result.decision == "approve"
+    # Restored after the await returns.
+    assert sample.pending_interaction is None
+
+
+@skip_if_trio
+async def test_entry_clears_pending_interaction_on_cancellation(
+    monkeypatch, acp_server_running
+) -> None:
+    """Cancellation while parked still clears the pending counter via finally.
+
+    Without the finally, a cancelled / errored shim would leave the
+    sample looking "stuck pending" forever in the picker. Exercises
+    the cancellation path explicitly.
+    """
+    sample = _PendingSample()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    sample.acp_transport = session
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    shim_task = asyncio.create_task(
+        request_human_approval_via_acp(
+            message="please confirm",
+            call=_make_call(),
+            view=_make_view(),
+            choices=["approve", "reject"],
+        )
+    )
+    await asyncio.sleep(0.05)
+    assert sample.pending_interaction == "approval"
+
+    shim_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await shim_task
+    assert sample.pending_interaction is None
+
+
+@skip_if_trio
+async def test_entry_pending_counter_handles_concurrent_approvals(
+    monkeypatch, acp_server_running
+) -> None:
+    """Two parallel approvals on one sample share the indicator correctly.
+
+    Pinned regression of the concurrency bug: ``parallel=True`` tool
+    calls run concurrently inside one sample (see
+    ``_call_tools.py``), so two approvals can be in-flight at once.
+    A single-slot save/restore would clear the indicator on the
+    first finish while the second is still pending. Counters keep
+    ``pending_interaction == "approval"`` until BOTH waits exit.
+    """
+    sample = _PendingSample()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    sample.acp_transport = session
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    # Two clients in the chain, each returning when its respective
+    # request lands. Because the shim uses single-driver semantics,
+    # both requests would route through the first client — so we
+    # use a single client that just delays its response. We start
+    # the second request before the first finishes by attaching
+    # the client between the two starts.
+    client = _StubClient(response=_selected("approve"), delay=0.1)
+    session.attach_approver_client(client)
+    session.notify_approver_attach(client)
+
+    # Fire two approvals back-to-back. Both should set their
+    # counters before either finishes.
+    task_a = asyncio.create_task(
+        request_human_approval_via_acp(
+            message="confirm A",
+            call=_make_call(),
+            view=_make_view(),
+            choices=["approve", "reject"],
+        )
+    )
+    task_b = asyncio.create_task(
+        request_human_approval_via_acp(
+            message="confirm B",
+            call=_make_call(),
+            view=_make_view(),
+            choices=["approve", "reject"],
+        )
+    )
+    # Let both enter their respective `try` blocks.
+    await asyncio.sleep(0.02)
+    assert sample._pending_approvals == 2
+    assert sample.pending_interaction == "approval"
+
+    # Resolve both — counter must return to zero.
+    await asyncio.gather(task_a, task_b)
+    assert sample._pending_approvals == 0
+    assert sample.pending_interaction is None
+
+
+@skip_if_trio
+async def test_entry_routes_to_attached_client(
+    patch_sample_active, acp_server_running
+) -> None:
     """One client attached → request routes through it; decision returns."""
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -852,6 +1048,7 @@ async def test_entry_routes_to_attached_client(patch_sample_active) -> None:
 @skip_if_trio
 async def test_entry_prepends_assistant_message_as_content_block(
     patch_sample_active,
+    acp_server_running,
 ) -> None:
     """The model's accompanying message is NOT embedded in the approval card.
 
@@ -864,7 +1061,8 @@ async def test_entry_prepends_assistant_message_as_content_block(
     card. The shim now passes ``message`` to ``_build_request``
     purely for API stability; it doesn't ride on the wire.
     """
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -892,9 +1090,11 @@ async def test_entry_prepends_assistant_message_as_content_block(
 @skip_if_trio
 async def test_entry_omits_message_block_for_empty_message(
     patch_sample_active,
+    acp_server_running,
 ) -> None:
     """Empty / whitespace-only message is also a no-op (still no Assistant block)."""
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -917,6 +1117,7 @@ async def test_entry_omits_message_block_for_empty_message(
 @skip_if_trio
 async def test_entry_substitutes_view_placeholders_with_call_arguments(
     patch_sample_active,
+    acp_server_running,
 ) -> None:
     """``{{param}}`` placeholders in a custom viewer resolve to argument values.
 
@@ -926,7 +1127,8 @@ async def test_entry_substitutes_view_placeholders_with_call_arguments(
     correctly in the in-proc panel but show literal
     ``{{command}}`` / ``{{path}}`` in the editor card.
     """
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -967,7 +1169,9 @@ async def test_entry_substitutes_view_placeholders_with_call_arguments(
 
 
 @skip_if_trio
-async def test_entry_carries_view_content_in_request(patch_sample_active) -> None:
+async def test_entry_carries_view_content_in_request(
+    patch_sample_active, acp_server_running
+) -> None:
     """The view's markdown content is forwarded as a tool_call.content block.
 
     Pinned so the approval prompt renders the same rich view as the
@@ -975,7 +1179,8 @@ async def test_entry_carries_view_content_in_request(patch_sample_active) -> Non
     block appears AFTER the assistant message block (when a message
     is present); we scan all blocks to be robust to ordering changes.
     """
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -1355,11 +1560,12 @@ async def test_approval_over_real_socket_round_trip(
     """
     # Set up a fake ActiveSample so list_picker_targets has something
     # to return — needed for session/load to bind successfully.
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
+    session._attachable_override = True
     # Initialize an empty session id; the real wire test below will
     # use session/load directly with the session id.
     sample = MagicMock()
-    sample.acp_session = session
+    sample.acp_transport = session
     sample.task = "t"
     sample.sample.id = "s"
     sample.epoch = 0
@@ -1418,5 +1624,77 @@ async def test_approval_over_real_socket_round_trip(
                 "approve",
                 "reject",
             ]
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_approval_e2e_attach_after_fire(
+    short_data_dir: Path, monkeypatch
+) -> None:
+    """Approval request fires BEFORE any ACP client attaches; result still routes via ACP.
+
+    Mirror of ``test_elicitation_e2e_attach_after_fire`` for the
+    approval surface. Pins the exclusive-routing contract for human
+    approvals — ``--acp-server`` committed the eval; the in-proc
+    panel never sees the request.
+    """
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    sample = MagicMock()
+    sample.acp_transport = session
+    sample.task = "t"
+    sample.sample.id = "s"
+    sample.epoch = 0
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [sample])
+    monkeypatch.setattr("inspect_ai.agent._acp.picker.active_samples", lambda: [sample])
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    async with acp_server(eval_id="evt-appr-aaf", transport=True) as server:
+        assert server is not None and server.socket_path is not None
+
+        # FIRE the approval entry BEFORE any client attaches.
+        shim_task = asyncio.create_task(
+            request_human_approval_via_acp(
+                message="please confirm",
+                call=_make_call(),
+                view=_make_view(),
+                choices=["approve", "reject"],
+            )
+        )
+        await asyncio.sleep(0.05)
+        assert not shim_task.done()  # parked, no fallback to panel
+        assert session.has_approver_clients() is False
+
+        # NOW attach a client.
+        reader, writer = await asyncio.open_unix_connection(str(server.socket_path))
+        client = _ClientRpcStub(
+            reader,
+            writer,
+            permission_response={
+                "outcome": {"outcome": "selected", "optionId": "approve"}
+            },
+        )
+        try:
+            await client.request(
+                "initialize",
+                {
+                    "protocolVersion": 1,
+                    "clientInfo": {"name": "test", "version": "0"},
+                },
+            )
+            await client.request(
+                "session/load",
+                {
+                    "cwd": "/tmp",
+                    "mcpServers": [],
+                    "sessionId": session.session_id,
+                },
+            )
+            result = await asyncio.wait_for(shim_task, timeout=5.0)
+            assert result is not None
+            assert result.decision == "approve"
+            assert client.received_permission_request is not None
         finally:
             await client.close()

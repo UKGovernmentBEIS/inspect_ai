@@ -3,7 +3,7 @@
 The factory pattern in Phase 4's plan: tests can't reach react()'s internal
 ``acp_session()`` from a sibling task (ContextVar task-inheritance issue).
 We sidestep by running a tool *inside* react that captures
-``current_acp_session()`` into a shared dict and signals a barrier event.
+``current_acp_transport()`` into a shared dict and signals a barrier event.
 The producer task awaits the event and then drives the captured session
 from outside.
 """
@@ -12,7 +12,8 @@ from typing import Any
 
 import anyio
 
-from inspect_ai.agent._acp import AcpSession, current_acp_session
+from inspect_ai.agent._acp import AcpTransport, current_acp_transport
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import Transcript
@@ -28,8 +29,14 @@ def acp_test_active_sample(transcript: Transcript) -> ActiveSample:
     harness, so they publish this bare ``ActiveSample`` (carrying a
     ``_NoopCheckpointer`` and the test's own transcript) on the
     ``_sample_active`` ContextVar.
+
+    Manually constructs a :class:`LiveAcpTransport` and wires it onto the
+    sample (``acp_session`` for ``current_acp_transport()`` fallback;
+    ``execution_observer`` for in-flight tool/model tracking) so tests
+    that don't go through the real ``active_sample()`` context still
+    see the same producer surface as production.
     """
-    return ActiveSample(
+    sample = ActiveSample(
         task="t",
         log_location="mem://test",
         model="mockllm/model",
@@ -45,11 +52,23 @@ def acp_test_active_sample(transcript: Transcript) -> ActiveSample:
         sandboxes={},
         checkpointer=_NoopCheckpointer(),
         eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
     )
+    # Wire a bare LiveAcpTransport onto the sample. We deliberately skip
+    # __aenter__ ceremony (router attach, pubsub setup) — tests that
+    # need those exercise the full path; this fixture provides just the
+    # producer surface needed by react() and the in-flight tracking
+    # path.
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    session._transcript_capture.captured = transcript
+    sample.acp_transport = session
+    sample.execution_observer = session
+    return sample
 
 
-def capture_session_tool(captured: dict[str, AcpSession], ready: anyio.Event) -> Tool:
-    """Return a tool that captures the live ``AcpSession`` on first call.
+def capture_session_tool(captured: dict[str, AcpTransport], ready: anyio.Event) -> Tool:
+    """Return a tool that captures the live ``AcpTransport`` on first call.
 
     Args:
         captured: shared dict the test reads after ``ready`` fires;
@@ -62,7 +81,7 @@ def capture_session_tool(captured: dict[str, AcpSession], ready: anyio.Event) ->
     def capture_session() -> Tool:
         async def execute() -> str:
             """Capture the active ACP session for the test producer."""
-            captured["acp"] = current_acp_session()
+            captured["acp"] = current_acp_transport()
             ready.set()
             return "captured"
 

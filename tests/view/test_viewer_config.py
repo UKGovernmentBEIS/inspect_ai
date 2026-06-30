@@ -5,14 +5,14 @@ from pydantic import ValidationError
 
 from inspect_ai.viewer import (
     MetadataField,
-    SamplesColumn,
     SampleScoreView,
     SampleScoreViewSort,
-    SamplesSort,
-    SamplesView,
     ScannerResultField,
     ScannerResultView,
     ScoreColorScale,
+    TaskSamplesColumn,
+    TaskSamplesSort,
+    TaskSamplesView,
     ViewerConfig,
 )
 
@@ -256,13 +256,22 @@ def test_score_panel_sort_rejects_unknown_dir() -> None:
 
 def test_sample_score_view_defaults() -> None:
     view = SampleScoreView()
-    assert view.view is None
+    assert view.default is None
     assert view.sort is None
 
 
 def test_sample_score_view_rejects_unknown_view() -> None:
     with pytest.raises(ValidationError):
-        SampleScoreView(view="table")  # type: ignore[arg-type]
+        SampleScoreView(default="table")  # type: ignore[arg-type]
+
+
+def test_sample_score_view_accepts_legacy_view_alias() -> None:
+    """Pre-rename `view` key populates `default`; output stays canonical."""
+    from_kwarg = SampleScoreView(view="chips")  # type: ignore[call-arg]
+    from_json = SampleScoreView.model_validate({"view": "grid"})
+    assert from_kwarg.default == "chips"
+    assert from_json.default == "grid"
+    assert from_kwarg.model_dump() == {"default": "chips", "sort": None}
 
 
 def test_viewer_config_sample_score_view_defaults_to_none() -> None:
@@ -274,14 +283,14 @@ def test_viewer_config_sample_score_view_defaults_to_none() -> None:
 def test_sample_score_view_roundtrip() -> None:
     cfg = ViewerConfig(
         sample_score_view=SampleScoreView(
-            view="grid",
+            default="grid",
             sort=SampleScoreViewSort(column="value", dir="desc"),
         )
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
     assert restored.sample_score_view is not None
-    assert restored.sample_score_view.view == "grid"
+    assert restored.sample_score_view.default == "grid"
     assert restored.sample_score_view.sort is not None
     assert restored.sample_score_view.sort.column == "value"
     assert restored.sample_score_view.sort.dir == "desc"
@@ -289,13 +298,13 @@ def test_sample_score_view_roundtrip() -> None:
 
 def test_sample_score_view_partial_configs_roundtrip() -> None:
     """View only, sort only, and both — each should serialize cleanly."""
-    view_only = ViewerConfig(sample_score_view=SampleScoreView(view="chips"))
+    view_only = ViewerConfig(sample_score_view=SampleScoreView(default="chips"))
     sort_only = ViewerConfig(
         sample_score_view=SampleScoreView(sort=SampleScoreViewSort(column="name"))
     )
     both = ViewerConfig(
         sample_score_view=SampleScoreView(
-            view="grid", sort=SampleScoreViewSort(column="name", dir="asc")
+            default="grid", sort=SampleScoreViewSort(column="name", dir="asc")
         )
     )
     for cfg in (view_only, sort_only, both):
@@ -306,7 +315,7 @@ def test_sample_score_view_coexists_with_scanner_result_view() -> None:
     """Both top-level fields can be set simultaneously without interaction."""
     cfg = ViewerConfig(
         scanner_result_view=ScannerResultView(fields=["value"]),
-        sample_score_view=SampleScoreView(view="grid"),
+        sample_score_view=SampleScoreView(default="grid"),
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
@@ -314,40 +323,39 @@ def test_sample_score_view_coexists_with_scanner_result_view() -> None:
 
 # ---------------------------------------------------------------------------
 # Samples view: defaults the eval author can set for the task's
-# Sample List grid (visible columns + order, sort, DSL filter, multiline).
+# Sample List grid (visible columns + order, sort, multiline).
 # Distinct from `sample_score_view`, which configures the score panel
 # inside an individual sample's detail view.
 # ---------------------------------------------------------------------------
 
 
 def test_samples_sort_defaults() -> None:
-    s = SamplesSort(column="tokens")
+    s = TaskSamplesSort(column="tokens")
     assert s.column == "tokens"
     assert s.dir == "asc"
 
 
 def test_samples_sort_rejects_unknown_dir() -> None:
     with pytest.raises(ValidationError):
-        SamplesSort(column="tokens", dir="up")  # type: ignore[arg-type]
+        TaskSamplesSort(column="tokens", dir="up")  # type: ignore[arg-type]
 
 
 def test_samples_column_defaults() -> None:
-    c = SamplesColumn(id="input")
+    c = TaskSamplesColumn(id="input")
     assert c.id == "input"
     assert c.visible is True
 
 
 def test_samples_view_requires_name() -> None:
     with pytest.raises(ValidationError):
-        SamplesView()  # type: ignore[call-arg]
+        TaskSamplesView()  # type: ignore[call-arg]
 
 
 def test_samples_view_defaults() -> None:
-    view = SamplesView(name="Default")
+    view = TaskSamplesView(name="Default")
     assert view.name == "Default"
     assert view.columns is None
     assert view.sort is None
-    assert view.filter is None
     assert view.multiline is None
     assert view.compact_scores is None
     assert view.score_labels is None
@@ -355,27 +363,27 @@ def test_samples_view_defaults() -> None:
 
 def test_samples_view_rejects_non_bool_multiline() -> None:
     with pytest.raises(ValidationError):
-        SamplesView(name="Default", multiline="single")  # type: ignore[arg-type]
+        TaskSamplesView(name="Default", multiline="single")  # type: ignore[arg-type]
 
 
 def test_samples_view_rejects_non_bool_compact_scores() -> None:
     with pytest.raises(ValidationError):
-        SamplesView(name="Default", compact_scores="narrow")  # type: ignore[arg-type]
+        TaskSamplesView(name="Default", compact_scores="narrow")  # type: ignore[arg-type]
 
 
 def test_samples_view_compact_scores_roundtrip() -> None:
     cfg = ViewerConfig(
-        task_samples_view=SamplesView(name="Compact", compact_scores=True),
+        task_samples_view=TaskSamplesView(name="Compact", compact_scores=True),
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
-    assert isinstance(restored.task_samples_view, SamplesView)
+    assert isinstance(restored.task_samples_view, TaskSamplesView)
     assert restored.task_samples_view.compact_scores is True
 
 
 def test_samples_view_score_labels_roundtrip() -> None:
     cfg = ViewerConfig(
-        task_samples_view=SamplesView(
+        task_samples_view=TaskSamplesView(
             name="Triage",
             score_labels={
                 "audit_situational_awareness": "Situational Awareness",
@@ -385,7 +393,7 @@ def test_samples_view_score_labels_roundtrip() -> None:
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
-    assert isinstance(restored.task_samples_view, SamplesView)
+    assert isinstance(restored.task_samples_view, TaskSamplesView)
     assert restored.task_samples_view.score_labels == {
         "audit_situational_awareness": "Situational Awareness",
         "ascii-art": "ASCII Art",
@@ -395,7 +403,7 @@ def test_samples_view_score_labels_roundtrip() -> None:
 def test_samples_view_score_labels_rejects_non_string_value() -> None:
     """Labels are display strings — non-string values should be rejected at parse."""
     with pytest.raises(ValidationError):
-        SamplesView(
+        TaskSamplesView(
             name="Default",
             score_labels={"x": 1},  # type: ignore[dict-item]
         )
@@ -403,7 +411,7 @@ def test_samples_view_score_labels_rejects_non_string_value() -> None:
 
 def test_samples_view_score_color_scales_named_palette_roundtrip() -> None:
     cfg = ViewerConfig(
-        task_samples_view=SamplesView(
+        task_samples_view=TaskSamplesView(
             name="Heat",
             score_color_scales={
                 "accuracy": "good-high",
@@ -415,7 +423,7 @@ def test_samples_view_score_color_scales_named_palette_roundtrip() -> None:
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
-    assert isinstance(restored.task_samples_view, SamplesView)
+    assert isinstance(restored.task_samples_view, TaskSamplesView)
     assert restored.task_samples_view.score_color_scales == {
         "accuracy": "good-high",
         "harm_score": "good-low",
@@ -426,7 +434,7 @@ def test_samples_view_score_color_scales_named_palette_roundtrip() -> None:
 
 def test_samples_view_score_color_scales_categorical_roundtrip() -> None:
     cfg = ViewerConfig(
-        task_samples_view=SamplesView(
+        task_samples_view=TaskSamplesView(
             name="Heat",
             score_color_scales={
                 "verdict": {"yes": "bad", "no": "good", "maybe": "warn"},
@@ -440,7 +448,7 @@ def test_samples_view_score_color_scales_categorical_roundtrip() -> None:
 def test_samples_view_score_color_scales_mixed_roundtrip() -> None:
     """A single config can mix numeric palettes and categorical maps."""
     cfg = ViewerConfig(
-        task_samples_view=SamplesView(
+        task_samples_view=TaskSamplesView(
             name="Heat",
             score_color_scales={
                 "accuracy": "good-high",
@@ -454,7 +462,7 @@ def test_samples_view_score_color_scales_mixed_roundtrip() -> None:
 
 def test_samples_view_score_color_scales_rejects_unknown_palette() -> None:
     with pytest.raises(ValidationError):
-        SamplesView(
+        TaskSamplesView(
             name="Default",
             score_color_scales={"accuracy": "rainbow"},  # type: ignore[dict-item]
         )
@@ -462,7 +470,7 @@ def test_samples_view_score_color_scales_rejects_unknown_palette() -> None:
 
 def test_samples_view_score_color_scales_rejects_unknown_role() -> None:
     with pytest.raises(ValidationError):
-        SamplesView(
+        TaskSamplesView(
             name="Default",
             score_color_scales={
                 "verdict": {"yes": "amazing"},  # type: ignore[dict-item]
@@ -477,7 +485,7 @@ def test_samples_view_score_color_scales_object_form_roundtrip() -> None:
     the extremes when the observed data happens to cluster at one end.
     """
     cfg = ViewerConfig(
-        task_samples_view=SamplesView(
+        task_samples_view=TaskSamplesView(
             name="Heat",
             score_color_scales={
                 "concerning": ScoreColorScale(palette="good-low", min=1, max=10),
@@ -488,7 +496,7 @@ def test_samples_view_score_color_scales_object_form_roundtrip() -> None:
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
     view = restored.task_samples_view
-    assert isinstance(view, SamplesView)
+    assert isinstance(view, TaskSamplesView)
     assert view.score_color_scales is not None
     pinned = view.score_color_scales["concerning"]
     assert isinstance(pinned, ScoreColorScale)
@@ -521,7 +529,7 @@ def test_score_color_scale_rejects_unknown_palette() -> None:
 def test_samples_view_color_scales_enabled_roundtrip() -> None:
     """Eval authors can seed the colour-scale toolbar toggle's initial value."""
     cfg = ViewerConfig(
-        task_samples_view=SamplesView(
+        task_samples_view=TaskSamplesView(
             name="Heat",
             score_color_scales={"accuracy": "good-high"},
             color_scales_enabled=False,
@@ -530,50 +538,48 @@ def test_samples_view_color_scales_enabled_roundtrip() -> None:
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
     view = restored.task_samples_view
-    assert isinstance(view, SamplesView)
+    assert isinstance(view, TaskSamplesView)
     assert view.color_scales_enabled is False
 
 
 def test_samples_view_color_scales_enabled_defaults_to_none() -> None:
     """Like the other view defaults: None means "viewer default applies"."""
-    view = SamplesView(name="Default")
+    view = TaskSamplesView(name="Default")
     assert view.color_scales_enabled is None
 
 
-def test_samples_view_roundtrip_with_string_filter() -> None:
+def test_samples_view_roundtrip_with_columns_and_sort() -> None:
     cfg = ViewerConfig(
-        task_samples_view=SamplesView(
+        task_samples_view=TaskSamplesView(
             name="Triage",
             columns=[
-                SamplesColumn(id="status"),
-                SamplesColumn(id="input"),
-                SamplesColumn(id="target", visible=False),
-                SamplesColumn(id="tokens"),
+                TaskSamplesColumn(id="status"),
+                TaskSamplesColumn(id="input"),
+                TaskSamplesColumn(id="target", visible=False),
+                TaskSamplesColumn(id="tokens"),
             ],
-            sort=[SamplesSort(column="tokens", dir="desc")],
-            filter="has_error or score < 0.5",
+            sort=[TaskSamplesSort(column="tokens", dir="desc")],
             multiline=False,
         )
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
-    assert isinstance(restored.task_samples_view, SamplesView)
-    assert restored.task_samples_view.filter == "has_error or score < 0.5"
+    assert isinstance(restored.task_samples_view, TaskSamplesView)
     assert restored.task_samples_view.multiline is False
 
 
 def test_samples_view_accepts_list() -> None:
     cfg = ViewerConfig(
         task_samples_view=[
-            SamplesView(name="All"),
-            SamplesView(name="Errors", filter="has_error"),
+            TaskSamplesView(name="All"),
+            TaskSamplesView(name="Errors"),
         ]
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
     assert isinstance(restored.task_samples_view, list)
     assert len(restored.task_samples_view) == 2
-    assert restored.task_samples_view[1].filter == "has_error"
+    assert restored.task_samples_view[1].name == "Errors"
 
 
 def test_viewer_config_task_samples_view_defaults_to_none() -> None:
@@ -585,35 +591,76 @@ def test_viewer_config_task_samples_view_defaults_to_none() -> None:
 def test_samples_view_coexists_with_other_top_level_fields() -> None:
     cfg = ViewerConfig(
         scanner_result_view=ScannerResultView(fields=["value"]),
-        sample_score_view=SampleScoreView(view="grid"),
-        task_samples_view=SamplesView(name="Default"),
+        sample_score_view=SampleScoreView(default="grid"),
+        task_samples_view=TaskSamplesView(name="Default"),
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
 
 
 # ---------------------------------------------------------------------------
-# Filter is a raw DSL string. Authors write filtrex expressions directly;
-# there is no Python-side builder. Compound boolean predicates,
-# function-style predicates, and arithmetic all work because the field
-# is just `str | None`.
+# `.score()` classmethods build the `score__{scorer}__{score}` wire id so
+# authors don't hand-assemble the string. The sub-score key defaults to the
+# scorer name for the common single-value-scorer case.
 # ---------------------------------------------------------------------------
 
 
-def test_samples_view_string_filter_passes_through_unchanged() -> None:
-    """Strings are stored as-is; nothing is parsed or normalized."""
-    view = SamplesView(name="Default", filter="score >= 0.8")
-    assert view.filter == "score >= 0.8"
-
-
-def test_samples_view_supports_compound_dsl_expressions() -> None:
-    """The filter is a raw DSL string, so anything filtrex parses works.
-
-    Compound boolean predicates, function predicates, and arithmetic
-    are all expressible.
-    """
-    view = SamplesView(
-        name="Errors or Low Scores",
-        filter='has_error or score < 0.5 or input_contains("urgent")',
+def test_task_samples_column_score_builds_wire_id() -> None:
+    col = TaskSamplesColumn.score("judge", "correctness")
+    assert col.id == "score__judge__correctness"
+    assert col.visible is True
+    assert (
+        TaskSamplesColumn.score("judge", "correctness", visible=False).visible is False
     )
-    assert view.filter == 'has_error or score < 0.5 or input_contains("urgent")'
+
+
+def test_task_samples_column_score_defaults_to_scorer() -> None:
+    # Omitting the sub-score key targets the scalar score keyed by the
+    # scorer name itself — the common single-value-scorer case.
+    assert TaskSamplesColumn.score("match").id == "score__match__match"
+    assert TaskSamplesSort.score("match").column == "score__match__match"
+
+
+def test_task_samples_sort_score_builds_wire_id() -> None:
+    s = TaskSamplesSort.score("judge", "correctness", dir="desc")
+    assert s.column == "score__judge__correctness"
+    assert s.dir == "desc"
+
+
+def test_task_samples_column_score_roundtrips() -> None:
+    cfg = ViewerConfig(
+        task_samples_view=TaskSamplesView(
+            name="Scores",
+            columns=[TaskSamplesColumn.score("judge", "correctness")],
+            sort=[TaskSamplesSort.score("judge", "correctness", dir="desc")],
+        )
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+
+
+# ---------------------------------------------------------------------------
+# Renamed public names keep resolving (via a logged deprecation) until 0.4.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "old_name, new_obj",
+    [
+        ("SamplesView", TaskSamplesView),
+        ("SamplesColumn", TaskSamplesColumn),
+        ("SamplesSort", TaskSamplesSort),
+    ],
+)
+def test_renamed_names_resolve_to_new_class(old_name, new_obj) -> None:
+    import inspect_ai.viewer as viewer
+
+    assert getattr(viewer, old_name) is new_obj
+
+
+def test_removed_name_still_raises_attribute_error() -> None:
+    import inspect_ai.viewer as viewer
+
+    missing = "NotAViewerType"
+    with pytest.raises(AttributeError):
+        getattr(viewer, missing)

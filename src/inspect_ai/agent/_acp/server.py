@@ -21,11 +21,10 @@ anyio boundary" for the rationale.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
-import stat
 import time
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from logging import getLogger
 from pathlib import Path
 from typing import AsyncIterator, cast
@@ -34,19 +33,23 @@ from acp.agent.router import build_agent_router
 from acp.connection import Connection
 from acp.interfaces import Agent
 
+from inspect_ai._util.discovery import (
+    prepare_discovery_dir,
+    write_discovery_file,
+)
+from inspect_ai._util.sockets import (
+    has_unix_sockets,
+    lock_socket_file,
+    parse_host_port,
+    prepare_socket_path,
+)
 from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
 from inspect_ai.agent._acp._guards import (
     NORMAL_DISCONNECT_EXC,
     install_acp_disconnect_log_filter,
 )
 from inspect_ai.agent._acp.connection import ConnectionHandler
-from inspect_ai.agent._acp.discovery import (
-    cleanup_stale_discovery_files,
-    default_socket_path,
-    discovery_dir,
-    has_unix_sockets,
-    parse_host_port,
-)
+from inspect_ai.agent._acp.discovery import default_socket_path, discovery_dir
 from inspect_ai.agent._acp.inspect_ext import register_inspect_routes
 
 logger = getLogger(__name__)
@@ -153,9 +156,7 @@ class AcpServer:
         # server" entry point.
         install_acp_disconnect_log_filter()
 
-        # Clean up any stale discovery files / orphan sockets from
-        # processes that crashed without unregistering.
-        cleanup_stale_discovery_files()
+        prepare_discovery_dir(discovery_dir())
 
         if self._transport is True:
             await self._bind_unix(default_socket_path(self._eval_id))
@@ -174,20 +175,17 @@ class AcpServer:
             raise ValueError(f"Unsupported acp_server transport: {self._transport!r}")
 
         # Write the discovery file describing this server.
-        self._discovery_path = discovery_dir() / f"{os.getpid()}.json"
-        self._discovery_path.write_text(
-            json.dumps(
-                {
-                    "pid": os.getpid(),
-                    "eval_id": self._eval_id,
-                    "socket_path": (
-                        str(self._socket_path) if self._socket_path else None
-                    ),
-                    "host": self._host,
-                    "port": self._port,
-                    "started_at": time.time(),
-                }
-            )
+        self._discovery_path = write_discovery_file(
+            discovery_dir(),
+            os.getpid(),
+            {
+                "pid": os.getpid(),
+                "eval_id": self._eval_id,
+                "socket_path": (str(self._socket_path) if self._socket_path else None),
+                "host": self._host,
+                "port": self._port,
+                "started_at": time.time(),
+            },
         )
 
     async def _bind_unix(self, path: Path) -> None:
@@ -196,28 +194,9 @@ class AcpServer:
                 "ACP UNIX sockets require Windows 10+ or POSIX. "
                 "Pass `--acp-server=<port>` to bind a TCP loopback port instead."
             )
-        path.parent.mkdir(parents=True, exist_ok=True)
-        # Unlink any leftover socket node from a stale prior bind on
-        # the same path. ``cleanup_stale_discovery_files`` already
-        # covers the default path case via the discovery file; this
-        # catches user-supplied paths and the rare case where the
-        # discovery file is gone but the socket node survived. ONLY
-        # unlink actual socket nodes — a user passing
-        # ``--acp-server=/etc/passwd`` should get an error, not data
-        # loss.
-        if path.exists() or path.is_symlink():
-            try:
-                mode = path.lstat().st_mode
-            except OSError as e:
-                raise RuntimeError(
-                    f"Cannot stat existing path {path} for ACP socket bind: {e}"
-                ) from e
-            if not stat.S_ISSOCK(mode):
-                raise RuntimeError(
-                    f"Refusing to bind ACP server at {path}: path exists and "
-                    "is not a socket. Pick a different path or remove it first."
-                )
-            path.unlink()
+        # Ensure the parent exists and clear a stale socket node (refusing
+        # to clobber a non-socket path, eg. ``--acp-server=/etc/passwd``).
+        prepare_socket_path(path)
         # ``limit`` is the StreamReader buffer size for accepted
         # connections — see ACP_STREAM_BUFFER_LIMIT for why we override
         # asyncio's 64 KiB default.
@@ -227,6 +206,8 @@ class AcpServer:
             limit=ACP_STREAM_BUFFER_LIMIT,
         )
         self._socket_path = path
+        # Owner-only on the socket file (defence-in-depth; best-effort).
+        lock_socket_file(path)
 
     async def _bind_tcp(self, port: int, host: str = "127.0.0.1") -> None:
         self._server = await asyncio.start_server(
@@ -260,7 +241,7 @@ class AcpServer:
             # :meth:`Forwarders.stop`), which gives the semantic
             # forwarder a chance to send ``inspect/session_ended``
             # while the connection is still alive. On the
-            # end-of-eval path :meth:`LiveAcpSession.finalize` has
+            # end-of-eval path :meth:`LiveAcpTransport.finalize` has
             # already closed pubsub by the time we get here, so the
             # forwarder is racing to send that final notification —
             # closing the connection first (pre-Phase-7-hardening
@@ -418,6 +399,30 @@ class AcpServer:
                 pass
 
 
+# Set to True by :func:`acp_server` while a server is bound and
+# accepting external ACP clients. Routing shims for ``ask_user`` and
+# human-approval consult this via :func:`acp_server_accepting_clients`
+# to distinguish "external clients can attach" from "a LiveAcpTransport
+# happens to be installed for sub-agent isolation but no server is
+# running". The Live transport is opened per-sample regardless of
+# ``--acp-server`` (sub-agent reachability needs the in-process
+# pub/sub plumbing); only this flag actually tracks whether the eval
+# is reachable from outside.
+_acp_server_accepting_var: ContextVar[bool] = ContextVar(
+    "_acp_server_accepting", default=False
+)
+
+
+def acp_server_accepting_clients() -> bool:
+    """True iff an :class:`AcpServer` is bound and accepting connections.
+
+    See :data:`_acp_server_accepting_var` for why this is separate from
+    "is the current transport a :class:`LiveAcpTransport`" — the latter
+    is always True inside a sample, regardless of ``--acp-server``.
+    """
+    return _acp_server_accepting_var.get()
+
+
 @asynccontextmanager
 async def acp_server(
     *,
@@ -432,13 +437,21 @@ async def acp_server(
 
     ``False`` (the result of ``--acp-server=false``), ``None`` (no
     flag), and ``0`` are all treated as disabled.
+
+    Flips :func:`acp_server_accepting_clients` to ``True`` for the
+    duration of the bound server so the routing shims commit to ACP
+    as the human channel. When ``transport`` is falsy the flag stays
+    ``False`` and routing falls through to the in-proc panel /
+    console — the no-``--acp-server`` baseline.
     """
     if not transport:
         yield None
         return
     server = AcpServer(eval_id=eval_id, transport=transport)
     await server.start()
+    token = _acp_server_accepting_var.set(True)
     try:
         yield server
     finally:
+        _acp_server_accepting_var.reset(token)
         await server.stop()

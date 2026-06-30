@@ -2,7 +2,9 @@
 /_site/
 /_include.yml
 /reference/refs*.json
-**/*.quarto_ipynb*
 **/*.excalidraw.svg
 /.venv/
 **/__pycache__
+**/*.quarto_ipynb*
+
+**/*.quarto_ipynb

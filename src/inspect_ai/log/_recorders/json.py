@@ -26,12 +26,13 @@ from .._log import (
     EvalResults,
     EvalSample,
     EvalSampleReductions,
+    EvalSampleSummary,
     EvalSpec,
     EvalStats,
     EvalStatus,
     sort_samples,
 )
-from .._pool import rebind_sample_timelines, resolve_sample_events_data
+from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
 from .file import FileRecorder
 
@@ -111,6 +112,28 @@ class JSONRecorder(FileRecorder):
         log.data.samples.append(sample)
 
     @override
+    async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            return None
+        return [sample.summary() for sample in (log.data.samples or [])]
+
+    @override
+    async def buffered_sample(
+        self, eval: EvalSpec, id: str | int, epoch: int
+    ) -> EvalSample | None:
+        # The whole in-memory log (full samples, events included) is retained
+        # until log_finish, so this is gap-free and ahead of disk for the entire
+        # run — the counterpart to sample_summaries for whole samples.
+        log = self.data.get(self._log_file_key(eval))
+        if log is None or log.data.samples is None:
+            return None
+        for sample in log.data.samples:
+            if sample.id == id and sample.epoch == epoch:
+                return sample
+        return None
+
+    @override
     async def log_finish(
         self,
         eval: EvalSpec,
@@ -162,6 +185,7 @@ class JSONRecorder(FileRecorder):
         cls,
         location: str,
         header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog:
         fs = filesystem(location)
 
@@ -219,6 +243,15 @@ class JSONRecorder(FileRecorder):
     ) -> None:
         from inspect_ai.log._file import eval_log_json
 
+        if header_only:
+            # header_only contract: do not let sample-level state from the
+            # in-memory log reach disk. JSON has no in-place header swap, so
+            # read the on-disk samples and reductions and graft them onto
+            # the in-memory header before serializing. If the file doesn't
+            # exist yet, clear samples / reductions so the result is truly
+            # header-only.
+            log = await cls._merge_disk_samples_for_header_only(location, log)
+
         # sort samples before writing as they can come in out of order
         if log.samples:
             sort_samples(log.samples)
@@ -241,6 +274,29 @@ class JSONRecorder(FileRecorder):
                 else:
                     with file(location, "wb") as f:
                         f.write(log_bytes)
+
+    @classmethod
+    async def _merge_disk_samples_for_header_only(
+        cls, location: str, log: EvalLog
+    ) -> EvalLog:
+        """Return a copy of `log` whose samples come from the on-disk file.
+
+        If the target doesn't exist, returns a copy with samples and
+        reductions cleared so the resulting write is genuinely header-only.
+        """
+        fs = filesystem(location)
+        if not fs.exists(location):
+            return log.model_copy(
+                update={"samples": None, "reductions": None}, deep=False
+            )
+        existing = await cls.read_log(location, header_only=False)
+        return log.model_copy(
+            update={
+                "samples": existing.samples,
+                "reductions": existing.reductions,
+            },
+            deep=False,
+        )
 
     @classmethod
     async def _write_log_s3_conditional(
@@ -315,21 +371,38 @@ async def _s3_read_with_etag(
         return content, etag
 
 
+def _scan_header_keys(f: IO[bytes]) -> tuple[int | None, str]:
+    """Stream a JSON eval log's top-level keys, stopping at ``samples``.
+
+    Reads only as far as the start of the (potentially huge) ``samples`` array
+    and returns ``(version, last_header_field)`` — the log version and the name
+    of the last header field seen. The second pass stops re-parsing once it has
+    consumed ``last_header_field``, so it never has to materialize ``samples``.
+    Consumes ``f``; callers re-parsing the same handle must ``seek(0)`` after.
+    """
+    version: int | None = None
+    last_header_field = "stats"
+
+    for prefix, event, value in ijson.parse(f):
+        if (prefix, event) == ("version", "number"):
+            version = value
+        elif event == "map_key" and prefix == "":
+            # Stop at the top-level `samples` key, which can be enormous. Break
+            # *before* recording it: `samples` must not become last_header_field
+            # or the second pass would have to materialize the whole array to
+            # reach it. last_header_field stays the last real header field.
+            if value == "samples":
+                break
+            last_header_field = value
+
+    return version, last_header_field
+
+
 def _read_header_streaming(log_file: str) -> EvalLog:
     with file(log_file, "rb") as f:
         # Do low-level parsing to get the version number and also
         # detect the presence of results or error sections
-        version: int | None = None
-        last_header_field = "stats"
-
-        for prefix, event, value in ijson.parse(f):
-            if (prefix, event) == ("version", "number"):
-                version = value
-            elif prefix == "samples":
-                # Break as soon as we hit samples as that can be very large
-                break
-            elif event == "map_key" and prefix == "":
-                last_header_field = value
+        version, last_header_field = _scan_header_keys(f)
 
         if version is None:
             raise ValueError("Unable to read version of log format.")

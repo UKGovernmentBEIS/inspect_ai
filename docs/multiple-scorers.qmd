@@ -1,0 +1,249 @@
+---
+title: Multiple Scorers
+llms-description: Use several scorers together, emit multiple scores from one scorer, attach complex metrics, reduce multiple scores, and access the sandbox.
+code-annotations: below
+---
+
+## Overview
+
+There are several ways to use multiple scorers in an evaluation:
+
+1.  You can provide a list of scorers in a `Task` definition (this is the best option when scorers are entirely independent)
+
+2.  You can yield multiple scores from a `Scorer` (this is the best option when scores share code and/or expensive computations).
+
+3.  You can use multiple scorers and then aggregate them into a single scorer (e.g. majority voting).
+
+## Example
+
+A single scorer can return several named scores at once, which is useful when the scores share work or a model call. The scorer below returns both whether the `target` appears in the output and whether the response stayed within a word budget, attaching metrics per score key:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Score, Target, mean, scorer, stderr
+from inspect_ai.solver import TaskState, generate
+
+
+@scorer(metrics={"correct": [mean(), stderr()], "concise": [mean()]})
+def answer_quality(max_words: int = 50):
+    async def score(state: TaskState, target: Target) -> Score:
+        completion = state.output.completion
+        correct = 1 if target.text.lower() in completion.lower() else 0
+        concise = 1 if len(completion.split()) <= max_words else 0
+        return Score(
+            value={
+                "correct": correct,
+                "concise": concise,
+            },
+            answer=completion,
+        )
+
+    return score
+
+
+@task
+def capitals():
+    return Task(
+        dataset=[
+            Sample(
+                input="What is the capital of France? Be brief.", 
+                target="Paris"
+            ),
+        ],
+        solver=generate(),
+        scorer=answer_quality(),
+    )
+```
+
+This produces two scores per sample, `correct` and `concise`, each aggregated by its own metrics. The sections below cover the individual patterns for combining scorers and scores.
+
+::: {.callout-tip title="Customise how scores are displayed"}
+Once a task emits several scores per sample, the viewer's defaults rarely show them the way you want. You can take control of the sample list — choosing which score columns appear, how they're sorted, and shading numeric cells with a heat scale — so the scores that matter stand out:
+
+[![A customised sample list with per-score columns and heat-scale shading.](images/petri-samples-view.png)](task-views.qmd)
+
+See [Task Views](task-views.qmd) to configure columns, sorting, score colours, and the per-sample score panel for your own task.
+:::
+
+## List of Scorers
+
+`Task` definitions can specify multiple scorers. For example, the below task will use two different models to grade the results, storing two scores with each sample, one for each of the two models:
+
+``` python
+Task(
+    dataset=dataset,
+    solver=[
+        system_message(SYSTEM_MESSAGE),
+        generate()
+    ],
+    scorer=[
+        model_graded_qa(model="openai/gpt-4"),
+        model_graded_qa(model="google/gemini-2.5-pro")
+    ],
+)
+```
+
+This is useful when there is more than one way to score a result and you would like preserve the individual score values with each sample (versus reducing the multiple scores to a single value).
+
+## Scorer with Multiple Values
+
+You may also create a scorer which yields multiple scores. This is useful when the scores use data that is shared or expensive to compute. For example:
+
+``` python
+@scorer(
+    metrics={  # <1>
+        "a_count": [mean(), stderr()],  # <1>
+        "e_count": [mean(), stderr()]   # <1>
+    } # <1>
+)
+def letter_count():
+    async def score(state: TaskState, target: Target):
+        answer = state.output.completion
+        a_count = answer.count("a")
+        e_count = answer.count("e")
+        return Score(  # <2>
+            value={"a_count": a_count, "e_count": e_count},  # <2>
+            answer=answer  # <2>
+        ) # <2>
+
+    return score
+
+task = Task(
+    dataset=[Sample(input="Tell me a story.")],
+    scorer=letter_count(),
+)
+```
+
+1.  The metrics for this scorer are a dictionary that defines metrics to be applied to scores (by name).
+2.  The score value itself is a dictionary, with keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
+
+The above example will produce two scores, `a_count` and `e_count`, each of which will have metrics for `mean` and `stderr`.
+
+When working with complex score values and metrics, you may use globs as keys for mapping metrics to scores. For example, a more succinct way to write the previous example:
+
+``` python
+@scorer(
+    metrics={
+        "*": [mean(), stderr()],
+    }
+)
+```
+
+Glob keys will each be resolved and a complete list of matching metrics will be applied to each score key. For example to compute `mean` for all score keys, and only compute `stderr` for `e_count` you could write:
+
+``` python
+@scorer(
+    metrics={
+        "*": [mean()],
+        "e_count": [stderr()]
+    }
+)
+```
+
+## Scorer with Complex Metrics
+
+Sometime, it is useful for a scorer to compute multiple values (returning a dictionary as the score value) and to have metrics computed both for each key in the score dictionary, but also for the dictionary as a whole. For example:
+
+``` python
+@scorer(
+    metrics=[{  # <1>
+        "a_count": [mean(), stderr()],  # <1>
+        "e_count": [mean(), stderr()]   # <1>
+    }, total_count()] # <1>
+)
+def letter_count():
+    async def score(state: TaskState, target: Target):
+        answer = state.output.completion
+        a_count = answer.count("a")
+        e_count = answer.count("e")
+        return Score(  # <2>
+            value={"a_count": a_count, "e_count": e_count},  # <2>
+            answer=answer  # <2>
+        ) # <2>
+
+    return score
+
+@metric
+def total_count() -> Metric:
+    def metric(scores: list[SampleScore]) -> int | float:
+        total = 0.0
+        for score in scores:
+            total += (
+                score.score.value["a_count"]  # <3>
+                + score.score.value["e_count"]
+            )
+        return total
+    return metric
+
+task = Task(
+    dataset=[Sample(input="Tell me a story.")],
+    scorer=letter_count(),
+)
+```
+
+1.  The metrics for this scorer are a list. One element is a dictionary that defines metrics to be applied to scores (by name); the other element is a Metric which will receive the entire score dictionary.
+2.  The score value itself is a dictionary, with keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
+3.  The `total_count` metric will compute a metric based upon the entire score dictionary (since it isn't being mapped onto the dictionary by key)
+
+## Reducing Multiple Scores
+
+It's possible to use multiple scorers in parallel, then reduce their output into a final overall score. This is done using the `multi_scorer()` function. For example, this is roughly how the built in model graders use multiple models for grading:
+
+``` python
+multi_scorer(
+    scorers = [model_graded_qa(model=model) for model in models],
+    reducer = "mode"
+)
+```
+
+Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the "mode" reducer which returns the score that appeared most frequently in the answers (i.e. a majority vote). See [Reducing Epochs](metrics.qmd#reducing-epochs) for the full set of built-in reducers.
+
+## Sandbox Access
+
+If your Solver is an [Agent](agents.qmd) with tool use, you might want to inspect the contents of the tool sandbox to score the task.
+
+The contents of the sandbox for the Sample are available to the scorer; simply call `await sandbox().read_file()` (or `.exec()`).
+
+For example:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Score, Target, accuracy, scorer
+from inspect_ai.solver import Plan, TaskState, generate, use_tools
+from inspect_ai.tool import bash
+from inspect_ai.util import sandbox
+
+
+@scorer(metrics=[accuracy()])
+def check_file_exists():
+    async def score(state: TaskState, target: Target):
+        try:
+            _ = await sandbox().read_file(target.text)
+            exists = True
+        except FileNotFoundError:
+            exists = False
+        return Score(value=1 if exists else 0)
+
+    return score
+
+
+@task
+def challenge() -> Task:
+    return Task(
+        dataset=[
+            Sample(
+                input="Create a file called hello-world.txt",
+                target="hello-world.txt",
+            )
+        ],
+        solver=[use_tools([bash()]), generate()],
+        sandbox="local",
+        scorer=check_file_exists(),
+    )
+```
+
+## Scanners as Scorers
+
+If instead of grading task success you want to flag transcripts that exhibit a particular behaviour (refusals, evaluation awareness, reward hacking), you can write a [scanner](scanners.qmd) and add it to a task's scorers. The scanner's `Result` is converted to a `Score` and aggregated like any other scorer. See [Scanners as Scorers](scanners.qmd#scanners-as-scorers) for details.

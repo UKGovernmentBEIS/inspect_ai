@@ -36,14 +36,23 @@ def _make_sample(
     agent_name: str | None = None,
     started: float | None = None,
     fails_on_error: bool = True,
+    is_interactive: bool | None = None,
+    is_attachable: bool | None = None,
+    pending_interaction: str | None = None,
 ) -> Any:
     """Build a stub ActiveSample-shaped object for the picker.
 
     Bare-minimum attributes the picker reads: ``task``, ``sample.id``,
-    ``epoch``, ``acp_session`` (with ``.session_id``), ``agent_name``,
-    ``started``, ``fails_on_error`` (collapsed bool). Using a plain
-    object instead of a real ActiveSample keeps the test independent
-    of the ActiveSample constructor's larger field surface.
+    ``epoch``, ``acp_transport`` (with ``.session_id`` and
+    ``.is_interactive``), ``agent_name``, ``started``, ``fails_on_error``.
+    Using a plain object instead of a real ActiveSample keeps the test
+    independent of the ActiveSample constructor's larger field surface.
+
+    ``is_interactive`` defaults to True for any non-``None`` session_id
+    other than the noop sentinel, matching the production semantics:
+    real bound live sessions are interactive (drivable); the noop
+    placeholder is not. Tests can override explicitly to simulate
+    pre-binding / post-agent windows.
 
     Default ``fails_on_error=True`` mirrors what the eval harness
     produces from the default ``EvalConfig.fail_on_error=None``
@@ -59,12 +68,24 @@ def _make_sample(
     active.agent_name = agent_name
     active.started = started
     active.fails_on_error = fails_on_error
+    active.pending_interaction = pending_interaction
     if session_id is None:
-        active.acp_session = None
+        active.acp_transport = None
     else:
         session = MagicMock()
         session.session_id = session_id
-        active.acp_session = session
+        if is_interactive is None:
+            session.is_interactive = session_id != "noop"
+        else:
+            session.is_interactive = is_interactive
+        # "Can attach at all" gate: a real session is attachable, the noop
+        # sentinel is not. Override explicitly to model the observe-only
+        # case (attachable but not interactive) or a finalized session.
+        if is_attachable is None:
+            session.is_attachable = session_id != "noop"
+        else:
+            session.is_attachable = is_attachable
+        active.acp_transport = session
     return active
 
 
@@ -91,6 +112,69 @@ def test_list_picker_targets_skips_noop_sessions(monkeypatch) -> None:
 
     targets = list_picker_targets()
     assert [t.session_id for t in targets] == ["uuid-real"]
+
+
+def test_list_picker_targets_hides_unbound_transports(monkeypatch) -> None:
+    """Pre-binding window: transport exists but no channel has bound yet.
+
+    A sample has been set up (transport created) but the agent loop
+    has not yet opened ``agent_channel()``. ``is_interactive`` is False
+    until the first bind; the picker must hide the transport so
+    operators don't connect and have prompts silently dropped.
+    """
+    samples = [
+        _make_sample(
+            task="t-pending",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-unbound",
+            is_interactive=False,
+        ),
+        _make_sample(task="t-bound", sample_id="s", epoch=0, session_id="uuid-bound"),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    targets = list_picker_targets()
+    assert [t.session_id for t in targets] == ["uuid-bound"]
+
+
+def test_list_picker_targets_hides_completed_transports(monkeypatch) -> None:
+    """Post-agent scoring window: agent loop exited, transport finalizing.
+
+    After ``__aexit__``, the transport sets ``agent_completed=True`` and
+    parks itself for the scoring window. The picker must hide it — new
+    clients can't drive a finished agent.
+    """
+    samples = [
+        _make_sample(
+            task="t-scoring",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-completed",
+            is_interactive=False,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    assert list_picker_targets() == []
+
+
+def test_list_picker_targets_shows_bound_transport(monkeypatch) -> None:
+    """Happy path: react() running with a bound channel — picker shows it."""
+    samples = [
+        _make_sample(
+            task="t",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-live",
+            is_interactive=True,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    targets = list_picker_targets()
+    assert len(targets) == 1
+    assert targets[0].session_id == "uuid-live"
 
 
 def test_list_picker_targets_stringifies_int_sample_id(monkeypatch) -> None:
@@ -496,16 +580,16 @@ def test_list_all_samples_propagates_fields(monkeypatch) -> None:
     assert listing.total_tokens == 99_999
 
 
-def test_list_all_samples_strips_agent_name_for_non_acp(monkeypatch) -> None:
-    """Non-ACP samples surface as ``agent_name=None`` regardless of the solver name.
+def test_list_all_samples_strips_agent_name_for_unattachable(monkeypatch) -> None:
+    """Unattachable samples surface as ``agent_name=None``.
 
-    The column header reads ``acp agent``; surfacing a solver name on
-    a non-ACP row would be misleading (there's no attachable ACP
-    agent behind that name). Keeps the wire payload consistent with
-    the TUI's display, which always shows ``—`` for non-ACP rows.
+    ``agent_name`` is meaningful only when there's a session to attach
+    to. Samples with no transport or only the noop sentinel can't be
+    attached, so the name is stripped (the TUI shows ``—``). Attachable
+    samples — including observe-only custom solvers — keep their name.
     """
     samples = [
-        # Non-ACP sample with a solver name — name must be stripped.
+        # No transport — nothing to attach to; name stripped.
         _make_sample(
             task="t1",
             sample_id="s1",
@@ -513,7 +597,7 @@ def test_list_all_samples_strips_agent_name_for_non_acp(monkeypatch) -> None:
             session_id=None,
             agent_name="some_solver",
         ),
-        # Noop sentinel counts as non-ACP — also stripped.
+        # Noop sentinel is not attachable — also stripped.
         _make_sample(
             task="t2",
             sample_id="s2",
@@ -521,7 +605,7 @@ def test_list_all_samples_strips_agent_name_for_non_acp(monkeypatch) -> None:
             session_id="noop",
             agent_name="react",
         ),
-        # ACP-claimed sample keeps its name.
+        # Attachable sample keeps its name.
         _make_sample(
             task="t3",
             sample_id="s3",
@@ -538,6 +622,68 @@ def test_list_all_samples_strips_agent_name_for_non_acp(monkeypatch) -> None:
         (None, None),
         ("uuid-real", "react"),
     ]
+
+
+def test_list_all_samples_observe_only_sample_is_attachable(monkeypatch) -> None:
+    """A custom-solver sample (attachable, not interactive) gets a real session_id.
+
+    The core Phase 2 behavior: any running sample can be observed, even
+    without a bound agent turn loop. It surfaces a live ``session_id``,
+    keeps its ``agent_name``, and is marked ``interactive=False``.
+    """
+    samples = [
+        _make_sample(
+            task="t",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-observe",
+            agent_name="my_solver",
+            is_attachable=True,
+            is_interactive=False,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listing = list_all_samples()[0]
+    assert listing.session_id == "uuid-observe"
+    assert listing.agent_name == "my_solver"
+    assert listing.interactive is False
+
+
+def test_list_all_samples_interactive_sample_marked_interactive(monkeypatch) -> None:
+    """A react() sample with a bound channel is marked ``interactive=True``."""
+    samples = [
+        _make_sample(
+            task="t",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-live",
+            agent_name="react",
+            is_attachable=True,
+            is_interactive=True,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    assert list_all_samples()[0].interactive is True
+
+
+def test_list_all_samples_finalized_session_not_attachable(monkeypatch) -> None:
+    """A finalized transport (is_attachable False) surfaces as ``session_id=None``."""
+    samples = [
+        _make_sample(
+            task="t",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-finalized",
+            is_attachable=False,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listing = list_all_samples()[0]
+    assert listing.session_id is None
+    assert listing.interactive is False
 
 
 # ---------------------------------------------------------------------------
@@ -560,6 +706,7 @@ def test_sample_listing_meta_dict_emits_camelcase_with_session_id() -> None:
     )
     assert sample_listing_meta_dict(listing) == {
         "sessionId": "uuid-x",
+        "interactive": False,
         "task": "t",
         "sampleId": "s",
         "epoch": 0,
@@ -568,6 +715,7 @@ def test_sample_listing_meta_dict_emits_camelcase_with_session_id() -> None:
         "totalMessages": 42,
         "totalTokens": 12_345,
         "failsOnError": True,
+        "pending": None,
     }
 
 
@@ -582,11 +730,116 @@ def test_sample_listing_meta_dict_session_id_null_for_non_acp() -> None:
     payload = sample_listing_meta_dict(listing)
     assert payload["sessionId"] is None
     # Other fields still present with defaults — keeps the wire shape stable.
+    assert payload["interactive"] is False
     assert payload["agentName"] is None
     assert payload["startedAt"] is None
     assert payload["totalMessages"] == 0
     assert payload["totalTokens"] == 0
     assert payload["failsOnError"] is False
+
+
+def test_sample_listing_meta_dict_carries_interactive_true() -> None:
+    """An interactive (drivable) listing emits ``interactive: true``."""
+    listing = SampleListing(
+        session_id="uuid-x",
+        task="t",
+        sample_id="s",
+        epoch=0,
+        interactive=True,
+    )
+    assert sample_listing_meta_dict(listing)["interactive"] is True
+
+
+# ---------------------------------------------------------------------------
+# pending_interaction — flows through SampleListing + wire dict
+# ---------------------------------------------------------------------------
+
+
+def test_list_all_samples_carries_pending_interaction(monkeypatch) -> None:
+    """A sample parked on a human request surfaces ``pending`` on its listing.
+
+    Mirrors the routing-shim contract: the ACP approval / input shims
+    set ``ActiveSample.pending_interaction`` while parked; the picker
+    surfaces that value verbatim so the TUI can render the column and
+    sort waiting samples to the top.
+    """
+    samples = [
+        _make_sample(
+            task="t1",
+            sample_id="s1",
+            epoch=0,
+            session_id="uuid-a",
+            pending_interaction="approval",
+        ),
+        _make_sample(
+            task="t2",
+            sample_id="s2",
+            epoch=0,
+            session_id="uuid-b",
+            pending_interaction="question",
+        ),
+        _make_sample(
+            task="t3",
+            sample_id="s3",
+            epoch=0,
+            session_id="uuid-c",
+            pending_interaction=None,
+        ),
+        # Non-ACP rows always surface ``pending=None`` — the in-proc
+        # managers don't mirror onto ``ActiveSample`` in this phase.
+        _make_sample(
+            task="t4",
+            sample_id="s4",
+            epoch=0,
+            session_id=None,
+            pending_interaction=None,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert [listing.pending for listing in listings] == [
+        "approval",
+        "question",
+        None,
+        None,
+    ]
+
+
+def test_sample_listing_meta_dict_carries_pending_approval() -> None:
+    """``pending="approval"`` surfaces on the wire payload."""
+    listing = SampleListing(
+        session_id="uuid-x",
+        task="t",
+        sample_id="s",
+        epoch=0,
+        pending="approval",
+    )
+    assert sample_listing_meta_dict(listing)["pending"] == "approval"
+
+
+def test_sample_listing_meta_dict_carries_pending_question() -> None:
+    """``pending="question"`` surfaces on the wire payload."""
+    listing = SampleListing(
+        session_id="uuid-x",
+        task="t",
+        sample_id="s",
+        epoch=0,
+        pending="question",
+    )
+    assert sample_listing_meta_dict(listing)["pending"] == "question"
+
+
+def test_sample_listing_default_pending_is_none() -> None:
+    """A listing constructed without ``pending`` defaults to ``None``."""
+    listing = SampleListing(
+        session_id=None,
+        task="t",
+        sample_id="s",
+        epoch=0,
+    )
+    assert listing.pending is None
+    assert sample_listing_meta_dict(listing)["pending"] is None
 
 
 def test_notification_serializes_meta_under_underscore_meta_alias() -> None:

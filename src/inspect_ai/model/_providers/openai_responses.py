@@ -50,6 +50,8 @@ from .._openai_responses import (
     openai_responses_tool_choice,
     openai_responses_tools,
     responses_extra_body_fields,
+    should_swap_todo_write,
+    substitute_update_plan_tools,
 )
 from .util.hooks import HttpxHooks
 
@@ -92,6 +94,7 @@ async def generate_responses(
     batcher: OpenAIBatcher[Response] | None,
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
     | None = None,
+    model_family: str | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
@@ -104,16 +107,30 @@ async def generate_responses(
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
 
+    # present inspect's todo_write tool to the model under OpenAI's native update_plan
+    # name/schema (the model is post-trained on update_plan); todo_write remains the tool
+    # that is actually executed. Decided once here and threaded to outbound tools + replay.
+    swap_todo_write = should_swap_todo_write(tools, config)
+    wire_tools = substitute_update_plan_tools(tools, swap_todo_write)
+
     # prepare request (we do this so we can log the ModelCall)
     tool_params = (
-        openai_responses_tools(tools, model_name, config)
+        openai_responses_tools(
+            wire_tools,
+            model_family or model_name,
+            config,
+            is_latest=model_info.is_latest(),
+        )
         if len(tools) > 0 or has_image_output(config.modalities)
         else NOT_GIVEN
     )
 
     request = dict(
         input=await openai_responses_inputs(
-            input, model_info, synthesize_phase=synthesize_phase
+            input,
+            model_info,
+            synthesize_phase=synthesize_phase,
+            swap_todo_write=swap_todo_write,
         ),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
@@ -373,7 +390,14 @@ def completion_params_responses(
 
     reasoning: dict[str, str] = {}
     if config.reasoning_effort is not None:
-        reasoning["effort"] = config.reasoning_effort
+        # OpenAI's highest published effort is `xhigh`; map `max` to it so the
+        # request isn't rejected. Mirrors the mapping in
+        # `OpenAIAPI._get_reasoning_params_for_config`.
+        reasoning["effort"] = (
+            "xhigh"
+            if (config.reasoning_effort == "max" and not model_info.is_latest())
+            else config.reasoning_effort
+        )
     if config.reasoning_summary != "none":
         reasoning["summary"] = config.reasoning_summary or "auto"
     if len(reasoning) > 0:

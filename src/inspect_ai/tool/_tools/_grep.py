@@ -5,7 +5,7 @@ from inspect_ai.util import sandbox as sandbox_env
 from .._tool import Tool, ToolError, tool
 
 
-@tool
+@tool(parallel=True)
 def grep(
     timeout: int | None = None,
     user: str | None = None,
