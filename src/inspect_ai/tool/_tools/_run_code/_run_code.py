@@ -201,7 +201,7 @@ def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
 def run_code(
     tools: Sequence[Tool] | None = None,
     timeout: int | None = None,
-    executor: RunCodeExecutor | Literal["monty", "stub"] = "stub",
+    executor: RunCodeExecutor | Literal["monty", "stub"] = "monty",
     max_inner_tool_calls: int | None = None,
     include_tool_call_trace: bool = False,
     max_output_chars: int | None = None,
