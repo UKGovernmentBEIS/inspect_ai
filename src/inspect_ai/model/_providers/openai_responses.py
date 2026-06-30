@@ -423,9 +423,9 @@ async def _stream_response(
                 # added so each tool call surfaces the moment the provider
                 # opens it, even if several land within one flush window;
                 # text/reasoning/argument deltas stay throttled
-                force = isinstance(
-                    event, ResponseOutputItemAddedEvent
-                ) and isinstance(event.item, ResponseFunctionToolCall)
+                force = isinstance(event, ResponseOutputItemAddedEvent) and isinstance(
+                    event.item, ResponseFunctionToolCall
+                )
                 if force or now - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S:
                     last_flush = now
                     _flush()

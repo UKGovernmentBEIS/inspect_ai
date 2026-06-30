@@ -3902,9 +3902,11 @@ async def _capture_compaction_from_stream(
             and getattr(event.delta, "type", None) == "compaction_delta"
         ):
             compaction_content = getattr(event.delta, "content", None)
-        if on_snapshot is not None and (
-            event_type := getattr(event, "type", None)
-        ) in ("content_block_start", "content_block_delta", "content_block_stop"):
+        if on_snapshot is not None and (event_type := getattr(event, "type", None)) in (
+            "content_block_start",
+            "content_block_delta",
+            "content_block_stop",
+        ):
             now = time.monotonic()
             # bypass the throttle when a tool_use block opens (so each tool
             # call surfaces the moment the provider starts it, even if
