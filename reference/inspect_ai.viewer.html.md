@@ -8,7 +8,7 @@ Top-level viewer configuration.
 
 This allows per task customization of the Task’s sample list and each sample’s score and scanner result display.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L270)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L270)
 
 ``` python
 class ViewerConfig(BaseModel)
@@ -31,7 +31,7 @@ Default configuration for the task’s Sample List grid (the list of samples sho
 
 Customizes the rendering of the sample scanner results.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L43)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L43)
 
 ``` python
 class ScannerResultView(BaseModel)
@@ -51,7 +51,7 @@ Fields to suppress. For a [ScannerResultField](../reference/inspect_ai.viewer.ht
 
 How the sample-header score panel should render when there are 3 or more scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L69)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L69)
 
 ``` python
 class SampleScoreView(BaseModel)
@@ -69,7 +69,7 @@ Default sort. When None, scores render in their natural order.
 
 Default sort applied to the sample-header score panel.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L58)
 
 ``` python
 class SampleScoreViewSort(BaseModel)
@@ -93,7 +93,7 @@ Configures the list of samples shown in a task’s eval-log view.
 
 The viewer applies [TaskSamplesView](../reference/inspect_ai.viewer.html.md#tasksamplesview) only when the user has not explicitly overridden the view in their browser. User overrides shadow the eval-author default; the resolution priority is `user > eval default > built-in`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L197)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L197)
 
 ``` python
 class TaskSamplesView(BaseModel)
@@ -139,7 +139,7 @@ Whether the score-cell color-scale heatmap is on by default.
 
 A column entry in the task’s Sample List view.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L141)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L141)
 
 ``` python
 class TaskSamplesColumn(BaseModel)
@@ -158,7 +158,7 @@ Whether the column is visible by default.
 score  
 Column entry referencing a score column.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L151)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L151)
 
 ``` python
 @classmethod
@@ -184,7 +184,7 @@ Whether the column is visible by default.
 
 A single sort entry for the task’s Sample List grid.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L108)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L108)
 
 ``` python
 class TaskSamplesSort(BaseModel)
@@ -203,7 +203,7 @@ Sort direction.
 score  
 Sort entry referencing a score column.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L118)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L118)
 
 ``` python
 @classmethod
@@ -233,7 +233,7 @@ A numeric `score_color_scales` entry with an explicit value range.
 
 By default the viewer anchors a named palette at the descriptor’s auto-detected min/max, which is the *observed* range across the log’s samples. When the score has a known *conceptual* range — e.g. an alignment-judge dimension that’s always graded 1..10 — pin it via `min`/`max` so middling values don’t get paint-clamped to the extremes when the observed data happens to cluster at one end. Either bound can be omitted to fall back to the descriptor’s detection for that side.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L174)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L174)
 
 ``` python
 class ScoreColorScale(BaseModel)
@@ -256,7 +256,7 @@ Upper anchor for the gradient. None = descriptor’s auto-detected max.
 
 Identifies a field in metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L28)
 
 ``` python
 class MetadataField(BaseModel)
@@ -277,7 +277,7 @@ Whether the field should be collapsed by default.
 
 A built-in scanner-result section (e.g. `value`, `explanation`).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/5c220da56c1c01a86fef6e5fb7ae7207d0e0f37d/src/inspect_ai/viewer/_config.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/viewer/_config.py#L6)
 
 ``` python
 class ScannerResultField(BaseModel)

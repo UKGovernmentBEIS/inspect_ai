@@ -194,7 +194,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#june-2026" id="toc-june-2026" class="nav-link active" data-scroll-target="#june-2026">0.3.243 (30 June 2026)</a></li>
+  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.244 (01 July 2026)</a></li>
+  <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.243 (30 June 2026)</a></li>
   <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.242 (29 June 2026)</a></li>
   <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.241 (22 June 2026)</a></li>
   <li><a href="#june-2026-3" id="toc-june-2026-3" class="nav-link" data-scroll-target="#june-2026-3">0.3.240 (15 June 2026)</a></li>
@@ -443,6 +444,12 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="july-2026" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026">0.3.244 (01 July 2026)</h2>
+<ul>
+<li>Anthropic: Various changes related to <a href="https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5">Sonnet 5</a>.</li>
+</ul>
+</section>
 <section id="june-2026" class="level2">
 <h2 class="anchored" data-anchor-id="june-2026">0.3.243 (30 June 2026)</h2>
 <ul>
@@ -450,6 +457,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: A <code>react</code> sub-agent nested inside another <code>react</code> (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.</li>
 <li>Checkpointing: Run <code>restic backup</code> with <code>--quiet</code> so its progress output can’t overflow the sandbox output cap on long backups.</li>
 <li>Control Channel: Added <code>inspect ctl flush</code> (write a running eval’s buffered samples to the log now, e.g.&nbsp;to make S3-backed results analyzable without waiting) and <code>inspect ctl buffer</code> (view or change the <code>--log-buffer</code> / <code>--log-shared</code> sample-buffer params of a running eval).</li>
+<li>Control Channel: <code>inspect ctl tasks</code> no longer drops eval processes owned by another user, which were previously misreported as dead.</li>
 <li>Eval Logs: Record the installed task package’s git commit in <code>EvalSpec.revision</code>, resolving the actual distribution (namespace-package aware).</li>
 </ul>
 </section>
