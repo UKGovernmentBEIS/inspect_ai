@@ -37,7 +37,7 @@ import anyio
 from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
-from inspect_ai._control.limits import eval_limits
+from inspect_ai._control.limits import eval_limits, process_limits
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
@@ -364,6 +364,38 @@ class ControlServer:
                     content={"error": f"eval {eval_id} not found"},
                 )
             return result
+
+        # Read the process-global concurrency limits (max_sandboxes /
+        # max_connections) without naming an eval — the common case for viewing
+        # or throttling a whole process. No max_samples (that's per-eval; use
+        # the /evals/<id>/limits routes for it).
+        @app.get("/limits")
+        async def get_process_limits() -> Any:
+            return await process_limits()
+
+        # Retune the process-global limits. Omitting both set values makes this a
+        # read, like GET. `dry_run=true` reports the intended change without
+        # applying it. Never 404s — a process always exists.
+        @app.patch("/limits")
+        async def patch_process_limits(
+            max_sandboxes: int | None = None,
+            max_connections: int | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            for label, value in (
+                ("max_sandboxes", max_sandboxes),
+                ("max_connections", max_connections),
+            ):
+                if value is not None and value < 1:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": f"{label} must be >= 1 (got {value})"},
+                    )
+            return await process_limits(
+                max_sandboxes=max_sandboxes,
+                max_connections=max_connections,
+                dry_run=dry_run,
+            )
 
         # Read the eval's live concurrency limits (max_samples / max_sandboxes).
         # A pure read — the companion PATCH applies changes.

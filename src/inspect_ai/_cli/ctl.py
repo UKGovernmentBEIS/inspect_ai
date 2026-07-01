@@ -598,10 +598,15 @@ def limits_command(
     warning rather than an error.
 
     TASK selects which running eval to target — a task-id prefix or task name
-    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
-    Note that `--max-samples` is scoped to the named task, while
-    `--max-sandboxes` and `--max-connections` are process-wide: in an eval-set
-    (many tasks in one process) they affect every task, not just the one named.
+    (as listed by `inspect ctl tasks`). `--max-samples` is scoped to the named
+    task, while `--max-sandboxes` and `--max-connections` are process-wide: in an
+    eval-set (many tasks in one process) they affect every task, not just the one
+    named.
+
+    Omit TASK to default to the sole running process: a single-task process shows
+    its full limits, while a multi-task process shows just the process-wide limits
+    (setting `--max-samples` then still requires a task). If several processes are
+    running, pass a task to pick one.
     """
     if max_samples is not None and max_samples < 1:
         raise click.BadParameter("--max-samples must be >= 1")
@@ -618,15 +623,54 @@ def limits_command(
         _echo_no_running_evals()
         return
 
-    target = _resolve_target_eval(summaries, task)
     set_values = (
         max_samples is not None
         or max_sandboxes is not None
         or max_connections is not None
     )
+
+    # Resolve scope. An explicit TASK targets that eval (full per-eval view). No
+    # TASK defaults to the sole process: a single-eval process still shows the
+    # per-eval view, while a multi-eval process (an eval-set) shows just the
+    # process-global limits — `--max-connections` / `--max-sandboxes` don't need
+    # a task, but the per-eval `--max-samples` still does.
+    header: str
+    eval_id: str | None
+    if task is not None:
+        target = _resolve_target_eval(summaries, task)
+        socket_path = str(target["socket_path"])
+        eval_id = str(target["eval_id"])
+        header = _task_header(target)
+    else:
+        sockets = sorted({str(s.get("socket_path")) for s in summaries})
+        if len(sockets) > 1:
+            # multiple processes: can't default to one — reuse the ambiguity
+            # error (passing a task id disambiguates the process too).
+            _resolve_target_eval(summaries, None)
+            return  # unreachable: _resolve_target_eval exits on ambiguity
+        socket_path = sockets[0]
+        evals_in_proc = [
+            s for s in summaries if str(s.get("socket_path")) == socket_path
+        ]
+        if len(evals_in_proc) == 1:
+            target = evals_in_proc[0]
+            eval_id = str(target["eval_id"])
+            header = _task_header(target)
+        elif max_samples is not None:
+            click.echo(
+                "--max-samples targets a single task, but this process is running "
+                f"{len(evals_in_proc)} tasks. Pass a task id "
+                "(see `inspect ctl tasks`).",
+                err=True,
+            )
+            raise click.exceptions.Exit(code=1)
+        else:
+            eval_id = None  # process-global scope
+            header = f"process · {len(evals_in_proc)} tasks"
+
     config = _exec_limits(
-        target["socket_path"],
-        target["eval_id"],
+        socket_path,
+        eval_id,
         max_samples=max_samples,
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
@@ -638,13 +682,12 @@ def limits_command(
         click.echo(json_lib.dumps(config, indent=2))
         return
 
-    click.echo(_task_header(target))
+    click.echo(header)
     click.echo()
     _print_limits(config, changed=set_values)
 
-    # The process-global knobs apply to every eval in the target process, so in a
-    # multi-eval process (an eval-set) they reach beyond the named task. Surface
-    # that where it can surprise — right after a set that used one of them.
+    # The process-global knobs reach every eval in the process — flag that after
+    # a set that used one, when the process hosts more than one eval.
     global_knobs = [
         name
         for name, value in (
@@ -653,9 +696,7 @@ def limits_command(
         )
         if value is not None
     ]
-    siblings = sum(
-        1 for s in summaries if s.get("socket_path") == target.get("socket_path")
-    )
+    siblings = sum(1 for s in summaries if str(s.get("socket_path")) == socket_path)
     note = _process_scope_note(global_knobs, siblings)
     if note:
         click.echo(f"\n{note}")
@@ -1127,7 +1168,7 @@ def _exec_buffer_config(
 
 def _exec_limits(
     socket_path: str,
-    eval_id: str,
+    eval_id: str | None,
     *,
     max_samples: int | None,
     max_sandboxes: int | None,
@@ -1135,12 +1176,14 @@ def _exec_limits(
     dry_run: bool,
     set_values: bool,
 ) -> dict[str, Any]:
-    """Read (``set_values=False``) or retune an eval's concurrency limits.
+    """Read (``set_values=False``) or retune concurrency limits.
 
-    The read is a GET that retries a busy eval on timeout (like the other
-    reads). The update is a single-shot PATCH — a mutation isn't retried — given
-    the full mutation budget (see :data:`_MUTATION_TIMEOUT`). ``dry_run`` only
-    applies to a set; a bare ``--dry-run`` (no set option) is a plain read.
+    With ``eval_id`` set this targets that eval's ``/evals/<id>/limits`` (the
+    per-eval view, including ``max_samples``); with ``eval_id=None`` it targets
+    the process-level ``/limits`` (``max_sandboxes`` / ``max_connections`` only).
+    The read is a GET that retries a busy process on timeout; the update is a
+    single-shot PATCH given the full mutation budget (see
+    :data:`_MUTATION_TIMEOUT`). ``dry_run`` only applies to a set.
     """
     params: dict[str, Any] = {}
     if max_samples is not None:
@@ -1151,7 +1194,8 @@ def _exec_limits(
         params["max_connections"] = max_connections
     if dry_run:
         params["dry_run"] = True
-    path = f"/evals/{eval_id}/limits"
+    path = f"/evals/{eval_id}/limits" if eval_id is not None else "/limits"
+    scope = f"eval {eval_id}" if eval_id is not None else "process"
     verb = "update" if set_values else "read"
     try:
         if set_values:
@@ -1164,7 +1208,7 @@ def _exec_limits(
                 response = client.patch(path, params=params)
         else:
             response = _get_response_with_retry(
-                socket_path, path, what=f"Reading limits for eval {eval_id}"
+                socket_path, path, what=f"Reading limits for {scope}"
             )
         if response.status_code == 404:
             click.echo(
@@ -1186,11 +1230,11 @@ def _exec_limits(
             if isinstance(exc.__cause__, Exception)
             else str(exc)
         )
-        click.echo(f"Failed to {verb} limits for eval {eval_id}: {detail}", err=True)
+        click.echo(f"Failed to {verb} limits for {scope}: {detail}", err=True)
         raise click.exceptions.Exit(code=1) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
         click.echo(
-            f"Failed to {verb} limits for eval {eval_id}: {_error_detail(exc)}",
+            f"Failed to {verb} limits for {scope}: {_error_detail(exc)}",
             err=True,
         )
         raise click.exceptions.Exit(code=1) from exc
@@ -1229,17 +1273,23 @@ def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
 
     adaptive = config.get("adaptive") or []
 
-    max_samples = config.get("max_samples") or {}
-    if max_samples.get("adjustable"):
-        limit = _target(max_samples.get("limit"), "max_samples")
-        in_use = max_samples.get("in_use")
-        click.echo(f"  max samples:   {limit} ({in_use} in use)")
-    elif adaptive:
-        # sample concurrency tracks the adaptive controller(s) below, so there's
-        # no user setpoint to show here — point at where the live numbers are
-        click.echo("  max samples:   tracks adaptive connections (see below)")
+    # The process-level view carries no `max_samples` key (it's per-eval): show it
+    # as per-task rather than claiming a value. Distinguish that from an eval view
+    # that carries an explicit `{"adjustable": false}`.
+    if "max_samples" not in config:
+        click.echo("  max samples:   per task (pass a task to view/set)")
     else:
-        click.echo("  max samples:   not adjustable (adaptive connections)")
+        max_samples = config.get("max_samples") or {}
+        if max_samples.get("adjustable"):
+            limit = _target(max_samples.get("limit"), "max_samples")
+            in_use = max_samples.get("in_use")
+            click.echo(f"  max samples:   {limit} ({in_use} in use)")
+        elif adaptive:
+            # sample concurrency tracks the adaptive controller(s) below, so
+            # there's no user setpoint to show — point at where the numbers are
+            click.echo("  max samples:   tracks adaptive connections (see below)")
+        else:
+            click.echo("  max samples:   not adjustable (adaptive connections)")
 
     sandboxes = config.get("max_sandboxes") or []
     if sandboxes:

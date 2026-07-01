@@ -221,6 +221,55 @@ async def test_limits_max_connections_not_adjustable_without_controllers() -> No
 
 
 # ---------------------------------------------------------------------------
+# Process-level directive (no eval)
+# ---------------------------------------------------------------------------
+
+
+async def test_process_limits_read_only() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits()  # no eval, no controllers/sandboxes
+    assert result["dry_run"] is False
+    assert result["max_sandboxes"] == []
+    assert result["adaptive"] == []
+    assert result["requested"] is None
+    assert result["warnings"] == []
+    # process view carries no per-eval max_samples
+    assert "max_samples" not in result
+
+
+async def test_process_limits_set_max_connections() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    ctrl = await _register_controller(max=100, start=50)
+    result = await process_limits(max_connections=30)
+    assert result["requested"] == {"max_connections": 30}
+    assert ctrl.max == 30
+    assert result["adaptive"][0]["max"] == 30
+
+
+async def test_process_limits_set_max_sandboxes() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    docker = ResizableSemaphore("docker", 4, True)
+    register_sandbox_limiter("docker", docker)
+    result = await process_limits(max_sandboxes=8)
+    assert docker.concurrency == 8
+    assert result["requested"] == {"max_sandboxes": 8}
+    assert result["max_sandboxes"][0]["limit"] == 8
+
+
+async def test_process_limits_dry_run_does_not_apply() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    ctrl = await _register_controller(max=100, start=50)
+    result = await process_limits(max_connections=30, dry_run=True)
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_connections": 30}
+    assert ctrl.max == 100  # unchanged
+
+
+# ---------------------------------------------------------------------------
 # Server routes
 # ---------------------------------------------------------------------------
 
@@ -278,6 +327,29 @@ async def test_limits_route_patch_max_connections() -> None:
         assert ctrl.max == 25
 
         bad = await client.patch("/evals/e1/limits", params={"max_connections": 0})
+        assert bad.status_code == 400
+        assert "max_connections" in bad.json()["error"]
+
+
+async def test_process_limits_route_get_and_patch() -> None:
+    """The process-level /limits route reads and retunes without an eval id."""
+    ctrl = await _register_controller(max=100, start=50)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        got = await client.get("/limits")
+        assert got.status_code == 200, got.text
+        assert got.json()["adaptive"][0]["max"] == 100
+        assert "max_samples" not in got.json()  # process view, no per-eval knob
+
+        patched = await client.patch("/limits", params={"max_connections": 25})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["adaptive"][0]["max"] == 25
+        assert ctrl.max == 25
+
+        bad = await client.patch("/limits", params={"max_connections": 0})
         assert bad.status_code == 400
         assert "max_connections" in bad.json()["error"]
 
@@ -450,6 +522,35 @@ def test_print_limits_adaptive_dry_run_shows_ceiling_arrow(
     )
     out = capsys.readouterr().out
     assert "range 1–100 → 30" in out
+
+
+def test_print_limits_process_scope(capsys: pytest.CaptureFixture[str]) -> None:
+    """The process-level view (no max_samples key) shows max samples as per-task."""
+    from inspect_ai._cli.ctl import _print_limits
+
+    _print_limits(
+        {
+            "dry_run": False,
+            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
+            "adaptive": [
+                {
+                    "name": "openai/gpt-4",
+                    "limit": 45,
+                    "in_use": 40,
+                    "min": 1,
+                    "max": 100,
+                    "recent_changes": [],
+                }
+            ],
+            "requested": None,
+            "warnings": [],
+        },  # note: no "max_samples" key → process scope
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "max samples:   per task (pass a task to view/set)" in out
+    assert "docker 8 (3 in use)" in out
+    assert "adaptive connections:" in out
 
 
 def test_process_scope_note() -> None:
