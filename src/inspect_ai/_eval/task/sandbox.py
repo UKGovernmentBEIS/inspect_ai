@@ -22,7 +22,7 @@ from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
-from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._concurrency import concurrency, register_sandbox_limiter
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
@@ -70,14 +70,24 @@ async def sandboxenv_context(
     if max_sandboxes is not None:
         await anyio.sleep(random())
 
-    # enforce concurrency if required
+    # enforce concurrency if required. `resizable=True` backs it with a
+    # ResizableLimiter so the control channel's modify-limits directive can
+    # retune max_sandboxes mid-eval (see design/control-channel.md phase 3).
     sandboxes_cm = (
-        concurrency(sandbox.type, max_sandboxes, f"sandboxes/{sandbox.type}")
+        concurrency(
+            sandbox.type,
+            max_sandboxes,
+            f"sandboxes/{sandbox.type}",
+            resizable=True,
+        )
         if max_sandboxes is not None
         else contextlib.nullcontext()
     )
 
-    async with sandboxes_cm:
+    async with sandboxes_cm as sandboxes_sem:
+        # track this type's limiter so the control channel can read / retune it
+        if sandboxes_sem is not None:
+            register_sandbox_limiter(sandbox.type, sandboxes_sem)
         # read files from sample
         files: dict[str, bytes] = {}
         if sample.files:

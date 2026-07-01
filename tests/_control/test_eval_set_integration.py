@@ -2371,3 +2371,57 @@ def test_task_retry_detaches_superseded_attempt_live(
     assert latest[1] is True, (
         f"latest attempt's live data source must stay attached: {latest}"
     )
+
+
+# --- limits / GET + PATCH /evals/<id>/limits -------------------------------
+
+
+def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) -> None:
+    """The modify-limits directive sees the live sample limiter and can retune it.
+
+    Runs a real eval with an explicit ``max_samples`` (the static
+    ResizableLimiter path), parks its samples in flight, then verifies
+    ``eval_limits`` reports the limit + in-use count and applies a new limit to
+    the underlying limiter mid-run.
+    """
+    from inspect_ai._control.limits import eval_limits
+
+    @task
+    def task_limits() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[gate()],
+            name="task_limits",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 3
+
+    async def capture() -> dict:
+        eval_id = (await current_eval_summaries(0.0))[0]["eval_id"]
+        # read reflects the live limiter (max_samples=3, all three in flight)
+        read = await eval_limits(eval_id)
+        # retune it up and confirm the change is applied
+        applied = await eval_limits(eval_id, max_samples=7)
+        return {"read": read, "applied": applied}
+
+    with probe(ready, capture) as p:
+        eval_set(
+            tasks=[task_limits()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=3,
+        )
+
+    assert p.result is not None, "samples never reached 'in flight'"
+    read = p.result["read"]
+    assert read["max_samples"] == {"limit": 3, "in_use": 3, "adjustable": True}
+    assert read["max_sandboxes"] == []
+    applied = p.result["applied"]
+    assert applied["max_samples"]["limit"] == 7
+    assert applied["requested"] == {"max_samples": 7}

@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 
     from inspect_ai.log._log import EvalSample, EvalSampleSummary
     from inspect_ai.log._transcript import TranscriptHistoryProvider
+    from inspect_ai.util._concurrency import ResizableLimiter
 
     class LiveEvalData(Protocol):
         """A running eval's live data source — the in-process ``TaskLogger``.
@@ -265,6 +266,17 @@ class EvalState:
 
     total_messages: int = 0
     """Cumulative message count, accumulated like :attr:`total_tokens`."""
+
+    sample_limiter: "ResizableLimiter | None" = None
+    """The eval's live-resizable sample-concurrency limiter (``max_samples``).
+
+    Attached by the runner (via :func:`attach_sample_limiter`) after it builds
+    the sample semaphore, so the control channel's modify-limits directive can
+    read and retune ``max_samples`` mid-eval. ``None`` when the eval's sample
+    concurrency isn't a user setpoint — i.e. the adaptive
+    (``DynamicSampleLimiter``) path, or a reused/synthetic eval that never ran
+    samples in this process — in which case the directive reports ``max_samples``
+    as not adjustable."""
 
     def observe_started(self, started: float | None) -> None:
         """Fold a sample's start time into :attr:`started_at` (running minimum).
@@ -513,6 +525,23 @@ def record_sample_cancelled(
             state.total_messages += messages
             state.observe_started(started)
             _maybe_mark_finished(state)
+
+
+def attach_sample_limiter(
+    eval_id: str, sample_limiter: "ResizableLimiter | None"
+) -> None:
+    """Attach an eval's resizable sample-concurrency limiter (``max_samples``).
+
+    Called by the runner once the sample semaphore is built (which happens after
+    :func:`register_eval`). Enables the control channel's modify-limits directive
+    to read / retune ``max_samples`` for this eval. A ``None`` limiter (the
+    adaptive path) leaves the eval reporting ``max_samples`` as not adjustable.
+    No-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.sample_limiter = sample_limiter
 
 
 def detach_eval_live(eval_id: str) -> None:

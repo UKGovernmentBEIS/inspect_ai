@@ -494,3 +494,126 @@ async def test_concurrent_waits_not_double_counted() -> None:
     assert waiting_time < elapsed
     # Should have some waiting time (2 tasks had to wait)
     assert waiting_time > 0.05
+
+
+# ResizableLimiter / resizable ConcurrencySemaphore tests
+
+
+@pytest.mark.anyio
+async def test_resizable_limiter_basics() -> None:
+    """ResizableLimiter reports its limit and can be resized live."""
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(5)
+    assert limiter.limit == 5
+    assert limiter.in_use == 0
+    assert limiter.available == 5
+
+    limiter.limit = 8
+    assert limiter.limit == 8
+    assert limiter.available == 8
+
+
+@pytest.mark.anyio
+async def test_resizable_limiter_tracks_in_use() -> None:
+    """Entering the limiter borrows a slot; leaving returns it."""
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(3)
+    async with limiter:
+        assert limiter.in_use == 1
+        assert limiter.available == 2
+    assert limiter.in_use == 0
+
+
+@pytest.mark.anyio
+async def test_resizable_limiter_lower_below_in_use_clamps_available() -> None:
+    """Lowering below the in-use count never preempts; available clamps to 0.
+
+    Two distinct tasks hold slots (a single task can't borrow the same
+    CapacityLimiter twice), then the limit is lowered below the in-use count.
+    """
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(3)
+    both_in = anyio.Event()
+    release = anyio.Event()
+    entered = 0
+
+    async def holder() -> None:
+        nonlocal entered
+        async with limiter:
+            entered += 1
+            if entered == 2:
+                both_in.set()
+            await release.wait()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(holder)
+        tg.start_soon(holder)
+        await both_in.wait()
+        assert limiter.in_use == 2
+        # lower below in-use — the two holders keep running (never preempted)
+        limiter.limit = 1
+        assert limiter.limit == 1
+        assert limiter.available == 0  # clamped, not negative
+        release.set()
+
+
+@pytest.mark.anyio
+async def test_resizable_limiter_rejects_non_positive() -> None:
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(2)
+    with pytest.raises(ValueError):
+        limiter.limit = 0
+
+
+@pytest.mark.anyio
+async def test_resizable_semaphore_via_registry() -> None:
+    """`resizable=True` yields a ResizableSemaphore whose limit is settable live."""
+    from inspect_ai.util._concurrency import ResizableSemaphore
+
+    init_concurrency()
+    sem = await get_or_create_semaphore(
+        "docker", 4, "sandboxes/docker", True, resizable=True
+    )
+    assert isinstance(sem, ResizableSemaphore)
+    assert sem.concurrency == 4
+    assert sem.value == 4
+
+    sem.set_concurrency(9)
+    assert sem.concurrency == 9
+    assert sem.value == 9
+
+    # same key coalesces onto the first instance
+    again = await get_or_create_semaphore(
+        "docker", 4, "sandboxes/docker", True, resizable=True
+    )
+    assert again is sem
+
+
+@pytest.mark.anyio
+async def test_sandbox_limiter_registry_and_reset() -> None:
+    """register_sandbox_limiter tracks resizable sandbox semaphores; a run reset clears them."""
+    from inspect_ai.util._concurrency import (
+        ResizableSemaphore,
+        register_sandbox_limiter,
+        sandbox_limiters,
+    )
+
+    init_concurrency()
+    assert sandbox_limiters() == {}
+
+    sem = ResizableSemaphore("docker", 4, True)
+    register_sandbox_limiter("docker", sem)
+    assert sandbox_limiters() == {"docker": sem}
+
+    # a non-resizable semaphore is not tracked
+    plain = await get_or_create_semaphore("k8s", 2, "sandboxes/k8s", True)
+    register_sandbox_limiter("k8s", plain)
+    assert "k8s" not in sandbox_limiters()
+
+    # a fresh run clears the tracked limiters
+    init_concurrency()
+    assert sandbox_limiters() == {}

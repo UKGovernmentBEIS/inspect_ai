@@ -1,3 +1,7 @@
+## Unreleased
+
+- Control Channel: Added `inspect ctl limits` to view or change a running eval's `max_samples` / `max_sandboxes` concurrency limits mid-flight (with `--dry-run`), backed by the new `GET`/`PATCH /evals/<id>/limits` endpoints.
+
 ## 0.3.243 (30 June 2026)
 
 - Bugfix: Elapsed-time displays (e.g. the running-sample clock and timers) no longer render an impossible `:60` seconds when the elapsed time has a fractional second.

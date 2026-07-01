@@ -10,9 +10,10 @@ tasks, with a keep-alive status footer), ``samples`` (a task's samples),
 ``events`` (a sample's transcript events), ``keep`` (make a running process
 park after its eval finishes), and ``release`` (let a kept-alive process exit).
 The buffer directives ``flush`` (write buffered samples to the log now) and
-``buffer`` (view / change the sample-buffer params) are also available. The
-remaining state-mutating directives (cancel / drain / requeue / modify-limits)
-are planned but not yet available.
+``buffer`` (view / change the sample-buffer params) are also available, as is
+``limits`` (view / change the ``max_samples`` / ``max_sandboxes`` concurrency
+limits mid-flight). The remaining state-mutating directives (cancel / drain /
+requeue) are planned but not yet available.
 """
 
 from __future__ import annotations
@@ -41,10 +42,11 @@ def ctl_command() -> None:
     ``sample`` / ``errors`` (an eval's samples), ``events`` (a sample's
     transcript), ``keep`` (park a process after its eval finishes), ``release``
     (let a kept-alive process exit), ``flush`` (write an eval's buffered samples
-    to the log now), ``buffer`` (view / change the sample-buffer params). All
-    are read-only except ``keep`` / ``release`` / ``flush`` / ``buffer`` —
-    further state-mutating directives (cancel, drain, modify limits) are planned
-    but not yet available.
+    to the log now), ``buffer`` (view / change the sample-buffer params),
+    ``limits`` (view / change the ``max_samples`` / ``max_sandboxes`` concurrency
+    limits). All are read-only except ``keep`` / ``release`` / ``flush`` /
+    ``buffer`` / ``limits`` — further state-mutating directives (cancel, drain)
+    are planned but not yet available.
 
     Each command operates on a live Inspect eval via the control
     channel — the HTTP server every running ``inspect eval`` process
@@ -533,6 +535,89 @@ def buffer_command(
     _print_buffer_config(config, changed=changing)
 
 
+@ctl_command.command("limits")
+@click.argument("task", required=False)
+@click.option(
+    "--max-samples",
+    type=int,
+    default=None,
+    help="Set the maximum number of samples to run concurrently.",
+)
+@click.option(
+    "--max-sandboxes",
+    type=int,
+    default=None,
+    help="Set the maximum number of sandboxes (per provider) to run concurrently.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would change without applying it (with a set option).",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the limits view).",
+)
+def limits_command(
+    task: str | None,
+    max_samples: int | None,
+    max_sandboxes: int | None,
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """View or change a running eval's concurrency limits.
+
+    With no set options, shows the current limits. Pass `--max-samples N` to
+    change how many samples run concurrently, and/or `--max-sandboxes N` to
+    change the per-provider sandbox concurrency. Lowering a limit below what's
+    currently in use blocks new work until in-flight holders drain — it never
+    interrupts running samples; raising it lets more start immediately.
+
+    Pass `--dry-run` with a set option to see what would change without applying
+    it. A knob with no adjustable limiter for this eval (sample concurrency under
+    adaptive connections, or an eval with no sandbox limit) is reported with a
+    warning rather than an error.
+
+    TASK selects which running eval to target — a task-id prefix or task name
+    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
+    """
+    if max_samples is not None and max_samples < 1:
+        raise click.BadParameter("--max-samples must be >= 1")
+    if max_sandboxes is not None and max_sandboxes < 1:
+        raise click.BadParameter("--max-sandboxes must be >= 1")
+
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task)
+    set_values = max_samples is not None or max_sandboxes is not None
+    config = _exec_limits(
+        target["socket_path"],
+        target["eval_id"],
+        max_samples=max_samples,
+        max_sandboxes=max_sandboxes,
+        dry_run=dry_run,
+        set_values=set_values,
+    )
+
+    if as_json:
+        click.echo(json_lib.dumps(config, indent=2))
+        return
+
+    click.echo(_task_header(target))
+    click.echo()
+    _print_limits(config, changed=set_values)
+
+
 def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
     """Pick the single process a ``keep`` / ``release`` targets, or exit.
 
@@ -977,6 +1062,116 @@ def _exec_buffer_config(
         )
         raise click.exceptions.Exit(code=1) from exc
     return config if isinstance(config, dict) else {}
+
+
+def _exec_limits(
+    socket_path: str,
+    eval_id: str,
+    *,
+    max_samples: int | None,
+    max_sandboxes: int | None,
+    dry_run: bool,
+    set_values: bool,
+) -> dict[str, Any]:
+    """Read (``set_values=False``) or retune an eval's concurrency limits.
+
+    The read is a GET that retries a busy eval on timeout (like the other
+    reads). The update is a single-shot PATCH — a mutation isn't retried — given
+    the full mutation budget (see :data:`_MUTATION_TIMEOUT`). ``dry_run`` only
+    applies to a set; a bare ``--dry-run`` (no set option) is a plain read.
+    """
+    params: dict[str, Any] = {}
+    if max_samples is not None:
+        params["max_samples"] = max_samples
+    if max_sandboxes is not None:
+        params["max_sandboxes"] = max_sandboxes
+    if dry_run:
+        params["dry_run"] = True
+    path = f"/evals/{eval_id}/limits"
+    verb = "update" if set_values else "read"
+    try:
+        if set_values:
+            transport = httpx.HTTPTransport(uds=str(socket_path))
+            with httpx.Client(
+                transport=transport,
+                base_url="http://localhost",
+                timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
+            ) as client:
+                response = client.patch(path, params=params)
+        else:
+            response = _get_response_with_retry(
+                socket_path, path, what=f"Reading limits for eval {eval_id}"
+            )
+        if response.status_code == 404:
+            click.echo(
+                f"Eval '{eval_id}' has no adjustable limits in this process "
+                "(e.g. a reused log, or a retry attempt that's been superseded).",
+                err=True,
+            )
+            raise click.exceptions.Exit(code=1)
+        if response.status_code == 400:
+            click.echo(
+                f"Invalid limit: {_error_detail_from_response(response)}", err=True
+            )
+            raise click.exceptions.Exit(code=1)
+        response.raise_for_status()
+        config = response.json()
+    except _ServerUnreachable as exc:
+        detail = (
+            _error_detail(exc.__cause__)
+            if isinstance(exc.__cause__, Exception)
+            else str(exc)
+        )
+        click.echo(f"Failed to {verb} limits for eval {eval_id}: {detail}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        click.echo(
+            f"Failed to {verb} limits for eval {eval_id}: {_error_detail(exc)}",
+            err=True,
+        )
+        raise click.exceptions.Exit(code=1) from exc
+    return config if isinstance(config, dict) else {}
+
+
+def _error_detail_from_response(response: httpx.Response) -> str:
+    """Prefer the server's ``{"error": ...}`` body over a bare status message."""
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+    if isinstance(body, dict) and body.get("error"):
+        return str(body["error"])
+    return f"HTTP {response.status_code}"
+
+
+def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
+    """Render an eval's concurrency limits as a short labelled block."""
+    dry_run = bool(config.get("dry_run"))
+    if changed:
+        click.echo("would-be limits (dry run):" if dry_run else "updated limits:")
+    else:
+        click.echo("limits:")
+
+    max_samples = config.get("max_samples") or {}
+    if max_samples.get("adjustable"):
+        limit = max_samples.get("limit")
+        in_use = max_samples.get("in_use")
+        click.echo(f"  max samples:   {limit} ({in_use} in use)")
+    else:
+        click.echo("  max samples:   not adjustable (adaptive connections)")
+
+    sandboxes = config.get("max_sandboxes") or []
+    if sandboxes:
+        rendered = ", ".join(
+            f"{s.get('type')} {s.get('limit')} ({s.get('in_use')} in use)"
+            for s in sandboxes
+        )
+        click.echo(f"  max sandboxes: {rendered}")
+    else:
+        click.echo("  max sandboxes: none in effect")
+
+    for warning in config.get("warnings") or []:
+        click.echo(f"  ! {warning}")
 
 
 def _print_buffer_config(config: dict[str, Any], *, changed: bool) -> None:
