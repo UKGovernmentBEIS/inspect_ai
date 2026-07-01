@@ -168,7 +168,7 @@ async def test_limits_adaptive_empty_when_no_controllers() -> None:
 
 
 async def _register_controller(
-    max: int = 100, start: int = 50
+    name: str = "openai/gpt-4", max: int = 100, start: int = 50
 ) -> AdaptiveConcurrencyController:
     from inspect_ai.util._concurrency import (
         AdaptiveConcurrency,
@@ -176,7 +176,7 @@ async def _register_controller(
     )
 
     ctrl = await get_or_create_semaphore(
-        "openai/gpt-4", 10, None, True, AdaptiveConcurrency(min=1, max=max, start=start)
+        name, 10, None, True, AdaptiveConcurrency(min=1, max=max, start=start)
     )
     assert isinstance(ctrl, AdaptiveConcurrencyController)
     return ctrl
@@ -269,6 +269,51 @@ async def test_process_limits_dry_run_does_not_apply() -> None:
     assert ctrl.max == 100  # unchanged
 
 
+def test_match_controllers_semantics() -> None:
+    """--model matching: name-start or leaf (after '/') prefix, exact wins."""
+    from inspect_ai._control.limits import _match_controllers
+
+    class _C:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    ctrls = [_C("openai/gpt-4"), _C("openai/gpt-4-turbo"), _C("anthropic/claude")]
+
+    def names(query: str) -> set[str]:
+        return {c.name for c in _match_controllers(ctrls, query)}
+
+    assert names("openai") == {"openai/gpt-4", "openai/gpt-4-turbo"}  # name prefix
+    assert names("claude") == {"anthropic/claude"}  # leaf prefix
+    assert names("gpt-4") == {"openai/gpt-4"}  # exact leaf wins over prefix
+    assert names("mistral") == set()  # no match
+
+
+async def test_process_limits_model_filter_scopes_set() -> None:
+    """--model restricts max_connections (and the view) to matching controllers."""
+    from inspect_ai._control.limits import process_limits
+
+    gpt = await _register_controller(name="openai/gpt-4", max=100, start=50)
+    claude = await _register_controller(name="anthropic/claude", max=100, start=50)
+
+    result = await process_limits(max_connections=30, model="claude")
+    assert (claude.max, claude.concurrency) == (30, 30)  # matched → retuned
+    assert (gpt.max, gpt.concurrency) == (100, 50)  # unmatched → untouched
+    assert [a["name"] for a in result["adaptive"]] == ["anthropic/claude"]
+
+
+async def test_process_limits_model_no_match_warns() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    gpt = await _register_controller(name="openai/gpt-4", max=100, start=50)
+    result = await process_limits(max_connections=30, model="mistral")
+    assert gpt.max == 100  # nothing retuned
+    assert result["adaptive"] == []
+    assert any(
+        "no adaptive connection controller matches model 'mistral'" in w
+        for w in result["warnings"]
+    )
+
+
 # ---------------------------------------------------------------------------
 # Server routes
 # ---------------------------------------------------------------------------
@@ -352,6 +397,24 @@ async def test_process_limits_route_get_and_patch() -> None:
         bad = await client.patch("/limits", params={"max_connections": 0})
         assert bad.status_code == 400
         assert "max_connections" in bad.json()["error"]
+
+
+async def test_process_limits_route_model_filter() -> None:
+    """`model` on the /limits route scopes the retune to matching controllers."""
+    gpt = await _register_controller(name="openai/gpt-4", max=100, start=50)
+    claude = await _register_controller(name="anthropic/claude", max=100, start=50)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch(
+            "/limits", params={"max_connections": 20, "model": "gpt-4"}
+        )
+        assert patched.status_code == 200, patched.text
+        assert [a["name"] for a in patched.json()["adaptive"]] == ["openai/gpt-4"]
+        assert gpt.max == 20
+        assert claude.max == 100  # unmatched, untouched
 
 
 async def test_limits_route_dry_run() -> None:

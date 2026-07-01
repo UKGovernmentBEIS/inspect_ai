@@ -561,6 +561,15 @@ def buffer_command(
     ),
 )
 @click.option(
+    "--model",
+    default=None,
+    help=(
+        "Restrict --max-connections (and the adaptive view) to models matching "
+        "this — at the name start or after a '/' (e.g. 'gpt-4' matches "
+        "'openai/gpt-4')."
+    ),
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -578,6 +587,7 @@ def limits_command(
     max_samples: int | None,
     max_sandboxes: int | None,
     max_connections: int | None,
+    model: str | None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -607,6 +617,10 @@ def limits_command(
     its full limits, while a multi-task process shows just the process-wide limits
     (setting `--max-samples` then still requires a task). If several processes are
     running, pass a task to pick one.
+
+    In a mixed-model run, `--model` restricts `--max-connections` (and the
+    adaptive view) to matching models — matched at the name start or after a `/`,
+    so `gpt-4` matches `openai/gpt-4`.
     """
     if max_samples is not None and max_samples < 1:
         raise click.BadParameter("--max-samples must be >= 1")
@@ -674,6 +688,7 @@ def limits_command(
         max_samples=max_samples,
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
+        model=model,
         dry_run=dry_run,
         set_values=set_values,
     )
@@ -1173,6 +1188,7 @@ def _exec_limits(
     max_samples: int | None,
     max_sandboxes: int | None,
     max_connections: int | None,
+    model: str | None,
     dry_run: bool,
     set_values: bool,
 ) -> dict[str, Any]:
@@ -1181,6 +1197,7 @@ def _exec_limits(
     With ``eval_id`` set this targets that eval's ``/evals/<id>/limits`` (the
     per-eval view, including ``max_samples``); with ``eval_id=None`` it targets
     the process-level ``/limits`` (``max_sandboxes`` / ``max_connections`` only).
+    ``model`` filters the adaptive controllers (a read param, applies to both).
     The read is a GET that retries a busy process on timeout; the update is a
     single-shot PATCH given the full mutation budget (see
     :data:`_MUTATION_TIMEOUT`). ``dry_run`` only applies to a set.
@@ -1192,6 +1209,8 @@ def _exec_limits(
         params["max_sandboxes"] = max_sandboxes
     if max_connections is not None:
         params["max_connections"] = max_connections
+    if model is not None:
+        params["model"] = model
     if dry_run:
         params["dry_run"] = True
     path = f"/evals/{eval_id}/limits" if eval_id is not None else "/limits"
@@ -1208,7 +1227,7 @@ def _exec_limits(
                 response = client.patch(path, params=params)
         else:
             response = _get_response_with_retry(
-                socket_path, path, what=f"Reading limits for {scope}"
+                socket_path, path, params=params, what=f"Reading limits for {scope}"
             )
         if response.status_code == 404:
             click.echo(

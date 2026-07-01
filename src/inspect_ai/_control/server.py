@@ -370,16 +370,18 @@ class ControlServer:
         # or throttling a whole process. No max_samples (that's per-eval; use
         # the /evals/<id>/limits routes for it).
         @app.get("/limits")
-        async def get_process_limits() -> Any:
-            return await process_limits()
+        async def get_process_limits(model: str | None = None) -> Any:
+            return await process_limits(model=model)
 
         # Retune the process-global limits. Omitting both set values makes this a
-        # read, like GET. `dry_run=true` reports the intended change without
+        # read, like GET. `model` filters the adaptive controllers (name start or
+        # after a `/`). `dry_run=true` reports the intended change without
         # applying it. Never 404s — a process always exists.
         @app.patch("/limits")
         async def patch_process_limits(
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
+            model: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             for label, value in (
@@ -394,14 +396,16 @@ class ControlServer:
             return await process_limits(
                 max_sandboxes=max_sandboxes,
                 max_connections=max_connections,
+                model=model,
                 dry_run=dry_run,
             )
 
         # Read the eval's live concurrency limits (max_samples / max_sandboxes).
-        # A pure read — the companion PATCH applies changes.
+        # A pure read — the companion PATCH applies changes. `model` filters the
+        # adaptive controllers shown.
         @app.get("/evals/{eval_id}/limits")
-        async def get_limits(eval_id: str) -> Any:
-            result = await eval_limits(eval_id)
+        async def get_limits(eval_id: str, model: str | None = None) -> Any:
+            result = await eval_limits(eval_id, model=model)
             if result is None:
                 return JSONResponse(
                     status_code=404,
@@ -423,6 +427,7 @@ class ControlServer:
             max_samples: int | None = None,
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
+            model: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             for label, value in (
@@ -440,6 +445,7 @@ class ControlServer:
                 max_samples=max_samples,
                 max_sandboxes=max_sandboxes,
                 max_connections=max_connections,
+                model=model,
                 dry_run=dry_run,
             )
             if result is None:

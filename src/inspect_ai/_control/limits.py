@@ -49,6 +49,7 @@ async def process_limits(
     *,
     max_sandboxes: int | None = None,
     max_connections: int | None = None,
+    model: str | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """Read (and optionally retune) the process-global concurrency limits.
@@ -59,13 +60,15 @@ async def process_limits(
     that is per-eval; use :func:`eval_limits` when a specific eval is in view.
 
     A process always exists, so unlike :func:`eval_limits` this never returns
-    ``None``. With both knobs ``None`` it's a pure read.
+    ``None``. With both knobs ``None`` it's a pure read. ``model`` restricts the
+    adaptive controllers considered (matched at name start or after a ``/``).
     """
     warnings: list[str] = []
     requested: dict[str, int] = {}
     sandboxes_view, adaptive_view = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
+        model=model,
         dry_run=dry_run,
         requested=requested,
         warnings=warnings,
@@ -85,6 +88,7 @@ async def eval_limits(
     max_samples: int | None = None,
     max_sandboxes: int | None = None,
     max_connections: int | None = None,
+    model: str | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
     """Read (and optionally retune) one eval's concurrency limits.
@@ -107,6 +111,8 @@ async def eval_limits(
         max_sandboxes: New per-provider sandbox-concurrency limit, or ``None``.
         max_connections: New adaptive-controller scaling ceiling (applied to
             every adaptive controller in the process), or ``None`` to leave it.
+        model: Restrict the adaptive controllers ``max_connections`` targets (and
+            the reported adaptive view) to those matching, or ``None`` for all.
         dry_run: When set, validate and report the intended change without
             applying it.
     """
@@ -136,6 +142,7 @@ async def eval_limits(
     sandboxes_view, adaptive_view = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
+        model=model,
         dry_run=dry_run,
         requested=requested,
         warnings=warnings,
@@ -161,10 +168,36 @@ async def eval_limits(
     }
 
 
+def _match_model(name: str, query: str) -> bool:
+    """True if ``name`` matches ``query`` at its start or after a ``/``.
+
+    Mirrors the CLI's task-name matching: ``gpt-4`` matches ``openai/gpt-4``
+    (leaf prefix) and ``openai`` matches it too (name prefix).
+    """
+    leaf = name.rsplit("/", 1)[-1]
+    return name.startswith(query) or leaf.startswith(query)
+
+
+def _match_controllers(
+    controllers: list[Any],
+    model: str,
+) -> list[Any]:
+    """Filter controllers to those matching ``model``, exact match winning.
+
+    An exact name/leaf match (e.g. ``gpt-4`` when both ``openai/gpt-4`` and
+    ``openai/gpt-4-turbo`` are active) narrows to just the exact ones; otherwise
+    all prefix matches are returned. Same precedence as CLI task-name matching.
+    """
+    prefix = [c for c in controllers if _match_model(c.name, model)]
+    exact = [c for c in prefix if c.name == model or c.name.rsplit("/", 1)[-1] == model]
+    return exact or prefix
+
+
 def _apply_process_knobs(
     *,
     max_sandboxes: int | None,
     max_connections: int | None,
+    model: str | None,
     dry_run: bool,
     requested: dict[str, int],
     warnings: list[str],
@@ -173,7 +206,9 @@ def _apply_process_knobs(
 
     Mutates ``requested`` / ``warnings`` in place (so callers can prepend a
     per-eval knob) and returns ``(max_sandboxes_view, adaptive_view)``. The views
-    are re-read after applying, so a real set reflects the new values.
+    are re-read after applying, so a real set reflects the new values. ``model``
+    restricts the adaptive controllers considered (for both ``max_connections``
+    and the reported view) to those matching it.
     """
     from inspect_ai.util._concurrency import adaptive_controllers, sandbox_limiters
 
@@ -192,16 +227,27 @@ def _apply_process_knobs(
 
     # max_connections — the adaptive controllers' scaling ceiling (process-global,
     # one per model). Lowering clamps live concurrency down immediately; raising
-    # lifts the ceiling so the controllers can climb again.
-    controllers = adaptive_controllers()
+    # lifts the ceiling so the controllers can climb again. `model` narrows which
+    # controllers are targeted (and shown).
+    all_controllers = adaptive_controllers()
+    controllers = (
+        _match_controllers(all_controllers, model)
+        if model is not None
+        else all_controllers
+    )
+    if model is not None and all_controllers and not controllers:
+        warnings.append(
+            f"no adaptive connection controller matches model '{model}' "
+            f"(active: {', '.join(sorted(c.name for c in all_controllers))})."
+        )
     if max_connections is not None:
         requested["max_connections"] = max_connections
-        if not controllers:
+        if not all_controllers:
             warnings.append(
                 "max_connections is not adjustable (this process isn't using "
                 "adaptive connections)."
             )
-        elif not dry_run:
+        elif controllers and not dry_run:
             for ctrl in controllers:
                 ctrl.set_max(max_connections)
 
@@ -221,8 +267,7 @@ def _apply_process_knobs(
     # The adaptive-connections view: each controller's live limit, in-flight
     # count, scaling bounds (max reflects any max_connections change applied
     # above), and recent scale changes. Controllers are process-global (one per
-    # model, keyed by name), so like max_sandboxes this reports every controller
-    # in the process rather than filtering to a specific eval's model.
+    # model, keyed by name); with `model` set this shows only the matching ones.
     adaptive_view = [
         {
             "name": ctrl.name,
@@ -235,7 +280,7 @@ def _apply_process_knobs(
                 for (at, _name, old, new, reason) in ctrl.history[-_RECENT_CHANGES:]
             ],
         }
-        for ctrl in sorted(adaptive_controllers(), key=lambda c: c.name)
+        for ctrl in sorted(controllers, key=lambda c: c.name)
     ]
 
     return max_sandboxes_view, adaptive_view
