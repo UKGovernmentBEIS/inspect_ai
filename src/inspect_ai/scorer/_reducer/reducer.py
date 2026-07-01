@@ -260,6 +260,27 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     return reduce
 
 
+@score_reducer(name="collect")
+def collect() -> ScoreReducer:
+    r"""Collect each score's value into a list, preserving every value.
+
+    Keeps the individual values intact instead of aggregating them into one.
+    Values must be scalar; unscored (NaN) scores are dropped.
+    """
+
+    def reduce(scores: list[Score]) -> Score:
+        values: list[str | int | float | bool] = []
+        for score in scores:
+            scalar = score._as_scalar()
+            if _is_reducible(scalar):
+                values.append(scalar)
+        if not values:
+            return _nan_score(scores)
+        return _reduced_score(values, scores)
+
+    return reduce
+
+
 def _count_scalar(
     scores: list[Score],
     counter_fn: Callable[[Counter[str | int | float | bool]], str | int | float | bool],
