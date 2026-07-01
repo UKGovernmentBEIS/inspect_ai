@@ -283,8 +283,9 @@ async def test_manual_connection_limit_change_excluded_from_eval_stats() -> None
 
     stats = EvalStats()
     collect_eval_data(stats)  # must not raise on the "manual" reason
-    # the manual retune is excluded from the log's adaptive-scaling history
-    assert all(e.reason != "manual" for e in stats.connection_limit_history)
+    # the manual retune (the only recorded change) is excluded from the
+    # log's adaptive-scaling history
+    assert stats.connection_limit_history == []
 
 
 def test_parse_adaptive_connections_cli_value_forms() -> None:
