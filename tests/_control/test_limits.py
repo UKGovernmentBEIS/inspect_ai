@@ -269,7 +269,7 @@ def test_limits_route_error_becomes_500() -> None:
     # attach a limiter whose setter raises when applied
     class _Boom(ResizableLimiter):
         @property
-        def limit(self) -> int:  # type: ignore[override]
+        def limit(self) -> int:
             return 5
 
         @limit.setter
