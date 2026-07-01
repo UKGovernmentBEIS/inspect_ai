@@ -57,6 +57,8 @@ Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless th
 
 ### Opening an upstream PR from an org fork
 
+Before opening the PR, sync the branch with upstream `main` (`git fetch origin main && git merge origin/main`, resolving any conflicts) and push. Otherwise the PR can open with conflicts against its base, and CHANGELOG entries in particular almost always conflict.
+
 Opening a PR from an organization fork to its upstream via the GitHub API/CLI needs an explicit `head_repo` — without it GitHub can't resolve the org fork as the PR head and rejects it with `{"field":"head","code":"invalid"}` (an org fork requires `head_repo`; a personal fork resolves without it). `gh pr create` has no `--head-repo` flag ([cli/cli#6462](https://github.com/cli/cli/issues/6462)), so use `gh api` — e.g. from the `meridianlabs-ai/inspect_ai` fork to upstream `UKGovernmentBEIS/inspect_ai`:
 
 ```bash

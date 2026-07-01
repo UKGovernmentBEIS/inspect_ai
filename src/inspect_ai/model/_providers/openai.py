@@ -40,6 +40,7 @@ from .._openai import (
     is_latest_model,
     is_o_series_model,
     openai_classify_retry,
+    openai_should_retry,
 )
 from .._openai_responses import (
     chat_messages_from_compact_response,
@@ -605,7 +606,7 @@ class OpenAIAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
@@ -633,7 +634,6 @@ class OpenAIAPI(ModelAPI):
             return self._reasoning_summaries
         async with self._reasoning_summaries_lock:
             if self._reasoning_summaries is None:
-                reasoning_summaries = False
                 if self.responses_api and self.has_reasoning_options():
                     try:
                         await self.client.responses.create(
@@ -641,10 +641,21 @@ class OpenAIAPI(ModelAPI):
                             input="Please say 'hello, world'",
                             reasoning={"effort": "low", "summary": "auto"},
                         )
-                        reasoning_summaries = True
-                    except Exception:
-                        pass
-                self._reasoning_summaries = reasoning_summaries
+                        self._reasoning_summaries = True
+                    except Exception as ex:
+                        # A transient failure (timeout, dropped connection,
+                        # rate limit, 5xx) tells us nothing about whether
+                        # summaries are supported. Don't cache it, otherwise a
+                        # blip at startup would disable summaries for the rest
+                        # of the run; leave the bit unset so a later sample
+                        # re-probes. A deterministic rejection (e.g. the account
+                        # isn't a verified organization) does mean they aren't
+                        # available, so cache that.
+                        if openai_should_retry(ex):
+                            return False
+                        self._reasoning_summaries = False
+                else:
+                    self._reasoning_summaries = False
 
             return self._reasoning_summaries
 
@@ -743,9 +754,11 @@ class OpenAIAPI(ModelAPI):
         reasoning: Reasoning = {}
         if config.reasoning_effort is not None:
             effort = (
-                config.reasoning_effort if config.reasoning_effort != "max" else "xhigh"
+                "xhigh"
+                if (config.reasoning_effort == "max" and not self.is_latest())
+                else config.reasoning_effort
             )
-            reasoning["effort"] = effort
+            reasoning["effort"] = effort  # type: ignore
         if config.reasoning_summary is not None and config.reasoning_summary != "none":
             reasoning["summary"] = config.reasoning_summary
 

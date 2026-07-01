@@ -951,6 +951,12 @@ class AnthropicAPI(ModelAPI):
             if max_tokens > 8192:
                 betas.append("output-128k-2025-02-19")
 
+        elif config.reasoning_effort == "none" and self._supports_disabling_thinking():
+            # Claude 4.7+ (incl. Sonnet 5) run adaptive thinking by default, so
+            # `reasoning_effort="none"` must explicitly disable it. Pre-4.7 models
+            # default to no thinking, so omitting the field already suffices.
+            params["thinking"] = {"type": "disabled"}
+
         # config that applies to all models
         if config.stop_seqs is not None:
             params["stop_sequences"] = config.stop_seqs
@@ -1067,6 +1073,19 @@ class AnthropicAPI(ModelAPI):
             or (self.effort_from_reasoning_effort(config) is not None)
         )
 
+    def _supports_disabling_thinking(self) -> bool:
+        """Whether `reasoning_effort="none"` should send `thinking:{type:"disabled"}`.
+
+        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5) run adaptive thinking by default and
+        accept `disabled` to turn it off. Fable/Mythos 5 also always think but
+        reject `disabled` (400), so they're excluded — their thinking can't be
+        turned off. Pre-4.7 models default to no thinking, so `"none"` is honored
+        by simply omitting the `thinking` field.
+        """
+        return self.is_claude_4_7_or_later() and not (
+            self.is_claude_5() and not self.is_claude_sonnet_5()
+        )
+
     def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
         """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
 
@@ -1134,6 +1153,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_4_opus(self) -> bool:
         return self.is_claude_4() and "opus" in self.model_family()
+
+    def is_claude_sonnet_5(self) -> bool:
+        return self.is_claude_5() and "sonnet" in self.model_family()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -1231,7 +1253,7 @@ class AnthropicAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.service_model_name()}"
+        return f"{self.initial_api_key}:{self.service_model_name()}"
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -1551,15 +1573,16 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
-            # Claude 5 (Fable/Mythos) does not support native computer use: the
-            # computer-use tool versions target Claude 4.x only (per Anthropic's
-            # computer-use docs and the Claude 5 launch feature list). Error
+            # Among Claude 5 models only Sonnet 5 is documented to support native
+            # computer use (the computer-use-2025-11-24 tool). Fable/Mythos 5 are
+            # not listed in Anthropic's computer-use docs, so error for those
             # rather than degrade to a non-native fallback tool.
-            if self.is_claude_5():
+            if self.is_claude_5() and not self.is_claude_sonnet_5():
                 raise PrerequisiteError(
                     f"Computer use is not supported by the model '{self.service_model_name()}'. "
-                    "Anthropic's native computer use requires a Claude 4.x model "
-                    "(e.g. claude-opus-4-8 or claude-sonnet-4-6)."
+                    "Anthropic's native computer use requires a Claude 4.x model or "
+                    "Claude Sonnet 5 (e.g. claude-opus-4-8, claude-sonnet-4-6, or "
+                    "claude-sonnet-5)."
                 )
             # Note: The dimensions passed here for display_width_px and display_height_px
             # should match the dimensions of screenshots returned by the tool. Those
@@ -1571,7 +1594,8 @@ class AnthropicAPI(ModelAPI):
             #
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
-            # computer_20251124 is supported by Claude 4.6 and Claude Opus 4.5
+            # computer_20251124 is supported by Claude Sonnet 5, Opus 4.6/4.7/4.8,
+            # Sonnet 4.6, and Opus 4.5
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -1791,6 +1815,7 @@ def _supports_code_interpreter(model_name: str) -> bool:
         (
             "claude-opus-4",
             "claude-sonnet-4",
+            "claude-sonnet-5",
             "claude-haiku-4",
             "claude-3-7-sonnet",
             "claude-3-5-haiku-latest",

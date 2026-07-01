@@ -60,7 +60,20 @@ ATTACHMENT_PROTOCOL = "attachment://"
 
 
 class WalkContext(TypedDict):
-    message_cache: dict[str, ChatMessage]
+    message_cache: dict[str, tuple[ChatMessage, ChatMessage]]
+    """Cache of walked messages keyed by message id.
+
+    Each value is ``(pre_walk_message, walked_result)``: lookups verify
+    against the *pre-walk* message (by identity first, then equality)
+    because the walked result has rewritten content and never compares
+    equal to an incoming un-walked message. A message mutated in place
+    after first being walked identity-hits and resolves to its
+    first-walked form (consistent with ``event/_pool_index.py``;
+    first-party code refreshes ``message.id`` on mutation). Entries are
+    only valid for one content function — never share a context across
+    walks with different content functions.
+    """
+
     only_core: bool
 
 
@@ -153,8 +166,14 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     attachments: dict[str, str] = dict(sample.attachments)
     events_fn = events_attachment_fn(attachments, log_images)
     messages_fn = messages_attachment_fn(attachments, log_images)
-    context = WalkContext(message_cache={}, only_core=False)
-    condensed_events = walk_events(sample.events, events_fn, context)
+    # The events and messages walks rewrite content differently (events_fn
+    # pools long text as attachments; messages_fn leaves it inline), so they
+    # must not share a message cache: sample.messages contains the same
+    # objects/ids as event inputs and a shared cache would return
+    # event-walked results during the messages walk.
+    events_context = WalkContext(message_cache={}, only_core=False)
+    messages_context = WalkContext(message_cache={}, only_core=False)
+    condensed_events = walk_events(sample.events, events_fn, events_context)
 
     # condense events
     existing = sample.events_data
@@ -182,8 +201,10 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
 
     return sample.model_copy(
         update={
-            "input": walk_input(sample.input, messages_fn, context),
-            "messages": walk_chat_messages(sample.messages, messages_fn, context),
+            "input": walk_input(sample.input, messages_fn, messages_context),
+            "messages": walk_chat_messages(
+                sample.messages, messages_fn, messages_context
+            ),
             "events": condensed_events,
             "attachments": attachments,
             "events_data": events_data,
@@ -611,8 +632,10 @@ def walk_chat_message(
     cache = context.get("message_cache")
     if cache is not None and message.id is not None:
         hit = cache.get(message.id)
-        if hit is not None and hit == message:
-            return hit
+        if hit is not None:
+            pre_walk, walked = hit
+            if pre_walk is message or pre_walk == message:
+                return walked
     if isinstance(message.content, str):
         res = message.model_copy(update=dict(content=content_fn(message.content)))
     else:
@@ -631,7 +654,7 @@ def walk_chat_message(
             )
         )
     if cache is not None and message.id is not None:
-        cache[message.id] = res
+        cache[message.id] = (message, res)
     return res
 
 
