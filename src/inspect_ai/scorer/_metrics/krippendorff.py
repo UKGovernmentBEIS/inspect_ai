@@ -28,14 +28,17 @@ def krippendorff_alpha(
     Computes Krippendorff's α across multiple judges/raters for each
     sample. Each `SampleScore` passed to the metric must have a
     sequence-valued `Score.value`, where each element is one judge's
-    rating of that sample. Samples whose `Score.value` is not a sequence
-    (or contains fewer than two ratings) are skipped.
+    rating of that sample; produce these per-judge lists by pairing
+    `multi_scorer()` with the `collect` reducer. Samples whose
+    `Score.value` is not a sequence (or contains fewer than two ratings)
+    are skipped.
 
     α = 1 indicates perfect agreement; α = 0 indicates agreement equal
     to chance; α < 0 indicates systematic disagreement.
 
-    For the 2-judge nominal case, α reduces to behaviour similar to
-    Cohen's κ; this is expected and not a bug.
+    For the 2-judge nominal case, α coincides with Scott's π (its
+    many-judge analogue is Fleiss' κ); the two converge only as the
+    number of units grows, since α applies a small-sample correction.
 
     Args:
        level: Measurement scale.
@@ -167,6 +170,14 @@ def _ordinal_delta_sq(flat: list[object]) -> DeltaSq:
     return delta_sq
 
 
+def _disagreement(counts: Counter[object], delta_sq: DeltaSq) -> float:
+    """Sum of n_c · n_k · δ²(c, k) over distinct value pairs; O(V²) in the distinct values."""
+    items = list(counts.items())
+    return sum(
+        (n_c * n_k * delta_sq(c, k) for c, n_c in items for k, n_k in items), 0.0
+    )
+
+
 def _alpha(units: list[list[object]], delta_sq: DeltaSq) -> float:
     """Compute α = 1 − D_o / D_e given precomputed units and a δ² function."""
     flat = [v for u in units for v in u]
@@ -176,21 +187,10 @@ def _alpha(units: list[list[object]], delta_sq: DeltaSq) -> float:
 
     d_o_num = 0.0
     for u in units:
-        m = len(u)
-        unit_sum = 0.0
-        for i in range(m):
-            for j in range(m):
-                if i != j:
-                    unit_sum += delta_sq(u[i], u[j])
-        d_o_num += unit_sum / (m - 1)
+        d_o_num += _disagreement(Counter(u), delta_sq) / (len(u) - 1)
     d_o = d_o_num / n
 
-    d_e_num = 0.0
-    for i in range(n):
-        for j in range(n):
-            if i != j:
-                d_e_num += delta_sq(flat[i], flat[j])
-    d_e = d_e_num / (n * (n - 1))
+    d_e = _disagreement(Counter(flat), delta_sq) / (n * (n - 1))
 
     if d_e == 0:
         return 1.0 if d_o == 0 else float("nan")
