@@ -9,6 +9,7 @@ counters never reach ``total`` and the eval reads "running" forever.
 from typing import Any
 
 import pytest
+from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
@@ -82,14 +83,15 @@ def test_finalize_preserves_recorded_outcomes() -> None:
     assert state.total_messages == 3
 
 
-def test_detach_eval_providers_nulls_live_accessors() -> None:
-    """Detaching a superseded attempt removes its live providers only.
+def test_detach_eval_live_clears_live_data() -> None:
+    """Detaching a superseded attempt clears its live data source only.
 
     On task retry the (shared) TaskLogger is re-pointed at the new attempt;
-    the superseded attempt's bound-method providers would otherwise serve the
-    new attempt's data under the old eval_id. Counters and metadata persist.
+    the superseded attempt's ``live`` is that same logger, so left attached it
+    would serve the new attempt's data under the old eval_id. Counters and
+    metadata persist.
     """
-    from inspect_ai._control.eval_state import detach_eval_providers
+    from inspect_ai._control.eval_state import detach_eval_live
 
     async def summaries():
         return []
@@ -101,25 +103,23 @@ def test_detach_eval_providers_nulls_live_accessors() -> None:
         "e1",
         2,
         log_location="logs/a.eval",
-        summaries_provider=summaries,
-        sample_provider=sample,
-        events_provider=lambda id, epoch: None,
+        live=FakeLiveEvalData(
+            summaries=summaries, sample=sample, events=lambda id, epoch: None
+        ),
     )
     record_sample_errored("e1")
 
-    detach_eval_providers("e1")
+    detach_eval_live("e1")
 
     state = get_eval_state("e1")
     assert state is not None
-    assert state.summaries_provider is None
-    assert state.sample_provider is None
-    assert state.events_provider is None
+    assert state.live is None
     # everything else is untouched
     assert state.errored == 1
     assert state.log_location == "logs/a.eval"
 
     # unregistered evals no-op
-    detach_eval_providers("never-registered")
+    detach_eval_live("never-registered")
 
 
 async def test_deferred_sample_stats_resolve_lazily_and_once() -> None:
