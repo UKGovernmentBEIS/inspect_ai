@@ -452,6 +452,28 @@ def test_print_limits_adaptive_dry_run_shows_ceiling_arrow(
     assert "range 1–100 → 30" in out
 
 
+def test_process_scope_note() -> None:
+    """The process-wide scope note fires only for a global knob in a multi-eval process."""
+    from inspect_ai._cli.ctl import _process_scope_note
+
+    # nothing set → no note
+    assert _process_scope_note([], 3) is None
+    # global knob set but process hosts a single eval → distinction invisible
+    assert _process_scope_note(["--max-connections"], 1) is None
+    # single global knob across a multi-eval process → singular "applies"
+    note = _process_scope_note(["--max-connections"], 3)
+    assert (
+        note
+        == "note: --max-connections applies across all 3 tasks sharing this process."
+    )
+    # both global knobs → plural "apply", joined
+    note = _process_scope_note(["--max-connections", "--max-sandboxes"], 2)
+    assert (
+        note
+        == "note: --max-connections and --max-sandboxes apply across all 2 tasks sharing this process."
+    )
+
+
 def test_limits_route_error_becomes_500() -> None:
     """A directive exception surfaces as the structured 500."""
     from inspect_ai._control import server as server_mod

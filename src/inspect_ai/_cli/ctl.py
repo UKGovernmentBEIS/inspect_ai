@@ -543,19 +543,22 @@ def buffer_command(
     "--max-samples",
     type=int,
     default=None,
-    help="Set the maximum number of samples to run concurrently.",
+    help="Set the max samples to run concurrently (for this task).",
 )
 @click.option(
     "--max-sandboxes",
     type=int,
     default=None,
-    help="Set the maximum number of sandboxes (per provider) to run concurrently.",
+    help="Set the max sandboxes per provider (process-wide, across all tasks).",
 )
 @click.option(
     "--max-connections",
     type=int,
     default=None,
-    help="Set the adaptive-connections scaling ceiling (the controller's max).",
+    help=(
+        "Set the adaptive-connections scaling ceiling — the controller's max "
+        "(process-wide, across all tasks)."
+    ),
 )
 @click.option(
     "--dry-run",
@@ -596,6 +599,9 @@ def limits_command(
 
     TASK selects which running eval to target — a task-id prefix or task name
     (as listed by `inspect ctl tasks`); omit it when only one eval is running.
+    Note that `--max-samples` is scoped to the named task, while
+    `--max-sandboxes` and `--max-connections` are process-wide: in an eval-set
+    (many tasks in one process) they affect every task, not just the one named.
     """
     if max_samples is not None and max_samples < 1:
         raise click.BadParameter("--max-samples must be >= 1")
@@ -635,6 +641,42 @@ def limits_command(
     click.echo(_task_header(target))
     click.echo()
     _print_limits(config, changed=set_values)
+
+    # The process-global knobs apply to every eval in the target process, so in a
+    # multi-eval process (an eval-set) they reach beyond the named task. Surface
+    # that where it can surprise — right after a set that used one of them.
+    global_knobs = [
+        name
+        for name, value in (
+            ("--max-connections", max_connections),
+            ("--max-sandboxes", max_sandboxes),
+        )
+        if value is not None
+    ]
+    siblings = sum(
+        1 for s in summaries if s.get("socket_path") == target.get("socket_path")
+    )
+    note = _process_scope_note(global_knobs, siblings)
+    if note:
+        click.echo(f"\n{note}")
+
+
+def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
+    """Note that process-global limit knobs reach every task in the process.
+
+    ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes``)
+    supplied on this invocation; ``siblings`` is the number of evals the target
+    process hosts. Returns ``None`` when there's nothing to flag — no such knob
+    was set, or the process hosts a single eval so "process-wide" is exactly the
+    named task and the distinction is invisible.
+    """
+    if not global_knobs or siblings <= 1:
+        return None
+    verb = "applies" if len(global_knobs) == 1 else "apply"
+    return (
+        f"note: {' and '.join(global_knobs)} {verb} across all "
+        f"{siblings} tasks sharing this process."
+    )
 
 
 def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
