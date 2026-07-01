@@ -1163,11 +1163,17 @@ def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
         proposed = requested.get(key)
         return f"{current}{'' if proposed is None or proposed == current else f' → {proposed}'}"
 
+    adaptive = config.get("adaptive") or []
+
     max_samples = config.get("max_samples") or {}
     if max_samples.get("adjustable"):
         limit = _target(max_samples.get("limit"), "max_samples")
         in_use = max_samples.get("in_use")
         click.echo(f"  max samples:   {limit} ({in_use} in use)")
+    elif adaptive:
+        # sample concurrency tracks the adaptive controller(s) below, so there's
+        # no user setpoint to show here — point at where the live numbers are
+        click.echo("  max samples:   tracks adaptive connections (see below)")
     else:
         click.echo("  max samples:   not adjustable (adaptive connections)")
 
@@ -1180,6 +1186,21 @@ def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
         click.echo(f"  max sandboxes: {rendered}")
     else:
         click.echo("  max sandboxes: none in effect")
+
+    if adaptive:
+        click.echo("  adaptive connections:")
+        for a in adaptive:
+            line = (
+                f"    {a.get('name')}: {a.get('limit')} ({a.get('in_use')} in use), "
+                f"range {a.get('min')}–{a.get('max')}"
+            )
+            changes = a.get("recent_changes") or []
+            if changes:
+                last = changes[-1]
+                line += (
+                    f", last: {last.get('from')}→{last.get('to')} {last.get('reason')}"
+                )
+            click.echo(line)
 
     for warning in config.get("warnings") or []:
         click.echo(f"  ! {warning}")

@@ -128,6 +128,44 @@ async def test_limits_none_when_eval_missing() -> None:
     assert await eval_limits("nope") is None
 
 
+async def test_limits_adaptive_read_view() -> None:
+    """The adaptive path reports live controller state (read-only)."""
+    from inspect_ai.util._concurrency import (
+        AdaptiveConcurrency,
+        AdaptiveConcurrencyController,
+        get_or_create_semaphore,
+    )
+
+    register_eval("e1", 5)  # adaptive path: no sample_limiter attached
+    ctrl = await get_or_create_semaphore(
+        "openai/gpt-4", 10, None, True, AdaptiveConcurrency(min=1, max=100, start=10)
+    )
+    assert isinstance(ctrl, AdaptiveConcurrencyController)
+    ctrl.notify_retry()  # record a scale-down: 10 -> 8 (rate_limit)
+
+    result = await eval_limits("e1")
+    assert result is not None
+    # sample concurrency tracks the controller, so max_samples has no setpoint
+    assert result["max_samples"] == {"adjustable": False}
+    assert len(result["adaptive"]) == 1
+    a = result["adaptive"][0]
+    assert a["name"] == "openai/gpt-4"
+    assert a["limit"] == 8
+    assert a["in_use"] == 0
+    assert a["min"] == 1
+    assert a["max"] == 100
+    last = a["recent_changes"][-1]
+    assert (last["from"], last["to"], last["reason"]) == (10, 8, "rate_limit")
+    assert isinstance(last["at"], float)
+
+
+async def test_limits_adaptive_empty_when_no_controllers() -> None:
+    register_eval("e1", 5)
+    result = await eval_limits("e1")
+    assert result is not None
+    assert result["adaptive"] == []
+
+
 # ---------------------------------------------------------------------------
 # Server routes
 # ---------------------------------------------------------------------------
@@ -277,6 +315,39 @@ def test_print_limits_dry_run_unchanged_knob_has_no_arrow(
     assert "→" not in out
     assert "max samples:   20 (0 in use)" in out
     assert "docker 8 (3 in use)" in out
+
+
+def test_print_limits_adaptive_section(capsys: pytest.CaptureFixture[str]) -> None:
+    """The adaptive path renders live controller state instead of a bare label."""
+    from inspect_ai._cli.ctl import _print_limits
+
+    _print_limits(
+        {
+            "dry_run": False,
+            "max_samples": {"adjustable": False},
+            "max_sandboxes": [],
+            "adaptive": [
+                {
+                    "name": "openai/gpt-4",
+                    "limit": 45,
+                    "in_use": 40,
+                    "min": 1,
+                    "max": 100,
+                    "recent_changes": [
+                        {"at": 1.0, "from": 50, "to": 45, "reason": "rate_limit"},
+                    ],
+                }
+            ],
+            "requested": None,
+            "warnings": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "max samples:   tracks adaptive connections (see below)" in out
+    assert "adaptive connections:" in out
+    assert "openai/gpt-4: 45 (40 in use), range 1–100" in out
+    assert "last: 50→45 rate_limit" in out
 
 
 def test_limits_route_error_becomes_500() -> None:

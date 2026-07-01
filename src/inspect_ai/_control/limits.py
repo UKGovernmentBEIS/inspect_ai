@@ -13,6 +13,13 @@ lets more work start immediately. ``max_samples`` is reached through
 the process-global sandbox-limiter registry, since sandbox concurrency is shared
 across the process's evals rather than owned by one.
 
+On the adaptive-connections path ``max_samples`` isn't a user setpoint (sample
+concurrency tracks the model-API controller), so it's reported as not adjustable.
+The view still carries a read-only ``adaptive`` section reporting each
+controller's live limit, in-flight count, scaling bounds, and recent scale
+changes, so that path is observable rather than opaque; retuning the controller
+ceiling is a later slice.
+
 Returns ``None`` when the eval isn't in this process — the endpoint turns that
 into a 404. When a requested knob has no adjustable limiter in this eval (the
 adaptive sample-concurrency path, or an eval with no sandbox limit in effect),
@@ -23,6 +30,11 @@ whole request — so a caller adjusting both knobs still gets the one that appli
 from __future__ import annotations
 
 from typing import Any
+
+# How many of an adaptive controller's most-recent scale changes to surface in
+# the read view — enough to see whether it's actively being throttled without
+# dumping the controller's full bounded history.
+_RECENT_CHANGES = 5
 
 
 async def eval_limits(
@@ -40,6 +52,13 @@ async def eval_limits(
     shows what *would* change). Returns the resulting limits view, or ``None``
     when the eval isn't tracked in this process.
 
+    The view always includes an ``adaptive`` list reporting each adaptive
+    connection controller's live limit, in-flight count, scaling bounds, and
+    recent scale changes. This is read-only: on the adaptive path ``max_samples``
+    isn't a user setpoint (sample concurrency tracks the controller), so it's
+    reported as not adjustable while the ``adaptive`` view keeps the path
+    legible. Retuning the controller ceiling is a later slice.
+
     Args:
         eval_id: The target eval.
         max_samples: New sample-concurrency limit, or ``None`` to leave it.
@@ -48,7 +67,7 @@ async def eval_limits(
             applying it.
     """
     from inspect_ai._control.eval_state import get_eval_state
-    from inspect_ai.util._concurrency import sandbox_limiters
+    from inspect_ai.util._concurrency import adaptive_controllers, sandbox_limiters
 
     state = get_eval_state(eval_id)
     if state is None:
@@ -108,10 +127,33 @@ async def eval_limits(
         for sandbox_type, sem in sorted(sandbox_limiters().items())
     ]
 
+    # Read-side visibility for the adaptive-connections path: report each
+    # controller's live limit, in-flight count, scaling bounds, and recent scale
+    # changes, so the "not adjustable" max_samples path is legible rather than
+    # opaque. Controllers are process-global (one per model, keyed by name), so
+    # like max_sandboxes this reports every controller in the process rather than
+    # filtering to the queried eval's model. Read-only for now — retuning the
+    # ceiling (max) is a later slice (see design/control-channel.md).
+    adaptive_view = [
+        {
+            "name": ctrl.name,
+            "limit": ctrl.concurrency,
+            "in_use": ctrl.in_use,
+            "min": ctrl.min,
+            "max": ctrl.max,
+            "recent_changes": [
+                {"at": at, "from": old, "to": new, "reason": reason}
+                for (at, _name, old, new, reason) in ctrl.history[-_RECENT_CHANGES:]
+            ],
+        }
+        for ctrl in sorted(adaptive_controllers(), key=lambda c: c.name)
+    ]
+
     return {
         "dry_run": dry_run,
         "max_samples": max_samples_view,
         "max_sandboxes": max_sandboxes_view,
+        "adaptive": adaptive_view,
         "requested": requested or None,
         "warnings": warnings,
     }

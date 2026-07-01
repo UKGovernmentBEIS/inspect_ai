@@ -703,6 +703,27 @@ class AdaptiveConcurrencyController:
         return max(0, int(self._limiter.total_tokens - self._limiter.borrowed_tokens))
 
     @property
+    def in_use(self) -> int:
+        """Exact borrowed count (requests currently in flight under this limit).
+
+        Reads `borrowed_tokens` directly rather than deriving `concurrency -
+        value`: after a rate-limit cut lowers the limit below the in-flight
+        count, `value` clamps to 0 and the derivation would under-report the
+        true (higher) borrowed count. See :attr:`value`.
+        """
+        return int(self._limiter.borrowed_tokens)
+
+    @property
+    def min(self) -> int:
+        """The controller's lower scaling bound (`AdaptiveConcurrency.min`)."""
+        return self._config.min
+
+    @property
+    def max(self) -> int:
+        """The controller's upper scaling bound (`AdaptiveConcurrency.max`)."""
+        return self._config.max
+
+    @property
     def history(self) -> list[LimitChangeRecord]:
         """Bounded history of scale changes for eval log capture."""
         return list(self._history)

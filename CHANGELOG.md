@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Control Channel: Added `inspect ctl limits` to view or change a running eval's `max_samples` / `max_sandboxes` concurrency limits mid-flight (with `--dry-run`), backed by the new `GET`/`PATCH /evals/<id>/limits` endpoints.
+- Control Channel: Added `inspect ctl limits` to view or change a running eval's `max_samples` / `max_sandboxes` concurrency limits mid-flight (with `--dry-run`), backed by the new `GET`/`PATCH /evals/<id>/limits` endpoints; on the adaptive-connections path the view also reports each controller's live limit, in-flight count, scaling bounds, and recent scale changes.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
 
 ## 0.3.244 (01 July 2026)
