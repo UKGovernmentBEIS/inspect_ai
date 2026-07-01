@@ -781,6 +781,12 @@ def collect_eval_data(stats: EvalStats) -> None:
     history: list[ConnectionLimitChange] = []
     for controller in adaptive_controllers():
         for ts, model, old, new, reason in controller.history:
+            # `manual` entries are external control-channel retunes, not adaptive
+            # scaling decisions — this field records the latter (and its schema
+            # enum excludes `manual`). The manual change stays visible live via
+            # the control channel's `ctl limits` view (controller history).
+            if reason == "manual":
+                continue
             history.append(
                 ConnectionLimitChange(
                     timestamp=ts,

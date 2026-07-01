@@ -258,6 +258,35 @@ async def test_connection_limit_history_captured_in_eval_stats() -> None:
     assert entry.model  # non-empty
 
 
+async def test_manual_connection_limit_change_excluded_from_eval_stats() -> None:
+    """A control-channel `set_max` retune (reason='manual') doesn't crash capture.
+
+    Regression: `set_max` records a `manual` history entry. collect_eval_data
+    maps controller history into `ConnectionLimitChange`, whose `reason` enum has
+    only adaptive reasons — so a `manual` entry must be skipped, not passed
+    through (which would raise a ValidationError and fail the whole eval).
+    """
+    from inspect_ai._eval.task.log import collect_eval_data
+    from inspect_ai.log._log import EvalStats
+    from inspect_ai.util._concurrency import (
+        AdaptiveConcurrency,
+        AdaptiveConcurrencyController,
+        get_or_create_semaphore,
+    )
+
+    init_concurrency()
+    ctrl = await get_or_create_semaphore(
+        "mockllm/model", 10, None, True, AdaptiveConcurrency(min=1, max=100, start=50)
+    )
+    assert isinstance(ctrl, AdaptiveConcurrencyController)
+    ctrl.set_max(20)  # records a 50 -> 20 "manual" change in controller history
+
+    stats = EvalStats()
+    collect_eval_data(stats)  # must not raise on the "manual" reason
+    # the manual retune is excluded from the log's adaptive-scaling history
+    assert all(e.reason != "manual" for e in stats.connection_limit_history)
+
+
 def test_parse_adaptive_connections_cli_value_forms() -> None:
     """The CLI parser handles bool keywords and shorthand strings, with None passthrough.
 
