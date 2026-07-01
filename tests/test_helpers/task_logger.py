@@ -8,3 +8,4 @@ class TaskLoggerShim(TaskLogger):
     def __init__(self, buffer_db: Any) -> None:
         self._buffer_db = cast(SampleBufferDatabase, buffer_db)
         self._init_stale_flush_state()
+        self._finished = False
