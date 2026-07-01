@@ -159,6 +159,48 @@ def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
 
 
 @pytest.mark.parametrize(
+    "model_name,disabled",
+    [
+        # 4.7+ run adaptive thinking by default and accept `disabled`
+        ("claude-sonnet-5", True),
+        ("claude-opus-4-8", True),
+        ("claude-opus-4-7", True),
+        # Fable/Mythos 5 always think and reject `disabled` — leave thinking unset
+        ("claude-fable-5", False),
+        ("claude-mythos-5", False),
+        # pre-4.7 default to no thinking — omitting the field already means off
+        ("claude-sonnet-4-6", False),
+        ("claude-sonnet-4-5", False),
+    ],
+)
+def test_anthropic_reasoning_effort_none_disables_thinking(
+    model_name: str, disabled: bool
+) -> None:
+    """`reasoning_effort="none"` disables thinking only where it applies.
+
+    Sends `thinking:{type:"disabled"}` where thinking is on by default and can be
+    turned off (Claude 4.7+, excluding Fable/Mythos); omits it otherwise.
+    """
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none")
+    )
+    if disabled:
+        assert params["thinking"] == {"type": "disabled"}
+    else:
+        assert "thinking" not in params
+
+
+def test_anthropic_reasoning_effort_high_still_adaptive_on_sonnet_5() -> None:
+    """A real effort still routes to adaptive thinking on Sonnet 5 (not disabled)."""
+    api = AnthropicAPI(model_name="claude-sonnet-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="high")
+    )
+    assert params["thinking"]["type"] == "adaptive"
+
+
+@pytest.mark.parametrize(
     "header_key", ["anthropic_beta", "anthropic-beta", "Anthropic-Beta"]
 )
 def test_anthropic_full_thinking_beta_via_extra_header(header_key: str) -> None:
@@ -1056,7 +1098,11 @@ def _computer_tool_info() -> ToolInfo:
     "model_name", ["claude-fable-5", "claude-mythos-5", "claude-opus-5-0"]
 )
 def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
-    """Claude 5 (any claude-*-5) has no native computer-use version; error not degrade."""
+    """Undocumented Claude 5 models error on computer use rather than degrade.
+
+    Covers Fable/Mythos and forward-compat non-Sonnet variants (e.g. Opus 5).
+    Sonnet 5 is supported and covered by test_anthropic_computer_use_tool_version.
+    """
     from inspect_ai._util.error import PrerequisiteError
 
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
@@ -1077,6 +1123,8 @@ def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
         ("claude-opus-4-6", "computer_20251124"),
         ("claude-opus-4-5", "computer_20251124"),
         ("claude-sonnet-4-6", "computer_20251124"),
+        # Sonnet 5: the one Claude 5 model Anthropic documents for computer use
+        ("claude-sonnet-5", "computer_20251124"),
         # Older 4.x → computer_20250124
         ("claude-sonnet-4-5", "computer_20250124"),
         ("claude-haiku-4-5", "computer_20250124"),
@@ -1085,7 +1133,7 @@ def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
 def test_anthropic_computer_use_tool_version(
     model_name: str, expected_type: str
 ) -> None:
-    """4.x models map to the correct native computer-use tool version."""
+    """Models map to the correct native computer-use tool version."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     param = api.computer_use_tool_param(_computer_tool_info())
     assert param is not None
