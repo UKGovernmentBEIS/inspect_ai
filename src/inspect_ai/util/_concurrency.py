@@ -521,6 +521,18 @@ class ResizableSemaphore(ConcurrencySemaphore):
     def value(self) -> int:
         return self._limiter.available
 
+    @property
+    def in_use(self) -> int:
+        """Exact borrowed count (holders currently inside the limiter).
+
+        Prefer this over the status-display ``concurrency - value`` derivation:
+        once the limit is lowered below the in-flight count, ``value`` clamps to
+        0 and that derivation would report ``concurrency`` rather than the true
+        (higher) borrowed count. This reads ``borrowed_tokens`` directly, so it
+        stays exact through a shrink-below-in-use.
+        """
+        return self._limiter.in_use
+
     def set_concurrency(self, new: int) -> None:
         """Change the limit live. Lowering below in-use blocks new acquires."""
         self._limiter.limit = new

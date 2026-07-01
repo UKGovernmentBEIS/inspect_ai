@@ -95,11 +95,15 @@ async def eval_limits(
     else:
         max_samples_view = {"adjustable": False}
 
+    # Read `in_use` from the limiter directly (exact borrowed count) rather than
+    # deriving it as `concurrency - value`: once a limit is lowered below the
+    # in-flight count, `value` clamps to 0 and that derivation would report
+    # `concurrency` instead of the true (higher) borrowed count.
     max_sandboxes_view = [
         {
             "type": sandbox_type,
             "limit": sem.concurrency,
-            "in_use": sem.concurrency - sem.value,
+            "in_use": sem.in_use,
         }
         for sandbox_type, sem in sorted(sandbox_limiters().items())
     ]

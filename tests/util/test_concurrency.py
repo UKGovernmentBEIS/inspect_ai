@@ -561,6 +561,43 @@ async def test_resizable_limiter_lower_below_in_use_clamps_available() -> None:
 
 
 @pytest.mark.anyio
+async def test_resizable_semaphore_in_use_exact_below_limit() -> None:
+    """`ResizableSemaphore.in_use` stays exact once the limit drops below in-use.
+
+    The `concurrency - value` derivation the status display uses would report
+    `concurrency` here (because `value` clamps to 0); `in_use` reads the
+    limiter's borrowed count directly and stays exact.
+    """
+    from inspect_ai.util._concurrency import ResizableSemaphore
+
+    sem = ResizableSemaphore("docker", 3, True)
+    both_in = anyio.Event()
+    release = anyio.Event()
+    entered = 0
+
+    async def holder() -> None:
+        nonlocal entered
+        async with sem.semaphore:
+            entered += 1
+            if entered == 2:
+                both_in.set()
+            await release.wait()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(holder)
+        tg.start_soon(holder)
+        await both_in.wait()
+        assert sem.in_use == 2
+        # lower below in-use: value clamps to 0 (so concurrency - value == limit),
+        # but in_use stays the true borrowed count
+        sem.set_concurrency(1)
+        assert sem.value == 0
+        assert sem.concurrency - sem.value == 1  # the misleading derivation
+        assert sem.in_use == 2  # exact
+        release.set()
+
+
+@pytest.mark.anyio
 async def test_resizable_limiter_rejects_non_positive() -> None:
     from inspect_ai.util._concurrency import ResizableLimiter
 
