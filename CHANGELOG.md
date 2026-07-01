@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Performance: Reading `.eval` logs now looks up zip members via a cached O(1) name index instead of an O(members) scan per member, removing quadratic (O(members²)) overhead when loading logs with many samples (e.g. `read_eval_log`, `eval-retry`, `samples_df(full=True)`).
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
 
 ## 0.3.244 (01 July 2026)
