@@ -1152,9 +1152,20 @@ def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
     else:
         click.echo("limits:")
 
+    # On a dry-run the server reports the pre-change view (nothing was mutated);
+    # the intended values live in `requested`. Render `current → would-be` so the
+    # header's promise is met without losing the current value. On a real set the
+    # view already reflects the applied change, so no arrow is needed.
+    requested = config.get("requested") if dry_run else None
+    requested = requested if isinstance(requested, dict) else {}
+
+    def _target(current: Any, key: str) -> str:
+        proposed = requested.get(key)
+        return f"{current}{'' if proposed is None or proposed == current else f' → {proposed}'}"
+
     max_samples = config.get("max_samples") or {}
     if max_samples.get("adjustable"):
-        limit = max_samples.get("limit")
+        limit = _target(max_samples.get("limit"), "max_samples")
         in_use = max_samples.get("in_use")
         click.echo(f"  max samples:   {limit} ({in_use} in use)")
     else:
@@ -1163,7 +1174,7 @@ def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
     sandboxes = config.get("max_sandboxes") or []
     if sandboxes:
         rendered = ", ".join(
-            f"{s.get('type')} {s.get('limit')} ({s.get('in_use')} in use)"
+            f"{s.get('type')} {_target(s.get('limit'), 'max_sandboxes')} ({s.get('in_use')} in use)"
             for s in sandboxes
         )
         click.echo(f"  max sandboxes: {rendered}")

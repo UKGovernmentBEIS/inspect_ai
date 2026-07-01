@@ -250,14 +250,41 @@ def test_print_limits_dry_run_header(capsys: pytest.CaptureFixture[str]) -> None
         {
             "dry_run": True,
             "max_samples": {"limit": 20, "in_use": 0, "adjustable": True},
-            "max_sandboxes": [],
-            "requested": {"max_samples": 40},
+            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
+            "requested": {"max_samples": 40, "max_sandboxes": 16},
             "warnings": [],
         },
         changed=True,
     )
     out = capsys.readouterr().out
     assert "would-be limits (dry run):" in out
+    # would-be values render as `current → requested`, not the bare current value
+    assert "max samples:   20 → 40 (0 in use)" in out
+    assert "docker 8 → 16 (3 in use)" in out
+
+
+def test_print_limits_dry_run_unchanged_knob_has_no_arrow(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dry-run knob whose requested value equals the current one shows no arrow."""
+    from inspect_ai._cli.ctl import _print_limits
+
+    _print_limits(
+        {
+            "dry_run": True,
+            "max_samples": {"limit": 20, "in_use": 0, "adjustable": True},
+            # max_sandboxes not in `requested` (only max_samples was set), and
+            # max_samples requested == current, so neither line gets an arrow.
+            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
+            "requested": {"max_samples": 20},
+            "warnings": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "→" not in out
+    assert "max samples:   20 (0 in use)" in out
+    assert "docker 8 (3 in use)" in out
 
 
 def test_limits_route_error_becomes_500() -> None:
