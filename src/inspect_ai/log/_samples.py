@@ -36,6 +36,7 @@ from inspect_ai.util._sandbox import SandboxConnection
 from inspect_ai.util._sandbox.context import sandbox_connections
 
 from ..event._model import ModelEvent
+from ..util._store import Store
 from ._transcript import Transcript
 
 logger = getLogger(__name__)
@@ -57,6 +58,7 @@ class ActiveSample:
         working_limit: int | None,
         fails_on_error: bool,
         transcript: Transcript,
+        store: Store | None = None,
         sandboxes: dict[str, SandboxConnection],
         checkpointer: CheckpointerSetup,
         eval_id: str,
@@ -92,6 +94,7 @@ class ActiveSample:
         self.total_cost: float | None = None
         self.fallback_models: list[str] = []
         self.transcript = transcript
+        self.store = store
         self.sandboxes = sandboxes
         self.checkpointer = checkpointer
         self.eval_set_id = eval_set_id
@@ -271,6 +274,7 @@ async def active_sample(
     working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
+    store: Store | None = None,
     eval_id: str,
     checkpoint: ResolvedCheckpointConfig | None = None,
     resume_checkpoint: ResumeCheckpoint | None = None,
@@ -297,6 +301,7 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
+        store=store,
         checkpointer=create_checkpointer(
             config=checkpoint,
             log_location=log_location,

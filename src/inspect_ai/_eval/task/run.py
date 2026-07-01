@@ -1205,6 +1205,7 @@ async def task_run_sample(
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
+            store=state.store,
             checkpoint=resolved_checkpoint,
             resume_checkpoint=resume_checkpoint,
             eval_set_id=eval_set_id,
