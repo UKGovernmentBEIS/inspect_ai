@@ -18,6 +18,7 @@ from inspect_ai.scorer import (
     Value,
     ValueToFloat,
     at_least,
+    collect,
     match,
     max_score,
     mean_score,
@@ -45,6 +46,7 @@ pass_k_2_no_threshold = pass_k(2)
 pass_k_3_threshold = pass_k(3, 2)
 pass_k_5_no_threshold = pass_k(5)
 pass_k_5_threshold = pass_k(5, 2)
+collect_reducer = collect()
 
 
 def test_simple_reducers() -> None:
@@ -771,6 +773,53 @@ def _test_dict_reducers_impl(include_nan: bool = False) -> None:
     assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
     assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert pass_k_2_no_threshold(dict_scores).value == {"coolness": 1, "spiciness": 1}
+
+
+def test_collect_scalar() -> None:
+    scores = [Score(value=1), Score(value=0), Score(value=1)]
+    assert collect_reducer(scores).value == [1, 0, 1]
+
+
+def test_collect_strings() -> None:
+    scores = [Score(value="a"), Score(value="b")]
+    assert collect_reducer(scores).value == ["a", "b"]
+
+
+def test_collect_drops_nan() -> None:
+    scores = [Score(value=1), Score(value=float("nan")), Score(value=0)]
+    assert collect_reducer(scores).value == [1, 0]
+
+
+def test_collect_all_nan() -> None:
+    scores = [Score(value=float("nan")), Score(value=float("nan"))]
+    assert _is_nan(collect_reducer(scores).value)
+
+
+def test_collect_lookup_by_name() -> None:
+    reducer = create_reducers("collect")[0]
+    assert reducer([Score(value=1), Score(value=2)]).value == [1, 2]
+
+
+def test_collect_non_scalar_raises() -> None:
+    for non_scalar in (Score(value={"a": 1}), Score(value=[1, 2])):
+        with pytest.raises(ValueError, match="requires scalar score values"):
+            collect_reducer([Score(value=1), non_scalar])
+
+
+def test_collect_preserve_metadata() -> None:
+    scores = [
+        Score(
+            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+        ),
+        Score(
+            value=0, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+        ),
+    ]
+    reduced = collect_reducer(scores)
+    assert reduced.value == [1, 0]
+    assert reduced.answer == "1"
+    assert reduced.explanation == "An explanation"
+    assert reduced.metadata == {"foo": "bar"}
 
 
 def _is_nan(x: Any) -> bool:

@@ -1,3 +1,8 @@
+## Unreleased
+
+- Scoring: Add `krippendorff_alpha()` metric for inter-rater agreement across multiple judges, with nominal / ordinal / interval measurement scales.
+- Scoring: Add `collect` score reducer that preserves each scorer's value as a list instead of aggregating.
+
 ## 0.3.243 (30 June 2026)
 
 - Bugfix: Elapsed-time displays (e.g. the running-sample clock and timers) no longer render an impossible `:60` seconds when the elapsed time has a fractional second.
