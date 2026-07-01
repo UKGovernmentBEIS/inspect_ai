@@ -2,23 +2,34 @@
 
 Design note — hash-based dedup
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Pool dedup keys on a murmur3 hash of the sorted-keys JSON serialisation
-of each ChatMessage, excluding the ``id`` field so that messages with
-identical content but different UUIDs are treated as duplicates.
+Pool dedup keys on a murmur3 hash of the canonical JSON serialisation of
+each ChatMessage (pydantic field order; dict fields keep insertion order
+through a serialize/parse round-trip, so rebuild-time hashes match),
+excluding the ``id`` field so that messages with identical content but
+different UUIDs are treated as duplicates.
 
-The theoretical cost is O(N²) serialisations per sample (each of the N
-model events carries the full conversation history of ~N messages).
-In practice an ``id(obj)`` → hash cache avoids re-serialising the same
-Python object, bringing the common case back to O(N) while remaining
-correct even when users mutate objects (same object identity = same
-content by definition).
+``condense_model_event_inputs`` hashes every message and relies on a
+per-call ``id(obj)`` cache; that is O(N) only when a single call spans
+all events (the final-log and recover paths). ``condense_model_event_calls``
+additionally uses prefix-matching against the previous event's wire list
+to skip hashing the equal prefix, hashing only the divergent tail per
+event; the batch call is O(total unique call messages).
+
+Per-event callers (the sample buffer and the transcript store) must NOT
+call these one event at a time — that is O(N²) in conversation length
+(each of the N model events carries the full ~N-message history). They
+use the incremental indices in ``inspect_ai.event._pool_index`` instead,
+which resolve re-sent messages by object identity / id-bucket equality
+and hash only genuinely new content.
 """
 
+import dataclasses
 import json
-from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Final, TypeVar
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Final, TypeVar, cast
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
+from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.event._validate import validate_events
@@ -38,13 +49,96 @@ def materialize_pooled_events(
     return resolve_model_event_calls(materialized, call_pool)
 
 
+def _strict_eq(a: object, b: object) -> bool:
+    """Equality that distinguishes values with different JSON serializations.
+
+    Python ``==`` conflates values the pool hashes distinguish: ``0 == 0.0``
+    and ``True == 1``, but ``json.dumps`` emits different bytes for each, so
+    ``_msg_hash``/``_call_hash`` differ. An ``==``-based merge of such values
+    would reuse a pool entry whose stored bytes round-trip to the *other*
+    value — silent data corruption. This comparison requires matching types
+    for scalars (recursing into models, dataclasses, dicts, and lists), so a
+    merge implies identical serialization.
+    """
+    if a is b:
+        return True
+    ta, tb = type(a), type(b)
+    if ta is not tb:
+        return False
+    if isinstance(a, BaseModel):
+        return _strict_eq(a.__dict__, b.__dict__)  # type: ignore[attr-defined]
+    if dataclasses.is_dataclass(a) and not isinstance(a, type):
+        return _strict_eq(vars(a), vars(b))
+    if ta is dict:
+        assert isinstance(a, dict) and isinstance(b, dict)
+        if len(a) != len(b):
+            return False
+        sentinel = object()
+        for k, v in a.items():
+            other = b.get(k, sentinel)
+            if other is sentinel or not _strict_eq(v, other):
+                return False
+            # dict lookup matches keys by ==, which conflates 0/0.0 and
+            # True/1 on the key axis just like values ({0: x} and {0.0: x}
+            # serialize to different JSON); str keys (the JSON-bound common
+            # case) cannot ==-collide across types, so only non-str keys
+            # need their counterpart's type checked
+            if type(k) is not str and not any(
+                bk == k and type(bk) is type(k) for bk in b
+            ):
+                return False
+        return True
+    if ta is list or ta is tuple:
+        assert isinstance(a, (list, tuple)) and isinstance(b, (list, tuple))
+        return len(a) == len(b) and all(_strict_eq(x, y) for x, y in zip(a, b))
+    return a == b
+
+
 def _msg_hash(msg: ChatMessage) -> str:
-    data = json.loads(msg.model_dump_json(exclude={"id"}))
-    return mm3_hash(json.dumps(data, sort_keys=True))
+    # Hash pydantic's canonical serialization directly (field order is
+    # class-definition order; dict fields keep insertion order through a
+    # serialize/parse round-trip, so rebuild-time hashes match). A dict
+    # with different key insertion order hashes differently — that only
+    # costs a duplicate pool entry, never wrong dedup.
+    return mm3_hash(msg.model_dump_json(exclude={"id"}))
+
+
+def _msg_pool_jsonable(msg: ChatMessage) -> JsonValue:
+    """Jsonable form of a message-pool row (serialize with `_msg_pool_json`)."""
+    return cast(
+        JsonValue, to_jsonable_python(msg, exclude_none=True, fallback=lambda _: None)
+    )
+
+
+def _msg_pool_json(message_jsonable: JsonValue) -> str:
+    """Serialize a message-pool row for storage.
+
+    Owns the hash↔storage round-trip invariant: stored bytes must re-parse
+    to a message whose `_msg_hash` equals the hash stored beside them.
+    `_msg_hash` hashes insertion-order serialization, so storage must
+    preserve insertion order too — never ``sort_keys=True``, which would
+    reorder dict fields (tool-call arguments, metadata) and make re-seeded
+    rows miss their own hash, duplicating pool entries on every resume.
+    """
+    return json.dumps(message_jsonable)
+
+
+def _call_hash(call_msg: JsonValue) -> str:
+    return mm3_hash(json.dumps(call_msg, sort_keys=True))
+
+
+def _call_pool_json(call_msg: JsonValue) -> str:
+    """Serialize a call-pool row for storage.
+
+    Owns the hash↔storage round-trip invariant for the call pool: stored
+    bytes must re-hash (via `_call_hash` after re-parse) to the hash stored
+    beside them. `_call_hash` sorts keys, so storage sorts keys too.
+    """
+    return json.dumps(call_msg, sort_keys=True)
 
 
 def _build_msg_index(pool: list[ChatMessage]) -> dict[str, int]:
-    """Build msg_id -> pool index mapping, matching condense_model_event_inputs logic."""
+    """Build hash -> pool index mapping, matching condense_model_event_inputs logic."""
     index: dict[str, int] = {}
     for i, msg in enumerate(pool):
         index[_msg_hash(msg)] = i
@@ -55,26 +149,8 @@ def _build_call_index(pool: list[JsonValue]) -> dict[str, int]:
     """Build hash -> pool index mapping, matching condense_model_event_calls logic."""
     index: dict[str, int] = {}
     for i, call_msg in enumerate(pool):
-        index[mm3_hash(json.dumps(call_msg, sort_keys=True))] = i
+        index[_call_hash(call_msg)] = i
     return index
-
-
-def condense_model_event_inputs_with_lookup(
-    event: Event,
-    lookup_message: Callable[[ChatMessage], int],
-) -> Event:
-    """Replace a single ModelEvent.input with message_pool references."""
-    if not isinstance(event, ModelEvent):
-        return event
-    if event.input_refs is not None and not event.input:
-        return event
-    if not event.input:
-        return event
-
-    raw_indices = [lookup_message(message) for message in event.input]
-    return event.model_copy(
-        update={"input": [], "input_refs": _compress_refs(raw_indices)}
-    )
 
 
 def condense_model_event_inputs(
@@ -180,33 +256,6 @@ def _expand_refs(
     return result
 
 
-def condense_model_event_calls_with_lookup(
-    event: Event,
-    lookup_call: Callable[[JsonValue], int],
-) -> Event:
-    """Replace a single ModelEvent call request message list with call_refs."""
-    if not isinstance(event, ModelEvent) or event.call is None:
-        return event
-    if event.call.call_refs is not None:
-        return event
-
-    msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in event.call.request), None)
-    msgs = event.call.request.get(msg_key) if msg_key else None
-    if not isinstance(msgs, list) or not msgs:
-        return event
-
-    raw_indices = [lookup_call(message) for message in msgs]
-    new_request = {k: v for k, v in event.call.request.items() if k != msg_key}
-    new_call = event.call.model_copy(
-        update={
-            "request": new_request,
-            "call_refs": _compress_refs(raw_indices),
-            "call_key": msg_key,
-        }
-    )
-    return event.model_copy(update={"call": new_call})
-
-
 def condense_model_event_calls(
     events: Sequence[Event],
     next_index: int,
@@ -218,6 +267,12 @@ def condense_model_event_calls(
     and replaces ``event.call.request[<messages_key>]`` with range-encoded
     ``call_refs``. Callers that need the pool list must rebuild it from
     ``new_entries``.
+
+    Wire requests are append-mostly, so the equal prefix of each event's
+    message list is resolved against the previous event's pool indices
+    without hashing; only the divergent tail is hashed. Output is identical
+    to hashing every message: a prefix element equal to the previous
+    element resolves to the index that hash-dedup of equal content would produce.
 
     Args:
         events: Events to condense.
@@ -234,6 +289,8 @@ def condense_model_event_calls(
     index = dict(call_index)
     new_entries: list[tuple[str, JsonValue]] = []
     result: list[Event] = []
+    prev_msgs: list[JsonValue] = []
+    prev_indices: list[int] = []
     for event in events:
         if isinstance(event, ModelEvent) and event.call:
             if event.call.call_refs is not None:
@@ -244,13 +301,26 @@ def condense_model_event_calls(
             )
             msgs = event.call.request.get(msg_key) if msg_key else None
             if msgs and isinstance(msgs, list):
-                raw_indices: list[int] = []
-                for msg in msgs:
-                    h = mm3_hash(json.dumps(msg, sort_keys=True))
+                # Reuse the previous event's pool indices for the equal prefix;
+                # hash only the tail that diverges.
+                # _strict_eq, not ==: a prefix element drifting 0 -> 0.0 or
+                # True -> 1 is python-equal but serializes (and hashes)
+                # differently; reusing the pool index would round-trip the
+                # other value.
+                prefix_len = 0
+                for msg, prev_msg in zip(msgs, prev_msgs):
+                    if not _strict_eq(msg, prev_msg):
+                        break
+                    prefix_len += 1
+                raw_indices = list(prev_indices[:prefix_len])
+                for msg in msgs[prefix_len:]:
+                    h = _call_hash(msg)
                     if h not in index:
                         index[h] = next_index + len(new_entries)
                         new_entries.append((h, msg))
                     raw_indices.append(index[h])
+                prev_msgs = list(msgs)
+                prev_indices = raw_indices
                 new_request = {
                     k: v for k, v in event.call.request.items() if k != msg_key
                 }

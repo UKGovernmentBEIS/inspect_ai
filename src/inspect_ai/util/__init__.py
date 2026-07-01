@@ -37,6 +37,7 @@ from ._checkpoint import (
     TokenInterval,
     TurnInterval,
     checkpointer,
+    current_checkpointer,
 )
 from ._collect import collect
 from ._concurrency import AdaptiveConcurrency, concurrency
@@ -74,6 +75,7 @@ from ._sandbox import (
     SandboxEnvironmentType,
     is_compose_yaml,
     is_dockerfile,
+    override_sandbox_output_limit,
     parse_compose_yaml,
     sandbox,
     sandbox_default,
@@ -125,6 +127,7 @@ __all__ = [
     "message_limit",
     "notify",
     "OutputLimitExceededError",
+    "override_sandbox_output_limit",
     "parse_compose_yaml",
     "resource",
     "subprocess",
@@ -183,6 +186,7 @@ __all__ = [
     "ExecStderr",
     "ExecStdout",
     "checkpointer",
+    "current_checkpointer",
     "Checkpointer",
     "CheckpointConfig",
     "CheckpointSampleConfig",

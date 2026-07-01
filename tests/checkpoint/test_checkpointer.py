@@ -41,6 +41,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.util import current_checkpointer
 from inspect_ai.util._checkpoint import (
     Manual,
     TimeInterval,
@@ -55,6 +56,7 @@ from inspect_ai.util._checkpoint.checkpointer_impl import (
     CheckpointFailureLimitExceeded,
     _CheckpointerSetup,
     _EnteredCheckpointer,
+    _scan_next_checkpoint_id,
 )
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
@@ -462,6 +464,16 @@ def _write_checkpoint_files(sample_root: Path, count: int) -> None:
         (sample_root / f"ckpt-{checkpoint_id:05d}.json").write_text(
             checkpoint.model_dump_json()
         )
+
+
+async def test_scan_next_checkpoint_id_reuses_torn_checkpoint_id(
+    tmp_path: Path,
+) -> None:
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    (sample_root / "ckpt-00003.json").write_text("{")
+
+    assert await _scan_next_checkpoint_id(str(sample_root)) == 3
 
 
 def _checkpoint_resume_events(count: int) -> list[Event]:
@@ -1043,6 +1055,124 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     assert (context / "events_data.json").is_file()
     assert (context / "attachments.json").is_file()
     assert (context / "store.json").is_file()
+
+
+# === nested re-entry: sub-agent loops (agent-as-tool / handoff / deepagent) ==
+
+
+async def test_nested_checkpointer_entry_yields_inert_session(
+    active_sample: _FakeActiveSample,
+) -> None:
+    """A nested ``checkpointer()`` borrows an inert session, not the owner's.
+
+    A react sub-agent run inside another (agent-as-tool, handoff, deepagent
+    task) re-enters the per-sample session; it gets a no-op, so ``track`` can't
+    collide and ``tick`` can't drive the owner's trigger.
+    """
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=1))
+    assert active_sample.sample.id is not None
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=active_sample.sample.id,
+        epoch=active_sample.epoch,
+    )
+    log = Path(active_sample.log_location)
+    sample_dir = log.parent / f"{log.stem}.checkpoints" / "1__0"
+
+    async with checkpointer() as outer:
+        outer.track("messages", lambda: ["a"], ["a"], value_type=list[str])
+        async with checkpointer() as inner:
+            assert inner is not outer
+            assert isinstance(inner, _NoopCheckpointer)
+            # same key the owner tracks: a real session raises, the no-op returns initial
+            restored = inner.track(
+                "messages", lambda: ["b"], ["b"], value_type=list[str]
+            )
+            assert restored == ["b"]
+            await inner.tick()
+
+        # owner's session intact: it still owns "messages" (re-track collides),
+        # and the inert nested tick fired nothing despite every=1
+        with pytest.raises(ValueError, match="unique"):
+            outer.track("messages", lambda: ["a"], ["a"], value_type=list[str])
+        assert sample_dir.is_dir()
+        assert not list(sample_dir.glob("ckpt-*.json"))
+
+
+async def test_nested_checkpointer_preserves_owner_session_lifecycle(
+    active_sample: _FakeActiveSample,
+) -> None:
+    """A nested ``checkpointer()`` exit must not tear down the owner's session.
+
+    The owner stays reachable via ``current_checkpointer()`` and fires its one
+    ``agent_complete`` finalize on its *own* clean exit, not early on the nested
+    exit.
+    """
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+
+    active_sample.sample.id = "s_nested"
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=Manual())
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=active_sample.sample.id,
+        epoch=active_sample.epoch,
+    )
+    log = Path(active_sample.log_location)
+    sample_dir = log.parent / f"{log.stem}.checkpoints" / "s_nested__0"
+
+    async with checkpointer() as outer:
+        async with checkpointer():
+            pass
+        # the nested exit left the owner's session live and un-finalized
+        assert current_checkpointer() is outer
+        assert sample_dir.is_dir()
+        assert not list(sample_dir.glob("ckpt-*.json"))
+
+    # the owner's clean exit fires exactly one agent_complete checkpoint
+    assert sorted(p.name for p in sample_dir.glob("ckpt-*.json")) == ["ckpt-00001.json"]
+    final = Checkpoint.model_validate_json((sample_dir / "ckpt-00001.json").read_text())
+    assert final.trigger == "agent_complete"
+
+
+async def test_nested_checkpointer_body_exception_does_not_disturb_owner(
+    active_sample: _FakeActiveSample,
+) -> None:
+    """An exception from a nested scope unwinds without disturbing the owner.
+
+    A raising sub-agent unwinds through the inert no-op, so the owner's one-shot
+    finalize isn't spent early and its span scope isn't wedged.
+    """
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+
+    active_sample.sample.id = "s_nested_exc"
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=Manual())
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=active_sample.sample.id,
+        epoch=active_sample.epoch,
+    )
+    log = Path(active_sample.log_location)
+    sample_dir = log.parent / f"{log.stem}.checkpoints" / "s_nested_exc__0"
+
+    async with checkpointer() as outer:
+        with pytest.raises(ValueError, match="boom"):
+            async with checkpointer():
+                raise ValueError("boom")
+        # the caught nested exception left the owner live and un-finalized
+        assert current_checkpointer() is outer
+        assert sample_dir.is_dir()
+        assert not list(sample_dir.glob("ckpt-*.json"))
+        await outer.tick()  # span session not wedged; Manual() never fires
+
+    # the owner still fires exactly one agent_complete on its own clean exit
+    assert sorted(p.name for p in sample_dir.glob("ckpt-*.json")) == ["ckpt-00001.json"]
+    final = Checkpoint.model_validate_json((sample_dir / "ckpt-00001.json").read_text())
+    assert final.trigger == "agent_complete"
 
 
 # === _write_host_context: condensed events round-trip =======================

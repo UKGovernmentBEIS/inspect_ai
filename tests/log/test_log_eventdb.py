@@ -561,6 +561,22 @@ def test_running_tasks():
             assert len(SampleBufferFilestore.running_tasks(log_dir)) == 2
 
 
+def test_running_tasks_hashes_canonical_log_uri(tmp_path, monkeypatch):
+    class StubFileSystem:
+        def path_as_uri(self, path: str) -> str:
+            assert path == "raw-log-dir"
+            return "canonical-log-dir"
+
+    db_dir = tmp_path / database_module.log_dir_hash("canonical-log-dir")
+    db_dir.mkdir()
+    (db_dir / "task.eval.123.db").touch()
+
+    monkeypatch.setattr(database_module, "filesystem", lambda _: StubFileSystem())
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda: tmp_path)
+
+    assert SampleBufferDatabase.running_tasks("raw-log-dir") == ["task.eval"]
+
+
 def test_connection_is_reused_within_thread(
     db: SampleBufferDatabase, sample: EvalSampleSummary
 ) -> None:

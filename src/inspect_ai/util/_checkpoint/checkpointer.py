@@ -160,6 +160,14 @@ class CheckpointerSetup(Protocol):
 
     def close(self) -> None: ...
 
+    def current(self) -> Checkpointer | None:
+        """The :class:`Checkpointer` the agent has entered, or ``None``.
+
+        Returns the cached session once ``__aenter__`` has run, else
+        ``None``. Backs :func:`current_checkpointer`.
+        """
+        ...
+
 
 @contextlib.asynccontextmanager
 async def checkpointer() -> AsyncIterator[Checkpointer]:
@@ -180,6 +188,52 @@ async def checkpointer() -> AsyncIterator[Checkpointer]:
     active = sample_active()
     if active is None:
         raise RuntimeError("checkpointer() must be called inside an active sample")
+    # The checkpoint session is one-per-sample. A nested re-entry — a react
+    # sub-agent run as a tool / handoff / deepagent task — must not re-open the
+    # owner's session (re-opening its span scope trips "SpanRotationScope
+    # already open"); hand the nested loop an inert session instead.
+    if active.checkpointer.current() is not None:
+        from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+        async with _NoopCheckpointer() as nested:
+            yield nested
+        return
     async with active.checkpointer as cp:
         async with cp.span_session():
             yield cp
+
+
+def current_checkpointer() -> Checkpointer | None:
+    """Return the checkpointer the active agent has entered, or ``None``.
+
+    Unlike :func:`checkpointer` — an async context manager that *opens* a
+    session — this is a plain accessor for the session the owning agent has
+    *already* opened. Use it from a sub-component that runs INSIDE the
+    owner's ``async with checkpointer()`` scope and needs to register a
+    slice of resumable state via :meth:`Checkpointer.track`: a custom
+    ``model`` agent passed to ``react()``, or a tool.
+
+    The session is shared and singular, so:
+
+    - Do **not** re-enter :func:`checkpointer` from a sub-component — that
+      yields an inert no-op session, so its ``track`` calls are silently
+      dropped. Borrow via this accessor instead.
+    - ``track`` keys share one namespace and collide (raising
+      ``ValueError``) across components; prefix yours uniquely (the agent
+      bridge uses ``"bridge_*"`` keys, for example).
+    - This borrows the owner's session; it is not a way to run a *nested*
+      agent loop. There is one turn counter, one trigger, and one final
+      checkpoint per session, so a nested loop driving its own
+      :meth:`Checkpointer.tick` is not supported.
+
+    Returns ``None`` outside an active sample, or before the owner has
+    opened ``async with checkpointer()``.
+    """
+    # Function-scoped import to avoid a load-time cycle with
+    # `inspect_ai.log._samples`.
+    from inspect_ai.log._samples import sample_active
+
+    active = sample_active()
+    if active is None:
+        return None
+    return active.checkpointer.current()
