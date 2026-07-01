@@ -16,12 +16,24 @@ from inspect_ai.tool import Tool, tool
 @pytest.mark.slow
 @flaky_retry(max_retries=3)
 def test_anthropic_native_compaction_context_preservation() -> None:
+    # NOTE: fragile by design. It asserts that native compaction actually
+    # occurred (>=1 compaction event, reference ID preserved), which the model
+    # does not guarantee: Anthropic documents that a compaction request may
+    # return null/empty content, and with the strict CompactionNative strategy
+    # (no fallback) that makes the eval fail — only the flaky_retry above lets it
+    # eventually pass. In practice claude-sonnet-5 returns null commonly (~2 of 3
+    # attempts in our runs), so this must NOT be pointed at Sonnet 5; it stays on
+    # claude-opus-4-6, which compacts reliably. (CompactionAuto is the strategy
+    # that tolerates null by degrading to summary; this test intentionally uses
+    # the strict native path.)
     check_native_compaction_context_preservation("anthropic/claude-opus-4-6")
 
 
 @skip_if_no_anthropic
 @pytest.mark.slow
 def test_anthropic_native_compaction_context_preservation_reasoning() -> None:
+    # Shares the null-compaction fragility documented on
+    # test_anthropic_native_compaction_context_preservation above.
     check_native_compaction_context_preservation(
         "anthropic/claude-opus-4-6", config=GenerateConfig(reasoning_effort="medium")
     )
