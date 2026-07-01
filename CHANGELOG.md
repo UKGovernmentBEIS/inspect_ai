@@ -1,6 +1,6 @@
-## Unreleased
+## 0.3.244 (01 July 2026)
 
-- Anthropic: Support for [Claude Sonnet 5](https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5).
+- Anthropic: Various changes related to [Sonnet 5](https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5).
 
 ## 0.3.243 (30 June 2026)
 
