@@ -270,10 +270,10 @@ class EvalState:
     sample_limiter: "ResizableLimiter | None" = None
     """The eval's live-resizable sample-concurrency limiter (``max_samples``).
 
-    Attached by the runner (via :func:`attach_sample_limiter`) after it builds
-    the sample semaphore, so the control channel's modify-limits directive can
-    read and retune ``max_samples`` mid-eval. ``None`` when the eval's sample
-    concurrency isn't a user setpoint — i.e. the adaptive
+    Passed to :func:`register_eval` by the runner (which builds the sample
+    semaphore just before registering), so the control channel's modify-limits
+    directive can read and retune ``max_samples`` mid-eval. ``None`` when the
+    eval's sample concurrency isn't a user setpoint — i.e. the adaptive
     (``DynamicSampleLimiter``) path, or a reused/synthetic eval that never ran
     samples in this process — in which case the directive reports ``max_samples``
     as not adjustable."""
@@ -334,12 +334,14 @@ def register_eval(
     epochs: int = 1,
     run_id: str | None = None,
     will_retry: bool = False,
+    sample_limiter: "ResizableLimiter | None" = None,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
-    Idempotent on ``eval_id`` — re-registering an existing eval (eg.
-    on retry) returns the existing state without resetting its
-    counters.
+    Idempotent on ``eval_id`` — re-registering an existing eval returns the
+    existing state without resetting its counters. Each retry attempt gets a
+    fresh ``eval_id`` (see ``TaskLogger.reinit``), so this early-return never
+    strands a superseded attempt's ``sample_limiter``.
     """
     with _lock:
         existing = _eval_states.get(eval_id)
@@ -357,6 +359,7 @@ def register_eval(
             epochs=epochs,
             run_id=run_id,
             will_retry=will_retry,
+            sample_limiter=sample_limiter,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
@@ -525,23 +528,6 @@ def record_sample_cancelled(
             state.total_messages += messages
             state.observe_started(started)
             _maybe_mark_finished(state)
-
-
-def attach_sample_limiter(
-    eval_id: str, sample_limiter: "ResizableLimiter | None"
-) -> None:
-    """Attach an eval's resizable sample-concurrency limiter (``max_samples``).
-
-    Called by the runner once the sample semaphore is built (which happens after
-    :func:`register_eval`). Enables the control channel's modify-limits directive
-    to read / retune ``max_samples`` for this eval. A ``None`` limiter (the
-    adaptive path) leaves the eval reporting ``max_samples`` as not adjustable.
-    No-ops if the eval isn't registered.
-    """
-    with _lock:
-        state = _eval_states.get(eval_id)
-        if state is not None:
-            state.sample_limiter = sample_limiter
 
 
 def detach_eval_live(eval_id: str) -> None:

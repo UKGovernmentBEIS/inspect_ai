@@ -14,7 +14,6 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
-    attach_sample_limiter,
     finalize_eval,
     record_sample_cancelled,
     record_sample_completed,
@@ -498,6 +497,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # call hook
             await emit_task_start(logger)
 
+            # semaphore to limit concurrency
+            from inspect_ai.util._concurrency import ResizableLimiter
+
+            sample_semaphore = create_sample_semaphore(
+                config, generate_config, model.api
+            )
+
             # Register this eval with the process-level state aggregate
             # so the control channel (and other readers) can answer
             # "how many samples queued / running / done?" without
@@ -518,6 +524,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # control channel show cancelled samples as pending (re-run
                 # coming) vs cancelled (terminal)
                 will_retry=task_cancel.can_retry if task_cancel is not None else False,
+                # the control channel's modify-limits directive reads / retunes
+                # max_samples through this limiter (only the static
+                # ResizableLimiter path is a user setpoint; the adaptive path
+                # registers None and reports max_samples as "not adjustable")
+                sample_limiter=sample_semaphore
+                if isinstance(sample_semaphore, ResizableLimiter)
+                else None,
             )
 
             # call early stopping if we have it
@@ -552,23 +565,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                 # set generate for fork module
                 set_task_generate(generate)
-
-                # semaphore to limit concurrency
-                from inspect_ai.util._concurrency import ResizableLimiter
-
-                sample_semaphore = create_sample_semaphore(
-                    config, generate_config, model.api
-                )
-                # expose the sample limiter to the control channel so its
-                # modify-limits directive can retune max_samples mid-eval (only
-                # the static ResizableLimiter path is a user setpoint; the
-                # adaptive path attaches None and reports "not adjustable")
-                attach_sample_limiter(
-                    logger.eval.eval_id,
-                    sample_semaphore
-                    if isinstance(sample_semaphore, ResizableLimiter)
-                    else None,
-                )
 
                 scanned_per_scanner = scanned_transcripts_for_resume(
                     scanner, scan_id, profile.log_location

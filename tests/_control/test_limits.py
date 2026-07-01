@@ -11,7 +11,6 @@ import httpx
 import pytest
 
 from inspect_ai._control.eval_state import (
-    attach_sample_limiter,
     clear_all_eval_states,
     register_eval,
 )
@@ -39,8 +38,7 @@ def _clear_states():
 
 
 async def test_limits_read_only() -> None:
-    register_eval("e1", 5)
-    attach_sample_limiter("e1", ResizableLimiter(20))
+    register_eval("e1", 5, sample_limiter=ResizableLimiter(20))
 
     result = await eval_limits("e1")
     assert result is not None
@@ -53,8 +51,7 @@ async def test_limits_read_only() -> None:
 
 async def test_limits_set_max_samples() -> None:
     limiter = ResizableLimiter(20)
-    register_eval("e1", 5)
-    attach_sample_limiter("e1", limiter)
+    register_eval("e1", 5, sample_limiter=limiter)
 
     result = await eval_limits("e1", max_samples=30)
     assert result is not None
@@ -66,8 +63,7 @@ async def test_limits_set_max_samples() -> None:
 
 async def test_limits_dry_run_does_not_apply() -> None:
     limiter = ResizableLimiter(20)
-    register_eval("e1", 5)
-    attach_sample_limiter("e1", limiter)
+    register_eval("e1", 5, sample_limiter=limiter)
 
     result = await eval_limits("e1", max_samples=30, dry_run=True)
     assert result is not None
@@ -118,8 +114,7 @@ async def test_limits_max_sandboxes_not_adjustable_warns() -> None:
 async def test_limits_both_knobs() -> None:
     limiter = ResizableLimiter(10)
     docker = ResizableSemaphore("docker", 4, True)
-    register_eval("e1", 5)
-    attach_sample_limiter("e1", limiter)
+    register_eval("e1", 5, sample_limiter=limiter)
     register_sandbox_limiter("docker", docker)
 
     result = await eval_limits("e1", max_samples=15, max_sandboxes=6)
@@ -146,8 +141,7 @@ def _app():
 
 async def test_limits_route_get_and_patch() -> None:
     limiter = ResizableLimiter(20)
-    register_eval("e1", 5)
-    attach_sample_limiter("e1", limiter)
+    register_eval("e1", 5, sample_limiter=limiter)
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
@@ -167,8 +161,7 @@ async def test_limits_route_get_and_patch() -> None:
 
 
 async def test_limits_route_rejects_below_one() -> None:
-    register_eval("e1", 5)
-    attach_sample_limiter("e1", ResizableLimiter(20))
+    register_eval("e1", 5, sample_limiter=ResizableLimiter(20))
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
@@ -181,8 +174,7 @@ async def test_limits_route_rejects_below_one() -> None:
 
 async def test_limits_route_dry_run() -> None:
     limiter = ResizableLimiter(20)
-    register_eval("e1", 5)
-    attach_sample_limiter("e1", limiter)
+    register_eval("e1", 5, sample_limiter=limiter)
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
@@ -291,9 +283,7 @@ def test_limits_route_error_becomes_500() -> None:
     """A directive exception surfaces as the structured 500."""
     from inspect_ai._control import server as server_mod
 
-    register_eval("e1", 5)
-
-    # attach a limiter whose setter raises when applied
+    # a limiter whose setter raises when applied
     class _Boom(ResizableLimiter):
         @property
         def limit(self) -> int:
@@ -303,7 +293,7 @@ def test_limits_route_error_becomes_500() -> None:
         def limit(self, value: int) -> None:
             raise RuntimeError("boom")
 
-    attach_sample_limiter("e1", _Boom(5))
+    register_eval("e1", 5, sample_limiter=_Boom(5))
 
     async def scenario() -> httpx.Response:
         app = server_mod.ControlServer(run_id="test")._build_app()
