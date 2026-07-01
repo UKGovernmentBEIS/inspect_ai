@@ -399,15 +399,16 @@ def test_sample_semaphore_uses_dynamic_for_adaptive() -> None:
 
 
 def test_sample_semaphore_explicit_max_samples_wins() -> None:
-    """Explicit max_samples returns plain Semaphore even when adaptive is enabled.
+    """Explicit max_samples returns a static ResizableLimiter, not the adaptive path.
 
     No warning — anticipating adaptive becoming default-on, in which case any
-    deliberate max_samples setting would otherwise produce noise.
+    deliberate max_samples setting would otherwise produce noise. The limiter is
+    resizable (the control channel can retune max_samples mid-eval) but still the
+    non-adaptive path — its limit starts at the requested value.
     """
-    import anyio as _anyio
-
     from inspect_ai._eval.task.run import create_sample_semaphore
     from inspect_ai.log._log import EvalConfig
+    from inspect_ai.util._concurrency import DynamicSampleLimiter, ResizableLimiter
 
     sem = create_sample_semaphore(
         config=EvalConfig(max_samples=5),
@@ -416,22 +417,24 @@ def test_sample_semaphore_explicit_max_samples_wins() -> None:
         ),
         modelapi=None,
     )
-    assert isinstance(sem, _anyio.Semaphore)
+    assert isinstance(sem, ResizableLimiter)
+    assert not isinstance(sem, DynamicSampleLimiter)
+    assert sem.limit == 5
 
 
 def test_sample_semaphore_static_path_unchanged() -> None:
-    """Without adaptive, returns Semaphore with the legacy max_connections-derived size."""
-    import anyio as _anyio
-
+    """Without adaptive, returns a ResizableLimiter sized from max_connections."""
     from inspect_ai._eval.task.run import create_sample_semaphore
     from inspect_ai.log._log import EvalConfig
+    from inspect_ai.util._concurrency import ResizableLimiter
 
     sem = create_sample_semaphore(
         config=EvalConfig(),
         generate_config=GenerateConfig(max_connections=15),
         modelapi=None,
     )
-    assert isinstance(sem, _anyio.Semaphore)
+    assert isinstance(sem, ResizableLimiter)
+    assert sem.limit == 15
 
 
 def test_sample_semaphore_batch_mode_disables_adaptive() -> None:
@@ -442,12 +445,14 @@ def test_sample_semaphore_batch_mode_disables_adaptive() -> None:
     to (since Model._connection_concurrency takes the static path in batch
     mode).
     """
-    import anyio as _anyio
-
     from inspect_ai._eval.task.run import create_sample_semaphore
     from inspect_ai.log._log import EvalConfig
     from inspect_ai.model._generate_config import BatchConfig
-    from inspect_ai.util._concurrency import DynamicSampleLimiter, init_concurrency
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        ResizableLimiter,
+        init_concurrency,
+    )
 
     init_concurrency()
     sem = create_sample_semaphore(
@@ -458,7 +463,7 @@ def test_sample_semaphore_batch_mode_disables_adaptive() -> None:
         ),
         modelapi=None,
     )
-    assert isinstance(sem, _anyio.Semaphore)
+    assert isinstance(sem, ResizableLimiter)
     assert not isinstance(sem, DynamicSampleLimiter)
 
 
