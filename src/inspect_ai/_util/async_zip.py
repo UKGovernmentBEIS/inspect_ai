@@ -6,7 +6,7 @@ stored locally or remotely (e.g., S3) using async range requests.
 
 import struct
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import anyio
@@ -39,6 +39,21 @@ class CentralDirectory:
 
     entries: list[ZipEntry]
     etag: str | None = None
+    _by_name: dict[str, ZipEntry] | None = field(
+        default=None, compare=False, repr=False
+    )
+
+    def entry(self, name: str) -> ZipEntry | None:
+        """Look up a member entry by name in O(1).
+
+        The name index is built lazily on first use and cached. A linear
+        scan over ``entries`` per lookup is O(members) and turns a whole-log
+        read (one lookup per member) into O(members**2); for logs with many
+        samples that quadratic dominates read time.
+        """
+        if self._by_name is None:
+            self._by_name = {e.filename: e for e in self.entries}
+        return self._by_name.get(name)
 
 
 async def _find_central_directory(
@@ -344,7 +359,7 @@ class AsyncZipReader:
 
     async def get_member_entry(self, member_name: str) -> ZipEntry:
         cd = await self.entries()
-        entry = next((e for e in cd.entries if e.filename == member_name), None)
+        entry = cd.entry(member_name)
         if entry is None:
             raise KeyError(member_name)
         return entry
