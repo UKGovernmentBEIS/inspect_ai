@@ -377,9 +377,10 @@ class ControlServer:
                 )
             return result
 
-        # Retune the eval's live concurrency limits. `max_samples` and
-        # `max_sandboxes` are optional query params — omitting both makes this a
-        # read, like GET. `dry_run=true` validates and reports the intended
+        # Retune the eval's live concurrency limits. `max_samples`,
+        # `max_sandboxes` and `max_connections` are optional query params —
+        # omitting all makes this a read, like GET. `dry_run=true` validates
+        # and reports the intended
         # change without applying it (the phase-3 agent-shape constraint).
         # Idempotent: re-applying the same limit is a no-op. Returns the
         # resulting limits view (with any warnings for a knob that isn't
@@ -389,11 +390,13 @@ class ControlServer:
             eval_id: str,
             max_samples: int | None = None,
             max_sandboxes: int | None = None,
+            max_connections: int | None = None,
             dry_run: bool = False,
         ) -> Any:
             for label, value in (
                 ("max_samples", max_samples),
                 ("max_sandboxes", max_sandboxes),
+                ("max_connections", max_connections),
             ):
                 if value is not None and value < 1:
                     return JSONResponse(
@@ -404,6 +407,7 @@ class ControlServer:
                 eval_id,
                 max_samples=max_samples,
                 max_sandboxes=max_sandboxes,
+                max_connections=max_connections,
                 dry_run=dry_run,
             )
             if result is None:

@@ -823,6 +823,32 @@ class AdaptiveConcurrencyController:
         if new != old:
             self._set_limit(new, "rate_limit")
 
+    def set_max(self, new_max: int) -> None:
+        """Retune the controller's scaling ceiling (``max``) mid-flight.
+
+        The control channel's modify-limits directive uses this to throttle (or
+        lift the throttle on) adaptive connections without disabling adaptation.
+
+        Lowering below the current limit clamps the live limit down to the new
+        ceiling immediately — blocking new acquires until in-flight requests
+        drain, never preempting one — and caps subsequent AIMD growth. Raising
+        lifts the ceiling so later clean rounds can grow past the old ``max``;
+        the current limit is left untouched (the controller climbs on its own).
+        ``min`` is pulled down alongside ``max`` if it would otherwise exceed it,
+        preserving the ``min <= max`` invariant.
+
+        Caller is responsible for ``new_max >= 1`` (the route/CLI validate it).
+        """
+        self._config.max = new_max
+        if self._config.min > new_max:
+            self._config.min = new_max
+        # Only the clamp-down changes the live limit; `_set_limit` records the
+        # change and notifies observers (so `DynamicSampleLimiter` follows). On a
+        # raise there's nothing to recompute yet — the sample limiter tracks the
+        # controller's *current* limit, which hasn't moved.
+        if self.concurrency > new_max:
+            self._set_limit(new_max, "manual")
+
     def _set_limit(self, new: int, reason: str) -> None:
         old = self.concurrency
         self._limiter.total_tokens = new
@@ -909,8 +935,13 @@ class DynamicSampleLimiter:
         ctrls = list(adaptive_controllers())
         if not ctrls:
             return
+        # Track the busiest controller's current limit plus a little slack. A
+        # controller's concurrency never exceeds its own `max`, so this already
+        # respects the ceiling — deriving from the live controllers (rather than
+        # this limiter's own snapshot of `_adaptive.max`) means a mid-flight
+        # `set_max` raise isn't silently clamped by a stale cap.
         max_cc = max(c.concurrency for c in ctrls)
-        target = min(max_cc + self.BUFFER, self._adaptive.max + self.BUFFER)
+        target = max_cc + self.BUFFER
         if target != self._limiter.total_tokens:
             self._limiter.total_tokens = target
 

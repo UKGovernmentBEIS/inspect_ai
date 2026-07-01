@@ -702,6 +702,80 @@ async def test_dynamic_sample_limiter_caps_at_adaptive_max_plus_buffer() -> None
     assert lim.total_tokens == 25
 
 
+def test_set_max_lower_clamps_current_limit() -> None:
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=100, start=50), visible=True
+    )
+    c.set_max(30)
+    assert c.max == 30
+    assert c.concurrency == 30  # clamped down immediately
+    _at, _name, old, new, reason = c.history[-1]
+    assert (old, new, reason) == (50, 30, "manual")
+
+
+def test_set_max_raise_lifts_ceiling_without_touching_current() -> None:
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=50, start=40), visible=True
+    )
+    c.set_max(120)
+    assert c.max == 120
+    assert c.concurrency == 40  # raise leaves the current limit alone
+    assert c.history == []  # no scale event recorded on a raise
+    # slow-start can now climb past the old max of 50
+    _saturated_successes(c, 40)
+    assert c.concurrency == 80  # 40 * 2; would have capped at 50 before
+
+
+def test_set_max_pulls_min_down_when_needed() -> None:
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=20, max=100, start=50), visible=True
+    )
+    c.set_max(10)
+    assert c.max == 10
+    assert c.min == 10  # min pulled down to preserve min <= max
+    assert c.concurrency == 10
+
+
+@pytest.mark.anyio
+async def test_set_max_lower_shrinks_sample_limiter() -> None:
+    init_concurrency()
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=100, start=50))
+    cfg = AdaptiveConcurrency(min=1, max=100, start=50)
+    async with concurrency(name="m", concurrency=50, key="k", adaptive=cfg):
+        pass
+    ctrl = adaptive_controllers()[0]
+    assert lim.total_tokens == 50 + DynamicSampleLimiter.BUFFER  # 55
+    ctrl.set_max(20)
+    assert ctrl.concurrency == 20
+    assert lim.total_tokens == 25  # followed down via the observer chain
+
+
+@pytest.mark.anyio
+async def test_set_max_raise_lets_sample_limiter_climb_past_old_max() -> None:
+    """Raising a controller's max lifts the sample limiter's cap too.
+
+    Regression: the limiter used to cap at its own snapshot of `adaptive.max`, so
+    a mid-flight raise was silently clamped. It now derives from the live
+    controllers, so the cap follows the raised ceiling.
+    """
+    init_concurrency()
+    # distinct config objects, as in production (controller vs sample limiter)
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=20, start=10))
+    cfg = AdaptiveConcurrency(min=1, max=20, start=10)
+    async with concurrency(name="m", concurrency=10, key="k", adaptive=cfg):
+        pass
+    ctrl = adaptive_controllers()[0]
+    # scale to the old max (20) → limiter caps at 25
+    _saturated_successes(ctrl, 10)
+    assert ctrl.concurrency == 20
+    assert lim.total_tokens == 25
+    # raise the ceiling, then climb past the old max
+    ctrl.set_max(100)
+    _saturated_successes(ctrl, 20)
+    assert ctrl.concurrency == 40  # 20 * 2; was stuck at 20 before
+    assert lim.total_tokens == 45  # follows up (was stuck at 25 before the fix)
+
+
 @pytest.mark.anyio
 async def test_dynamic_sample_limiter_catches_up_to_existing_controllers() -> None:
     """A limiter created after a controller has already scaled picks up the current limit immediately, not the controller's start value."""

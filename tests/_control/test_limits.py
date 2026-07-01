@@ -16,6 +16,7 @@ from inspect_ai._control.eval_state import (
 )
 from inspect_ai._control.limits import eval_limits
 from inspect_ai.util._concurrency import (
+    AdaptiveConcurrencyController,
     ResizableLimiter,
     ResizableSemaphore,
     init_concurrency,
@@ -166,6 +167,59 @@ async def test_limits_adaptive_empty_when_no_controllers() -> None:
     assert result["adaptive"] == []
 
 
+async def _register_controller(
+    max: int = 100, start: int = 50
+) -> AdaptiveConcurrencyController:
+    from inspect_ai.util._concurrency import (
+        AdaptiveConcurrency,
+        get_or_create_semaphore,
+    )
+
+    ctrl = await get_or_create_semaphore(
+        "openai/gpt-4", 10, None, True, AdaptiveConcurrency(min=1, max=max, start=start)
+    )
+    assert isinstance(ctrl, AdaptiveConcurrencyController)
+    return ctrl
+
+
+async def test_limits_set_max_connections() -> None:
+    """max_connections retunes the adaptive controllers' ceiling."""
+    register_eval("e1", 5)
+    ctrl = await _register_controller(max=100, start=50)
+
+    result = await eval_limits("e1", max_connections=30)
+    assert result is not None
+    assert result["requested"] == {"max_connections": 30}
+    # ceiling lowered and live limit clamped down to it
+    assert ctrl.max == 30
+    assert ctrl.concurrency == 30
+    a = result["adaptive"][0]
+    assert a["max"] == 30
+    assert a["limit"] == 30
+
+
+async def test_limits_max_connections_dry_run_does_not_apply() -> None:
+    register_eval("e1", 5)
+    ctrl = await _register_controller(max=100, start=50)
+
+    result = await eval_limits("e1", max_connections=30, dry_run=True)
+    assert result is not None
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_connections": 30}
+    # nothing mutated; view reflects the pre-change ceiling
+    assert ctrl.max == 100
+    assert ctrl.concurrency == 50
+    assert result["adaptive"][0]["max"] == 100
+
+
+async def test_limits_max_connections_not_adjustable_without_controllers() -> None:
+    register_eval("e1", 5)  # no adaptive controllers registered
+    result = await eval_limits("e1", max_connections=30)
+    assert result is not None
+    assert result["adaptive"] == []
+    assert any("max_connections is not adjustable" in w for w in result["warnings"])
+
+
 # ---------------------------------------------------------------------------
 # Server routes
 # ---------------------------------------------------------------------------
@@ -208,6 +262,24 @@ async def test_limits_route_rejects_below_one() -> None:
         bad = await client.patch("/evals/e1/limits", params={"max_samples": 0})
         assert bad.status_code == 400
         assert "max_samples" in bad.json()["error"]
+
+
+async def test_limits_route_patch_max_connections() -> None:
+    register_eval("e1", 5)
+    ctrl = await _register_controller(max=100, start=50)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch("/evals/e1/limits", params={"max_connections": 25})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["adaptive"][0]["max"] == 25
+        assert ctrl.max == 25
+
+        bad = await client.patch("/evals/e1/limits", params={"max_connections": 0})
+        assert bad.status_code == 400
+        assert "max_connections" in bad.json()["error"]
 
 
 async def test_limits_route_dry_run() -> None:
@@ -348,6 +420,36 @@ def test_print_limits_adaptive_section(capsys: pytest.CaptureFixture[str]) -> No
     assert "adaptive connections:" in out
     assert "openai/gpt-4: 45 (40 in use), range 1–100" in out
     assert "last: 50→45 rate_limit" in out
+
+
+def test_print_limits_adaptive_dry_run_shows_ceiling_arrow(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dry-run max_connections renders the ceiling as `max → requested`."""
+    from inspect_ai._cli.ctl import _print_limits
+
+    _print_limits(
+        {
+            "dry_run": True,
+            "max_samples": {"adjustable": False},
+            "max_sandboxes": [],
+            "adaptive": [
+                {
+                    "name": "openai/gpt-4",
+                    "limit": 50,
+                    "in_use": 10,
+                    "min": 1,
+                    "max": 100,
+                    "recent_changes": [],
+                }
+            ],
+            "requested": {"max_connections": 30},
+            "warnings": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "range 1–100 → 30" in out
 
 
 def test_limits_route_error_becomes_500() -> None:

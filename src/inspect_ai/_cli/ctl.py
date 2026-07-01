@@ -11,8 +11,9 @@ tasks, with a keep-alive status footer), ``samples`` (a task's samples),
 park after its eval finishes), and ``release`` (let a kept-alive process exit).
 The buffer directives ``flush`` (write buffered samples to the log now) and
 ``buffer`` (view / change the sample-buffer params) are also available, as is
-``limits`` (view / change the ``max_samples`` / ``max_sandboxes`` concurrency
-limits mid-flight). The remaining state-mutating directives (cancel / drain /
+``limits`` (view / change the ``max_samples`` / ``max_sandboxes`` /
+``max_connections`` concurrency limits mid-flight). The remaining state-mutating
+directives (cancel / drain /
 requeue) are planned but not yet available.
 """
 
@@ -43,8 +44,9 @@ def ctl_command() -> None:
     transcript), ``keep`` (park a process after its eval finishes), ``release``
     (let a kept-alive process exit), ``flush`` (write an eval's buffered samples
     to the log now), ``buffer`` (view / change the sample-buffer params),
-    ``limits`` (view / change the ``max_samples`` / ``max_sandboxes`` concurrency
-    limits). All are read-only except ``keep`` / ``release`` / ``flush`` /
+    ``limits`` (view / change the ``max_samples`` / ``max_sandboxes`` /
+    ``max_connections`` concurrency limits). All are read-only except ``keep`` /
+    ``release`` / ``flush`` /
     ``buffer`` / ``limits`` — further state-mutating directives (cancel, drain)
     are planned but not yet available.
 
@@ -550,6 +552,12 @@ def buffer_command(
     help="Set the maximum number of sandboxes (per provider) to run concurrently.",
 )
 @click.option(
+    "--max-connections",
+    type=int,
+    default=None,
+    help="Set the adaptive-connections scaling ceiling (the controller's max).",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -566,6 +574,7 @@ def limits_command(
     task: str | None,
     max_samples: int | None,
     max_sandboxes: int | None,
+    max_connections: int | None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -573,13 +582,16 @@ def limits_command(
 
     With no set options, shows the current limits. Pass `--max-samples N` to
     change how many samples run concurrently, and/or `--max-sandboxes N` to
-    change the per-provider sandbox concurrency. Lowering a limit below what's
-    currently in use blocks new work until in-flight holders drain — it never
-    interrupts running samples; raising it lets more start immediately.
+    change the per-provider sandbox concurrency. Under adaptive connections,
+    `--max-connections N` retunes the controllers' scaling ceiling instead (sample
+    concurrency then follows it). Lowering a limit below what's currently in use
+    blocks new work until in-flight holders drain — it never interrupts running
+    samples; raising it lets more start immediately.
 
     Pass `--dry-run` with a set option to see what would change without applying
-    it. A knob with no adjustable limiter for this eval (sample concurrency under
-    adaptive connections, or an eval with no sandbox limit) is reported with a
+    it. A knob with no adjustable limiter for this eval (`--max-samples` under
+    adaptive connections, `--max-sandboxes` with no sandbox limit, or
+    `--max-connections` when not using adaptive connections) is reported with a
     warning rather than an error.
 
     TASK selects which running eval to target — a task-id prefix or task name
@@ -589,6 +601,8 @@ def limits_command(
         raise click.BadParameter("--max-samples must be >= 1")
     if max_sandboxes is not None and max_sandboxes < 1:
         raise click.BadParameter("--max-sandboxes must be >= 1")
+    if max_connections is not None and max_connections < 1:
+        raise click.BadParameter("--max-connections must be >= 1")
 
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
@@ -599,12 +613,17 @@ def limits_command(
         return
 
     target = _resolve_target_eval(summaries, task)
-    set_values = max_samples is not None or max_sandboxes is not None
+    set_values = (
+        max_samples is not None
+        or max_sandboxes is not None
+        or max_connections is not None
+    )
     config = _exec_limits(
         target["socket_path"],
         target["eval_id"],
         max_samples=max_samples,
         max_sandboxes=max_sandboxes,
+        max_connections=max_connections,
         dry_run=dry_run,
         set_values=set_values,
     )
@@ -1070,6 +1089,7 @@ def _exec_limits(
     *,
     max_samples: int | None,
     max_sandboxes: int | None,
+    max_connections: int | None,
     dry_run: bool,
     set_values: bool,
 ) -> dict[str, Any]:
@@ -1085,6 +1105,8 @@ def _exec_limits(
         params["max_samples"] = max_samples
     if max_sandboxes is not None:
         params["max_sandboxes"] = max_sandboxes
+    if max_connections is not None:
+        params["max_connections"] = max_connections
     if dry_run:
         params["dry_run"] = True
     path = f"/evals/{eval_id}/limits"
@@ -1190,9 +1212,11 @@ def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
     if adaptive:
         click.echo("  adaptive connections:")
         for a in adaptive:
+            # on a dry-run set, `_target` renders the ceiling as `max → requested`
+            ceiling = _target(a.get("max"), "max_connections")
             line = (
                 f"    {a.get('name')}: {a.get('limit')} ({a.get('in_use')} in use), "
-                f"range {a.get('min')}–{a.get('max')}"
+                f"range {a.get('min')}–{ceiling}"
             )
             changes = a.get("recent_changes") or []
             if changes:

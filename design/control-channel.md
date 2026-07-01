@@ -240,7 +240,7 @@ Phase annotations reflect the [Implementation](#implementation) plan; phases 1�
 | Cancel eval | `POST /evals/<id>/cancel` | 3 |
 | Drain | `POST /evals/<id>/drain` | 3 |
 | Requeue sample | `POST /evals/<id>/samples/<sid>/requeue` | 3 |
-| Read / modify concurrency limits | `GET`+`PATCH /evals/<id>/limits` | 3 ✅ (max-samples / max-sandboxes; adaptive-connections read-side) |
+| Read / modify concurrency limits | `GET`+`PATCH /evals/<id>/limits` | 3 ✅ (max-samples / max-sandboxes / max-connections) |
 | Modify per-sample limits (time / token / message) | `PATCH /evals/<id>` | 3 |
 | List eval-sets | `GET /eval-sets` | later |
 | Eval-set status | `GET /eval-sets/<id>` | later |
@@ -624,7 +624,7 @@ The first slice of the "Modify concurrency" directive (open question #2): retune
 
 **Reaching the limiters.** `max_samples` is per-eval: the runner attaches its `ResizableLimiter` to the process-global `EvalState` (`EvalState.sample_limiter`, alongside `EvalState.live`), so the directive resolves it by eval id. It's `None` on the adaptive-connections path (concurrency tracks the controller, not a user setpoint) and for reused/synthetic evals; the directive then reports `max_samples` as *not adjustable* (a warning, not an error). `max_sandboxes` is process-global (sandbox concurrency is shared across the process's evals, keyed by sandbox type), so it flows through a process-global sandbox-limiter registry (reset per run) rather than an `EvalState` field; a `PATCH` applies the new value to every tracked sandbox type. A knob with no adjustable limiter for the target eval is reported with a warning while the other knob still applies, so a combined `PATCH` isn't all-or-nothing.
 
-The remaining concurrency knobs (`max_connections`, `max_tasks`) and the per-sample time / token / message limits are the later slices of this directive.
+The remaining concurrency knobs — `max_tasks` and the *static* (non-adaptive) `max_connections` path — and the per-sample time / token / message limits are the later slices of this directive. (Adaptive `max_connections` is covered by the ceiling-retune slice below.)
 
 #### Adaptive connections — read-side visibility (shipped)
 
@@ -632,18 +632,18 @@ Under default-on `adaptive_connections`, model-API concurrency isn't a fixed use
 
 This slice makes the path **observable**. The limits view always carries an `adaptive` list: one entry per controller with its live `limit`, in-flight `in_use` (read from `borrowed_tokens` directly — exact through a shrink-below-in-use, matching the `max_sandboxes` fix), scaling bounds (`min` / `max`), and the last few `recent_changes` (each `{at, from, to, reason}`, where `reason` is `slow_start` / `steady_state_up` / `rate_limit`). That's enough to answer "where is concurrency now, how much headroom is left, and is it actively being cut by the provider?". The CLI renders it under an `adaptive connections:` block and repoints the `max samples` line at it (`tracks adaptive connections (see below)`) instead of the bare "not adjustable". Like `max_sandboxes`, controllers are process-global, so the list reports every controller in the process rather than filtering to the queried eval's model.
 
-Read-only. `AdaptiveConcurrencyController` gains public `in_use` / `min` / `max` accessors (the `min` / `max` also set up the write side); no controller state is mutated.
+`AdaptiveConcurrencyController` gains public `in_use` / `min` / `max` accessors (the `min` / `max` also back the write side below).
 
-#### Adaptive connections — retune the ceiling (planned)
+#### Adaptive connections — retune the ceiling (shipped)
 
-The mutation that pairs with the visibility above: make the controller **`max`** (its scaling ceiling) settable mid-flight — effectively `max_connections` on the adaptive path, the deferred slice noted above. This is the natural throttle for the headline "it's hammering the provider / running up cost" scenario, which today has *no* lever on the adaptive path.
+The mutation that pairs with the visibility above: the controller **`max`** (its scaling ceiling) is settable mid-flight via `--max-connections` (`PATCH /evals/<id>/limits?max_connections=N`) — `max_connections` on the adaptive path, the deferred slice noted above. This is the natural throttle for the headline "it's hammering the provider / running up cost" scenario, which otherwise has *no* lever on the adaptive path. It applies to every adaptive controller in the process (process-global, one per model), mirroring how `max_sandboxes` fans out; a run with no adaptive controllers reports it as not adjustable (a warning, not an error), consistent with the other knobs.
 
-- **Lowering** clamps the controller's current limit down to the new ceiling immediately (never preempting in-flight requests — same drain-don't-kill semantics as `ResizableLimiter`); sample concurrency follows through the existing observer chain.
-- **Raising** lifts the ceiling so the controller can climb again on clean rounds.
+- **Lowering** clamps the controller's current limit down to the new ceiling immediately (never preempting in-flight requests — same drain-don't-kill semantics as `ResizableLimiter`) and caps subsequent AIMD growth; sample concurrency follows through the existing observer chain.
+- **Raising** lifts the ceiling so the controller can climb again on clean rounds; the current limit is left untouched (the controller grows on its own).
 
-Two implementation notes for when this is built: (1) it wants a `controller.set_bounds(min=, max=)` that reconciles the current limit and fires observers, rather than mutating `_config` fields directly; (2) the controller and `DynamicSampleLimiter` each call `resolve_adaptive()` separately, so they can hold *distinct* `AdaptiveConcurrency` objects — lowering propagates via the observer chain, but raising would be silently capped by the sample limiter's stale `max`. The clean fix is to have `DynamicSampleLimiter` derive its cap from the live controllers instead of a snapshotted config (removing a double source of truth), so one "set adaptive max" call is authoritative.
+`AdaptiveConcurrencyController.set_max(new_max)` does the reconciliation: it updates the ceiling, pulls `min` down alongside it if needed (preserving `min <= max`), and clamps the live limit down (recording a `manual` history entry + firing observers) only when lowering below the current limit. The one non-obvious coupling: the controller and `DynamicSampleLimiter` each call `resolve_adaptive()` separately, so they hold *distinct* `AdaptiveConcurrency` objects — a raise would have been silently capped by the sample limiter's stale snapshot of `max`. Fixed by having `DynamicSampleLimiter` derive its cap from the live controllers (`max(concurrency) + BUFFER`) rather than its own snapshot, removing the double source of truth so one `set_max` is authoritative.
 
-Deferred beyond that: **pin / freeze** (force a limit and stop adapting — a new controller mode, wait for a concrete ask) and the **tuning-curve knobs** (`cooldown_seconds` / `decrease_factor` / `scale_up_percent` — niche, and hard for an LLM agent to reason about).
+Deferred beyond this: **pin / freeze** (force a limit and stop adapting — a new controller mode, wait for a concrete ask) and the **tuning-curve knobs** (`cooldown_seconds` / `decrease_factor` / `scale_up_percent` — niche, and hard for an LLM agent to reason about).
 
 #### Add a task to a running eval
 
@@ -675,7 +675,7 @@ The queue-closed check *is* the running→parked test, so the two paths can't bo
 #### Other directives
 
 - `POST /evals/<id>/cancel` + `inspect ctl cancel` — graceful drain vs `--force`.
-- `POST /evals/<id>/drain`, `POST /evals/<id>/samples/<sid>/requeue`, `PATCH /evals/<id>` (modify per-sample time / token / message limits) + their CLI wrappers. (Modify *concurrency* — `max_samples` / `max_sandboxes` — shipped ahead of these via `PATCH /evals/<id>/limits`; `max_connections` / `max_tasks` are the remaining concurrency slices.)
+- `POST /evals/<id>/drain`, `POST /evals/<id>/samples/<sid>/requeue`, `PATCH /evals/<id>` (modify per-sample time / token / message limits) + their CLI wrappers. (Modify *concurrency* — `max_samples` / `max_sandboxes` / adaptive `max_connections` — shipped ahead of these via `PATCH /evals/<id>/limits`; the static `max_connections` path and `max_tasks` are the remaining concurrency slices.)
 
 These are the bigger eval-runner changes (live config mutation, requeue).
 
