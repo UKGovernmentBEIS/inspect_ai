@@ -14,8 +14,8 @@ logger = getLogger(__name__)
 
 KrippendorffLevel = Literal["nominal", "ordinal", "interval"]
 
-DeltaSq = Callable[[object, object], float]
-"""Squared-difference function δ²(a, b) between two ratings."""
+Disagreement = Callable[[list[object]], float]
+"""Sum of δ²(a, b) over every ordered pair in a list of ratings."""
 
 
 @metric
@@ -75,7 +75,8 @@ def krippendorff_alpha(
         if not units:
             return float("nan")
         _maybe_warn_nominal_on_numeric(level, units)
-        return _alpha(units, _delta_sq_for(level, units))
+        prepared, disagreement = _prepare(level, units)
+        return _alpha(prepared, disagreement)
 
     return compute
 
@@ -132,65 +133,63 @@ def _coerce_numeric(
     )
 
 
-def _delta_sq_for(level: KrippendorffLevel, units: list[list[object]]) -> DeltaSq:
-    """Build a δ² appropriate to the measurement level.
+def _prepare(
+    level: KrippendorffLevel, units: list[list[object]]
+) -> tuple[list[list[object]], Disagreement]:
+    """Pick the disagreement numerator and, where needed, re-encode the ratings.
 
-    Closes over the data when needed; ordinal uses the global
-    marginal-frequency distribution.
+    Each level's δ² collapses to an O(n) closed form over a list of ratings, so
+    both observed (per-unit) and expected (global) disagreement share one
+    function. Ordinal ratings are re-encoded as cumulative-midpoint scores, which
+    turns Krippendorff's ordinal δ² into the interval (squared-difference) form.
     """
     if level == "nominal":
-        return lambda a, b: 0.0 if a == b else 1.0
+        return units, _nominal_disagreement
     if level == "interval":
-        return lambda a, b: (float(a) - float(b)) ** 2  # type: ignore[arg-type]
-    return _ordinal_delta_sq([v for u in units for v in u])
+        return units, _squared_disagreement
+    return _ordinal_scores(units), _squared_disagreement
 
 
-def _ordinal_delta_sq(flat: list[object]) -> DeltaSq:
-    """Krippendorff's ordinal δ²: ((Σ_{c=g..h} n_c) − (n_g + n_h) / 2)².
+def _nominal_disagreement(ratings: list[object]) -> float:
+    """Σ_{i≠j} [a≠b] = n² − Σ_c n_c², the disagreement sum for unordered categories."""
+    n = len(ratings)
+    counts = Counter(ratings)
+    return float(n * n - sum(c * c for c in counts.values()))
 
-    `n_c` is the marginal count of category `c` across every rating; `g` and
-    `h` are the two ratings being compared, treated as ranks in the sorted
-    value domain.
+
+def _squared_disagreement(ratings: list[object]) -> float:
+    """Σ_{i≠j} (a−b)² = 2n·Σ(x−x̄)², the disagreement sum for real-valued ratings."""
+    xs = [float(x) for x in ratings]  # type: ignore[arg-type]
+    n = len(xs)
+    mean = sum(xs) / n
+    return 2 * n * sum((x - mean) ** 2 for x in xs)
+
+
+def _ordinal_scores(units: list[list[object]]) -> list[list[object]]:
+    """Re-encode ordinal ratings as cumulative-midpoint scores.
+
+    The midpoint of category `c` is `(Σ_{k<c} n_k) + n_c / 2` over the global
+    marginal counts; with this encoding Krippendorff's ordinal δ²(a, b) equals
+    the squared difference of the two scores.
     """
-    counts = Counter(flat)
-    domain = sorted(counts)  # type: ignore[type-var]
-    n_v = [float(counts[v]) for v in domain]
-    cumulative = [0.0]
-    for c in n_v:
-        cumulative.append(cumulative[-1] + c)
-    rank = {v: i for i, v in enumerate(domain)}
-
-    def delta_sq(a: object, b: object) -> float:
-        ia, ib = rank[a], rank[b]
-        if ia > ib:
-            ia, ib = ib, ia
-        between = cumulative[ib + 1] - cumulative[ia]
-        return (between - (n_v[ia] + n_v[ib]) / 2) ** 2
-
-    return delta_sq
+    counts = Counter(v for u in units for v in u)
+    midpoint: dict[object, float] = {}
+    cumulative = 0.0
+    for v in sorted(counts):  # type: ignore[type-var]
+        midpoint[v] = cumulative + counts[v] / 2
+        cumulative += counts[v]
+    return [[midpoint[v] for v in u] for u in units]
 
 
-def _disagreement(counts: Counter[object], delta_sq: DeltaSq) -> float:
-    """Sum of n_c · n_k · δ²(c, k) over distinct value pairs; O(V²) in the distinct values."""
-    items = list(counts.items())
-    return sum(
-        (n_c * n_k * delta_sq(c, k) for c, n_c in items for k, n_k in items), 0.0
-    )
-
-
-def _alpha(units: list[list[object]], delta_sq: DeltaSq) -> float:
-    """Compute α = 1 − D_o / D_e given precomputed units and a δ² function."""
+def _alpha(units: list[list[object]], disagreement: Disagreement) -> float:
+    """Compute α = 1 − D_o / D_e given prepared units and a disagreement function."""
     flat = [v for u in units for v in u]
     n = len(flat)
     if n < 2:
         return float("nan")
 
-    d_o_num = 0.0
-    for u in units:
-        d_o_num += _disagreement(Counter(u), delta_sq) / (len(u) - 1)
-    d_o = d_o_num / n
-
-    d_e = _disagreement(Counter(flat), delta_sq) / (n * (n - 1))
+    d_o = sum(disagreement(u) / (len(u) - 1) for u in units) / n
+    d_e = disagreement(flat) / (n * (n - 1))
 
     if d_e == 0:
         return 1.0 if d_o == 0 else float("nan")
