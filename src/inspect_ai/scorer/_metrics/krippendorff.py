@@ -60,9 +60,9 @@ def krippendorff_alpha(
          ratings and no `to_float`. Ignored for `"nominal"`.
 
     Returns:
-       Krippendorff's α as a float, or `nan` when α is undefined
-       (no usable samples, or zero expected disagreement with non-zero
-       observed disagreement).
+       Krippendorff's α as a float, or `nan` when there are no usable
+       samples. When every rating is identical (zero expected
+       disagreement), α is 1.0 by convention.
     """
     if level not in ("nominal", "ordinal", "interval"):
         raise ValueError(
@@ -192,7 +192,7 @@ def _alpha(units: list[list[object]], disagreement: Disagreement) -> float:
     d_e = disagreement(flat) / (n * (n - 1))
 
     if d_e == 0:
-        return 1.0 if d_o == 0 else float("nan")
+        return 1.0
     return 1.0 - d_o / d_e
 
 

@@ -265,15 +265,22 @@ def collect() -> ScoreReducer:
     r"""Collect each score's value into a list, preserving every value.
 
     Keeps the individual values intact instead of aggregating them into one.
-    Values must be scalar; unscored (NaN) scores are dropped.
+    Score values must be scalar; unscored (NaN) scores are dropped.
     """
 
     def reduce(scores: list[Score]) -> Score:
         values: list[str | int | float | bool] = []
         for score in scores:
-            scalar = score._as_scalar()
-            if _is_reducible(scalar):
-                values.append(scalar)
+            try:
+                value = score._as_scalar()
+            except ValueError:
+                raise ValueError(
+                    "collect reducer requires scalar score values, but got "
+                    f"{type(score.value).__name__}. It preserves each scorer's "
+                    "scalar value as a list and cannot collect dict/list values."
+                ) from None
+            if _is_reducible(value):
+                values.append(value)
         if not values:
             return _nan_score(scores)
         return _reduced_score(values, scores)

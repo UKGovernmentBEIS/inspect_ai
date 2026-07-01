@@ -800,6 +800,12 @@ def test_collect_lookup_by_name() -> None:
     assert reducer([Score(value=1), Score(value=2)]).value == [1, 2]
 
 
+def test_collect_non_scalar_raises() -> None:
+    for non_scalar in (Score(value={"a": 1}), Score(value=[1, 2])):
+        with pytest.raises(ValueError, match="requires scalar score values"):
+            collect_reducer([Score(value=1), non_scalar])
+
+
 def test_collect_preserve_metadata() -> None:
     scores = [
         Score(
