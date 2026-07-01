@@ -1,3 +1,7 @@
+## Unreleased
+
+- Anthropic: Support for [Claude Sonnet 5](https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5).
+
 ## 0.3.243 (30 June 2026)
 
 - Bugfix: Elapsed-time displays (e.g. the running-sample clock and timers) no longer render an impossible `:60` seconds when the elapsed time has a fractional second.
