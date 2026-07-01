@@ -65,13 +65,13 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 -   `krippendorff_alpha()`
 
-    Krippendorff's α coefficient of inter-rater agreement across multiple judges or scorers. Each sample's `Score.value` must be a sequence of per-judge ratings (one element per judge); the metric computes α across all samples. Pick the measurement scale that matches your ratings:
+    Krippendorff's α coefficient of inter-rater agreement across multiple judges or scorers. Each sample's `Score.value` must be a sequence of per-judge ratings (one element per judge) — produce these by pairing `multi_scorer()` with the `collect` reducer (see [Multi-Judge Reliability](#multi-judge-reliability)); the metric computes α across all samples. Pick the measurement scale that matches your ratings:
 
     -   `level="nominal"` (default) — unordered categories (e.g. correct/incorrect labels or category IDs). Any difference counts as a full disagreement.
     -   `level="ordinal"` — ordered categories with unequal gaps (e.g. 1–5 Likert ratings). Distance is weighted by the marginal frequency of intermediate ranks (Krippendorff 2007).
     -   `level="interval"` — numbers on an equal-interval scale. Distance is the squared numeric difference.
 
-    For ordinal or interval levels, non-numeric ratings require a `to_float` mapping; pass `to_float=value_to_float()` to map `CORRECT`/`INCORRECT`/`PARTIAL`/`NOANSWER` strings to 1/0/0.5/0, or supply your own ordering for text categories. With two judges, nominal α reduces to behaviour similar to Cohen's κ.
+    For ordinal or interval levels, non-numeric ratings require a `to_float` mapping; pass `to_float=value_to_float()` to map `CORRECT`/`INCORRECT`/`PARTIAL`/`NOANSWER` strings to 1/0/0.5/0, or supply your own ordering for text categories. With two judges, nominal α coincides with Scott's π (its many-judge analogue is Fleiss' κ), exactly so only in the large-sample limit owing to α's small-sample correction.
 
 ## Metric Grouping
 
@@ -133,22 +133,10 @@ The `metrics` passed to the `Task` override the default metrics of the `choice()
 
 ## Multi-Judge Reliability
 
-`krippendorff_alpha()` measures agreement *across* the judges who scored each sample, so it needs `Score.value` to be a list of per-judge ratings rather than a single aggregated value. The built-in `multi_scorer()` reducers (`"mean"`, `"mode"`, etc.) collapse multiple judges to a single value, which discards the per-judge information α needs. Pair `multi_scorer()` with a small custom reducer that preserves the list:
+`krippendorff_alpha()` measures agreement *across* the judges who scored each sample, so it needs `Score.value` to be a list of per-judge ratings rather than a single aggregated value. Most `multi_scorer()` reducers (`"mean"`, `"mode"`, etc.) collapse multiple judges to a single value, which discards the per-judge information α needs. Use the `"collect"` reducer instead, which keeps every judge's rating as a list:
 
 ``` python
-from inspect_ai.scorer import (
-    Score,
-    ScoreReducer,
-    krippendorff_alpha,
-    multi_scorer,
-    score_reducer,
-)
-
-@score_reducer
-def collect() -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
-        return Score(value=[s.value for s in scores])
-    return reduce
+from inspect_ai.scorer import krippendorff_alpha, multi_scorer
 
 @task
 def judge_reliability():
@@ -156,7 +144,7 @@ def judge_reliability():
         ...,
         scorer=multi_scorer(
             scorers=[judge1, judge2, judge3],
-            reducer=collect(),
+            reducer="collect",
         ),
         metrics=[krippendorff_alpha(level="ordinal")],
     )
@@ -300,6 +288,7 @@ Inspect includes several built in reducers which are summarised below.
 | pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
 | pass_k\_{k} | Probability that all `k` epoch attempts succeed (<https://arxiv.org/pdf/2406.12045>) |
 | at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
+| collect | Collect all scores into a list, preserving each value instead of aggregating. |
 
 : {tbl-colwidths="\[30,70\]"}
 
