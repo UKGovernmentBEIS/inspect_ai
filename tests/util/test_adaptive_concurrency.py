@@ -726,6 +726,23 @@ def test_set_max_raise_lifts_ceiling_without_touching_current() -> None:
     assert c.concurrency == 80  # 40 * 2; would have capped at 50 before
 
 
+def test_set_max_does_not_leak_through_shared_config() -> None:
+    """Controllers built from one AdaptiveConcurrency instance stay independent.
+
+    Regression: the controller used to store the passed config by reference, so
+    a --model-scoped set_max on one controller silently changed the ceiling of
+    every other controller sharing that config object.
+    """
+    shared = AdaptiveConcurrency(min=1, max=100, start=50)
+    a = AdaptiveConcurrencyController("openai/gpt-4", shared, visible=True)
+    b = AdaptiveConcurrencyController("anthropic/claude", shared, visible=True)
+
+    a.set_max(30)
+    assert a.max == 30
+    assert b.max == 100  # untouched — no aliasing through the shared config
+    assert shared.max == 100  # caller's object untouched too
+
+
 def test_set_max_pulls_min_down_when_needed() -> None:
     c = AdaptiveConcurrencyController(
         "t", AdaptiveConcurrency(min=20, max=100, start=50), visible=True

@@ -659,7 +659,11 @@ class AdaptiveConcurrencyController:
         visible: bool,
     ) -> None:
         self.name = name
-        self._config = config
+        # Private copy: set_max() mutates the bounds, and callers can pass the
+        # same AdaptiveConcurrency instance to several controllers (one per
+        # model) — sharing it would leak a --model-scoped retune of one
+        # controller into the others' ceilings.
+        self._config = config.model_copy()
         self.visible = visible
         self._limiter = anyio.CapacityLimiter(config.start)
         # `concurrency` mirrors the limiter's `total_tokens` (kept in sync via
