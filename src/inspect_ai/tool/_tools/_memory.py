@@ -1,6 +1,6 @@
 """Memory tool for managing persistent information in /memories directory."""
 
-from pathlib import Path
+import posixpath
 from typing import Any, Callable, Literal
 
 from pydantic import Field
@@ -20,7 +20,10 @@ class MemoryStore(StoreModel):
 
 @tool(parallel=True)
 def memory(
-    *, initial_data: dict[str, str] | None = None, readonly: bool = False
+    *,
+    initial_data: dict[str, str] | None = None,
+    readonly: bool = False,
+    instance: str | None = None,
 ) -> Tool:
     """Memory tool for managing persistent information.
 
@@ -35,6 +38,9 @@ def memory(
             Seeding happens once on first tool execution.
         readonly: If True, only the view command is available. Write operations
             (create, str_replace, insert, delete, rename) are not exposed.
+        instance: Optional instance name for the memory store. Enables multiple
+            independent memory tools within a single sample (each with its own
+            files and seeding), rather than sharing one store.
 
     Returns:
         Memory tool for file operations in /memories directory.
@@ -48,7 +54,7 @@ def memory(
             store.seeding_complete = True
 
     if readonly:
-        result = _readonly_execute(_seed)
+        result = _readonly_execute(_seed, instance)
         result.initial_data = initial_data  # type: ignore[attr-defined]
         return result
 
@@ -104,7 +110,7 @@ def memory(
         Returns:
             Result message string
         """
-        store = store_as(MemoryStore)
+        store = store_as(MemoryStore, instance=instance)
         _seed(store)
 
         match command:
@@ -129,6 +135,7 @@ def memory(
 
 def _readonly_execute(
     _seed: "Callable[[MemoryStore], None]",
+    instance: str | None,
 ) -> "Callable[..., Any]":
     async def execute_readonly(
         command: Literal["view"],
@@ -152,7 +159,7 @@ def _readonly_execute(
         Returns:
             Result message string
         """
-        store = store_as(MemoryStore)
+        store = store_as(MemoryStore, instance=instance)
         _seed(store)
         return _view(store, path, view_range)
 
@@ -160,34 +167,17 @@ def _readonly_execute(
 
 
 def _validate_path(path: str) -> str:
-    """Validate path starts with /memories and has no traversal."""
+    """Canonicalize a /memories path and verify it stays under the root."""
     if not path:
         raise ToolError("Path cannot be empty")
+    if "\x00" in path:
+        raise ToolError(f"Invalid path: {path!r} contains a null byte")
 
-    # Normalize separators
     path = path.replace("\\", "/")
-
-    # Must start with /memories
-    if not path.startswith("/memories"):
-        raise ToolError(
-            f"Invalid path: all paths must start with /memories, got {path}"
-        )
-
-    try:
-        # Convert to pathlib Path and resolve (eliminates .., symlinks, etc)
-        resolved = Path(path).resolve()
-        base = Path("/memories").resolve()
-
-        # Verify resolved path is within /memories
-        resolved.relative_to(base)
-    except ValueError:
-        raise ToolError(f"Invalid path: {path} resolves outside /memories directory")
-
-    # Remove trailing slash except for /memories itself
-    if path != "/memories" and path.endswith("/"):
-        path = path.rstrip("/")
-
-    return path
+    norm = posixpath.normpath("/" + path.lstrip("/"))
+    if norm != "/memories" and not norm.startswith("/memories/"):
+        raise ToolError(f"Invalid path: {path} escapes /memories directory")
+    return norm
 
 
 def _path_exists(store: MemoryStore, path: str) -> bool:
@@ -231,6 +221,19 @@ def _ensure_parent_dirs(store: MemoryStore, path: str) -> None:
             current = "/" + part
         if current not in store.dirs:
             store.dirs.append(current)
+
+
+def _prune_empty_dirs(store: MemoryStore, path: str) -> None:
+    """Drop ancestor dir entries left empty after deleting a file."""
+    parent = path.rsplit("/", 1)[0]
+    while parent and parent != "/memories" and parent in store.dirs:
+        prefix = parent + "/"
+        if any(p.startswith(prefix) for p in store.files) or any(
+            d.startswith(prefix) for d in store.dirs
+        ):
+            break
+        store.dirs.remove(parent)
+        parent = parent.rsplit("/", 1)[0]
 
 
 def _list_directory(store: MemoryStore, path: str, max_depth: int = 2) -> list[str]:
@@ -476,6 +479,7 @@ def _delete(store: MemoryStore, path: str | None) -> str:
     else:
         # Delete file
         del store.files[path]
+        _prune_empty_dirs(store, path)
 
     return f"Successfully deleted: {path}"
 

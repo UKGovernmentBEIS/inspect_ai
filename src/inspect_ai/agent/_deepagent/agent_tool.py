@@ -764,17 +764,6 @@ def _find_memory_tool(
     return None
 
 
-def _get_memory_initial_data(
-    tools: Sequence[Tool | ToolDef | ToolSource],
-) -> dict[str, str] | None:
-    mem = _find_memory_tool(tools)
-    if mem is None:
-        return None
-    # Tool stores the callable directly; ToolDef stores it on .tool
-    callable_ = getattr(mem, "tool", None) or getattr(mem, "execute", mem)
-    return getattr(callable_, "initial_data", None)
-
-
 def _resolve_tools(
     sa: Subagent,
     subagents: list[Subagent],
@@ -797,11 +786,10 @@ def _resolve_tools(
     if sa.memory and not _has_memory_tool(tools):
         from inspect_ai.tool._tools._memory import memory
 
-        parent_initial_data = _get_memory_initial_data(parent_tools or [])
         if sa.memory == "readwrite":
-            tools.append(memory(initial_data=parent_initial_data))
+            tools.append(memory())
         elif sa.memory == "readonly":
-            tools.append(memory(initial_data=parent_initial_data, readonly=True))
+            tools.append(memory(readonly=True))
 
     # Merge parent + subagent skills with instance scoping.
     # Duplicate names are validated globally in deepagent.execute().
