@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Control Channel: Added `inspect ctl limits` to view or retune a running eval's `max_samples` / `max_sandboxes` / `max_connections` concurrency limits mid-flight (with `--dry-run`).
+- Performance: make `stable_message_ids()` linear per turn.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
 
 ## 0.3.244 (01 July 2026)
