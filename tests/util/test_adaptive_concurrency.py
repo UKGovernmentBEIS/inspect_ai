@@ -799,6 +799,29 @@ def test_set_max_pulls_min_down_when_needed() -> None:
     assert c.concurrency == 10
 
 
+def test_set_max_raise_restores_configured_min() -> None:
+    """Lifting a throttle restores the configured floor, not the collapsed one.
+
+    Regression: set_max pulled `min` down when lowering the ceiling below it
+    but never restored it on a later raise — so after a temporary
+    `--max-connections 5` / `--max-connections 200` round-trip, rate-limit
+    cuts floored at 5 instead of the configured 20 for the rest of the run.
+    """
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=20, max=100, start=50), visible=True
+    )
+    c.set_max(5)  # throttle below the configured floor
+    assert (c.min, c.max, c.concurrency) == (5, 5, 5)
+    c.set_max(200)  # lift the throttle
+    assert c.min == 20  # configured floor restored
+    assert c.max == 200
+    assert c.concurrency == 5  # raise still leaves the live limit alone
+    # a rate-limit cut now clamps to the configured floor again (notify_retry
+    # floors at max(cut, min), which from below the floor lifts to it)
+    c.notify_retry()
+    assert c.concurrency == 20
+
+
 @pytest.mark.anyio
 async def test_set_max_lower_shrinks_sample_limiter() -> None:
     init_concurrency()

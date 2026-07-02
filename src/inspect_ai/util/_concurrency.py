@@ -704,6 +704,10 @@ class AdaptiveConcurrencyController:
         # model) — sharing it would leak a --model-scoped retune of one
         # controller into the others' ceilings.
         self._config = config.model_copy()
+        # The as-configured floor: set_max() clamps `_config.min` down when the
+        # ceiling drops below it, and restores it from this snapshot when the
+        # ceiling is raised again.
+        self._configured_min = config.min
         self.visible = visible
         self._limiter = anyio.CapacityLimiter(config.start)
         # `concurrency` mirrors the limiter's `total_tokens` (kept in sync via
@@ -879,14 +883,16 @@ class AdaptiveConcurrencyController:
         drain, never preempting one — and caps subsequent AIMD growth. Raising
         lifts the ceiling so later clean rounds can grow past the old ``max``;
         the current limit is left untouched (the controller climbs on its own).
-        ``min`` is pulled down alongside ``max`` if it would otherwise exceed it,
-        preserving the ``min <= max`` invariant.
+        ``min`` follows as ``min(configured_min, new_max)``: pulled down when
+        the ceiling drops below the configured floor (preserving ``min <= max``)
+        and restored to that floor when the ceiling is raised again — a
+        temporary throttle must not permanently weaken the floor that
+        rate-limit cuts clamp to.
 
         Caller is responsible for ``new_max >= 1`` (the route/CLI validate it).
         """
         self._config.max = new_max
-        if self._config.min > new_max:
-            self._config.min = new_max
+        self._config.min = min(self._configured_min, new_max)
         # Only the clamp-down changes the live limit; `_set_limit` records the
         # change and notifies observers (so `DynamicSampleLimiter` follows). On a
         # raise there's nothing to recompute yet — the sample limiter tracks the
