@@ -3,7 +3,7 @@ import time
 from collections.abc import Callable, Iterable
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, AsyncIterator, Protocol
+from typing import Any, AsyncIterator, Literal, Protocol
 
 import anyio
 from pydantic import BaseModel, Field, model_validator
@@ -620,10 +620,26 @@ _request_was_cache_hit: ContextVar[bool] = ContextVar(
 )
 
 
+AdaptiveScaleReason = Literal["slow_start", "steady_state_up", "rate_limit"]
+"""Reasons the adaptive algorithm itself changes a limit.
+
+This is the eval log's ``ConnectionLimitChange.reason`` enum (imported there,
+so the two can't drift): the log's ``connection_limit_history`` records
+adaptive-scaling decisions only.
+"""
+
+LimitChangeReason = AdaptiveScaleReason | Literal["manual"]
+"""Every reason a controller limit can change: adaptive scaling plus ``manual``
+(an external control-channel ``set_max`` retune, visible live via ``ctl
+limits`` but excluded from the eval log's adaptive-scaling history — the log
+capture in ``_eval/task/log.py`` narrows on it, so adding a reason here forces
+a type-checked decision there: log it or skip it)."""
+
+
 # Internal tuple record of a single scale change held by AdaptiveConcurrencyController.
 # The second element is the controller's display name (e.g. "openai/gpt-4o"),
 # never the secret-bearing connection_key from the provider.
-LimitChangeRecord = tuple[float, str, int, int, str]
+LimitChangeRecord = tuple[float, str, int, int, LimitChangeReason]
 """(timestamp, model_name, old_limit, new_limit, reason)."""
 
 
@@ -813,6 +829,7 @@ class AdaptiveConcurrencyController:
         if old > 0 and peak_borrowed < self.SATURATION_THRESHOLD * old:
             return
 
+        reason: LimitChangeReason
         if not self._first_retry_seen:
             new = min(old * 2, self._config.max)
             reason = "slow_start"
@@ -901,7 +918,7 @@ class AdaptiveConcurrencyController:
         if self.concurrency > new_max:
             self._set_limit(new_max, "manual")
 
-    def _set_limit(self, new: int, reason: str) -> None:
+    def _set_limit(self, new: int, reason: LimitChangeReason) -> None:
         old = self.concurrency
         self._limiter.total_tokens = new
         self.concurrency = new

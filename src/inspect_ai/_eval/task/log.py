@@ -782,9 +782,12 @@ def collect_eval_data(stats: EvalStats) -> None:
     for controller in adaptive_controllers():
         for ts, model, old, new, reason in controller.history:
             # `manual` entries are external control-channel retunes, not adaptive
-            # scaling decisions — this field records the latter (and its schema
-            # enum excludes `manual`). The manual change stays visible live via
-            # the control channel's `ctl limits` view (controller history).
+            # scaling decisions — this field records the latter (its enum is
+            # `AdaptiveScaleReason`). The skip narrows `LimitChangeReason` to
+            # exactly that enum, so a future controller reason fails type
+            # checking here (log it or skip it) instead of crashing completing
+            # evals with a ValidationError at capture time. The manual change
+            # stays visible live via the `ctl limits` view (controller history).
             if reason == "manual":
                 continue
             history.append(
@@ -793,7 +796,7 @@ def collect_eval_data(stats: EvalStats) -> None:
                     model=model,
                     old_limit=old,
                     new_limit=new,
-                    reason=reason,  # type: ignore[arg-type]
+                    reason=reason,
                 )
             )
     history.sort(key=lambda e: e.timestamp)

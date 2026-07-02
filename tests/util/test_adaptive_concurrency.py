@@ -209,7 +209,7 @@ def test_history_bounded() -> None:
         "t", AdaptiveConcurrency(min=1, max=1000, start=10), visible=True
     )
     for _ in range(c.HISTORY_LIMIT + 50):
-        c._set_limit(c.concurrency + 1, "test")
+        c._set_limit(c.concurrency + 1, "manual")
     assert len(c.history) == c.HISTORY_LIMIT
 
 
