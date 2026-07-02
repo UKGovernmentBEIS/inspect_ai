@@ -491,6 +491,69 @@ async def test_ensure_model_controller_eager_creation() -> None:
     assert adaptive_controllers() == []
 
 
+async def test_ensure_model_controller_composes_model_config() -> None:
+    """The eager path composes the model's own config like the generate path.
+
+    Regression: ensure_model_controller checked only the task-level config.
+    Because the registry coalesces on key with first-created bounds winning,
+    a model carrying its own AdaptiveConcurrency got a controller with
+    default bounds (its configured ceiling silently discarded), and a model
+    whose own config disables adaptive (explicit max_connections /
+    adaptive_connections=False) got a phantom controller that ctl limits
+    would report and retune while generates took the static path.
+    """
+    from inspect_ai.model._model import ensure_model_controller
+    from inspect_ai.util._concurrency import init_concurrency
+
+    # model-level adaptive bounds are honored (not replaced with defaults)...
+    init_concurrency()
+    model = get_model(
+        "mockllm/model",
+        config=GenerateConfig(
+            adaptive_connections=AdaptiveConcurrency(min=1, start=2, max=4)
+        ),
+    )
+    await ensure_model_controller(model, GenerateConfig())
+    ctrls = adaptive_controllers()
+    assert len(ctrls) == 1
+    assert (ctrls[0].concurrency, ctrls[0].max) == (2, 4)
+
+    # ...and the generate path coalesces onto the same (correct) controller
+    await model.generate("hello")
+    assert adaptive_controllers() == ctrls
+    assert ctrls[0].max == 4
+
+    # model-level explicit max_connections → static path, no phantom controller
+    init_concurrency()
+    static_model = get_model("mockllm/model", config=GenerateConfig(max_connections=20))
+    await ensure_model_controller(static_model, GenerateConfig())
+    assert adaptive_controllers() == []
+
+    # model-level opt-out → no controller
+    init_concurrency()
+    opted_out = get_model(
+        "mockllm/model", config=GenerateConfig(adaptive_connections=False)
+    )
+    await ensure_model_controller(opted_out, GenerateConfig())
+    assert adaptive_controllers() == []
+
+    # task-level config still wins over model-level (merge direction)
+    init_concurrency()
+    await ensure_model_controller(opted_out, GenerateConfig(adaptive_connections=True))
+    assert len(adaptive_controllers()) == 1
+
+
+async def test_ensure_model_controller_skips_no_model() -> None:
+    """The NoModel sentinel (model=None evals) never gets a controller."""
+    from inspect_ai.model._model import ensure_model_controller
+    from inspect_ai.util._concurrency import init_concurrency
+
+    init_concurrency()
+    model = get_model("none/none")
+    await ensure_model_controller(model, GenerateConfig(adaptive_connections=True))
+    assert adaptive_controllers() == []
+
+
 def test_sample_semaphore_shared_across_retry_attempts() -> None:
     """The same task_id reuses its semaphore, preserving a mid-flight retune.
 

@@ -617,21 +617,35 @@ async def ensure_model_controller(model: "Model", config: GenerateConfig) -> Non
     startup, whose image pulls can take minutes) so the control channel can
     observe and retune ``max_connections`` from the start of the run rather
     than dropping a retune with a "not using adaptive connections" warning.
-    Uses the same name / key / config as ``_connection_concurrency``, so the
-    registry coalesces onto the one controller generates will use. A no-op
-    when adaptive isn't active (explicit ``max_connections``, batch mode, or
-    ``adaptive_connections=False``).
+
+    ``config`` is the task's would-be active generate config; it is composed
+    with the model's own config here exactly as ``_resolve_config`` does for
+    the active model, so this and the generate path cannot disagree on
+    whether adaptive is active or on the controller's bounds. That agreement
+    is load-bearing: the registry coalesces on key with first-created bounds
+    winning, so a controller created here from a divergent config would
+    silently override the bounds generates resolve (and a controller created
+    for a model whose generates take the static path would be a phantom —
+    reported and "retuned" by ``ctl limits`` while gating nothing).
+
+    A no-op for the ``NoModel`` sentinel (nothing will generate) and when the
+    composed config says adaptive isn't active (explicit ``max_connections``,
+    batch mode, or ``adaptive_connections=False``).
     """
+    from inspect_ai.model._providers.none import NoModel
     from inspect_ai.util._concurrency import (
         adaptive_active,
         get_or_create_semaphore,
         resolve_adaptive,
     )
 
+    if isinstance(model.api, NoModel):
+        return
+    effective = model.config.merge(config)
     if adaptive_active(
-        config.adaptive_connections, config.max_connections, config.batch
+        effective.adaptive_connections, effective.max_connections, effective.batch
     ):
-        adaptive = resolve_adaptive(config.adaptive_connections)
+        adaptive = resolve_adaptive(effective.adaptive_connections)
         await get_or_create_semaphore(
             str(ModelName(model)),
             adaptive.start,
