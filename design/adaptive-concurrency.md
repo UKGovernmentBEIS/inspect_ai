@@ -139,6 +139,24 @@ stays at `start + BUFFER` — conservative and bounded. (`create_sample_semaphor
 leans on this when no `ModelAPI` is available — tests only — by passing a
 `"<no-model>"` sentinel key that matches nothing.)
 
+*Future work — tasks whose generates bypass the primary model.* The limiter is
+keyed to the task's **primary** model, and controllers are created only by a
+model's own generates — so a task whose generation flows entirely through
+other models (model roles, an agent-bridge alias, a solver's explicit
+`get_model()`) leaves the primary controller idle at `start` and sample
+concurrency parked at `start + BUFFER`, even while the actually-generating
+model's controller scales. The `ctl limits` view warns when the limiter's
+controller is missing, but with eager controller creation the primary
+controller *exists* (idle), so the parked-at-start case is only indirectly
+visible (healthy controllers, stalled sample throughput). The deeper fix is
+task-scoped adoption: tag controller creation with the running task's id (a
+contextvar set by the sample context), and let `DynamicSampleLimiter` follow
+the max concurrency of *this task's* controllers when its primary-key
+controller stays idle — restoring pre-scoping throughput for roles/bridge
+tasks without re-admitting the cross-task inflation the key scoping fixed.
+Deferred until the configuration shows up in practice; revisit alongside the
+pin/freeze controller mode.
+
 Sample semaphores (all three paths) are **task-scoped, not attempt-scoped**:
 `create_sample_semaphore` keeps a task_id-keyed registry
 (`_task_sample_semaphores`, reset per run by `init_concurrency`) and an

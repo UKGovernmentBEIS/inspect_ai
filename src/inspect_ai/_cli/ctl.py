@@ -23,7 +23,7 @@ import json as json_lib
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NoReturn
+from typing import Any, Literal, NamedTuple, NoReturn
 
 import click
 import httpx
@@ -639,80 +639,22 @@ def limits_command(
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers)
 
-    # Resolve scope. An explicit TASK targets that task (full per-task view;
-    # the wire is keyed by task_id, which is stable across retry attempts). No
-    # TASK defaults to the sole process: a single-task process still shows the
-    # per-task view, while a multi-task process (an eval-set) shows just the
-    # process-global limits — `--max-connections` / `--max-sandboxes` don't need
-    # a task, but the per-task `--max-samples` still does.
-    header: str
-    task_id: str | None
-    if not summaries:
-        # A process binds its control endpoint before its first task registers
-        # (sandbox startup / image pulls can take minutes), so an empty task
-        # list doesn't mean no process. With a sole process and no per-task
-        # ask, target the process-level limits so a startup retune (e.g.
-        # --max-sandboxes during a docker pull) lands instead of bailing.
-        if len(servers) == 1 and task is None and max_samples is None:
-            socket_path = str(servers[0].socket_path)
-            task_id = None
-            header = "process · starting"
-        else:
-            if as_json:
-                click.echo("null")
-                return
-            _echo_no_running_evals()
+    scope = _resolve_scope(
+        servers,
+        summaries,
+        task,
+        per_task_option="--max-samples" if max_samples is not None else None,
+    )
+    if scope is None:
+        if as_json:
+            click.echo("null")
             return
-    elif task is not None:
-        target = _resolve_target_eval(summaries, task)
-        socket_path = str(target["socket_path"])
-        task_id = str(target["task_id"])
-        header = _task_header(target)
-        if not task_id:
-            # a reused log written before task ids existed — addressable only
-            # by its (superseded) eval id, which the limits wire doesn't use
-            click.echo(
-                f"Task '{target.get('task') or '?'}' predates task ids (an "
-                "older reused log) — its per-task limits aren't addressable. "
-                "Run without TASK to view or set the process-wide limits.",
-                err=True,
-            )
-            raise click.exceptions.Exit(code=1)
-    else:
-        sockets = sorted({str(s.get("socket_path")) for s in summaries})
-        if len(sockets) > 1:
-            # multiple processes: can't default to one — reuse the ambiguity
-            # error (passing a task id disambiguates the process too).
-            _resolve_target_eval(summaries, None)
-            return  # unreachable: _resolve_target_eval exits on ambiguity
-        socket_path = sockets[0]
-        tasks_in_proc = [
-            s for s in summaries if str(s.get("socket_path")) == socket_path
-        ]
-        # a finished task's limits are no longer meaningfully adjustable, so
-        # the sole-task default keys on what is still active — an eval-set
-        # with one running and N completed tasks resolves to the running one
-        active = [s for s in tasks_in_proc if s.get("status") in ("running", "pending")]
-        candidates = active or tasks_in_proc
-        if len(candidates) == 1 and str(candidates[0].get("task_id") or ""):
-            target = candidates[0]
-            task_id = str(target["task_id"])
-            header = _task_header(target)
-        elif max_samples is not None:
-            click.echo(
-                "--max-samples targets a single task, but this process is "
-                f"running {len(candidates)} tasks. Pass a task id "
-                "(see `inspect ctl tasks`).",
-                err=True,
-            )
-            raise click.exceptions.Exit(code=1)
-        else:
-            task_id = None  # process-global scope
-            header = f"process · {len(tasks_in_proc)} tasks"
+        _echo_no_running_evals()
+        return
 
     config = _exec_limits(
-        socket_path,
-        task_id,
+        scope.socket_path,
+        scope.task_id,
         max_samples=max_samples,
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
@@ -725,7 +667,7 @@ def limits_command(
         click.echo(json_lib.dumps(config, indent=2))
         return
 
-    click.echo(header)
+    click.echo(scope.header)
     click.echo()
     _print_limits(config, changed=set_values)
 
@@ -739,10 +681,115 @@ def limits_command(
         )
         if value is not None
     ]
-    siblings = sum(1 for s in summaries if str(s.get("socket_path")) == socket_path)
-    note = _process_scope_note(global_knobs, siblings)
+    note = _process_scope_note(global_knobs, scope.siblings)
     if note:
         click.echo(f"\n{note}")
+
+
+class _DirectiveScope(NamedTuple):
+    """A directive command's resolved target (see :func:`_resolve_scope`)."""
+
+    socket_path: str
+    task_id: str | None
+    """``None`` targets the process-level scope."""
+    header: str
+    siblings: int
+    """Tasks sharing the target process (0 when resolved before registration)."""
+
+
+def _resolve_scope(
+    servers: list[DiscoveredControlServer],
+    summaries: list[dict[str, Any]],
+    task: str | None,
+    *,
+    per_task_option: str | None = None,
+) -> _DirectiveScope | None:
+    """Resolve the task-or-process scope a directive command targets.
+
+    The one resolution rule for directives with an optional ``TASK`` (limits
+    today; cancel/drain are expected to reuse it): an explicit ``TASK``
+    targets that task; no ``TASK`` defaults to the sole process — a
+    single-active-task process resolves to that task (completed eval-set
+    siblings don't count), a multi-task process resolves to the process-level
+    scope. ``per_task_option`` names an option (e.g. ``--max-samples``) that
+    requires a single task and therefore forbids the process-scope fallbacks.
+
+    Returns ``None`` when there is nothing to target (the caller prints the
+    no-running-evals message) and exits directly on ambiguous or invalid
+    selections.
+    """
+    if not summaries:
+        # A process binds its control endpoint before its first task registers
+        # (sandbox startup / image pulls can take minutes), so an empty task
+        # list doesn't mean no process. With a sole process and no per-task
+        # ask, target the process-level scope so a startup retune (e.g.
+        # --max-sandboxes during a docker pull) lands instead of bailing.
+        if len(servers) == 1 and task is None and per_task_option is None:
+            return _DirectiveScope(
+                socket_path=str(servers[0].socket_path),
+                task_id=None,
+                header="process · starting",
+                siblings=0,
+            )
+        return None
+
+    if task is not None:
+        target = _resolve_target_eval(summaries, task)
+        socket_path = str(target["socket_path"])
+        task_id = str(target["task_id"])
+        if not task_id:
+            # a reused log written before task ids existed — addressable only
+            # by its (superseded) eval id, which the directive wire doesn't use
+            click.echo(
+                f"Task '{target.get('task') or '?'}' predates task ids (an "
+                "older reused log) — its per-task limits aren't addressable. "
+                "Run without TASK to view or set the process-wide limits.",
+                err=True,
+            )
+            raise click.exceptions.Exit(code=1)
+        return _DirectiveScope(
+            socket_path=socket_path,
+            task_id=task_id,
+            header=_task_header(target),
+            siblings=sum(
+                1 for s in summaries if str(s.get("socket_path")) == socket_path
+            ),
+        )
+
+    sockets = sorted({str(s.get("socket_path")) for s in summaries})
+    if len(sockets) > 1:
+        # multiple processes: can't default to one — passing a task id
+        # disambiguates the process too
+        _exit_ambiguous(summaries, "Multiple processes are running")
+    socket_path = sockets[0]
+    tasks_in_proc = [s for s in summaries if str(s.get("socket_path")) == socket_path]
+    # a finished task's limits are no longer meaningfully adjustable, so the
+    # sole-task default keys on what is still active — an eval-set with one
+    # running and N completed tasks resolves to the running one
+    active = [s for s in tasks_in_proc if s.get("status") in ("running", "pending")]
+    candidates = active or tasks_in_proc
+    if len(candidates) == 1 and str(candidates[0].get("task_id") or ""):
+        target = candidates[0]
+        return _DirectiveScope(
+            socket_path=socket_path,
+            task_id=str(target["task_id"]),
+            header=_task_header(target),
+            siblings=len(tasks_in_proc),
+        )
+    if per_task_option is not None:
+        click.echo(
+            f"{per_task_option} targets a single task, but this process is "
+            f"running {len(candidates)} tasks. Pass a task id "
+            "(see `inspect ctl tasks`).",
+            err=True,
+        )
+        raise click.exceptions.Exit(code=1)
+    return _DirectiveScope(
+        socket_path=socket_path,
+        task_id=None,  # process-global scope
+        header=f"process · {len(tasks_in_proc)} tasks",
+        siblings=len(tasks_in_proc),
+    )
 
 
 def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:

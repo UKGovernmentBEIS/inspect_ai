@@ -70,22 +70,18 @@ async def process_limits(
     ``None``. With both knobs ``None`` it's a pure read. ``model`` restricts the
     adaptive controllers considered (matched at name start or after a ``/``).
     """
-    warnings: list[str] = []
-    requested: dict[str, int] = {}
     views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
         model=model,
         dry_run=dry_run,
-        requested=requested,
-        warnings=warnings,
     )
     return {
         "dry_run": dry_run,
         "max_sandboxes": views.max_sandboxes,
         "adaptive": views.adaptive,
-        "requested": requested or None,
-        "warnings": warnings,
+        "requested": views.requested or None,
+        "warnings": views.warnings,
     }
 
 
@@ -139,46 +135,44 @@ async def task_limits(
     if not task_registered(task_id):
         return None
 
-    warnings: list[str] = []
-    requested: dict[str, int] = {}
-
     # max_samples — the task's sample semaphore. Only a ResizableLimiter is a
     # user setpoint; a DynamicSampleLimiter (adaptive path) or a missing entry
     # (reused-log task, or one that ran no samples here) isn't adjustable.
-    # Applied before the process-global knobs so `requested` reads max_samples
-    # first.
+    sample_requested: dict[str, int] = {}
+    sample_warnings: list[str] = []
     semaphore = task_sample_semaphore(task_id)
     sample_limiter = semaphore if isinstance(semaphore, ResizableLimiter) else None
     if max_samples is not None:
-        requested["max_samples"] = max_samples
+        sample_requested["max_samples"] = max_samples
         if sample_limiter is None:
-            warnings.append(
+            sample_warnings.append(
                 "max_samples is not adjustable for this task (it uses adaptive "
                 "connection concurrency, or ran no samples in this process)."
             )
         elif not dry_run:
             sample_limiter.limit = max_samples
 
-    views = _apply_process_knobs(
-        max_sandboxes=max_sandboxes,
-        max_connections=max_connections,
-        model=model,
-        dry_run=dry_run,
-        requested=requested,
-        warnings=warnings,
-    )
-
     # a DynamicSampleLimiter that never found its model's controller means
     # sample concurrency is stuck at its starting value — generates may be
     # flowing through a different model (roles / agent bridge), or the model's
     # connection key changed after creation. Surface it; nothing else does.
     if isinstance(semaphore, DynamicSampleLimiter) and semaphore.controller is None:
-        warnings.append(
+        sample_warnings.append(
             "sample concurrency is adaptive but no matching connection "
             "controller exists — if generates flow through a different model "
             "(e.g. model roles or an agent bridge), sample concurrency stays "
             "at its starting value."
         )
+
+    views = _apply_process_knobs(
+        max_sandboxes=max_sandboxes,
+        max_connections=max_connections,
+        model=model,
+        dry_run=dry_run,
+    )
+    # per-task entries lead, then the process-global ones
+    requested = {**sample_requested, **views.requested}
+    warnings = sample_warnings + views.warnings
 
     # `tracks_adaptive` distinguishes the adaptive path (sample concurrency
     # follows this task's controller) from a task with no live limiter at all
@@ -225,6 +219,8 @@ class _ProcessKnobViews(NamedTuple):
 
     max_sandboxes: list[dict[str, Any]]
     adaptive: list[dict[str, Any]]
+    requested: dict[str, int]
+    warnings: list[str]
 
 
 def _apply_process_knobs(
@@ -233,18 +229,19 @@ def _apply_process_knobs(
     max_connections: int | None,
     model: str | None,
     dry_run: bool,
-    requested: dict[str, int],
-    warnings: list[str],
 ) -> _ProcessKnobViews:
     """Apply the process-global knobs and build their views.
 
-    Mutates ``requested`` / ``warnings`` in place (so callers can prepend a
-    per-task knob) and returns the resulting views. The views are re-read
-    after applying, so a real set reflects the new values. ``model`` restricts
-    the adaptive controllers considered (for both ``max_connections`` and the
-    reported view) to those matching it.
+    Returns the resulting views along with what was requested and any
+    warnings (callers merge their own per-task entries in front). The views
+    are re-read after applying, so a real set reflects the new values.
+    ``model`` restricts the adaptive controllers considered (for both
+    ``max_connections`` and the reported view) to those matching it.
     """
     from inspect_ai.util._concurrency import adaptive_controllers, sandbox_limiters
+
+    requested: dict[str, int] = {}
+    warnings: list[str] = []
 
     # max_sandboxes — the process-global sandbox limiters, one per sandbox type.
     sandboxes = sandbox_limiters()
@@ -258,7 +255,7 @@ def _apply_process_knobs(
             )
         elif not dry_run:
             for sem in sandboxes.values():
-                sem.set_concurrency(max_sandboxes)
+                sem.concurrency = max_sandboxes
 
     # max_connections — the adaptive controllers' scaling ceiling (process-global,
     # one per model). Lowering clamps live concurrency down immediately; raising
@@ -318,4 +315,9 @@ def _apply_process_knobs(
         for ctrl in sorted(controllers, key=lambda c: c.name)
     ]
 
-    return _ProcessKnobViews(max_sandboxes=max_sandboxes_view, adaptive=adaptive_view)
+    return _ProcessKnobViews(
+        max_sandboxes=max_sandboxes_view,
+        adaptive=adaptive_view,
+        requested=requested,
+        warnings=warnings,
+    )

@@ -241,6 +241,20 @@ class ControlServer:
                 status_code=500, content={"error": f"{type(exc).__name__}: {exc}"}
             )
 
+        def _limits_below_one(*knobs: tuple[str, int | None]) -> JSONResponse | None:
+            """400 for the first requested limit below 1, else None.
+
+            Shared by both PATCH limits routes so the knob validation can't
+            drift between them.
+            """
+            for label, value in knobs:
+                if value is not None and value < 1:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": f"{label} must be >= 1 (got {value})"},
+                    )
+            return None
+
         @app.get("/evals")
         async def list_evals() -> list[dict[str, Any]]:
             summaries = await current_eval_summaries(started_at)
@@ -384,15 +398,11 @@ class ControlServer:
             model: str | None = None,
             dry_run: bool = False,
         ) -> Any:
-            for label, value in (
+            if error := _limits_below_one(
                 ("max_sandboxes", max_sandboxes),
                 ("max_connections", max_connections),
             ):
-                if value is not None and value < 1:
-                    return JSONResponse(
-                        status_code=400,
-                        content={"error": f"{label} must be >= 1 (got {value})"},
-                    )
+                return error
             return await process_limits(
                 max_sandboxes=max_sandboxes,
                 max_connections=max_connections,
@@ -432,16 +442,12 @@ class ControlServer:
             model: str | None = None,
             dry_run: bool = False,
         ) -> Any:
-            for label, value in (
+            if error := _limits_below_one(
                 ("max_samples", max_samples),
                 ("max_sandboxes", max_sandboxes),
                 ("max_connections", max_connections),
             ):
-                if value is not None and value < 1:
-                    return JSONResponse(
-                        status_code=400,
-                        content={"error": f"{label} must be >= 1 (got {value})"},
-                    )
+                return error
             result = await task_limits(
                 task_id,
                 max_samples=max_samples,

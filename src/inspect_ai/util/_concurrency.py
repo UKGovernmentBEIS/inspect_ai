@@ -224,9 +224,19 @@ class ConcurrencySemaphore(Protocol):
     """Protocol for concurrency semaphores."""
 
     name: str
-    concurrency: int
     semaphore: contextlib.AbstractAsyncContextManager[Any]
     visible: bool
+
+    @property
+    def concurrency(self) -> int:
+        """The current limit (maximum concurrent holders).
+
+        Read-only at the protocol level — no consumer retunes through this
+        type. A plain attribute satisfies it; a live-resizable implementation
+        (:class:`ResizableSemaphore`) exposes a settable property whose
+        assignment *is* the retune.
+        """
+        ...
 
     @property
     def value(self) -> int:
@@ -518,7 +528,7 @@ class _AnyIOSemaphoreRegistry:
             _fire_controller_created(ctrl)
             return ctrl
         sem = (
-            _create_resizable_semaphore(name, concurrency, visible)
+            ResizableSemaphore(name, concurrency, visible)
             if resizable
             else _create_anyio_semaphore(name, concurrency, visible)
         )
@@ -534,7 +544,10 @@ def _create_anyio_semaphore(
 ) -> ConcurrencySemaphore:
     """Create a local ConcurrencySemaphore using anyio.Semaphore."""
 
-    class _ConcurrencySemaphore(ConcurrencySemaphore):
+    # satisfies ConcurrencySemaphore structurally (the protocol's read-only
+    # `concurrency` property is met by the plain attribute; nominal
+    # inheritance would forbid assigning over the inherited property)
+    class _ConcurrencySemaphore:
         def __init__(self, name: str, concurrency: int, visible: bool) -> None:
             self.name = name
             self.concurrency = concurrency
@@ -555,23 +568,35 @@ def _create_anyio_semaphore(
     return _ConcurrencySemaphore(name, concurrency, visible)
 
 
-class ResizableSemaphore(ConcurrencySemaphore):
+class ResizableSemaphore:
     """A ``ConcurrencySemaphore`` whose limit can be changed live.
 
     Backs a registry entry (``max_sandboxes`` today) with a
     :class:`ResizableLimiter` instead of a fixed ``anyio.Semaphore``, so the
-    control channel can retune it mid-eval. ``concurrency`` mirrors the
-    limiter's current limit (kept in sync by :meth:`set_concurrency`) to satisfy
-    the ``ConcurrencySemaphore`` protocol and the status display, which reads
-    ``concurrency - value`` for the in-use count.
+    control channel can retune it mid-eval. ``concurrency`` delegates straight
+    to the limiter's live limit — the protocol's mutable attribute is a
+    settable property here, so assigning it *is* the retune and the reported
+    limit can never drift from the enforced one. (Satisfies the
+    ``ConcurrencySemaphore`` protocol structurally rather than by inheritance:
+    nominal override rules disallow redeclaring an attribute as a property,
+    while the protocol's structural check accepts a settable one.)
     """
 
     def __init__(self, name: str, concurrency: int, visible: bool) -> None:
         self.name = name
         self.visible = visible
         self._limiter = ResizableLimiter(concurrency)
-        self.concurrency = concurrency
         self.semaphore: contextlib.AbstractAsyncContextManager[Any] = self._limiter
+
+    @property
+    def concurrency(self) -> int:
+        """The live limit (delegates to the underlying resizable limiter)."""
+        return self._limiter.limit
+
+    @concurrency.setter
+    def concurrency(self, value: int) -> None:
+        """Change the limit live. Lowering below in-use blocks new acquires."""
+        self._limiter.limit = value
 
     @property
     def value(self) -> int:
@@ -587,18 +612,6 @@ class ResizableSemaphore(ConcurrencySemaphore):
         ``concurrency`` rather than the true (higher) borrowed count.
         """
         return self._limiter.in_use
-
-    def set_concurrency(self, new: int) -> None:
-        """Change the limit live. Lowering below in-use blocks new acquires."""
-        self._limiter.limit = new
-        self.concurrency = new
-
-
-def _create_resizable_semaphore(
-    name: str, concurrency: int, visible: bool
-) -> ConcurrencySemaphore:
-    """Create a live-resizable ConcurrencySemaphore (see :class:`ResizableSemaphore`)."""
-    return ResizableSemaphore(name, concurrency, visible)
 
 
 # Global registry instance

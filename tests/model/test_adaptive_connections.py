@@ -266,19 +266,13 @@ async def test_manual_connection_limit_change_excluded_from_eval_stats() -> None
     only adaptive reasons — so a `manual` entry must be skipped, not passed
     through (which would raise a ValidationError and fail the whole eval).
     """
+    from test_helpers.utils import register_adaptive_controller
+
     from inspect_ai._eval.task.log import collect_eval_data
     from inspect_ai.log._log import EvalStats
-    from inspect_ai.util._concurrency import (
-        AdaptiveConcurrency,
-        AdaptiveConcurrencyController,
-        get_or_create_semaphore,
-    )
 
     init_concurrency()
-    ctrl = await get_or_create_semaphore(
-        "mockllm/model", 10, None, True, AdaptiveConcurrency(min=1, max=100, start=50)
-    )
-    assert isinstance(ctrl, AdaptiveConcurrencyController)
+    ctrl = await register_adaptive_controller("mockllm/model")
     ctrl.set_max(20)  # records a 50 -> 20 "manual" change in controller history
 
     stats = EvalStats()

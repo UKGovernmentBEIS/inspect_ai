@@ -9,6 +9,7 @@ import asyncio
 
 import httpx
 import pytest
+from test_helpers.utils import register_adaptive_controller as _register_controller
 
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
@@ -163,18 +164,30 @@ async def test_limits_max_sandboxes_adjustable_before_first_acquire() -> None:
     assert read["max_sandboxes"][0]["limit"] == 2
 
 
-async def test_limits_both_knobs() -> None:
+async def test_limits_all_knobs() -> None:
+    """All three knobs land in one request (per-task and process-global)."""
     limiter = ResizableLimiter(10)
     docker = ResizableSemaphore("docker", 4, True)
     register_eval("e1", 5, task_id="t1")
     register_task_sample_semaphore("t1", limiter)
     register_sandbox_limiter("docker", docker)
+    ctrl = await _register_controller(max=100, start=50)
 
-    result = await task_limits("t1", max_samples=15, max_sandboxes=6)
+    result = await task_limits(
+        "t1", max_samples=15, max_sandboxes=6, max_connections=30
+    )
     assert result is not None
     assert limiter.limit == 15
     assert docker.concurrency == 6
-    assert result["requested"] == {"max_samples": 15, "max_sandboxes": 6}
+    # ceiling lowered and live limit clamped down to it
+    assert (ctrl.max, ctrl.concurrency) == (30, 30)
+    a = result["adaptive"][0]
+    assert (a["max"], a["limit"]) == (30, 30)
+    assert result["requested"] == {
+        "max_samples": 15,
+        "max_sandboxes": 6,
+        "max_connections": 30,
+    }
 
 
 async def test_limits_none_when_task_missing() -> None:
@@ -205,17 +218,8 @@ async def test_limits_unaffected_by_retry_supersede() -> None:
 
 async def test_limits_adaptive_read_view() -> None:
     """The adaptive path reports live controller state (read-only)."""
-    from inspect_ai.util._concurrency import (
-        AdaptiveConcurrency,
-        AdaptiveConcurrencyController,
-        get_or_create_semaphore,
-    )
-
     register_eval("e1", 5, task_id="t1")  # adaptive path: no registered setpoint
-    ctrl = await get_or_create_semaphore(
-        "openai/gpt-4", 10, None, True, AdaptiveConcurrency(min=1, max=100, start=10)
-    )
-    assert isinstance(ctrl, AdaptiveConcurrencyController)
+    ctrl = await _register_controller(start=10)
     ctrl.notify_retry()  # record a scale-down: 10 -> 8 (rate_limit)
 
     result = await task_limits("t1")
@@ -240,51 +244,6 @@ async def test_limits_adaptive_empty_when_no_controllers() -> None:
     result = await task_limits("t1")
     assert result is not None
     assert result["adaptive"] == []
-
-
-async def _register_controller(
-    name: str = "openai/gpt-4", max: int = 100, start: int = 50
-) -> AdaptiveConcurrencyController:
-    from inspect_ai.util._concurrency import (
-        AdaptiveConcurrency,
-        get_or_create_semaphore,
-    )
-
-    ctrl = await get_or_create_semaphore(
-        name, 10, None, True, AdaptiveConcurrency(min=1, max=max, start=start)
-    )
-    assert isinstance(ctrl, AdaptiveConcurrencyController)
-    return ctrl
-
-
-async def test_limits_set_max_connections() -> None:
-    """max_connections retunes the adaptive controllers' ceiling."""
-    register_eval("e1", 5, task_id="t1")
-    ctrl = await _register_controller(max=100, start=50)
-
-    result = await task_limits("t1", max_connections=30)
-    assert result is not None
-    assert result["requested"] == {"max_connections": 30}
-    # ceiling lowered and live limit clamped down to it
-    assert ctrl.max == 30
-    assert ctrl.concurrency == 30
-    a = result["adaptive"][0]
-    assert a["max"] == 30
-    assert a["limit"] == 30
-
-
-async def test_limits_max_connections_dry_run_does_not_apply() -> None:
-    register_eval("e1", 5, task_id="t1")
-    ctrl = await _register_controller(max=100, start=50)
-
-    result = await task_limits("t1", max_connections=30, dry_run=True)
-    assert result is not None
-    assert result["dry_run"] is True
-    assert result["requested"] == {"max_connections": 30}
-    # nothing mutated; view reflects the pre-change ceiling
-    assert ctrl.max == 100
-    assert ctrl.concurrency == 50
-    assert result["adaptive"][0]["max"] == 100
 
 
 async def test_limits_max_connections_not_adjustable_without_controllers() -> None:
