@@ -164,11 +164,13 @@ The following reasoning options are available from the CLI and within `GenerateC
 
 vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html) docs for details.
 
-For vLLM, configure the model's reasoning parser using `-M` model arguments. For example, Qwen3:
+For vLLM, Inspect configures the reasoning parser automatically for known model families. You can also override it using `-M` model arguments. For example, Qwen3:
 
 ``` bash
 inspect eval math.py --model vllm/Qwen/Qwen3-8B -M reasoning_parser=qwen3
 ```
+
+For SGLang, Inspect starts the local server with `reasoning_parser=auto` unless you provide a parser explicitly.
 
 Thinking mode is model-specific and controlled separately from `--reasoning-effort`. For models where vLLM exposes template switches such as `enable_thinking` or `thinking`, pass them as chat-template kwargs:
 
