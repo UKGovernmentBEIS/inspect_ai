@@ -385,8 +385,13 @@ def eval(
     return result
 
 
-# single call to eval_async at a time
-_eval_async_running = False
+# depth of concurrently-active eval_async() calls in this process; the
+# guard in _eval_async_inner keeps this at 0/1 unless the caller opts in
+# via INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC. When >1, per-run process-global
+# resets (concurrency registry, active-samples list, refusal counter,
+# eval-state registry) are skipped for the nested call so the outer eval's
+# state isn't torn down mid-run.
+_eval_async_running = 0
 
 
 async def eval_async(
@@ -712,16 +717,32 @@ async def _eval_async_inner(
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
 
-    # only a single call to eval_async can be active at a time, this used
-    # to be due to running tasks switching to the task's directory, however
-    # that feature no longer exists so we may be able to revisit this
-    # restriction (probably just need to examine if there is *global* state
-    # that could have conflicts in the case of multiple eval_async calls)
+    # only a single call to eval_async is active at a time by default. The
+    # original reason (tasks chdir'ing to their directory for the duration of
+    # the run) is gone, and the per-run process-global resets that remain are
+    # now skipped for nested calls (see `nested` below), so callers that
+    # orchestrate several evals in-process may opt in to concurrent calls via
+    # INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC. Remaining process-global state that
+    # concurrent callers must avoid or accept sharing is documented alongside
+    # that env var in the error message.
     global _eval_async_running
-    if _eval_async_running:
-        raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
+    if _eval_async_running and not os.environ.get(
+        "INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC"
+    ):
+        raise RuntimeError(
+            "Multiple concurrent calls to eval_async are not allowed by default. "
+            "To run several eval_async() calls in one process, set the "
+            "INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC environment variable. When "
+            "enabled, use a distinct log_dir per call and note that some "
+            "process-global state is shared across concurrent evals: the model "
+            "connection-concurrency registry, the rich/textual display, the "
+            "refusal counter, model_cost_config, and sandbox startup/cleanup "
+            "(which chdir's to the task directory). Prefer display='plain' or "
+            "'none', and avoid overlapping sandbox-backed evals."
+        )
 
-    _eval_async_running = True
+    nested = _eval_async_running > 0
+    _eval_async_running += 1
 
     # if we are called outside of eval() then set display type to "plain"
     if not display_type_initialized():
@@ -754,6 +775,7 @@ async def _eval_async_inner(
             log_level_transcript=log_level_transcript,
             log_refusals=log_refusals,
             task_group=tg,
+            nested=nested,
             **kwargs,
         )
 
@@ -1115,22 +1137,22 @@ async def _eval_async_inner(
             await emit_run_end(eval_set_id, run_id, logs)
         except UnboundLocalError:
             await emit_run_end(eval_set_id, run_id, EvalLogs([]))
-        _eval_async_running = False
 
     except BaseException as e:
         await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
-        _eval_async_running = False
         raise e
 
     finally:
+        _eval_async_running -= 1
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
         # Clear the process-level EvalState registry at the run boundary
-        # (after any keep-alive park) — but only for a standalone eval.
+        # (after any keep-alive park) — but only for a standalone eval, and
+        # only once no other eval_async is still running in this process.
         # When nested in an eval-set (eval_set_id set) the eval-set owns
         # this, clearing after its own park.
-        if eval_set_id is None:
+        if eval_set_id is None and _eval_async_running == 0:
             clear_all_eval_states()
 
     # return logs
@@ -1780,11 +1802,17 @@ def eval_init(
     log_level_transcript: str | None = None,
     log_refusals: bool | None = None,
     task_group: TaskGroup | None = None,
+    nested: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[Model]:
     # init eval context
     init_eval_context(
-        log_level, log_level_transcript, log_refusals, max_subprocesses, task_group
+        log_level,
+        log_level_transcript,
+        log_refusals,
+        max_subprocesses,
+        task_group,
+        nested=nested,
     )
 
     # resolve model and task args

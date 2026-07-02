@@ -4,7 +4,7 @@ import tempfile
 from copy import deepcopy
 
 import pytest
-from test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import skip_if_no_docker, skip_if_trio
 
 from inspect_ai import (
     Epochs,
@@ -88,6 +88,92 @@ async def test_no_concurrent_eval_async():
                 for task in tasks
             ]
         )
+
+
+@pytest.mark.anyio
+@skip_if_trio
+async def test_concurrent_eval_async_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two overlapping eval_async calls each complete cleanly under the opt-in.
+
+    With INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC set, both evals succeed and each
+    writes only its own samples to its own log_dir (no cross-contamination).
+    """
+    import os
+
+    import anyio
+
+    from inspect_ai.log import list_eval_logs, read_eval_log
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    monkeypatch.setenv("INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC", "1")
+
+    # A solver that yields so the two evals actually interleave: each eval's
+    # samples start (append to the process-global active-samples list) before
+    # either eval's samples finish, so a nested-call reset of that list — the
+    # bug this opt-in has to guard against — would surface here.
+    @solver
+    def yielding():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await anyio.sleep(0.2)
+            return await generate(state)
+
+        return solve
+
+    task_a = Task(
+        name="task_a",
+        dataset=[Sample(input=f"a-{i}", target="Hello") for i in range(3)],
+        solver=yielding(),
+        scorer=match(),
+    )
+    task_b = Task(
+        name="task_b",
+        dataset=[Sample(input=f"b-{i}", target="Hello") for i in range(4)],
+        solver=yielding(),
+        scorer=match(),
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        dir_a = os.path.join(tmp, "a")
+        dir_b = os.path.join(tmp, "b")
+        results = await tg_collect(
+            [
+                functools.partial(
+                    eval_async, task_a, model="mockllm/model", log_dir=dir_a
+                ),
+                functools.partial(
+                    eval_async, task_b, model="mockllm/model", log_dir=dir_b
+                ),
+            ]
+        )
+        log_a, log_b = results[0][0], results[1][0]
+
+        assert log_a.status == "success", log_a.error
+        assert log_b.status == "success", log_b.error
+        assert log_a.eval.task == "task_a"
+        assert log_b.eval.task == "task_b"
+        assert log_a.samples is not None and len(log_a.samples) == 3
+        assert log_b.samples is not None and len(log_b.samples) == 4
+
+        # exactly one log file per dir, and reading it back matches
+        for log_dir, expected_task, expected_n in [
+            (dir_a, "task_a", 3),
+            (dir_b, "task_b", 4),
+        ]:
+            written = list_eval_logs(log_dir)
+            assert len(written) == 1
+            reread = read_eval_log(written[0])
+            assert reread.eval.task == expected_task
+            assert reread.samples is not None and len(reread.samples) == expected_n
+            assert all(
+                s.input.startswith(f"{expected_task[-1]}-") for s in reread.samples
+            )
+
+    # depth counter must be back to zero so the guard re-arms
+    from inspect_ai._eval.eval import _eval_async_running
+
+    assert _eval_async_running == 0
 
 
 def test_eval_config_override():

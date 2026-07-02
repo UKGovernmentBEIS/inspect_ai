@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval: Allow concurrent `eval_async()` calls within one process when `INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC` is set (nested calls skip process-global resets so a running eval's active-samples list, concurrency registry, and eval-state registry aren't cleared out from under it).
 - Performance: make `stable_message_ids()` linear per turn.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
 
