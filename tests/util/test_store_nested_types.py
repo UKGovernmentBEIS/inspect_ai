@@ -355,6 +355,36 @@ def test_coercion_caching():
     assert stored_value is person1
 
 
+def test_container_field_cached_across_reads() -> None:
+    """A container field is coerced once and reused, not rebuilt on every read.
+
+    A dict/list value is not a model instance, so without the identity fast-path
+    TypeAdapter rebuilds it (a fresh object) on every access; the two reads below
+    would then return different objects.
+    """
+    store = Store()
+    store.set("MixedStore:data", {"a": "1", "b": "2"})
+    model = MixedStore(store=store)
+
+    assert model.data is model.data
+
+
+def test_assigned_raw_value_is_coerced_on_read() -> None:
+    """Assigning raw data through the model coerces it to the declared type.
+
+    The store value is canonicalized on write, so a later read (including the
+    identity fast-path) returns typed objects rather than the raw dicts that
+    were assigned.
+    """
+    store = Store()
+    model = NestedPydanticStore(store=store)
+
+    model.people = [{"name": "Alice", "age": 30}]  # type: ignore[list-item]
+
+    assert all(isinstance(p, Person) for p in model.people)
+    assert model.people[0].name == "Alice"
+
+
 def test_invalid_data_returns_raw() -> None:
     """Test that invalid data that can't be coerced returns raw value."""
 
