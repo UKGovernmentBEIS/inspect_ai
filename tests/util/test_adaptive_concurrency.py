@@ -794,6 +794,26 @@ def test_set_max_does_not_leak_through_shared_config() -> None:
     assert shared.max == 100  # caller's object untouched too
 
 
+def test_set_max_rejects_below_one_without_mutating() -> None:
+    """set_max validates >= 1 before touching any state.
+
+    Regression: set_max delegated validation to the HTTP route, so a direct
+    Python call with 0 committed `_config.max = 0` before the limiter set
+    raised — torn state whose zero ceiling then made every clean-round
+    scale-up compute a 0 target and re-raise inside notify_success on the
+    generate completion path for the rest of the run.
+    """
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=100, start=50), visible=True
+    )
+    with pytest.raises(ValueError):
+        c.set_max(0)
+    assert (c.min, c.max, c.concurrency) == (1, 100, 50)  # nothing mutated
+    # scale-up still works (the ceiling was not poisoned)
+    _saturated_successes(c, 50)
+    assert c.concurrency == 100
+
+
 def test_set_max_pulls_min_down_when_needed() -> None:
     c = AdaptiveConcurrencyController(
         "t", AdaptiveConcurrency(min=20, max=100, start=50), visible=True

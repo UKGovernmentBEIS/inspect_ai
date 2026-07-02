@@ -941,8 +941,16 @@ class AdaptiveConcurrencyController:
         temporary throttle must not permanently weaken the floor that
         rate-limit cuts clamp to.
 
-        Caller is responsible for ``new_max >= 1`` (the route/CLI validate it).
+        Raises:
+            ValueError: If ``new_max < 1``. Validated here, before any state
+                changes (like ``ResizableLimiter.limit``), because a committed
+                zero ceiling would poison every subsequent scale-up: the growth
+                targets are capped by ``_config.max`` with no floor, so
+                ``_set_limit(0)`` would raise from ``notify_success`` on the
+                generate completion path for the rest of the run.
         """
+        if new_max < 1:
+            raise ValueError(f"connection limit ceiling must be >= 1 (got {new_max})")
         self._config.max = new_max
         self._config.min = min(self._configured_min, new_max)
         # Only the clamp-down changes the live limit; `_set_limit` records the
