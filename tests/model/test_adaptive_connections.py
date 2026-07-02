@@ -452,6 +452,51 @@ def test_sample_semaphore_explicit_max_samples_wins() -> None:
     assert sem.limit == 5
 
 
+async def test_ensure_model_controller_eager_creation() -> None:
+    """Run startup pre-creates the model's adaptive controller.
+
+    Controllers are normally created lazily on the first generate; the eager
+    call closes the startup window where `ctl limits --max-connections` found
+    no controllers and dropped the retune with a misleading "not using
+    adaptive connections" warning. Also verifies the eager key matches the
+    generate-path key (registry coalescing) and the task's sample limiter
+    adopts the eagerly created controller.
+    """
+    from inspect_ai._eval.task.run import create_sample_semaphore
+    from inspect_ai.log._log import EvalConfig
+    from inspect_ai.model._model import ensure_model_controller
+    from inspect_ai.util._concurrency import DynamicSampleLimiter, init_concurrency
+
+    init_concurrency()
+    model = get_model("mockllm/model")
+
+    # eager creation at run startup (before any generate)
+    await ensure_model_controller(model, GenerateConfig(adaptive_connections=True))
+    ctrls = adaptive_controllers()
+    assert len(ctrls) == 1
+
+    # a generate reuses the same controller (keys coalesce)
+    await model.generate("hello", config=GenerateConfig(adaptive_connections=True))
+    assert adaptive_controllers() == ctrls
+
+    # the task's sample limiter adopts the eagerly created controller
+    sem = create_sample_semaphore(
+        EvalConfig(),
+        GenerateConfig(adaptive_connections=True),
+        model.api,
+        task_id="t-eager",
+    )
+    assert isinstance(sem, DynamicSampleLimiter)
+    assert sem.controller is ctrls[0]
+
+    # no-op when adaptive isn't active
+    init_concurrency()
+    await ensure_model_controller(
+        model, GenerateConfig(adaptive_connections=True, max_connections=10)
+    )
+    assert adaptive_controllers() == []
+
+
 def test_sample_semaphore_shared_across_retry_attempts() -> None:
     """The same task_id reuses its semaphore, preserving a mid-flight retune.
 

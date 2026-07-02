@@ -33,7 +33,7 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
-from inspect_ai.model._model import Model, ModelName
+from inspect_ai.model._model import Model, ModelName, ensure_model_controller
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -164,6 +164,17 @@ async def eval_run(
 
             # Ensure sample ids are unique
             ensure_unique_ids(task.dataset)
+
+        # eagerly create each task model's adaptive-connections controller
+        # (normally created lazily on the first generate) so `ctl limits` can
+        # observe and retune max_connections during run startup — the sandbox
+        # image pulls below can take minutes before any generate happens
+        if run_samples:
+            for resolved_task in resolved_tasks:
+                await ensure_model_controller(
+                    resolved_task.model,
+                    resolved_task.task.config.merge(GenerateConfigArgs(**kwargs)),
+                )
 
         # run startup pass for the sandbox environments these tasks need
         if run_samples and any(t.has_sandbox for t in resolved_tasks):

@@ -609,6 +609,38 @@ def model_concurrency_key(api: ModelAPI) -> str:
     return f"Model{_connection_pool_key(api)}"
 
 
+async def ensure_model_controller(model: "Model", config: GenerateConfig) -> None:
+    """Create the model's adaptive-connections controller if adaptive is active.
+
+    The controller is normally created lazily inside the model's first
+    generate; the run startup calls this ahead of time (before sandbox
+    startup, whose image pulls can take minutes) so the control channel can
+    observe and retune ``max_connections`` from the start of the run rather
+    than dropping a retune with a "not using adaptive connections" warning.
+    Uses the same name / key / config as ``_connection_concurrency``, so the
+    registry coalesces onto the one controller generates will use. A no-op
+    when adaptive isn't active (explicit ``max_connections``, batch mode, or
+    ``adaptive_connections=False``).
+    """
+    from inspect_ai.util._concurrency import (
+        adaptive_active,
+        get_or_create_semaphore,
+        resolve_adaptive,
+    )
+
+    if adaptive_active(
+        config.adaptive_connections, config.max_connections, config.batch
+    ):
+        adaptive = resolve_adaptive(config.adaptive_connections)
+        await get_or_create_semaphore(
+            str(ModelName(model)),
+            adaptive.start,
+            model_concurrency_key(model.api),
+            True,
+            adaptive,
+        )
+
+
 class Model:
     """Model interface.
 
