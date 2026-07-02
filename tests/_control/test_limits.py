@@ -129,6 +129,29 @@ async def test_limits_none_when_eval_missing() -> None:
     assert await eval_limits("nope") is None
 
 
+async def test_limits_superseded_attempt_retunes_shared_limiter() -> None:
+    """A retune against a superseded attempt still reaches the live retry.
+
+    Sample limiters are task-scoped, shared across in-process retry attempts:
+    when a retry supersedes an attempt (TaskLogger.reinit → detach_eval_live +
+    a fresh eval_id registered with the *same* limiter), a PATCH from a caller
+    holding the stale eval_id adjusts the limiter the live attempt drains
+    from — so the success response is genuine, not a write to a dead object.
+    """
+    from inspect_ai._control.eval_state import detach_eval_live
+
+    limiter = ResizableLimiter(20)
+    register_eval("e1", 5, sample_limiter=limiter)
+    # retry supersedes e1: live detached, retry registers the shared limiter
+    detach_eval_live("e1")
+    register_eval("e2", 5, sample_limiter=limiter)
+
+    result = await eval_limits("e1", max_samples=2)  # stale id
+    assert result is not None
+    assert result["max_samples"]["limit"] == 2
+    assert limiter.limit == 2  # reached the limiter the live attempt uses
+
+
 async def test_limits_adaptive_read_view() -> None:
     """The adaptive path reports live controller state (read-only)."""
     from inspect_ai.util._concurrency import (

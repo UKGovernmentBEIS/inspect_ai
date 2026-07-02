@@ -139,6 +139,17 @@ stays at `start + BUFFER` — conservative and bounded. (`create_sample_semaphor
 leans on this when no `ModelAPI` is available — tests only — by passing a
 `"<no-model>"` sentinel key that matches nothing.)
 
+Sample semaphores (all three paths) are **task-scoped, not attempt-scoped**:
+`create_sample_semaphore` keeps a task_id-keyed registry
+(`_task_sample_semaphores`, reset per run by `init_concurrency`) and an
+in-process task retry reuses its predecessor's semaphore. This makes a
+mid-flight `ctl limits --max-samples` retune survive a retry (the runtime
+setpoint wins over re-deriving from config — in-process retries share their
+config anyway) and makes a retune against a superseded attempt's eval_id land
+on the limiter the live attempt drains from — consistent with how the other
+retunable limits (controllers, sandbox limiters) already persist across
+retries via their own process-global registries.
+
 ### Bounds ownership
 
 Three `AdaptiveConcurrency` objects exist per adaptive task and none is

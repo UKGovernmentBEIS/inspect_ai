@@ -452,6 +452,56 @@ def test_sample_semaphore_explicit_max_samples_wins() -> None:
     assert sem.limit == 5
 
 
+def test_sample_semaphore_shared_across_retry_attempts() -> None:
+    """The same task_id reuses its semaphore, preserving a mid-flight retune.
+
+    Sample semaphores are task-scoped: an in-process task retry calls
+    create_sample_semaphore again (fresh attempt), and must get back the same
+    limiter so a `ctl limits --max-samples` retune survives the retry instead
+    of silently reverting to the config value.
+    """
+    from inspect_ai._eval.task.run import create_sample_semaphore
+    from inspect_ai.log._log import EvalConfig
+    from inspect_ai.util._concurrency import ResizableLimiter, init_concurrency
+
+    init_concurrency()
+    sem = create_sample_semaphore(
+        config=EvalConfig(max_samples=20),
+        generate_config=GenerateConfig(),
+        task_id="task-1",
+    )
+    assert isinstance(sem, ResizableLimiter)
+    sem.limit = 2  # mid-flight control-channel retune
+
+    # retry attempt: same task_id → same limiter, runtime setpoint intact
+    again = create_sample_semaphore(
+        config=EvalConfig(max_samples=20),
+        generate_config=GenerateConfig(),
+        task_id="task-1",
+    )
+    assert again is sem
+    assert sem.limit == 2
+
+    # a different task gets its own limiter
+    other = create_sample_semaphore(
+        config=EvalConfig(max_samples=20),
+        generate_config=GenerateConfig(),
+        task_id="task-2",
+    )
+    assert other is not sem
+
+    # a new run (init_concurrency) starts fresh
+    init_concurrency()
+    fresh = create_sample_semaphore(
+        config=EvalConfig(max_samples=20),
+        generate_config=GenerateConfig(),
+        task_id="task-1",
+    )
+    assert fresh is not sem
+    assert isinstance(fresh, ResizableLimiter)
+    assert fresh.limit == 20
+
+
 def test_sample_semaphore_static_path_unchanged() -> None:
     """Without adaptive, returns a ResizableLimiter sized from max_connections."""
     from inspect_ai._eval.task.run import create_sample_semaphore

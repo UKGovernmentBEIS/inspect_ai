@@ -501,7 +501,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             from inspect_ai.util._concurrency import ResizableLimiter
 
             sample_semaphore = create_sample_semaphore(
-                config, generate_config, model.api
+                config, generate_config, model.api, task_id=logger.eval.task_id
             )
 
             # Register this eval with the process-level state aggregate
@@ -2069,22 +2069,35 @@ def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
+    task_id: str | None = None,
 ) -> contextlib.AbstractAsyncContextManager[Any]:
     from inspect_ai.model._model import model_concurrency_key
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,
         ResizableLimiter,
         adaptive_active,
+        register_task_sample_semaphore,
         resolve_adaptive,
+        task_sample_semaphore,
     )
 
+    # sample semaphores are task-scoped, not attempt-scoped: an in-process
+    # retry reuses its predecessor's semaphore so a mid-flight `ctl limits
+    # --max-samples` retune survives the retry rather than silently reverting
+    # to the config value (see the registry's rationale in _concurrency.py)
+    if task_id is not None:
+        existing = task_sample_semaphore(task_id)
+        if existing is not None:
+            return existing
+
+    semaphore: "ResizableLimiter | DynamicSampleLimiter"
     if config.max_samples is not None:
         # explicit max_samples wins silently — under default-on
         # adaptive_connections, warning when max_samples < adaptive.max
         # would fire for nearly every deliberate max_samples setting.
         # ResizableLimiter (not a fixed Semaphore) so the control channel can
         # retune max_samples mid-eval (see design/control-channel.md phase 3).
-        return ResizableLimiter(config.max_samples)
+        semaphore = ResizableLimiter(config.max_samples)
     elif adaptive_active(
         generate_config.adaptive_connections,
         generate_config.max_connections,
@@ -2100,7 +2113,7 @@ def create_sample_semaphore(
         # initial value.
         # Both explicit max_connections and batch mode silently override
         # adaptive (matches the precedence in Model._connection_concurrency).
-        return DynamicSampleLimiter(
+        semaphore = DynamicSampleLimiter(
             resolve_adaptive(generate_config.adaptive_connections),
             model_concurrency_key(modelapi) if modelapi else "<no-model>",
         )
@@ -2116,7 +2129,11 @@ def create_sample_semaphore(
             if modelapi
             else DEFAULT_MAX_CONNECTIONS
         )
-        return ResizableLimiter(max_samples)
+        semaphore = ResizableLimiter(max_samples)
+
+    if task_id is not None:
+        register_task_sample_semaphore(task_id, semaphore)
+    return semaphore
 
 
 def _eval_retry_error(

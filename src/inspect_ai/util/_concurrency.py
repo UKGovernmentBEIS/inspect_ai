@@ -394,9 +394,11 @@ def init_concurrency(
     _concurrency_registry = _AnyIOSemaphoreRegistry() if registry is None else registry
     # clear controller-creation observers so each eval starts fresh
     _controller_created_observers.clear()
-    # drop any resizable sandbox limiters tracked for the previous run so a
-    # long-lived (keep-alive) process doesn't surface stale ones
+    # drop any resizable sandbox limiters and per-task sample semaphores tracked
+    # for the previous run so a long-lived (keep-alive) process doesn't surface
+    # or reuse stale ones
     _sandbox_limiters.clear()
+    _task_sample_semaphores.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -429,6 +431,37 @@ def register_sandbox_limiter(
 def sandbox_limiters() -> "dict[str, ResizableSemaphore]":
     """The resizable sandbox concurrency semaphores for the current run, by type."""
     return dict(_sandbox_limiters)
+
+
+# ---------------------------------------------------------------------------
+# Task sample semaphores
+# ---------------------------------------------------------------------------
+
+# The sample-concurrency semaphores for the current run, keyed by task_id (the
+# identity that is stable across retry attempts, unlike a per-attempt eval_id).
+# Task-scoped so an in-process task retry reuses its predecessor's semaphore:
+# a mid-flight `ctl limits --max-samples` retune survives the retry (the
+# runtime setpoint wins over re-deriving from config — in-process retries share
+# their config anyway), and a retune against a superseded attempt's eval_id
+# still reaches the limiter the live attempt drains from. This mirrors how the
+# other retunable limits already persist across retries (adaptive controllers
+# are keyed by connection pool, sandbox limiters by type). Reset per run by
+# `init_concurrency`.
+_task_sample_semaphores: "dict[str, ResizableLimiter | DynamicSampleLimiter]" = {}
+
+
+def task_sample_semaphore(
+    task_id: str,
+) -> "ResizableLimiter | DynamicSampleLimiter | None":
+    """The task's sample semaphore from a prior attempt in this run, if any."""
+    return _task_sample_semaphores.get(task_id)
+
+
+def register_task_sample_semaphore(
+    task_id: str, semaphore: "ResizableLimiter | DynamicSampleLimiter"
+) -> None:
+    """Track a task's sample semaphore for reuse by later retry attempts."""
+    _task_sample_semaphores[task_id] = semaphore
 
 
 class _AnyIOSemaphoreRegistry:

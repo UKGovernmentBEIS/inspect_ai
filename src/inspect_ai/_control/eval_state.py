@@ -272,11 +272,14 @@ class EvalState:
 
     Passed to :func:`register_eval` by the runner (which builds the sample
     semaphore just before registering), so the control channel's modify-limits
-    directive can read and retune ``max_samples`` mid-eval. ``None`` when the
-    eval's sample concurrency isn't a user setpoint — i.e. the adaptive
-    (``DynamicSampleLimiter``) path, or a reused/synthetic eval that never ran
-    samples in this process — in which case the directive reports ``max_samples``
-    as not adjustable."""
+    directive can read and retune ``max_samples`` mid-eval. The limiter is
+    task-scoped, shared across a task's in-process retry attempts (see
+    ``_task_sample_semaphores`` in ``util/_concurrency.py``), so a retune
+    survives a retry and a superseded attempt's state still points at the live
+    limiter. ``None`` when the eval's sample concurrency isn't a user setpoint
+    — i.e. the adaptive (``DynamicSampleLimiter``) path, or a reused/synthetic
+    eval that never ran samples in this process — in which case the directive
+    reports ``max_samples`` as not adjustable."""
 
     def observe_started(self, started: float | None) -> None:
         """Fold a sample's start time into :attr:`started_at` (running minimum).
@@ -540,7 +543,14 @@ def detach_eval_live(eval_id: str) -> None:
     Clearing it makes the superseded attempt's reads fall back to its own
     ``log_location`` — its data stays correct until the retry sweep removes
     that log, after which per-sample reads degrade to empty/404 (the counters
-    on the state itself are unaffected). No-ops if the eval isn't registered.
+    on the state itself are unaffected).
+
+    :attr:`sample_limiter` is deliberately NOT detached: sample semaphores are
+    task-scoped (see ``_task_sample_semaphores`` in ``util/_concurrency.py``),
+    so the retry attempt reuses the same limiter — a ``PATCH
+    /evals/<superseded-id>/limits`` from a caller holding the pre-retry eval_id
+    therefore retunes the very limiter the live attempt drains from, and its
+    success response is genuine. No-ops if the eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
