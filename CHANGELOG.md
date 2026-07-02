@@ -2,6 +2,7 @@
 
 - Performance: make `stable_message_ids()` linear per turn.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
+- Docker: Support the `devices` field on compose services (device mappings such as `/dev/kvm`), previously rejected as an unknown field.
 
 ## 0.3.244 (01 July 2026)
 
