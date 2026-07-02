@@ -1,5 +1,6 @@
 ## Unreleased
 
+- CLI: Fix `--score-on-error` and `--continue-on-fail` (when absent on the command line) silently overwriting a value set in a `@task`, a `--run-config` file, or a prior eval log being retried.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
 
 ## 0.3.244 (01 July 2026)
