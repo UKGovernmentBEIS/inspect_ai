@@ -367,8 +367,8 @@ class ControlServer:
 
         # Read the process-global concurrency limits (max_sandboxes /
         # max_connections) without naming an eval — the common case for viewing
-        # or throttling a whole process. No max_samples (that's per-eval; use
-        # the /evals/<id>/limits routes for it).
+        # or throttling a whole process. No max_samples (that's per-task; use
+        # the /tasks/<task-id>/limits routes for it).
         @app.get("/limits")
         async def get_process_limits(model: str | None = None) -> Any:
             return await process_limits(model=model)

@@ -145,7 +145,7 @@ $ inspect ctl limits gpqa --max-connections 20
 
 Changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene.
 
-Limits are keyed by the task (stable across retries): a retune survives a task retry rather than reverting to the launch configuration. `--max-sandboxes` and `--max-connections` are process-wide — in an eval set they affect every task in the process, not just the one named. With no `TASK` argument the command targets the sole running process (showing just the process-wide limits when it hosts multiple tasks).
+Limits are keyed by the task (stable across retries): with eval sets' default immediate retries, a retune survives a task retry rather than reverting to the launch configuration (legacy batch-mode retries — `retry_immediate=False` — run as separate calls and revert). `--max-sandboxes` and `--max-connections` are process-wide — in an eval set they affect every task in the process, not just the one named. With no `TASK` argument the command targets the sole running process (showing just the process-wide limits when it hosts multiple tasks).
 
 ## Log Buffer
 

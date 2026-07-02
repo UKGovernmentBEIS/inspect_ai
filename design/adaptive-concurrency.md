@@ -142,7 +142,10 @@ leans on this when no `ModelAPI` is available — tests only — by passing a
 Sample semaphores (all three paths) are **task-scoped, not attempt-scoped**:
 `create_sample_semaphore` keeps a task_id-keyed registry
 (`_task_sample_semaphores`, reset per run by `init_concurrency`) and an
-in-process task retry reuses its predecessor's semaphore. This makes a
+in-run (immediate) task retry reuses its predecessor's semaphore — legacy
+batch-mode retries (`retry_immediate=False`) run as separate `eval()` calls,
+each resetting the registry (required: the limiters are event-loop-bound),
+so those revert to config. This makes a
 mid-flight `ctl limits --max-samples` retune survive a retry (the runtime
 setpoint wins over re-deriving from config — in-process retries share their
 config anyway) and makes a retune against a superseded attempt's eval_id land

@@ -453,7 +453,10 @@ def sandbox_limiters() -> "dict[str, ResizableSemaphore]":
 
 # The sample-concurrency semaphores for the current run, keyed by task_id (the
 # identity that is stable across retry attempts, unlike a per-attempt eval_id).
-# Task-scoped so an in-process task retry reuses its predecessor's semaphore:
+# Task-scoped so an in-run (immediate) task retry reuses its predecessor's
+# semaphore — legacy batch-mode retries (eval_set retry_immediate=False) run
+# as separate eval() calls, each resetting this registry (required: the
+# limiters are event-loop-bound), so those revert to config:
 # a mid-flight `ctl limits --max-samples` retune survives the retry (the
 # runtime setpoint wins over re-deriving from config — in-process retries share
 # their config anyway), and a retune against a superseded attempt's eval_id
@@ -1050,6 +1053,17 @@ class DynamicSampleLimiter:
         target = self._ctrl.concurrency + self.BUFFER
         if target != self._limiter.total_tokens:
             self._limiter.total_tokens = target
+
+    @property
+    def controller(self) -> "AdaptiveConcurrencyController | None":
+        """The adopted controller, or ``None`` if none has matched ``key`` yet.
+
+        ``None`` after samples start generating means the limiter is parked at
+        its initial value — e.g. generates flow through a different model than
+        the task's primary, or the model's connection key changed after the
+        limiter was created. The limits directive surfaces this as a warning.
+        """
+        return self._ctrl
 
     @property
     def total_tokens(self) -> int:

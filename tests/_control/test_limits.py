@@ -85,7 +85,7 @@ async def test_limits_max_samples_not_adjustable_warns() -> None:
 
     result = await task_limits("t1", max_samples=30)
     assert result is not None
-    assert result["max_samples"] == {"adjustable": False}
+    assert result["max_samples"] == {"adjustable": False, "tracks_adaptive": False}
     assert any("max_samples is not adjustable" in w for w in result["warnings"])
 
 
@@ -100,8 +100,10 @@ async def test_limits_adaptive_semaphore_not_adjustable() -> None:
 
     result = await task_limits("t1", max_samples=30)
     assert result is not None
-    assert result["max_samples"] == {"adjustable": False}
+    assert result["max_samples"] == {"adjustable": False, "tracks_adaptive": True}
     assert any("max_samples is not adjustable" in w for w in result["warnings"])
+    # the never-matching "k" key also surfaces the no-controller warning
+    assert any("no matching connection controller" in w for w in result["warnings"])
 
 
 async def test_limits_set_max_sandboxes() -> None:
@@ -218,8 +220,9 @@ async def test_limits_adaptive_read_view() -> None:
 
     result = await task_limits("t1")
     assert result is not None
-    # sample concurrency tracks the controller, so max_samples has no setpoint
-    assert result["max_samples"] == {"adjustable": False}
+    # no task semaphore registered in this synthetic setup — not adjustable,
+    # and not claimed to track the (other) controller
+    assert result["max_samples"] == {"adjustable": False, "tracks_adaptive": False}
     assert len(result["adaptive"]) == 1
     a = result["adaptive"][0]
     assert a["name"] == "openai/gpt-4"
@@ -606,7 +609,7 @@ def test_print_limits_adaptive_section(capsys: pytest.CaptureFixture[str]) -> No
     _print_limits(
         {
             "dry_run": False,
-            "max_samples": {"adjustable": False},
+            "max_samples": {"adjustable": False, "tracks_adaptive": True},
             "max_sandboxes": [],
             "adaptive": [
                 {

@@ -630,19 +630,14 @@ def limits_command(
     if max_connections is not None and max_connections < 1:
         raise click.BadParameter("--max-connections must be >= 1")
 
-    summaries = _fetch_summaries(list_discovered_servers())
-    if not summaries:
-        if as_json:
-            click.echo("null")
-            return
-        _echo_no_running_evals()
-        return
-
     set_values = (
         max_samples is not None
         or max_sandboxes is not None
         or max_connections is not None
     )
+
+    servers = list_discovered_servers()
+    summaries = _fetch_summaries(servers)
 
     # Resolve scope. An explicit TASK targets that task (full per-task view;
     # the wire is keyed by task_id, which is stable across retry attempts). No
@@ -652,11 +647,37 @@ def limits_command(
     # a task, but the per-task `--max-samples` still does.
     header: str
     task_id: str | None
-    if task is not None:
+    if not summaries:
+        # A process binds its control endpoint before its first task registers
+        # (sandbox startup / image pulls can take minutes), so an empty task
+        # list doesn't mean no process. With a sole process and no per-task
+        # ask, target the process-level limits so a startup retune (e.g.
+        # --max-sandboxes during a docker pull) lands instead of bailing.
+        if len(servers) == 1 and task is None and max_samples is None:
+            socket_path = str(servers[0].socket_path)
+            task_id = None
+            header = "process · starting"
+        else:
+            if as_json:
+                click.echo("null")
+                return
+            _echo_no_running_evals()
+            return
+    elif task is not None:
         target = _resolve_target_eval(summaries, task)
         socket_path = str(target["socket_path"])
         task_id = str(target["task_id"])
         header = _task_header(target)
+        if not task_id:
+            # a reused log written before task ids existed — addressable only
+            # by its (superseded) eval id, which the limits wire doesn't use
+            click.echo(
+                f"Task '{target.get('task') or '?'}' predates task ids (an "
+                "older reused log) — its per-task limits aren't addressable. "
+                "Run without TASK to view or set the process-wide limits.",
+                err=True,
+            )
+            raise click.exceptions.Exit(code=1)
     else:
         sockets = sorted({str(s.get("socket_path")) for s in summaries})
         if len(sockets) > 1:
@@ -668,14 +689,19 @@ def limits_command(
         tasks_in_proc = [
             s for s in summaries if str(s.get("socket_path")) == socket_path
         ]
-        if len(tasks_in_proc) == 1:
-            target = tasks_in_proc[0]
+        # a finished task's limits are no longer meaningfully adjustable, so
+        # the sole-task default keys on what is still active — an eval-set
+        # with one running and N completed tasks resolves to the running one
+        active = [s for s in tasks_in_proc if s.get("status") in ("running", "pending")]
+        candidates = active or tasks_in_proc
+        if len(candidates) == 1 and str(candidates[0].get("task_id") or ""):
+            target = candidates[0]
             task_id = str(target["task_id"])
             header = _task_header(target)
         elif max_samples is not None:
             click.echo(
-                "--max-samples targets a single task, but this process is running "
-                f"{len(tasks_in_proc)} tasks. Pass a task id "
+                "--max-samples targets a single task, but this process is "
+                f"running {len(candidates)} tasks. Pass a task id "
                 "(see `inspect ctl tasks`).",
                 err=True,
             )
@@ -1279,12 +1305,14 @@ def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
             limit = _target(max_samples.get("limit"), "max_samples")
             in_use = max_samples.get("in_use")
             click.echo(f"  max samples:   {limit} ({in_use} in use)")
-        elif adaptive:
-            # sample concurrency tracks the adaptive controller(s) below, so
+        elif max_samples.get("tracks_adaptive"):
+            # sample concurrency tracks this task's adaptive controller, so
             # there's no user setpoint to show — point at where the numbers are
             click.echo("  max samples:   tracks adaptive connections (see below)")
         else:
-            click.echo("  max samples:   not adjustable (adaptive connections)")
+            # no live sample limiter for this task (e.g. a reused log) — the
+            # adaptive block below, if any, belongs to other tasks' models
+            click.echo("  max samples:   not adjustable (no live sample limiter)")
 
     sandboxes = config.get("max_sandboxes") or []
     if sandboxes:

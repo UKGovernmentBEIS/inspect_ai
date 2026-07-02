@@ -130,7 +130,11 @@ async def task_limits(
             applying it.
     """
     from inspect_ai._control.eval_state import task_registered
-    from inspect_ai.util._concurrency import ResizableLimiter, task_sample_semaphore
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        ResizableLimiter,
+        task_sample_semaphore,
+    )
 
     if not task_registered(task_id):
         return None
@@ -164,6 +168,22 @@ async def task_limits(
         warnings=warnings,
     )
 
+    # a DynamicSampleLimiter that never found its model's controller means
+    # sample concurrency is stuck at its starting value — generates may be
+    # flowing through a different model (roles / agent bridge), or the model's
+    # connection key changed after creation. Surface it; nothing else does.
+    if isinstance(semaphore, DynamicSampleLimiter) and semaphore.controller is None:
+        warnings.append(
+            "sample concurrency is adaptive but no matching connection "
+            "controller exists — if generates flow through a different model "
+            "(e.g. model roles or an agent bridge), sample concurrency stays "
+            "at its starting value."
+        )
+
+    # `tracks_adaptive` distinguishes the adaptive path (sample concurrency
+    # follows this task's controller) from a task with no live limiter at all
+    # (reused log / ran no samples here) — the renderer must not claim the
+    # latter tracks anything.
     max_samples_view: dict[str, Any]
     if sample_limiter is not None:
         max_samples_view = {
@@ -172,7 +192,10 @@ async def task_limits(
             "adjustable": True,
         }
     else:
-        max_samples_view = {"adjustable": False}
+        max_samples_view = {
+            "adjustable": False,
+            "tracks_adaptive": isinstance(semaphore, DynamicSampleLimiter),
+        }
 
     return {
         "dry_run": dry_run,
@@ -229,9 +252,9 @@ def _apply_process_knobs(
         requested["max_sandboxes"] = max_sandboxes
         if not sandboxes:
             warnings.append(
-                "max_sandboxes is not adjustable (no sandbox concurrency limiter "
-                "is active — either the run has no sandbox limit, or its "
-                "sandboxes haven't started yet; retry once samples begin)."
+                "max_sandboxes is not adjustable (no sandbox concurrency "
+                "limiter is active — most likely the run has no sandbox limit "
+                "in effect)."
             )
         elif not dry_run:
             for sem in sandboxes.values():
