@@ -120,6 +120,10 @@ async def test_legacy_registry_without_adaptive_argument() -> None:
         def value(self) -> int:
             return self._sem.value
 
+        @property
+        def in_use(self) -> int:
+            return self.concurrency - self._sem.value
+
     class LegacyRegistry:
         def __init__(self) -> None:
             self.calls: list[tuple[str, int, str | None, bool]] = []
@@ -594,6 +598,51 @@ async def test_resizable_semaphore_in_use_exact_below_limit() -> None:
         assert sem.value == 0
         assert sem.concurrency - sem.value == 1  # the misleading derivation
         assert sem.in_use == 2  # exact
+        release.set()
+
+
+@pytest.mark.anyio
+async def test_status_display_exact_in_use_after_shrink() -> None:
+    """The status footer shows true in-flight after a limit drops below in-use.
+
+    Regression: `concurrency_status_display` derived in-use as
+    `concurrency - value`, which reports `concurrency` once a ctl retune (or
+    an adaptive rate-limit cut) shrinks the limit below the in-flight count —
+    e.g. the footer showed "docker 1/1" while 2 sandboxes were actually
+    running. It now reads the exact borrowed count where available.
+    """
+    from inspect_ai.util._concurrency import (
+        ConcurrencySemaphore,
+        ResizableSemaphore,
+        concurrency,
+        concurrency_status_display,
+        init_concurrency,
+    )
+
+    init_concurrency()
+    both_in = anyio.Event()
+    release = anyio.Event()
+    entered = 0
+    captured: ConcurrencySemaphore | None = None
+
+    async def holder() -> None:
+        nonlocal entered, captured
+        async with concurrency("docker", 3, "sandboxes/docker", resizable=True) as sem:
+            captured = sem
+            entered += 1
+            if entered == 2:
+                both_in.set()
+            await release.wait()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(holder)
+        tg.start_soon(holder)
+        await both_in.wait()
+        assert concurrency_status_display()["docker"] == (2, 3)
+        # shrink below in-use (what a ctl limits --max-sandboxes retune does)
+        assert isinstance(captured, ResizableSemaphore)
+        captured.set_concurrency(1)
+        assert concurrency_status_display()["docker"] == (2, 1)  # was (1, 1)
         release.set()
 
 

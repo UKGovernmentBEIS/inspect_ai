@@ -958,9 +958,11 @@ async def test_value_clamped_when_borrowed_exceeds_total() -> None:
     """After a cut, total_tokens may be below borrowed_tokens; value must be >= 0.
 
     notify_retry lowers total_tokens; CapacityLimiter accepts the inversion and
-    blocks future acquires until in-flight drains. Without clamping, `value`
-    would be negative and `concurrency_status_display`'s `concurrency - value`
-    would exceed `concurrency`, rendering as e.g. "10 / 6" in the UI.
+    blocks future acquires until in-flight drains. `value` clamps to 0 rather
+    than going negative, and the status display reports the exact borrowed
+    count — truthfully above the shrunk limit while holders drain (e.g. "8/5"),
+    never the garbage a negative `value` would produce in the
+    `concurrency - value` derivation (e.g. "13/5").
     """
     from inspect_ai.util._concurrency import concurrency_status_display
 
@@ -997,13 +999,15 @@ async def test_value_clamped_when_borrowed_exceeds_total() -> None:
             assert c._limiter.borrowed_tokens == 8
             # value clamped to 0, not negative
             assert c.value == 0
-            # status display: used not exceeding total
+            # status display: the exact in-flight count (above the shrunk
+            # limit while holders drain), not the clamped derivation's 5
+            # and not the 13 a negative value would produce
             status = concurrency_status_display()
             entry = status.get("m-clamp") or next(
                 v for k, v in status.items() if "m-clamp" in k
             )
             used, total = entry
             assert total == 5
-            assert used == 5  # 5 - max(0, value) = 5 - 0 = 5, not 13
+            assert used == 8
         finally:
             release.set()

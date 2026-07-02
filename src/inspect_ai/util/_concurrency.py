@@ -233,6 +233,18 @@ class ConcurrencySemaphore(Protocol):
         """Return the number of available tokens in the semaphore."""
         ...
 
+    @property
+    def in_use(self) -> int:
+        """Exact count of holders currently inside the semaphore.
+
+        For a fixed-limit semaphore this equals ``concurrency - value``; a
+        live-resizable implementation must report the true borrowed count,
+        which can exceed ``concurrency`` while holders drain after the limit
+        was lowered below the in-flight count (``value`` clamps to 0 there, so
+        the derivation would misreport).
+        """
+        ...
+
 
 class ConcurrencySemaphoreRegistry(Protocol):
     """Protocol for managing a registry of concurrency semaphores.
@@ -376,8 +388,9 @@ def concurrency_status_display() -> dict[str, tuple[int, int]]:
         else:
             name = c.name
 
-        # status display entry
-        status[name] = (c.concurrency - c.value, c.concurrency)
+        # status display entry (`in_use` is exact even while a resizable limit
+        # lowered below the in-flight count drains — see the protocol docs)
+        status[name] = (c.in_use, c.concurrency)
 
     return status
 
@@ -530,6 +543,12 @@ def _create_anyio_semaphore(
         def value(self) -> int:
             return self._sem.value
 
+        @property
+        def in_use(self) -> int:
+            # exact for a fixed-limit semaphore (the limit never drops below
+            # the in-flight count, so value never clamps)
+            return self.concurrency - self._sem.value
+
     return _ConcurrencySemaphore(name, concurrency, visible)
 
 
@@ -559,11 +578,10 @@ class ResizableSemaphore(ConcurrencySemaphore):
     def in_use(self) -> int:
         """Exact borrowed count (holders currently inside the limiter).
 
-        Prefer this over the status-display ``concurrency - value`` derivation:
-        once the limit is lowered below the in-flight count, ``value`` clamps to
-        0 and that derivation would report ``concurrency`` rather than the true
-        (higher) borrowed count. This reads ``borrowed_tokens`` directly, so it
-        stays exact through a shrink-below-in-use.
+        Reads ``borrowed_tokens`` directly rather than deriving
+        ``concurrency - value``: once the limit is lowered below the in-flight
+        count, ``value`` clamps to 0 and the derivation would report
+        ``concurrency`` rather than the true (higher) borrowed count.
         """
         return self._limiter.in_use
 
