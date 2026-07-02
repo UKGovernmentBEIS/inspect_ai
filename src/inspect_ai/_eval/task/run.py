@@ -497,9 +497,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # call hook
             await emit_task_start(logger)
 
-            # semaphore to limit concurrency (registered under the task_id so
-            # retries reuse it and the control channel's modify-limits
-            # directive can read / retune max_samples through it)
             sample_semaphore = create_sample_semaphore(
                 config, generate_config, model.api, task_id=logger.eval.task_id
             )
@@ -2055,15 +2052,29 @@ def eval_log_sample_source(
         return EvalSampleSource(read_from_memory, memory_error_history)
 
 
-# semaphore to limit concurrency. default max_samples to
-# max_connections + 1 if not explicitly specified (this is
-# to make sure it always saturates the connection pool)
 def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
     task_id: str | None = None,
 ) -> contextlib.AbstractAsyncContextManager[Any]:
+    """Create (or reuse) the task's sample-concurrency semaphore.
+
+    Bounds how many samples run at once so setup work (sandboxes, state)
+    stays proportional to what the model can actually serve: an explicit
+    ``max_samples`` is honored as a user setpoint; otherwise the adaptive
+    path follows the model's connection controller, and the static path
+    defaults from ``max_connections`` (so the connection pool always
+    saturates).
+
+    Semaphores are task-scoped, not attempt-scoped: they're registered under
+    ``task_id`` and an in-process retry reuses its predecessor's semaphore,
+    so a mid-flight ``ctl limits --max-samples`` retune survives the retry
+    rather than silently reverting to the config value (see the registry's
+    rationale in ``_concurrency.py``). The control channel's modify-limits
+    directive reads and retunes ``max_samples`` through this same registry
+    entry.
+    """
     from inspect_ai.model._model import model_concurrency_key
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,

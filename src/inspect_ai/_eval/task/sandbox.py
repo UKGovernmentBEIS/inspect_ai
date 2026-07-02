@@ -94,9 +94,8 @@ async def sandboxenv_context(
     # get sandboxenv_type
     sandboxenv_type = registry_find_sandboxenv(sandbox.type)
 
-    # resolve the effective max_sandboxes (passed or from type) and make sure
-    # its limiter is registered (normally already done by the run-level sandbox
-    # startup; per-sample sandbox overrides register here on first use)
+    # per-sample sandbox overrides aren't visible to the run-level startup
+    # pass, so they get their limiter registered here on first use
     max_sandboxes = await ensure_sandbox_limiter(
         sandboxenv_type, sandbox.type, max_sandboxes
     )
