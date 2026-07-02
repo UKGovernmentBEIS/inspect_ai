@@ -1671,7 +1671,9 @@ async def eval_retry_async(
         )
 
         config = eval_log.plan.config
-        config.max_retries = max_retries or config.max_retries
+        config.max_retries = (
+            max_retries if max_retries is not None else config.max_retries
+        )
         config.timeout = timeout or config.timeout
         config.attempt_timeout = attempt_timeout or config.attempt_timeout
         config.max_connections = max_connections or config.max_connections
