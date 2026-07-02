@@ -12,7 +12,12 @@ class GitContext(BaseModel):
     dirty: bool
 
 
-def _redact_url_credentials(url: str) -> str:
+def redact_url_credentials(url: str) -> str:
+    """Strip any embedded ``user:password@`` credentials from a URL's netloc.
+
+    Used to keep authentication tokens out of recorded git origins (eval logs
+    and other persisted/shareable metadata).
+    """
     try:
         parts = urlparse(url)
     except ValueError:
@@ -46,7 +51,7 @@ def git_context() -> GitContext | None:
         capture_output=True,
         text=True,
     ).stdout.strip()
-    origin = _redact_url_credentials(origin)
+    origin = redact_url_credentials(origin)
 
     # check if working tree is dirty
     status_result = subprocess.run(
