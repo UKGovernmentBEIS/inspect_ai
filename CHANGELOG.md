@@ -2,6 +2,7 @@
 
 - Performance: make `stable_message_ids()` linear per turn.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
+- Agent Bridge: Support OpenAI clients that consume responses via `with_raw_response` (e.g. langchain-openai), which previously failed with `'ChatCompletion' object has no attribute 'parse'`. (#4341)
 
 ## 0.3.244 (01 July 2026)
 
