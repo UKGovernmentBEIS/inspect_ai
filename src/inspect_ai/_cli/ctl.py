@@ -23,7 +23,7 @@ import json as json_lib
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, Literal, NoReturn
 
 import click
 import httpx
@@ -33,6 +33,7 @@ from inspect_ai._control.discovery import (
     discovery_dir,
     list_discovered_servers,
 )
+from inspect_ai._util.name_match import match_name_prefix
 
 
 @click.group("ctl")
@@ -954,24 +955,10 @@ def _match_by_task_name(
     So ``gpqa`` matches ``inspect_evals/gpqa_diamond`` (leaf prefix) but
     not ``failing_gpqa_diamond`` (mid-name). An exact name/leaf match wins
     over prefix matches, so ``gpqa`` resolves cleanly even when both
-    ``gpqa`` and ``gpqa_diamond`` are running.
+    ``gpqa`` and ``gpqa_diamond`` are running. (The same selector rule
+    resolves model names in ``ctl limits --model`` — see `match_name_prefix`.)
     """
-
-    def leaf(name: str) -> str:
-        return name.rsplit("/", 1)[-1]
-
-    prefix = [
-        s
-        for s in summaries
-        if str(s.get("task", "")).startswith(query)
-        or leaf(str(s.get("task", ""))).startswith(query)
-    ]
-    exact = [
-        s
-        for s in prefix
-        if str(s.get("task", "")) == query or leaf(str(s.get("task", ""))) == query
-    ]
-    return exact or prefix
+    return match_name_prefix(summaries, query, lambda s: str(s.get("task", "")))
 
 
 def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
@@ -1089,33 +1076,79 @@ def _fetch_sample_events(
     return page if isinstance(page, dict) else {}
 
 
-def _post_flush(socket_path: str, eval_id: str) -> dict[str, Any]:
-    """Ask one control server to flush an eval's buffered samples to the log."""
+def _request_json(
+    socket_path: str,
+    path: str,
+    *,
+    what: str,
+    not_found: str,
+    params: dict[str, Any] | None = None,
+    mutate: Literal["post", "patch"] | None = None,
+) -> dict[str, Any]:
+    """GET (retrying a busy process) or mutate ``path``; return its JSON dict.
+
+    The shared transport / error policy for the per-eval and per-task ctl
+    commands. A read goes through :func:`_get_response_with_retry`; a mutation
+    isn't idempotent across transport failures, so it gets a single attempt
+    with the full mutation budget (see :data:`_MUTATION_TIMEOUT` — eg. a
+    remote S3 log flush can take a while). A 404 prints ``not_found`` and
+    exits non-zero; a 400 surfaces the server's ``{"error": ...}`` body;
+    transport errors exit with ``what`` as context.
+    """
+    verb = "update" if mutate else "read"
     try:
-        transport = httpx.HTTPTransport(uds=str(socket_path))
-        # A remote (eg. S3) log write can take a while; a mutation isn't retried,
-        # so give the single attempt the full mutation budget (see
-        # `_MUTATION_TIMEOUT`).
-        with httpx.Client(
-            transport=transport,
-            base_url="http://localhost",
-            timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
-        ) as client:
-            response = client.post(f"/evals/{eval_id}/flush")
-            if response.status_code == 404:
-                click.echo(
-                    f"Eval '{eval_id}' is not flushable — it has no live sample "
-                    "buffer in this process (e.g. a reused log, or a retry "
-                    "attempt that's been superseded).",
-                    err=True,
-                )
-                raise click.exceptions.Exit(code=1)
-            response.raise_for_status()
-            result = response.json()
+        if mutate is not None:
+            transport = httpx.HTTPTransport(uds=str(socket_path))
+            with httpx.Client(
+                transport=transport,
+                base_url="http://localhost",
+                timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
+            ) as client:
+                if mutate == "post":
+                    response = client.post(path, params=params)
+                else:
+                    response = client.patch(path, params=params)
+        else:
+            response = _get_response_with_retry(
+                socket_path, path, params=params, what=f"Reading {what}"
+            )
+        if response.status_code == 404:
+            click.echo(not_found, err=True)
+            raise click.exceptions.Exit(code=1)
+        if response.status_code == 400:
+            click.echo(
+                f"Invalid request: {_error_detail_from_response(response)}", err=True
+            )
+            raise click.exceptions.Exit(code=1)
+        response.raise_for_status()
+        result = response.json()
+    except _ServerUnreachable as exc:
+        detail = (
+            _error_detail(exc.__cause__)
+            if isinstance(exc.__cause__, Exception)
+            else str(exc)
+        )
+        click.echo(f"Failed to {verb} {what}: {detail}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
-        click.echo(f"Failed to flush eval {eval_id}: {_error_detail(exc)}", err=True)
+        click.echo(f"Failed to {verb} {what}: {_error_detail(exc)}", err=True)
         raise click.exceptions.Exit(code=1) from exc
     return result if isinstance(result, dict) else {}
+
+
+def _post_flush(socket_path: str, eval_id: str) -> dict[str, Any]:
+    """Ask one control server to flush an eval's buffered samples to the log."""
+    return _request_json(
+        socket_path,
+        f"/evals/{eval_id}/flush",
+        what=f"flush of eval {eval_id}",
+        not_found=(
+            f"Eval '{eval_id}' is not flushable — it has no live sample "
+            "buffer in this process (e.g. a reused log, or a retry "
+            "attempt that's been superseded)."
+        ),
+        mutate="post",
+    )
 
 
 def _exec_buffer_config(
@@ -1126,60 +1159,23 @@ def _exec_buffer_config(
     log_shared: int | None,
     set_values: bool,
 ) -> dict[str, Any]:
-    """Read (``set_values=False``) or update an eval's sample-buffer config.
-
-    The read is a GET that retries a busy eval on timeout (like the other
-    reads). The update is a single-shot POST — a mutation isn't idempotent, so
-    it must not be retried — given the full mutation budget (see
-    :data:`_MUTATION_TIMEOUT`).
-    """
+    """Read (``set_values=False``) or update an eval's sample-buffer config."""
     params: dict[str, Any] = {}
     if log_buffer is not None:
         params["log_buffer"] = log_buffer
     if log_shared is not None:
         params["log_shared"] = log_shared
-    path = f"/evals/{eval_id}/buffer"
-    verb = "update" if set_values else "read"
-    try:
-        if set_values:
-            transport = httpx.HTTPTransport(uds=str(socket_path))
-            with httpx.Client(
-                transport=transport,
-                base_url="http://localhost",
-                timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
-            ) as client:
-                response = client.post(path, params=params)
-        else:
-            response = _get_response_with_retry(
-                socket_path, path, what=f"Reading buffer config for eval {eval_id}"
-            )
-        if response.status_code == 404:
-            click.echo(
-                f"Eval '{eval_id}' has no sample buffer in this process "
-                "(e.g. a reused log, or a retry attempt that's been "
-                "superseded).",
-                err=True,
-            )
-            raise click.exceptions.Exit(code=1)
-        response.raise_for_status()
-        config = response.json()
-    except _ServerUnreachable as exc:
-        detail = (
-            _error_detail(exc.__cause__)
-            if isinstance(exc.__cause__, Exception)
-            else str(exc)
-        )
-        click.echo(
-            f"Failed to {verb} buffer config for eval {eval_id}: {detail}", err=True
-        )
-        raise click.exceptions.Exit(code=1) from exc
-    except (httpx.HTTPError, OSError, ValueError) as exc:
-        click.echo(
-            f"Failed to {verb} buffer config for eval {eval_id}: {_error_detail(exc)}",
-            err=True,
-        )
-        raise click.exceptions.Exit(code=1) from exc
-    return config if isinstance(config, dict) else {}
+    return _request_json(
+        socket_path,
+        f"/evals/{eval_id}/buffer",
+        what=f"buffer config for eval {eval_id}",
+        not_found=(
+            f"Eval '{eval_id}' has no sample buffer in this process "
+            "(e.g. a reused log, or a retry attempt that's been superseded)."
+        ),
+        params=params,
+        mutate="post" if set_values else None,
+    )
 
 
 def _exec_limits(
@@ -1215,62 +1211,29 @@ def _exec_limits(
         params["model"] = model
     if dry_run:
         params["dry_run"] = True
-    path = f"/tasks/{task_id}/limits" if task_id is not None else "/limits"
+    # the 404 messages distinguish "task unknown to the server" from version
+    # skew: a process running an older inspect has neither route, and the
+    # process-level path can only 404 for that reason
+    if task_id is not None:
+        not_found = (
+            f"Task '{task_id}' not found in this process (it may have "
+            "finished, or the process may be running an older inspect "
+            "without the limits endpoints)."
+        )
+    else:
+        not_found = (
+            "This process does not support the limits endpoints (older "
+            "inspect version?)."
+        )
     scope = f"task {task_id}" if task_id is not None else "process"
-    verb = "update" if set_values else "read"
-    try:
-        if set_values:
-            transport = httpx.HTTPTransport(uds=str(socket_path))
-            with httpx.Client(
-                transport=transport,
-                base_url="http://localhost",
-                timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
-            ) as client:
-                response = client.patch(path, params=params)
-        else:
-            response = _get_response_with_retry(
-                socket_path, path, params=params, what=f"Reading limits for {scope}"
-            )
-        if response.status_code == 404:
-            # distinguish "task unknown to the server" from version skew: a
-            # process running an older inspect has neither route, and the
-            # process-level path can only 404 for that reason
-            if task_id is not None:
-                click.echo(
-                    f"Task '{task_id}' not found in this process (it may have "
-                    "finished, or the process may be running an older inspect "
-                    "without the limits endpoints).",
-                    err=True,
-                )
-            else:
-                click.echo(
-                    "This process does not support the limits endpoints (older "
-                    "inspect version?).",
-                    err=True,
-                )
-            raise click.exceptions.Exit(code=1)
-        if response.status_code == 400:
-            click.echo(
-                f"Invalid limit: {_error_detail_from_response(response)}", err=True
-            )
-            raise click.exceptions.Exit(code=1)
-        response.raise_for_status()
-        config = response.json()
-    except _ServerUnreachable as exc:
-        detail = (
-            _error_detail(exc.__cause__)
-            if isinstance(exc.__cause__, Exception)
-            else str(exc)
-        )
-        click.echo(f"Failed to {verb} limits for {scope}: {detail}", err=True)
-        raise click.exceptions.Exit(code=1) from exc
-    except (httpx.HTTPError, OSError, ValueError) as exc:
-        click.echo(
-            f"Failed to {verb} limits for {scope}: {_error_detail(exc)}",
-            err=True,
-        )
-        raise click.exceptions.Exit(code=1) from exc
-    return config if isinstance(config, dict) else {}
+    return _request_json(
+        socket_path,
+        f"/tasks/{task_id}/limits" if task_id is not None else "/limits",
+        what=f"limits for {scope}",
+        not_found=not_found,
+        params=params,
+        mutate="patch" if set_values else None,
+    )
 
 
 def _error_detail_from_response(response: httpx.Response) -> str:

@@ -39,7 +39,12 @@ or throttling a whole process without naming one of its tasks.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, NamedTuple
+
+from inspect_ai._util.name_match import match_name_prefix
+
+if TYPE_CHECKING:
+    from inspect_ai.util._concurrency import AdaptiveConcurrencyController
 
 # How many of an adaptive controller's most-recent scale changes to surface in
 # the read view — enough to see whether it's actively being throttled without
@@ -67,7 +72,7 @@ async def process_limits(
     """
     warnings: list[str] = []
     requested: dict[str, int] = {}
-    sandboxes_view, adaptive_view = _apply_process_knobs(
+    views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
         model=model,
@@ -77,8 +82,8 @@ async def process_limits(
     )
     return {
         "dry_run": dry_run,
-        "max_sandboxes": sandboxes_view,
-        "adaptive": adaptive_view,
+        "max_sandboxes": views.max_sandboxes,
+        "adaptive": views.adaptive,
         "requested": requested or None,
         "warnings": warnings,
     }
@@ -150,7 +155,7 @@ async def task_limits(
         elif not dry_run:
             sample_limiter.limit = max_samples
 
-    sandboxes_view, adaptive_view = _apply_process_knobs(
+    views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
         model=model,
@@ -172,36 +177,31 @@ async def task_limits(
     return {
         "dry_run": dry_run,
         "max_samples": max_samples_view,
-        "max_sandboxes": sandboxes_view,
-        "adaptive": adaptive_view,
+        "max_sandboxes": views.max_sandboxes,
+        "adaptive": views.adaptive,
         "requested": requested or None,
         "warnings": warnings,
     }
 
 
-def _match_model(name: str, query: str) -> bool:
-    """True if ``name`` matches ``query`` at its start or after a ``/``.
-
-    Mirrors the CLI's task-name matching: ``gpt-4`` matches ``openai/gpt-4``
-    (leaf prefix) and ``openai`` matches it too (name prefix).
-    """
-    leaf = name.rsplit("/", 1)[-1]
-    return name.startswith(query) or leaf.startswith(query)
-
-
 def _match_controllers(
-    controllers: list[Any],
+    controllers: "list[AdaptiveConcurrencyController]",
     model: str,
-) -> list[Any]:
-    """Filter controllers to those matching ``model``, exact match winning.
+) -> "list[AdaptiveConcurrencyController]":
+    """Filter controllers to those matching ``model`` by display name.
 
-    An exact name/leaf match (e.g. ``gpt-4`` when both ``openai/gpt-4`` and
-    ``openai/gpt-4-turbo`` are active) narrows to just the exact ones; otherwise
-    all prefix matches are returned. Same precedence as CLI task-name matching.
+    Uses the shared name-selector rule (prefix at the name start or after a
+    ``/``, exact match winning) — the same rule the CLI uses for task names,
+    so ``ctl limits --model gpt-4`` resolves like any other name selector.
     """
-    prefix = [c for c in controllers if _match_model(c.name, model)]
-    exact = [c for c in prefix if c.name == model or c.name.rsplit("/", 1)[-1] == model]
-    return exact or prefix
+    return match_name_prefix(controllers, model, lambda c: c.name)
+
+
+class _ProcessKnobViews(NamedTuple):
+    """The process-global limit views built by :func:`_apply_process_knobs`."""
+
+    max_sandboxes: list[dict[str, Any]]
+    adaptive: list[dict[str, Any]]
 
 
 def _apply_process_knobs(
@@ -212,14 +212,14 @@ def _apply_process_knobs(
     dry_run: bool,
     requested: dict[str, int],
     warnings: list[str],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+) -> _ProcessKnobViews:
     """Apply the process-global knobs and build their views.
 
     Mutates ``requested`` / ``warnings`` in place (so callers can prepend a
-    per-task knob) and returns ``(max_sandboxes_view, adaptive_view)``. The views
-    are re-read after applying, so a real set reflects the new values. ``model``
-    restricts the adaptive controllers considered (for both ``max_connections``
-    and the reported view) to those matching it.
+    per-task knob) and returns the resulting views. The views are re-read
+    after applying, so a real set reflects the new values. ``model`` restricts
+    the adaptive controllers considered (for both ``max_connections`` and the
+    reported view) to those matching it.
     """
     from inspect_ai.util._concurrency import adaptive_controllers, sandbox_limiters
 
@@ -295,4 +295,4 @@ def _apply_process_knobs(
         for ctrl in sorted(controllers, key=lambda c: c.name)
     ]
 
-    return max_sandboxes_view, adaptive_view
+    return _ProcessKnobViews(max_sandboxes=max_sandboxes_view, adaptive=adaptive_view)
