@@ -344,12 +344,12 @@ async def test_process_limits_dry_run_does_not_apply() -> None:
 def test_match_controllers_semantics() -> None:
     """--model matching: name-start or leaf (after '/') prefix, exact wins."""
     from inspect_ai._control.limits import _match_controllers
+    from inspect_ai.util._concurrency import AdaptiveConcurrency
 
-    class _C:
-        def __init__(self, name: str) -> None:
-            self.name = name
+    def ctrl(name: str) -> AdaptiveConcurrencyController:
+        return AdaptiveConcurrencyController(name, AdaptiveConcurrency(), visible=True)
 
-    ctrls = [_C("openai/gpt-4"), _C("openai/gpt-4-turbo"), _C("anthropic/claude")]
+    ctrls = [ctrl("openai/gpt-4"), ctrl("openai/gpt-4-turbo"), ctrl("anthropic/claude")]
 
     def names(query: str) -> set[str]:
         return {c.name for c in _match_controllers(ctrls, query)}

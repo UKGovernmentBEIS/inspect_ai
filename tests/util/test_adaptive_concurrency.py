@@ -101,7 +101,11 @@ def test_aimd_after_first_retry() -> None:
     # trigger retry → drops to floor_to_nice(32) = 30
     c.notify_retry()
     assert c.concurrency == 30
-    assert c.history[-1][4] == "rate_limit"
+    # distinct locals per record: re-asserting on the c.history[-1][4]
+    # expression itself would trip mypy's comparison-overlap narrowing now
+    # that the reason slot is a Literal
+    cut = c.history[-1]
+    assert cut[4] == "rate_limit"
 
     # cooldown is 15s; immediate further retry is debounced (no-op)
     c.notify_retry()
@@ -113,7 +117,8 @@ def test_aimd_after_first_retry() -> None:
     # successful round: round_size = max(30, 4) = 30. +max(1, 30*0.05) = +2 → ceil_to_nice(32) = 35
     _saturated_successes(c, 30)
     assert c.concurrency == 35
-    assert c.history[-1][4] == "steady_state_up"
+    grow = c.history[-1]
+    assert grow[4] == "steady_state_up"
 
 
 def test_no_success_accounting_during_cooldown() -> None:
