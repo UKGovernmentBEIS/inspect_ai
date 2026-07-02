@@ -546,10 +546,57 @@ async def model_proxy_server(
         for i in range(0, len(text), max_len):
             yield text[i : i + max_len]
 
+    def _json_body(request: dict[str, Any]) -> dict[str, Any]:
+        body = request.get("json")
+        return body if isinstance(body, dict) else {}
+
+    def _has_model(json_body: dict[str, Any]) -> bool:
+        model = json_body.get("model")
+        return isinstance(model, str) and bool(model.strip())
+
+    def _openai_missing_model() -> dict[str, Any]:
+        return {
+            "status": 400,
+            "body": {
+                "error": {
+                    "message": "Missing required parameter: 'model'.",
+                    "type": "invalid_request_error",
+                    "param": "model",
+                    "code": "missing_required_parameter",
+                }
+            },
+        }
+
+    def _anthropic_missing_model() -> dict[str, Any]:
+        return {
+            "status": 400,
+            "body": {
+                "type": "error",
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": "Missing required parameter: 'model'.",
+                },
+            },
+        }
+
+    def _google_missing_model() -> dict[str, Any]:
+        return {
+            "status": 400,
+            "body": {
+                "error": {
+                    "code": 400,
+                    "message": "Missing required model in request path.",
+                    "status": "INVALID_ARGUMENT",
+                }
+            },
+        }
+
     @server.route("/v1/responses", method="POST")
     async def responses(request: dict[str, Any]) -> dict[str, Any]:
         try:
-            json_body = request.get("json", {}) or {}
+            json_body = _json_body(request)
+            if not _has_model(json_body):
+                return _openai_missing_model()
             stream = json_body.get("stream", False)
 
             completion = await call_bridge_model_service_async(
@@ -1263,7 +1310,9 @@ async def model_proxy_server(
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         try:
-            json_body = request.get("json", {}) or {}
+            json_body = _json_body(request)
+            if not _has_model(json_body):
+                return _openai_missing_model()
             stream = json_body.get("stream", False)
 
             # the openai codex cli seems to have a bug that causes
@@ -1473,7 +1522,9 @@ async def model_proxy_server(
     @server.route("/v1/messages", method="POST")
     async def anthropic(request: dict[str, Any]) -> dict[str, Any]:
         try:
-            json_body = request.get("json", {}) or {}
+            json_body = _json_body(request)
+            if not _has_model(json_body):
+                return _anthropic_missing_model()
             stream = json_body.get("stream", False)
 
             if stream:
@@ -1766,7 +1817,7 @@ async def model_proxy_server(
     # Route patterns for Google's Gemini API using wildcard matching
     # Supports: /v1beta/models/{model}:generateContent and /models/{model}:generateContent
 
-    def _extract_model_from_google_path(path: str) -> str:
+    def _extract_model_from_google_path(path: str) -> str | None:
         """Extract model name from Google API path.
 
         Examples:
@@ -1774,18 +1825,20 @@ async def model_proxy_server(
             /models/gemini-2.5-flash:streamGenerateContent -> gemini-2.5-flash
         """
         match = re.search(r"models/([^/:]+)", path)
-        return match.group(1) if match else "inspect"
+        return match.group(1) if match else None
 
     @server.route("/v1beta/models/*", method="POST")
     @server.route("/models/*", method="POST")
     async def google_generate_content(request: dict[str, Any]) -> dict[str, Any]:
         try:
             path = request.get("path", "")
-            json_body = request.get("json", {}) or {}
+            json_body = _json_body(request)
 
             is_streaming = ":streamGenerateContent" in path
 
             model_name = _extract_model_from_google_path(path)
+            if model_name is None:
+                return _google_missing_model()
             json_body["model"] = model_name
 
             completion = await call_bridge_model_service_async(
