@@ -290,11 +290,18 @@ class ModelOutput(BaseModel):
     @property
     def stop_reason(self) -> StopReason:
         """First message stop reason."""
+        # An empty output (no choices) is a real state, e.g. AgentState.output
+        # synthesizes one when there is no assistant message in history. Fall
+        # back to the default stop reason instead of raising IndexError.
+        if not self.choices:
+            return "unknown"
         return self.choices[0].stop_reason
 
     @property
     def message(self) -> ChatMessageAssistant:
         """First message choice."""
+        if not self.choices:
+            return ChatMessageAssistant(content="", source="generate")
         return self.choices[0].message
 
     @model_validator(mode="after")
