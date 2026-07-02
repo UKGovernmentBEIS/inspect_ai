@@ -1,11 +1,11 @@
 ---
 title: Control Channel
-llms-description: Observe running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, and keep-alive.
+llms-description: Observe and direct running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, concurrency limit retuning, log buffer control, and keep-alive.
 ---
 
 ## Overview
 
-Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — without interrupting it or parsing log files.
+Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and adjust it — concurrency limits, log buffering — without interrupting it or parsing log files.
 
 | Command | Description |
 |----|----|
@@ -14,11 +14,15 @@ Every `inspect eval` or `inspect eval-set` process binds a local control endpoin
 | `inspect ctl errors` | List samples that errored or were retried. |
 | `inspect ctl sample` | Show one sample's error detail, including prior attempts. |
 | `inspect ctl events` | Read one sample's transcript events. |
+| `inspect ctl limits` | View or retune a task's concurrency limits. |
+| `inspect ctl flush` | Write buffered completed samples to the log now. |
+| `inspect ctl buffer` | View or change the sample-buffer parameters. |
+| `inspect ctl keep` | Make a running process stay alive after its eval finishes. |
 | `inspect ctl release` | Let a keep-alive process exit. |
 
 : {tbl-colwidths=[35,65]}
 
-All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. Everything is read-only: nothing you do over the control channel affects the running eval (`release` only lets an already-finished process exit).
+All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The status commands (`tasks`, `samples`, `errors`, `sample`, `events`) are read-only. The others adjust the run deliberately and conservatively: `limits` and `buffer` retune resource parameters (never interrupting in-flight work), `flush` forces a log write that would happen anyway, and `keep`/`release` only affect what happens after the eval finishes. Nothing on the control channel can cancel or modify samples.
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -112,6 +116,53 @@ Other options:
 
 Events for samples that have already completed are also readable — they are served from the eval's log.
 
+## Concurrency Limits
+
+`inspect ctl limits` shows a task's live concurrency limits, and can retune them mid-run — for example to throttle an eval that is hammering a provider or overloading a machine, or to open it up when more capacity becomes available:
+
+```bash
+$ inspect ctl limits gpqa
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40
+
+limits:
+  max samples:   tracks adaptive connections (see below)
+  max sandboxes: docker 40 (12 in use)
+  adaptive connections:
+    openai/gpt-5: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
+
+$ inspect ctl limits gpqa --max-connections 20
+```
+
+| Option | Description |
+|----|----|
+| `--max-samples N` | Set the task's sample concurrency (not applicable under [adaptive connections](models-concurrency.qmd), where sample concurrency tracks the controller). |
+| `--max-sandboxes N` | Set the per-provider sandbox concurrency (process-wide, across all tasks). |
+| `--max-connections N` | Set the adaptive connections scaling ceiling (process-wide, across all tasks). |
+| `--model M` | Restrict `--max-connections` (and the adaptive view) to matching models in mixed-model runs. |
+| `--dry-run` | Report what would change (`current → requested`) without applying it. |
+
+: {tbl-colwidths=[35,65]}
+
+Changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene.
+
+Limits are keyed by the task (stable across retries): a retune survives a task retry rather than reverting to the launch configuration. `--max-sandboxes` and `--max-connections` are process-wide — in an eval set they affect every task in the process, not just the one named. With no `TASK` argument the command targets the sole running process (showing just the process-wide limits when it hosts multiple tasks).
+
+## Log Buffer
+
+Completed samples are buffered and written to the (possibly remote, e.g. S3) log in batches. Two commands control this for a running eval:
+
+`inspect ctl flush` writes any buffered samples to the log immediately, so they become readable and analyzable without waiting for the buffer to fill. It is safe to repeat — a flush with nothing pending writes nothing.
+
+```bash
+$ inspect ctl flush gpqa
+```
+
+`inspect ctl buffer` shows or changes the buffering parameters: `--samples N` sets how many completed samples buffer before a write (lower it to write to S3 more often), and `--shared S` sets the shared-log event sync interval in seconds. Changing `--samples` affects future writes only — run `flush` to write what is already pending.
+
+```bash
+$ inspect ctl buffer gpqa --samples 5
+```
+
 ## Keep Alive
 
 A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The `--ctl-server` option controls this:
@@ -125,6 +176,8 @@ With `keep`, the process stays running after the eval finishes — its state rem
 ```bash
 inspect ctl release
 ```
+
+You can also latch keep-alive onto an eval that is *already running* (launched without `--ctl-server=keep`) with `inspect ctl keep`.
 
 If more than one process is parked, `release` lists their pids and you disambiguate with `--pid`. Release also works ahead of time: issued while the eval is still running, it means "exit when done" — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). `keep` and `release` are last-write-wins, so a `keep` issued after a `release` (while the eval is still running) restores the park. From Python, pass `ctl_server="keep"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
 
