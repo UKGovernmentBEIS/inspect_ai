@@ -497,9 +497,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # call hook
             await emit_task_start(logger)
 
-            # semaphore to limit concurrency
-            from inspect_ai.util._concurrency import ResizableLimiter
-
+            # semaphore to limit concurrency (registered under the task_id so
+            # retries reuse it and the control channel's modify-limits
+            # directive can read / retune max_samples through it)
             sample_semaphore = create_sample_semaphore(
                 config, generate_config, model.api, task_id=logger.eval.task_id
             )
@@ -524,13 +524,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # control channel show cancelled samples as pending (re-run
                 # coming) vs cancelled (terminal)
                 will_retry=task_cancel.can_retry if task_cancel is not None else False,
-                # the control channel's modify-limits directive reads / retunes
-                # max_samples through this limiter (only the static
-                # ResizableLimiter path is a user setpoint; the adaptive path
-                # registers None and reports max_samples as "not adjustable")
-                sample_limiter=sample_semaphore
-                if isinstance(sample_semaphore, ResizableLimiter)
-                else None,
             )
 
             # call early stopping if we have it

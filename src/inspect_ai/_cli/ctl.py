@@ -174,7 +174,7 @@ def errors_command(task: str | None, as_json: bool) -> None:
     retries, showing the latest error message. Drill into a single sample's
     full error history (including prior attempts) with `inspect ctl sample`.
 
-    TASK selects which running eval to target — a task-id prefix or task name
+    TASK selects which running task to target — a task-id prefix or task name
     (as listed by `inspect ctl tasks`); omit it when only one eval is running.
     """
     summaries = _fetch_summaries(list_discovered_servers())
@@ -437,7 +437,7 @@ def flush_command(task: str | None, as_json: bool) -> None:
     the samples become readable / analyzable in the log without waiting. Safe to
     repeat — a flush with nothing pending writes nothing.
 
-    TASK selects which running eval to target — a task-id prefix or task name
+    TASK selects which running task to target — a task-id prefix or task name
     (as listed by `inspect ctl tasks`); omit it when only one eval is running.
     """
     summaries = _fetch_summaries(list_discovered_servers())
@@ -507,7 +507,7 @@ def buffer_command(
     samples already buffered. Lowering it takes effect from the next completed
     sample; to write what's already pending now, run `inspect ctl flush`.
 
-    TASK selects which running eval to target — a task-id prefix or task name
+    TASK selects which running task to target — a task-id prefix or task name
     (as listed by `inspect ctl tasks`); omit it when only one eval is running.
     """
     summaries = _fetch_summaries(list_discovered_servers())
@@ -591,7 +591,7 @@ def limits_command(
     dry_run: bool,
     as_json: bool,
 ) -> None:
-    """View or change a running eval's concurrency limits.
+    """View or change a running task's concurrency limits.
 
     With no set options, shows the current limits. Pass `--max-samples N` to
     change how many samples run concurrently, and/or `--max-sandboxes N` to
@@ -602,12 +602,12 @@ def limits_command(
     samples; raising it lets more start immediately.
 
     Pass `--dry-run` with a set option to see what would change without applying
-    it. A knob with no adjustable limiter for this eval (`--max-samples` under
+    it. A knob with no adjustable limiter for this task (`--max-samples` under
     adaptive connections, `--max-sandboxes` with no sandbox limit, or
     `--max-connections` when not using adaptive connections) is reported with a
     warning rather than an error.
 
-    TASK selects which running eval to target — a task-id prefix or task name
+    TASK selects which running task to target — a task-id prefix or task name
     (as listed by `inspect ctl tasks`). `--max-samples` is scoped to the named
     task, while `--max-sandboxes` and `--max-connections` are process-wide: in an
     eval-set (many tasks in one process) they affect every task, not just the one
@@ -643,17 +643,18 @@ def limits_command(
         or max_connections is not None
     )
 
-    # Resolve scope. An explicit TASK targets that eval (full per-eval view). No
-    # TASK defaults to the sole process: a single-eval process still shows the
-    # per-eval view, while a multi-eval process (an eval-set) shows just the
+    # Resolve scope. An explicit TASK targets that task (full per-task view;
+    # the wire is keyed by task_id, which is stable across retry attempts). No
+    # TASK defaults to the sole process: a single-task process still shows the
+    # per-task view, while a multi-task process (an eval-set) shows just the
     # process-global limits — `--max-connections` / `--max-sandboxes` don't need
-    # a task, but the per-eval `--max-samples` still does.
+    # a task, but the per-task `--max-samples` still does.
     header: str
-    eval_id: str | None
+    task_id: str | None
     if task is not None:
         target = _resolve_target_eval(summaries, task)
         socket_path = str(target["socket_path"])
-        eval_id = str(target["eval_id"])
+        task_id = str(target["task_id"])
         header = _task_header(target)
     else:
         sockets = sorted({str(s.get("socket_path")) for s in summaries})
@@ -663,28 +664,28 @@ def limits_command(
             _resolve_target_eval(summaries, None)
             return  # unreachable: _resolve_target_eval exits on ambiguity
         socket_path = sockets[0]
-        evals_in_proc = [
+        tasks_in_proc = [
             s for s in summaries if str(s.get("socket_path")) == socket_path
         ]
-        if len(evals_in_proc) == 1:
-            target = evals_in_proc[0]
-            eval_id = str(target["eval_id"])
+        if len(tasks_in_proc) == 1:
+            target = tasks_in_proc[0]
+            task_id = str(target["task_id"])
             header = _task_header(target)
         elif max_samples is not None:
             click.echo(
                 "--max-samples targets a single task, but this process is running "
-                f"{len(evals_in_proc)} tasks. Pass a task id "
+                f"{len(tasks_in_proc)} tasks. Pass a task id "
                 "(see `inspect ctl tasks`).",
                 err=True,
             )
             raise click.exceptions.Exit(code=1)
         else:
-            eval_id = None  # process-global scope
-            header = f"process · {len(evals_in_proc)} tasks"
+            task_id = None  # process-global scope
+            header = f"process · {len(tasks_in_proc)} tasks"
 
     config = _exec_limits(
         socket_path,
-        eval_id,
+        task_id,
         max_samples=max_samples,
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
@@ -1183,7 +1184,7 @@ def _exec_buffer_config(
 
 def _exec_limits(
     socket_path: str,
-    eval_id: str | None,
+    task_id: str | None,
     *,
     max_samples: int | None,
     max_sandboxes: int | None,
@@ -1194,13 +1195,14 @@ def _exec_limits(
 ) -> dict[str, Any]:
     """Read (``set_values=False``) or retune concurrency limits.
 
-    With ``eval_id`` set this targets that eval's ``/evals/<id>/limits`` (the
-    per-eval view, including ``max_samples``); with ``eval_id=None`` it targets
-    the process-level ``/limits`` (``max_sandboxes`` / ``max_connections`` only).
-    ``model`` filters the adaptive controllers (a read param, applies to both).
-    The read is a GET that retries a busy process on timeout; the update is a
-    single-shot PATCH given the full mutation budget (see
-    :data:`_MUTATION_TIMEOUT`). ``dry_run`` only applies to a set.
+    With ``task_id`` set this targets that task's ``/tasks/<id>/limits`` (the
+    per-task view, including ``max_samples``; task ids are stable across retry
+    attempts); with ``task_id=None`` it targets the process-level ``/limits``
+    (``max_sandboxes`` / ``max_connections`` only). ``model`` filters the
+    adaptive controllers (a read param, applies to both). The read is a GET
+    that retries a busy process on timeout; the update is a single-shot PATCH
+    given the full mutation budget (see :data:`_MUTATION_TIMEOUT`). ``dry_run``
+    only applies to a set.
     """
     params: dict[str, Any] = {}
     if max_samples is not None:
@@ -1213,8 +1215,8 @@ def _exec_limits(
         params["model"] = model
     if dry_run:
         params["dry_run"] = True
-    path = f"/evals/{eval_id}/limits" if eval_id is not None else "/limits"
-    scope = f"eval {eval_id}" if eval_id is not None else "process"
+    path = f"/tasks/{task_id}/limits" if task_id is not None else "/limits"
+    scope = f"task {task_id}" if task_id is not None else "process"
     verb = "update" if set_values else "read"
     try:
         if set_values:
@@ -1230,11 +1232,22 @@ def _exec_limits(
                 socket_path, path, params=params, what=f"Reading limits for {scope}"
             )
         if response.status_code == 404:
-            click.echo(
-                f"Eval '{eval_id}' has no adjustable limits in this process "
-                "(e.g. a reused log, or a retry attempt that's been superseded).",
-                err=True,
-            )
+            # distinguish "task unknown to the server" from version skew: a
+            # process running an older inspect has neither route, and the
+            # process-level path can only 404 for that reason
+            if task_id is not None:
+                click.echo(
+                    f"Task '{task_id}' not found in this process (it may have "
+                    "finished, or the process may be running an older inspect "
+                    "without the limits endpoints).",
+                    err=True,
+                )
+            else:
+                click.echo(
+                    "This process does not support the limits endpoints (older "
+                    "inspect version?).",
+                    err=True,
+                )
             raise click.exceptions.Exit(code=1)
         if response.status_code == 400:
             click.echo(

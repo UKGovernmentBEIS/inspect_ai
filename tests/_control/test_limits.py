@@ -1,8 +1,8 @@
 """Tests for the control-channel modify-limits directive: ``limits``.
 
 Covers the directive function in ``inspect_ai._control.limits`` (resolved
-through ``EvalState.sample_limiter`` and the process-global sandbox-limiter
-registry), the server routes that wrap it, and the CLI rendering helper.
+through the task_id-keyed sample-semaphore registry and the process-global
+sandbox-limiter registry), the server routes that wrap it, and the CLI rendering helper.
 """
 
 import asyncio
@@ -14,13 +14,14 @@ from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     register_eval,
 )
-from inspect_ai._control.limits import eval_limits
+from inspect_ai._control.limits import task_limits
 from inspect_ai.util._concurrency import (
     AdaptiveConcurrencyController,
     ResizableLimiter,
     ResizableSemaphore,
     init_concurrency,
     register_sandbox_limiter,
+    register_task_sample_semaphore,
 )
 
 
@@ -39,9 +40,10 @@ def _clear_states():
 
 
 async def test_limits_read_only() -> None:
-    register_eval("e1", 5, sample_limiter=ResizableLimiter(20))
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
 
-    result = await eval_limits("e1")
+    result = await task_limits("t1")
     assert result is not None
     assert result["dry_run"] is False
     assert result["max_samples"] == {"limit": 20, "in_use": 0, "adjustable": True}
@@ -52,9 +54,10 @@ async def test_limits_read_only() -> None:
 
 async def test_limits_set_max_samples() -> None:
     limiter = ResizableLimiter(20)
-    register_eval("e1", 5, sample_limiter=limiter)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
 
-    result = await eval_limits("e1", max_samples=30)
+    result = await task_limits("t1", max_samples=30)
     assert result is not None
     assert result["max_samples"]["limit"] == 30
     assert result["requested"] == {"max_samples": 30}
@@ -64,9 +67,10 @@ async def test_limits_set_max_samples() -> None:
 
 async def test_limits_dry_run_does_not_apply() -> None:
     limiter = ResizableLimiter(20)
-    register_eval("e1", 5, sample_limiter=limiter)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
 
-    result = await eval_limits("e1", max_samples=30, dry_run=True)
+    result = await task_limits("t1", max_samples=30, dry_run=True)
     assert result is not None
     assert result["dry_run"] is True
     assert result["requested"] == {"max_samples": 30}
@@ -76,10 +80,25 @@ async def test_limits_dry_run_does_not_apply() -> None:
 
 
 async def test_limits_max_samples_not_adjustable_warns() -> None:
-    # no sample limiter attached (the adaptive path)
-    register_eval("e1", 5)
+    # no sample semaphore registered (reused-log task / ran no samples here)
+    register_eval("e1", 5, task_id="t1")
 
-    result = await eval_limits("e1", max_samples=30)
+    result = await task_limits("t1", max_samples=30)
+    assert result is not None
+    assert result["max_samples"] == {"adjustable": False}
+    assert any("max_samples is not adjustable" in w for w in result["warnings"])
+
+
+async def test_limits_adaptive_semaphore_not_adjustable() -> None:
+    """A DynamicSampleLimiter registry entry (adaptive path) is not a setpoint."""
+    from inspect_ai.util._concurrency import AdaptiveConcurrency, DynamicSampleLimiter
+
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore(
+        "t1", DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=100, start=10), "k")
+    )
+
+    result = await task_limits("t1", max_samples=30)
     assert result is not None
     assert result["max_samples"] == {"adjustable": False}
     assert any("max_samples is not adjustable" in w for w in result["warnings"])
@@ -90,9 +109,9 @@ async def test_limits_set_max_sandboxes() -> None:
     local = ResizableSemaphore("local", 2, True)
     register_sandbox_limiter("docker", docker)
     register_sandbox_limiter("local", local)
-    register_eval("e1", 5)
+    register_eval("e1", 5, task_id="t1")
 
-    result = await eval_limits("e1", max_sandboxes=8)
+    result = await task_limits("t1", max_sandboxes=8)
     assert result is not None
     # applied to every provider's limiter
     assert docker.concurrency == 8
@@ -104,9 +123,9 @@ async def test_limits_set_max_sandboxes() -> None:
 
 
 async def test_limits_max_sandboxes_not_adjustable_warns() -> None:
-    register_eval("e1", 5)  # no sandbox limiters in effect
+    register_eval("e1", 5, task_id="t1")  # no sandbox limiters in effect
 
-    result = await eval_limits("e1", max_sandboxes=8)
+    result = await task_limits("t1", max_sandboxes=8)
     assert result is not None
     assert result["max_sandboxes"] == []
     assert any("max_sandboxes is not adjustable" in w for w in result["warnings"])
@@ -115,41 +134,41 @@ async def test_limits_max_sandboxes_not_adjustable_warns() -> None:
 async def test_limits_both_knobs() -> None:
     limiter = ResizableLimiter(10)
     docker = ResizableSemaphore("docker", 4, True)
-    register_eval("e1", 5, sample_limiter=limiter)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
     register_sandbox_limiter("docker", docker)
 
-    result = await eval_limits("e1", max_samples=15, max_sandboxes=6)
+    result = await task_limits("t1", max_samples=15, max_sandboxes=6)
     assert result is not None
     assert limiter.limit == 15
     assert docker.concurrency == 6
     assert result["requested"] == {"max_samples": 15, "max_sandboxes": 6}
 
 
-async def test_limits_none_when_eval_missing() -> None:
-    assert await eval_limits("nope") is None
+async def test_limits_none_when_task_missing() -> None:
+    assert await task_limits("nope") is None
 
 
-async def test_limits_superseded_attempt_retunes_shared_limiter() -> None:
-    """A retune against a superseded attempt still reaches the live retry.
+async def test_limits_unaffected_by_retry_supersede() -> None:
+    """A retry superseding an attempt doesn't disturb the task's limits.
 
-    Sample limiters are task-scoped, shared across in-process retry attempts:
-    when a retry supersedes an attempt (TaskLogger.reinit → detach_eval_live +
-    a fresh eval_id registered with the *same* limiter), a PATCH from a caller
-    holding the stale eval_id adjusts the limiter the live attempt drains
-    from — so the success response is genuine, not a write to a dead object.
+    The directive is keyed by task_id (stable across retries) and reads the
+    limiter from the task_id-keyed semaphore registry — not from any attempt's
+    state — so a retry (TaskLogger.reinit → detach_eval_live + a fresh eval_id
+    under the same task_id) leaves reads and retunes working unchanged.
     """
     from inspect_ai._control.eval_state import detach_eval_live
 
     limiter = ResizableLimiter(20)
-    register_eval("e1", 5, sample_limiter=limiter)
-    # retry supersedes e1: live detached, retry registers the shared limiter
-    detach_eval_live("e1")
-    register_eval("e2", 5, sample_limiter=limiter)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+    detach_eval_live("e1")  # retry supersedes e1...
+    register_eval("e2", 5, task_id="t1")  # ...and registers a fresh attempt
 
-    result = await eval_limits("e1", max_samples=2)  # stale id
+    result = await task_limits("t1", max_samples=2)
     assert result is not None
     assert result["max_samples"]["limit"] == 2
-    assert limiter.limit == 2  # reached the limiter the live attempt uses
+    assert limiter.limit == 2  # the task's (shared) limiter was retuned
 
 
 async def test_limits_adaptive_read_view() -> None:
@@ -160,14 +179,14 @@ async def test_limits_adaptive_read_view() -> None:
         get_or_create_semaphore,
     )
 
-    register_eval("e1", 5)  # adaptive path: no sample_limiter attached
+    register_eval("e1", 5, task_id="t1")  # adaptive path: no registered setpoint
     ctrl = await get_or_create_semaphore(
         "openai/gpt-4", 10, None, True, AdaptiveConcurrency(min=1, max=100, start=10)
     )
     assert isinstance(ctrl, AdaptiveConcurrencyController)
     ctrl.notify_retry()  # record a scale-down: 10 -> 8 (rate_limit)
 
-    result = await eval_limits("e1")
+    result = await task_limits("t1")
     assert result is not None
     # sample concurrency tracks the controller, so max_samples has no setpoint
     assert result["max_samples"] == {"adjustable": False}
@@ -184,8 +203,8 @@ async def test_limits_adaptive_read_view() -> None:
 
 
 async def test_limits_adaptive_empty_when_no_controllers() -> None:
-    register_eval("e1", 5)
-    result = await eval_limits("e1")
+    register_eval("e1", 5, task_id="t1")
+    result = await task_limits("t1")
     assert result is not None
     assert result["adaptive"] == []
 
@@ -207,10 +226,10 @@ async def _register_controller(
 
 async def test_limits_set_max_connections() -> None:
     """max_connections retunes the adaptive controllers' ceiling."""
-    register_eval("e1", 5)
+    register_eval("e1", 5, task_id="t1")
     ctrl = await _register_controller(max=100, start=50)
 
-    result = await eval_limits("e1", max_connections=30)
+    result = await task_limits("t1", max_connections=30)
     assert result is not None
     assert result["requested"] == {"max_connections": 30}
     # ceiling lowered and live limit clamped down to it
@@ -222,10 +241,10 @@ async def test_limits_set_max_connections() -> None:
 
 
 async def test_limits_max_connections_dry_run_does_not_apply() -> None:
-    register_eval("e1", 5)
+    register_eval("e1", 5, task_id="t1")
     ctrl = await _register_controller(max=100, start=50)
 
-    result = await eval_limits("e1", max_connections=30, dry_run=True)
+    result = await task_limits("t1", max_connections=30, dry_run=True)
     assert result is not None
     assert result["dry_run"] is True
     assert result["requested"] == {"max_connections": 30}
@@ -236,8 +255,8 @@ async def test_limits_max_connections_dry_run_does_not_apply() -> None:
 
 
 async def test_limits_max_connections_not_adjustable_without_controllers() -> None:
-    register_eval("e1", 5)  # no adaptive controllers registered
-    result = await eval_limits("e1", max_connections=30)
+    register_eval("e1", 5, task_id="t1")  # no adaptive controllers registered
+    result = await task_limits("t1", max_connections=30)
     assert result is not None
     assert result["adaptive"] == []
     assert any("max_connections is not adjustable" in w for w in result["warnings"])
@@ -350,51 +369,53 @@ def _app():
 
 async def test_limits_route_get_and_patch() -> None:
     limiter = ResizableLimiter(20)
-    register_eval("e1", 5, sample_limiter=limiter)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        got = await client.get("/evals/e1/limits")
+        got = await client.get("/tasks/t1/limits")
         assert got.status_code == 200, got.text
         assert got.json()["max_samples"]["limit"] == 20
 
-        patched = await client.patch("/evals/e1/limits", params={"max_samples": 40})
+        patched = await client.patch("/tasks/t1/limits", params={"max_samples": 40})
         assert patched.status_code == 200, patched.text
         assert patched.json()["max_samples"]["limit"] == 40
         assert limiter.limit == 40
 
-        missing = await client.get("/evals/missing/limits")
+        missing = await client.get("/tasks/missing/limits")
         assert missing.status_code == 404
 
 
 async def test_limits_route_rejects_below_one() -> None:
-    register_eval("e1", 5, sample_limiter=ResizableLimiter(20))
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        bad = await client.patch("/evals/e1/limits", params={"max_samples": 0})
+        bad = await client.patch("/tasks/t1/limits", params={"max_samples": 0})
         assert bad.status_code == 400
         assert "max_samples" in bad.json()["error"]
 
 
 async def test_limits_route_patch_max_connections() -> None:
-    register_eval("e1", 5)
+    register_eval("e1", 5, task_id="t1")
     ctrl = await _register_controller(max=100, start=50)
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        patched = await client.patch("/evals/e1/limits", params={"max_connections": 25})
+        patched = await client.patch("/tasks/t1/limits", params={"max_connections": 25})
         assert patched.status_code == 200, patched.text
         assert patched.json()["adaptive"][0]["max"] == 25
         assert ctrl.max == 25
 
-        bad = await client.patch("/evals/e1/limits", params={"max_connections": 0})
+        bad = await client.patch("/tasks/t1/limits", params={"max_connections": 0})
         assert bad.status_code == 400
         assert "max_connections" in bad.json()["error"]
 
@@ -442,14 +463,15 @@ async def test_process_limits_route_model_filter() -> None:
 
 async def test_limits_route_dry_run() -> None:
     limiter = ResizableLimiter(20)
-    register_eval("e1", 5, sample_limiter=limiter)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
         resp = await client.patch(
-            "/evals/e1/limits", params={"max_samples": 40, "dry_run": True}
+            "/tasks/t1/limits", params={"max_samples": 40, "dry_run": True}
         )
         assert resp.status_code == 200, resp.text
         assert resp.json()["dry_run"] is True
@@ -675,7 +697,8 @@ def test_limits_route_error_becomes_500() -> None:
         def limit(self, value: int) -> None:
             raise RuntimeError("boom")
 
-    register_eval("e1", 5, sample_limiter=_Boom(5))
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", _Boom(5))
 
     async def scenario() -> httpx.Response:
         app = server_mod.ControlServer(run_id="test")._build_app()
@@ -683,7 +706,7 @@ def test_limits_route_error_becomes_500() -> None:
         async with httpx.AsyncClient(
             transport=transport, base_url="http://localhost"
         ) as client:
-            return await client.patch("/evals/e1/limits", params={"max_samples": 9})
+            return await client.patch("/tasks/t1/limits", params={"max_samples": 9})
 
     response = asyncio.run(scenario())
     assert response.status_code == 500

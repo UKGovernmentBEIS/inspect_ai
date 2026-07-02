@@ -1,15 +1,17 @@
 """Modify-limits directive for the control channel.
 
-Reads (and optionally retunes) a running eval's concurrency limits mid-flight —
-``max_samples`` (per-eval sample concurrency) and ``max_sandboxes`` (per-provider
-sandbox concurrency, process-global). The first of the phase-3 ``PATCH
-/evals/<id>`` directives (see ``design/control-channel.md``).
+Reads (and optionally retunes) a running task's concurrency limits mid-flight —
+``max_samples`` (per-task sample concurrency) and ``max_sandboxes`` (per-provider
+sandbox concurrency, process-global). The first of the phase-3 modify directives
+(see ``design/control-channel.md``). Keyed by task_id — the identity that is
+stable across retry attempts — via ``GET``/``PATCH /tasks/<task-id>/limits``.
 
 Both knobs are backed by a :class:`~inspect_ai.util._concurrency.ResizableLimiter`
 whose limit is settable at runtime: lowering it below the current in-use count
 blocks new acquires until in-flight holders drain — it never preempts. Raising it
 lets more work start immediately. ``max_samples`` is reached through
-``EvalState.sample_limiter`` (attached by the runner); ``max_sandboxes`` through
+the task_id-keyed sample-semaphore registry (populated by the runner, shared
+across a task's retry attempts); ``max_sandboxes`` through
 the process-global sandbox-limiter registry, since sandbox concurrency is shared
 across the process's evals rather than owned by one.
 
@@ -22,15 +24,15 @@ on subsequent clean rounds. The view carries an ``adaptive`` section reporting
 each controller's live limit, in-flight count, scaling bounds, and recent scale
 changes, so the path is observable rather than opaque.
 
-:func:`eval_limits` returns ``None`` when the eval isn't in this process — the
+:func:`task_limits` returns ``None`` when the task isn't in this process — the
 endpoint turns that into a 404. When a requested knob has no adjustable limiter
-(the adaptive sample-concurrency path, or an eval with no sandbox limit in
+(the adaptive sample-concurrency path, or a run with no sandbox limit in
 effect), the value is applied to nothing and a warning is included rather than
 failing the whole request — so a caller adjusting several knobs still gets the
 ones that apply.
 
 Since ``max_sandboxes`` and ``max_connections`` are process-global (shared across
-the process's evals), :func:`process_limits` exposes them without an eval — the
+the process's tasks), :func:`process_limits` exposes them without a task — the
 process-level ``GET``/``PATCH /limits`` endpoint — for the common case of viewing
 or throttling a whole process without naming one of its tasks.
 """
@@ -54,12 +56,12 @@ async def process_limits(
 ) -> dict[str, Any]:
     """Read (and optionally retune) the process-global concurrency limits.
 
-    Covers the knobs that are shared across every eval in the process:
+    Covers the knobs that are shared across every task in the process:
     ``max_sandboxes`` (per-provider sandbox concurrency) and ``max_connections``
     (the adaptive controllers' scaling ceiling). It carries no ``max_samples`` —
-    that is per-eval; use :func:`eval_limits` when a specific eval is in view.
+    that is per-task; use :func:`task_limits` when a specific task is in view.
 
-    A process always exists, so unlike :func:`eval_limits` this never returns
+    A process always exists, so unlike :func:`task_limits` this never returns
     ``None``. With both knobs ``None`` it's a pure read. ``model`` restricts the
     adaptive controllers considered (matched at name start or after a ``/``).
     """
@@ -82,8 +84,8 @@ async def process_limits(
     }
 
 
-async def eval_limits(
-    eval_id: str,
+async def task_limits(
+    task_id: str,
     *,
     max_samples: int | None = None,
     max_sandboxes: int | None = None,
@@ -91,22 +93,28 @@ async def eval_limits(
     model: str | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
-    """Read (and optionally retune) one eval's concurrency limits.
+    """Read (and optionally retune) a task's concurrency limits.
 
-    A superset of :func:`process_limits`: it adds the per-eval ``max_samples``
-    knob (reached through ``EvalState.sample_limiter``) to the process-global
-    ``max_sandboxes`` / ``max_connections`` view. With all three ``None`` this is
-    a pure read. Returns ``None`` when the eval isn't tracked in this process
-    (the endpoint turns that into a 404).
+    A superset of :func:`process_limits`: it adds the per-task ``max_samples``
+    knob to the process-global ``max_sandboxes`` / ``max_connections`` view.
+    Task-scoped state lives in task_id-keyed registries: the sample limiter is
+    read straight from the task-semaphore registry (shared across the task's
+    retry attempts — see ``_task_sample_semaphores``), while the attempt-scoped
+    ``EvalState`` rows are consulted only for existence. With all three knobs
+    ``None`` this is a pure read. Returns ``None`` when the task isn't tracked
+    in this process (the endpoint turns that into a 404). Keyed by task_id —
+    stable across retries — rather than a per-attempt eval id, so a caller's
+    handle never goes stale mid-run.
 
-    On the adaptive path ``max_samples`` isn't a user setpoint (sample
-    concurrency tracks the controller), so it's reported as not adjustable;
-    ``max_connections`` retunes the controllers' scaling ceiling instead —
-    lowering it clamps live concurrency down immediately, raising it lets the
-    controller climb higher on subsequent clean rounds.
+    On the adaptive path the task's semaphore is a ``DynamicSampleLimiter``
+    (sample concurrency tracks the controller, not a user setpoint), so
+    ``max_samples`` is reported as not adjustable; ``max_connections`` retunes
+    the controllers' scaling ceiling instead — lowering it clamps live
+    concurrency down immediately, raising it lets the controller climb higher
+    on subsequent clean rounds.
 
     Args:
-        eval_id: The target eval.
+        task_id: The target task (stable across retry attempts).
         max_samples: New sample-concurrency limit, or ``None`` to leave it.
         max_sandboxes: New per-provider sandbox-concurrency limit, or ``None``.
         max_connections: New adaptive-controller scaling ceiling (applied to
@@ -116,24 +124,27 @@ async def eval_limits(
         dry_run: When set, validate and report the intended change without
             applying it.
     """
-    from inspect_ai._control.eval_state import get_eval_state
+    from inspect_ai._control.eval_state import task_registered
+    from inspect_ai.util._concurrency import ResizableLimiter, task_sample_semaphore
 
-    state = get_eval_state(eval_id)
-    if state is None:
+    if not task_registered(task_id):
         return None
 
     warnings: list[str] = []
     requested: dict[str, int] = {}
 
-    # max_samples — the per-eval sample limiter (None on the adaptive path).
+    # max_samples — the task's sample semaphore. Only a ResizableLimiter is a
+    # user setpoint; a DynamicSampleLimiter (adaptive path) or a missing entry
+    # (reused-log task, or one that ran no samples here) isn't adjustable.
     # Applied before the process-global knobs so `requested` reads max_samples
     # first.
-    sample_limiter = state.sample_limiter
+    semaphore = task_sample_semaphore(task_id)
+    sample_limiter = semaphore if isinstance(semaphore, ResizableLimiter) else None
     if max_samples is not None:
         requested["max_samples"] = max_samples
         if sample_limiter is None:
             warnings.append(
-                "max_samples is not adjustable for this eval (it uses adaptive "
+                "max_samples is not adjustable for this task (it uses adaptive "
                 "connection concurrency, or ran no samples in this process)."
             )
         elif not dry_run:
@@ -205,7 +216,7 @@ def _apply_process_knobs(
     """Apply the process-global knobs and build their views.
 
     Mutates ``requested`` / ``warnings`` in place (so callers can prepend a
-    per-eval knob) and returns ``(max_sandboxes_view, adaptive_view)``. The views
+    per-task knob) and returns ``(max_sandboxes_view, adaptive_view)``. The views
     are re-read after applying, so a real set reflects the new values. ``model``
     restricts the adaptive controllers considered (for both ``max_connections``
     and the reported view) to those matching it.
@@ -218,8 +229,8 @@ def _apply_process_knobs(
         requested["max_sandboxes"] = max_sandboxes
         if not sandboxes:
             warnings.append(
-                "max_sandboxes is not adjustable for this eval (no sandbox "
-                "concurrency limit is in effect)."
+                "max_sandboxes is not adjustable (no sandbox concurrency limit "
+                "is in effect)."
             )
         elif not dry_run:
             for sem in sandboxes.values():

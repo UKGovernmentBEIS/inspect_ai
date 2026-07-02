@@ -2373,7 +2373,7 @@ def test_task_retry_detaches_superseded_attempt_live(
     )
 
 
-# --- limits / GET + PATCH /evals/<id>/limits -------------------------------
+# --- limits / GET + PATCH /tasks/<id>/limits -------------------------------
 
 
 def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) -> None:
@@ -2381,17 +2381,17 @@ def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) ->
 
     Runs a real eval with an explicit ``max_samples`` (the static
     ResizableLimiter path), parks its samples in flight, then verifies
-    ``eval_limits`` reports the limit + in-use count and applies a new limit to
+    ``task_limits`` reports the limit + in-use count and applies a new limit to
     the underlying limiter mid-run.
     """
-    from inspect_ai._control.limits import eval_limits
+    from inspect_ai._control.limits import task_limits
 
     @task
-    def task_limits() -> Task:
+    def limits_task() -> Task:
         return Task(
             dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
             solver=[gate()],
-            name="task_limits",
+            name="limits_task",
         )
 
     log_dir = str(short_data_dir / "logs")
@@ -2402,16 +2402,16 @@ def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) ->
         return bool(evals) and evals[0]["samples"]["in_flight"] == 3
 
     async def capture() -> dict:
-        eval_id = (await current_eval_summaries(0.0))[0]["eval_id"]
+        task_id = (await current_eval_summaries(0.0))[0]["task_id"]
         # read reflects the live limiter (max_samples=3, all three in flight)
-        read = await eval_limits(eval_id)
+        read = await task_limits(task_id)
         # retune it up and confirm the change is applied
-        applied = await eval_limits(eval_id, max_samples=7)
+        applied = await task_limits(task_id, max_samples=7)
         return {"read": read, "applied": applied}
 
     with probe(ready, capture) as p:
         eval_set(
-            tasks=[task_limits()],
+            tasks=[limits_task()],
             log_dir=log_dir,
             model="mockllm/model",
             retry_attempts=0,

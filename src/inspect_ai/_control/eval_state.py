@@ -49,7 +49,6 @@ if TYPE_CHECKING:
 
     from inspect_ai.log._log import EvalSample, EvalSampleSummary
     from inspect_ai.log._transcript import TranscriptHistoryProvider
-    from inspect_ai.util._concurrency import ResizableLimiter
 
     class LiveEvalData(Protocol):
         """A running eval's live data source — the in-process ``TaskLogger``.
@@ -267,20 +266,6 @@ class EvalState:
     total_messages: int = 0
     """Cumulative message count, accumulated like :attr:`total_tokens`."""
 
-    sample_limiter: "ResizableLimiter | None" = None
-    """The eval's live-resizable sample-concurrency limiter (``max_samples``).
-
-    Passed to :func:`register_eval` by the runner (which builds the sample
-    semaphore just before registering), so the control channel's modify-limits
-    directive can read and retune ``max_samples`` mid-eval. The limiter is
-    task-scoped, shared across a task's in-process retry attempts (see
-    ``_task_sample_semaphores`` in ``util/_concurrency.py``), so a retune
-    survives a retry and a superseded attempt's state still points at the live
-    limiter. ``None`` when the eval's sample concurrency isn't a user setpoint
-    — i.e. the adaptive (``DynamicSampleLimiter``) path, or a reused/synthetic
-    eval that never ran samples in this process — in which case the directive
-    reports ``max_samples`` as not adjustable."""
-
     def observe_started(self, started: float | None) -> None:
         """Fold a sample's start time into :attr:`started_at` (running minimum).
 
@@ -337,14 +322,12 @@ def register_eval(
     epochs: int = 1,
     run_id: str | None = None,
     will_retry: bool = False,
-    sample_limiter: "ResizableLimiter | None" = None,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
-    Idempotent on ``eval_id`` — re-registering an existing eval returns the
-    existing state without resetting its counters. Each retry attempt gets a
-    fresh ``eval_id`` (see ``TaskLogger.reinit``), so this early-return never
-    strands a superseded attempt's ``sample_limiter``.
+    Idempotent on ``eval_id`` — re-registering an existing eval (eg. on
+    retry, which mints a fresh ``eval_id`` via ``TaskLogger.reinit``) returns
+    the existing state without resetting its counters.
     """
     with _lock:
         existing = _eval_states.get(eval_id)
@@ -362,7 +345,6 @@ def register_eval(
             epochs=epochs,
             run_id=run_id,
             will_retry=will_retry,
-            sample_limiter=sample_limiter,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
@@ -533,6 +515,24 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def task_registered(task_id: str) -> bool:
+    """True if any attempt of ``task_id`` is tracked in this process.
+
+    A pure existence check (no latest-attempt semantics): task-scoped state
+    like the sample limiter lives in task_id-keyed registries (see
+    ``_task_sample_semaphores`` in ``util/_concurrency.py``), so consumers such
+    as the limits directive only need to know whether the task is known here —
+    including reused-log tasks registered via :func:`register_completed_eval`,
+    which never run and so have no registry entries but should still get the
+    "not adjustable" warning rather than a 404. A falsy ``task_id`` is never
+    registered (states without one are addressable only by eval id).
+    """
+    if not task_id:
+        return False
+    with _lock:
+        return any(s.task_id == task_id for s in _eval_states.values())
+
+
 def detach_eval_live(eval_id: str) -> None:
     """Detach a superseded attempt's live data source.
 
@@ -545,12 +545,7 @@ def detach_eval_live(eval_id: str) -> None:
     that log, after which per-sample reads degrade to empty/404 (the counters
     on the state itself are unaffected).
 
-    :attr:`sample_limiter` is deliberately NOT detached: sample semaphores are
-    task-scoped (see ``_task_sample_semaphores`` in ``util/_concurrency.py``),
-    so the retry attempt reuses the same limiter — a ``PATCH
-    /evals/<superseded-id>/limits`` from a caller holding the pre-retry eval_id
-    therefore retunes the very limiter the live attempt drains from, and its
-    success response is genuine. No-ops if the eval isn't registered.
+    No-ops if the eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
