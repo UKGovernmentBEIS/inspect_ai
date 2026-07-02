@@ -219,7 +219,8 @@ def eval_set(
         checkpoint: Checkpoint configuration for this eval set, or `True`
             to enable checkpointing with the default trigger (every 500k
             tokens). Overrides any task- or sample-level `checkpoint`
-            when set.
+            when set. A task can opt out with `Task(checkpoint=False)`,
+            which overrides this enable for that task only.
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;

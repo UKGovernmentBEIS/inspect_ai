@@ -90,6 +90,29 @@ class CheckpointConfig(CheckpointSampleConfig):
     settable only at the task or eval layer."""
 
 
+class CheckpointDisabled(CheckpointConfig):
+    """Sentinel ``CheckpointConfig`` meaning checkpointing is vetoed.
+
+    Produced by ``normalize_checkpoint(False)``. When the task or eval layer is
+    this value, checkpointing is disabled for that scope, overriding an enable
+    at any other layer (see ``checkpoint_vetoed`` and
+    ``merge_checkpoint_configs``). It subclasses ``CheckpointConfig`` so that
+    existing ``CheckpointConfig | None`` annotations accept it unchanged;
+    resolvers detect it via ``isinstance``.
+    """
+
+
+def checkpoint_vetoed(
+    task: CheckpointConfig | None, eval_: CheckpointConfig | None
+) -> bool:
+    """True if the task or eval layer vetoes checkpointing (``checkpoint=False``).
+
+    A veto at either layer disables checkpointing, overriding an enable at the
+    other. The sample layer cannot veto (it has no ``False`` form).
+    """
+    return isinstance(task, CheckpointDisabled) or isinstance(eval_, CheckpointDisabled)
+
+
 @dataclass
 class ResolvedCheckpointConfig:
     """Merged checkpoint config — the runtime contract for sample execution.
@@ -145,6 +168,8 @@ def merge_checkpoint_configs(
     is enabled but no layer (including the sample) set a ``trigger``,
     the trigger defaults to :data:`DEFAULT_CHECKPOINT_TRIGGER`.
     """
+    if checkpoint_vetoed(task, eval_):
+        return None
     if task is None and eval_ is None:
         return None
 
@@ -188,14 +213,18 @@ def normalize_checkpoint(
 ) -> CheckpointConfig | None:
     """Normalize a public ``checkpoint=`` argument to a ``CheckpointConfig``.
 
-    ``True`` enables checkpointing without pinning a trigger — the
-    concrete default (:data:`DEFAULT_CHECKPOINT_TRIGGER`) is resolved
-    per-sample by :func:`merge_checkpoint_configs`, exactly matching the
-    bare ``--checkpoint`` CLI flag. ``False`` / ``None`` disable it. A
-    :class:`CheckpointConfig` is returned unchanged.
+    ``True`` enables checkpointing without pinning a trigger — the concrete
+    default (:data:`DEFAULT_CHECKPOINT_TRIGGER`) is resolved per-sample by
+    :func:`merge_checkpoint_configs`, matching the bare ``--checkpoint`` CLI
+    flag. ``False`` is a **veto**: it returns :class:`CheckpointDisabled`, which
+    disables checkpointing for that layer's scope, overriding an enable at
+    another layer. ``None`` inherits (no opinion). A :class:`CheckpointConfig`
+    is returned unchanged.
     """
     if checkpoint is True:
         return CheckpointConfig(trigger=None)
-    if checkpoint is False or checkpoint is None:
+    if checkpoint is False:
+        return CheckpointDisabled()
+    if checkpoint is None:
         return None
     return checkpoint
