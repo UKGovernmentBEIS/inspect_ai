@@ -167,7 +167,8 @@ async def test_concurrent_eval_async_opt_in(
             assert reread.eval.task == expected_task
             assert reread.samples is not None and len(reread.samples) == expected_n
             assert all(
-                s.input.startswith(f"{expected_task[-1]}-") for s in reread.samples
+                isinstance(s.input, str) and s.input.startswith(f"{expected_task[-1]}-")
+                for s in reread.samples
             )
 
     # depth counter must be back to zero so the guard re-arms
