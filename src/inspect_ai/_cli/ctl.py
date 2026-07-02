@@ -542,19 +542,19 @@ def buffer_command(
 @click.argument("task", required=False)
 @click.option(
     "--max-samples",
-    type=int,
+    type=click.IntRange(min=1),
     default=None,
     help="Set the max samples to run concurrently (for this task).",
 )
 @click.option(
     "--max-sandboxes",
-    type=int,
+    type=click.IntRange(min=1),
     default=None,
     help="Set the max sandboxes per provider (process-wide, across all tasks).",
 )
 @click.option(
     "--max-connections",
-    type=int,
+    type=click.IntRange(min=1),
     default=None,
     help=(
         "Set the adaptive-connections scaling ceiling — the controller's max "
@@ -623,13 +623,6 @@ def limits_command(
     adaptive view) to matching models — matched at the name start or after a `/`,
     so `gpt-4` matches `openai/gpt-4`.
     """
-    if max_samples is not None and max_samples < 1:
-        raise click.BadParameter("--max-samples must be >= 1")
-    if max_sandboxes is not None and max_sandboxes < 1:
-        raise click.BadParameter("--max-sandboxes must be >= 1")
-    if max_connections is not None and max_connections < 1:
-        raise click.BadParameter("--max-connections must be >= 1")
-
     set_values = (
         max_samples is not None
         or max_sandboxes is not None
@@ -1309,15 +1302,20 @@ def _exec_limits(
     )
 
 
-def _error_detail_from_response(response: httpx.Response) -> str:
-    """Prefer the server's ``{"error": ...}`` body over a bare status message."""
+def _error_body(response: httpx.Response) -> str | None:
+    """The server's ``{"error": ...}`` body detail, or ``None`` when absent."""
     try:
         body = response.json()
     except ValueError:
-        body = None
+        return None
     if isinstance(body, dict) and body.get("error"):
         return str(body["error"])
-    return f"HTTP {response.status_code}"
+    return None
+
+
+def _error_detail_from_response(response: httpx.Response) -> str:
+    """Prefer the server's ``{"error": ...}`` body over a bare status message."""
+    return _error_body(response) or f"HTTP {response.status_code}"
 
 
 def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
@@ -1523,13 +1521,10 @@ def _truncate(text: str, width: int) -> str:
 def _error_detail(exc: Exception) -> str:
     """Prefer the server's ``{"error": ...}`` body over the bare HTTP error."""
     response = getattr(exc, "response", None)
-    if response is not None:
-        try:
-            body = response.json()
-        except ValueError:
-            body = None
-        if isinstance(body, dict) and body.get("error"):
-            return str(body["error"])
+    if isinstance(response, httpx.Response):
+        detail = _error_body(response)
+        if detail is not None:
+            return detail
     return str(exc)
 
 
