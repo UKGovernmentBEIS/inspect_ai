@@ -6,15 +6,61 @@ when the data in server_tool_uses was sent back to OpenAI.
 The fix was to use model_dump(exclude_none=True) to exclude None values.
 """
 
+import json
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from openai.types.responses import ResponseFunctionWebSearch
-from openai.types.responses.response_function_web_search import ActionSearch
+from openai.types.responses.response_function_web_search import Action, ActionSearch
 
 from inspect_ai.model._openai_responses import (
     _chat_message_assistant_from_openai_response,
     _openai_input_items_from_chat_message_assistant,
+    parse_web_search_action,
 )
+
+
+def test_find_in_page_without_url_normalized_and_constructs():
+    """A find_in_page action with only a pattern is normalized so SDK construction succeeds."""
+    result = parse_web_search_action(
+        json.dumps({"type": "find_in_page", "pattern": "§ 101.1"})
+    )
+
+    assert result["type"] == "find_in_page"
+    assert "url" in result
+    assert result["url"] == ""
+    assert result["pattern"] == "§ 101.1"
+
+    # Should construct without raising a pydantic ValidationError
+    ResponseFunctionWebSearch(
+        type="web_search_call",
+        id="x",
+        action=cast(Action, result),
+        status="completed",
+    )
+
+
+def test_legacy_find_normalized_to_find_in_page():
+    """A legacy `find` type with a pattern and no url is normalized to find_in_page with a url."""
+    result = parse_web_search_action(json.dumps({"type": "find", "pattern": "needle"}))
+
+    assert result["type"] == "find_in_page"
+    assert "url" in result
+
+    ResponseFunctionWebSearch(
+        type="web_search_call",
+        id="x",
+        action=cast(Action, result),
+        status="completed",
+    )
+
+
+def test_search_action_parses_unchanged():
+    """Regression: a normal search action still parses through unchanged."""
+    result = parse_web_search_action(json.dumps({"type": "search", "query": "hello"}))
+
+    assert result["type"] == "search"
+    assert result["query"] == "hello"
 
 
 def test_web_search_round_trip_excludes_none():
