@@ -164,6 +164,9 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
         assert samples["queued"] == 0
         assert entry["status"] == "running"
         assert entry["completed_at"] is None
+        assert entry["model"] == "mockllm/model"
+        # the plan's terminal step — the gate solver — is the reported agent
+        assert entry["agent"] == "gate"
         # log_location points at this eval's log file, so an agent monitoring a
         # run it didn't launch can find where results are written — as a plain
         # local path (no `file://` prefix), directly usable.
@@ -691,6 +694,8 @@ def test_ctl_reused_log_eval_reports_usage(short_data_dir: Path) -> None:
     assert entry is not None
     assert entry["total_tokens"] > 0, entry
     assert entry["total_messages"] > 0, entry
+    # agent name recovered from the reused log's plan (terminal step)
+    assert entry["agent"] == "gen", entry
 
 
 # --- keep-alive park -------------------------------------------------------

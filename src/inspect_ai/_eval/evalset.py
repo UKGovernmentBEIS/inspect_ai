@@ -49,6 +49,7 @@ from inspect_ai._util.file import (
 )
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
@@ -836,6 +837,12 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             task=eval_spec.task,
             task_id=eval_spec.task_id,
             model=str(eval_spec.model) if eval_spec.model else "",
+            # the plan's terminal step is the agent/solver name — the same
+            # derivation the live path makes via plan_agent_name (the header
+            # records the qualified registry name, so unqualify it)
+            agent=registry_unqualified_name(header.plan.steps[-1].solver)
+            if header.plan.steps
+            else "",
             log_location=log_entry.info.name,
             run_id=eval_spec.run_id,
             completed_at=completed_at,

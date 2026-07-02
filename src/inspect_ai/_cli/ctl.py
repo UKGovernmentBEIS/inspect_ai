@@ -1124,9 +1124,12 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     """Render eval summaries as a simple aligned table on stdout."""
     # Show errors / attempts columns only when at least one row has
     # something interesting to report there — keeps the common case
-    # (no errors, no retries) uncluttered.
+    # (no errors, no retries) uncluttered. The agent column is identity
+    # (like model) but hidden when no row carries it — an older server
+    # doesn't report it, and an all-blank column is just clutter.
     any_errors = any((s.get("samples") or {}).get("errored", 0) > 0 for s in summaries)
     any_retries = any(int(s.get("attempts", 1) or 1) > 1 for s in summaries)
+    any_agent = any(s.get("agent") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -1136,18 +1139,25 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         cells = [
             _short_id(s.get("task_id", "")),
             s.get("task", "?") or "?",
-            _format_samples(samples),
-            _format_started(s.get("started_at", 0)),
+            s.get("model", "") or "",
         ]
+        if any_agent:
+            cells.append(s.get("agent", "") or "")
+        cells.append(_format_samples(samples))
         if any_errors:
-            cells.insert(3, str(samples.get("errored", 0)))
+            cells.append(str(samples.get("errored", 0)))
+        cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
             cells.append(str(int(s.get("attempts", 1) or 1)))
         rows.append(tuple(cells))
 
-    headers_list = ["task_id", "task", "samples", "started"]
+    headers_list = ["task_id", "task", "model"]
+    if any_agent:
+        headers_list.append("agent")
+    headers_list.append("samples")
     if any_errors:
-        headers_list.insert(3, "errors")
+        headers_list.append("errors")
+    headers_list.append("started")
     if any_retries:
         headers_list.append("attempts")
 
