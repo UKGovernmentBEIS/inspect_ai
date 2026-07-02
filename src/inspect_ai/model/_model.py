@@ -598,6 +598,17 @@ def _connection_pool_key(api: ModelAPI) -> str:
     return f"{type(api).__name__}:{api.connection_key()}"
 
 
+def model_concurrency_key(api: ModelAPI) -> str:
+    """Registry key of the model's generate-concurrency context.
+
+    The single definition of the key under which `_connection_concurrency`
+    registers a model's semaphore / adaptive controller — also computed by
+    `create_sample_semaphore` to scope a task's `DynamicSampleLimiter` to its
+    own model's controller, so the two sides can't drift.
+    """
+    return f"Model{_connection_pool_key(api)}"
+
+
 class Model:
     """Model interface.
 
@@ -1398,7 +1409,7 @@ class Model:
         )
 
         model_name = ModelName(self)
-        key = f"Model{_connection_pool_key(self.api)}"
+        key = model_concurrency_key(self.api)
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
         # rules — both silent — keep deliberate overrides working under

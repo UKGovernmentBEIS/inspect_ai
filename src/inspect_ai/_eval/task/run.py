@@ -2070,6 +2070,7 @@ def create_sample_semaphore(
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
 ) -> contextlib.AbstractAsyncContextManager[Any]:
+    from inspect_ai.model._model import model_concurrency_key
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,
         ResizableLimiter,
@@ -2089,13 +2090,17 @@ def create_sample_semaphore(
         generate_config.max_connections,
         generate_config.batch,
     ):
-        # adaptive: dynamic limiter that tracks the controller(s) — sample
-        # concurrency grows with the controller's current limit so setup work
-        # (sandboxes etc.) stays proportional to actual model concurrency.
+        # adaptive: dynamic limiter that tracks this model's controller —
+        # sample concurrency grows with the controller's current limit so setup
+        # work (sandboxes etc.) stays proportional to actual model concurrency.
+        # The connection-pool key scopes the limiter to the task's own model's
+        # controller: controllers for other models in the process (graders,
+        # eval-set siblings) must not drive it.
         # Both explicit max_connections and batch mode silently override
         # adaptive (matches the precedence in Model._connection_concurrency).
         return DynamicSampleLimiter(
-            resolve_adaptive(generate_config.adaptive_connections)
+            resolve_adaptive(generate_config.adaptive_connections),
+            model_concurrency_key(modelapi) if modelapi else None,
         )
     else:
         # static path (default max_samples derived from max_connections).

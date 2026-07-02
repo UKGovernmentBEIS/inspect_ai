@@ -463,7 +463,7 @@ class _AnyIOSemaphoreRegistry:
 
         sem: ConcurrencySemaphore
         if adaptive is not None:
-            ctrl = AdaptiveConcurrencyController(name, adaptive, visible)
+            ctrl = AdaptiveConcurrencyController(name, adaptive, visible, key=base)
             self._semaphores[k] = ctrl
             _fire_controller_created(ctrl)
             return ctrl
@@ -657,8 +657,15 @@ class AdaptiveConcurrencyController:
         name: str,
         config: AdaptiveConcurrency,
         visible: bool,
+        key: str | None = None,
     ) -> None:
         self.name = name
+        # The registry key this controller was created under (the model's
+        # connection-pool key) — the identity `DynamicSampleLimiter` uses to
+        # follow its own model's controller. `name` is only the display string
+        # and can collide across accounts serving the same model. Defaults to
+        # `name` for direct construction (tests).
+        self.key = key if key is not None else name
         # Private copy: set_max() mutates the bounds, and callers can pass the
         # same AdaptiveConcurrency instance to several controllers (one per
         # model) — sharing it would leak a --model-scoped retune of one
@@ -900,24 +907,36 @@ def adaptive_controllers() -> list[AdaptiveConcurrencyController]:
 
 
 class DynamicSampleLimiter:
-    """Sample-concurrency limiter that tracks adaptive controllers' current limits.
+    """Sample-concurrency limiter that tracks its model's adaptive controller.
 
-    Wraps an `anyio.CapacityLimiter`. Subscribes to every adaptive controller
-    eagerly — both ones existing at construction time and ones created later
-    (via the module-level controller-creation hook). On each controller scale
-    change, `total_tokens` is updated to `max(c.concurrency for c in ctrls) + BUFFER`,
-    so sample concurrency tracks model API concurrency (plus a small slack).
+    Wraps an `anyio.CapacityLimiter`. Subscribes to the adaptive controller
+    created under ``key`` (the model's connection-pool key, see
+    `model_concurrency_key`) — whether it exists at construction time (e.g.
+    when the registry is reused across tasks within an eval set) or appears
+    later via the module-level controller-creation hook (the controller is
+    usually created on the model's first generate, after this limiter is
+    built). On each scale change, `total_tokens` is updated to the matching
+    controller's `concurrency + BUFFER`, so sample concurrency tracks the
+    model's live API concurrency (plus a small slack) — including a mid-flight
+    `set_max` retune of the ceiling.
+
+    Controllers for *other* models in the process (graders, eval-set sibling
+    tasks — or the same model on a different account) are deliberately
+    ignored: their — possibly much higher — limits say nothing about this
+    task's model, and following the busiest controller in the process would
+    start far more samples than this model can serve. ``key=None`` disables
+    the scoping (track every controller) — a test convenience; production
+    always scopes.
     """
 
     BUFFER = 5
 
-    def __init__(self, adaptive: AdaptiveConcurrency) -> None:
-        self._adaptive = adaptive
+    def __init__(self, adaptive: AdaptiveConcurrency, key: str | None) -> None:
+        self._key = key
         initial = min(adaptive.start, adaptive.max) + self.BUFFER
         self._limiter = anyio.CapacityLimiter(initial)
-        # subscribe to existing controllers (e.g. when the registry is reused
-        # across tasks within an eval set)
-        existing = list(adaptive_controllers())
+        # subscribe to existing matching controllers
+        existing = [c for c in adaptive_controllers() if self._matches(c)]
         for ctrl in existing:
             ctrl.add_observer(self._on_controller_change)
         # catch up to existing controllers' current limits — without this, a
@@ -930,20 +949,26 @@ class DynamicSampleLimiter:
         # register for future controllers — fired by the registry on creation
         add_controller_created_observer(self._on_controller_created)
 
+    def _matches(self, ctrl: AdaptiveConcurrencyController) -> bool:
+        """True if ``ctrl`` is this limiter's model's controller (or unscoped)."""
+        return self._key is None or ctrl.key == self._key
+
     def _on_controller_created(self, ctrl: AdaptiveConcurrencyController) -> None:
+        if not self._matches(ctrl):
+            return
         ctrl.add_observer(self._on_controller_change)
         # catch up: recompute target including this fresh controller
         self._on_controller_change(0, ctrl.concurrency)
 
     def _on_controller_change(self, old: int, new: int) -> None:
-        ctrls = list(adaptive_controllers())
+        ctrls = [c for c in adaptive_controllers() if self._matches(c)]
         if not ctrls:
             return
-        # Track the busiest controller's current limit plus a little slack. A
-        # controller's concurrency never exceeds its own `max`, so this already
-        # respects the ceiling — deriving from the live controllers (rather than
-        # this limiter's own snapshot of `_adaptive.max`) means a mid-flight
-        # `set_max` raise isn't silently clamped by a stale cap.
+        # Track the matching controllers' busiest current limit plus a little
+        # slack. Reading the live controllers (rather than this limiter's own
+        # snapshot of `_adaptive.max`) means a mid-flight `set_max` raise isn't
+        # silently clamped by a stale cap; the `_matches` scoping keeps another
+        # model's higher ceiling from standing in for this one's.
         max_cc = max(c.concurrency for c in ctrls)
         target = max_cc + self.BUFFER
         if target != self._limiter.total_tokens:
