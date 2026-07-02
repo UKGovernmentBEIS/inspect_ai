@@ -5,6 +5,7 @@ in solver_args while only capturing explicitly passed arguments in solver_args_p
 """
 
 from inspect_ai import Task, eval, eval_retry, task
+from inspect_ai._eval.loader import as_solver_spec, solver_from_spec
 from inspect_ai._util.registry import registry_params
 from inspect_ai.agent import agent
 from inspect_ai.agent._as_solver import as_solver
@@ -175,3 +176,33 @@ def test_callable_param_serialization_explicit():
     # Callable should be serialized to its name
     assert log.eval.solver_args["fn"] == "another_function"
     assert log.eval.solver_args_passed["fn"] == "another_function"
+
+
+@solver
+def solver_with_kwargs(base: str = "base", **kwargs):
+    """Solver with a **kwargs parameter, for testing VAR_KEYWORD round-trips."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        return await generate(state)
+
+    return solve
+
+
+def test_var_keyword_args_captured_flat():
+    """**kwargs captured under their own names, not nested by param name (#4374)."""
+    slv = solver_with_kwargs(base="hello", max_tokens=123, temperature=0.5)
+
+    assert registry_params(slv) == {
+        "base": "hello",
+        "max_tokens": 123,
+        "temperature": 0.5,
+    }
+
+
+def test_var_keyword_args_round_trip_is_idempotent():
+    """Reconstructing from a spec must not deepen **kwargs nesting (#4374)."""
+    original = solver_with_kwargs(base="hello", max_tokens=123)
+
+    replayed = solver_from_spec(as_solver_spec(original))
+
+    assert registry_params(replayed) == registry_params(original)
