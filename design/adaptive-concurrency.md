@@ -131,12 +131,13 @@ state (so a mid-flight ceiling retune propagates — see below) but only from
 the controller registered under its own model's connection-pool key; an
 unscoped derivation would let a grader model's higher ceiling start far more
 samples than the task's model can serve. Both sides compute the key with the
-same `model_concurrency_key` helper so they cannot drift. `key=None`
-(unscoped, follows everything) exists as a test convenience and as the
-fallback when no `ModelAPI` is available.
+same `model_concurrency_key` helper so they cannot drift, and because the
+registry coalesces on key, at most one controller ever matches.
 
 If the controller never materializes under the expected key, the limiter just
-stays at `start + BUFFER` — conservative and bounded.
+stays at `start + BUFFER` — conservative and bounded. (`create_sample_semaphore`
+leans on this when no `ModelAPI` is available — tests only — by passing a
+`"<no-model>"` sentinel key that matches nothing.)
 
 ### Bounds ownership
 

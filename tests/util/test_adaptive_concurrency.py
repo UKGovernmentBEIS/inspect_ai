@@ -542,13 +542,14 @@ def test_observer_called_on_scale_change() -> None:
     c = AdaptiveConcurrencyController(
         "t", AdaptiveConcurrency(min=1, max=200, start=10), visible=True
     )
-    events: list[tuple[int, int]] = []
-    events2: list[tuple[int, int]] = []
-    c.add_observer(lambda old, new: events.append((old, new)))
-    c.add_observer(lambda old, new: events2.append((old, new)))
+    # observers take no args — they read the controller's live state
+    events: list[int] = []
+    events2: list[int] = []
+    c.add_observer(lambda: events.append(c.concurrency))
+    c.add_observer(lambda: events2.append(c.concurrency))
     _saturated_successes(c, 10)
-    assert events == [(10, 20)]
-    assert events2 == [(10, 20)]
+    assert events == [20]
+    assert events2 == [20]
 
 
 @pytest.mark.anyio
@@ -885,23 +886,19 @@ async def test_registry_separates_adaptive_and_static_storage() -> None:
 
 
 @pytest.mark.anyio
-async def test_dynamic_sample_limiter_unscoped_tracks_all_controllers() -> None:
-    """model=None (the unscoped test convenience) follows every controller."""
+async def test_dynamic_sample_limiter_never_matching_key_stays_at_initial() -> None:
+    """A key with no controller (e.g. the tests-only sentinel) never moves."""
     init_concurrency()
-    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10), None)
+    lim = DynamicSampleLimiter(
+        AdaptiveConcurrency(min=1, max=200, start=10), "<no-model>"
+    )
     cfg = AdaptiveConcurrency(min=1, max=200, start=10)
     async with concurrency(name="m1", concurrency=10, key="k1", adaptive=cfg):
         pass
-    async with concurrency(name="m2", concurrency=10, key="k2", adaptive=cfg):
-        pass
-    ctrls = adaptive_controllers()
-    assert len(ctrls) == 2
-    # scale m2 only
-    target = next(c for c in ctrls if c.name == "m2")
+    target = adaptive_controllers()[0]
     _saturated_successes(target, 10)
     assert target.concurrency == 20
-    # unscoped limiter tracks max across controllers (= 20)
-    assert lim.total_tokens == 25
+    assert lim.total_tokens == 10 + DynamicSampleLimiter.BUFFER  # untouched
 
 
 @pytest.mark.anyio

@@ -2095,12 +2095,14 @@ def create_sample_semaphore(
         # work (sandboxes etc.) stays proportional to actual model concurrency.
         # The connection-pool key scopes the limiter to the task's own model's
         # controller: controllers for other models in the process (graders,
-        # eval-set siblings) must not drive it.
+        # eval-set siblings) must not drive it. Without a ModelAPI (tests) the
+        # sentinel key matches no controller and the limiter stays at its
+        # initial value.
         # Both explicit max_connections and batch mode silently override
         # adaptive (matches the precedence in Model._connection_concurrency).
         return DynamicSampleLimiter(
             resolve_adaptive(generate_config.adaptive_connections),
-            model_concurrency_key(modelapi) if modelapi else None,
+            model_concurrency_key(modelapi) if modelapi else "<no-model>",
         )
     else:
         # static path (default max_samples derived from max_connections).

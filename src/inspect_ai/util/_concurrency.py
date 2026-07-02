@@ -693,11 +693,12 @@ class AdaptiveConcurrencyController:
         self._first_retry_seen = False
         self._cooldown_until = 0.0
         self._history: list[LimitChangeRecord] = []
-        # observers notified on each scale change as (old_limit, new_limit)
-        self._observers: list[Callable[[int, int], None]] = []
+        # observers notified on each scale change (no args — observers read the
+        # controller's live state; old/new values are in `history` if needed)
+        self._observers: list[Callable[[], None]] = []
 
-    def add_observer(self, callback: Callable[[int, int], None]) -> None:
-        """Register a callback fired on each scale change as (old_limit, new_limit)."""
+    def add_observer(self, callback: Callable[[], None]) -> None:
+        """Register a callback fired on each scale change."""
         self._observers.append(callback)
 
     @property
@@ -880,7 +881,7 @@ class AdaptiveConcurrencyController:
         )
         # notify observers (copy list to tolerate mutation during iteration)
         for obs in list(self._observers):
-            obs(old, new)
+            obs()
 
 
 def _ceil_to_nice(value: int) -> int:
@@ -924,53 +925,54 @@ class DynamicSampleLimiter:
     tasks — or the same model on a different account) are deliberately
     ignored: their — possibly much higher — limits say nothing about this
     task's model, and following the busiest controller in the process would
-    start far more samples than this model can serve. ``key=None`` disables
-    the scoping (track every controller) — a test convenience; production
-    always scopes.
+    start far more samples than this model can serve. The registry coalesces
+    on key, so at most one controller ever matches; a ``key`` that never
+    matches (no such model in this process) leaves the limiter at its initial
+    ``start + BUFFER``.
     """
 
     BUFFER = 5
 
-    def __init__(self, adaptive: AdaptiveConcurrency, key: str | None) -> None:
+    def __init__(self, adaptive: AdaptiveConcurrency, key: str) -> None:
         self._key = key
+        self._ctrl: AdaptiveConcurrencyController | None = None
         initial = min(adaptive.start, adaptive.max) + self.BUFFER
         self._limiter = anyio.CapacityLimiter(initial)
-        # subscribe to existing matching controllers
-        existing = [c for c in adaptive_controllers() if self._matches(c)]
-        for ctrl in existing:
-            ctrl.add_observer(self._on_controller_change)
-        # catch up to existing controllers' current limits — without this, a
-        # limiter created after a controller has already scaled would sit at
-        # `start + BUFFER` until the next scale change
-        if existing:
-            self._on_controller_change(
-                0, 0
-            )  # args ignored; recomputes from controllers
-        # register for future controllers — fired by the registry on creation
+        # adopt the controller if it already exists (e.g. registry reused
+        # across tasks within an eval set)...
+        existing = next((c for c in adaptive_controllers() if c.key == key), None)
+        if existing is not None:
+            self._adopt(existing)
+        # ...or when the registry creates it later (usually on the model's
+        # first generate, after this limiter is built)
         add_controller_created_observer(self._on_controller_created)
 
-    def _matches(self, ctrl: AdaptiveConcurrencyController) -> bool:
-        """True if ``ctrl`` is this limiter's model's controller (or unscoped)."""
-        return self._key is None or ctrl.key == self._key
+    def _adopt(self, ctrl: AdaptiveConcurrencyController) -> None:
+        """Follow ``ctrl``: hold it, subscribe, and catch up to its limit.
+
+        The registry coalesces on key, so at most one controller ever exists
+        for ``self._key`` — held directly rather than looked up on each change.
+        Catching up matters for the already-existing case: without it, a
+        limiter created after the controller has scaled would sit at
+        ``start + BUFFER`` until the next scale change.
+        """
+        self._ctrl = ctrl
+        ctrl.add_observer(self._on_controller_change)
+        self._on_controller_change()
 
     def _on_controller_created(self, ctrl: AdaptiveConcurrencyController) -> None:
-        if not self._matches(ctrl):
-            return
-        ctrl.add_observer(self._on_controller_change)
-        # catch up: recompute target including this fresh controller
-        self._on_controller_change(0, ctrl.concurrency)
+        if ctrl.key == self._key:
+            self._adopt(ctrl)
 
-    def _on_controller_change(self, old: int, new: int) -> None:
-        ctrls = [c for c in adaptive_controllers() if self._matches(c)]
-        if not ctrls:
+    def _on_controller_change(self) -> None:
+        if self._ctrl is None:
             return
-        # Track the matching controllers' busiest current limit plus a little
-        # slack. Reading the live controllers (rather than this limiter's own
-        # snapshot of `_adaptive.max`) means a mid-flight `set_max` raise isn't
-        # silently clamped by a stale cap; the `_matches` scoping keeps another
-        # model's higher ceiling from standing in for this one's.
-        max_cc = max(c.concurrency for c in ctrls)
-        target = max_cc + self.BUFFER
+        # Track the controller's current limit plus a little slack. Reading the
+        # live controller (rather than a snapshot of its config) means a
+        # mid-flight `set_max` raise isn't silently clamped by a stale cap; the
+        # key scoping keeps another model's higher ceiling from standing in
+        # for this one's.
+        target = self._ctrl.concurrency + self.BUFFER
         if target != self._limiter.total_tokens:
             self._limiter.total_tokens = target
 
