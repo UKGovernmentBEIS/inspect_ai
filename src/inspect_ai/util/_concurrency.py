@@ -406,12 +406,13 @@ def init_concurrency(
 # ---------------------------------------------------------------------------
 
 # The live-resizable sandbox concurrency semaphores for the current run, keyed
-# by sandbox type (e.g. "docker"). Populated by `register_sandbox_limiter` when
-# a sample opens its `sandboxes/<type>` concurrency context (see
-# `_eval/task/sandbox.py`), so the control channel's modify-limits directive can
-# read and retune `max_sandboxes` mid-eval. Process-global (sandbox concurrency
-# is shared across the process's evals, not per-eval) and reset per run by
-# `init_concurrency`.
+# by sandbox type (e.g. "docker"). Populated by `register_sandbox_limiter` via
+# `ensure_sandbox_limiter` (see `_eval/task/sandbox.py`) — eagerly at run-level
+# sandbox startup, and again (idempotently) when a sample opens its
+# `sandboxes/<type>` concurrency context — so the control channel's
+# modify-limits directive can read and retune `max_sandboxes` from startup
+# onward. Process-global (sandbox concurrency is shared across the process's
+# evals, not per-eval) and reset per run by `init_concurrency`.
 _sandbox_limiters: "dict[str, ResizableSemaphore]" = {}
 
 

@@ -229,8 +229,9 @@ def _apply_process_knobs(
         requested["max_sandboxes"] = max_sandboxes
         if not sandboxes:
             warnings.append(
-                "max_sandboxes is not adjustable (no sandbox concurrency limit "
-                "is in effect)."
+                "max_sandboxes is not adjustable (no sandbox concurrency limiter "
+                "is active — either the run has no sandbox limit, or its "
+                "sandboxes haven't started yet; retry once samples begin)."
             )
         elif not dry_run:
             for sem in sandboxes.values():

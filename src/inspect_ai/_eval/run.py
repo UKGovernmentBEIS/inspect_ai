@@ -62,7 +62,11 @@ from .task.run import (
     resolve_plan,
     task_run,
 )
-from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task_and_sample
+from .task.sandbox import (
+    TaskSandboxEnvironment,
+    ensure_sandbox_limiter,
+    resolve_sandbox_for_task_and_sample,
+)
 from .task.task_source import TaskSource
 from .task.util import slice_dataset, task_run_dir
 
@@ -932,6 +936,13 @@ class SandboxManager:
             for sandboxenv in sandboxenvs:
                 # find type
                 sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+
+                # pre-register the type's resizable concurrency limiter before
+                # task_init (image pulls/builds can take minutes) so a `ctl
+                # limits --max-sandboxes` issued during startup isn't dropped
+                await ensure_sandbox_limiter(
+                    sandboxenv_type, sandboxenv.sandbox.type, self._config.max_sandboxes
+                )
 
                 # run startup
                 task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))

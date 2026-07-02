@@ -131,6 +131,36 @@ async def test_limits_max_sandboxes_not_adjustable_warns() -> None:
     assert any("max_sandboxes is not adjustable" in w for w in result["warnings"])
 
 
+async def test_limits_max_sandboxes_adjustable_before_first_acquire() -> None:
+    """Run startup pre-registers the sandbox limiter, so a startup retune lands.
+
+    Regression: registration used to happen only inside the first sample's
+    acquired concurrency context, so a `--max-sandboxes` issued while sandbox
+    startup (image pulls can take minutes) was still running found an empty
+    registry and was dropped with a factually wrong "no limit in effect"
+    warning.
+    """
+    from inspect_ai._eval.task.sandbox import ensure_sandbox_limiter
+    from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
+
+    register_eval("e1", 5, task_id="t1")
+    # run-level sandbox startup (before task_init / before any sample acquires).
+    # max_sandboxes is explicit, so the provider type's default is never read.
+    resolved = await ensure_sandbox_limiter(LocalSandboxEnvironment, "docker", 8)
+    assert resolved == 8
+
+    result = await task_limits("t1", max_sandboxes=2)
+    assert result is not None
+    assert result["warnings"] == []
+    assert result["max_sandboxes"] == [{"type": "docker", "limit": 2, "in_use": 0}]
+
+    # the per-sample path re-ensures (idempotent) without resetting the retune
+    assert await ensure_sandbox_limiter(LocalSandboxEnvironment, "docker", 8) == 8
+    read = await task_limits("t1")
+    assert read is not None
+    assert read["max_sandboxes"][0]["limit"] == 2
+
+
 async def test_limits_both_knobs() -> None:
     limiter = ResizableLimiter(10)
     docker = ResizableSemaphore("docker", 4, True)

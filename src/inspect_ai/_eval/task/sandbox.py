@@ -22,7 +22,11 @@ from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
-from inspect_ai.util._concurrency import concurrency, register_sandbox_limiter
+from inspect_ai.util._concurrency import (
+    concurrency,
+    get_or_create_semaphore,
+    register_sandbox_limiter,
+)
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
@@ -38,6 +42,40 @@ from inspect_ai.util._sandbox.environment import (
     TaskInitEnvironment,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+
+
+async def ensure_sandbox_limiter(
+    sandboxenv_type: type[SandboxEnvironment],
+    sandbox_type: str,
+    max_sandboxes: int | None,
+) -> int | None:
+    """Resolve a sandbox type's concurrency limit and pre-register its limiter.
+
+    The effective limit is ``max_sandboxes`` (the eval config value) or the
+    provider's ``default_concurrency()``; when one is in effect, the
+    process-global ``sandboxes/<type>`` semaphore is created (or fetched — the
+    registry coalesces on key) and tracked for the control channel. Called
+    *eagerly* by the run-level sandbox startup — before ``task_init``'s image
+    pulls — so a ``ctl limits --max-sandboxes`` issued during startup lands
+    instead of being dropped, and idempotently by the per-sample acquire path
+    (covering per-sample sandbox overrides the startup pass can't see).
+    Returns the resolved limit, or ``None`` when no limit is in effect.
+    """
+    if max_sandboxes is None:
+        default_concurrency_fn = cast(
+            Callable[[], int | None], getattr(sandboxenv_type, "default_concurrency")
+        )
+        max_sandboxes = default_concurrency_fn()
+    if max_sandboxes is not None:
+        semaphore = await get_or_create_semaphore(
+            sandbox_type,
+            max_sandboxes,
+            f"sandboxes/{sandbox_type}",
+            True,
+            resizable=True,
+        )
+        register_sandbox_limiter(sandbox_type, semaphore)
+    return max_sandboxes
 
 
 @contextlib.asynccontextmanager
@@ -56,12 +94,12 @@ async def sandboxenv_context(
     # get sandboxenv_type
     sandboxenv_type = registry_find_sandboxenv(sandbox.type)
 
-    # see if there is a max_sandboxes in play (passed or from type)
-    if max_sandboxes is None:
-        default_concurrency_fn = cast(
-            Callable[[], int | None], getattr(sandboxenv_type, "default_concurrency")
-        )
-        max_sandboxes = default_concurrency_fn()
+    # resolve the effective max_sandboxes (passed or from type) and make sure
+    # its limiter is registered (normally already done by the run-level sandbox
+    # startup; per-sample sandbox overrides register here on first use)
+    max_sandboxes = await ensure_sandbox_limiter(
+        sandboxenv_type, sandbox.type, max_sandboxes
+    )
 
     # if we are enforcing max_sandboxes, then when samples are scheduled they may
     # not get interleaved properly across tasks (because the first task will come
@@ -84,10 +122,7 @@ async def sandboxenv_context(
         else contextlib.nullcontext()
     )
 
-    async with sandboxes_cm as sandboxes_sem:
-        # track this type's limiter so the control channel can read / retune it
-        if sandboxes_sem is not None:
-            register_sandbox_limiter(sandbox.type, sandboxes_sem)
+    async with sandboxes_cm:
         # read files from sample
         files: dict[str, bytes] = {}
         if sample.files:
