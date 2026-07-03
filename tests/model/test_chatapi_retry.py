@@ -16,14 +16,6 @@ import pytest
 from inspect_ai._util import retry as retry_module
 from inspect_ai._util.retry import http_retries_count
 from inspect_ai.model._providers.util.chatapi import chat_api_request
-from inspect_ai.util._concurrency import reset_concurrency
-
-
-@pytest.fixture(autouse=True)
-def _fresh_concurrency() -> None:
-    # init_concurrency() is now idempotent (process-lifetime registry), so
-    # tests that want a fresh registry must reset first.
-    reset_concurrency()
 
 
 @contextlib.contextmanager

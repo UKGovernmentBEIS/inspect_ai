@@ -18,6 +18,7 @@ from inspect_ai.util._concurrency import (
     add_controller_created_observer,
     concurrency,
     init_concurrency,
+    reset_concurrency,
 )
 
 
@@ -563,12 +564,17 @@ async def test_controller_created_observer_fires_on_registry_creation() -> None:
     assert seen[0].name == "model-y"
 
 
-def test_init_concurrency_clears_controller_created_observers() -> None:
+def test_reset_concurrency_clears_controller_created_observers() -> None:
+    # init_concurrency() is idempotent (process-lifetime registry) and does
+    # NOT clear observers — DynamicSampleLimiter.close() removes its own on
+    # task exit. reset_concurrency() is the test-only bulk reset.
     init_concurrency()
     add_controller_created_observer(lambda _ctrl: None)
     add_controller_created_observer(lambda _ctrl: None)
     assert len(_controller_created_observers) == 2
     init_concurrency()
+    assert len(_controller_created_observers) == 2  # idempotent — no clear
+    reset_concurrency()
     assert _controller_created_observers == []
 
 

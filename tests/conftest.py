@@ -66,6 +66,22 @@ def local_inspect_tools(request):
 
 
 @pytest.fixture(autouse=True)
+def _reset_eval_process_globals():
+    """Reset process-lifetime eval state so tests don't observe each other.
+
+    `init_concurrency()` is idempotent (the registry is intentionally
+    process-lifetime so concurrent `eval_async()` calls share adaptive
+    controllers) and `init_refusal_tracking()` no longer zeroes the shared
+    refusal counter — so we reset both here to keep per-test isolation.
+    """
+    import inspect_ai.log._refusal as _refusal
+    from inspect_ai.util._concurrency import reset_concurrency
+
+    reset_concurrency()
+    _refusal._refusal_count = 0
+
+
+@pytest.fixture(autouse=True)
 def fast_retry_waits(request):
     """Zero out model-generate and chat-API retry backoff during tests.
 

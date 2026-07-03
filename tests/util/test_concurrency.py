@@ -377,8 +377,15 @@ async def test_concurrent_context_usage() -> None:
 
 
 @pytest.mark.anyio
-async def test_init_concurrency() -> None:
-    """Test that init_concurrency clears and allows recreation of semaphores."""
+async def test_init_concurrency_is_idempotent() -> None:
+    """init_concurrency() is create-if-missing; reset_concurrency() clears.
+
+    The registry is process-lifetime so concurrent eval_async() calls share
+    adaptive controllers. A second init_concurrency() must therefore not
+    replace it — that would drop a running eval's semaphores.
+    """
+    from inspect_ai.util._concurrency import reset_concurrency
+
     init_concurrency()
 
     # Create some semaphores
@@ -391,10 +398,13 @@ async def test_init_concurrency() -> None:
     status_before = concurrency_status_display()
     assert len(status_before) >= 2
 
-    # init_concurrency() should clear everything
+    # A second init_concurrency() is a no-op — registry survives
     init_concurrency()
-    status_after = concurrency_status_display()
-    assert len(status_after) == 0
+    assert len(concurrency_status_display()) == len(status_before)
+
+    # reset_concurrency() clears everything
+    reset_concurrency()
+    assert len(concurrency_status_display()) == 0
 
     # Should be able to recreate with different limit
     async with concurrency("resource-1", 5):
