@@ -1823,6 +1823,13 @@ async def task_run_sample(
         record_sample_errored(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
+        # With score_on_error the sample was scored despite erroring; return its
+        # scores so they contribute to metrics (as documented in handling-errors),
+        # rather than only being written to the sample log. The sample is still
+        # counted as an error via the SampleErrorHandler. See #4412.
+        if results:
+            await sample_complete(state.sample_id, state.epoch, results)
+            return results
         return None
 
 

@@ -32,6 +32,7 @@
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
 - Bugfix: Ordinary dicts shaped like `{type, name, params}` are no longer misidentified as encoded registry objects during `registry_kwargs()` round-trip. (#4374)
 - Bugfix: Link plain HTTP sandbox ports (e.g. 80, 8080) as `http://` instead of `https://` in the running-samples port-mappings panel.
+- Bugfix: `score_on_error` now includes errored-but-scored samples in metric computation and the `scored_samples` denominator (matching the documented behaviour); previously the score was written to the sample log but dropped from metrics.
 
 ## 0.3.244 (01 July 2026)
 

@@ -69,6 +69,19 @@ def test_score_on_error_basic():
     assert sample.scores is not None and len(sample.scores) > 0
 
 
+def test_score_on_error_errored_sample_included_in_metrics():
+    # Regression for #4412: an errored-but-scored sample's score must be included
+    # in metric computation and the scored_samples denominator, not only written
+    # to the sample log. Sample 1 errors, sample 2 succeeds -> both are scored.
+    log = eval(_make_task([True, False]), score_on_error=True, fail_on_error=False)[0]
+    assert log.results is not None
+    score = log.results.scores[0]
+    # both samples counted (was 1 before the fix, which dropped the errored score)
+    assert score.scored_samples == 2
+    errored = [s for s in log.samples if s.error is not None]
+    assert len(errored) == 1 and errored[0].scores
+
+
 def test_score_on_error_disabled_default_behavior():
     log = eval(_make_task([True]), fail_on_error=False)[0]
     assert log.samples is not None
