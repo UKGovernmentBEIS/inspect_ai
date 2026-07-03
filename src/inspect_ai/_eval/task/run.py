@@ -489,6 +489,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # that the log is initialized)
         await log_start(logger, plan, generate_config)
 
+        sample_semaphore: contextlib.AbstractAsyncContextManager[Any] | None = None
         try:
             # return immediately if we are not running samples
             if not options.run_samples:
@@ -902,6 +903,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # every sample task has exited by here (the try encloses the task
             # group), so any still-unaccounted samples can no longer record
             finalize_eval(logger.eval.eval_id)
+            # unregister the limiter's controller-creation observer so it
+            # doesn't outlive this task in the process-lifetime registry
+            from inspect_ai.util._concurrency import DynamicSampleLimiter
+
+            if isinstance(sample_semaphore, DynamicSampleLimiter):
+                sample_semaphore.close()
 
     # cleanup disk sample store if used
     if isinstance(sample_store, DiskSampleStore):

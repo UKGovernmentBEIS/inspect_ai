@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Eval: Allow concurrent `eval_async()` calls within one process when `INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC` is set (nested calls skip process-global resets so a running eval's active-samples list, concurrency registry, and eval-state registry aren't cleared out from under it).
+- Eval: Allow concurrent `eval_async()` calls within one process when `INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC` is set. Process-global registries (concurrency semaphores, active samples, eval states, refusal counter) are now idempotently initialised and cleaned up per-run, so a concurrent eval never resets or tears down another's state; sandbox `task_init`/`task_cleanup` are serialised across evals; and the S3 session cache is closed only once the last eval exits.
 - Performance: make `stable_message_ids()` linear per turn.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
 

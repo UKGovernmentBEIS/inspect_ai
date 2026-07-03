@@ -171,10 +171,99 @@ async def test_concurrent_eval_async_opt_in(
                 for s in reread.samples
             )
 
-    # depth counter must be back to zero so the guard re-arms
-    from inspect_ai._eval.eval import _eval_async_running
+    # refcount must be back to zero so the guard re-arms
+    from inspect_ai._eval.eval import active_eval_count
 
-    assert _eval_async_running == 0
+    assert active_eval_count() == 0
+
+
+@pytest.mark.anyio
+@skip_if_trio
+async def test_concurrent_eval_shares_concurrency_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The process-global concurrency registry is not replaced by a second eval.
+
+    Two evals sharing an API key should share one AdaptiveConcurrencyController,
+    so `init_concurrency()` must be idempotent — the registry object identity
+    survives overlapping `eval_async()` calls.
+    """
+    from inspect_ai.util import _concurrency
+
+    monkeypatch.setenv("INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC", "1")
+
+    # establish a fresh registry, then capture its identity
+    _concurrency.reset_concurrency()
+    _concurrency.init_concurrency()
+    registry_id = id(_concurrency._concurrency_registry)
+
+    task = Task(dataset=[Sample(input="x", target="y")], scorer=match())
+    await tg_collect(
+        [
+            functools.partial(eval_async, task, model="mockllm/model"),
+            functools.partial(eval_async, task, model="mockllm/model"),
+        ]
+    )
+
+    assert id(_concurrency._concurrency_registry) == registry_id
+
+
+@pytest.mark.anyio
+@skip_if_trio
+async def test_concurrent_eval_cleans_own_eval_states(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each eval clears only its own EvalState entries on exit.
+
+    With A finished and B still running, the process-level registry holds
+    only B's entries — A cleaned up its own without touching B's.
+    """
+    import anyio
+
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    monkeypatch.setenv("INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC", "1")
+
+    b_started = anyio.Event()
+    b_release = anyio.Event()
+
+    @solver
+    def hold():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            b_started.set()
+            await b_release.wait()
+            return await generate(state)
+
+        return solve
+
+    task_a = Task(name="a", dataset=[Sample(input="a", target="y")], scorer=match())
+    task_b = Task(
+        name="b", dataset=[Sample(input="b", target="y")], solver=hold(), scorer=match()
+    )
+
+    result_b: list = []
+
+    async def run_b() -> None:
+        result_b.extend(await eval_async(task_b, model="mockllm/model"))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run_b)
+            await b_started.wait()  # B is registered and running
+            log_a = (await eval_async(task_a, model="mockllm/model", log_dir=tmp))[0]
+            assert log_a.status == "success"
+
+            # A has exited its finally; B is still parked in its solver
+            states = get_eval_states()
+            run_ids = {s.run_id for s in states}
+            assert log_a.eval.run_id not in run_ids
+            assert len(states) > 0  # B's entry survives A's cleanup
+
+            b_release.set()
+
+    assert result_b and result_b[0].status == "success"
+    assert get_eval_states() == []
 
 
 def test_eval_config_override():

@@ -227,11 +227,9 @@ async def get_or_create_semaphore(
     Delegates to the global _concurrency_registry.
     """
     if adaptive is None:
-        return await _concurrency_registry.get_or_create(
-            name, concurrency, key, visible
-        )
+        return await _registry().get_or_create(name, concurrency, key, visible)
     else:
-        return await _concurrency_registry.get_or_create(
+        return await _registry().get_or_create(
             name, concurrency, key, visible, adaptive
         )
 
@@ -288,7 +286,7 @@ async def concurrency(
 
 def concurrency_status_display() -> dict[str, tuple[int, int]]:
     status: dict[str, tuple[int, int]] = {}
-    semaphores = list(_concurrency_registry.values())
+    semaphores = list(_registry().values())
     names = [c.name for c in semaphores]
     for c in semaphores:
         # respect visibility
@@ -314,15 +312,38 @@ def concurrency_status_display() -> dict[str, tuple[int, int]]:
 def init_concurrency(
     registry: ConcurrencySemaphoreRegistry | None = None,
 ) -> None:
-    """Initialize the concurrency system with a custom registry.
+    """Initialise the process-global concurrency registry (idempotent).
 
-    Args:
-        registry: A ConcurrencySemaphoreRegistry instance, or None for default local registry.
+    The registry is process-lifetime: two `eval_async()` calls running in the
+    same process against the same API key intentionally share one
+    `AdaptiveConcurrencyController`. So this is create-if-missing — a second
+    call with `registry=None` is a no-op and never replaces a registry an
+    in-flight eval is using. Passing an explicit `registry` always installs it.
+
+    Tests that need a fresh registry should call `reset_concurrency()` first.
     """
     global _concurrency_registry
+    if _concurrency_registry is not None and registry is None:
+        return
     _concurrency_registry = _AnyIOSemaphoreRegistry() if registry is None else registry
-    # clear controller-creation observers so each eval starts fresh
+
+
+def reset_concurrency() -> None:
+    """Drop the process-global registry and observers (test helper).
+
+    The next `init_concurrency()` (or first registry access) recreates a fresh
+    one. Not called on the eval path — the registry is process-lifetime.
+    """
+    global _concurrency_registry
+    _concurrency_registry = None
     _controller_created_observers.clear()
+
+
+def _registry() -> ConcurrencySemaphoreRegistry:
+    if _concurrency_registry is None:
+        init_concurrency()
+    assert _concurrency_registry is not None
+    return _concurrency_registry
 
 
 class _AnyIOSemaphoreRegistry:
@@ -385,8 +406,9 @@ def _create_anyio_semaphore(
     return _ConcurrencySemaphore(name, concurrency, visible)
 
 
-# Global registry instance
-_concurrency_registry: ConcurrencySemaphoreRegistry = _AnyIOSemaphoreRegistry()
+# Global registry instance — process-lifetime, created on first
+# init_concurrency() (or lazily via _registry()).
+_concurrency_registry: ConcurrencySemaphoreRegistry | None = None
 
 
 # Module-level observer list invoked when a new AdaptiveConcurrencyController is
@@ -681,9 +703,7 @@ def _floor_to_nice(value: int) -> int:
 def adaptive_controllers() -> list[AdaptiveConcurrencyController]:
     """All currently-registered adaptive controllers (for eval log capture)."""
     return [
-        c
-        for c in _concurrency_registry.values()
-        if isinstance(c, AdaptiveConcurrencyController)
+        c for c in _registry().values() if isinstance(c, AdaptiveConcurrencyController)
     ]
 
 
@@ -717,6 +737,18 @@ class DynamicSampleLimiter:
             )  # args ignored; recomputes from controllers
         # register for future controllers — fired by the registry on creation
         add_controller_created_observer(self._on_controller_created)
+
+    def close(self) -> None:
+        """Unregister the module-level controller-creation observer.
+
+        Called from `task_run`'s finally so a limiter's callback doesn't
+        outlive its task in a long-running process (which now keeps the
+        registry across evals). Per-controller observers are left in place —
+        they're bound to controllers in the process-lifetime registry and are
+        harmless once this limiter is discarded.
+        """
+        with contextlib.suppress(ValueError):
+            _controller_created_observers.remove(self._on_controller_created)
 
     def _on_controller_created(self, ctrl: AdaptiveConcurrencyController) -> None:
         ctrl.add_observer(self._on_controller_change)

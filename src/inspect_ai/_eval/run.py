@@ -6,7 +6,6 @@ from typing import Any, Awaitable, Callable, NamedTuple, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._util.environ import environ_vars
-from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
 from inspect_ai.util._anyio import inner_exception
@@ -301,36 +300,42 @@ async def eval_run(
                     recorder=recorder,
                     header_only=header_only,
                 )
-                await logger.init()
 
-                # append task
-                task_run_options.append(
-                    TaskRunOptions(
-                        task=task,
-                        model=resolved_task.model,
-                        model_roles=resolved_task.model_roles,
-                        sandbox=resolved_task.sandbox,
-                        checkpoint=resolved_task.checkpoint,
-                        eval_checkpoint=eval_checkpoint,
-                        logger=logger,
-                        eval_wd=eval_wd,
-                        config=task_eval_config,
-                        solver=eval_solver,
-                        scanner=scanner,
-                        scan_id=scan_id,
-                        tags=merged_tags,
-                        run_samples=run_samples,
-                        score=score,
-                        debug_errors=debug_errors,
-                        sample_source=resolved_task.sample_source,
-                        kwargs=kwargs,
-                        initial_model_usage=resolved_task.initial_model_usage,
-                        initial_role_usage=resolved_task.initial_role_usage,
-                        task_source=task_source,
-                    )
+            # Recorder init is outside the chdir: only the sync TaskLogger
+            # ctor reads the task's cwd (git_context(), cwd_relative_path()).
+            # Awaiting inside a process-wide chdir is unsafe under
+            # INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC — another eval could observe
+            # this task's directory while we're suspended.
+            await logger.init()
+
+            # append task
+            task_run_options.append(
+                TaskRunOptions(
+                    task=task,
+                    model=resolved_task.model,
+                    model_roles=resolved_task.model_roles,
+                    sandbox=resolved_task.sandbox,
+                    checkpoint=resolved_task.checkpoint,
+                    eval_checkpoint=eval_checkpoint,
+                    logger=logger,
+                    eval_wd=eval_wd,
+                    config=task_eval_config,
+                    solver=eval_solver,
+                    scanner=scanner,
+                    scan_id=scan_id,
+                    tags=merged_tags,
+                    run_samples=run_samples,
+                    score=score,
+                    debug_errors=debug_errors,
+                    sample_source=resolved_task.sample_source,
+                    kwargs=kwargs,
+                    initial_model_usage=resolved_task.initial_model_usage,
+                    initial_role_usage=resolved_task.initial_role_usage,
+                    task_source=task_source,
                 )
-                # register the prepared task so a failed run can clean it up
-                prepared_options.append(task_run_options[-1])
+            )
+            # register the prepared task so a failed run can clean it up
+            prepared_options.append(task_run_options[-1])
         return task_run_options
 
     try:
@@ -393,12 +398,6 @@ async def eval_run(
             log.warning(
                 f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
             )
-
-        # clean up cached S3 sessions to prevent "Unclosed connector" warnings
-        try:
-            await cleanup_s3_sessions()
-        except Exception as ex:
-            log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
 class _Wake:
@@ -881,6 +880,14 @@ def resolve_task_sample_ids(
         return sample_id
 
 
+# Serialise sandbox task_init/task_cleanup across concurrent eval_async()
+# calls: those blocks chdir to the task directory and set process-wide
+# environment variables around an await, so under
+# INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC two evals starting sandboxes at once
+# would otherwise observe each other's cwd/env.
+_sandbox_lock = anyio.Lock()
+
+
 class SandboxManager:
     """Starts sandbox environments incrementally and tears them all down.
 
@@ -935,8 +942,9 @@ class SandboxManager:
 
                 # run startup
                 task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-                with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
-                    await task_init("startup", sandboxenv.sandbox.config)
+                async with _sandbox_lock:
+                    with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
+                        await task_init("startup", sandboxenv.sandbox.config)
 
                 # track as started and append cleanup method
                 self._started.add(sandboxenv)
@@ -955,8 +963,9 @@ class SandboxManager:
             for cleanup_jobs in self._cleanups:
                 try:
                     cleanup_fn, config, task_run_dir = cleanup_jobs
-                    with chdir(task_run_dir):
-                        await cleanup_fn("shutdown", config, self._cleanup)
+                    async with _sandbox_lock:
+                        with chdir(task_run_dir):
+                            await cleanup_fn("shutdown", config, self._cleanup)
                 except BaseException as ex:
                     log.warning(
                         f"Error occurred shutting down sandbox environments: {exception_message(ex)}"

@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._control.eval_state import clear_all_eval_states
+from inspect_ai._control.eval_state import clear_eval_states_for_run
 from inspect_ai._control.server import (
     control_server,
     keep_alive_intent,
@@ -48,8 +48,8 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_SHARED,
     JSON_LOG_FORMAT,
 )
-from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import absolute_file_path, filesystem
+from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.file import absolute_file_path, cleanup_s3_sessions, filesystem
 from inspect_ai._util.log_context import set_run_shape
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
@@ -385,13 +385,18 @@ def eval(
     return result
 
 
-# depth of concurrently-active eval_async() calls in this process; the
+# Refcount of concurrently-active eval_async() calls in this process. The
 # guard in _eval_async_inner keeps this at 0/1 unless the caller opts in
-# via INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC. When >1, per-run process-global
-# resets (concurrency registry, active-samples list, refusal counter,
-# eval-state registry) are skipped for the nested call so the outer eval's
-# state isn't torn down mid-run.
-_eval_async_running = 0
+# via INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC. Read only for genuinely
+# process-singular resources: keep-alive reset/park (first-in / last-out)
+# and closing fsspec's S3 session cache (last-out). Per-eval registries
+# instead use idempotent init + per-run cleanup so they never need this.
+_active_eval_count: int = 0
+
+
+def active_eval_count() -> int:
+    """Number of `eval_async()` calls currently active in this process."""
+    return _active_eval_count
 
 
 async def eval_async(
@@ -569,7 +574,9 @@ async def eval_async(
     # but only for a standalone eval. When nested in an eval-set (eval_set_id
     # set), eval_set() owns the intent: it sets it BEFORE this inner eval()
     # runs to advertise the impending park, so resetting here would erase it.
-    if eval_set_id is None:
+    # Likewise skip when another eval_async is already active in-process
+    # (INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC): the first eval owns the intent.
+    if eval_set_id is None and _active_eval_count == 0:
         reset_keep_alive()
 
     result: list[EvalLog] | None = None
@@ -719,14 +726,14 @@ async def _eval_async_inner(
 
     # only a single call to eval_async is active at a time by default. The
     # original reason (tasks chdir'ing to their directory for the duration of
-    # the run) is gone, and the per-run process-global resets that remain are
-    # now skipped for nested calls (see `nested` below), so callers that
+    # the run) is gone, and the process-global registries that remain are now
+    # idempotently initialised and cleaned up per-run, so callers that
     # orchestrate several evals in-process may opt in to concurrent calls via
     # INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC. Remaining process-global state that
     # concurrent callers must avoid or accept sharing is documented alongside
     # that env var in the error message.
-    global _eval_async_running
-    if _eval_async_running and not os.environ.get(
+    global _active_eval_count
+    if _active_eval_count > 0 and not os.environ.get(
         "INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC"
     ):
         raise RuntimeError(
@@ -736,13 +743,12 @@ async def _eval_async_inner(
             "enabled, use a distinct log_dir per call and note that some "
             "process-global state is shared across concurrent evals: the model "
             "connection-concurrency registry, the rich/textual display, the "
-            "refusal counter, model_cost_config, and sandbox startup/cleanup "
-            "(which chdir's to the task directory). Prefer display='plain' or "
-            "'none', and avoid overlapping sandbox-backed evals."
+            "refusal counter, and model_cost_config. Sandbox startup/cleanup "
+            "(which chdir's to the task directory) is serialised across evals. "
+            "Prefer display='plain' or 'none'."
         )
 
-    nested = _eval_async_running > 0
-    _eval_async_running += 1
+    _active_eval_count += 1
 
     # if we are called outside of eval() then set display type to "plain"
     if not display_type_initialized():
@@ -775,7 +781,6 @@ async def _eval_async_inner(
             log_level_transcript=log_level_transcript,
             log_refusals=log_refusals,
             task_group=tg,
-            nested=nested,
             **kwargs,
         )
 
@@ -1119,7 +1124,12 @@ async def _eval_async_inner(
             # `/release` (last-write-wins). EvalStates are cleared at the run
             # boundary below. Intent off (never asked, or a release won the
             # last word) skips the park and its notice entirely.
-            if eval_set_id is None and keep_alive_intent() and _ctl_server is not None:
+            if (
+                eval_set_id is None
+                and _active_eval_count == 1
+                and keep_alive_intent()
+                and _ctl_server is not None
+            ):
                 import rich
 
                 rich.get_console().print(
@@ -1143,17 +1153,24 @@ async def _eval_async_inner(
         raise e
 
     finally:
-        _eval_async_running -= 1
+        _active_eval_count -= 1
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
-        # Clear the process-level EvalState registry at the run boundary
-        # (after any keep-alive park) — but only for a standalone eval, and
-        # only once no other eval_async is still running in this process.
-        # When nested in an eval-set (eval_set_id set) the eval-set owns
-        # this, clearing after its own park.
-        if eval_set_id is None and _eval_async_running == 0:
-            clear_all_eval_states()
+        # Clear this run's EvalState entries at the run boundary (after any
+        # keep-alive park). Per-run so a concurrently-running eval's entries
+        # survive; skipped under an eval-set, which owns the registry across
+        # its inner runs and clears in one shot after its own park.
+        if eval_set_id is None:
+            clear_eval_states_for_run(run_id)
+        # Process-singular teardown (fsspec's S3 session cache) runs only once
+        # no other eval_async is still active — closing it earlier would kill
+        # a concurrent eval's S3 filesystem.
+        if _active_eval_count == 0:
+            try:
+                await cleanup_s3_sessions()
+            except Exception as ex:
+                log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
     # return logs
     return logs
@@ -1802,17 +1819,11 @@ def eval_init(
     log_level_transcript: str | None = None,
     log_refusals: bool | None = None,
     task_group: TaskGroup | None = None,
-    nested: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[Model]:
     # init eval context
     init_eval_context(
-        log_level,
-        log_level_transcript,
-        log_refusals,
-        max_subprocesses,
-        task_group,
-        nested=nested,
+        log_level, log_level_transcript, log_refusals, max_subprocesses, task_group
     )
 
     # resolve model and task args

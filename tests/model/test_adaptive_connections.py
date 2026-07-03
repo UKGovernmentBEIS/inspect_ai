@@ -18,7 +18,15 @@ from inspect_ai.util._concurrency import (
     _request_had_retry,
     adaptive_controllers,
     init_concurrency,
+    reset_concurrency,
 )
+
+
+@pytest.fixture(autouse=True)
+def _fresh_concurrency() -> None:
+    # init_concurrency() is now idempotent (process-lifetime registry), so
+    # tests that want a fresh registry must reset first.
+    reset_concurrency()
 
 
 def _make_output_fn() -> Callable[..., ModelOutput]:

@@ -247,7 +247,11 @@ class ActiveSample:
 
 
 def init_active_samples() -> None:
-    _active_samples.clear()
+    # No-op: entries are self-cleaning (the active_sample() CM appends on
+    # enter and removes on exit), so there is nothing to reset. A bulk
+    # .clear() here would drop a concurrently-running eval's samples when
+    # INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC is set.
+    pass
 
 
 @contextlib.asynccontextmanager

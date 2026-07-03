@@ -600,3 +600,15 @@ def clear_all_eval_states() -> None:
     """
     with _lock:
         _eval_states.clear()
+
+
+def clear_eval_states_for_run(run_id: str) -> None:
+    """Remove tracked eval states belonging to a single run.
+
+    Called from ``eval_async``'s finally so each run cleans up only its own
+    entries — a concurrently-running eval's states (under
+    ``INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC``) are left in place.
+    """
+    with _lock:
+        for eval_id in [k for k, s in _eval_states.items() if s.run_id == run_id]:
+            del _eval_states[eval_id]

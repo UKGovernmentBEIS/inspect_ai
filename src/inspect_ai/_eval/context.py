@@ -34,31 +34,11 @@ def init_eval_context(
     log_refusals: bool | None,
     max_subprocesses: int | None = None,
     task_group: TaskGroup | None = None,
-    *,
-    nested: bool = False,
 ) -> None:
-    """Initialise per-eval context.
-
-    Args:
-        log_level: Console log level.
-        log_level_transcript: Transcript log level.
-        log_refusals: Enable refusal warnings.
-        max_subprocesses: Subprocess concurrency cap.
-        task_group: Task group for background work.
-        nested: True when another eval_async() is already running in this
-            process (INSPECT_ALLOW_CONCURRENT_EVAL_ASYNC). Skips resets of
-            process-global state — the concurrency-semaphore registry,
-            active-samples list, and refusal counter — that the outer eval
-            is still using. ContextVar-scoped state is always initialised.
-    """
-    init_dotenv()
-    if not nested:
-        init_concurrency()
-    init_max_subprocesses(max_subprocesses)
+    init_runtime_context(max_subprocesses)
     init_logger(log_level, log_level_transcript)
-    if not nested:
-        init_refusal_tracking(log_refusals)
-        init_active_samples()
+    init_refusal_tracking(log_refusals)
+    init_active_samples()
     init_human_approval_manager()
     init_human_question_manager()
     set_background_task_group(task_group)
