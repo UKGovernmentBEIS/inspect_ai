@@ -712,16 +712,15 @@ async def _eval_async_inner(
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
 
-    # The historical single-call restriction (tasks used to chdir into the
-    # task directory) no longer applies. Per-eval state that matters for
-    # correctness is ContextVar-scoped (active model, roles, transcript,
-    # concurrency controllers) or keyed by log_dir (recorder, sample
-    # buffers), so overlapping calls are safe provided each uses its own
-    # log_dir. Process-global set-once state (display type, log handler,
-    # hooks cache) is initialised idempotently below. `_eval_async_running`
-    # is retained only so `eval()`'s post-run display teardown can tell
-    # whether another eval is still live.
+    # only a single call to eval_async can be active at a time, this used
+    # to be due to running tasks switching to the task's directory, however
+    # that feature no longer exists so we may be able to revisit this
+    # restriction (probably just need to examine if there is *global* state
+    # that could have conflicts in the case of multiple eval_async calls)
     global _eval_async_running
+    if _eval_async_running:
+        raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
+
     _eval_async_running = True
 
     # if we are called outside of eval() then set display type to "plain"
