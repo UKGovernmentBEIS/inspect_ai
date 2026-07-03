@@ -16,8 +16,8 @@ from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._concurrency import (
     _active_controller,
     _request_had_retry,
+    _reset_concurrency_for_tests,
     adaptive_controllers,
-    init_concurrency,
 )
 
 
@@ -57,7 +57,7 @@ async def test_adaptive_on_by_default() -> None:
     `None` (the field default) resolves to `AdaptiveConcurrency()` defaults
     via `resolve_adaptive`. To opt out, the user passes `False` explicitly.
     """
-    init_concurrency()
+    _reset_concurrency_for_tests()
     fn = _capture_controller_during_generate()
     model = get_model("mockllm/model", custom_outputs=fn)
     await model.generate("hello")
@@ -72,7 +72,7 @@ async def test_adaptive_on_by_default() -> None:
 @pytest.mark.anyio
 async def test_adaptive_explicit_false_disables() -> None:
     """`adaptive_connections=False` is the explicit opt-out, no controller."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
     fn = _capture_controller_during_generate()
     model = get_model("mockllm/model", custom_outputs=fn)
     await model.generate(
@@ -86,7 +86,7 @@ async def test_adaptive_explicit_false_disables() -> None:
 
 @pytest.mark.anyio
 async def test_adaptive_sets_active_controller_during_generate() -> None:
-    init_concurrency()
+    _reset_concurrency_for_tests()
     fn = _capture_controller_during_generate()
     model = get_model("mockllm/model", custom_outputs=fn)
     await model.generate(
@@ -105,7 +105,7 @@ async def test_adaptive_sets_active_controller_during_generate() -> None:
 
 @pytest.mark.anyio
 async def test_adaptive_struct_config_used() -> None:
-    init_concurrency()
+    _reset_concurrency_for_tests()
     fn = _make_output_fn()
     model = get_model("mockllm/model", custom_outputs=fn)
     await model.generate(
@@ -128,7 +128,7 @@ async def test_adaptive_with_max_retries_zero_works() -> None:
     scale-down signals. And the controller's `max` bound caps growth even if
     no retry signals ever arrive.
     """
-    init_concurrency()
+    _reset_concurrency_for_tests()
     model = get_model("mockllm/model")
     await model.generate(
         "hello",
@@ -145,7 +145,7 @@ async def test_explicit_max_connections_wins_over_adaptive() -> None:
     Once adaptive becomes default-on, deliberate max_connections settings must
     continue to be honored — so the static path is taken when both are set.
     """
-    init_concurrency()
+    _reset_concurrency_for_tests()
     fn = _capture_controller_during_generate()
     model = get_model("mockllm/model", custom_outputs=fn)
     await model.generate(
@@ -170,7 +170,7 @@ async def test_batch_mode_disables_adaptive() -> None:
     """
     from inspect_ai.model._generate_config import BatchConfig
 
-    init_concurrency()
+    _reset_concurrency_for_tests()
     fn = _capture_controller_during_generate()
     model = get_model("mockllm/model", custom_outputs=fn)
     await model.generate(
@@ -189,7 +189,7 @@ async def test_batch_mode_disables_adaptive() -> None:
 @pytest.mark.anyio
 async def test_report_http_retry_signals_active_controller() -> None:
     """When called inside generate, report_http_retry sets had_retry and notifies controller."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     saw_controller: list[object] = []
 
@@ -220,7 +220,7 @@ async def test_report_http_retry_signals_active_controller() -> None:
 @pytest.mark.anyio
 async def test_clean_success_does_not_modify_limit_below_round_size() -> None:
     """A single clean generate doesn't reach round_size, so no scale change happens."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
     model = get_model("mockllm/model", custom_outputs=_make_output_fn())
     await model.generate("hello", config=GenerateConfig(adaptive_connections=True))
     ctrls = adaptive_controllers()
@@ -236,7 +236,7 @@ async def test_connection_limit_history_captured_in_eval_stats() -> None:
     from inspect_ai._eval.task.log import collect_eval_data
     from inspect_ai.log._log import EvalStats
 
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     def out(
         input: list[ChatMessage],
@@ -320,9 +320,12 @@ def test_attempt_timeout_marks_as_retry_in_should_retry() -> None:
     success — pushing the controller upward under timeout pressure.
     """
     from inspect_ai.model._model import AttemptTimeoutError
-    from inspect_ai.util._concurrency import _request_had_retry, init_concurrency
+    from inspect_ai.util._concurrency import (
+        _request_had_retry,
+        _reset_concurrency_for_tests,
+    )
 
-    init_concurrency()
+    _reset_concurrency_for_tests()
     # set up a model and use should_retry directly
     model = get_model("mockllm/model")
     # ContextVars need to be in a fresh state. Capture token + reset in finally
@@ -351,7 +354,7 @@ async def test_cache_hits_do_not_count_as_adaptive_successes(tmp_path) -> None:
     monkey_env = pytest.MonkeyPatch()
     monkey_env.setenv("INSPECT_CACHE_DIR", str(tmp_path))
     try:
-        init_concurrency()
+        _reset_concurrency_for_tests()
         model = get_model("mockllm/model")
         cfg = GenerateConfig(
             adaptive_connections=AdaptiveConcurrency(min=1, max=200, start=10),
@@ -386,9 +389,12 @@ def test_sample_semaphore_uses_dynamic_for_adaptive() -> None:
 
     from inspect_ai._eval.task.run import create_sample_semaphore
     from inspect_ai.log._log import EvalConfig
-    from inspect_ai.util._concurrency import DynamicSampleLimiter, init_concurrency
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        _reset_concurrency_for_tests,
+    )
 
-    init_concurrency()
+    _reset_concurrency_for_tests()
     sem = create_sample_semaphore(
         config=EvalConfig(),  # max_samples unset
         generate_config=GenerateConfig(adaptive_connections=True),
@@ -447,9 +453,12 @@ def test_sample_semaphore_batch_mode_disables_adaptive() -> None:
     from inspect_ai._eval.task.run import create_sample_semaphore
     from inspect_ai.log._log import EvalConfig
     from inspect_ai.model._generate_config import BatchConfig
-    from inspect_ai.util._concurrency import DynamicSampleLimiter, init_concurrency
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        _reset_concurrency_for_tests,
+    )
 
-    init_concurrency()
+    _reset_concurrency_for_tests()
     sem = create_sample_semaphore(
         config=EvalConfig(),
         generate_config=GenerateConfig(
@@ -472,7 +481,7 @@ async def test_transient_retries_do_not_scale_controller_down() -> None:
     Earlier code conflated all retries with rate-limit signals; the fix is for
     transients to pause scale-up only.
     """
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     def out(
         input: list[ChatMessage],
@@ -495,7 +504,7 @@ async def test_transient_retries_do_not_scale_controller_down() -> None:
 @pytest.mark.anyio
 async def test_transient_retry_blocks_success_counting() -> None:
     """A transient retry during generate prevents that success from counting toward scale-up."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     def out(
         input: list[ChatMessage],
@@ -541,7 +550,7 @@ async def test_count_tokens_no_concurrency_cap(monkeypatch) -> None:
 
     from inspect_ai._util._async import tg_collect
 
-    init_concurrency()
+    _reset_concurrency_for_tests()
     model = get_model("mockllm/model")
 
     in_flight = 0
@@ -627,7 +636,7 @@ def test_default_max_is_100() -> None:
 @pytest.mark.anyio
 async def test_adaptive_int_shorthand_at_field_level() -> None:
     """`GenerateConfig(adaptive_connections=N)` resolves to `max=N` adaptive."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
     fn = _make_output_fn()
     model = get_model("mockllm/model", custom_outputs=fn)
     await model.generate(

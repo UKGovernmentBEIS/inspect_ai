@@ -14,10 +14,10 @@ import pytest
 
 from inspect_ai.util._concurrency import (
     ConcurrencySemaphore,
+    _reset_concurrency_for_tests,
     concurrency,
     concurrency_status_display,
     get_or_create_semaphore,
-    init_concurrency,
 )
 
 # get_or_create_sem Tests
@@ -26,7 +26,7 @@ from inspect_ai.util._concurrency import (
 @pytest.mark.anyio
 async def test_get_or_create_sem_creates_new_semaphore() -> None:
     """Test that get_or_create_sem creates a new semaphore on first call."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     sem = await get_or_create_semaphore("test-resource", 5, None, True)
 
@@ -39,7 +39,7 @@ async def test_get_or_create_sem_creates_new_semaphore() -> None:
 @pytest.mark.anyio
 async def test_get_or_create_sem_returns_existing_semaphore() -> None:
     """Test that get_or_create_sem returns the same semaphore for the same key."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     sem1 = await get_or_create_semaphore("test-resource", 3, None, True)
     sem2 = await get_or_create_semaphore("test-resource", 3, None, True)
@@ -50,7 +50,7 @@ async def test_get_or_create_sem_returns_existing_semaphore() -> None:
 @pytest.mark.anyio
 async def test_get_or_create_sem_respects_explicit_key() -> None:
     """Test that get_or_create_sem uses explicit key parameter when provided."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     # Same name, different keys should create different semaphores
     sem1 = await get_or_create_semaphore("display-name", 2, "key-1", True)
@@ -66,7 +66,7 @@ async def test_get_or_create_sem_respects_explicit_key() -> None:
 @pytest.mark.anyio
 async def test_get_or_create_sem_key_defaults_to_name() -> None:
     """Test that key defaults to name when key is None."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     # Both calls use name as key
     sem1 = await get_or_create_semaphore("test-resource", 4, None, True)
@@ -78,7 +78,7 @@ async def test_get_or_create_sem_key_defaults_to_name() -> None:
 @pytest.mark.anyio
 async def test_get_or_create_sem_visibility() -> None:
     """Test that get_or_create_sem properly sets visibility flag."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     sem_visible = await get_or_create_semaphore("visible-resource", 1, None, True)
     sem_hidden = await get_or_create_semaphore("hidden-resource", 1, None, False)
@@ -90,7 +90,7 @@ async def test_get_or_create_sem_visibility() -> None:
 @pytest.mark.anyio
 async def test_get_or_create_sem_semaphore_is_usable() -> None:
     """Test that semaphore returned by get_or_create_sem is functional."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     sem = await get_or_create_semaphore("test-resource", 2, None, True)
 
@@ -138,7 +138,7 @@ async def test_legacy_registry_without_adaptive_argument() -> None:
             return []
 
     registry = LegacyRegistry()
-    init_concurrency(cast(Any, registry))
+    _reset_concurrency_for_tests(cast(Any, registry))
     try:
         sem = await get_or_create_semaphore("legacy-resource", 2, None, True)
         assert sem.name == "legacy-resource"
@@ -151,7 +151,7 @@ async def test_legacy_registry_without_adaptive_argument() -> None:
             ("legacy-context", 1, "legacy-context", True),
         ]
     finally:
-        init_concurrency()
+        _reset_concurrency_for_tests()
 
 
 # Basic Concurrency Control Tests
@@ -171,7 +171,7 @@ async def test_concurrency_limits(
     limit: int, num_tasks: int, expected_max: int
 ) -> None:
     """Test that concurrency limits are properly enforced."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
     max_concurrent = 0
     entered_count = 0
     barrier = anyio.Event()
@@ -201,7 +201,7 @@ async def test_concurrency_limits(
 @pytest.mark.anyio
 async def test_semaphore_reuse_same_key() -> None:
     """Test that same name/key reuses the same semaphore."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     # Nested contexts with same name should share semaphore
     async with concurrency("test-resource", 2):
@@ -216,7 +216,7 @@ async def test_semaphore_reuse_same_key() -> None:
 @pytest.mark.anyio
 async def test_semaphore_isolation() -> None:
     """Test that different names/keys create separate semaphores."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     # Different names create independent semaphores
     async with concurrency("resource-a", 1):
@@ -226,7 +226,7 @@ async def test_semaphore_isolation() -> None:
             assert status["resource-b"] == (1, 1)
 
     # Explicit keys create independent semaphores
-    init_concurrency()
+    _reset_concurrency_for_tests()
     async with concurrency("name-1", 1, key="key-1"):
         async with concurrency("name-2", 1, key="key-2"):
             status = concurrency_status_display()
@@ -241,7 +241,7 @@ async def test_semaphore_isolation() -> None:
 @pytest.mark.parametrize("visible", [True, False])
 async def test_status_display_visibility(visible: bool) -> None:
     """Test that visibility flag controls whether resource appears in status."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     async with concurrency("test-resource", 1, visible=visible):
         status = concurrency_status_display()
@@ -255,7 +255,7 @@ async def test_status_display_visibility(visible: bool) -> None:
 @pytest.mark.anyio
 async def test_status_display_prefix_shortening_single() -> None:
     """Test that model prefix is shortened when there's only one with that prefix."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     async with concurrency("openai/gpt-4o", 1):
         status = concurrency_status_display()
@@ -266,7 +266,7 @@ async def test_status_display_prefix_shortening_single() -> None:
 @pytest.mark.anyio
 async def test_status_display_prefix_shortening_multiple() -> None:
     """Test that full names are kept when multiple models share a prefix."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     async with concurrency("openai/gpt-4o", 1):
         async with concurrency("openai/gpt-3.5", 1):
@@ -278,7 +278,7 @@ async def test_status_display_prefix_shortening_multiple() -> None:
 @pytest.mark.anyio
 async def test_status_display_concurrent_updates() -> None:
     """Test that status display reflects concurrent task execution."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
     status_snapshots: list[tuple[int, int]] = []
     entered_count = 0
     barrier = anyio.Event()
@@ -310,7 +310,7 @@ async def test_status_display_concurrent_updates() -> None:
 @pytest.mark.anyio
 async def test_context_manager_exception_handling() -> None:
     """Test that exceptions properly release semaphore slots."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     # Exception should release semaphore
     with pytest.raises(RuntimeError):
@@ -326,7 +326,7 @@ async def test_context_manager_exception_handling() -> None:
 @pytest.mark.anyio
 async def test_nested_contexts() -> None:
     """Test nested context behavior with same and different resources."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
 
     # Nested contexts with different resources
     async with concurrency("outer-resource", 2):
@@ -336,7 +336,7 @@ async def test_nested_contexts() -> None:
             assert status["inner-resource"] == (1, 3)
 
     # Nested contexts with same resource
-    init_concurrency()
+    _reset_concurrency_for_tests()
     async with concurrency("test-resource", 5):
         async with concurrency("test-resource", 5):
             status = concurrency_status_display()
@@ -346,7 +346,7 @@ async def test_nested_contexts() -> None:
 @pytest.mark.anyio
 async def test_concurrent_context_usage() -> None:
     """Test multiple tasks concurrently using the same context."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
     results: list[tuple[int, int]] = []
     entered_count = 0
     barrier = anyio.Event()
@@ -378,8 +378,8 @@ async def test_concurrent_context_usage() -> None:
 
 @pytest.mark.anyio
 async def test_init_concurrency() -> None:
-    """Test that init_concurrency clears and allows recreation of semaphores."""
-    init_concurrency()
+    """Test that _reset_concurrency_for_tests clears and allows recreation of semaphores."""
+    _reset_concurrency_for_tests()
 
     # Create some semaphores
     async with concurrency("resource-1", 2):
@@ -391,8 +391,8 @@ async def test_init_concurrency() -> None:
     status_before = concurrency_status_display()
     assert len(status_before) >= 2
 
-    # init_concurrency() should clear everything
-    init_concurrency()
+    # _reset_concurrency_for_tests() should clear everything
+    _reset_concurrency_for_tests()
     status_after = concurrency_status_display()
     assert len(status_after) == 0
 
@@ -408,7 +408,7 @@ async def test_init_concurrency() -> None:
 @pytest.mark.anyio
 async def test_rapid_concurrent_access_multiple_resources() -> None:
     """Test rapid concurrent access across multiple independent resources."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
     completion_count = {"a": 0, "b": 0}
 
     async def task_a() -> None:
@@ -432,7 +432,7 @@ async def test_rapid_concurrent_access_multiple_resources() -> None:
 @pytest.mark.anyio
 async def test_long_running_task_holds_slot() -> None:
     """Test that tasks properly hold their slots while executing."""
-    init_concurrency()
+    _reset_concurrency_for_tests()
     task_holding = anyio.Event()
     check_done = anyio.Event()
 
@@ -472,7 +472,7 @@ async def test_concurrent_waits_not_double_counted() -> None:
         sample_waiting_time,
     )
 
-    init_concurrency()
+    _reset_concurrency_for_tests()
     init_sample_working_time(time.monotonic())
 
     async def wait_task() -> None:

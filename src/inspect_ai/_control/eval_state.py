@@ -572,3 +572,16 @@ def clear_all_eval_states() -> None:
     """
     with _lock:
         _eval_states.clear()
+
+
+def clear_eval_states_for_run(run_id: str) -> None:
+    """Remove tracked eval states belonging to one ``eval_async`` run.
+
+    Per-run counterpart to :func:`clear_all_eval_states` for processes
+    that host overlapping ``eval_async`` calls: each run removes only its
+    own entries on exit so a concurrent run's states stay visible to the
+    control channel.
+    """
+    with _lock:
+        for eval_id in [eid for eid, st in _eval_states.items() if st.run_id == run_id]:
+            del _eval_states[eval_id]

@@ -68,6 +68,12 @@ from .task.util import slice_dataset, task_run_dir
 
 log = logging.getLogger(__name__)
 
+# Serialises the ``chdir + environ_vars + await task_init/cleanup`` sandbox
+# blocks across concurrent eval_async calls. cwd and os.environ are
+# process-global; without this lock a second eval yielding inside its own
+# chdir would observe (or restore over) the first's mutated state.
+_sandbox_lock = anyio.Lock()
+
 
 @dataclass
 class TaskInjection:
@@ -301,7 +307,6 @@ async def eval_run(
                     recorder=recorder,
                     header_only=header_only,
                 )
-                await logger.init()
 
                 # append task
                 task_run_options.append(
@@ -331,6 +336,11 @@ async def eval_run(
                 )
                 # register the prepared task so a failed run can clean it up
                 prepared_options.append(task_run_options[-1])
+
+            # ``await`` outside ``chdir`` — only the sync ``TaskLogger`` ctor
+            # reads cwd (git_context, cwd_relative_path); yielding with a
+            # mutated cwd would leak into a concurrent eval_async.
+            await logger.init()
         return task_run_options
 
     try:
@@ -396,7 +406,14 @@ async def eval_run(
 
         # clean up cached S3 sessions to prevent "Unclosed connector" warnings
         try:
-            await cleanup_s3_sessions()
+            from inspect_ai._eval.eval import active_eval_count
+
+            # The fsspec S3 instance cache is process-global; closing it while
+            # another eval_async is still running would kill its S3 access.
+            # Defer to the last eval out (this runs before eval.py's finally
+            # decrements the refcount, so "last" means count == 1 here).
+            if active_eval_count() <= 1:
+                await cleanup_s3_sessions()
         except Exception as ex:
             log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
@@ -935,8 +952,9 @@ class SandboxManager:
 
                 # run startup
                 task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-                with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
-                    await task_init("startup", sandboxenv.sandbox.config)
+                async with _sandbox_lock:
+                    with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
+                        await task_init("startup", sandboxenv.sandbox.config)
 
                 # track as started and append cleanup method
                 self._started.add(sandboxenv)
@@ -955,8 +973,9 @@ class SandboxManager:
             for cleanup_jobs in self._cleanups:
                 try:
                     cleanup_fn, config, task_run_dir = cleanup_jobs
-                    with chdir(task_run_dir):
-                        await cleanup_fn("shutdown", config, self._cleanup)
+                    async with _sandbox_lock:
+                        with chdir(task_run_dir):
+                            await cleanup_fn("shutdown", config, self._cleanup)
                 except BaseException as ex:
                     log.warning(
                         f"Error occurred shutting down sandbox environments: {exception_message(ex)}"

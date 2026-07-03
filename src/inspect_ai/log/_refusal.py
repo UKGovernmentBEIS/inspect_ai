@@ -30,6 +30,8 @@ def refusal_count() -> int:
 
 
 def init_refusal_tracking(log_refusals: bool | None) -> None:
-    global _refusal_count, _log_refusals
-    _refusal_count = 0
+    # ``_refusal_count`` is intentionally not reset here: it feeds a single
+    # shared TUI counter, so a per-eval reset would zero a concurrent
+    # eval's count. The display resets it when the panel opens.
+    global _log_refusals
     _log_refusals = log_refusals is True
