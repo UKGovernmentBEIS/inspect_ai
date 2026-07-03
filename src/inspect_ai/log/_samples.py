@@ -249,11 +249,7 @@ class ActiveSample:
 
 
 def init_active_samples() -> None:
-    # No-op: with concurrent eval_async (reentrancy guard lifted in
-    # fa94cd82), a per-eval .clear() would wipe another running eval's
-    # entries and its teardown would raise ``list.remove(x): x not in
-    # list``. Per-sample append/remove keeps the list bounded.
-    pass
+    _active_samples.clear()
 
 
 @contextlib.asynccontextmanager
