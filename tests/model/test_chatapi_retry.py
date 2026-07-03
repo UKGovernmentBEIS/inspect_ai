@@ -125,10 +125,10 @@ async def test_chatapi_429_signals_active_controller_with_rate_limit_kind() -> N
         AdaptiveConcurrencyController,
         _active_controller,
         _request_had_retry,
-        _reset_concurrency_for_tests,
+        init_concurrency,
     )
 
-    _reset_concurrency_for_tests()
+    init_concurrency()
     cfg = AdaptiveConcurrency(min=1, max=200, start=40, cooldown_seconds=15.0)
     controller = AdaptiveConcurrencyController("t-int", cfg, visible=True)
 
@@ -175,10 +175,10 @@ async def test_chatapi_retry_after_extends_cooldown() -> None:
         AdaptiveConcurrencyController,
         _active_controller,
         _request_had_retry,
-        _reset_concurrency_for_tests,
+        init_concurrency,
     )
 
-    _reset_concurrency_for_tests()
+    init_concurrency()
     cfg = AdaptiveConcurrency(min=1, max=200, start=40, cooldown_seconds=5.0)
     controller = AdaptiveConcurrencyController("t-rtafter", cfg, visible=True)
 

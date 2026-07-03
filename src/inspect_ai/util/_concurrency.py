@@ -320,24 +320,8 @@ def init_concurrency(
         registry: A ConcurrencySemaphoreRegistry instance, or None for default local registry.
     """
     global _concurrency_registry
-    if registry is None:
-        # Idempotent: the default registry is created once at module load
-        # and is process-lifetime. Controllers are keyed by API URL, so
-        # overlapping evals hitting the same key intentionally share one
-        # AdaptiveConcurrencyController; replacing the registry per-eval
-        # would orphan a concurrent eval's controllers. Tests that need a
-        # fresh registry use ``_reset_concurrency_for_tests()``.
-        return
-    _concurrency_registry = registry
-    _controller_created_observers.clear()
-
-
-def _reset_concurrency_for_tests(
-    registry: ConcurrencySemaphoreRegistry | None = None,
-) -> None:
-    """Unconditionally replace the concurrency registry. Test-only."""
-    global _concurrency_registry
     _concurrency_registry = _AnyIOSemaphoreRegistry() if registry is None else registry
+    # clear controller-creation observers so each eval starts fresh
     _controller_created_observers.clear()
 
 

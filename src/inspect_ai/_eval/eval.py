@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._control.eval_state import clear_eval_states_for_run
+from inspect_ai._control.eval_state import clear_all_eval_states
 from inspect_ai._control.server import (
     control_server,
     keep_alive_intent,
@@ -385,18 +385,8 @@ def eval(
     return result
 
 
-# refcount of overlapping eval_async calls in this process
-_active_eval_count: int = 0
-
-
-def active_eval_count() -> int:
-    """Number of ``eval_async`` calls currently in flight in this process.
-
-    Process-global init/cleanup sites use this to reset shared registries
-    only on the 0→1 transition and tear down process-wide resources only
-    on the 1→0 transition, so overlapping evals don't clobber each other.
-    """
-    return _active_eval_count
+# single call to eval_async at a time
+_eval_async_running = False
 
 
 async def eval_async(
@@ -724,14 +714,15 @@ async def _eval_async_inner(
 
     # The historical single-call restriction (tasks used to chdir into the
     # task directory) no longer applies. Per-eval state that matters for
-    # correctness is ContextVar-scoped (active model, roles, transcript) or
-    # keyed by log_dir (recorder, sample buffers), so overlapping calls are
-    # safe provided each uses its own log_dir. Process-global registries
-    # (concurrency controllers, eval-state, refusal counter, S3 sessions)
-    # are reset only on the first entry and torn down only on the last exit,
-    # gated on ``_active_eval_count`` at each site.
-    global _active_eval_count
-    _active_eval_count += 1
+    # correctness is ContextVar-scoped (active model, roles, transcript,
+    # concurrency controllers) or keyed by log_dir (recorder, sample
+    # buffers), so overlapping calls are safe provided each uses its own
+    # log_dir. Process-global set-once state (display type, log handler,
+    # hooks cache) is initialised idempotently below. `_eval_async_running`
+    # is retained only so `eval()`'s post-run display teardown can tell
+    # whether another eval is still live.
+    global _eval_async_running
+    _eval_async_running = True
 
     # if we are called outside of eval() then set display type to "plain"
     if not display_type_initialized():
@@ -1125,23 +1116,23 @@ async def _eval_async_inner(
             await emit_run_end(eval_set_id, run_id, logs)
         except UnboundLocalError:
             await emit_run_end(eval_set_id, run_id, EvalLogs([]))
+        _eval_async_running = False
 
     except BaseException as e:
         await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
+        _eval_async_running = False
         raise e
 
     finally:
-        _active_eval_count -= 1
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
-        # Drop this run's entries from the process-level EvalState registry
-        # (after any keep-alive park). Per-run so a concurrent eval_async
-        # keeps its states visible to the control channel. When nested in
-        # an eval-set (eval_set_id set) the eval-set owns cleanup instead,
-        # clearing after its own park.
+        # Clear the process-level EvalState registry at the run boundary
+        # (after any keep-alive park) — but only for a standalone eval.
+        # When nested in an eval-set (eval_set_id set) the eval-set owns
+        # this, clearing after its own park.
         if eval_set_id is None:
-            clear_eval_states_for_run(run_id)
+            clear_all_eval_states()
 
     # return logs
     return logs
