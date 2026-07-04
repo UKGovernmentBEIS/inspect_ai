@@ -207,7 +207,7 @@ class AsyncHTTPServer:
     def _build_headers_block(
         self, status: int, headers: dict[str, str], reason: Optional[str] = None
     ) -> bytes:
-        phrase = reason or HTTPStatus(status).phrase
+        phrase = reason or _http_reason_phrase(status)
         status_line = f"HTTP/1.1 {status} {phrase}\r\n"
         base = {
             "Date": _http_date(),
@@ -309,7 +309,7 @@ class AsyncHTTPServer:
 
         # Compose headers (preserve original case), then add CORS
         cors = self._cors_headers()
-        status_line = f"HTTP/1.1 {status} {reason or HTTPStatus(status).phrase}\r\n"
+        status_line = f"HTTP/1.1 {status} {reason or _http_reason_phrase(status)}\r\n"
         writer.write(status_line.encode("ascii"))
         for k, v in headers_list:
             writer.write(f"{k}: {v}\r\n".encode("latin-1", "strict"))
@@ -513,6 +513,26 @@ class AsyncHTTPServer:
 
 def _http_date() -> str:
     return formatdate(timeval=None, usegmt=True)
+
+
+def _http_reason_phrase(status: int) -> str:
+    """Reason phrase for a status line, tolerant of non-standard codes.
+
+    `HTTPStatus(status)` raises `ValueError` for codes outside the standard
+    registry (e.g. Anthropic's 529 "overloaded", Cloudflare's 520-527). Those
+    are legitimate statuses to forward faithfully, so fall back to a generic
+    class phrase instead of letting the lookup raise — an unguarded raise here
+    is caught by the request handler and downgraded to a 500, defeating status
+    forwarding.
+    """
+    try:
+        return HTTPStatus(status).phrase
+    except ValueError:
+        if 500 <= status <= 599:
+            return "Server Error"
+        if 400 <= status <= 499:
+            return "Client Error"
+        return ""
 
 
 # ---------- Forwarded provider errors ----------

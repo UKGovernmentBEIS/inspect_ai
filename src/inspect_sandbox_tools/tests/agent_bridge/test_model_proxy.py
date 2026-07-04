@@ -2751,6 +2751,29 @@ async def test_provider_error_status_none_defaults_to_400() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("status", [529, 520])
+async def test_provider_error_non_standard_status_forwarded_faithfully(
+    status: int,
+) -> None:
+    """A non-standard HTTP status (e.g. Anthropic 529 overloaded) survives.
+
+    `HTTPStatus(529)` raises ValueError, so an unguarded reason-phrase lookup in
+    the response writer would be caught and downgraded to a generic 500. The
+    status must reach the client unchanged.
+    """
+    body = {
+        "model": "claude-x",
+        "max_tokens": 8,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+    async with _proxy_with_service(_error_service(status, "overloaded")) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}/v1/messages", json=body) as response:
+                assert response.status == status
+                assert (await response.json())["error"]["message"] == "overloaded"
+
+
+@pytest.mark.asyncio
 async def test_proxy_survives_provider_error() -> None:
     """After forwarding a provider error the proxy stays up for the next request."""
     calls = {"n": 0}

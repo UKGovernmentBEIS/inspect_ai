@@ -100,6 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      sandbox_tools: ${{ steps.filter.outputs.sandbox_tools }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -110,6 +111,8 @@ jobs:
               - '**'
               - '!docs/**'
               - '!**/*.md'
+            sandbox_tools:
+              - 'src/inspect_sandbox_tools/**'
 
   test:
     needs: changes
@@ -145,6 +148,41 @@ jobs:
         # cannot. The 900s budget sits above the conftest 300s per-test timeout
         # so it only fires on genuine hangs.
         run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread
+
+      - name: Minimize uv cache
+        if: ${{ !cancelled() }}
+        run: uv cache prune --ci
+
+  # Fast, self-contained unit tests for the injected sandbox-tools package
+  # (notably the model proxy). These live under src/inspect_sandbox_tools/ with
+  # the package's own pytest config (asyncio_mode=auto) and cannot run under the
+  # root `test` job, whose anyio conftest blocks @pytest.mark.asyncio. Runs on
+  # any change to the package — including test-only changes — and needs no
+  # Docker or a built binary (unlike the slow-tool-tests-* jobs below).
+  sandbox-tools-unit:
+    needs: changes
+    if: needs.changes.outputs.sandbox_tools == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.11"
+
+      - name: Install sandbox-tools package (with dev deps)
+        # Its own project so pytest resolves the package's pyproject as config
+        # (asyncio_mode=auto) instead of the repo-root anyio config.
+        run: |-
+          uv venv
+          uv pip install "./src/inspect_sandbox_tools[dev]"
+
+      - name: Test with pytest
+        run: uv run pytest src/inspect_sandbox_tools/tests/agent_bridge/ -rA --color=yes
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
