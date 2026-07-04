@@ -2,6 +2,7 @@
 
 - Performance: make `stable_message_ids()` linear per turn.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
+- Bugfix: Crash recovery now reconstructs `sample.messages` from the first model role's conversation when a solver runs multiple agents concurrently, instead of returning whichever agent's model call happened to fire last. (#4414)
 
 ## 0.3.244 (01 July 2026)
 
