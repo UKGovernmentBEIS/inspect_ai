@@ -39,7 +39,20 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
         try:
             return await generate(json_data)
         except Exception as ex:
-            return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
+            payload = provider_error_payload(ex)
+            # A payload with no recoverable HTTP status almost always means the
+            # failure came from our own request translation rather than the
+            # provider (a provider error carries a status). Log it with a
+            # traceback so a real bug isn't silently masked by forwarding it to
+            # the client as an error response.
+            if payload["status"] is None:
+                logger.warning(
+                    "Agent bridge model request failed with a non-provider error "
+                    "(forwarding to the client as an error response): %s",
+                    ex,
+                    exc_info=True,
+                )
+            return {PROVIDER_ERROR_KEY: cast(JsonValue, payload)}
 
     return generate_forwarding_errors
 

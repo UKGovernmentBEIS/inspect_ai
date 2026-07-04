@@ -19,6 +19,7 @@ from inspect_ai.agent._bridge._errors import (
     PROVIDER_ERROR_KEY,
     provider_error_payload,
 )
+from inspect_ai.agent._bridge.sandbox import service as bridge_service
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._model import ModelAPI, ModelGenerateError
@@ -122,6 +123,42 @@ async def test_forward_provider_errors_returns_marker_on_exception() -> None:
     wrapped = _forward_provider_errors(boom)
     result = await wrapped({})
     assert result == {PROVIDER_ERROR_KEY: {"status": 503, "message": "overloaded"}}
+
+
+async def test_forward_provider_errors_warns_on_non_provider_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An error with no recoverable status (likely our own bug) is logged."""
+    warnings: list[tuple[Any, Any]] = []
+    monkeypatch.setattr(
+        bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
+    )
+
+    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+        raise ValueError("our own translation bug")
+
+    result = await _forward_provider_errors(boom)({})
+    assert result == {
+        PROVIDER_ERROR_KEY: {"status": None, "message": "our own translation bug"}
+    }
+    assert len(warnings) == 1
+
+
+async def test_forward_provider_errors_no_warn_on_provider_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A genuine provider error (carries a status) is forwarded without warning."""
+    warnings: list[tuple[Any, Any]] = []
+    monkeypatch.setattr(
+        bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
+    )
+
+    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+        raise ModelGenerateError("debug", status_code=503, provider_message="x")
+
+    result = await _forward_provider_errors(boom)({})
+    assert result == {PROVIDER_ERROR_KEY: {"status": 503, "message": "x"}}
+    assert warnings == []
 
 
 # ---------- _model.py wrap path (end to end) ----------
