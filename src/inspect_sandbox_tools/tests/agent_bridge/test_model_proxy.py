@@ -379,7 +379,7 @@ async def test_model_proxy_openai_sdk_models_list(
         }
 
     # Use OpenAI SDK
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     models = await client.models.list()
     model_ids = [model.id for model in models.data]
@@ -432,7 +432,7 @@ async def test_model_proxy_openai_sdk_chat_completion(
         }
 
     # Use OpenAI SDK
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     response = await client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -549,7 +549,7 @@ async def test_model_proxy_openai_sdk_streaming(
             }
 
     # Use OpenAI SDK with streaming
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Test streaming response
     stream = await client.chat.completions.create(
@@ -616,7 +616,7 @@ async def test_model_proxy_openai_sdk_error_handling(
         }
 
     # Use OpenAI SDK
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Test successful request
     response = await client.chat.completions.create(
@@ -909,7 +909,7 @@ async def test_model_proxy_responses_non_streaming(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request using the OpenAI client
     response = await client.responses.create(
@@ -1036,7 +1036,7 @@ async def test_model_proxy_responses_streaming(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Stream response using the OpenAI client
     # Collect events
@@ -1079,7 +1079,7 @@ async def test_model_proxy_responses_with_tool_calls(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request with tools
     response = await client.responses.create(
@@ -1121,7 +1121,7 @@ async def test_model_proxy_responses_streaming_with_tool_calls(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Stream response with tools
     # Collect events
@@ -1182,7 +1182,7 @@ async def test_model_proxy_responses_web_search(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers web search response
     response = await client.responses.create(
@@ -1209,7 +1209,7 @@ async def test_model_proxy_responses_computer_tool(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers computer tool response
     response = await client.responses.create(
@@ -1242,7 +1242,7 @@ async def test_model_proxy_responses_reasoning(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers reasoning response
     response = await client.responses.create(
@@ -1278,7 +1278,7 @@ async def test_model_proxy_responses_mcp_call(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers MCP call response
     response = await client.responses.create(
@@ -1311,7 +1311,7 @@ async def test_model_proxy_responses_mcp_list_tools(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers MCP list tools response
     response = await client.responses.create(
@@ -1338,7 +1338,7 @@ async def test_model_proxy_responses_streaming_reasoning(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Stream response with reasoning
     events = []
