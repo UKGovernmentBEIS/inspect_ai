@@ -1,6 +1,7 @@
 from textwrap import dedent
 from typing import Any, Literal, cast
 
+import pytest
 from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolChoiceAnyParam
@@ -349,7 +350,9 @@ def responses_tool_search_agent() -> Agent:
 
 
 @agent
-def anthropic_agent(tools: bool) -> Agent:
+def anthropic_agent(
+    tools: bool, reasoning: Literal["budget", "effort"] | None = None
+) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         def tools_param() -> Any:
             if tools:
@@ -380,7 +383,10 @@ def anthropic_agent(tools: bool) -> Agent:
                     temperature=0.8,
                     top_k=2,
                     thinking={"type": "enabled", "budget_tokens": 2048}
-                    if not tools
+                    if reasoning == "budget"
+                    else ANTHROPIC_NOT_GIVEN,
+                    output_config={"effort": "low"}
+                    if reasoning == "effort"
                     else ANTHROPIC_NOT_GIVEN,
                     messages=[
                         {
@@ -848,12 +854,30 @@ def test_responses_bridge_computer_use_incompatible_model():
     assert "computer use with the OpenAI Responses agent bridge" in log.error.message
 
 
+# Run the bridge on two models to keep reasoning coverage current. Anthropic
+# removed extended thinking with an explicit token budget (`thinking.budget_tokens`)
+# at Claude 4.7, so no single model exercises both paths:
+#   - claude-sonnet-4-5 (pre-4.7): request reasoning depth via a thinking token
+#     budget; the bridge maps `thinking.budget_tokens` -> `reasoning_tokens`.
+#   - claude-sonnet-5 (4.7+): a budget is rejected, so request depth via
+#     `output_config={"effort": ...}`; the bridge maps it -> `effort`. The effort
+#     must go through the SDK's *typed* `output_config` param: the bridge reads the
+#     typed request body, whereas anything passed via `extra_body` is merged into
+#     the wire body only at serialization time (downstream of the bridge) and would
+#     be silently dropped.
+@pytest.mark.parametrize(
+    "model, reasoning",
+    [
+        ("anthropic/claude-sonnet-4-5", "budget"),
+        ("anthropic/claude-sonnet-5", "effort"),
+    ],
+)
 @skip_if_no_anthropic
-def test_bridged_agent_anthropic():
+def test_bridged_agent_anthropic(model: str, reasoning: Literal["budget", "effort"]):
     log_json = eval_bridged_task(
-        "anthropic/claude-sonnet-4-5", agent=anthropic_agent(False)
+        model, agent=anthropic_agent(False, reasoning=reasoning)
     )
-    check_anthropic_bridge_log_json(log_json, tools=False)
+    check_anthropic_bridge_log_json(log_json, model, tools=False, reasoning=reasoning)
 
 
 @skip_if_no_anthropic
@@ -861,7 +885,7 @@ def test_bridged_agent_anthropic_tools():
     log_json = eval_bridged_task(
         "anthropic/claude-sonnet-4-5", agent=anthropic_agent(True)
     )
-    check_anthropic_bridge_log_json(log_json, tools=True)
+    check_anthropic_bridge_log_json(log_json, "anthropic/claude-sonnet-4-5", tools=True)
 
 
 @skip_if_no_anthropic
@@ -975,15 +999,24 @@ def check_anthropic_log_json(log_json: str):
     """)
 
 
-def check_anthropic_bridge_log_json(log_json: str, tools: bool):
-    assert r'"model": "anthropic/claude-sonnet-4-5"' in log_json
+def check_anthropic_bridge_log_json(
+    log_json: str,
+    model: str,
+    tools: bool,
+    reasoning: Literal["budget", "effort"] | None = None,
+):
+    assert f'"model": "{model}"' in log_json
     assert r'"max_tokens": 4096' in log_json
     assert r'"temperature": 0.8' in log_json
     assert r'"top_k": 2' in log_json
     if tools:
         assert r'"name": "get_weather"' in log_json
-    else:
+    elif reasoning == "budget":
+        # thinking.budget_tokens -> reasoning_tokens, forwarded on to the API request
         assert r'"budget_tokens": 2048' in log_json
+    elif reasoning == "effort":
+        # output_config.effort -> the request's `effort`
+        assert r'"effort": "low"' in log_json
 
 
 def check_google_bridge_log_json(log_json: str, tools: bool):
