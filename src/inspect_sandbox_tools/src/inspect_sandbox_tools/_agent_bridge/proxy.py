@@ -515,6 +515,85 @@ def _http_date() -> str:
     return formatdate(timeval=None, usegmt=True)
 
 
+# ---------- Forwarded provider errors ----------
+# Mirror of inspect_ai.agent._bridge._errors.PROVIDER_ERROR_KEY. The proxy is a
+# separate shipped binary that cannot import inspect_ai, so the constant is
+# duplicated here — keep the two in sync.
+PROVIDER_ERROR_KEY = "__inspect_provider_error__"
+
+# Status used when the host could not recover a provider HTTP status (e.g. an
+# error raised by our own request translation rather than by the provider). 400
+# fails fast without inviting client retry loops on a deterministic error.
+_DEFAULT_ERROR_STATUS = 400
+
+
+def _provider_error(result: Any) -> Optional[dict[str, Any]]:
+    """Return the forwarded provider-error payload if present in a service result."""
+    if isinstance(result, dict):
+        payload = result.get(PROVIDER_ERROR_KEY)
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
+def _openai_error_body(status: int, message: str) -> dict[str, Any]:
+    """OpenAI-dialect error body (Chat Completions and Responses)."""
+    return {
+        "error": {
+            "message": message,
+            "type": "invalid_request_error" if 400 <= status < 500 else "api_error",
+            "param": None,
+            "code": None,
+        }
+    }
+
+
+_ANTHROPIC_ERROR_TYPES = {
+    400: "invalid_request_error",
+    401: "authentication_error",
+    403: "permission_error",
+    404: "not_found_error",
+    413: "request_too_large",
+    429: "rate_limit_error",
+    500: "api_error",
+    529: "overloaded_error",
+}
+
+
+def _anthropic_error_body(status: int, message: str) -> dict[str, Any]:
+    """Anthropic-dialect error body."""
+    return {
+        "type": "error",
+        "error": {
+            "type": _ANTHROPIC_ERROR_TYPES.get(status, "api_error"),
+            "message": message,
+        },
+    }
+
+
+_GOOGLE_ERROR_STATUS = {
+    400: "INVALID_ARGUMENT",
+    401: "UNAUTHENTICATED",
+    403: "PERMISSION_DENIED",
+    404: "NOT_FOUND",
+    429: "RESOURCE_EXHAUSTED",
+    500: "INTERNAL",
+    503: "UNAVAILABLE",
+    504: "DEADLINE_EXCEEDED",
+}
+
+
+def _google_error_body(status: int, message: str) -> dict[str, Any]:
+    """Google-dialect error body."""
+    return {
+        "error": {
+            "code": status,
+            "message": message,
+            "status": _GOOGLE_ERROR_STATUS.get(status, "UNKNOWN"),
+        }
+    }
+
+
 async def model_proxy_server(
     port: int, call_bridge_model_service_async: Any = None
 ) -> AsyncHTTPServer:
@@ -604,6 +683,14 @@ async def model_proxy_server(
             completion = await call_bridge_model_service_async(
                 "generate_responses", json_data=json_body
             )
+
+            error = _provider_error(completion)
+            if error is not None:
+                status = error.get("status") or _DEFAULT_ERROR_STATUS
+                return {
+                    "status": status,
+                    "body": _openai_error_body(status, error.get("message") or ""),
+                }
 
             if stream:
 
@@ -1330,6 +1417,14 @@ async def model_proxy_server(
                 "generate_completions", json_data=json_body
             )
 
+            error = _provider_error(completion)
+            if error is not None:
+                status = error.get("status") or _DEFAULT_ERROR_STATUS
+                return {
+                    "status": status,
+                    "body": _openai_error_body(status, error.get("message") or ""),
+                }
+
             if stream:
 
                 async def stream_response() -> AsyncIterator[bytes]:
@@ -1588,6 +1683,17 @@ async def model_proxy_server(
                             except asyncio.CancelledError:
                                 pass
                         raise
+
+                    # A forwarded provider error arrives after message_start has
+                    # already been sent, so surface it as an SSE error event.
+                    error = _provider_error(completion)
+                    if error is not None:
+                        status = error.get("status") or _DEFAULT_ERROR_STATUS
+                        yield _sse_anthropic(
+                            "error",
+                            _anthropic_error_body(status, error.get("message") or ""),
+                        )
+                        return
 
                     try:
                         # Parse the completion as a dict
@@ -1874,6 +1980,15 @@ async def model_proxy_server(
                 completion = await call_bridge_model_service_async(
                     "generate_anthropic", json_data=json_body
                 )
+                error = _provider_error(completion)
+                if error is not None:
+                    status = error.get("status") or _DEFAULT_ERROR_STATUS
+                    return {
+                        "status": status,
+                        "body": _anthropic_error_body(
+                            status, error.get("message") or ""
+                        ),
+                    }
                 return {"status": 200, "body": completion}
         except Exception as ex:
             _handle_model_proxy_error(ex)
@@ -1910,6 +2025,14 @@ async def model_proxy_server(
             completion = await call_bridge_model_service_async(
                 "generate_google", json_data=json_body
             )
+
+            error = _provider_error(completion)
+            if error is not None:
+                status = error.get("status") or _DEFAULT_ERROR_STATUS
+                return {
+                    "status": status,
+                    "body": _google_error_body(status, error.get("message") or ""),
+                }
 
             resp = (
                 completion if isinstance(completion, dict) else json.loads(completion)

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, AsyncIterator
 
 import pytest
@@ -9,7 +10,11 @@ from aiohttp import ClientSession
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolParam
 from google import genai
-from inspect_sandbox_tools._agent_bridge.proxy import AsyncHTTPServer
+from inspect_sandbox_tools._agent_bridge.proxy import (
+    PROVIDER_ERROR_KEY,
+    AsyncHTTPServer,
+    model_proxy_server,
+)
 from openai import AsyncOpenAI
 from openai.types.responses import (
     FunctionToolParam,
@@ -2636,3 +2641,164 @@ async def test_google_generate_content_streaming_web_search(
     assert "search" in collected_text.lower()
     assert function_call_name == "web_search"
     assert function_call_args["query"] == "latest AI news"
+
+
+# ---------- Forwarded provider errors ----------
+
+
+@asynccontextmanager
+async def _proxy_with_service(mock_service: Any) -> AsyncGenerator[str, None]:
+    """Start a proxy backed by a mock bridge service; yield its base URL."""
+    server = await model_proxy_server(
+        port=0, call_bridge_model_service_async=mock_service
+    )
+    server.server = await asyncio.start_server(
+        server._handle_client, server.host, server.port
+    )
+    port = server.server.sockets[0].getsockname()[1]
+    try:
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        if server.server:
+            server.server.close()
+            await server.server.wait_closed()
+
+
+def _error_service(status: int | None, message: str) -> Any:
+    """A mock bridge service that always returns a forwarded provider error."""
+
+    async def mock_service(method: str, **params: Any) -> dict[str, Any]:
+        return {PROVIDER_ERROR_KEY: {"status": status, "message": message}}
+
+    return mock_service
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "body", "status", "message", "assert_body"),
+    [
+        (
+            "/v1/responses",
+            {"model": "gpt-4o", "input": "hi"},
+            503,
+            "upstream unavailable",
+            lambda b: (
+                b["error"]["type"] == "api_error"
+                and b["error"]["message"] == "upstream unavailable"
+            ),
+        ),
+        (
+            "/v1/chat/completions",
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]},
+            429,
+            "rate limited",
+            lambda b: b["error"]["message"] == "rate limited",
+        ),
+        (
+            "/v1/messages",
+            {
+                "model": "claude-x",
+                "max_tokens": 8,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+            400,
+            "Could not process image",
+            lambda b: (
+                b["type"] == "error"
+                and b["error"]["type"] == "invalid_request_error"
+                and b["error"]["message"] == "Could not process image"
+            ),
+        ),
+        (
+            "/v1beta/models/gemini-2.5-pro:generateContent",
+            {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]},
+            500,
+            "internal error",
+            lambda b: (
+                b["error"]["code"] == 500
+                and b["error"]["status"] == "INTERNAL"
+                and b["error"]["message"] == "internal error"
+            ),
+        ),
+    ],
+)
+async def test_provider_error_forwarded_non_streaming(
+    path: str,
+    body: dict[str, Any],
+    status: int,
+    message: str,
+    assert_body: Any,
+) -> None:
+    """A forwarded provider error becomes a provider-dialect HTTP error, not a crash."""
+    async with _proxy_with_service(_error_service(status, message)) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}{path}", json=body) as response:
+                assert response.status == status
+                assert assert_body(await response.json())
+
+
+@pytest.mark.asyncio
+async def test_provider_error_status_none_defaults_to_400() -> None:
+    """A forwarded error with no HTTP status (e.g. our own translation error)."""
+    body = {"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]}
+    async with _proxy_with_service(_error_service(None, "bad tool")) as base_url:
+        async with ClientSession() as session:
+            async with session.post(
+                f"{base_url}/v1/chat/completions", json=body
+            ) as response:
+                assert response.status == 400
+                assert (await response.json())["error"]["message"] == "bad tool"
+
+
+@pytest.mark.asyncio
+async def test_proxy_survives_provider_error() -> None:
+    """After forwarding a provider error the proxy stays up for the next request."""
+    calls = {"n": 0}
+
+    async def mock_service(method: str, **params: Any) -> dict[str, Any]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return {PROVIDER_ERROR_KEY: {"status": 400, "message": "boom"}}
+        return {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "text", "text": "ok"}],
+            "model": "claude-x",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+
+    body = {
+        "model": "claude-x",
+        "max_tokens": 8,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+    async with _proxy_with_service(mock_service) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}/v1/messages", json=body) as first:
+                assert first.status == 400
+            async with session.post(f"{base_url}/v1/messages", json=body) as second:
+                assert second.status == 200
+                assert (await second.json())["content"][0]["text"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_streaming_provider_error_emits_sse_error() -> None:
+    """The Anthropic streaming path forwards the error as an SSE error event."""
+    body = {
+        "model": "claude-x",
+        "max_tokens": 8,
+        "stream": True,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+    async with _proxy_with_service(_error_service(429, "overloaded")) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}/v1/messages", json=body) as response:
+                assert response.status == 200
+                text = await response.text()
+    assert "event: message_start" in text
+    assert "event: error" in text
+    assert "rate_limit_error" in text
+    assert "overloaded" in text
