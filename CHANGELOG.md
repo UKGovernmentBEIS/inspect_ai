@@ -1,5 +1,22 @@
 ## Unreleased
 
+- Performance: make `stable_message_ids()` linear per turn.
+- Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
+
+## 0.3.244 (01 July 2026)
+
+- Anthropic: Various changes related to [Sonnet 5](https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5).
+
+## 0.3.243 (30 June 2026)
+- Checkpointing: Run `restic backup` with `--quiet` so its progress output can't overflow the sandbox output cap on long backups.
+- Control Channel: Added `inspect ctl flush` (write a running eval's buffered samples to the log now, e.g. to make S3-backed results analyzable without waiting) and `inspect ctl buffer` (view or change the `--log-buffer` / `--log-shared` sample-buffer params of a running eval).
+- Control Channel: `inspect ctl tasks` no longer drops eval processes owned by another user, which were previously misreported as dead.
+- Eval Logs: Record the installed task package's git commit in `EvalSpec.revision`, resolving the actual distribution (namespace-package aware).
+- Bugfix: Elapsed-time displays (e.g. the running-sample clock and timers) no longer render an impossible `:60` seconds when the elapsed time has a fractional second.
+- Bugfix: A `react` sub-agent nested inside another `react` (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.
+
+## 0.3.242 (29 June 2026)
+
 - Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule.
 - Log: Reading sample summaries from an in-progress `.eval` on a remote filesystem (e.g. S3) now fetches the per-sample journal summary files concurrently, reducing load time for logs with many samples.
 - Log: Sample event condensing is now linear, not quadratic, in conversation length.
@@ -25,7 +42,9 @@
 - Control Channel: `inspect ctl` reads now use a 15s timeout and retry a busy eval up to 8 times (printing a status on each timeout) before failing with a non-zero exit, instead of silently dropping a momentarily-unresponsive eval from the listing.
 - Control Channel: Stop printing a misleading "Control server did not shut down cleanly" warning when an eval is interrupted with Ctrl-C (the cancellation is now re-raised as the expected teardown it is).
 - Scoring: Support `model` and `model_roles` overrides for re-scoring (`inspect score --model` / `--model-role`).
+- Scoring: Harden default model-graded verdict extraction so words ending in "grade", zero-width formatting marks around the verdict separator, and lowercase verdict letters no longer silently score incorrectly.
 - Sandbox: `self_check` now verifies that a large (~1 MiB) command argument round-trips correctly through `exec`.
+- Sandbox: Added `override_sandbox_output_limit()` context manager to temporarily raise the exec-output and/or read-file size caps for the current context.
 - Inspect View: Require frontend-only headers for mutations and use non-GET routes for log deletion and client messages.
 - Inspect View: Improve MathJax Sanitization
 - Inspect View: Fix stale running status on nav
@@ -39,6 +58,7 @@
 - Bugfix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bugfix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
 - Bugfix: Header-only reads of `.json` eval logs no longer parse the entire `samples` array, making header reads of large logs dramatically faster (e.g. a 29MB S3 log: ~47s -> ~0.4s).
+
 
 ## 0.3.241 (22 June 2026)
 
