@@ -9,7 +9,7 @@ from aiohttp import ClientSession
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolParam
 from google import genai
-from inspect_ai.agent._bridge.sandbox.proxy import AsyncHTTPServer
+from inspect_sandbox_tools._agent_bridge.proxy import AsyncHTTPServer
 from openai import AsyncOpenAI
 from openai.types.responses import (
     FunctionToolParam,
@@ -636,7 +636,7 @@ async def test_model_proxy_openai_sdk_error_handling(
 @pytest.fixture
 async def proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
     """Fixture to create and start the actual model proxy server for testing."""
-    from inspect_ai.agent._bridge.sandbox.proxy import model_proxy_server
+    from inspect_sandbox_tools._agent_bridge.proxy import model_proxy_server
 
     # Mock the bridge service
     async def mock_bridge_service(
@@ -1401,7 +1401,7 @@ async def test_model_proxy_responses_streaming_reasoning(
 @pytest.fixture
 async def proxy_server_anthropic() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
     """Fixture to create and start the model proxy server for Anthropic testing."""
-    from inspect_ai.agent._bridge.sandbox.proxy import model_proxy_server
+    from inspect_sandbox_tools._agent_bridge.proxy import model_proxy_server
 
     # Mock the bridge service for Anthropic
     async def mock_bridge_service_anthropic(
@@ -2105,7 +2105,7 @@ async def test_anthropic_messages_streaming_mcp_tool(
 @pytest.fixture
 async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
     """Fixture to create and start the model proxy server for Google testing."""
-    from inspect_ai.agent._bridge.sandbox.proxy import model_proxy_server
+    from inspect_sandbox_tools._agent_bridge.proxy import model_proxy_server
 
     # Mock the bridge service for Google
     async def mock_bridge_service_google(
