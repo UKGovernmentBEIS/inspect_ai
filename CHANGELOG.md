@@ -2,6 +2,7 @@
 
 - Performance: make `stable_message_ids()` linear per turn.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
+- Bugfix: Hugging Face provider now records `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log.
 
 ## 0.3.244 (01 July 2026)
 
