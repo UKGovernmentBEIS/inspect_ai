@@ -55,6 +55,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.http import status_code_of
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -1216,9 +1217,12 @@ class Model:
             if isinstance(output, Exception):
                 complete(output, call)
 
-                # Wrap the error in a runtime error which will show the
+                # Wrap the error in a ModelGenerateError which will show the
                 # request which caused the error (truncated to last
-                # 200 lines if larger to avoid overflowing terminal)
+                # 200 lines if larger to avoid overflowing terminal). The
+                # subclass preserves the provider status_code/message so the
+                # agent bridge can forward a faithful provider error rather
+                # than crashing the model proxy.
                 error = repr(output)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
                 max_lines = 200
@@ -1229,7 +1233,11 @@ class Model:
                         + request_lines[-max_lines:]
                     )
                 error_message = f"\nRequest:\n{request}\n\n{error}"
-                raise RuntimeError(error_message)
+                raise ModelGenerateError(
+                    error_message,
+                    status_code=status_code_of(output),
+                    provider_message=str(output),
+                ) from output
 
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)
@@ -1606,6 +1614,28 @@ or return ``None`` to allow default processing to continue.
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
+
+
+class ModelGenerateError(RuntimeError):
+    """A model generation failed with a provider error.
+
+    Subclass of `RuntimeError` (so existing `except RuntimeError` / `except
+    Exception` handling and retry classification are unchanged) that
+    additionally preserves the originating provider HTTP `status_code` and a
+    clean `provider_message`. The agent bridge uses these to forward a faithful
+    provider error response to the proxied agent rather than crashing.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        provider_message: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.provider_message = provider_message
 
 
 class ModelName:
