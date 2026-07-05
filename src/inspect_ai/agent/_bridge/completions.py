@@ -61,6 +61,7 @@ async def inspect_completions_api_request(
         bridge.model_aliases,
         bridge.model,
         model_resolver=bridge.model_resolver,
+        provider="openai",
     )
     model_name = model.api.model_name
 

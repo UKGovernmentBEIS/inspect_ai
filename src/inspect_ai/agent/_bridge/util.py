@@ -333,9 +333,20 @@ def resolve_inspect_model(
     fallback_model: str | None = None,
     *,
     model_resolver: ModelResolver | None = None,
+    provider: str = "",
 ) -> Model:
     if model_aliases and model_name in model_aliases:
         return get_model(model_aliases[model_name])
+
+    # A bare model name on a provider-specific bridge endpoint resolves to that provider (the
+    # endpoint implies it); otherwise get_model rejects the unqualified name.
+    if (
+        provider
+        and "/" not in model_name
+        and model_name != "inspect"
+        and model_name not in model_roles()
+    ):
+        model_name = f"{provider}/{model_name}"
 
     # Dynamic routing policy: checked after explicit aliases, before the static
     # fallback. Returning None defers to the fallback / normal resolution below.

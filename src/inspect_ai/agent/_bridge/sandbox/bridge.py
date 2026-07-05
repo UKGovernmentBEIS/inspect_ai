@@ -78,7 +78,8 @@ async def sandbox_agent_bridge(
             that appears here, the corresponding value (a ``Model`` instance
             or model spec string) is used instead. Checked before the fallback ``model``.
         model_resolver: Dynamic routing policy called with the requested model
-            name. Checked after ``model_aliases`` and before the ``model``
+            name (provider-qualified on a provider-specific endpoint, e.g.
+            ``openai/gpt-5.1``). Checked after ``model_aliases`` and before the ``model``
             fallback; return a ``Model``/spec to route the request there, or
             ``None`` to defer. Routes by policy without enumerating every name.
         filter: Filter for bridge model generation.

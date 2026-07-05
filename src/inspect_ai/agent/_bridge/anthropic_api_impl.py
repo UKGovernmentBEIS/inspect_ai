@@ -103,6 +103,7 @@ async def inspect_anthropic_api_request_impl(
         bridge.model_aliases,
         bridge.model,
         model_resolver=bridge.model_resolver,
+        provider="anthropic",
     )
 
     # tools

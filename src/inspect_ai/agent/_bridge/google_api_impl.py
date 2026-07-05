@@ -72,6 +72,7 @@ async def inspect_google_api_request_impl(
         bridge.model_aliases,
         bridge.model,
         model_resolver=bridge.model_resolver,
+        provider="google",
     )
 
     # extract request components

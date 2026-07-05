@@ -211,6 +211,7 @@ async def inspect_responses_api_request_impl(
         bridge.model_aliases,
         bridge.model,
         model_resolver=bridge.model_resolver,
+        provider="openai",
     )
     model_name = model.api.model_name
     is_openai = _is_openai_responses_provider(model)
