@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
+- Reasoning: Correctly parse nested `<think>` blocks without exposing inner reasoning text as visible model output.
 
 ## 0.3.226 (25 May 2026)
 
