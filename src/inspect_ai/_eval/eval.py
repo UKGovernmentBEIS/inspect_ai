@@ -256,7 +256,7 @@ def eval(
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
-        max_samples: Maximum number of samples to run in parallel
+        max_samples: Maximum number of samples to run in parallel within each task
             (default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
@@ -520,7 +520,7 @@ async def eval_async(
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
-        max_samples: Maximum number of samples to run in parallel (default is max_connections)
+        max_samples: Maximum number of samples to run in parallel within each task (default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -1231,7 +1231,7 @@ def eval_retry(
             (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults
             to "eval", the native high-performance format).
-        max_samples: Maximum number of samples to run in parallel
+        max_samples: Maximum number of samples to run in parallel within each task
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
@@ -1415,7 +1415,7 @@ async def eval_retry_async(
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
-        max_samples: Maximum number of samples to run in parallel
+        max_samples: Maximum number of samples to run in parallel within each task
            (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel (default is 1)
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
@@ -1668,7 +1668,9 @@ async def eval_retry_async(
         )
 
         config = eval_log.plan.config
-        config.max_retries = max_retries or config.max_retries
+        config.max_retries = (
+            max_retries if max_retries is not None else config.max_retries
+        )
         config.timeout = timeout or config.timeout
         config.attempt_timeout = attempt_timeout or config.attempt_timeout
         config.max_connections = max_connections or config.max_connections

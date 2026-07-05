@@ -9,8 +9,10 @@ tasks, with a keep-alive status footer), ``samples`` (a task's samples),
 ``sample`` (one sample's error detail), ``errors`` (errored / retried samples),
 ``events`` (a sample's transcript events), ``keep`` (make a running process
 park after its eval finishes), and ``release`` (let a kept-alive process exit).
-The state-mutating directives (cancel / drain / requeue / modify-limits) are
-planned but not yet available.
+The buffer directives ``flush`` (write buffered samples to the log now) and
+``buffer`` (view / change the sample-buffer params) are also available. The
+remaining state-mutating directives (cancel / drain / requeue / modify-limits)
+are planned but not yet available.
 """
 
 from __future__ import annotations
@@ -38,9 +40,11 @@ def ctl_command() -> None:
     Commands: ``tasks`` (running tasks + keep-alive status), ``samples`` /
     ``sample`` / ``errors`` (an eval's samples), ``events`` (a sample's
     transcript), ``keep`` (park a process after its eval finishes), ``release``
-    (let a kept-alive process exit). All are read-only except ``keep`` /
-    ``release`` — state-mutating directives (cancel, drain, modify limits)
-    are planned but not yet available.
+    (let a kept-alive process exit), ``flush`` (write an eval's buffered samples
+    to the log now), ``buffer`` (view / change the sample-buffer params). All
+    are read-only except ``keep`` / ``release`` / ``flush`` / ``buffer`` —
+    further state-mutating directives (cancel, drain, modify limits) are planned
+    but not yet available.
 
     Each command operates on a live Inspect eval via the control
     channel — the HTTP server every running ``inspect eval`` process
@@ -166,7 +170,8 @@ def errors_command(task: str | None, as_json: bool) -> None:
     retries, showing the latest error message. Drill into a single sample's
     full error history (including prior attempts) with `inspect ctl sample`.
 
-    TASK selects the task as in `inspect ctl samples`.
+    TASK selects which running eval to target — a task-id prefix or task name
+    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
     """
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
@@ -216,7 +221,8 @@ def sample_command(
 ) -> None:
     """Show one sample's error detail, including errors from prior attempts.
 
-    TASK selects the task as in `inspect ctl samples`; SAMPLE_ID is the
+    TASK selects which running eval to target (a task-id prefix or task name,
+    as listed by `inspect ctl tasks`); SAMPLE_ID is the
     sample's id (as shown by `inspect ctl samples`); EPOCH defaults to 1.
 
     Surfaces the current error (if the sample failed) and the error from each
@@ -306,7 +312,8 @@ def events_command(
 ) -> None:
     """Read one running sample's transcript events (cursored pull).
 
-    TASK selects the task as in `inspect ctl samples`; SAMPLE_ID is the
+    TASK selects which running eval to target (a task-id prefix or task name,
+    as listed by `inspect ctl tasks`); SAMPLE_ID is the
     sample's id; EPOCH defaults to 1.
 
     Returns a page of events plus a `next` cursor — pass it back via `--since`
@@ -409,6 +416,123 @@ def release_command(pid: int | None) -> None:
     click.echo(f"Release requested for pid {target.pid}.")
 
 
+@ctl_command.command("flush")
+@click.argument("task", required=False)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the `{flushed}` result).",
+)
+def flush_command(task: str | None, as_json: bool) -> None:
+    """Flush a running eval's buffered samples to the log now.
+
+    Completed samples are buffered and written to the (possibly remote, eg. S3)
+    log only once the flush buffer fills. This forces that write immediately, so
+    the samples become readable / analyzable in the log without waiting. Safe to
+    repeat — a flush with nothing pending writes nothing.
+
+    TASK selects which running eval to target — a task-id prefix or task name
+    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
+    """
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task)
+    result = _post_flush(target["socket_path"], target["eval_id"])
+
+    if as_json:
+        click.echo(json_lib.dumps(result, indent=2))
+        return
+
+    flushed = int(result.get("flushed", 0) or 0)
+    click.echo(_task_header(target))
+    if flushed:
+        click.echo(
+            f"\nFlushed {flushed} sample{'' if flushed == 1 else 's'} to the log."
+        )
+    else:
+        click.echo("\nNo buffered samples to flush.")
+
+
+@ctl_command.command("buffer")
+@click.argument("task", required=False)
+@click.option(
+    "--samples",
+    "log_buffer",
+    type=int,
+    default=None,
+    help=(
+        "Set the number of completed samples to buffer before writing to the "
+        "log (lower it to write to S3 more often)."
+    ),
+)
+@click.option(
+    "--shared",
+    "log_shared",
+    type=int,
+    default=None,
+    help="Set the shared-log event sync interval, in seconds.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the buffer config).",
+)
+def buffer_command(
+    task: str | None,
+    log_buffer: int | None,
+    log_shared: int | None,
+    as_json: bool,
+) -> None:
+    """View or change a running eval's sample-buffer parameters.
+
+    With no options, shows the current config. Pass `--samples N` to change how
+    many completed samples buffer before a write to the log, and/or `--shared S`
+    to retune the shared-log event sync interval in seconds.
+
+    `--samples` changes the threshold for future writes only — it does not flush
+    samples already buffered. Lowering it takes effect from the next completed
+    sample; to write what's already pending now, run `inspect ctl flush`.
+
+    TASK selects which running eval to target — a task-id prefix or task name
+    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
+    """
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task)
+    changing = log_buffer is not None or log_shared is not None
+    config = _exec_buffer_config(
+        target["socket_path"],
+        target["eval_id"],
+        log_buffer=log_buffer,
+        log_shared=log_shared,
+        set_values=changing,
+    )
+
+    if as_json:
+        click.echo(json_lib.dumps(config, indent=2))
+        return
+
+    click.echo(_task_header(target))
+    click.echo()
+    _print_buffer_config(config, changed=changing)
+
+
 def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
     """Pick the single process a ``keep`` / ``release`` targets, or exit.
 
@@ -459,6 +583,15 @@ def _post_to_server(socket_path: Path, path: str) -> None:
 _REQUEST_TIMEOUT = 15.0
 _REQUEST_ATTEMPTS = 8
 
+# A mutation (flush / buffer set) is issued once — it isn't idempotent, so it
+# must not be retried — but it gets the same total wall-clock budget a retried
+# read would consume (one attempt of `_REQUEST_ATTEMPTS * _REQUEST_TIMEOUT`, ie.
+# 2 min) so a slow remote (eg. S3) write isn't cut short. That budget is the
+# *read* leg; connect over the local UDS is effectively instant, so it's capped
+# short rather than getting the full budget too.
+_MUTATION_TIMEOUT = _REQUEST_ATTEMPTS * _REQUEST_TIMEOUT
+_CONNECT_TIMEOUT = 10.0
+
 
 class _ServerUnreachable(Exception):
     """A control read failed for a non-timeout reason.
@@ -473,20 +606,24 @@ class _ServerUnreachable(Exception):
     """
 
 
-def _get_with_retry(
+def _get_response_with_retry(
     socket_path: str | Path,
     path: str,
     *,
     params: dict[str, Any] | None = None,
     what: str,
-) -> Any:
-    """GET ``path`` from a control server over its UDS, retrying on timeout.
+) -> httpx.Response:
+    """GET ``path`` over the UDS, retrying a read timeout; return the response.
 
     Retries a read timeout up to ``_REQUEST_ATTEMPTS`` times, printing a status
     to the console (stderr, so ``--json`` stdout stays clean) on each — the eval
     is most likely just busy. On exhaustion, prints an error and exits non-zero.
-    Raises :class:`_ServerUnreachable` for a non-timeout transport error so the
-    caller can skip or fail as appropriate.
+    Raises :class:`_ServerUnreachable` for a non-timeout transport error (eg. a
+    refused/reset connection) so the caller can skip or fail as appropriate.
+
+    Returns the raw response without inspecting its status, so callers that need
+    to handle a meaningful status (eg. a 404) can; :func:`_get_with_retry` is the
+    JSON-decoding wrapper for the common case.
     """
     transport = httpx.HTTPTransport(uds=str(socket_path))
     for attempt in range(1, _REQUEST_ATTEMPTS + 1):
@@ -496,9 +633,7 @@ def _get_with_retry(
                 base_url="http://localhost",
                 timeout=_REQUEST_TIMEOUT,
             ) as client:
-                response = client.get(path, params=params or {})
-                response.raise_for_status()
-                return response.json()
+                return client.get(path, params=params or {})
         except httpx.TimeoutException:
             click.echo(
                 f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
@@ -506,7 +641,7 @@ def _get_with_retry(
                 "retrying…",
                 err=True,
             )
-        except (httpx.HTTPError, OSError, ValueError) as exc:
+        except (httpx.HTTPError, OSError) as exc:
             raise _ServerUnreachable() from exc
     click.echo(
         f"{what}: gave up after {_REQUEST_ATTEMPTS} attempts of "
@@ -514,6 +649,28 @@ def _get_with_retry(
         err=True,
     )
     raise click.exceptions.Exit(code=1)
+
+
+def _get_with_retry(
+    socket_path: str | Path,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    what: str,
+) -> Any:
+    """GET ``path`` and return its decoded JSON, retrying a busy eval on timeout.
+
+    Wraps :func:`_get_response_with_retry`; a non-2xx status or undecodable body
+    raises :class:`_ServerUnreachable` (a server-side ``500`` or malformed
+    response is not retryable). For endpoints with a meaningful 4xx, call
+    :func:`_get_response_with_retry` directly and inspect the status.
+    """
+    response = _get_response_with_retry(socket_path, path, params=params, what=what)
+    try:
+        response.raise_for_status()
+        return response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise _ServerUnreachable() from exc
 
 
 def _fetch_summaries(
@@ -727,6 +884,110 @@ def _fetch_sample_events(
         click.echo(f"Failed to read events: {_error_detail(exc)}", err=True)
         raise click.exceptions.Exit(code=1) from exc
     return page if isinstance(page, dict) else {}
+
+
+def _post_flush(socket_path: str, eval_id: str) -> dict[str, Any]:
+    """Ask one control server to flush an eval's buffered samples to the log."""
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        # A remote (eg. S3) log write can take a while; a mutation isn't retried,
+        # so give the single attempt the full mutation budget (see
+        # `_MUTATION_TIMEOUT`).
+        with httpx.Client(
+            transport=transport,
+            base_url="http://localhost",
+            timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
+        ) as client:
+            response = client.post(f"/evals/{eval_id}/flush")
+            if response.status_code == 404:
+                click.echo(
+                    f"Eval '{eval_id}' is not flushable — it has no live sample "
+                    "buffer in this process (e.g. a reused log, or a retry "
+                    "attempt that's been superseded).",
+                    err=True,
+                )
+                raise click.exceptions.Exit(code=1)
+            response.raise_for_status()
+            result = response.json()
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        click.echo(f"Failed to flush eval {eval_id}: {_error_detail(exc)}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
+    return result if isinstance(result, dict) else {}
+
+
+def _exec_buffer_config(
+    socket_path: str,
+    eval_id: str,
+    *,
+    log_buffer: int | None,
+    log_shared: int | None,
+    set_values: bool,
+) -> dict[str, Any]:
+    """Read (``set_values=False``) or update an eval's sample-buffer config.
+
+    The read is a GET that retries a busy eval on timeout (like the other
+    reads). The update is a single-shot POST — a mutation isn't idempotent, so
+    it must not be retried — given the full mutation budget (see
+    :data:`_MUTATION_TIMEOUT`).
+    """
+    params: dict[str, Any] = {}
+    if log_buffer is not None:
+        params["log_buffer"] = log_buffer
+    if log_shared is not None:
+        params["log_shared"] = log_shared
+    path = f"/evals/{eval_id}/buffer"
+    verb = "update" if set_values else "read"
+    try:
+        if set_values:
+            transport = httpx.HTTPTransport(uds=str(socket_path))
+            with httpx.Client(
+                transport=transport,
+                base_url="http://localhost",
+                timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
+            ) as client:
+                response = client.post(path, params=params)
+        else:
+            response = _get_response_with_retry(
+                socket_path, path, what=f"Reading buffer config for eval {eval_id}"
+            )
+        if response.status_code == 404:
+            click.echo(
+                f"Eval '{eval_id}' has no sample buffer in this process "
+                "(e.g. a reused log, or a retry attempt that's been "
+                "superseded).",
+                err=True,
+            )
+            raise click.exceptions.Exit(code=1)
+        response.raise_for_status()
+        config = response.json()
+    except _ServerUnreachable as exc:
+        detail = (
+            _error_detail(exc.__cause__)
+            if isinstance(exc.__cause__, Exception)
+            else str(exc)
+        )
+        click.echo(
+            f"Failed to {verb} buffer config for eval {eval_id}: {detail}", err=True
+        )
+        raise click.exceptions.Exit(code=1) from exc
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        click.echo(
+            f"Failed to {verb} buffer config for eval {eval_id}: {_error_detail(exc)}",
+            err=True,
+        )
+        raise click.exceptions.Exit(code=1) from exc
+    return config if isinstance(config, dict) else {}
+
+
+def _print_buffer_config(config: dict[str, Any], *, changed: bool) -> None:
+    """Render an eval's sample-buffer config as a short labelled block."""
+    click.echo("updated buffer config:" if changed else "buffer config:")
+    click.echo(f"  log buffer:   {config.get('log_buffer')} samples")
+    click.echo(f"  pending:      {config.get('pending')} buffered (not yet written)")
+    log_shared = config.get("log_shared")
+    click.echo(
+        f"  shared sync:  {f'{log_shared}s' if log_shared is not None else 'off'}"
+    )
 
 
 def _print_events(page: dict[str, Any]) -> None:

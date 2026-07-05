@@ -21,7 +21,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.model._providers._google_computer_use import (
@@ -45,6 +45,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     web_search,
 )
+from inspect_ai.util._json import JSONSchema
 
 from .types import AgentBridge
 from .util import (
@@ -152,6 +153,19 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
     config.stop_seqs = generation_config.get(
         "stopSequences", generation_config.get("stop_sequences")
     )
+
+    # structured output: responseJsonSchema is standard JSON Schema; responseSchema
+    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize.
+    schema = generation_config.get("responseJsonSchema") or generation_config.get(
+        "responseSchema"
+    )
+    if schema:
+        config.response_schema = ResponseSchema(
+            name="response",
+            json_schema=JSONSchema.model_validate(
+                _google_schema_to_json_schema(schema)
+            ),
+        )
 
     # NOTE: We deliberately do NOT set config.system_message from system_instruction here.
     # The system_instruction is already converted to ChatMessageSystem messages in
@@ -621,3 +635,25 @@ def _convert_google_enums(obj: Any) -> Any:
     elif hasattr(obj, "value"):  # Enum-like object
         return str(obj.value).lower()
     return obj
+
+
+def _google_schema_to_json_schema(schema: Any) -> Any:
+    """Normalize a Gemini OpenAPI-style Schema into a standard JSON Schema dict."""
+    return _lowercase_schema_types(_convert_google_enums(schema))
+
+
+def _lowercase_schema_types(value: Any) -> Any:
+    # Gemini emits uppercase JSON Schema `type` names like "OBJECT" / "STRING".
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            if k == "type" and isinstance(v, str):
+                out[k] = v.lower()
+            elif k == "type" and isinstance(v, list):
+                out[k] = [t.lower() if isinstance(t, str) else t for t in v]
+            else:
+                out[k] = _lowercase_schema_types(v)
+        return out
+    if isinstance(value, list):
+        return [_lowercase_schema_types(v) for v in value]
+    return value

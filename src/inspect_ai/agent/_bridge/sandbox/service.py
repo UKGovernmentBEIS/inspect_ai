@@ -1,5 +1,5 @@
 from logging import getLogger  # noqa: E402
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, cast
 
 import anyio
 from pydantic import JsonValue
@@ -10,6 +10,7 @@ from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
+from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
@@ -19,6 +20,41 @@ from .types import SandboxAgentBridge
 logger = getLogger(__name__)
 
 MODEL_SERVICE = "bridge_model_service"
+
+GenerateMethod = Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]
+
+
+def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
+    """Convert a failed generate into a forwardable provider-error result.
+
+    Any exception from the wrapped generate is returned (not raised) under
+    `PROVIDER_ERROR_KEY` so the sandbox service RPC delivers it via the `result`
+    channel. This lets the model proxy emit a provider-dialect error response
+    and stay up, instead of the RPC `error` channel triggering a fatal exit.
+    """
+
+    async def generate_forwarding_errors(
+        json_data: dict[str, JsonValue],
+    ) -> dict[str, JsonValue]:
+        try:
+            return await generate(json_data)
+        except Exception as ex:
+            payload = provider_error_payload(ex)
+            # A payload with no recoverable HTTP status almost always means the
+            # failure came from our own request translation rather than the
+            # provider (a provider error carries a status). Log it with a
+            # traceback so a real bug isn't silently masked by forwarding it to
+            # the client as an error response.
+            if payload["status"] is None:
+                logger.warning(
+                    "Agent bridge model request failed with a non-provider error "
+                    "(forwarding to the client as an error response): %s",
+                    ex,
+                    exc_info=True,
+                )
+            return {PROVIDER_ERROR_KEY: cast(JsonValue, payload)}
+
+    return generate_forwarding_errors
 
 
 async def run_model_service(
@@ -32,14 +68,18 @@ async def run_model_service(
     await sandbox_service(
         name=MODEL_SERVICE,
         methods={
-            "generate_completions": generate_completions(bridge),
-            "generate_responses": generate_responses(
-                web_search, code_execution, bridge
+            "generate_completions": _forward_provider_errors(
+                generate_completions(bridge)
             ),
-            "generate_anthropic": generate_anthropic(
-                web_search, code_execution, bridge
+            "generate_responses": _forward_provider_errors(
+                generate_responses(web_search, code_execution, bridge)
             ),
-            "generate_google": generate_google(web_search, code_execution, bridge),
+            "generate_anthropic": _forward_provider_errors(
+                generate_anthropic(web_search, code_execution, bridge)
+            ),
+            "generate_google": _forward_provider_errors(
+                generate_google(web_search, code_execution, bridge)
+            ),
             "list_tools": list_tools(bridge),
             "call_tool": call_tool(bridge),
         },
