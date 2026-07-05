@@ -137,7 +137,11 @@ class SGLangAPI(OpenAICompatibleAPI):
         if not api_key:
             api_key = "inspectai"  # Create a default API key if not provided
 
-        if "reasoning_parser" not in self.server_args:
+        missing = object()
+        parser = self.server_args.get("reasoning_parser", missing)
+        if parser is None or str(parser).strip().lower() in ("", "none"):
+            self.server_args.pop("reasoning_parser", None)
+        elif parser is missing:
             self.server_args["reasoning_parser"] = "auto"
 
         # Handle device configuration

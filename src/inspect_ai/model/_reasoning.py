@@ -1,4 +1,5 @@
 import base64
+import fnmatch
 import html
 import json
 import re
@@ -17,57 +18,152 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 logger = getLogger(__name__)
 
 
+class ReasoningParserRule(NamedTuple):
+    families: tuple[str, ...]
+    parser: str
+    include: tuple[str, ...]
+
+
 NO_REASONING_MODEL_PATTERNS: tuple[str, ...] = (
-    r"(^|/)[^/]*(?:Base|Embedding|Reranker|Guard)(?:[-._/]|$)[^/]*",
-    r"(^|/)[^/]*(?:Non[-._]?Thinking|No[-._]?Think)(?:[-._/]|$)[^/]*",
-    r"(^|/)Qwen3(?:\.\d+)*-[^/]*Instruct(?:[-._/]|$)[^/]*",
-    r"(^|/)Qwen3-Coder-Next(?:[-._/]|$)[^/]*",
-    r"(^|/)Kimi-K2(?:\.\d+)*-[^/]*Instruct(?:[-._/]|$)[^/]*",
+    "*[-._/]base*",
+    "*[-._/]embedding*",
+    "*[-._/]reranker*",
+    "*[-._/]guard*",
+    "*no*think*",
+    "*qwen3*instruct*",
+    "*qwen3-coder-next*",
+    "*kimi-k2*instruct*",
 )
 
-REASONING_PARSER_BY_MODEL: tuple[tuple[str, str], ...] = (
-    (r"(^|/)DeepSeek-V4(?:[-_/]|$)[^/]*", "deepseek_v4"),
-    (r"(^|/)DeepSeek-V3(?:[-_/]|$)[^/]*", "deepseek_v3"),
-
-    (r"(^|/)(?:DeepSeek-R1|QwQ|Intern-S1)(?:[-._/]|$)[^/]*", "deepseek_r1"),
-    (r"(^|/)Trinity-[^/]*(?:Think|Reasoning)[^/]*", "deepseek_r1"),
-
-    (r"(^|/)Qwen3(?:[-._/]|$)[^/]*", "qwen3"),
-    (r"(^|/)Intern-S[2-9]\d*(?:[-._/]|$)[^/]*", "qwen3"),
-    (r"(^|/)Mellum\d*-[^/]*(?:Think|Reasoning)[^/]*", "qwen3"),
-
-    (r"(^|/)Kimi-K2(?:[-._/]|$)[^/]*", "kimi_k2"),
-
-    (r"(^|/)(?:Magistral(?:[-._/]|$)|Ministral[^/]*Reasoning)[^/]*", "mistral"),
-    (r"(^|/)Mistral-(?:Medium-3\.5|Small-4)(?:[-._/]|$)[^/]*", "mistral"),
-
-    (r"(^|/)(?:MiniMax|MM)-M2(?:[-._/]|$)[^/]*", "minimax_m2"),
-
-    (r"(^|/)GLM-(?:4\.(?:[5-9]|[1-9]\d+)|5(?:\.\d+)*)(?:V)?(?:[-._/]|$)[^/]*", "glm45"),
-    (r"(^|/)(?:GLM-GA|Glyph)(?:[-._/]|$)[^/]*", "glm45"),
-
-    (r"(^|/)gemma-4(?:[-._/]|$)[^/]*", "gemma4"),
-    (r"(^|/)ERNIE-4(?:\.\d+)*-[^/]*Thinking[^/]*", "ernie45"),
-    (r"(^|/)granite-3\.(?:[2-9]|[1-9]\d+)(?:[-._/]|$)[^/]*", "granite"),
-
-    (r"(^|/)Hunyuan-[^/]*A13B(?:[-._/]|$)[^/]*", "hunyuan_a13b"),
-    (r"(^|/)(?:Hy3|Hunyuan-?3)(?:[-._/]|$)[^/]*", "hy_v3"),
-    (r"(^|/)Holo2(?:[-._/]|$)[^/]*", "holo2"),
-
-    (r"(^|/)(?:Xiaomi)?MiMo-V2(?:[-._/]|$)[^/]*", "mimo"),
-    (r"(^|/)Olmo-3(?:\.\d+)*-[^/]*(?:Think|Reasoning)[^/]*", "olmo3"),
-    (r"(^|/)Seed[-._]?OSS(?:[-._/]|$)[^/]*", "seed_oss"),
-
-    (r"(^|/)(?:NVIDIA-)?Nemotron-3-(?:Super|Ultra)(?:[-._/]|$)[^/]*", "nemotron_v3"),
-    (r"(^|/)(?:NVIDIA-)?Nemotron-3-[^/]*(?:Omni|Reasoning)[^/]*", "nemotron_v3"),
-
-    (r"(^|/)Step-3\.(?:[5-9]|[1-9]\d+)(?:[-._/]|$)[^/]*", "step3p5"),
-    (r"(^|/)Step-3(?:[-._/]|$)[^/]*", "step3"),
-
-    (r"(^|/)command-a-[^/]*reasoning[^/]*", "cohere_command3"),
-    (r"(^|/)(?:command-a-plus(?:[-._/]|$)|North-)[^/]*", "cohere_command4"),
-
-    (r"(^|/)(?:Laguna(?:[-._/]|$)|Poolside-[^/]*Laguna)[^/]*", "poolside_v1"),
+REASONING_PARSER_RULES: tuple[ReasoningParserRule, ...] = (
+    ReasoningParserRule(("DeepSeek V4",), "deepseek_v4", ("*deepseek-v4*",)),
+    ReasoningParserRule(("DeepSeek V3",), "deepseek_v3", ("*deepseek-v3*",)),
+    ReasoningParserRule(
+        ("DeepSeek R1", "QwQ", "Intern-S1", "Trinity"),
+        "deepseek_r1",
+        (
+            "*deepseek-r1*",
+            "*qwq*",
+            "*intern-s1*",
+            "*trinity-*think*",
+            "*trinity-*reasoning*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("Qwen3", "Intern-S2+", "Mellum"),
+        "qwen3",
+        (
+            "*qwen3*",
+            "*intern-s[2-9]*",
+            "*mellum*-*think*",
+            "*mellum*-*reasoning*",
+        ),
+    ),
+    ReasoningParserRule(("Kimi K2",), "kimi_k2", ("*kimi-k2*",)),
+    ReasoningParserRule(
+        ("Mistral", "Magistral", "Ministral"),
+        "mistral",
+        (
+            "*magistral*",
+            "*ministral*reasoning*",
+            "*mistral-medium-3.5*",
+            "*mistral-small-4*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("MiniMax M2", "MM M2"),
+        "minimax_m2",
+        ("*minimax-m2*", "*mm-m2*"),
+    ),
+    ReasoningParserRule(
+        ("GLM", "Glyph"),
+        "glm45",
+        (
+            "*glm-4.[5-9]*",
+            "*glm-4.[1-9][0-9]*",
+            "*glm-5*",
+            "*glm-ga*",
+            "*glyph*",
+        ),
+    ),
+    ReasoningParserRule(("Gemma 4",), "gemma4", ("*gemma-4*",)),
+    ReasoningParserRule(("ERNIE 4.5",), "ernie45", ("*ernie-4*-*thinking*",)),
+    ReasoningParserRule(
+        ("Granite",),
+        "granite",
+        (
+            "*granite-3.[2-9]*",
+            "*granite-3.[1-9][0-9]*",
+        ),
+    ),
+    ReasoningParserRule(("Hunyuan A13B",), "hunyuan_a13b", ("*hunyuan-*a13b*",)),
+    ReasoningParserRule(
+        ("Hunyuan V3", "Hy3"),
+        "hy_v3",
+        (
+            "*hy3*",
+            "*hunyuan3*",
+            "*hunyuan-3*",
+        ),
+    ),
+    ReasoningParserRule(("Holo2",), "holo2", ("*holo2*",)),
+    ReasoningParserRule(
+        ("MiMo V2", "Xiaomi MiMo V2"),
+        "mimo",
+        (
+            "*mimo-v2*",
+            "*xiaomimimo-v2*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("Olmo 3",),
+        "olmo3",
+        ("*olmo-3*-*think*", "*olmo-3*-*reasoning*"),
+    ),
+    ReasoningParserRule(
+        ("Seed OSS",),
+        "seed_oss",
+        (
+            "*seed-oss*",
+            "*seed_oss*",
+            "*seedoss*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("Nemotron V3", "NVIDIA Nemotron V3"),
+        "nemotron_v3",
+        (
+            "*nemotron-3-super*",
+            "*nvidia-nemotron-3-super*",
+            "*nemotron-3-ultra*",
+            "*nvidia-nemotron-3-ultra*",
+            "*nemotron-3-*omni*",
+            "*nemotron-3-*reasoning*",
+            "*nvidia-nemotron-3-*omni*",
+            "*nvidia-nemotron-3-*reasoning*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("Step 3.5+",),
+        "step3p5",
+        ("*step-3.[5-9]*", "*step-3.[1-9][0-9]*"),
+    ),
+    ReasoningParserRule(("Step 3",), "step3", ("*step-3*",)),
+    ReasoningParserRule(
+        ("Cohere Command A reasoning",),
+        "cohere_command3",
+        ("*command-a-*reasoning*",),
+    ),
+    ReasoningParserRule(
+        ("Cohere Command A Plus", "North"),
+        "cohere_command4",
+        ("*command-a-plus*", "*north-*"),
+    ),
+    ReasoningParserRule(
+        ("Poolside V1", "Laguna"),
+        "poolside_v1",
+        ("*laguna*", "*poolside-*laguna*"),
+    ),
 )
 
 # Fixed effort -> token budget table used to bridge `reasoning_effort` onto
@@ -181,15 +277,19 @@ def reasoning_parser_for_model(model: str | None) -> str | None:
     if not model:
         return None
 
-    for pattern in NO_REASONING_MODEL_PATTERNS:
-        if re.search(pattern, model, re.IGNORECASE):
-            return None
+    if _matches_model_patterns(model, NO_REASONING_MODEL_PATTERNS):
+        return None
 
-    for pattern, parser in REASONING_PARSER_BY_MODEL:
-        if re.search(pattern, model, re.IGNORECASE):
-            return parser
+    for rule in REASONING_PARSER_RULES:
+        if _matches_model_patterns(model, rule.include):
+            return rule.parser
 
     return None
+
+
+def _matches_model_patterns(model: str, patterns: tuple[str, ...]) -> bool:
+    model_path = f"/{model}".lower()
+    return any(fnmatch.fnmatchcase(model_path, pattern) for pattern in patterns)
 
 
 def _parse_attr(attrs_str: str, name: str) -> str | None:

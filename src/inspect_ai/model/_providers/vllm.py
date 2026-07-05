@@ -267,7 +267,11 @@ class VLLMAPI(OpenAICompatibleAPI):
         # Work on a copy — the pops below are destructive and the original
         # must survive intact for restarts after close().
         server_args = dict(self.server_args)
-        if "reasoning_parser" not in server_args:
+        missing = object()
+        parser = server_args.get("reasoning_parser", missing)
+        if parser is None or str(parser).strip().lower() in ("", "none"):
+            server_args.pop("reasoning_parser", None)
+        elif parser is missing:
             reasoning_parser = reasoning_parser_for_model(model_path)
             if reasoning_parser:
                 server_args["reasoning_parser"] = reasoning_parser

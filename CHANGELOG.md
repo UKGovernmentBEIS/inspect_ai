@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
+- Reasoning: Auto-detect vLLM reasoning parsers for known open-weight model families.
 
 ## 0.3.226 (25 May 2026)
 

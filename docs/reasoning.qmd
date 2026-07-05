@@ -168,7 +168,7 @@ For vLLM, Inspect configures the reasoning parser automatically for known model 
 inspect eval math.py --model vllm/Qwen/Qwen3-8B -M reasoning_parser=qwen3
 ```
 
-For SGLang, Inspect starts the local server with `reasoning_parser=auto` unless you provide a parser explicitly.
+For SGLang, Inspect starts the local server with `reasoning_parser=auto` unless you provide a parser explicitly. Pass `-M reasoning_parser=none` to omit the reasoning parser server argument.
 
 Thinking mode is model-specific and controlled separately from `--reasoning-effort`. For models where vLLM exposes template switches such as `enable_thinking` or `thinking`, pass them as chat-template kwargs:
 
