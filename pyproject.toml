@@ -171,6 +171,7 @@ inspect = "inspect_ai._cli.main:main"
 ba = "ba"
 lsat = "lsat"
 aimd = "aimd"
+retuned = "retuned"
 
 [dependency-groups]
 dev = ["inspect_ai[dev]"]
