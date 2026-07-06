@@ -402,7 +402,8 @@ def test_write_file_streaming_s3(mock_s3: None) -> None:
 
 
 class _RetryingUploadClient:
-    def __init__(self) -> None:
+    def __init__(self, fail_times: int = 1) -> None:
+        self.fail_times = fail_times
         self.calls = 0
         self.uploaded: list[bytes] = []
 
@@ -411,7 +412,7 @@ class _RetryingUploadClient:
     ) -> None:
         self.calls += 1
         data = Fileobj.read()
-        if self.calls == 1:
+        if self.calls <= self.fail_times:
             raise ClientError(
                 cast(
                     Any,
@@ -495,6 +496,33 @@ async def test_write_file_streaming_s3_retries_stale_signature_from_start(
         await fs.write_file_streaming("s3://bucket/path/log.eval", io.BytesIO(content))
 
     assert client.calls == 2
+    assert client.uploaded == [content]
+
+
+async def test_write_file_streaming_s3_retries_stale_signature_full_budget(
+    monkeypatch,
+):
+    """All stop_after_attempt(5) attempts are available (no wall-clock stop)."""
+    client = _RetryingUploadClient(fail_times=4)
+
+    async def s3_client_async(self):
+        return client
+
+    def s3_client(self):
+        return _SyncUploadClient(client)
+
+    async def no_sleep(seconds: float) -> None:
+        pass
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+    monkeypatch.setattr(AsyncFilesystem, "s3_client", s3_client)
+    monkeypatch.setattr("inspect_ai._util.asyncfiles.anyio.sleep", no_sleep)
+
+    content = b"full eval log contents"
+    async with AsyncFilesystem() as fs:
+        await fs.write_file_streaming("s3://bucket/path/log.eval", io.BytesIO(content))
+
+    assert client.calls == 5
     assert client.uploaded == [content]
 
 

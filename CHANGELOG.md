@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Stale-signature (`RequestTimeTooSkewed`) retries of S3 log writes now always get their full 5 attempts. The previous 60-second wall-clock stop meant a single slow failed attempt — the very condition that staled the signature — exhausted the budget without a retry.
 - Control Channel: Added `inspect ctl limits` to view or retune a running eval's `max_samples` / `max_sandboxes` / `max_connections` concurrency limits mid-flight (with `--dry-run`).
 - vLLM: Keep the connection-pool/adaptive-concurrency scope stable across lazy server startup instead of splitting it on the first generate.
 - Bugfix: Sample concurrency now honors model-level `max_connections` / `adaptive_connections` settings instead of classifying the adaptive-vs-static path from task-level config alone.
