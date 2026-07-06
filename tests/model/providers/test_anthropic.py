@@ -543,6 +543,34 @@ async def test_anthropic_count_tokens_empty_reasoning_block() -> None:
     assert token_count > 0
 
 
+@skip_if_no_anthropic
+async def test_anthropic_count_tokens_nonempty_thinking_empty_signature() -> None:
+    """count_tokens must not 400 on a reasoning block with text but no signature.
+
+    A third production shape (reported alongside the other two): a thinking block
+    with *non-empty* summary text but an empty signature reconstructs to a
+    `thinking` block with real `thinking` and empty `signature`, which the API
+    rejects with "Invalid signature in thinking block" — distinct from the
+    empty-text case's "each thinking block must contain thinking". Both stem from
+    the same root cause (an empty signature), which is why neutralization strips
+    every thinking block regardless of its signature. This needs no real
+    signature, so the input is deterministic. Verified end-to-end: without
+    neutralization this 400s against the live API; with it, it succeeds.
+    """
+    model = get_model("anthropic/claude-opus-4-8")
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                summary="I'm working through the relativePathTo test cases.",
+                reasoning="",
+            ),
+            ContentText(text="done"),
+        ]
+    )
+    token_count = await model.api.count_tokens([message])
+    assert token_count > 0
+
+
 def test_neutralize_thinking_for_token_counting() -> None:
     """Thinking/redacted blocks are replaced with text before count_tokens.
 

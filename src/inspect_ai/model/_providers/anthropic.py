@@ -4230,18 +4230,23 @@ def neutralize_thinking_for_token_counting(
     """Replace thinking/redacted_thinking blocks with text for token counting.
 
     Anthropic's count_tokens API validates thinking blocks the same way generate
-    does: a `thinking` block must contain non-empty thinking text, and the
-    thinking/redacted_thinking blocks in the *latest* assistant message must
-    match the signature from the original response (they "cannot be modified").
+    does, and a block whose signature is empty or altered is rejected several
+    ways depending on its text: empty text + empty signature -> "each thinking
+    block must contain thinking"; non-empty text + empty signature -> "Invalid
+    signature in thinking block"; and any thinking/redacted_thinking block in the
+    *latest* assistant message must match the original response's signature or it
+    "cannot be modified". An empty signature is the common thread across the
+    reported failures.
 
-    Neither invariant holds here. Compaction counts message *subsets*, so an
-    older assistant turn becomes the "latest" one and gets the strict signature
+    None of these invariants hold here. Compaction counts message *subsets*, so
+    an older assistant turn becomes the "latest" one and gets the strict signature
     check it escaped in generate; and those blocks may carry empty summary text
     (Claude 4.7+ default `display: "omitted"`) or be reconstructed on a fresh
-    process where the verbatim-replay cache is empty. For a token estimate we
-    don't need valid signatures — replacing thinking with equivalent text keeps
-    the approximate token weight while sidestepping both validations. Redacted
-    blocks carry no readable text to substitute, so they're dropped.
+    process where the verbatim-replay cache is empty (leaving an empty signature).
+    For a token estimate we don't need valid signatures — replacing every thinking
+    block with equivalent text keeps the approximate token weight while sidestepping
+    all of these validations. Redacted blocks carry no readable text to substitute,
+    so they're dropped.
 
     This can slightly undercount reasoning tokens (a summary is shorter than the
     reasoning it stands in for; a dropped redacted block counts as zero), which is
