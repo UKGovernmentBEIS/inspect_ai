@@ -1,6 +1,7 @@
 """End-to-end tests for adaptive_connections wiring through Model.generate."""
 
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -552,6 +553,58 @@ async def test_ensure_model_controller_skips_no_model() -> None:
     model = get_model("none/none")
     await ensure_model_controller(model, GenerateConfig(adaptive_connections=True))
     assert adaptive_controllers() == []
+
+
+def test_sample_semaphore_composes_model_config() -> None:
+    """The sample-semaphore path classifies from the model-composed config.
+
+    Regression (meridianlabs-ai/inspect_ai#32): the task_run call site passed
+    the task-level config alone, so a model whose own config disables adaptive
+    (explicit max_connections / adaptive_connections=False) got a
+    DynamicSampleLimiter parked at start + BUFFER instead of the static path
+    the generate side actually takes, and a model carrying its own
+    AdaptiveConcurrency had its bounds ignored for the limiter's initial
+    value. Exercised through the call site's composition expression.
+    """
+    from inspect_ai._eval.task.run import create_sample_semaphore
+    from inspect_ai.log._log import EvalConfig
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        ResizableLimiter,
+        init_concurrency,
+    )
+
+    def semaphore(model_config: GenerateConfig, task_config: GenerateConfig) -> Any:
+        init_concurrency()
+        model = get_model("mockllm/model", config=model_config)
+        return create_sample_semaphore(
+            EvalConfig(), model.config.merge(task_config), model.api
+        )
+
+    # model-level explicit max_connections → static path sized from it
+    sem = semaphore(GenerateConfig(max_connections=20), GenerateConfig())
+    assert isinstance(sem, ResizableLimiter)
+    assert sem.limit == 20
+
+    # model-level opt-out → static path sized from the provider default
+    sem = semaphore(GenerateConfig(adaptive_connections=False), GenerateConfig())
+    assert isinstance(sem, ResizableLimiter)
+    assert sem.limit == get_model("mockllm/model").api.max_connections()
+
+    # model-level adaptive bounds drive the limiter's initial value
+    sem = semaphore(
+        GenerateConfig(adaptive_connections=AdaptiveConcurrency(min=1, start=2, max=4)),
+        GenerateConfig(),
+    )
+    assert isinstance(sem, DynamicSampleLimiter)
+    assert sem.total_tokens == 2 + DynamicSampleLimiter.BUFFER
+
+    # task-level config still wins over model-level (merge direction)
+    sem = semaphore(
+        GenerateConfig(adaptive_connections=False),
+        GenerateConfig(adaptive_connections=True),
+    )
+    assert isinstance(sem, DynamicSampleLimiter)
 
 
 def test_sample_semaphore_shared_across_retry_attempts() -> None:

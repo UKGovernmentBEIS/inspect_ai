@@ -498,7 +498,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             await emit_task_start(logger)
 
             sample_semaphore = create_sample_semaphore(
-                config, generate_config, model.api, task_id=logger.eval.task_id
+                config,
+                model.config.merge(generate_config),
+                model.api,
+                task_id=logger.eval.task_id,
             )
 
             # Register this eval with the process-level state aggregate
@@ -2066,6 +2069,14 @@ def create_sample_semaphore(
     path follows the model's connection controller, and the static path
     defaults from ``max_connections`` (so the connection pool always
     saturates).
+
+    ``generate_config`` must be the model-composed config
+    (``model.config.merge(task_config)``, the same composition
+    ``Model._resolve_config`` applies) — classifying from the task-level
+    config alone would disagree with the generate path when the model
+    carries its own ``max_connections`` / ``adaptive_connections``,
+    coupling sample concurrency to a controller generates never use (see
+    ``ensure_model_controller`` for the same contract on the eager side).
 
     Semaphores are task-scoped, not attempt-scoped: they're registered under
     ``task_id`` and an in-process retry reuses its predecessor's semaphore,
