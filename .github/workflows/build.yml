@@ -22,9 +22,6 @@ env:
 jobs:
   ruff:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11"]
     steps:
       - uses: actions/checkout@v7
         with:
