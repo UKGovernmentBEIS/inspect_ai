@@ -19,6 +19,7 @@ from anthropic.types import (
     ToolReferenceBlockParam,
     Usage,
     WebSearchTool20250305Param,
+    WebSearchTool20260209Param,
 )
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
@@ -152,7 +153,7 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # update state if we have more messages than the last generation
-    bridge._track_state(messages, output)
+    await bridge._track_state(messages, output)
 
     # return message (use beta message type if request came from beta endpoint)
     message_class = BetaMessage if beta else Message
@@ -203,6 +204,16 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     if thinking:
         if thinking.get("type", None) == "enabled":
             config.reasoning_tokens = thinking.get("budget_tokens", None)
+
+    # `output_config.effort` carries the reasoning depth for adaptive thinking
+    # (Claude 4.6+ clients send `thinking: {"type": "adaptive"}` and convey the
+    # depth here rather than via `budget_tokens`). Forward it so the served model
+    # keeps the requested effort instead of silently dropping it.
+    output_config = json_data.get("output_config", None)
+    if output_config:
+        effort = output_config.get("effort", None)
+        if effort is not None:
+            config.effort = effort
 
     tool_choice = json_data.get("tool_choice", {})
     if tool_choice.get("disable_parallel_tool_use", None) is True:
@@ -305,7 +316,8 @@ def tools_from_anthropic_tools(
 
 
 def resolve_web_search_providers(
-    tool_param: WebSearchTool20250305Param, web_search: WebSearchProviders
+    tool_param: WebSearchTool20250305Param | WebSearchTool20260209Param,
+    web_search: WebSearchProviders,
 ) -> WebSearchProviders:
     # pass through anthropic options if there is no special anthropic config
     anthropic_options = web_search.get("anthropic", False)

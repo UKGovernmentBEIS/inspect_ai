@@ -1,7 +1,6 @@
 import random
 import string
 from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
-from unittest import mock
 
 import anyio
 
@@ -10,6 +9,7 @@ from inspect_ai.util import (
     SandboxEnvironment,
     SandboxEnvironmentLimits,
 )
+from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
 # If you're wondering these tests are not using pytest fixtures,
 # see the discussion https://github.com/UKGovernmentBEIS/inspect_ai/pull/347
@@ -70,6 +70,8 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_binary_file_exists,
         test_exec_output,
         test_exec_stderr,
+        test_exec_output_utf,
+        test_exec_stderr_utf,
         test_exec_returncode,
         test_exec_timeout,
         test_exec_timeout_not_raised_on_fast_signal_death,
@@ -81,6 +83,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_exec_input_shell_special,
         test_exec_input_binary,
         test_exec_input_large,
+        test_exec_large_command,
         test_exec_as_user,
         test_exec_as_nonexistent_user,
         test_cwd_unspecified,
@@ -234,12 +237,12 @@ async def test_read_file_nonsense_name(
 async def test_read_file_limit(sandbox_env: SandboxEnvironment) -> None:
     file_name = "large.file"
     await sandbox_env.write_file(file_name, "a" * 2048)  # 2 KiB
-    # Patch limit down to 1KiB for the test to save us from writing a 100 MiB file.
-    with mock.patch.object(SandboxEnvironmentLimits, "MAX_READ_FILE_SIZE", 1024):
+    with override_max_read_file_size(1024):
+        expected_limit = SandboxEnvironmentLimits.MAX_READ_FILE_SIZE_STR
         with Raises(OutputLimitExceededError) as e_info:
             await sandbox_env.read_file(file_name, text=True)
     assert e_info is not None, "OutputLimitExceededError should be raised"
-    assert "limit of 100 MiB was exceeded" in str(e_info.value), (
+    assert f"limit of {expected_limit} was exceeded" in str(e_info.value), (
         f"OutputLimitExceededError should mention the limit, got {e_info.value=}"
     )
     await _cleanup_file(sandbox_env, file_name)
@@ -411,6 +414,51 @@ async def test_exec_stderr(sandbox_env: SandboxEnvironment) -> None:
     )
 
 
+# Non-ASCII output (valid UTF-8) must decode correctly on stdout/stderr.
+# ExecResult fields are str, so the bytes a command emits should round-trip as
+# the equivalent text. Catches implementations that surface the raw transport
+# encoding instead of decoding it (e.g. latin-1 mojibake).
+_UTF8_OUTPUT = "café résumé €100 中文 😀"
+
+
+def _utf8_octal_escapes() -> str:
+    # Octal escapes for each UTF-8 byte of _UTF8_OUTPUT, e.g. r"\303\251...".
+    # 3-digit zero-padded so an adjacent digit can't extend the escape.
+    return "".join(f"\\{b:03o}" for b in _UTF8_OUTPUT.encode("utf-8"))
+
+
+async def test_exec_output_utf(sandbox_env: SandboxEnvironment) -> None:
+    # Write the file byte-by-byte from ASCII-only octal escapes, then cat it, so
+    # the *command* carries no non-ASCII bytes. Interpolating _UTF8_OUTPUT into
+    # the command instead would let a symmetric transport bug hide: the same
+    # wrong encode going in and wrong decode coming out cancel, and the round
+    # trip passes while both directions are broken. Generating the bytes inside
+    # the sandbox exercises only the output-decode path.
+    octal = _utf8_octal_escapes()
+    file_name = "test_exec_output_utf.file"
+    exec_result = await sandbox_env.exec(
+        ["sh", "-c", f"printf '{octal}' > {file_name} && cat {file_name}"]
+    )
+    assert exec_result.stdout == _UTF8_OUTPUT, (
+        f"non-ASCII stdout should round-trip; expected {_UTF8_OUTPUT.encode('UTF-8')!r}, "
+        f"got {exec_result.stdout.encode('UTF-8')!r}"
+    )
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_exec_stderr_utf(sandbox_env: SandboxEnvironment) -> None:
+    octal = _utf8_octal_escapes()
+    file_name = "test_exec_stderr_utf.file"
+    exec_result = await sandbox_env.exec(
+        ["sh", "-c", f"printf '{octal}' > {file_name} && cat {file_name} >&2"]
+    )
+    assert exec_result.stderr == _UTF8_OUTPUT, (
+        f"non-ASCII stderr should round-trip; expected {_UTF8_OUTPUT.encode('UTF-8')!r}, "
+        f"got {exec_result.stderr.encode('UTF-8')!r}"
+    )
+    await _cleanup_file(sandbox_env, file_name)
+
+
 async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
     exec_result = await sandbox_env.exec(["sh", "-c", "echo foo; exit 70"])
     assert exec_result.returncode == 70, (
@@ -577,6 +625,23 @@ async def test_exec_input_large(sandbox_env: SandboxEnvironment) -> None:
     reported = int(result.stdout.strip().split()[0])
     assert reported == size, (
         f"wc -c reported {reported} bytes from stdin, expected {size}"
+    )
+
+
+async def test_exec_large_command(sandbox_env: SandboxEnvironment) -> None:
+    # Command analogue of test_exec_input_large: stresses the argv/command
+    # transport, not stdin. Many medium args rather than one giant one — a single
+    # argv element is capped at MAX_ARG_STRLEN (128 KiB) regardless of ARG_MAX, so
+    # a ~1 MiB arg fails with E2BIG. printf %s cycles over every arg, so stdout is
+    # the args concatenated.
+    chunk = "x" * (64 * 1024)
+    n = 16  # ~1 MiB total argv, under a typical 2 MiB ARG_MAX
+    result = await sandbox_env.exec(["printf", "%s", *([chunk] * n)])
+    assert result.success, f"printf failed: stderr=[{result.stderr}]"
+    expected = chunk * n
+    assert result.stdout == expected, (
+        f"large command arguments should round-trip; "
+        f"got {len(result.stdout)} bytes, expected {len(expected)}"
     )
 
 

@@ -496,6 +496,21 @@ def test_base_exception_finalizes_sync_worker_state(
 
     monkeypatch.setattr(database_module, "sync_to_filestore", sync_that_stops)
 
+    # The shared_db fixture's start_sample() spawns a live background sync
+    # worker. Shut it down before driving _sync_to_filestore() synchronously,
+    # otherwise that worker can win the race for the forced-due sync request,
+    # consume it, and exit — leaving this thread's direct call blocked forever
+    # in _sync_wakeup.wait(timeout=None).
+    with shared_db._sync_lock:
+        shared_db._sync_closed = True
+        shared_db._sync_wakeup.notify_all()
+        background_worker = shared_db._sync_thread
+    if background_worker is not None and (
+        background_worker is not threading.current_thread()
+    ):
+        background_worker.join(timeout=5)
+    shared_db._sync_closed = False
+
     shared_db._sync_thread = threading.current_thread()
     shared_db._sync_requested = True
     shared_db._sync_pending = True
@@ -509,3 +524,58 @@ def test_base_exception_finalizes_sync_worker_state(
 
     assert shared_db._sync_thread is None
     assert shared_db._sync_pending is False
+
+
+def test_set_sync_interval_retunes_shared_sync(
+    shared_db: SampleBufferDatabase,
+) -> None:
+    assert shared_db.log_shared == 30
+
+    assert shared_db.set_sync_interval(5) is True
+    assert shared_db.log_shared == 5
+    assert shared_db._sync_filestore is not None
+    assert shared_db._sync_filestore.update_interval == 5
+
+    # clamped to a minimum of 1 second
+    assert shared_db.set_sync_interval(0) is True
+    assert shared_db.log_shared == 1
+
+
+def test_set_sync_interval_noop_without_shared_sync(tmp_path: Path) -> None:
+    # a buffer opened without `log_shared` has no shared filestore to retune
+    db = SampleBufferDatabase(
+        location=str(tmp_path / "local.eval"),
+        create=True,
+        db_dir=tmp_path / "db",
+    )
+    try:
+        assert db.log_shared is None
+        assert db.set_sync_interval(5) is False
+        assert db.log_shared is None
+    finally:
+        db.cleanup()
+
+
+def test_shared_sync_interval_reports_active_value(
+    shared_db: SampleBufferDatabase,
+) -> None:
+    # shared sync is configured (filestore created) → report the interval
+    assert shared_db._sync_filestore is not None
+    assert shared_db.shared_sync_interval == 30
+
+
+def test_shared_sync_interval_off_normalizes_to_none(tmp_path: Path) -> None:
+    # log_shared=0 ("off" from a normal CLI run) stores 0 but creates no
+    # filestore; the effective interval must read as None, not 0
+    db = SampleBufferDatabase(
+        location=str(tmp_path / "local.eval"),
+        create=True,
+        log_shared=0,
+        db_dir=tmp_path / "db",
+    )
+    try:
+        assert db.log_shared == 0
+        assert db._sync_filestore is None
+        assert db.shared_sync_interval is None
+    finally:
+        db.cleanup()

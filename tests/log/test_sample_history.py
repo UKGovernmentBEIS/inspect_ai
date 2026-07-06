@@ -360,9 +360,6 @@ def test_open_sample_history_releases_write_lock_after_snapshot(tmp_path):
 def test_sample_history_read_methods_use_deferred_transactions(
     tmp_path, monkeypatch
 ) -> None:
-    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
-    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
-
     statements: list[str] = []
     original_connect = sqlite3.connect
 
@@ -375,7 +372,15 @@ def test_sample_history_read_methods_use_deferred_transactions(
         kwargs["factory"] = RecordingConnection
         return original_connect(*args, **kwargs)
 
+    # patch before constructing the db so its persistent per-thread connection
+    # records statements; reads reuse that connection rather than opening anew
     monkeypatch.setattr(sqlite3, "connect", connect)
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    # only capture statements issued by the read methods exercised below
+    statements.clear()
 
     assert db.sample_event_count("sample", 1) == 1
     assert db.sample_attachment("sample", 1, "missing") is None
@@ -392,3 +397,183 @@ def test_sample_history_read_methods_use_deferred_transactions(
         if statement.strip().upper().startswith("BEGIN")
     ]
     assert begin_statements == ["BEGIN", "BEGIN", "BEGIN", "BEGIN", "BEGIN"]
+
+
+def test_open_sample_history_from_honors_limit(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=InfoEvent(uuid=f"event-{i}", data=i)
+            )
+            for i in range(5)
+        ]
+    )
+
+    # limit caps the page read from `start` (page-sized cursor reads)
+    with db.open_sample_history_from("sample", 1, 1, limit=2) as history:
+        rows = history.raw_event_rows
+    assert [row.event["data"] for row in rows] == [1, 2]
+
+    # limit=None reads through the end (the prior behavior)
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        rows = history.raw_event_rows
+    assert [row.event["data"] for row in rows] == [1, 2, 3, 4]
+
+    # a limit past the end is harmless
+    with db.open_sample_history_from("sample", 1, 4, limit=10) as history:
+        rows = history.raw_event_rows
+    assert [row.event["data"] for row in rows] == [4]
+
+
+def test_read_only_connection_does_not_recreate_deleted_db(tmp_path):
+    """A read-only buffer reader cannot resurrect a deleted database.
+
+    A reader that doesn't own the buffer (eg. an out-of-process viewer) races
+    the owner: the eval can tear the buffer down while a read is in flight. A
+    plain sqlite connect after deletion silently re-creates an empty database
+    file, which makes `running_tasks()` (a filename glob) report the finished
+    task as still running. `read_only=True` opens with `mode=ro`, which fails
+    instead of creating.
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+    db_path = db.db_path
+
+    # a read-only instance reads normally while the db exists
+    ro = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+    with ro.open_sample_history("sample", 1) as history:
+        assert [event["data"] for event in history.iter_events()] == ["hello"]
+
+    # the race: an instance constructed while the file existed (connections
+    # are lazy, so none is open yet), with the deletion landing before its
+    # first read
+    racing = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+    db._close_all_connections()
+    ro._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+
+    # the read-only reader fails rather than re-creating the file
+    with pytest.raises(sqlite3.OperationalError):
+        with racing.open_sample_history("sample", 1):
+            pass
+    assert not os.path.exists(db_path), "read-only connect re-created the db file"
+
+
+def test_writable_connection_recreates_missing_parent_dir(tmp_path):
+    """A writable buffer re-creates its log directory if a sibling removed it.
+
+    Buffers that share a log directory live in one samplebuffer subdir, and
+    cleanup_sample_buffer_db() rmdir's that subdir whenever it is momentarily
+    empty. A sibling buffer initializing in the same subdir can therefore find
+    its parent directory gone between its own mkdir and connect (or when reusing
+    a persistent connection). The writable connect must re-create the directory
+    and succeed rather than raising "unable to open database file".
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db_path = db.db_path
+    subdir = db_path.parent
+
+    # simulate a sibling's cleanup emptying and removing the shared subdir
+    db._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+    subdir.rmdir()
+    assert not subdir.exists()
+
+    # a writable connect re-creates the directory and succeeds
+    conn = db._open_connection()
+    try:
+        assert subdir.exists()
+    finally:
+        conn.close()
+
+
+def test_read_only_connection_does_not_recreate_missing_parent_dir(tmp_path):
+    """Read-only connections must not resurrect a removed log directory.
+
+    The mirror of the writable case: a reader racing the buffer's teardown must
+    fail cleanly (so callers can degrade) rather than re-create the directory and
+    open an empty database that makes a finished task look running.
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+    db_path = db.db_path
+    subdir = db_path.parent
+
+    ro = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+
+    db._close_all_connections()
+    ro._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+    subdir.rmdir()
+
+    with pytest.raises(sqlite3.OperationalError):
+        ro._open_connection()
+    assert not subdir.exists(), "read-only connect re-created the log directory"
+
+
+def test_read_only_is_incompatible_with_create(tmp_path):
+    with pytest.raises(ValueError, match="read_only"):
+        SampleBufferDatabase(str(tmp_path / "test.eval"), read_only=True)
+
+
+def test_provider_translates_store_failures_to_domain_error(tmp_path):
+    """BufferTranscriptHistoryProvider raises the protocol's domain error.
+
+    Consumers of TranscriptHistoryProvider are storage-agnostic: a backing
+    store torn down mid-read (deleted db file, used-after-cleanup) surfaces
+    as TranscriptHistoryUnavailableError — never as sqlite3 exceptions or the
+    buffer's own RuntimeError.
+    """
+    import os
+
+    from inspect_ai.log import TranscriptHistoryUnavailableError
+    from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+        BufferTranscriptHistoryProvider,
+    )
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    # deleted file (read-only reader, lazily unconnected): OperationalError →
+    # domain error
+    racing = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+    provider = BufferTranscriptHistoryProvider(racing, "sample", 1)
+    db_path = db.db_path
+    db._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+    with pytest.raises(TranscriptHistoryUnavailableError):
+        _ = provider.event_count
+    with pytest.raises(TranscriptHistoryUnavailableError):
+        provider.events_from(0, 10)
+
+    # used-after-cleanup (the buffer's RuntimeError) → domain error too
+    racing._close_all_connections()
+    with pytest.raises(TranscriptHistoryUnavailableError):
+        provider.events_from(0, 10)

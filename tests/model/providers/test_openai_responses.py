@@ -1109,6 +1109,47 @@ def test_openai_responses_tools_image_modality():
     assert len(tools) == 0
 
 
+def test_openai_responses_tools_regroups_namespace():
+    """ToolInfos carrying RESPONSES_NAMESPACE are re-grouped into a NamespaceToolParam."""
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._openai_responses import (
+        RESPONSES_NAMESPACE,
+        openai_responses_tools,
+    )
+    from inspect_ai.tool._tool_info import ToolInfo
+
+    ns = ("multi_agent_v1", "Multi-agent orchestration tools")
+    tools = openai_responses_tools(
+        [
+            ToolInfo(name="exec_command", description="exec"),
+            ToolInfo(
+                name="spawn_agent",
+                description="spawn",
+                options={RESPONSES_NAMESPACE: ns},
+            ),
+            ToolInfo(
+                name="wait_agent",
+                description="wait",
+                options={RESPONSES_NAMESPACE: ns},
+            ),
+        ],
+        "gpt-5",
+        GenerateConfig(),
+    )
+
+    flat = [t for t in tools if t["type"] == "function"]
+    assert len(flat) == 1
+    assert flat[0]["name"] == "exec_command"
+
+    namespaces = [t for t in tools if t["type"] == "namespace"]
+    assert len(namespaces) == 1
+    assert namespaces[0]["name"] == "multi_agent_v1"
+    assert namespaces[0]["description"] == "Multi-agent orchestration tools"
+    inner = list(namespaces[0]["tools"])
+    assert [t["name"] for t in inner] == ["spawn_agent", "wait_agent"]
+    assert all(t["type"] == "function" for t in inner)
+
+
 def test_reasoning_only_fallback_enabled():
     """When fallback is enabled and content is reasoning-only, NO_CONTENT text is appended."""
     model_info = ModelInfo()  # default: has_reasoning_only_fallback() == True

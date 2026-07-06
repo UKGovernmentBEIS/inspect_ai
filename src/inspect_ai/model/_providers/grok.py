@@ -67,6 +67,7 @@ from .._model_output import (
     Logprob,
     Logprobs,
     ModelUsage,
+    StopDetails,
     StopReason,
     TopLogprob,
 )
@@ -327,7 +328,7 @@ class GrokAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.service_model_name()}"
+        return f"{self.initial_api_key}:{self.service_model_name()}"
 
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, grpc.RpcError):
@@ -370,7 +371,11 @@ class GrokAPI(ModelAPI):
         details = ex.details() or ""
         if "safety_check" in details.lower():
             return ModelOutput.from_content(
-                model=self.model_name, content=details, stop_reason="content_filter"
+                model=self.model_name,
+                content=details,
+                stop_reason="content_filter",
+                # xAI has no structured category; surface the error text as explanation
+                stop_details=StopDetails(type="refusal", explanation=details),
             )
         else:
             return None

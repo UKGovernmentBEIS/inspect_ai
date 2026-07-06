@@ -1,10 +1,21 @@
 import functools
+import logging
+import tempfile
 from copy import deepcopy
 
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
-from inspect_ai import Epochs, Task, eval, eval_async
+from inspect_ai import (
+    Epochs,
+    Task,
+    TaskSource,
+    eval,
+    eval_async,
+    eval_set,
+    task,
+    task_source,
+)
 from inspect_ai._util._async import tg_collect
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
@@ -17,6 +28,50 @@ def test_eval_epochs_sample_count():
     assert log.status == "success"
     assert log.samples is not None
     assert len(log.samples) == 6  # 2 samples * 3 epochs
+
+
+def _peak_model_concurrency(max_tasks: int | None) -> int:
+    """Run one task against two models and return the peak concurrent models.
+
+    A `record` solver brackets its work with enter/exit markers; the peak depth
+    of overlapping enter/exit pairs is how many models ran at once.
+    """
+    import anyio
+
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    events: list[str] = []
+
+    @solver
+    def record():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            events.append("enter")
+            await anyio.sleep(0.2)
+            events.append("exit")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="x", target="y")], solver=[record()], name="t")
+    eval(
+        task,
+        model=["mockllm/model", "mockllm/model2"],
+        max_tasks=max_tasks,
+        display="none",
+    )
+
+    depth = peak = 0
+    for e in events:
+        depth += 1 if e == "enter" else -1
+        peak = max(peak, depth)
+    return peak
+
+
+def test_max_tasks_bounds_concurrent_models_single_task():
+    # Regression for #4195: a single task definition fanned across models must
+    # honor max_tasks. max_tasks=1 runs model-by-model; unset runs them all.
+    assert _peak_model_concurrency(max_tasks=1) == 1
+    assert _peak_model_concurrency(max_tasks=None) == 2
 
 
 @pytest.mark.anyio
@@ -93,3 +148,133 @@ def test_eval_sandbox_init_when_first_task_has_no_sandbox():
     assert len(results) == 2
     for r in results:
         assert r.status == "success", f"{r.eval.task}: {r.error}"
+
+
+# -- unconsumed task_args warning (#4194) ------------------------------------
+# task_args only apply to tasks resolved by specification (name, file,
+# TaskInfo, task function/class, or cwd auto-discovery). When every task is a
+# Task instance passed directly, task_args are silently ignored — eval() and
+# eval_set() should warn.
+
+TASK_ARGS_WARNING_SNIPPET = "will not be applied"
+
+
+@task
+def task_args_warning_check(task_arg: str = "default") -> Task:
+    return Task(dataset=[Sample(input=f"{task_arg}: test input")])
+
+
+@pytest.fixture
+def capture_eval_warnings(caplog):
+    # the warning is emitted from resolve_tasks (the loader module). attach
+    # caplog's handler directly to the emitting module logger: eval()
+    # reconfigures the package logger's propagation during the run, so
+    # propagation-based capture misses warnings emitted mid-eval
+    loader_logger = logging.getLogger("inspect_ai._eval.loader")
+    loader_logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        loader_logger.removeHandler(caplog.handler)
+
+
+def _task_args_warnings(caplog) -> list[logging.LogRecord]:
+    return [r for r in caplog.records if TASK_ARGS_WARNING_SNIPPET in r.message]
+
+
+def test_task_instance_with_task_args_warns(capture_eval_warnings) -> None:
+    caplog = capture_eval_warnings
+    log = eval(
+        task_args_warning_check(),
+        task_args={"task_arg": "custom"},
+        model="mockllm/model",
+    )[0]
+    assert log.status == "success"
+    records = _task_args_warnings(caplog)
+    assert len(records) == 1, "expected exactly one unconsumed task_args warning"
+    assert "task_arg" in records[0].message
+
+
+def test_task_instance_multiple_models_warns_once(capture_eval_warnings) -> None:
+    # resolve_tasks runs once per model; the warning is gated to the first
+    # model so it fires exactly once regardless of the model count
+    caplog = capture_eval_warnings
+    logs = eval(
+        task_args_warning_check(),
+        task_args={"task_arg": "custom"},
+        model=["mockllm/model", "mockllm/model"],
+    )
+    assert all(log.status == "success" for log in logs)
+    assert len(_task_args_warnings(caplog)) == 1
+
+
+def test_string_task_with_task_args_no_warning(capture_eval_warnings) -> None:
+    caplog = capture_eval_warnings
+    log = eval(
+        "task_args_warning_check",
+        task_args={"task_arg": "custom"},
+        model="mockllm/model",
+    )[0]
+    assert log.status == "success"
+    # args actually applied
+    assert log.eval.task_args["task_arg"] == "custom"
+    assert not _task_args_warnings(caplog)
+
+
+def test_task_instance_without_task_args_no_warning(capture_eval_warnings) -> None:
+    caplog = capture_eval_warnings
+    log = eval(task_args_warning_check(), model="mockllm/model")[0]
+    assert log.status == "success"
+    assert not _task_args_warnings(caplog)
+
+
+def test_eval_set_task_instance_warns_once(capture_eval_warnings) -> None:
+    # eval_set re-enters resolution internally with ResolvedTask objects;
+    # the warning must fire exactly once, not per resolution pass
+    caplog = capture_eval_warnings
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=task_args_warning_check(),
+            task_args={"task_arg": "custom"},
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+    assert success
+    records = _task_args_warnings(caplog)
+    assert len(records) == 1, (
+        f"expected exactly one unconsumed task_args warning, got {len(records)}"
+    )
+
+
+class _SeedTasks(TaskSource):
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def initial_tasks(self) -> list[Task]:
+        return [
+            Task(dataset=[Sample(input=f"t{i}")], name=f"t{i}")
+            for i in range(self._count)
+        ]
+
+    async def next_tasks(self) -> list[Task] | None:
+        return None
+
+
+@task_source(name="task_args_warning_source")
+def task_args_warning_source(count: int = 1) -> TaskSource:
+    return _SeedTasks(count)
+
+
+def test_task_source_with_task_args_no_warning(capture_eval_warnings) -> None:
+    # task_args are consumed by the source (resolve_task_source) to build its
+    # seed; resolving the seed Task instances must not false-warn (#4194)
+    caplog = capture_eval_warnings
+    logs = eval(
+        "task_args_warning_source",
+        task_args={"count": 2},
+        model="mockllm/model",
+        display="none",
+    )
+    assert all(log.status == "success" for log in logs)
+    assert len(logs) == 2  # count applied by the source -> two seed tasks
+    assert not _task_args_warnings(caplog)

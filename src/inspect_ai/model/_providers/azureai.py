@@ -2,6 +2,7 @@ import functools
 import json
 import os
 from copy import copy
+from logging import getLogger
 from typing import Any
 
 from azure.ai.inference.aio import ChatCompletionsClient
@@ -65,8 +66,13 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     StopReason,
+    collect_stop_details,
 )
-from .._openai import needs_max_completion_tokens, openai_media_filter
+from .._openai import (
+    needs_max_completion_tokens,
+    openai_media_filter,
+    openai_stop_details,
+)
 from .util import (
     environment_prerequisite_error,
     model_base_url,
@@ -74,8 +80,9 @@ from .util import (
 from .util.chatapi import ChatAPIHandler
 from .util.llama31 import Llama31Handler
 
+logger = getLogger(__name__)
+
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
-AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
 AZUREAI_ENDPOINT_URL = "AZUREAI_ENDPOINT_URL"
 AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
@@ -128,7 +135,7 @@ class AzureAIAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[AZURE_API_KEY, AZUREAI_ENDPOINT_KEY],
+            api_key_vars=[AZURE_API_KEY, AZUREAI_API_KEY],
             config=config,
         )
 
@@ -147,9 +154,10 @@ class AzureAIAPI(ModelAPI):
 
         # resolve api_key or managed identity (for Azure)
         self.token_provider = None
-        self.api_key = os.environ.get(
-            AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, None)
-        )
+        if not self.api_key:
+            self.api_key = os.environ.get(
+                AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, None)
+            )
         if not self.api_key:
             # try managed identity (Microsoft Entra ID)
             try:
@@ -338,7 +346,7 @@ class AzureAIAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return f"{self.api_key}{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     def service_model_name(self) -> str:
         """Model name without any org prefix, for API calls."""
@@ -578,6 +586,10 @@ def chat_complection_choice(
             model, choice.message, tools, handler
         ),
         stop_reason=chat_completion_stop_reason(choice.finish_reason),
+        # best-effort: azure.ai.inference may surface content_filter_results
+        stop_details=collect_stop_details(
+            "azureai", logger, lambda: openai_stop_details(choice)
+        ),
     )
 
 

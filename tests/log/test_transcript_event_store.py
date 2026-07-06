@@ -388,6 +388,12 @@ def test_transcript_event_store_reuses_pending_message_positions_on_update(
 def test_transcript_event_store_discards_pending_cache_on_rollback(
     tmp_path: Path,
 ) -> None:
+    """A rolled-back merge must not leave stale index state behind.
+
+    Failure mode under a broken rollback: the retry sees positions that were
+    rolled back from the DB but still registered in the in-memory index,
+    producing duplicate pool rows or refs dangling at nonexistent positions.
+    """
     transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     message = ChatMessageUser(content="question")
     event = make_model_event([message])
@@ -399,11 +405,20 @@ def test_transcript_event_store_discards_pending_cache_on_rollback(
         except RuntimeError:
             pass
 
+    # retry with same uuid so the event row is an upsert, not a duplicate insert
     retry = make_model_event([message], uuid=event.uuid)
-    retry.pending = True
+    retry.pending = False
     transcript_store.merge_event(retry, attachment_lookup=_no_attachment)
 
     assert transcript_store.counts().message_pool == 1
+
+    # the stored event must reference the retry's pool position, not a stale one
+    work_dir = tmp_path / "out"
+    work_dir.mkdir()
+    _write_transcript_files(transcript_store, work_dir)
+    events = _exported_events(work_dir)
+    assert len(events) == 1
+    assert events[0]["input_refs"] == [[0, 1]]
 
 
 def test_transcript_event_store_deduplicates_messages_using_pool_hash(

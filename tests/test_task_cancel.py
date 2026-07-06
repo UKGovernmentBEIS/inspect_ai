@@ -40,8 +40,11 @@ def test_abort_cancel_produces_error_status() -> None:
                 await anyio.sleep(0.01)
             # Trigger an abort cancellation (simulates clicking Cancel > Abort)
             cancel_holder[0].cancel_task("abort")
-            # Sleep to let the cancellation propagate
-            await anyio.sleep(10)
+            # Sleep to let the cancellation propagate. The abort is expected to
+            # interrupt this; the duration is only an upper bound on the
+            # propagation window (kept short so the run_multiple path, where the
+            # abort does not interrupt the sleep, doesn't burn the full window).
+            await anyio.sleep(2)
             return state
 
         return solve
@@ -99,8 +102,11 @@ def test_abort_cancel_not_retried_in_run_multiple() -> None:
                 await anyio.sleep(0.01)
             # Trigger an abort cancellation
             cancel_holder[0].cancel_task("abort")
-            # Sleep to let the cancellation propagate
-            await anyio.sleep(10)
+            # Sleep to let the cancellation propagate. The abort is expected to
+            # interrupt this; the duration is only an upper bound on the
+            # propagation window (kept short so the run_multiple path, where the
+            # abort does not interrupt the sleep, doesn't burn the full window).
+            await anyio.sleep(2)
             return state
 
         return solve

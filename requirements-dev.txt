@@ -1,5 +1,5 @@
 adlfs>=2025.8.0
-anthropic>=0.105.0
+anthropic>=0.115.0
 apprise
 aws-bedrock-token-generator
 azure-ai-inference
@@ -7,7 +7,7 @@ azure-identity
 google-genai>=1.69.0
 griffe>=2
 groq>=0.28.0
-huggingface_hub>=1.0.0
+huggingface_hub>=1.6.0
 inspect-scout>=0.4.37
 ipython
 jsonpath-ng
@@ -30,6 +30,7 @@ pytest-cov
 pytest-dotenv
 pytest-mock
 pytest-textual-snapshot
+pytest-timeout
 pytest-watcher
 pytest-xdist
 # match ruff version specified in .pre-commit-config.yaml

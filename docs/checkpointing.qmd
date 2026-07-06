@@ -210,7 +210,9 @@ When more than one of the sample / task / eval layers supplies a configuration, 
 
 ### Sandbox Paths
 
-`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed.
+`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g. `sandbox_paths={"tools": []}`) opts that sandbox out of checkpointing entirely.
+
+Cache directories are never backed up: any `.cache` directory at any depth (`**/.cache`, including the user's XDG cache dir) is always excluded from sandbox backups — even when you specify `sandbox_paths` explicitly. Agents should not keep state they need across a resume under a `.cache` directory.
 
 ## Checkpoint Flow
 
@@ -235,7 +237,7 @@ The key checkpointing mechanism for agents is the `cp.track` method, which gives
 On a fresh run, `track` returns the `initial_value` the agent passes in. On a retry of the same sample, `track` returns whatever the registered callback captured at the most recent checkpoint of the prior run, so the agent's important state comes back automatically and can pick up where it left off.
 
 ``` python
-from inspect_ai.util import Attempt, checkpointer
+from inspect_ai.util import checkpointer
 
 async def my_agent(state):
     async with checkpointer() as cp:
@@ -258,7 +260,7 @@ async def my_agent(state):
         # scoring-phase resume: agent already finished in
         # the prior attempt — tracked state is restored
         # above, return so scoring can re-run.
-        if cp.attempt == Attempt.RESUME_FOR_SCORING:
+        if cp.attempt == "resume_for_scoring":
             return state
 
         # agent loop
@@ -278,9 +280,24 @@ The `Checkpointer` context has the following members:
 | `await cp.tick()` | Turn-boundary signal; may fire a checkpoint depending on the trigger. |
 | `await cp.checkpoint()` | Force a checkpoint regardless of trigger. |
 | `cp.track(key, callback, initial_value, *, value_type=None)` | Declare a piece of persisted agent state. `callback` is invoked at every checkpoint fire to capture the current value; the method returns the value captured at the most recent prior checkpoint on a retry, or `initial_value` on a fresh run. |
-| `cp.attempt` | `Attempt.INITIAL` (fresh), `Attempt.RESUME` (mid-agent resume), or `Attempt.RESUME_FOR_SCORING` (agent completed in the prior attempt — restore tracked state and return). |
+| `cp.attempt` | `"initial"` (fresh), `"resume"` (mid-agent resume), or `"resume_for_scoring"` (agent completed in the prior attempt — restore tracked state and return). |
 
 `cp.track()` is generic over the value type. Pydantic models and JSON primitive values are handled automatically; for other shapes (collections, generics, dataclasses, lists of models) pass `value_type=...`.
+
+### Reaching the session from a sub-component
+
+`checkpointer()` opens a session and is entered once, by the agent that owns the loop. A sub-component that does *not* own the session — a custom `model` agent passed to `react()`, a tool, or a nested helper — should not re-enter `checkpointer()` (that would open a duplicate transcript span). Use `current_checkpointer()` instead, a plain accessor for the session the agent has already opened:
+
+``` python
+from inspect_ai.util import current_checkpointer
+
+cp = current_checkpointer()
+if cp is not None:
+    # register the sub-component's state on the agent's session
+    state = cp.track("my_state", lambda: state, state)
+```
+
+It returns `None` when called outside an active sample, or before the owning agent has opened its session.
 
 ## Limitations
 

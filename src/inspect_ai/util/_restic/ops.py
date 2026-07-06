@@ -24,7 +24,7 @@ async def init_repo(restic: Path, repo: str, password: str) -> None:
     Skips if the repo is already initialized — important for callers
     that may re-enter the same repo across retries. ``repo`` is always
     a local filesystem path; restic is never invoked against a remote
-    backend (see ``design/plans/checkpointing-remote-dest.md``).
+    backend (remote destinations are reached via host egress instead).
     """
     Path(repo).mkdir(parents=True, exist_ok=True)
     if (Path(repo) / "config").exists():
@@ -49,7 +49,11 @@ async def run_backup(
     ``restic backup PATH1 [PATH2 ...]``. The resulting snapshot is tagged
     with ``tag``. ``--compression max`` exploits high text-compressibility
     (zstd-max ≈ 5–10× vs the default `auto` ≈ 2–3×) for JSON-heavy sources;
-    ``--no-scan`` skips the up-front size-estimate walk.
+    ``--no-scan`` skips the up-front size-estimate walk. ``--quiet`` drops
+    restic's periodic ``status`` JSON lines (one per progress tick): only
+    the trailing ``summary`` line is read by ``from_stdout``, so the status
+    stream is buffered to no purpose (here in ``anyio.run_process``'s
+    in-memory pipe rather than against the sandbox output cap).
     """
     sources = [source] if isinstance(source, str) else list(source)
     proc = await anyio.run_process(
@@ -65,6 +69,7 @@ async def run_backup(
             "--tag",
             tag,
             "--json",
+            "--quiet",
         ],
         env=restic_env(password),
         check=True,
