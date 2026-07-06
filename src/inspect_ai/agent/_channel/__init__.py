@@ -14,7 +14,7 @@ Three roles:
   Exposes only :meth:`AgentRef.post` and :meth:`AgentRef.interrupt`.
 - **Consumer**: the agent loop. Acquires its channel via
   :func:`agent_channel` (context manager) and reads via
-  :meth:`AgentChannel.drain` / :meth:`AgentChannel.recv`.
+  :meth:`AgentChannel._drain` / :meth:`AgentChannel._recv`.
 
 Inert by default: with no producer attached, ``drain`` returns ``[]``
 and the scope never cancels. An eval with no ACP attached pays no
