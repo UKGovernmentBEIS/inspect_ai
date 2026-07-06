@@ -9,7 +9,6 @@ on:
         type: choice
         options:
           - inspect-computer-tool
-          - inspect-web-browser-tool
           - inspect-tool-support
       tag:
         description: Tag to assign to the image
@@ -43,8 +42,6 @@ jobs:
         run: |
           if [[ "${{ github.event.inputs.image }}" == "inspect-computer-tool" ]]; then
             echo "BUILD_CONTEXT=src/inspect_ai/tool/_tools/_computer/_resources" >> $GITHUB_ENV
-          elif [[ "${{ github.event.inputs.image }}" == "inspect-web-browser-tool" ]]; then
-            echo "BUILD_CONTEXT=src/inspect_ai/tool/_tools/_web_browser/_resources" >> $GITHUB_ENV
           elif [[ "${{ github.event.inputs.image }}" == "inspect-tool-support" ]]; then
             echo "BUILD_CONTEXT=src/inspect_tool_support" >> $GITHUB_ENV
           else
