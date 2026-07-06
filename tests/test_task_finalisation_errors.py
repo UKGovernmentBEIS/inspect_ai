@@ -8,7 +8,7 @@ every sibling task. It should instead surface as an errored ``EvalLog`` so
 the task can be retried like any other task error.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from botocore.exceptions import ClientError
 
@@ -24,14 +24,17 @@ def trivial_task() -> Task:
 
 def _skew_error() -> ClientError:
     return ClientError(
-        {
-            "Error": {
-                "Code": "RequestTimeTooSkewed",
-                "Message": "The difference between the request time and the "
-                "current time is too large.",
+        cast(
+            Any,
+            {
+                "Error": {
+                    "Code": "RequestTimeTooSkewed",
+                    "Message": "The difference between the request time and the "
+                    "current time is too large.",
+                },
+                "ResponseMetadata": {"RequestId": "request-1"},
             },
-            "ResponseMetadata": {"RequestId": "request-1"},
-        },
+        ),
         "PutObject",
     )
 
