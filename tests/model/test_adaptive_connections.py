@@ -1,6 +1,7 @@
 """End-to-end tests for adaptive_connections wiring through Model.generate."""
 
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -258,6 +259,32 @@ async def test_connection_limit_history_captured_in_eval_stats() -> None:
     assert entry.model  # non-empty
 
 
+async def test_manual_connection_limit_change_included_in_eval_stats() -> None:
+    """A control-channel `set_max` retune (reason='manual') is logged.
+
+    Regression (twice over): `set_max` records a `manual` history entry, and
+    capture originally crashed on it with a ValidationError (the schema enum
+    had only adaptive reasons), then skipped it — leaving an unexplained gap
+    in the logged limit timeline across a retune. The schema enum now covers
+    `manual` and the entry is captured like any other change.
+    """
+    from test_helpers.utils import register_adaptive_controller
+
+    from inspect_ai._eval.task.log import collect_eval_data
+    from inspect_ai.log._log import EvalStats
+
+    init_concurrency()
+    ctrl = await register_adaptive_controller("mockllm/model")
+    ctrl.set_max(20)  # records a 50 -> 20 "manual" change in controller history
+
+    stats = EvalStats()
+    collect_eval_data(stats)
+    assert stats.connection_limit_history is not None
+    assert len(stats.connection_limit_history) == 1
+    change = stats.connection_limit_history[0]
+    assert (change.old_limit, change.new_limit, change.reason) == (50, 20, "manual")
+
+
 def test_parse_adaptive_connections_cli_value_forms() -> None:
     """The CLI parser handles bool keywords and shorthand strings, with None passthrough.
 
@@ -399,15 +426,16 @@ def test_sample_semaphore_uses_dynamic_for_adaptive() -> None:
 
 
 def test_sample_semaphore_explicit_max_samples_wins() -> None:
-    """Explicit max_samples returns plain Semaphore even when adaptive is enabled.
+    """Explicit max_samples returns a static ResizableLimiter, not the adaptive path.
 
     No warning — anticipating adaptive becoming default-on, in which case any
-    deliberate max_samples setting would otherwise produce noise.
+    deliberate max_samples setting would otherwise produce noise. The limiter is
+    resizable (the control channel can retune max_samples mid-eval) but still the
+    non-adaptive path — its limit starts at the requested value.
     """
-    import anyio as _anyio
-
     from inspect_ai._eval.task.run import create_sample_semaphore
     from inspect_ai.log._log import EvalConfig
+    from inspect_ai.util._concurrency import DynamicSampleLimiter, ResizableLimiter
 
     sem = create_sample_semaphore(
         config=EvalConfig(max_samples=5),
@@ -416,22 +444,234 @@ def test_sample_semaphore_explicit_max_samples_wins() -> None:
         ),
         modelapi=None,
     )
-    assert isinstance(sem, _anyio.Semaphore)
+    assert isinstance(sem, ResizableLimiter)
+    assert not isinstance(sem, DynamicSampleLimiter)
+    assert sem.limit == 5
+
+
+async def test_ensure_model_controller_eager_creation() -> None:
+    """Run startup pre-creates the model's adaptive controller.
+
+    Controllers are normally created lazily on the first generate; the eager
+    call closes the startup window where `ctl limits --max-connections` found
+    no controllers and dropped the retune with a misleading "not using
+    adaptive connections" warning. Also verifies the eager key matches the
+    generate-path key (registry coalescing) and the task's sample limiter
+    adopts the eagerly created controller.
+    """
+    from inspect_ai._eval.task.run import create_sample_semaphore
+    from inspect_ai.log._log import EvalConfig
+    from inspect_ai.model._model import ensure_model_controller
+    from inspect_ai.util._concurrency import DynamicSampleLimiter, init_concurrency
+
+    init_concurrency()
+    model = get_model("mockllm/model")
+
+    # eager creation at run startup (before any generate)
+    await ensure_model_controller(model, GenerateConfig(adaptive_connections=True))
+    ctrls = adaptive_controllers()
+    assert len(ctrls) == 1
+
+    # a generate reuses the same controller (keys coalesce)
+    await model.generate("hello", config=GenerateConfig(adaptive_connections=True))
+    assert adaptive_controllers() == ctrls
+
+    # the task's sample limiter adopts the eagerly created controller
+    sem = create_sample_semaphore(
+        EvalConfig(),
+        GenerateConfig(adaptive_connections=True),
+        model.api,
+        task_id="t-eager",
+    )
+    assert isinstance(sem, DynamicSampleLimiter)
+    assert sem.controller is ctrls[0]
+
+    # no-op when adaptive isn't active
+    init_concurrency()
+    await ensure_model_controller(
+        model, GenerateConfig(adaptive_connections=True, max_connections=10)
+    )
+    assert adaptive_controllers() == []
+
+
+async def test_ensure_model_controller_composes_model_config() -> None:
+    """The eager path composes the model's own config like the generate path.
+
+    Regression: ensure_model_controller checked only the task-level config.
+    Because the registry coalesces on key with first-created bounds winning,
+    a model carrying its own AdaptiveConcurrency got a controller with
+    default bounds (its configured ceiling silently discarded), and a model
+    whose own config disables adaptive (explicit max_connections /
+    adaptive_connections=False) got a phantom controller that ctl limits
+    would report and retune while generates took the static path.
+    """
+    from inspect_ai.model._model import ensure_model_controller
+    from inspect_ai.util._concurrency import init_concurrency
+
+    # model-level adaptive bounds are honored (not replaced with defaults)...
+    init_concurrency()
+    model = get_model(
+        "mockllm/model",
+        config=GenerateConfig(
+            adaptive_connections=AdaptiveConcurrency(min=1, start=2, max=4)
+        ),
+    )
+    await ensure_model_controller(model, GenerateConfig())
+    ctrls = adaptive_controllers()
+    assert len(ctrls) == 1
+    assert (ctrls[0].concurrency, ctrls[0].max) == (2, 4)
+
+    # ...and the generate path coalesces onto the same (correct) controller
+    await model.generate("hello")
+    assert adaptive_controllers() == ctrls
+    assert ctrls[0].max == 4
+
+    # model-level explicit max_connections → static path, no phantom controller
+    init_concurrency()
+    static_model = get_model("mockllm/model", config=GenerateConfig(max_connections=20))
+    await ensure_model_controller(static_model, GenerateConfig())
+    assert adaptive_controllers() == []
+
+    # model-level opt-out → no controller
+    init_concurrency()
+    opted_out = get_model(
+        "mockllm/model", config=GenerateConfig(adaptive_connections=False)
+    )
+    await ensure_model_controller(opted_out, GenerateConfig())
+    assert adaptive_controllers() == []
+
+    # task-level config still wins over model-level (merge direction)
+    init_concurrency()
+    await ensure_model_controller(opted_out, GenerateConfig(adaptive_connections=True))
+    assert len(adaptive_controllers()) == 1
+
+
+async def test_ensure_model_controller_skips_no_model() -> None:
+    """The NoModel sentinel (model=None evals) never gets a controller."""
+    from inspect_ai.model._model import ensure_model_controller
+    from inspect_ai.util._concurrency import init_concurrency
+
+    init_concurrency()
+    model = get_model("none/none")
+    await ensure_model_controller(model, GenerateConfig(adaptive_connections=True))
+    assert adaptive_controllers() == []
+
+
+def test_sample_semaphore_composes_model_config() -> None:
+    """The sample-semaphore path classifies from the model-composed config.
+
+    Regression (meridianlabs-ai/inspect_ai#32): the task_run call site passed
+    the task-level config alone, so a model whose own config disables adaptive
+    (explicit max_connections / adaptive_connections=False) got a
+    DynamicSampleLimiter parked at start + BUFFER instead of the static path
+    the generate side actually takes, and a model carrying its own
+    AdaptiveConcurrency had its bounds ignored for the limiter's initial
+    value. Exercised through the call site's composition expression.
+    """
+    from inspect_ai._eval.task.run import create_sample_semaphore
+    from inspect_ai.log._log import EvalConfig
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        ResizableLimiter,
+        init_concurrency,
+    )
+
+    def semaphore(model_config: GenerateConfig, task_config: GenerateConfig) -> Any:
+        init_concurrency()
+        model = get_model("mockllm/model", config=model_config)
+        return create_sample_semaphore(
+            EvalConfig(), model.config.merge(task_config), model.api
+        )
+
+    # model-level explicit max_connections → static path sized from it
+    sem = semaphore(GenerateConfig(max_connections=20), GenerateConfig())
+    assert isinstance(sem, ResizableLimiter)
+    assert sem.limit == 20
+
+    # model-level opt-out → static path sized from the provider default
+    sem = semaphore(GenerateConfig(adaptive_connections=False), GenerateConfig())
+    assert isinstance(sem, ResizableLimiter)
+    assert sem.limit == get_model("mockllm/model").api.max_connections()
+
+    # model-level adaptive bounds drive the limiter's initial value
+    sem = semaphore(
+        GenerateConfig(adaptive_connections=AdaptiveConcurrency(min=1, start=2, max=4)),
+        GenerateConfig(),
+    )
+    assert isinstance(sem, DynamicSampleLimiter)
+    assert sem.total_tokens == 2 + DynamicSampleLimiter.BUFFER
+
+    # task-level config still wins over model-level (merge direction)
+    sem = semaphore(
+        GenerateConfig(adaptive_connections=False),
+        GenerateConfig(adaptive_connections=True),
+    )
+    assert isinstance(sem, DynamicSampleLimiter)
+
+
+def test_sample_semaphore_shared_across_retry_attempts() -> None:
+    """The same task_id reuses its semaphore, preserving a mid-flight retune.
+
+    Sample semaphores are task-scoped: an in-process task retry calls
+    create_sample_semaphore again (fresh attempt), and must get back the same
+    limiter so a `ctl limits --max-samples` retune survives the retry instead
+    of silently reverting to the config value.
+    """
+    from inspect_ai._eval.task.run import create_sample_semaphore
+    from inspect_ai.log._log import EvalConfig
+    from inspect_ai.util._concurrency import ResizableLimiter, init_concurrency
+
+    init_concurrency()
+    sem = create_sample_semaphore(
+        config=EvalConfig(max_samples=20),
+        generate_config=GenerateConfig(),
+        task_id="task-1",
+    )
+    assert isinstance(sem, ResizableLimiter)
+    sem.limit = 2  # mid-flight control-channel retune
+
+    # retry attempt: same task_id → same limiter, runtime setpoint intact
+    again = create_sample_semaphore(
+        config=EvalConfig(max_samples=20),
+        generate_config=GenerateConfig(),
+        task_id="task-1",
+    )
+    assert again is sem
+    assert sem.limit == 2
+
+    # a different task gets its own limiter
+    other = create_sample_semaphore(
+        config=EvalConfig(max_samples=20),
+        generate_config=GenerateConfig(),
+        task_id="task-2",
+    )
+    assert other is not sem
+
+    # a new run (init_concurrency) starts fresh
+    init_concurrency()
+    fresh = create_sample_semaphore(
+        config=EvalConfig(max_samples=20),
+        generate_config=GenerateConfig(),
+        task_id="task-1",
+    )
+    assert fresh is not sem
+    assert isinstance(fresh, ResizableLimiter)
+    assert fresh.limit == 20
 
 
 def test_sample_semaphore_static_path_unchanged() -> None:
-    """Without adaptive, returns Semaphore with the legacy max_connections-derived size."""
-    import anyio as _anyio
-
+    """Without adaptive, returns a ResizableLimiter sized from max_connections."""
     from inspect_ai._eval.task.run import create_sample_semaphore
     from inspect_ai.log._log import EvalConfig
+    from inspect_ai.util._concurrency import ResizableLimiter
 
     sem = create_sample_semaphore(
         config=EvalConfig(),
         generate_config=GenerateConfig(max_connections=15),
         modelapi=None,
     )
-    assert isinstance(sem, _anyio.Semaphore)
+    assert isinstance(sem, ResizableLimiter)
+    assert sem.limit == 15
 
 
 def test_sample_semaphore_batch_mode_disables_adaptive() -> None:
@@ -442,12 +682,14 @@ def test_sample_semaphore_batch_mode_disables_adaptive() -> None:
     to (since Model._connection_concurrency takes the static path in batch
     mode).
     """
-    import anyio as _anyio
-
     from inspect_ai._eval.task.run import create_sample_semaphore
     from inspect_ai.log._log import EvalConfig
     from inspect_ai.model._generate_config import BatchConfig
-    from inspect_ai.util._concurrency import DynamicSampleLimiter, init_concurrency
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        ResizableLimiter,
+        init_concurrency,
+    )
 
     init_concurrency()
     sem = create_sample_semaphore(
@@ -458,7 +700,7 @@ def test_sample_semaphore_batch_mode_disables_adaptive() -> None:
         ),
         modelapi=None,
     )
-    assert isinstance(sem, _anyio.Semaphore)
+    assert isinstance(sem, ResizableLimiter)
     assert not isinstance(sem, DynamicSampleLimiter)
 
 
