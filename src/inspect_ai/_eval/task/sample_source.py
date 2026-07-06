@@ -64,7 +64,8 @@ class SampleSource:
         Called whenever no samples remain in flight or buffered (after those
         samples' ``sample_complete`` notifications). May ``await`` — for more
         results or external input — and may block indefinitely; return ``None``
-        to end the task.
+        to end the task. (If samples were enqueued while a ``None`` return was
+        in progress they still run, and this method may then be called again.)
         """
         return None
 
@@ -202,6 +203,10 @@ def enqueue_sample(samples: "Sample | list[Sample]") -> None:
     ``Task`` whose ``dataset`` is a ``SampleSource``) — a plain task's sample
     set is fixed, so there is no loop to run additions. Callable from any code
     running within such a task: a solver, a scorer, a tool.
+
+    When the eval was run with ``--limit``, samples beyond the limit are
+    ignored (with a warning); with ``--sample-id``, only samples matching the
+    filter run.
 
     Args:
         samples: A ``Sample`` (or list of samples) to add to the running task.

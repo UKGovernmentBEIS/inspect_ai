@@ -192,7 +192,7 @@ from .scan import (
 )
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
-from .util import sample_messages, slice_dataset
+from .util import sample_id_filter, sample_limit_count, sample_messages, slice_dataset
 
 py_logger = getLogger(__name__)
 
@@ -809,6 +809,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     blocking ``next_samples()`` is only awaited when nothing is
                     in flight or buffered — so no completion can enqueue while
                     it blocks (no lost wakeup).
+
+                    ``--limit`` caps the total samples (seed + added): once the
+                    cap is reached further additions are ignored (with a
+                    warning) and the loop finishes without consulting the
+                    source again. ``--sample-id`` filters added samples the
+                    same way it filters the seed (the filter and the cap are
+                    mutually exclusive, matching ``slice_dataset``).
                     """
                     nonlocal total_samples
 
@@ -816,6 +823,26 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     in_flight = 0
                     wake = Wake()
                     enqueuer.on_enqueue = wake.set
+
+                    # --sample-id: added samples must also match the filter
+                    include_id = (
+                        sample_id_filter(config.sample_id)
+                        if config.sample_id is not None
+                        else None
+                    )
+
+                    # --limit: cap on total samples (seed + added); the seed
+                    # was already sliced above, so the cap's remainder is the
+                    # budget for added samples. None when --sample-id is set
+                    # (slice_dataset likewise ignores limit then).
+                    limit_count = (
+                        sample_limit_count(config.limit) if include_id is None else None
+                    )
+                    remaining = (
+                        max(0, limit_count - store_len)
+                        if limit_count is not None
+                        else None
+                    )
 
                     # injected samples without ids continue the seed's 1-based
                     # numbering, skipping ids already in use; ids are compared
@@ -825,8 +852,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     auto_id = store_len
 
                     def add_samples(samples: list[Sample]) -> list[int]:
-                        nonlocal total_samples, auto_id
+                        nonlocal total_samples, auto_id, remaining
                         indexes: list[int] = []
+                        added_ids: list[int | str] = []
+                        over_limit = 0
                         for sample in samples:
                             if sample.id is None:
                                 auto_id += 1
@@ -840,21 +869,35 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                     "has a unique id."
                                 )
                             seen_ids.add(str(sample.id))
+                            if include_id is not None and not include_id(sample.id):
+                                continue
+                            if remaining is not None:
+                                if remaining <= 0:
+                                    over_limit += 1
+                                    continue
+                                remaining -= 1
                             sample_ids.append(sample.id)
+                            added_ids.append(sample.id)
                             injected_samples.append(sample)
                             indexes.append(store_len + len(injected_samples) - 1)
-                        # grow the planned totals (display denominator,
-                        # fail_on_error threshold, control-channel counters)
-                        total_samples += len(samples) * epochs
-                        sample_error_handler.total_samples = total_samples
-                        record_samples_added(
-                            logger.eval.eval_id,
-                            len(samples) * epochs,
-                            sample_ids=[s.id for s in samples if s.id is not None],
-                        )
-                        td.sample_complete(
-                            complete=len(progress_results), total=total_samples
-                        )
+                        if over_limit:
+                            py_logger.warning(
+                                f"Sample limit ({limit_count}) reached: ignoring "
+                                f"{over_limit} sample(s) added to the task."
+                            )
+                        if indexes:
+                            # grow the planned totals (display denominator,
+                            # fail_on_error threshold, control-channel counters)
+                            total_samples += len(indexes) * epochs
+                            sample_error_handler.total_samples = total_samples
+                            record_samples_added(
+                                logger.eval.eval_id,
+                                len(indexes) * epochs,
+                                sample_ids=added_ids,
+                            )
+                            td.sample_complete(
+                                complete=len(progress_results), total=total_samples
+                            )
                         return indexes
 
                     async with anyio.create_task_group() as tg:
@@ -876,6 +919,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                         spawn(list(range(store_len)))
                         while True:
+                            # checkpoint so a misbehaving source that never
+                            # blocks (e.g. next_samples() returning []) keeps
+                            # the loop cancellable instead of spinning hot
+                            await anyio.lowlevel.checkpoint()
                             # samples buffered since the last cycle (callbacks
                             # returning samples / enqueue_sample) start first
                             buffered = enqueuer.drain()
@@ -885,12 +932,24 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             if in_flight > 0:
                                 await wake.wait()
                                 continue
-                            # fully idle: ask the source for more (may block)
-                            # and finish when it is exhausted
+                            # fully idle: the task is complete once the sample
+                            # limit is exhausted (don't consult the source for
+                            # samples that could never run)
+                            if remaining is not None and remaining <= 0:
+                                break
+                            # ask the source for more (may block) and finish
+                            # when it is exhausted
                             more = await feed.next_samples()
                             if more is None:
-                                break
-                            if more:
+                                # run samples enqueued while next_samples()
+                                # was finishing rather than dropping them
+                                # (enqueue_sample never drops silently); if
+                                # any run, the source may be consulted again
+                                final = add_samples(enqueuer.drain())
+                                if not final:
+                                    break
+                                spawn(final)
+                            elif more:
                                 spawn(add_samples(more))
 
                     return results
@@ -903,7 +962,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     except Exception as ex:
                         # match tg_collect: surface the first child exception
                         # rather than an ExceptionGroup
-                        raise inner_exception(ex)
+                        raise inner_exception(ex) from None
                 else:
                     sample_results = await tg_collect(
                         [

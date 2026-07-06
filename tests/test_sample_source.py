@@ -318,3 +318,158 @@ def test_enqueue_sample_rejected_outside_sample_source_task() -> None:
 def test_enqueue_sample_rejected_outside_task() -> None:
     with pytest.raises(RuntimeError, match="SampleSource"):
         enqueue_sample(Sample(input="x"))
+
+
+class _TrackedGenerations(_Generations):
+    """`_Generations` that counts `next_samples()` calls."""
+
+    def __init__(self, count: int) -> None:
+        super().__init__(count)
+        self.next_calls = 0
+
+    async def next_samples(self) -> list[Sample] | None:
+        self.next_calls += 1
+        return await super().next_samples()
+
+
+def test_sample_source_limit_caps_total_samples() -> None:
+    # --limit caps the total samples (seed + produced): limit 3 with a
+    # 1-sample seed leaves a budget of 2, so a source that would produce 10
+    # runs only s0..s2 (and the task still succeeds)
+    source = _TrackedGenerations(10)
+    logs = eval(
+        Task(dataset=source, solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        limit=3,
+    )
+    assert logs[0].status == "success"
+    assert _sample_inputs(logs[0]) == ["s0", "s1", "s2"]
+
+
+def test_sample_source_limit_consumed_by_seed_skips_source() -> None:
+    # a limit fully consumed by the seed ends the task without consulting
+    # the source at all
+    source = _TrackedGenerations(10)
+    logs = eval(
+        Task(dataset=source, solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        limit=1,
+    )
+    assert logs[0].status == "success"
+    assert _sample_inputs(logs[0]) == ["s0"]
+    assert source.next_calls == 0
+
+
+def test_sample_source_limit_truncates_batch() -> None:
+    # a produced batch larger than the remaining budget is truncated
+    class _Batch(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(input="s0", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not self._produced:
+                self._produced = True
+                return [Sample(input=f"b{i}", target="ok") for i in range(3)]
+            return None
+
+    logs = eval(
+        Task(dataset=_Batch(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        limit=2,
+    )
+    assert logs[0].status == "success"
+    assert _sample_inputs(logs[0]) == ["b0", "s0"]
+
+
+def test_sample_source_limit_counts_samples_not_epoch_runs() -> None:
+    # the limit counts samples: each sample within it still runs all epochs
+    logs = eval(
+        Task(dataset=_TrackedGenerations(10), solver=[generate()], epochs=2),
+        model="mockllm/model",
+        display="none",
+        limit=2,
+    )
+    log = logs[0]
+    assert log.status == "success"
+    runs = sorted((str(sample.input), sample.epoch) for sample in (log.samples or []))
+    assert runs == [("s0", 1), ("s0", 2), ("s1", 1), ("s1", 2)]
+
+
+class _IdsSource(SampleSource):
+    """Seed ids 1/2; produces ids 3/4 once."""
+
+    def __init__(self) -> None:
+        self._produced = False
+
+    def initial_samples(self) -> list[Sample]:
+        return [
+            Sample(id=1, input="one", target="ok"),
+            Sample(id=2, input="two", target="ok"),
+        ]
+
+    async def next_samples(self) -> list[Sample] | None:
+        if not self._produced:
+            self._produced = True
+            return [
+                Sample(id=3, input="three", target="ok"),
+                Sample(id=4, input="four", target="ok"),
+            ]
+        return None
+
+
+def test_sample_source_sample_id_filters_produced_samples() -> None:
+    # --sample-id filters samples the source produces, not just the seed
+    logs = eval(
+        Task(dataset=_IdsSource(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        sample_id=[1, 3],
+    )
+    log = logs[0]
+    assert log.status == "success"
+    assert sorted(sample.id for sample in (log.samples or [])) == [1, 3]
+
+
+def test_sample_source_sample_id_missing_from_seed_ok() -> None:
+    # a requested id absent from the seed is not an error — the source may
+    # produce it while the task runs
+    logs = eval(
+        Task(dataset=_IdsSource(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        sample_id=4,
+    )
+    log = logs[0]
+    assert log.status == "success"
+    assert [sample.id for sample in (log.samples or [])] == [4]
+
+
+def test_sample_source_enqueue_during_terminal_next_samples() -> None:
+    # samples enqueued while next_samples() is returning None still run
+    # (the dispatcher drains once more before finishing)
+    class _Late(SampleSource):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            self.calls += 1
+            if self.calls == 1:
+                enqueue_sample(Sample(input="late", target="ok"))
+            return None
+
+    logs = eval(
+        Task(dataset=_Late(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    assert _sample_inputs(logs[0]) == ["late", "seed"]

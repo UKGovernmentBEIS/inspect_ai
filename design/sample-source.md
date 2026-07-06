@@ -68,7 +68,11 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   idle await the blocking `next_samples()`. Sample concurrency is already
   bounded by the sample semaphore inside `run_sample`, so the dispatcher
   spawns eagerly with no cap of its own. Plain tasks keep the unchanged
-  `tg_collect` path.
+  `tg_collect` path. When `next_samples()` returns `None`, the enqueuer is
+  drained once more so samples enqueued during the terminal call still run
+  (nothing is silently dropped; the source may then be consulted again). Each
+  loop iteration starts with an `anyio.lowlevel.checkpoint()` so a source
+  that never blocks (e.g. returns `[]` forever) stays cancellable.
 - **Injected sample storage** — injected samples are appended to an in-memory
   list indexed after the (possibly disk-paged) seed store; `get_sample(index)`
   dispatches between the two. Each injected sample runs for the task's
@@ -102,8 +106,21 @@ dropping samples.
 
 ## Interactions / known limits
 
-- **`--limit` / `--sample-id`** slice the seed only; samples produced while the
-  task runs are not subject to them (documented).
+- **`--limit`** caps the *total* number of samples (seed + produced): the seed
+  is sliced as usual, and the dispatcher spends the remainder
+  (`sample_limit_count(limit) - seed`) as its budget for added samples —
+  additions beyond it are ignored with a warning, and once the budget is
+  exhausted the loop finishes without consulting `next_samples()` again. A
+  tuple limit's budget is the size of its slice (`stop - start`).
+- **`--sample-id`** filters produced samples with the same
+  normalise+`fnmatch` predicate that filters the seed (`sample_id_filter` in
+  task/util.py). The seed of a SampleSource task is marked with
+  `DATASET_SAMPLE_SOURCE_ATTR` so `slice_dataset` (log spec, sandbox startup,
+  task_run) neither warns nor raises for requested ids missing from the seed —
+  the source may produce them at runtime. Filtered-out samples still register
+  their ids (duplicate ids stay a hard error) but don't run and don't grow the
+  planned totals. As in `slice_dataset`, `--sample-id` and `--limit` are
+  mutually exclusive (the filter wins).
 - **Task retries** (`task_retry_attempts` / eval-set): the retry attempt
   re-drives the source; completed samples are reused via the normal
   `EvalSampleSource` lookup only where regenerated ids match — i.e. resume
@@ -127,4 +144,8 @@ follow-ups chains generations; `from_samples` (callbacks and seed-only); empty
 seed; epochs applied to injected samples; explicit + auto id assignment and
 duplicate-id error; live injection discriminated from batch-at-a-time (blocker
 parks until an injected sample releases it, `fail_after` bounds a regression);
-`enqueue_sample` rejected on plain tasks and outside a task.
+`enqueue_sample` rejected on plain tasks and outside a task; `--limit` caps
+totals (budget spent, seed-consumed limit never consults the source, batch
+truncation, samples-not-runs with epochs); `--sample-id` filters produced
+samples and tolerates ids missing from the seed; samples enqueued during a
+terminal `next_samples()` still run.

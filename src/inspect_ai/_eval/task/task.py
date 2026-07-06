@@ -55,6 +55,7 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.viewer import ViewerConfig
 
+from .constants import DATASET_SAMPLE_SOURCE_ATTR
 from .epochs import Epochs
 from .sample_source import SampleSource
 
@@ -488,10 +489,15 @@ def resolve_dataset_or_source(
 
     A `SampleSource` contributes its (possibly empty) `initial_samples()` as
     the task's up-front dataset — the empty-dataset check doesn't apply since
-    the source can produce samples while the task runs.
+    the source can produce samples while the task runs. The seed is marked
+    with `DATASET_SAMPLE_SOURCE_ATTR` so consumers that treat a dataset as
+    the complete sample set (e.g. `slice_dataset` validating `--sample-id`)
+    know more samples may be produced at runtime.
     """
     if isinstance(dataset, SampleSource):
-        return ResolvedDataset(MemoryDataset(list(dataset.initial_samples())), dataset)
+        seed = MemoryDataset(list(dataset.initial_samples()))
+        setattr(seed, DATASET_SAMPLE_SOURCE_ATTR, True)
+        return ResolvedDataset(seed, dataset)
     else:
         return ResolvedDataset(resolve_dataset(dataset), None)
 

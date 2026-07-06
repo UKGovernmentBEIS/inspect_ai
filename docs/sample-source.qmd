@@ -79,6 +79,8 @@ class Adaptive(SampleSource):
 
 A source that returns follow-ups from this callback needs no `next_samples()`: the task ends when completions return nothing and `next_samples()` returns `None`. Use `next_samples()` for the blocking case a per-result callback can't express.
 
+Note that with `epochs > 1`, `sample_complete` fires once per *epoch*, and each returned follow-up itself runs all epochs — so a per-completion follow-up pattern multiplies (the example above with `epochs=2` would spawn two follow-ups per passed difficulty level, each running twice). Use `sample.epoch` (or dedupe on the source's own state) to react once per logical sample.
+
 ## Sources from callbacks
 
 `SampleSource.from_samples()` builds a source from a seed and optional callbacks, without subclassing:
@@ -122,4 +124,8 @@ Enqueued samples share a buffer with samples returned from `sample_complete`. `e
 
 A `SampleSource` task is live: a sample added mid-run starts as soon as there is free capacity, rather than waiting for the current samples to finish. Concurrency is bounded by `max_samples` as usual (see [Parallelism](parallelism.qmd)).
 
-The `--limit` and `--sample-id` options apply to the seed only — samples the source produces while the task runs are not subject to them.
+## Limits and sample filtering
+
+The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, further additions are ignored (with a warning) and the task ends when the in-flight samples finish (`next_samples()` is not consulted again). The cap counts samples, not runs: each sample within the limit still runs for the task's configured number of epochs.
+
+The `--sample-id` option filters generated samples the same way it filters the seed: only samples whose ids match run. Since the source may produce a requested id while the task runs, it is not an error for a `--sample-id` value to be missing from the seed.
