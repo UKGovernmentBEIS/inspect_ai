@@ -1491,13 +1491,21 @@
             "type": "integer"
           },
           "reason": {
-            "enum": [
-              "slow_start",
-              "steady_state_up",
-              "rate_limit"
+            "anyOf": [
+              {
+                "enum": [
+                  "slow_start",
+                  "steady_state_up",
+                  "rate_limit"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "manual",
+                "type": "string"
+              }
             ],
-            "title": "Reason",
-            "type": "string"
+            "title": "Reason"
           },
           "timestamp": {
             "title": "Timestamp",
