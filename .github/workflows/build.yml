@@ -10,6 +10,12 @@ on:
       - "release/**"
   workflow_dispatch:
 
+# Cancel superseded in-flight runs when a PR branch is updated; runs on
+# main queue rather than cancel so every merge commit gets a full build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   UV_VERSION: 0.9.4
 
