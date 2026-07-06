@@ -111,6 +111,118 @@ All live-eval management commands live under a single `inspect ctl` subcommand r
 
 `inspect tui` stays at the top level rather than under `ctl` — it's an *application* (like `inspect view`) that happens to be a control-channel client, not an operation on a running eval.
 
+#### CLI command hierarchy: noun groups (proposed)
+
+> **Status: proposal, not implemented.** The rest of this doc uses the current flat spellings (`inspect ctl tasks`, `ctl cancel-sample`, ...); if this reorganization lands, read those as the historical names.
+
+The `ctl` group is **flat** today: ten shipped verbs, heading for ~17 once the remaining phase-3 directives, phase-4 `--follow`, and the eval-set surface land. Two problems are already visible at ten:
+
+- **Near-collisions that encode nothing.** `samples` vs `sample` differ by one character but take different selectors and answer different questions; `events` sounds eval-scoped but takes a sample. Which commands take `TASK`, which take `TASK SAMPLE_ID [EPOCH]`, and which take `--pid` is pure memorization — the flat namespace carries no scope signal.
+- **Compound verbs.** Without a noun axis, a verb that applies at two scopes needs a minted compound (`cancel` vs `cancel-sample`); `requeue`, `set-limit`, and every future two-scope directive repeat the problem.
+
+The fix is to group commands by **resource noun**, mirroring the object model the HTTP API already has (task-scoped `/tasks/<task-id>/…`, attempt-scoped `/evals/<eval-id>/…` and its sample subresources, process-scoped `/limits` / `/keep` / `/release`):
+
+```
+inspect ctl
+├── task                        # a logical task in a running process (stable across retries)
+│   ├── list                        # was: tasks (implied: bare `ctl task` ≡ `ctl task list`)
+│   ├── limits [TASK] [...]         # was: limits; absorbs set-limit; process knobs view-only here
+│   ├── flush [TASK]                # was: flush
+│   ├── buffer [TASK] [...]         # was: buffer
+│   ├── add SPEC [...]              # planned: add
+│   ├── cancel TASK [--force]       # planned: cancel
+│   └── drain TASK                  # planned: drain
+├── sample                      # one sample (TASK SAMPLE_ID [EPOCH]) or a task's samples
+│   ├── list [TASK]                 # was: samples (implied by bare `ctl sample`; no TASK = all tasks)
+│   ├── show TASK SID [EPOCH]       # was: sample
+│   ├── errors [TASK]               # was: errors (no TASK = across all tasks)
+│   ├── events TASK SID [EPOCH]     # was: events (phase-4 --follow lands here unchanged)
+│   ├── cancel TASK SID [EPOCH]     # planned: cancel-sample
+│   └── requeue TASK SID [EPOCH]    # planned: requeue
+├── process                     # the running Inspect process itself (PID selector)
+│   ├── list                        # new: pids / keep-alive / hosted tasks (implied by bare `ctl process`)
+│   ├── keep [PID]                  # was: keep [--pid]
+│   ├── release [PID]               # was: release [--pid]
+│   └── limits [PID] [...]          # new: the only WRITE path for process-scoped knobs
+└── eval-set                    # later, with the eval-set surface
+    └── list / show / cancel
+```
+
+In the sketch, `[]` marks an optional argument. What an omitted selector *means* differs by verb class — see "Selector conventions" below. `[EPOCH]` defaults to 1 on reads; sample *mutations* require it whenever the task runs more than one epoch (also in "Selector conventions").
+
+**Naming rules.**
+
+- **Singular nouns**, verb second — the `gh` / `docker` shape (`gh pr list`, `docker container ls`), not kubectl's verb-first. Singular dissolves the `samples`/`sample` near-collision: the plural form simply no longer exists.
+- **The noun is the thing read or mutated; the selector follows the noun.** Every command in a group shares one selector vocabulary (`task …` takes a task selector; `sample …` takes `TASK` or `TASK SAMPLE_ID [EPOCH]`; `process …` takes `[PID]`) — the group *is* the scope signal the flat list lacks. Whether the selector may be *omitted* differs by verb class; see "Selector conventions" below.
+- **Symmetric verbs across nouns.** `list` / `show` / `cancel` / `limits` mean the same thing wherever they appear, so a consumer who has learned one group can predict the others.
+- **Implied `list` on the bare noun — and only there.** `ctl task` ≡ `ctl task list`, `ctl sample` ≡ `ctl sample list` (git precedent: bare `git branch` / `git tag` / `git remote` list). This recovers the brevity the reorg costs on the hottest reads (`ctl task` is shorter than today's `ctl tasks`) without hurting discovery — `--help` is handled before the default fires, so `ctl task --help` still shows the verbs. The boundary is strict: the default **never** fires once a positional argument is present. Selectors are arbitrary strings, so `ctl sample my-task` implying `list` would make a task named `errors` or `cancel` unaddressable — and adding a new verb later would silently change the meaning of existing invocations. With the bare-only rule the failure mode is a clean "no such command" and the fix (spell `list`) is obvious. The `list` options (`--json`, `--active-since`, ...) are mirrored onto the group so `ctl task --json` works — without that, agents (who always want `--json`) would have to spell `list` anyway and the default would serve humans only. Applies to all three groups: `process list` ships with the reorg (its sibling verbs take a `PID` selector, so pids must be enumerable in-group), so bare `ctl process` lists processes. Mild tension with the no-alias rule, accepted: this is a default, not a second name — the explicit `list` form stays canonical in docs and examples.
+- **`task`, not `eval`, as the headline noun.** The CLI deliberately targets tasks (task-id prefix / task name — stable across retries; resolved open question #7), and the limits directive already settled on `/tasks/<task-id>/…` for the same reason. An `eval` noun would re-import the attempt-vs-task confusion the selectors were designed to avoid — and `inspect ctl eval` reads badly against the top-level `inspect eval`. `eval` stays an HTTP-API concept (attempt-scoped resources under `/evals/<id>/…`), resolved client-side as today.
+- **No permanent aliases.** Consistent with the "no `inspect control` alias" stance above: two names for one command is documentation drift and grep friction. The flat spellings survive only as hidden, deprecation-noted, time-boxed shims (see Migration) — never as a documented second form.
+
+**Selector conventions.**
+
+- **Reads: the selector is a filter, and an omitted filter means unfiltered.** `ctl sample errors` with no `TASK` reports errored samples across *all* running tasks (rows carry a task column when they span tasks); same for `sample list`. This is the standard list-command shape (`gh pr list`, `kubectl get pods`): narrow by adding an argument, don't widen by adding a flag. It changes the shipped reads — which error as "ambiguous" when several tasks run and no `TASK` is given — but the reorg is a clean break anyway, and it makes the eval-set triage question ("what's erroring anywhere in this run?") the zero-argument spelling. Output stays summary-shaped per the shape constraints, so an unscoped read over a large eval-set doesn't dump everything.
+- **Mutations: an omitted selector must resolve to exactly one target.** Sole running task → it's the default (the shipped `limits` / `flush` / `buffer` behavior); several running → error with the candidate list, never fan-out. Destructive verbs (`task cancel`, `task drain`) require the selector outright. (`process keep` / `release` are *not* in that class: they're idempotent, last-write-wins lifecycle toggles whose worst case is letting an already-finished process exit with its logs written — so they get the sole-target default, and the common single-process case types no selector at all.) The rule extends to `EPOCH` on sample mutations: agents drop trailing optional positionals, and a defaulted epoch doesn't error — it *resolves to a different sample* (`sample cancel TASK SID` on an epoch-2 sample silently cancels the healthy epoch-1 attempt). So `sample cancel` / `requeue` require `EPOCH` whenever the task runs more than one epoch; reads keep the epoch-1 default but echo the resolved `{sample_id, epoch}` so a wrongly defaulted target is visible in the agent's context.
+- **The noun must tell the truth about scope.** `task limits` reports the process-scoped knobs (`--max-connections` / `--max-sandboxes`) in its superset *view* but does not set them — a write there errors with a pointer at `inspect ctl process limits`, the only write path for process-scoped knobs. Under the flat `ctl limits` the cross-scope write was a documented wart, mitigated by a printed "applies across all N tasks" note; under a noun tree whose pitch is "the group *is* the scope signal", an agent that has internalized the pitch will confidently retune sibling tasks — and the printed note doesn't survive `--json` anyway. The view/write split costs nothing and keeps the tree honest.
+- **No fan-out mutations.** The process-wide knobs (`--max-connections` / `--max-sandboxes`) already reach every task in the process because the *knob* is process-scoped — scope is a property of the knob, not of the command. Per-task fan-out ("set `--max-samples 4` on every task") is shell composition, already the first-class agent path (Path A): `ctl task list --json | jq -r '.tasks[].task_id' | xargs -n1 -I{} inspect ctl task limits {} --max-samples 4`. If real demand appears, that's the moment to design a multi-target selector, against a concrete case. (An `--all` flag was considered and rejected: in `ctl sample errors --all` it's ambiguous whether it widens over tasks or samples, and it puts scope in a flag when the scope selector is positional.)
+- **Parsing exception.** `TASK` is required wherever `SAMPLE_ID` follows (`sample show` / `events` / `cancel` / `requeue`): with two positionals the first can't be optional — `ctl sample show foo` couldn't tell a task from a sample id.
+- **A group's own id is positional; other objects' ids are flags.** The selector path to the group's object sits right after the verb (`task cancel TASK`, `sample show TASK SID [EPOCH]`, `process release [PID]`); identifiers of *other* object kinds appear as flags that filter or disambiguate (`--model` on `task limits`, a possible `--pid` scope on task/sample reads). The shipped `keep [--pid]` / `release [--pid]` predate this rule — the flag was a historical accident of the flat CLI, not a parsing constraint (nothing follows `PID`) — and the reorg moves the pid to the positional slot.
+
+The read/write asymmetry — reads widen when unscoped, mutations refuse to — is deliberate, not an inconsistency: reading everything is safe; mutating everything through dropped arguments (an agent retrying in confusion) is exactly the failure mode the agent-shape constraints guard against.
+
+**Agent output contract.** These fell out of pressure-testing the proposal by role-playing an LLM agent driving scenario 1 end-to-end (launch two evals with keep-alive, discover via `--help`, poll, diagnose a stall and an error, intervene, hand off to logs, release) and asking at every step where each selector, cursor, pid, and timestamp would come from. The structure held; the gaps were almost all in the output contract:
+
+- **Outputs feed inputs.** Every `--json` row carries the exact identifiers other commands take as selectors: `task_id` on **every** sample row, unconditionally (today's sample-row schema has no task identity at all, and "a task column when rows span tasks" is a human-table rendering choice — presence-conditional fields break an agent's `jq` the moment rows collapse back to one task); `pid` / `socket_path` on task rows (kept even with `process list` — saves a join); `log_location` on task rows (the live→`inspect log` handoff hinge); the resolved `{sample_id, epoch}` echoed on sample reads.
+- **Envelope the list reads.** `{"as_of": <ts>, "samples": [...]}` rather than a bare array, so the next `--active-since` value comes from the server. Otherwise the agent mints wall-clock timestamps itself — and mints them *after* parsing the response, silently missing anything that changed during the read. This is the pattern the events envelope already follows; the reorg's clean break is the moment to make the list reads match.
+- **`--json` on every verb, mutations included.** The shape constraints cover reads; the shipped `keep` / `release` print prose. Agents branch on directive results — applied vs already-in-that-state (the idempotent no-op) vs dry-run-would-do — and parsing prose is exactly what the JSON-first rule exists to prevent. One uniform result envelope for all mutations (e.g. `{"target": ..., "applied": bool, "dry_run": bool, "detail": ...}`) so a schema learned once covers every group.
+- **Document the terminal predicate.** "Is it finished?" has three candidate signals (`status`, `completed_at`, `completed == total`) and no stated canonical one; an agent will pick `completed == total`, which is wrong for a cancelled or errored eval. Canonical: terminal ⇔ `completed_at != null`; the `status` enum belongs in `task list --help`.
+- **`sample events` never serves an empty first page.** The unseeded default is a recent tail (e.g. the last 20 events), stated in `--help` ("first call returns the recent tail; resume with `--cursor`"). "Start from now" returns `{events: [], done: false}` forever on exactly the sample an agent is diagnosing — a stalled one — and an empty page reads as "transcript broken", not "pass `--tail`".
+- **Rename the cursor flag `--since` → `--cursor`.** The `--since` (opaque cursor) / `--since-time` (timestamp) pair is precisely the near-collision this reorg exists to dissolve; "since" reads temporally, and an agent will pass `--since $(date +%s)`. A non-decodable cursor should still error helpfully: "this looks like a timestamp — did you mean `--since-time`?".
+- **Teach through the error.** `ctl sample my-task` fails (the bare-noun default never fires past a positional — correct), but click's stock "No such command 'my-task'" reads as "the group doesn't do this". A group-level unknown-command handler answers instead: "No such command 'my-task'. To list a task's samples: `inspect ctl sample list my-task`." The analogy that causes the mistake is one the surface itself teaches, so it will recur; the error message is where to correct it.
+- **`sample show` grows into its verb.** The shipped `ctl sample` is error detail only; an agent calling `show` expects the sample's summary. Expand it to status / timing / token usage / score / error history, pairing with `events` as summary-vs-transcript drill-down — the same summary-then-detail shape the constraints already mandate.
+- **Name-selector ambiguity in the headline scenario.** One task × two models means `my_task` matches both rows from the first command, so every name attempt costs an ambiguity-error turn and the agent falls back to opaque `task_id`s (workable — they're in `task list --json`). A `--model` disambiguator on task-selecting commands (the matching rule already exists on `limits --model`) is a cheap fix; lower priority.
+- **The launch handoff is load-bearing.** Right after launch, `task list` returning `[]` is indistinguishable from a failed launch (the socket may not be bound yet); without the planned agent-friendly `inspect eval --json` output (run_id / log path / control address — see Related work) the agent must invent a sleep-and-retry loop. Not a ctl-surface item, but the workflow's first step depends on it.
+
+**Suggested mapping.**
+
+| Current (flat) | Status | Proposed | Notes |
+|---|---|---|---|
+| `ctl tasks` | shipped | `ctl task list` | keep-alive footer unchanged |
+| `ctl samples [TASK]` | shipped | `ctl sample list [TASK]` | keeps `--active-since`; no `TASK` now spans all tasks (was: sole task, or error) |
+| `ctl sample TASK SID [EPOCH]` | shipped | `ctl sample show TASK SID [EPOCH]` | `show` frees `sample` to be the group; scope grows from error detail to a full sample summary (see agent output contract) |
+| `ctl errors [TASK]` | shipped | `ctl sample errors [TASK]` | output is sample rows → sample group; no `TASK` now spans all tasks. Alt: fold into `sample list --errors` |
+| `ctl events TASK SID [EPOCH]` | shipped | `ctl sample events TASK SID [EPOCH]` | cursor flag renamed `--since` → `--cursor`; other flags unchanged; phase-4 `-f/--follow` lands here |
+| `ctl flush [TASK]` | shipped | `ctl task flush [TASK]` | acts on the live attempt's recorder, but task keying already fits (see "task-keyed read aliases") |
+| `ctl buffer [TASK] [...]` | shipped | `ctl task buffer [TASK] [...]` | same |
+| `ctl limits [TASK] [...]` | shipped | `ctl task limits [TASK] [...]` | the full per-task view (superset); process-scoped knobs are read-only here — set them via `process limits` |
+| `ctl keep [--pid]` | shipped | `ctl process keep [PID]` | pid becomes an optional positional; defaults to the sole running process |
+| `ctl release [--pid]` | shipped | `ctl process release [PID]` | same |
+| `ctl add SPEC [...]` | planned | `ctl task add SPEC [...]` | |
+| `ctl cancel <id> [--force]` | planned | `ctl task cancel TASK [--force]` | selector settles on task, per the limits precedent |
+| `ctl drain <id>` | planned | `ctl task drain TASK` | |
+| `ctl cancel-sample <id> <sid>` | planned | `ctl sample cancel TASK SID [EPOCH]` | compound verb dissolves; `EPOCH` required when the task runs >1 epoch |
+| `ctl requeue <id> <sid>` | planned | `ctl sample requeue TASK SID [EPOCH]` | `EPOCH` required when the task runs >1 epoch |
+| `ctl set-limit <id> --time N` | planned | fold into `ctl task limits --time/--tokens/--messages` | one limits surface: concurrency knobs and per-sample execution limits are both "the running task's knobs"; the view renders them as two sections. Alt: a separate `task set-limits` if the fold proves confusing |
+| — | new | `ctl process list` | pids, keep-alive status, hosted task_ids; ships with the reorg — the group's other verbs take a `PID` selector, so pids must be enumerable in-group |
+| — | new | `ctl process limits [PID] [...]` | mirrors process-scoped `GET`/`PATCH /limits`; the only write path for `--max-connections` / `--max-sandboxes` (`task limits` keeps the superset view) |
+| — | later | `ctl eval-set list / show / cancel` | group slot ready-made |
+
+The hierarchy also leaves natural slots that the flat namespace couldn't have expressed without more minted names: `task show TASK` (single-task detail, if `task list` ever grows past a screen), for example.
+
+**What this buys (and costs).**
+
+For the agent-discoverability goal, the win is *structured* help, not shorter help: `inspect ctl --help` shows three or four nouns; `inspect ctl sample --help` shows six verbs sharing one selector shape. An agent learns the object model from the shape of the tree rather than from reading seventeen one-line summaries and inferring scopes. Verb symmetry means it can predict `sample cancel` after seeing `task cancel`. (Bash-allowlist granularity is unchanged either way — prefix rules like `inspect ctl task cancel*` work in both layouts, and read-vs-write doesn't align with nouns in either.)
+
+Costs, honestly stated: the hot reads get one word longer (`ctl tasks` → `ctl task list`); discovery takes two help invocations instead of one; and it renames a shipped surface. On raw count alone the flat list would survive — seventeen one-liners still fit a help screen — so the case rests on the scope signal and the dissolved near-collisions/compounds, which are real at ten commands already.
+
+**Migration.** If this lands, it should land **now**: the `ctl` surface is weeks old and pre-announcement, phase 3 is mid-flight (so half the planned verbs would otherwise ship flat and then move), and every release the flat names survive as the canonical form raises the cost of the rename. The noun surface is canonical from day one — help, docs, and this doc's examples all show only the new spellings. The old flat commands remain as **hidden aliases** (click `hidden=True`) for a transition window, with three deliberate properties:
+
+- **Except `sample`, which breaks immediately** — the name is claimed by the group, so the old `ctl sample TASK SID [EPOCH]` invocation can't coexist with `ctl sample <verb>`. A fallback ("first token not a known verb → treat as the old form") is rejected for the same reason the implied-`list` default never fires past a positional: selector capture, and verbs added later silently changing the meaning of old invocations. Ironically the command that motivated the reorg (the `samples`/`sample` near-collision) is the one that must break at once; its error message should point at `sample show`. The other nine flat commands (`tasks`, `samples`, `errors`, `events`, `keep`, `release`, `flush`, `buffer`, `limits`) collide with nothing and alias cleanly.
+- **Aliases preserve spellings, not output.** Each alias is a thin delegation to the new implementation — new behavior (unscoped reads widen), new JSON (the `{as_of, ...}` envelopes, unconditional `task_id`, `--since` → `--cursor`). A script parsing the old bare-array output breaks even through the alias; preserving the old shapes would mean maintaining two surfaces in lockstep, which is exactly the drift cost the no-alias principle exists to avoid. The aliases buy muscle-memory continuity for humans and command-spelling continuity for scripts — no more, and that's stated up front.
+- **Deprecation-noted and time-boxed.** Each alias prints a one-line pointer to **stderr** (stderr so `--json` stdout stays parseable) — e.g. "`inspect ctl tasks` is now `inspect ctl task list`" — and is removed after a stated window (say two releases). Hidden means agents reading `--help` never discover the old names, so new consumers learn only the new surface; the stderr note teaches old consumers the new spelling on every use.
+
+The agent-output-contract items that break shipped `--json` shapes ride the same release — one migration, not two.
+
 ### 4. TUI in a separate process from the eval
 
 Today `inspect eval --display full` runs a Textual TUI in the eval process itself. Closing the TUI requires killing the eval; running headless (`--display plain`) means giving up live state entirely.
