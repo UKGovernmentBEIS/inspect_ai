@@ -1,4 +1,5 @@
 import base64
+import fnmatch
 import html
 import json
 import re
@@ -16,6 +17,154 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 
 logger = getLogger(__name__)
 
+
+class ReasoningParserRule(NamedTuple):
+    families: tuple[str, ...]
+    parser: str
+    include: tuple[str, ...]
+
+
+NO_REASONING_MODEL_PATTERNS: tuple[str, ...] = (
+    "*[-._/]base*",
+    "*[-._/]embedding*",
+    "*[-._/]reranker*",
+    "*[-._/]guard*",
+    "*no*think*",
+    "*qwen3*instruct*",
+    "*qwen3-coder-next*",
+    "*kimi-k2*instruct*",
+)
+
+REASONING_PARSER_RULES: tuple[ReasoningParserRule, ...] = (
+    ReasoningParserRule(("DeepSeek V4",), "deepseek_v4", ("*deepseek-v4*",)),
+    ReasoningParserRule(("DeepSeek V3",), "deepseek_v3", ("*deepseek-v3*",)),
+    ReasoningParserRule(
+        ("DeepSeek R1", "QwQ", "Intern-S1", "Trinity"),
+        "deepseek_r1",
+        (
+            "*deepseek-r1*",
+            "*qwq*",
+            "*intern-s1*",
+            "*trinity-*think*",
+            "*trinity-*reasoning*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("Qwen3", "Intern-S2+", "Mellum"),
+        "qwen3",
+        (
+            "*qwen3*",
+            "*intern-s[2-9]*",
+            "*mellum*-*think*",
+            "*mellum*-*reasoning*",
+        ),
+    ),
+    ReasoningParserRule(("Kimi K2",), "kimi_k2", ("*kimi-k2*",)),
+    ReasoningParserRule(
+        ("Mistral", "Magistral", "Ministral"),
+        "mistral",
+        (
+            "*magistral*",
+            "*ministral*reasoning*",
+            "*mistral-medium-3.5*",
+            "*mistral-small-4*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("MiniMax M2", "MM M2"),
+        "minimax_m2",
+        ("*minimax-m2*", "*mm-m2*"),
+    ),
+    ReasoningParserRule(
+        ("GLM", "Glyph"),
+        "glm45",
+        (
+            "*glm-4.[5-9]*",
+            "*glm-4.[1-9][0-9]*",
+            "*glm-5*",
+            "*glm-ga*",
+            "*glyph*",
+        ),
+    ),
+    ReasoningParserRule(("Gemma 4",), "gemma4", ("*gemma-4*",)),
+    ReasoningParserRule(("ERNIE 4.5",), "ernie45", ("*ernie-4*-*thinking*",)),
+    ReasoningParserRule(
+        ("Granite",),
+        "granite",
+        (
+            "*granite-3.[2-9]*",
+            "*granite-3.[1-9][0-9]*",
+        ),
+    ),
+    ReasoningParserRule(("Hunyuan A13B",), "hunyuan_a13b", ("*hunyuan-*a13b*",)),
+    ReasoningParserRule(
+        ("Hunyuan V3", "Hy3"),
+        "hy_v3",
+        (
+            "*hy3*",
+            "*hunyuan3*",
+            "*hunyuan-3*",
+        ),
+    ),
+    ReasoningParserRule(("Holo2",), "holo2", ("*holo2*",)),
+    ReasoningParserRule(
+        ("MiMo V2", "Xiaomi MiMo V2"),
+        "mimo",
+        (
+            "*mimo-v2*",
+            "*xiaomimimo-v2*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("Olmo 3",),
+        "olmo3",
+        ("*olmo-3*-*think*", "*olmo-3*-*reasoning*"),
+    ),
+    ReasoningParserRule(
+        ("Seed OSS",),
+        "seed_oss",
+        (
+            "*seed-oss*",
+            "*seed_oss*",
+            "*seedoss*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("Nemotron V3", "NVIDIA Nemotron V3"),
+        "nemotron_v3",
+        (
+            "*nemotron-3-super*",
+            "*nvidia-nemotron-3-super*",
+            "*nemotron-3-ultra*",
+            "*nvidia-nemotron-3-ultra*",
+            "*nemotron-3-*omni*",
+            "*nemotron-3-*reasoning*",
+            "*nvidia-nemotron-3-*omni*",
+            "*nvidia-nemotron-3-*reasoning*",
+        ),
+    ),
+    ReasoningParserRule(
+        ("Step 3.5+",),
+        "step3p5",
+        ("*step-3.[5-9]*", "*step-3.[1-9][0-9]*"),
+    ),
+    ReasoningParserRule(("Step 3",), "step3", ("*step-3*",)),
+    ReasoningParserRule(
+        ("Cohere Command A reasoning",),
+        "cohere_command3",
+        ("*command-a-*reasoning*",),
+    ),
+    ReasoningParserRule(
+        ("Cohere Command A Plus", "North"),
+        "cohere_command4",
+        ("*command-a-plus*", "*north-*"),
+    ),
+    ReasoningParserRule(
+        ("Poolside V1", "Laguna"),
+        "poolside_v1",
+        ("*laguna*", "*poolside-*laguna*"),
+    ),
+)
 
 # Fixed effort -> token budget table used to bridge `reasoning_effort` onto
 # providers that only accept an explicit token budget (Anthropic Claude 3.7-4.5,
@@ -122,6 +271,25 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
         )
     else:
         return content, None
+
+
+def reasoning_parser_for_model(model: str | None) -> str | None:
+    if not model:
+        return None
+
+    if _matches_model_patterns(model, NO_REASONING_MODEL_PATTERNS):
+        return None
+
+    for rule in REASONING_PARSER_RULES:
+        if _matches_model_patterns(model, rule.include):
+            return rule.parser
+
+    return None
+
+
+def _matches_model_patterns(model: str, patterns: tuple[str, ...]) -> bool:
+    model_path = f"/{model}".lower()
+    return any(fnmatch.fnmatchcase(model_path, pattern) for pattern in patterns)
 
 
 def _parse_attr(attrs_str: str, name: str) -> str | None:

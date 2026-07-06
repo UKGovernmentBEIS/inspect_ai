@@ -1,4 +1,32 @@
-from inspect_ai.model._reasoning import parse_content_with_reasoning
+from inspect_ai.model._reasoning import (
+    parse_content_with_reasoning,
+    reasoning_parser_for_model,
+)
+
+
+def test_reasoning_parser_for_model_matches_hf_and_quantized_names():
+    assert reasoning_parser_for_model("Qwen/Qwen3-8B") == "qwen3"
+    assert reasoning_parser_for_model("unsloth/Qwen3-8B-AWQ") == "qwen3"
+    assert reasoning_parser_for_model("zai-org/GLM-4.5-Air") == "glm45"
+    assert reasoning_parser_for_model("zai-org/GLM-5") == "glm45"
+
+
+def test_reasoning_parser_for_model_does_not_match_next_generation():
+    assert reasoning_parser_for_model("Qwen/Qwen4-8B") is None
+    assert reasoning_parser_for_model("deepseek-ai/DeepSeek-V5-Pro") is None
+    assert reasoning_parser_for_model("zai-org/GLM-6") is None
+
+
+def test_reasoning_parser_for_model_skips_no_reasoning_patterns():
+    assert reasoning_parser_for_model("Qwen/Qwen3-8B-Base") is None
+    assert reasoning_parser_for_model("jinaai/jina-embeddings-v4") is None
+    assert reasoning_parser_for_model("acme/reward-reranker-v1") is None
+    assert reasoning_parser_for_model("meta-llama/Llama-Guard-4") is None
+    assert reasoning_parser_for_model("Qwen/Qwen3-8B-Non-Thinking") is None
+    assert reasoning_parser_for_model("Qwen/Qwen3-8B-NoThink") is None
+    assert reasoning_parser_for_model("Qwen/Qwen3-8B-Instruct") is None
+    assert reasoning_parser_for_model("Qwen/Qwen3-Coder-Next") is None
+    assert reasoning_parser_for_model("moonshotai/Kimi-K2-Instruct") is None
 
 
 def test_reasoning_parse_basic():
@@ -87,6 +115,17 @@ def test_reasoning_parse_no_think_tag():
 def test_reasoning_parse_unclosed_tag():
     content, reasoning = parse_content_with_reasoning("<think>Unclosed reasoning")
     assert reasoning is None
+
+
+def test_reasoning_parse_skips_unmapped_models():
+    assert reasoning_parser_for_model("custom-org/custom-model") is None
+
+
+def test_reasoning_parse_uses_tags_when_model_missing():
+    content, reasoning = parse_content_with_reasoning("<think>private</think>answer")
+    assert reasoning is not None
+    assert reasoning.reasoning == "private"
+    assert content == "answer"
 
 
 # New tests for signature attribute

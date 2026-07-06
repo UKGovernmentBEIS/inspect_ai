@@ -34,6 +34,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._reasoning import reasoning_parser_for_model
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -266,6 +267,14 @@ class VLLMAPI(OpenAICompatibleAPI):
         # Work on a copy — the pops below are destructive and the original
         # must survive intact for restarts after close().
         server_args = dict(self.server_args)
+        missing = object()
+        parser = server_args.get("reasoning_parser", missing)
+        if parser is None or str(parser).strip().lower() in ("", "none"):
+            server_args.pop("reasoning_parser", None)
+        elif parser is missing:
+            reasoning_parser = reasoning_parser_for_model(model_path)
+            if reasoning_parser:
+                server_args["reasoning_parser"] = reasoning_parser
 
         server = self._server
         if server.enable_lora:
