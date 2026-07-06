@@ -787,6 +787,8 @@ class _TokenLimit(Limit, _Node):
 
         super().__init__()
         self._validate_token_limit(limit)
+        if type not in ("all", "output"):
+            raise ValueError(f'Token limit type must be "all" or "output": {type!r}')
         self._limit = limit
         self._type: Literal["all", "output"] = type
         self._usage = ModelUsage()

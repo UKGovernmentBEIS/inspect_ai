@@ -500,6 +500,11 @@ def test_token_limit_rejects_spec_and_type() -> None:
         token_limit(TokenLimit(tokens=10, type="output"), type="output")
 
 
+def test_token_limit_rejects_invalid_type() -> None:
+    with pytest.raises(ValueError):
+        token_limit(10, type="outputs")  # type: ignore[arg-type]
+
+
 def test_token_limit_type_defaults_to_all() -> None:
     with token_limit(10) as limit:
         assert limit.type == "all"
