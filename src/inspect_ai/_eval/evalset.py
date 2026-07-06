@@ -36,7 +36,7 @@ from inspect_ai._control.server import (
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
-from inspect_ai._eval.task.run import resolve_plan
+from inspect_ai._eval.task.run import eval_plan_agent_name, resolve_plan
 from inspect_ai._eval.task.scan import Scanners, scan_already_clean
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
@@ -49,7 +49,6 @@ from inspect_ai._util.file import (
 )
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
-from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
@@ -819,13 +818,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             else 0
         )
 
-        # the plan's terminal step is the agent/solver name — the same
-        # derivation the live path makes via plan_agent_name (the header
-        # records the qualified registry name, so unqualify it). when the
-        # plan has a `finish` solver the recorded steps repeat it as a
-        # trailing entry — skip it so the terminal step matches the live path
-        plan_steps = header.plan.steps[:-1] if header.plan.finish else header.plan.steps
-        agent = registry_unqualified_name(plan_steps[-1].solver) if plan_steps else ""
+        agent = eval_plan_agent_name(header.plan) or ""
 
         # Provisional terminal split, shown only until the deferred
         # resolution (or permanently, if its read fails): optimistically
