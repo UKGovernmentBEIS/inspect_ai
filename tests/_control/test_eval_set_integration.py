@@ -698,6 +698,59 @@ def test_ctl_reused_log_eval_reports_usage(short_data_dir: Path) -> None:
     assert entry["agent"] == "gen", entry
 
 
+def test_ctl_reused_log_agent_skips_finish_step() -> None:
+    """Reused-log agent derivation matches the live path for ``Plan(finish=...)``.
+
+    ``plan_to_eval_plan`` appends the plan's ``finish`` solver to the recorded
+    ``steps``, so the header's last step is the finish solver — not the
+    terminal solver ``plan_agent_name`` reports while the task runs. The
+    reused-log registration must skip it, or the same task shows one agent
+    while running and another after eval-set reuse.
+    """
+    from datetime import datetime, timezone
+
+    from inspect_ai._control.eval_state import clear_all_eval_states, get_eval_state
+    from inspect_ai._eval.evalset import Log, _register_reused_logs
+    from inspect_ai._eval.task.log import plan_to_eval_plan
+    from inspect_ai._eval.task.run import plan_agent_name
+    from inspect_ai.log._file import EvalLogInfo
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.solver import Plan, system_message
+
+    plan = Plan([system_message("hi"), generate()], finish=system_message("bye"))
+    header = EvalLog(
+        eval=EvalSpec(
+            eval_id="e-finish",
+            created=datetime.now(timezone.utc).isoformat(),
+            task="task_finish",
+            task_id="tid-finish",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=plan_to_eval_plan(plan, GenerateConfig()),
+    )
+    info = EvalLogInfo(
+        name="logs/e.eval",
+        type="file",
+        size=0,
+        mtime=None,
+        task="task_finish",
+        task_id="tid-finish",
+        suffix=None,
+    )
+
+    clear_all_eval_states()
+    try:
+        _register_reused_logs([Log(info=info, header=header, task_identifier="x")])
+        state = get_eval_state("e-finish")
+        assert state is not None
+        assert state.agent == "generate" == plan_agent_name(plan)
+    finally:
+        clear_all_eval_states()
+
+
 # --- keep-alive park -------------------------------------------------------
 
 

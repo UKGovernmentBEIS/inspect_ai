@@ -819,6 +819,14 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             else 0
         )
 
+        # the plan's terminal step is the agent/solver name — the same
+        # derivation the live path makes via plan_agent_name (the header
+        # records the qualified registry name, so unqualify it). when the
+        # plan has a `finish` solver the recorded steps repeat it as a
+        # trailing entry — skip it so the terminal step matches the live path
+        plan_steps = header.plan.steps[:-1] if header.plan.finish else header.plan.steps
+        agent = registry_unqualified_name(plan_steps[-1].solver) if plan_steps else ""
+
         # Provisional terminal split, shown only until the deferred
         # resolution (or permanently, if its read fails): optimistically
         # all-completed. Deriving `errored` from the header's
@@ -837,12 +845,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             task=eval_spec.task,
             task_id=eval_spec.task_id,
             model=str(eval_spec.model) if eval_spec.model else "",
-            # the plan's terminal step is the agent/solver name — the same
-            # derivation the live path makes via plan_agent_name (the header
-            # records the qualified registry name, so unqualify it)
-            agent=registry_unqualified_name(header.plan.steps[-1].solver)
-            if header.plan.steps
-            else "",
+            agent=agent,
             log_location=log_entry.info.name,
             run_id=eval_spec.run_id,
             completed_at=completed_at,
