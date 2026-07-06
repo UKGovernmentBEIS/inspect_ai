@@ -16,6 +16,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 env:
   UV_VERSION: 0.9.4
 
@@ -101,6 +104,9 @@ jobs:
   # `paths-ignore` which would strand a required check.
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       code: ${{ steps.filter.outputs.code }}
       sandbox_tools: ${{ steps.filter.outputs.sandbox_tools }}
@@ -196,6 +202,9 @@ jobs:
   detect-slow:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       tools_changed: ${{ steps.tools.outputs.tools }}
       injectable_src_changed: ${{ steps.tools.outputs.injectable_src }}

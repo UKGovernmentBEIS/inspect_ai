@@ -8,6 +8,9 @@ on:
     branches:
       - "*"
 
+permissions:
+  contents: read
+
 env:
   UV_VERSION: 0.9.4
 
