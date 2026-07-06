@@ -165,8 +165,8 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
         assert entry["status"] == "running"
         assert entry["completed_at"] is None
         assert entry["model"] == "mockllm/model"
-        # the plan's terminal step — the gate solver — is the reported agent
-        assert entry["agent"] == "gate"
+        # the plan's terminal step — the gate solver — is the reported solver
+        assert entry["solver"] == "gate"
         # log_location points at this eval's log file, so an agent monitoring a
         # run it didn't launch can find where results are written — as a plain
         # local path (no `file://` prefix), directly usable.
@@ -694,17 +694,17 @@ def test_ctl_reused_log_eval_reports_usage(short_data_dir: Path) -> None:
     assert entry is not None
     assert entry["total_tokens"] > 0, entry
     assert entry["total_messages"] > 0, entry
-    # agent name recovered from the reused log's plan (terminal step)
-    assert entry["agent"] == "gen", entry
+    # solver name recovered from the reused log's plan (terminal step)
+    assert entry["solver"] == "gen", entry
 
 
-def test_ctl_reused_log_agent_skips_finish_step() -> None:
-    """Reused-log agent derivation matches the live path for ``Plan(finish=...)``.
+def test_ctl_reused_log_solver_skips_finish_step() -> None:
+    """Reused-log solver derivation matches the live path for ``Plan(finish=...)``.
 
     ``plan_to_eval_plan`` appends the plan's ``finish`` solver to the recorded
     ``steps``, so the header's last step is the finish solver — not the
     terminal solver ``plan_agent_name`` reports while the task runs. The
-    reused-log registration must skip it, or the same task shows one agent
+    reused-log registration must skip it, or the same task shows one solver
     while running and another after eval-set reuse.
     """
     from datetime import datetime, timezone
@@ -746,7 +746,7 @@ def test_ctl_reused_log_agent_skips_finish_step() -> None:
         _register_reused_logs([Log(info=info, header=header, task_identifier="x")])
         state = get_eval_state("e-finish")
         assert state is not None
-        assert state.agent == "generate" == plan_agent_name(plan)
+        assert state.solver == "generate" == plan_agent_name(plan)
     finally:
         clear_all_eval_states()
 

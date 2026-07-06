@@ -94,29 +94,29 @@ def _task_row(task_id: str, task: str, **extra: Any) -> dict[str, Any]:
     }
 
 
-def test_tasks_table_shows_model_and_agent_columns(
+def test_tasks_table_shows_model_and_solver_columns(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     summaries = [
-        _task_row("aaa111", "t1", model="openai/gpt-5", agent="react"),
-        _task_row("bbb222", "t2", model="mockllm/model", agent="generate"),
+        _task_row("aaa111", "t1", model="openai/gpt-5", solver="react"),
+        _task_row("bbb222", "t2", model="mockllm/model", solver="generate"),
     ]
     _print_human_table(summaries)
     lines = capsys.readouterr().out.splitlines()
-    assert "model" in lines[0] and "agent" in lines[0]
+    assert "model" in lines[0] and "solver" in lines[0]
     row = next(ln for ln in lines if ln.startswith("aaa111"))
     assert "openai/gpt-5" in row and "react" in row
 
 
-def test_tasks_table_hides_agent_column_when_absent(
+def test_tasks_table_hides_solver_column_when_absent(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    # An older server may omit `agent` entirely — drop the column rather
+    # An older server may omit `solver` entirely — drop the column rather
     # than render it all-blank.
     _print_human_table([_task_row("aaa111", "t1", model="openai/gpt-5")])
     header = capsys.readouterr().out.splitlines()[0]
     assert "model" in header
-    assert "agent" not in header
+    assert "solver" not in header
 
 
 def _sample(

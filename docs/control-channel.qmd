@@ -32,13 +32,13 @@ The endpoint is a Unix domain socket under the current user's Inspect data direc
 
 ```bash
 $ inspect ctl tasks
-task_id       task                        model                      agent     samples             started
+task_id       task                        model                      solver    samples             started
 ------------  --------------------------  -------------------------  --------  ------------------  --------
 ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-5               react     12/40 (3 running)   14:02:11
 fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 (complete)  13:58:40
 ```
 
-Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored. The `agent` column shows the plan's terminal solver (e.g. `react` for an agentic task).
+Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored. The `solver` column shows the plan's terminal solver (the agent name, e.g. `react`, for an agentic task).
 
 ## Selecting a Task
 

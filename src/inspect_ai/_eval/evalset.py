@@ -836,7 +836,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             task=eval_spec.task,
             task_id=eval_spec.task_id,
             model=str(eval_spec.model) if eval_spec.model else "",
-            agent=eval_plan_agent_name(header.plan) or "",
+            solver=eval_plan_agent_name(header.plan) or "",
             log_location=log_entry.info.name,
             run_id=eval_spec.run_id,
             completed_at=completed_at,
