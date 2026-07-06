@@ -125,8 +125,9 @@ def list_alive_discovery_entries(
 
     Returns the parsed JSON dicts for every ``<pid>.json`` file whose
     ``pid`` field references a still-alive process. Stale entries and
-    malformed files are silently skipped — this is the same resilience
-    contract as :func:`_sweep_stale_entries`.
+    malformed files are silently skipped, matching the best-effort
+    resilience contract used across discovery-directory reads and
+    sweeps.
 
     Caller is responsible for filtering/validating the dicts against
     their subsystem's expected schema.
