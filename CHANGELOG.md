@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Neutralize thinking blocks before `count_tokens` so compaction no longer hits 400 errors (thinking blocks "cannot be modified" / "each thinking block must contain thinking") when counting message subsets whose assistant turns contain reasoning blocks.
 - Performance: make `stable_message_ids()` linear per turn.
 - Docker: Support the `devices` field on compose services (device mappings such as `/dev/kvm`), previously rejected as an unknown field.
 - Agent Bridge: Sandbox model proxy now returns an HTTP 400 error for malformed requests (missing/empty `model`, missing `messages`/`input`, or a non-object body) instead of crashing the sample. (#4187)

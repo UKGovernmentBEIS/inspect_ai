@@ -6,7 +6,12 @@ import pytest
 from test_helpers.utils import skip_if_no_anthropic
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import Content, ContentText, ContentToolUse
+from inspect_ai._util.content import (
+    Content,
+    ContentReasoning,
+    ContentText,
+    ContentToolUse,
+)
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
@@ -471,6 +476,172 @@ async def test_anthropic_count_tokens_single_tool_result() -> None:
     # This should not raise - we're testing token counting for individual messages
     token_count = await model.api.count_tokens([tool_msg])
     assert token_count > 0
+
+
+@skip_if_no_anthropic
+async def test_anthropic_count_tokens_multiple_reasoning_blocks() -> None:
+    """count_tokens must not 400 on an assistant turn with multiple reasoning blocks.
+
+    Reproduces the production compaction failure: when an assistant message
+    carries more than one reasoning block, Anthropic's count_tokens rejects the
+    second+ block with a 400 ("`thinking` or `redacted_thinking` blocks in the
+    latest assistant message cannot be modified"). Compaction counts message
+    subsets, so such a turn reaches count_tokens as the "latest assistant
+    message" and trips the check. Verified end-to-end: without thinking
+    neutralization this call 400s against the live API; with it, it succeeds.
+
+    Real signatures only come from the API, so we generate first, then build the
+    multi-reasoning-block message from the real reasoning content.
+    """
+    model = get_model(
+        "anthropic/claude-opus-4-8",
+        config=GenerateConfig(max_tokens=2048, reasoning_effort="medium"),
+    )
+
+    output = await model.generate("What is 17 * 23? Reason it through.")
+    reasoning = (
+        [c for c in output.message.content if isinstance(c, ContentReasoning)]
+        if isinstance(output.message.content, list)
+        else []
+    )
+    if not reasoning:
+        pytest.skip("model did not emit a reasoning block for this prompt")
+
+    # an assistant turn with two reasoning blocks — the shape that 400'd in
+    # production; count it as a subset the way compaction does
+    message = ChatMessageAssistant(
+        content=[
+            reasoning[0],
+            reasoning[0].model_copy(deep=True),
+            ContentText(text="The answer is 391."),
+        ]
+    )
+    token_count = await model.api.count_tokens([message])
+    assert token_count > 0
+
+
+@skip_if_no_anthropic
+async def test_anthropic_count_tokens_empty_reasoning_block() -> None:
+    """count_tokens must not 400 on a reasoning block with empty text + signature.
+
+    The other production error: a `ContentReasoning` with an empty summary and an
+    empty signature reconstructs to a `thinking` block with empty `thinking` and
+    empty `signature`, which the API rejects with "each thinking block must
+    contain thinking". (An empty summary with a *valid* signature is accepted —
+    it's the empty signature that triggers it.) This needs no real signature, so
+    the input is deterministic. Verified end-to-end: without thinking
+    neutralization this 400s against the live API; with it, it succeeds.
+    """
+    model = get_model("anthropic/claude-opus-4-8")
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(summary="", reasoning=""),
+            ContentText(text="done"),
+        ]
+    )
+    token_count = await model.api.count_tokens([message])
+    assert token_count > 0
+
+
+def test_neutralize_thinking_for_token_counting() -> None:
+    """Thinking/redacted blocks are replaced with text before count_tokens.
+
+    Reproduces the two count_tokens 400s that compaction hit: an empty-summary
+    thinking block ("each thinking block must contain thinking", from Claude
+    4.7+ `display: "omitted"`) and a signature-bearing thinking block in a
+    subset's latest assistant message ("blocks ... cannot be modified"). Both
+    are dropped from the payload for a robust token estimate.
+    """
+    from inspect_ai.model._providers.anthropic import (
+        neutralize_thinking_for_token_counting,
+    )
+
+    messages = [
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "thinking", "thinking": "", "signature": "sig-empty"},
+                {"type": "text", "text": "hello"},
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "answer"},
+                {"type": "thinking", "thinking": "some summary", "signature": "sig-2"},
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": [{"type": "redacted_thinking", "data": "opaque"}],
+        },
+        {"role": "user", "content": "unchanged"},
+    ]
+
+    result = neutralize_thinking_for_token_counting(messages)  # type: ignore[arg-type]
+
+    def blocks(index: int) -> list[dict[str, Any]]:
+        content = result[index]["content"]
+        assert isinstance(content, list)
+        return cast(list[dict[str, Any]], content)
+
+    for msg in result:
+        content = msg["content"]
+        if isinstance(content, list):
+            assert all(
+                b.get("type") not in ("thinking", "redacted_thinking") for b in content
+            )
+
+    # empty-summary thinking dropped, sibling text preserved verbatim
+    assert blocks(0) == [{"type": "text", "text": "hello"}]
+    # non-empty summary converted to text (approximate token weight preserved)
+    assert {"type": "text", "text": "some summary"} in blocks(1)
+    # a message that was only redacted_thinking never becomes empty
+    assert len(blocks(2)) == 1
+    assert blocks(2)[0]["type"] == "text"
+    # non-assistant messages are untouched
+    assert result[3] == {"role": "user", "content": "unchanged"}
+
+
+async def test_anthropic_count_tokens_strips_thinking_from_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """count_tokens never sends thinking blocks (or a `thinking` param) upstream.
+
+    On a fresh process the thinking-block replay cache is empty, so
+    ContentReasoning is reconstructed into a ThinkingBlockParam — exactly the
+    cache-miss path that a deployed/resumed run hits. The reconstructed block
+    must be neutralized before reaching the API.
+    """
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+
+    captured: dict[str, Any] = {}
+
+    async def fake_count_tokens(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return types.SimpleNamespace(input_tokens=123)
+
+    monkeypatch.setattr(api.client.messages, "count_tokens", fake_count_tokens)
+
+    assistant = ChatMessageAssistant(
+        content=[
+            ContentReasoning(summary="a thinking summary", reasoning="fake-signature"),
+            ContentText(text="the answer"),
+        ]
+    )
+
+    count = await api.count_tokens([assistant])
+    assert count == 123
+
+    for msg in captured["messages"]:
+        content = msg["content"]
+        if isinstance(content, list):
+            assert all(
+                b.get("type") not in ("thinking", "redacted_thinking") for b in content
+            )
+    assert "thinking" not in captured
 
 
 async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
