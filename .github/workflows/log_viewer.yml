@@ -8,6 +8,12 @@ on:
     branches:
       - "*"
 
+# Cancel superseded in-flight runs when a PR branch is updated; runs on
+# main queue rather than cancel so every merge commit gets a full build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
