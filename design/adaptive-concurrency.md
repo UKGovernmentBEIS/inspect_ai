@@ -196,11 +196,11 @@ endpoint/CLI surface. The couplings that live on this side:
   ceiling and lets the algorithm climb there on its own. The sample limiter
   follows both through the observer chain, because it reads live controller
   state rather than any snapshot.
-- **Log capture**: `collect_eval_data` (`_eval/task/log.py`) copies controller
-  history into `EvalStats.connection_limit_history`, whose schema enum covers
-  only the adaptive reasons — `manual` entries are skipped there (they're an
-  external override, not an adaptive-scaling decision) and stay visible live
-  via `ctl limits`.
+- **Log capture**: `collect_eval_data` (`_eval/task/log.py`) copies the full
+  controller history into `EvalStats.connection_limit_history` — including
+  `manual` retunes (the schema enum is `LimitChangeReason`), so the logged
+  limit timeline is continuous and a throttled run's actual operating
+  concurrency is recoverable from the log.
 
 ## Lifecycle
 

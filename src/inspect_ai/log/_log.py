@@ -35,7 +35,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
-from inspect_ai.util._concurrency import AdaptiveScaleReason
+from inspect_ai.util._concurrency import LimitChangeReason
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
@@ -1057,9 +1057,9 @@ class ConnectionLimitChange(BaseModel):
     new_limit: int
     """Concurrency limit after the change."""
 
-    reason: AdaptiveScaleReason
-    """Why the change occurred (adaptive-scaling decisions only — a `manual`
-    control-channel retune is visible live via `ctl limits` but not logged)."""
+    reason: LimitChangeReason
+    """Why the change occurred: an adaptive-scaling decision (`slow_start` /
+    `steady_state_up` / `rate_limit`) or a `manual` control-channel retune."""
 
 
 class EvalStats(BaseModel):

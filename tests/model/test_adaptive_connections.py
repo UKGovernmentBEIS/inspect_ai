@@ -259,13 +259,14 @@ async def test_connection_limit_history_captured_in_eval_stats() -> None:
     assert entry.model  # non-empty
 
 
-async def test_manual_connection_limit_change_excluded_from_eval_stats() -> None:
-    """A control-channel `set_max` retune (reason='manual') doesn't crash capture.
+async def test_manual_connection_limit_change_included_in_eval_stats() -> None:
+    """A control-channel `set_max` retune (reason='manual') is logged.
 
-    Regression: `set_max` records a `manual` history entry. collect_eval_data
-    maps controller history into `ConnectionLimitChange`, whose `reason` enum has
-    only adaptive reasons — so a `manual` entry must be skipped, not passed
-    through (which would raise a ValidationError and fail the whole eval).
+    Regression (twice over): `set_max` records a `manual` history entry, and
+    capture originally crashed on it with a ValidationError (the schema enum
+    had only adaptive reasons), then skipped it — leaving an unexplained gap
+    in the logged limit timeline across a retune. The schema enum now covers
+    `manual` and the entry is captured like any other change.
     """
     from test_helpers.utils import register_adaptive_controller
 
@@ -277,10 +278,11 @@ async def test_manual_connection_limit_change_excluded_from_eval_stats() -> None
     ctrl.set_max(20)  # records a 50 -> 20 "manual" change in controller history
 
     stats = EvalStats()
-    collect_eval_data(stats)  # must not raise on the "manual" reason
-    # the manual retune (the only recorded change) is excluded from the
-    # log's adaptive-scaling history
-    assert stats.connection_limit_history == []
+    collect_eval_data(stats)
+    assert stats.connection_limit_history is not None
+    assert len(stats.connection_limit_history) == 1
+    change = stats.connection_limit_history[0]
+    assert (change.old_limit, change.new_limit, change.reason) == (50, 20, "manual")
 
 
 def test_parse_adaptive_connections_cli_value_forms() -> None:
