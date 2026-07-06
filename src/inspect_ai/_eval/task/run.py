@@ -527,7 +527,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 task=logger.eval.task,
                 task_id=logger.eval.task_id,
                 model=str(model),
-                solver=profile.agent or "",
+                solver=profile.agent,
                 log_location=logger.location,
                 live=logger,
                 sample_ids=sample_ids,
