@@ -254,10 +254,11 @@ class RunCodeToolBridge:
         Three cases:
           - Scalars (str/int/float/bool) cross natively so code can chain them
             into later calls or compute on them.
-          - Rich Content (text/image/...) is projected to text, with non-text
-            content preserved as artifacts.
+          - Content results are handled at the boundary: ContentText is projected
+            into the runtime as text, while non-text Content is kept outside the
+            runtime and appended to the final run_code result as artifacts.
           - JSON-serializable structured data is converted to native Python values
-        so code can index, iterate, and aggregate over it.
+            so code can index, iterate, and aggregate over it.
         """
         if isinstance(result, (str, int, float, bool)):
             return result
