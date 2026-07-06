@@ -99,7 +99,9 @@ def cwd_relative_path(file: str | None, walk_up: bool = False) -> str | None:
         else:
             return file
     else:
-        return None
+        # file is either None or the empty string; return it unchanged so the
+        # `str -> str` overload holds ("" -> "") while `None -> None`.
+        return file
 
 
 def pretty_path(file: str) -> str:
