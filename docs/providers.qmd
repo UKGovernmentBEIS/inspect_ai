@@ -880,7 +880,7 @@ model = get_model(
 )
 ```
 
-Activations are available in the "hidden_states" field of `ModelOutput.metadata`. The hidden_states value is the same as transformers [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
+Activations are available in the `"hidden_states"` field of `ModelOutput.metadata`. So they can be written to the eval log, the hidden-state tensors from transformers' [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput) are materialized as JSON-serializable nested lists, preserving the `[step][layer]` structure with the per-sample activation values in place of each tensor.
 
 ### Sampling
 

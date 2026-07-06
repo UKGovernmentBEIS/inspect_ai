@@ -52,6 +52,7 @@ from .._model_output import (
     TopLogprob,
 )
 from .util import ChatAPIHandler, HFHandler
+from .util.hidden_states import hidden_states_to_jsonable
 
 logger = getLogger(__name__)
 
@@ -278,9 +279,11 @@ class HuggingFaceAPI(ModelAPI):
                 total_tokens=response.total_tokens,
             ),
             time=response.time,
-            metadata={
-                "hidden_states": _hidden_states_to_jsonable(response.hidden_states)
-            },
+            metadata=(
+                {"hidden_states": response.hidden_states}
+                if response.hidden_states is not None
+                else None
+            ),
         )
 
     @override
@@ -514,24 +517,8 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     logprobs: torch.Tensor | None
-    hidden_states: tuple[tuple[torch.Tensor]] | None
+    hidden_states: list[list[Any]] | None
     time: float
-
-
-def _hidden_states_to_jsonable(
-    hidden_states: tuple[tuple[Tensor]] | None,
-) -> list[list[Any]] | None:
-    """Convert generation hidden states to a JSON-serializable form for the log.
-
-    ``output_hidden_states`` yields tensors, which are not JSON-serializable and get
-    dropped to ``None`` when the model output metadata is written to the eval log,
-    so ``-M hidden_states`` currently records nothing. Materialize the tensors as
-    nested lists (preserving the ``[step][layer]`` structure) so they survive. Only
-    reached when the caller opted in via ``-M hidden_states``.
-    """
-    if hidden_states is None:
-        return None
-    return [[layer.tolist() for layer in step] for step in hidden_states]
 
 
 @dataclass
@@ -640,9 +627,12 @@ def process_batches() -> None:
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
                         logprobs=logprobs[i] if logprobs is not None else None,
-                        hidden_states=hidden_states
-                        if hidden_states is not None
-                        else None,
+                        # slice this sample out of the batch dimension and
+                        # materialize to lists here (off the event loop) so each
+                        # sample records only its own activations, once
+                        hidden_states=hidden_states_to_jsonable(
+                            hidden_states, sample_index=i
+                        ),
                         time=total_time,
                     )
                 )
