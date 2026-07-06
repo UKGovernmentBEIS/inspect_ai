@@ -341,7 +341,10 @@ def register_eval(
             model=model,
             log_location=log_location,
             live=live,
-            sample_ids=sample_ids or [],
+            # copy: a SampleSource-driven task appends to its planned-ids list
+            # as samples are injected; the state's list must grow only via
+            # record_samples_added, not by aliasing the caller's list
+            sample_ids=list(sample_ids or []),
             epochs=epochs,
             run_id=run_id,
             will_retry=will_retry,
@@ -513,6 +516,28 @@ def record_sample_cancelled(
             state.total_messages += messages
             state.observe_started(started)
             _maybe_mark_finished(state)
+
+
+def record_samples_added(
+    eval_id: str, total: int, *, sample_ids: list[str | int] | None = None
+) -> None:
+    """Grow a running eval's planned totals when samples are added dynamically.
+
+    Called by ``task_run`` when a ``SampleSource`` injects samples mid-run:
+    ``total`` is the number of additional planned runs (samples × epochs) and
+    ``sample_ids`` the injected ids (so the per-sample listing can surface them
+    as pending). If the eval had already been provisionally marked finished
+    (every previously-planned sample terminal while the source was still
+    producing), the finish stamp is cleared. No-ops if unregistered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.total += total
+            if sample_ids:
+                state.sample_ids.extend(sample_ids)
+            if not state.is_finished:
+                state.completed_at = None
 
 
 def task_registered(task_id: str) -> bool:

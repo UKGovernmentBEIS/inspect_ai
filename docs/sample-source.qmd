@@ -1,0 +1,125 @@
+---
+title: Sample Sources
+llms-description: Generate a task's samples dynamically from code — a seed plus result-driven follow-ups — while the task runs.
+---
+
+::: {.callout-note appearance="simple"}
+Sample sources require the development version of Inspect, which you can install from GitHub:
+
+```bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+## Overview
+
+The `dataset` argument to `Task` is normally static: you pass a `Dataset` (or list of samples) and the task runs exactly those. A `SampleSource` generates samples dynamically instead — a seed plus follow-ups that depend on results — all within one task and one log.
+
+Use it when the next samples to run depend on the results of the previous ones:
+
+- Reinforcement-learning loops that generate the next samples from scores.
+- Adaptive evaluation that branches on model performance (e.g. escalate difficulty until failure).
+- Open-ended generation that runs until some external condition stops it.
+
+A `SampleSource` is just a value the `dataset` parameter accepts, so there is no separate argument. It is the sample-level mirror of [Task Sources](task-source.qmd): use a `TaskSource` to generate whole tasks across a run, a `SampleSource` to generate samples within a task.
+
+## Defining a source
+
+Subclass `SampleSource` and override the methods you need (the defaults are no-ops):
+
+```python
+from inspect_ai import SampleSource
+from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalSample
+
+
+class MySource(SampleSource):
+    def initial_samples(self) -> list[Sample]:
+        """Seed samples to run first (synchronous; may be empty)."""
+        ...
+
+    async def next_samples(self) -> list[Sample] | None:
+        """More samples, or None when the task is complete."""
+        ...
+
+    async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+        """Observe a finished sample; optionally return follow-up samples."""
+        ...
+```
+
+Pass an instance as the task's `dataset`:
+
+```python
+from inspect_ai import Task, eval
+
+eval(Task(dataset=MySource(), solver=my_solver(), scorer=my_scorer()),
+     model="openai/gpt-4o")
+```
+
+`initial_samples()` is synchronous and returns the seed, so it must return immediately rather than `await`. It may be empty, in which case the task starts by calling `next_samples()`. `next_samples()` is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return `None` to end the task.
+
+All generated samples run within the task — one log file, one set of results — and each runs for the task's configured number of [epochs](options.qmd#epochs). Samples without an `id` are assigned one automatically, continuing the seed's numbering.
+
+## Returning follow-up samples
+
+`sample_complete` fires as each sample completes. Besides observing the result, it can return samples to add to the task, which start as soon as there is free capacity:
+
+```python
+class Adaptive(SampleSource):
+    def initial_samples(self) -> list[Sample]:
+        return [make_sample(difficulty=1)]
+
+    async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+        # escalate difficulty while the model keeps passing
+        difficulty = sample.metadata["difficulty"]
+        if passed(sample) and difficulty < 10:
+            return [make_sample(difficulty=difficulty + 1)]
+        return None
+```
+
+A source that returns follow-ups from this callback needs no `next_samples()`: the task ends when completions return nothing and `next_samples()` returns `None`. Use `next_samples()` for the blocking case a per-result callback can't express.
+
+## Sources from callbacks
+
+`SampleSource.from_samples()` builds a source from a seed and optional callbacks, without subclassing:
+
+```python
+from inspect_ai import SampleSource
+
+scores: list[float] = []
+
+async def on_sample(sample):
+    scores.append(score_value(sample))
+    return [harder_sample()] if sum(scores) / len(scores) >= 0.8 else None
+
+source = SampleSource.from_samples([easy_sample()], sample_complete=on_sample)
+```
+
+`from_samples(initial_samples, *, next_samples=None, sample_complete=None)` delegates to the callables. Omitting `next_samples` and returning nothing from the callback stops after the seed.
+
+## Adding samples imperatively
+
+`enqueue_sample()` adds samples to the running task from any code — a solver, scorer, or tool — not only the `SampleSource` itself:
+
+```python
+from inspect_ai import enqueue_sample
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import Generate, TaskState, solver
+
+
+@solver
+def spawn_followup():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        enqueue_sample(Sample(input=followup_prompt(state)))
+        return state
+
+    return solve
+```
+
+Enqueued samples share a buffer with samples returned from `sample_complete`. `enqueue_sample()` is only available inside a task driven by a `SampleSource` (a plain task's sample set is fixed) and raises otherwise.
+
+## Concurrency
+
+A `SampleSource` task is live: a sample added mid-run starts as soon as there is free capacity, rather than waiting for the current samples to finish. Concurrency is bounded by `max_samples` as usual (see [Parallelism](parallelism.qmd)).
+
+The `--limit` and `--sample-id` options apply to the seed only — samples the source produces while the task runs are not subject to them.

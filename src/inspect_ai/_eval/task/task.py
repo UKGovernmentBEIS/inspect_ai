@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    NamedTuple,
+    Sequence,
+    cast,
+    overload,
+)
 
 from inspect_ai.util._early_stopping import EarlyStopping
 
@@ -47,6 +56,7 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.viewer import ViewerConfig
 
 from .epochs import Epochs
+from .sample_source import SampleSource
 
 logger = getLogger(__name__)
 
@@ -66,7 +76,7 @@ class Task:
 
     def __init__(
         self,
-        dataset: Dataset | Sequence[Sample] | None = None,
+        dataset: Dataset | Sequence[Sample] | SampleSource | None = None,
         setup: Solver | list[Solver] | None = None,
         solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
@@ -102,7 +112,8 @@ class Task:
         """Create a task.
 
         Args:
-            dataset: Dataset to evaluate
+            dataset: Dataset to evaluate, or a `SampleSource` that generates
+                samples dynamically while the task runs.
             setup: Setup step (always run even when the main `solver` is replaced).
             solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
             cleanup: Optional cleanup function for task. Called after
@@ -176,7 +187,9 @@ class Task:
                     f"DEPRECATED: the '{arg}' parameter is deprecated (please use the '{newarg}' parameter instead)",
                 )
 
-        self.dataset = resolve_dataset(dataset)
+        resolved_dataset = resolve_dataset_or_source(dataset)
+        self.dataset = resolved_dataset.dataset
+        self.sample_source = resolved_dataset.sample_source
         self.setup = setup
         self.solver = resolve_solver(solver)
         self.cleanup = cleanup
@@ -246,7 +259,7 @@ class Task:
 def task_with(
     task: Task,
     *,
-    dataset: Dataset | Sequence[Sample] | None | NotGiven = NOT_GIVEN,
+    dataset: Dataset | Sequence[Sample] | SampleSource | None | NotGiven = NOT_GIVEN,
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
@@ -290,7 +303,8 @@ def task_with(
 
     Args:
         task: Task to adapt
-        dataset: Dataset to evaluate
+        dataset: Dataset to evaluate, or a `SampleSource` that generates
+            samples dynamically while the task runs.
         setup: Setup step (always run even when the main `solver` is replaced).
         solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
         cleanup: Optional cleanup function for task. Called after
@@ -344,7 +358,9 @@ def task_with(
         Task: Passed `task` with modifications.
     """
     if not isinstance(dataset, NotGiven):
-        task.dataset = resolve_dataset(dataset)
+        resolved_dataset = resolve_dataset_or_source(dataset)
+        task.dataset = resolved_dataset.dataset
+        task.sample_source = resolved_dataset.sample_source
     if not isinstance(setup, NotGiven):
         task.setup = setup
     if not isinstance(solver, NotGiven):
@@ -456,6 +472,28 @@ def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
     if epochs is not None and epochs.epochs < 1:
         raise ValueError("epochs must be a positive integer.")
     return epochs
+
+
+class ResolvedDataset(NamedTuple):
+    """A task's dataset plus the `SampleSource` that seeded it (if any)."""
+
+    dataset: Dataset
+    sample_source: SampleSource | None
+
+
+def resolve_dataset_or_source(
+    dataset: Dataset | Sequence[Sample] | SampleSource | None,
+) -> ResolvedDataset:
+    """Resolve a task's `dataset` argument, which may be a `SampleSource`.
+
+    A `SampleSource` contributes its (possibly empty) `initial_samples()` as
+    the task's up-front dataset — the empty-dataset check doesn't apply since
+    the source can produce samples while the task runs.
+    """
+    if isinstance(dataset, SampleSource):
+        return ResolvedDataset(MemoryDataset(list(dataset.initial_samples())), dataset)
+    else:
+        return ResolvedDataset(resolve_dataset(dataset), None)
 
 
 def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Sample Sources: Generate a task's samples dynamically while it runs by passing a `SampleSource` as the task's `dataset` (with `enqueue_sample()` for imperative additions) — the sample-level mirror of `TaskSource`, for RL loops and adaptive evals.
 - Control Channel: Added `inspect ctl limits` to view or retune a running eval's `max_samples` / `max_sandboxes` / `max_connections` concurrency limits mid-flight (with `--dry-run`).
 - vLLM: Keep the connection-pool/adaptive-concurrency scope stable across lazy server startup instead of splitting it on the first generate.
 - Bugfix: Sample concurrency now honors model-level `max_connections` / `adaptive_connections` settings instead of classifying the adaptive-vs-static path from task-level config alone.

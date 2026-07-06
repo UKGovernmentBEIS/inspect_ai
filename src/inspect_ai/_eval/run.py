@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Awaitable, Callable, NamedTuple, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
+from inspect_ai._util._async import Wake
 from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
@@ -416,25 +417,6 @@ async def eval_run(
             log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
-class _Wake:
-    """One-shot wake signal that can be re-armed (set on completion / injection).
-
-    Safe under cooperative scheduling: the only await is on ``wait()``; the
-    re-arm assignment afterwards runs without a yield point, so a concurrent
-    ``set()`` can't be lost between waking and re-arming.
-    """
-
-    def __init__(self) -> None:
-        self._event = anyio.Event()
-
-    def set(self) -> None:
-        self._event.set()
-
-    async def wait(self) -> None:
-        await self._event.wait()
-        self._event = anyio.Event()
-
-
 def _empty_feed() -> PreparedFeed:
     """A feed that supplies nothing — turns the dispatcher into a fixed-set run."""
 
@@ -556,7 +538,7 @@ async def run_multiple(
     source_done = False
 
     # woken on each task completion and on each injection (enqueue)
-    wake = _Wake()
+    wake = Wake()
     feed.set_wake(wake.set)
 
     def add(options: list[TaskRunOptions]) -> None:
@@ -700,7 +682,7 @@ async def run_task_retry_attempts(
     source_done = False
 
     # woken on each task completion and on each injection (enqueue)
-    wake = _Wake()
+    wake = Wake()
     feed.set_wake(wake.set)
 
     def add(options: list[TaskRunOptions]) -> None:
