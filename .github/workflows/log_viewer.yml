@@ -1,4 +1,4 @@
-name: Build Log Viewer
+name: Validate Embedded Viewer
 
 on:
   push:
