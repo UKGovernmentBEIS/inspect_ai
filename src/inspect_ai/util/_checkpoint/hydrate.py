@@ -802,16 +802,21 @@ def _validate_resume_state(
       (the wrap synthesized at hydrate time).
     - Last event is a ``span_end`` (either the outermost wrap's end or
       a checkpoint's end if no wraps were synthesized).
-    - Checkpoint span names are sequential (``checkpoint 1``, ``2``,
-      …, ``N``) across the whole event list, regardless of nesting
-      depth inside ``prior_run`` wraps.
+    - Checkpoint spans open in commit order (``checkpoint 1``, ``2``,
+      …, ``N``); failed-fire retry spans (a ``checkpoint K`` span that
+      repeats before its ``CheckpointEvent K`` commits) are tolerated.
+    - Each committed checkpoint has at least one preceding
+      ``checkpoint K`` span_begin (retry spans repeat the name; this
+      guard requires ≥ 1 such span before the matching
+      ``CheckpointEvent K``).
     - ``prior_run`` wrap names are sequential
       (``checkpoint restore 1``, ``2``, …, ``M``).
     - Each ``span_begin`` (checkpoint or wrap) is paired with a
       matching ``span_end`` (by ``id``).
-    - The number of checkpoint spans equals ``latest_committed_id``
-      (the highest cleanly-parsing checkpoint id — the true commit
-      point).
+    - The number of committed checkpoints (one per ``CheckpointEvent``)
+      equals ``latest_committed_id``; checkpoint *spans* may exceed this
+      when failed-fire retry spans are present (a ``checkpoint K`` span
+      repeated before its ``CheckpointEvent K`` commits).
 
     Runs by default while the checkpoint code stabilizes.
     """
@@ -881,14 +886,6 @@ def _validate_resume_state(
             f"[hydrate.validate] events[-1] not 'span_end': {_event_label(last)}"
         )
 
-    expected_ckpt_names = [f"checkpoint {i + 1}" for i in range(len(checkpoint_begins))]
-    actual_ckpt_names = [name for _, name, _ in checkpoint_begins]
-    if actual_ckpt_names != expected_ckpt_names:
-        raise RuntimeError(
-            f"[hydrate.validate] checkpoint span names not sequential. "
-            f"expected {expected_ckpt_names}, got {actual_ckpt_names}"
-        )
-
     expected_wrap_names = [
         f"checkpoint restore {i + 1}" for i in range(len(wrap_begins))
     ]
@@ -916,12 +913,45 @@ def _validate_resume_state(
             f"wrap(s): {unpaired_wrap}"
         )
 
+    # Checkpoint spans must open in commit order, tolerating retry spans
+    # left by tolerated (non-fatal) capture failures: a failed fire commits
+    # nothing but reopens the next span under the same `checkpoint K` name
+    # (`_next_span_name` rescans committed ckpt-*.json), so `checkpoint K`
+    # may legitimately repeat until `CheckpointEvent K` commits. Walk in
+    # event order, tracking the in-progress (not-yet-committed) id.
+    expected_in_progress = 1
+    span_seen_for_current = False
+    for e in events:
+        if isinstance(e, SpanBeginEvent) and e.type == "checkpoint":
+            if e.name != f"checkpoint {expected_in_progress}":
+                raise RuntimeError(
+                    f"[hydrate.validate] checkpoint span names not sequential. "
+                    f"expected in-progress 'checkpoint {expected_in_progress}', "
+                    f"got {e.name!r}"
+                )
+            span_seen_for_current = True
+        elif isinstance(e, CheckpointEvent):
+            if e.checkpoint_id != expected_in_progress:
+                raise RuntimeError(
+                    f"[hydrate.validate] CheckpointEvents not sequential. "
+                    f"expected checkpoint {expected_in_progress}, got "
+                    f"{e.checkpoint_id}"
+                )
+            if not span_seen_for_current:
+                raise RuntimeError(
+                    f"[hydrate.validate] CheckpointEvent {e.checkpoint_id} has no "
+                    f"preceding 'checkpoint {e.checkpoint_id}' span_begin"
+                )
+            expected_in_progress += 1
+            span_seen_for_current = False
+
+    committed = expected_in_progress - 1
     expected_span_count = latest_committed_id if latest_committed_id is not None else 0
-    if expected_span_count != len(checkpoint_begins):
+    if committed != expected_span_count:
         raise RuntimeError(
-            f"[hydrate.validate] expected {expected_span_count} checkpoint "
-            f"spans (per latest committed id {latest_committed_id}), got "
-            f"{len(checkpoint_begins)}"
+            f"[hydrate.validate] expected {expected_span_count} committed "
+            f"checkpoints (per latest committed id {latest_committed_id}), "
+            f"got {committed}"
         )
 
     expected_checkpoint_ids = list(range(1, expected_span_count + 1))
