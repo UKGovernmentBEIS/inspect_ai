@@ -458,7 +458,7 @@ def _stub_httpx(
     tuple for a non-200 response. Returns a dict whose ``"gets"`` entry counts
     how many requests were attempted.
     """
-    counter = {"gets": 0, "posts": 0}
+    counter = {"gets": 0, "posts": 0, "patches": 0}
     seq = list(sequence)
 
     class _Resp:
@@ -498,6 +498,9 @@ def _stub_httpx(
         def post(self, path: str, params: object = None) -> _Resp:
             return self._next("posts")
 
+        def patch(self, path: str, params: object = None) -> _Resp:
+            return self._next("patches")
+
     monkeypatch.setattr("inspect_ai._cli.ctl.httpx.Client", _Client)
     monkeypatch.setattr("inspect_ai._cli.ctl.httpx.HTTPTransport", lambda *a, **k: None)
     return counter
@@ -526,7 +529,7 @@ def test_get_with_retry_retries_timeout_then_succeeds(
         monkeypatch,
         [httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow"), [{"task_id": "a"}]],
     )
-    result = _get_with_retry("/tmp/x.sock", "/evals", what="Reading tasks")
+    result = _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks")
     assert result == [{"task_id": "a"}]
     assert counter["gets"] == 3
     err = capsys.readouterr().err
@@ -544,66 +547,66 @@ def test_get_with_retry_exhausts_and_exits(
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
     with pytest.raises(click.exceptions.Exit) as exc_info:
-        _get_with_retry("/tmp/x.sock", "/evals", what="Reading tasks")
+        _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks")
     assert exc_info.value.exit_code == 1
     assert counter["gets"] == _REQUEST_ATTEMPTS
     err = capsys.readouterr().err
     assert f"gave up after {_REQUEST_ATTEMPTS} attempts" in err
 
 
-def test_buffer_read_retries_timeout_then_succeeds(
+def test_config_read_retries_timeout_then_succeeds(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A buffer read (GET) retries a busy eval on timeout, like the other reads."""
+    """A config read (GET) retries a busy process on timeout, like other reads."""
     import httpx
 
-    from inspect_ai._cli.ctl import _exec_buffer_config
+    from inspect_ai._cli.ctl import _exec_limits
 
+    view = {"max_samples": {"adjustable": False}, "buffer": None}
     counter = _stub_httpx(
         monkeypatch,
-        [
-            httpx.ReadTimeout("slow"),
-            httpx.ReadTimeout("slow"),
-            {"log_buffer": 10, "pending": 2, "log_shared": None},
-        ],
+        [httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow"), view],
     )
-    config = _exec_buffer_config(
-        "/tmp/x.sock", "e1", log_buffer=None, log_shared=None, set_values=False
+    config = _exec_limits(
+        "/tmp/x.sock",
+        "t1",
+        max_samples=None,
+        max_sandboxes=None,
+        max_connections=None,
+        model=None,
+        dry_run=False,
+        set_values=False,
     )
-    assert config == {"log_buffer": 10, "pending": 2, "log_shared": None}
+    assert config == view
     assert counter["gets"] == 3
-    assert counter["posts"] == 0
+    assert counter["patches"] == 0
     assert "retrying" in capsys.readouterr().err
 
 
-def test_buffer_set_does_not_retry_timeout(
+def test_config_set_does_not_retry_timeout(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A buffer update (POST) is single-shot — a mutation must not be retried."""
+    """A config update (PATCH) is single-shot — a mutation must not be retried."""
     import httpx
 
-    from inspect_ai._cli.ctl import _exec_buffer_config
+    from inspect_ai._cli.ctl import _exec_limits
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")])
     with pytest.raises(click.exceptions.Exit) as exc_info:
-        _exec_buffer_config(
-            "/tmp/x.sock", "e1", log_buffer=3, log_shared=None, set_values=True
+        _exec_limits(
+            "/tmp/x.sock",
+            "t1",
+            max_samples=None,
+            max_sandboxes=None,
+            max_connections=None,
+            model=None,
+            log_buffer=3,
+            dry_run=False,
+            set_values=True,
         )
     assert exc_info.value.exit_code == 1
-    assert counter["posts"] == 1  # tried once, no retry
-    assert "Failed to update buffer config" in capsys.readouterr().err
-
-
-def test_buffer_read_404_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A missing buffer (e.g. a reused-log eval) reads as None, not an exit."""
-    from inspect_ai._cli.ctl import _exec_buffer_config
-
-    counter = _stub_httpx(monkeypatch, [(404, {"error": "not found"})])
-    view = _exec_buffer_config(
-        "/tmp/x.sock", "e1", log_buffer=None, log_shared=None, set_values=False
-    )
-    assert view is None
-    assert counter["gets"] == 1
+    assert counter["patches"] == 1  # tried once, no retry
+    assert "Failed to update config" in capsys.readouterr().err
 
 
 def test_get_with_retry_does_not_retry_connection_error(
@@ -616,7 +619,7 @@ def test_get_with_retry_does_not_retry_connection_error(
 
     counter = _stub_httpx(monkeypatch, [httpx.ConnectError("refused")])
     with pytest.raises(_ServerUnreachable):
-        _get_with_retry("/tmp/x.sock", "/evals", what="Reading tasks")
+        _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks")
     assert counter["gets"] == 1  # tried once, no retry
 
 
@@ -1004,14 +1007,18 @@ def test_tasks_alias_delegates_with_deprecation_note(
     assert "is now `inspect ctl task list`" in result.stderr
 
 
-def _stub_limits(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stub the limits leg of `ctl config` with a minimal adjustable view."""
+def _stub_limits(
+    monkeypatch: pytest.MonkeyPatch,
+    buffer: dict[str, Any] | None = None,
+) -> None:
+    """Stub the server config view for `ctl config` (minimal adjustable knobs)."""
     monkeypatch.setattr(
         "inspect_ai._cli.ctl._exec_limits",
         lambda *a, **k: {
             "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
             "max_sandboxes": [],
             "adaptive": [],
+            "buffer": buffer,
             "requested": None,
             "warnings": [],
             "dry_run": False,
@@ -1021,10 +1028,8 @@ def _stub_limits(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _stub_limits(monkeypatch)
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl._exec_buffer_config",
-        lambda *a, **k: {"log_buffer": 10, "pending": 0, "log_shared": None},
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
     )
     result = _runner().invoke(ctl_command, ["limits", "--json"])
     assert result.exit_code == 0
@@ -1038,8 +1043,7 @@ def test_config_view_tolerates_missing_buffer(
 ) -> None:
     """A view of a task with no live buffer (reused log) warns — exit 0."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _stub_limits(monkeypatch)
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_buffer_config", lambda *a, **k: None)
+    _stub_limits(monkeypatch, buffer=None)
     result = _runner().invoke(ctl_command, ["config", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
@@ -1060,8 +1064,7 @@ def test_config_set_buffer_knob_errors_when_no_buffer(
     still landed.
     """
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _stub_limits(monkeypatch)
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_buffer_config", lambda *a, **k: None)
+    _stub_limits(monkeypatch, buffer=None)
     result = _runner().invoke(ctl_command, ["config", "--log-buffer", "2"])
     assert result.exit_code == 1
     assert "has no sample buffer" in result.stderr
@@ -1290,16 +1293,14 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
         "adaptive": [],
-        "requested": {"max_samples": 3},
+        "buffer": {"log_buffer": 10, "pending": 2, "log_shared": None},
+        "requested": {"max_samples": 3, "log_buffer": 5},
         "warnings": ["w"],
         "dry_run": False,
     }
-    buffer_view = {"log_buffer": 10, "pending": 2, "log_shared": None}
     config = _compose_config(
         scope,
         limits_view,
-        buffer_view,
-        requested_buffer={"log_buffer": 5},
         dry_run=False,
         set_values=True,
         notes=["blast radius"],
@@ -1337,8 +1338,6 @@ def test_compose_config_process_scope_dry_run() -> None:
     config = _compose_config(
         scope,
         limits_view,
-        None,
-        requested_buffer={},
         dry_run=True,
         set_values=True,
         notes=[],

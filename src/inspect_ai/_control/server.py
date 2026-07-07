@@ -34,7 +34,7 @@ from typing import Any, AsyncIterator, NamedTuple
 
 import anyio
 
-from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
+from inspect_ai._control.buffer import flush_task_samples
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
 from inspect_ai._control.limits import process_limits, task_limits
@@ -255,8 +255,11 @@ class ControlServer:
                     )
             return None
 
-        @app.get("/evals")
-        async def list_evals() -> list[dict[str, Any]]:
+        # Folded per-task summaries (retry attempts of a task collapse into
+        # one row keyed by task_id) — the wire behind `inspect ctl task list`
+        # and the selector-resolution step of every other command.
+        @app.get("/tasks")
+        async def list_tasks() -> list[dict[str, Any]]:
             summaries = await current_eval_summaries(started_at)
             # Keep-alive is a process-level property, so every task this
             # process hosts shares it. Stamp each row with the live value
@@ -340,49 +343,18 @@ class ControlServer:
                 )
             return page
 
-        # Flush the eval's buffered completed samples to the (possibly remote,
+        # Flush the task's buffered completed samples to the (possibly remote,
         # eg. S3) log now, so they're readable without waiting for the flush
-        # buffer to fill. Idempotent — a flush with nothing pending writes
-        # nothing and reports `flushed: 0`.
-        @app.post("/evals/{eval_id}/flush")
-        async def flush_samples(eval_id: str) -> Any:
-            result = await flush_eval_samples(eval_id)
+        # buffer to fill. Keyed by task_id (resolved to the latest attempt),
+        # matching the CLI's `ctl task log-flush`. Idempotent — a flush with
+        # nothing pending writes nothing and reports `flushed: 0`.
+        @app.post("/tasks/{task_id}/log-flush")
+        async def log_flush(task_id: str) -> Any:
+            result = await flush_task_samples(task_id)
             if result is None:
                 return JSONResponse(
                     status_code=404,
-                    content={"error": f"eval {eval_id} not found or not flushable"},
-                )
-            return result
-
-        # Read the eval's sample-buffer parameters. The companion POST applies
-        # changes; GET is a pure read (no side effects).
-        @app.get("/evals/{eval_id}/buffer")
-        async def get_buffer(eval_id: str) -> Any:
-            result = await eval_buffer_config(eval_id)
-            if result is None:
-                return JSONResponse(
-                    status_code=404,
-                    content={"error": f"eval {eval_id} not found"},
-                )
-            return result
-
-        # Update the eval's sample-buffer parameters. `log_buffer` (completed
-        # samples buffered before a log write) and `log_shared` (shared-log
-        # sync interval, seconds) are optional query params — omitting both
-        # makes this a read, like GET. Returns the resulting config.
-        @app.post("/evals/{eval_id}/buffer")
-        async def set_buffer(
-            eval_id: str,
-            log_buffer: int | None = None,
-            log_shared: int | None = None,
-        ) -> Any:
-            result = await eval_buffer_config(
-                eval_id, log_buffer=log_buffer, log_shared=log_shared
-            )
-            if result is None:
-                return JSONResponse(
-                    status_code=404,
-                    content={"error": f"eval {eval_id} not found"},
+                    content={"error": f"task {task_id} not found or not flushable"},
                 )
             return result
 
@@ -417,12 +389,13 @@ class ControlServer:
                 dry_run=dry_run,
             )
 
-        # Read the task's live concurrency limits (max_samples / max_sandboxes).
-        # Keyed by task_id — stable across retry attempts, matching the limits'
-        # own scope (max_samples is task-scoped; the other knobs process-wide)
-        # — where a per-attempt eval id would go stale on every retry. A pure
-        # read — the companion PATCH applies changes. `model` filters the
-        # adaptive controllers shown.
+        # Read the task's retunable config (max_samples / max_sandboxes /
+        # max_connections plus the log_buffer / log_shared buffer params).
+        # Keyed by task_id — stable across retry attempts, matching the knobs'
+        # own scope (max_samples and the buffer params are task-scoped; the
+        # other knobs process-wide) — where a per-attempt eval id would go
+        # stale on every retry. A pure read — the companion PATCH applies
+        # changes. `model` filters the adaptive controllers shown.
         @app.get("/tasks/{task_id}/config")
         async def get_limits(task_id: str, model: str | None = None) -> Any:
             result = await task_limits(task_id, model=model)
@@ -433,12 +406,11 @@ class ControlServer:
                 )
             return result
 
-        # Retune the task's live concurrency limits. `max_samples`,
-        # `max_sandboxes` and `max_connections` are optional query params —
+        # Retune the task's config. All knobs are optional query params —
         # omitting all makes this a read, like GET. `dry_run=true` validates
         # and reports the intended change without applying it (the phase-3
-        # agent-shape constraint). Idempotent: re-applying the same limit is a
-        # no-op. Returns the resulting limits view (with any warnings for a
+        # agent-shape constraint). Idempotent: re-applying the same value is a
+        # no-op. Returns the resulting config view (with any warnings for a
         # knob that isn't adjustable for this task).
         @app.patch("/tasks/{task_id}/config")
         async def patch_limits(
@@ -447,12 +419,16 @@ class ControlServer:
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
             model: str | None = None,
+            log_buffer: int | None = None,
+            log_shared: int | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
                 ("max_samples", max_samples),
                 ("max_sandboxes", max_sandboxes),
                 ("max_connections", max_connections),
+                ("log_buffer", log_buffer),
+                ("log_shared", log_shared),
             ):
                 return error
             result = await task_limits(
@@ -461,6 +437,8 @@ class ControlServer:
                 max_sandboxes=max_sandboxes,
                 max_connections=max_connections,
                 model=model,
+                log_buffer=log_buffer,
+                log_shared=log_shared,
                 dry_run=dry_run,
             )
             if result is None:

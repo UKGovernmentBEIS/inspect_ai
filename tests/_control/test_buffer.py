@@ -1,8 +1,9 @@
-"""Tests for the control-channel buffer directives: ``flush`` and ``buffer``.
+"""Tests for the control-channel log-buffer directives.
 
-Covers the directive functions in ``inspect_ai._control.buffer`` (resolved
-through ``EvalState.live``), the server routes that wrap them, and the CLI
-rendering helper.
+Covers the directive functions in ``inspect_ai._control.buffer`` (task-keyed,
+resolved to the latest attempt's ``EvalState.live``), the server routes that
+wrap them (``POST /tasks/<id>/log-flush``; the buffer params ride the
+``/tasks/<id>/config`` routes), and the CLI rendering helper.
 """
 
 import asyncio
@@ -11,7 +12,7 @@ import httpx
 import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
-from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
+from inspect_ai._control.buffer import flush_task_samples, task_buffer_config
 from inspect_ai._control.eval_state import (
     BufferConfig,
     clear_all_eval_states,
@@ -39,48 +40,70 @@ async def test_flush_directive_invokes_provider() -> None:
         calls["n"] += 1
         return 3
 
-    register_eval("e1", 5, live=FakeLiveEvalData(flush=_flush))
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=_flush))
 
-    result = await flush_eval_samples("e1")
+    result = await flush_task_samples("t1")
     assert result == {"flushed": 3}
     assert calls["n"] == 1
 
 
-async def test_flush_directive_none_when_eval_missing() -> None:
-    assert await flush_eval_samples("nope") is None
+async def test_flush_directive_none_when_task_missing() -> None:
+    assert await flush_task_samples("nope") is None
+    assert await flush_task_samples("") is None
 
 
 async def test_flush_directive_none_when_no_provider() -> None:
     # a reused/synthetic eval registers without a flush provider
-    register_eval("e1", 5)
-    assert await flush_eval_samples("e1") is None
+    register_eval("e1", 5, task_id="t1")
+    assert await flush_task_samples("t1") is None
 
 
 async def test_flush_directive_none_after_detach() -> None:
     async def _flush() -> int:
         return 1
 
-    register_eval("e1", 5, live=FakeLiveEvalData(flush=_flush))
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=_flush))
     detach_eval_live("e1")  # retry detaches the live data source
-    assert await flush_eval_samples("e1") is None
+    assert await flush_task_samples("t1") is None
 
 
-async def test_buffer_directive_read_only() -> None:
+async def test_flush_directive_resolves_latest_attempt() -> None:
+    """A retry registers a fresh attempt; the task-keyed flush follows it."""
+    calls = {"old": 0, "new": 0}
+
+    async def _old() -> int:
+        calls["old"] += 1
+        return 0
+
+    async def _new() -> int:
+        calls["new"] += 1
+        return 2
+
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=_old))
+    detach_eval_live("e1")  # superseded on retry
+    register_eval("e2", 5, task_id="t1", live=FakeLiveEvalData(flush=_new))
+
+    result = await flush_task_samples("t1")
+    assert result == {"flushed": 2}
+    assert calls == {"old": 0, "new": 1}
+
+
+def test_buffer_directive_read_only() -> None:
     seen: list[tuple[int | None, int | None]] = []
 
     def _buffer(log_buffer: int | None, log_shared: int | None) -> BufferConfig:
         seen.append((log_buffer, log_shared))
         return BufferConfig(log_buffer=10, pending=2, log_shared=30)
 
-    register_eval("e1", 5, live=FakeLiveEvalData(buffer=_buffer))
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(buffer=_buffer))
 
-    result = await eval_buffer_config("e1")
+    result = task_buffer_config("t1")
     assert result == {"log_buffer": 10, "pending": 2, "log_shared": 30}
     # a pure read passes (None, None) — no mutation
     assert seen == [(None, None)]
 
 
-async def test_buffer_directive_set_values() -> None:
+def test_buffer_directive_set_values() -> None:
     state = {"log_buffer": 10, "log_shared": 30}
 
     def _buffer(log_buffer: int | None, log_shared: int | None) -> BufferConfig:
@@ -92,18 +115,18 @@ async def test_buffer_directive_set_values() -> None:
             log_buffer=state["log_buffer"], pending=0, log_shared=state["log_shared"]
         )
 
-    register_eval("e1", 5, live=FakeLiveEvalData(buffer=_buffer))
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(buffer=_buffer))
 
-    result = await eval_buffer_config("e1", log_buffer=3, log_shared=None)
+    result = task_buffer_config("t1", log_buffer=3, log_shared=None)
     assert result == {"log_buffer": 3, "pending": 0, "log_shared": 30}
     # the unset param is left untouched
     assert state == {"log_buffer": 3, "log_shared": 30}
 
 
-async def test_buffer_directive_none_when_missing() -> None:
-    assert await eval_buffer_config("nope") is None
-    register_eval("e1", 5)  # no buffer provider
-    assert await eval_buffer_config("e1") is None
+def test_buffer_directive_none_when_missing() -> None:
+    assert task_buffer_config("nope") is None
+    register_eval("e1", 5, task_id="t1")  # no buffer provider
+    assert task_buffer_config("t1") is None
 
 
 # ---------------------------------------------------------------------------
@@ -117,25 +140,25 @@ def _app():
     return ControlServer(run_id="test")._build_app()
 
 
-async def test_flush_route_ok_and_404() -> None:
+async def test_log_flush_route_ok_and_404() -> None:
     async def _flush() -> int:
         return 4
 
-    register_eval("e1", 5, live=FakeLiveEvalData(flush=_flush))
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=_flush))
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        ok = await client.post("/evals/e1/flush")
+        ok = await client.post("/tasks/t1/log-flush")
         assert ok.status_code == 200, ok.text
         assert ok.json() == {"flushed": 4}
 
-        missing = await client.post("/evals/missing/flush")
+        missing = await client.post("/tasks/missing/log-flush")
         assert missing.status_code == 404
 
 
-async def test_buffer_route_get_and_post() -> None:
+async def test_buffer_params_ride_config_routes() -> None:
     current = BufferConfig(log_buffer=10, pending=1, log_shared=None)
 
     def _buffer(log_buffer: int | None, log_shared: int | None) -> BufferConfig:
@@ -146,22 +169,41 @@ async def test_buffer_route_get_and_post() -> None:
         )
         return current
 
-    register_eval("e1", 5, live=FakeLiveEvalData(buffer=_buffer))
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(buffer=_buffer))
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        got = await client.get("/evals/e1/buffer")
+        got = await client.get("/tasks/t1/config")
         assert got.status_code == 200, got.text
-        assert got.json() == {"log_buffer": 10, "pending": 1, "log_shared": None}
+        assert got.json()["buffer"] == {
+            "log_buffer": 10,
+            "pending": 1,
+            "log_shared": None,
+        }
 
-        posted = await client.post("/evals/e1/buffer", params={"log_buffer": 2})
-        assert posted.status_code == 200, posted.text
-        assert posted.json()["log_buffer"] == 2
+        patched = await client.patch("/tasks/t1/config", params={"log_buffer": 2})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["buffer"]["log_buffer"] == 2
+        assert patched.json()["requested"] == {"log_buffer": 2}
         assert current.log_buffer == 2
 
-        missing = await client.get("/evals/missing/buffer")
+        # dry_run reports the request without applying it
+        dry = await client.patch(
+            "/tasks/t1/config", params={"log_buffer": 9, "dry_run": True}
+        )
+        assert dry.status_code == 200, dry.text
+        assert dry.json()["requested"] == {"log_buffer": 9}
+        assert current.log_buffer == 2
+
+        # a task with no live buffer reports the knobs as absent (not a 404)
+        register_eval("e2", 5, task_id="t2")
+        bare = await client.get("/tasks/t2/config")
+        assert bare.status_code == 200, bare.text
+        assert bare.json()["buffer"] is None
+
+        missing = await client.get("/tasks/missing/config")
         assert missing.status_code == 404
 
 
@@ -215,14 +257,14 @@ def test_print_config_renders_buffer_knobs(
     assert "shared sync [task]:      off" in out
 
 
-def test_flush_route_error_becomes_500(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_log_flush_route_error_becomes_500(monkeypatch: pytest.MonkeyPatch) -> None:
     """A provider exception surfaces as the structured 500 (not a bare crash)."""
     from inspect_ai._control import server as server_mod
 
     async def _boom() -> int:
         raise RuntimeError("disk full")
 
-    register_eval("e1", 5, live=FakeLiveEvalData(flush=_boom))
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=_boom))
 
     async def scenario() -> httpx.Response:
         app = server_mod.ControlServer(run_id="test")._build_app()
@@ -230,7 +272,7 @@ def test_flush_route_error_becomes_500(monkeypatch: pytest.MonkeyPatch) -> None:
         async with httpx.AsyncClient(
             transport=transport, base_url="http://localhost"
         ) as client:
-            return await client.post("/evals/e1/flush")
+            return await client.post("/tasks/t1/log-flush")
 
     response = asyncio.run(scenario())
     assert response.status_code == 500

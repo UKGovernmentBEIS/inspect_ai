@@ -92,20 +92,25 @@ async def task_limits(
     max_sandboxes: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
+    log_buffer: int | None = None,
+    log_shared: int | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
-    """Read (and optionally retune) a task's concurrency limits.
+    """Read (and optionally retune) a task's retunable config.
 
-    A superset of :func:`process_limits`: it adds the per-task ``max_samples``
-    knob to the process-global ``max_sandboxes`` / ``max_connections`` view.
-    Task-scoped state lives in task_id-keyed registries: the sample limiter is
-    read straight from the task-semaphore registry (shared across the task's
-    retry attempts — see ``_task_sample_semaphores``), while the attempt-scoped
-    ``EvalState`` rows are consulted only for existence. With all three knobs
-    ``None`` this is a pure read. Returns ``None`` when the task isn't tracked
-    in this process (the endpoint turns that into a 404). Keyed by task_id —
-    stable across retries — rather than a per-attempt eval id, so a caller's
-    handle never goes stale mid-run.
+    A superset of :func:`process_limits`: it adds the per-task knobs — the
+    ``max_samples`` sample concurrency plus the ``log_buffer`` / ``log_shared``
+    sample-buffer params — to the process-global ``max_sandboxes`` /
+    ``max_connections`` view. Task-scoped state lives in task_id-keyed
+    registries: the sample limiter is read straight from the task-semaphore
+    registry (shared across the task's retry attempts — see
+    ``_task_sample_semaphores``), the buffer params through the latest
+    attempt's live logger (see :mod:`inspect_ai._control.buffer`), while the
+    attempt-scoped ``EvalState`` rows are otherwise consulted only for
+    existence. With all knobs ``None`` this is a pure read. Returns ``None``
+    when the task isn't tracked in this process (the endpoint turns that into
+    a 404). Keyed by task_id — stable across retries — rather than a
+    per-attempt eval id, so a caller's handle never goes stale mid-run.
 
     On the adaptive path the task's semaphore is a ``DynamicSampleLimiter``
     (sample concurrency tracks the controller, not a user setpoint), so
@@ -122,9 +127,13 @@ async def task_limits(
             every adaptive controller in the process), or ``None`` to leave it.
         model: Restrict the adaptive controllers ``max_connections`` targets (and
             the reported adaptive view) to those matching, or ``None`` for all.
+        log_buffer: New completed-samples-per-log-write buffer threshold, or
+            ``None`` to leave it.
+        log_shared: New shared-log event sync interval (seconds), or ``None``.
         dry_run: When set, validate and report the intended change without
             applying it.
     """
+    from inspect_ai._control.buffer import task_buffer_config
     from inspect_ai._control.eval_state import task_registered
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,
@@ -164,6 +173,21 @@ async def task_limits(
             "at its starting value."
         )
 
+    # log_buffer / log_shared — the sample-buffer params, task-scoped like
+    # max_samples but reached through the latest attempt's live logger. A
+    # task with no live buffer (a reused log, or a superseded attempt) has a
+    # None view; the CLI decides whether that absence is a warning (a pure
+    # read) or a hard error (an explicit set).
+    if log_buffer is not None:
+        sample_requested["log_buffer"] = log_buffer
+    if log_shared is not None:
+        sample_requested["log_shared"] = log_shared
+    buffer_view = task_buffer_config(
+        task_id,
+        log_buffer=log_buffer if not dry_run else None,
+        log_shared=log_shared if not dry_run else None,
+    )
+
     views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
         max_connections=max_connections,
@@ -196,6 +220,7 @@ async def task_limits(
         "max_samples": max_samples_view,
         "max_sandboxes": views.max_sandboxes,
         "adaptive": views.adaptive,
+        "buffer": buffer_view,
         "requested": requested or None,
         "warnings": warnings,
     }

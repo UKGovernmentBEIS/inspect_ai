@@ -533,6 +533,25 @@ def task_registered(task_id: str) -> bool:
         return any(s.task_id == task_id for s in _eval_states.values())
 
 
+def latest_eval_for_task(task_id: str) -> "EvalState | None":
+    """The last-registered attempt of ``task_id``, or ``None`` if untracked.
+
+    The same fold rule the summaries use (registration order — a retry
+    registers after the attempt it supersedes), so a task-keyed directive
+    acts on the attempt the read surface reports as current. A falsy
+    ``task_id`` never resolves (states without one are addressable only by
+    eval id).
+    """
+    if not task_id:
+        return None
+    with _lock:
+        latest = None
+        for state in _eval_states.values():
+            if state.task_id == task_id:
+                latest = state
+        return latest
+
+
 def detach_eval_live(eval_id: str) -> None:
     """Detach a superseded attempt's live data source.
 

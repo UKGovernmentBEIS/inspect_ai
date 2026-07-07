@@ -1100,7 +1100,7 @@ def test_ctl_flush_writes_buffered_samples_and_buffer_config(
     directive end to end (read the live config off the running `TaskLogger`,
     then lower the flush buffer) to pin the provider wiring.
     """
-    from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
+    from inspect_ai._control.buffer import flush_task_samples, task_buffer_config
 
     @task
     def task_nine() -> Task:
@@ -1125,7 +1125,7 @@ def test_ctl_flush_writes_buffered_samples_and_buffer_config(
         from inspect_ai.log._file import read_eval_log_sample_summaries_async
 
         entry = (await current_eval_summaries(0.0))[0]
-        eval_id = entry["eval_id"]
+        task_id = entry["task_id"]
         location = next(s.log_location for s in get_eval_states() if s.log_location)
 
         async def on_disk_completed() -> set:
@@ -1136,13 +1136,13 @@ def test_ctl_flush_writes_buffered_samples_and_buffer_config(
             return {s.id for s in summaries if s.completed}
 
         before = await on_disk_completed()
-        config_before = await eval_buffer_config(eval_id)
-        flushed = await flush_eval_samples(eval_id)
+        config_before = task_buffer_config(task_id)
+        flushed = await flush_task_samples(task_id)
         after = await on_disk_completed()
         # a second flush with nothing newly completed is a no-op
-        flushed_again = await flush_eval_samples(eval_id)
-        # lower the flush buffer via the buffer directive
-        config_after = await eval_buffer_config(eval_id, log_buffer=1)
+        flushed_again = await flush_task_samples(task_id)
+        # lower the flush buffer via the config directive
+        config_after = task_buffer_config(task_id, log_buffer=1)
         return {
             "before": before,
             "flushed": flushed,
