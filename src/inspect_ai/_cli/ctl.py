@@ -38,6 +38,7 @@ from typing import Any, Literal, NamedTuple, NoReturn
 
 import click
 import httpx
+from click.core import ParameterSource
 
 from inspect_ai._control.discovery import (
     DiscoveredControlServer,
@@ -47,9 +48,9 @@ from inspect_ai._control.discovery import (
 from inspect_ai._util.name_match import match_name_prefix
 
 # Events shown on an unseeded `sample events` read (no --cursor / --tail /
-# --since-time): a recent tail rather than the full backlog — the first call
-# must never be empty or a context-flooding dump (see the agent output
-# contract in design/control-channel.md).
+# --since-time / --until): a recent tail rather than the full backlog — the
+# first call must never be empty or a context-flooding dump (see the agent
+# output contract in design/control-channel.md).
 _DEFAULT_EVENTS_TAIL = 20
 
 
@@ -79,6 +80,45 @@ class _NounGroup(click.Group):
         ):
             ctx.fail(self.hint(token))
         return super().resolve_command(ctx, args)
+
+
+def _forward_group_options(ctx: click.Context) -> None:
+    """Forward explicitly-given mirrored group options to the invoked verb.
+
+    The ``list`` options are mirrored onto each noun group so the bare-noun
+    default works (``ctl task --json``). When an explicit verb follows, those
+    group-level values would otherwise be parsed and dropped — ``ctl task
+    --json list`` silently emitting the human table, exactly the branch
+    agents parse on. Forward them as defaults instead (the same option
+    spelled after the verb still wins); a mirrored option the verb does not
+    accept fails with the corrected spelling rather than being ignored.
+    """
+    if ctx.invoked_subcommand is None:
+        return
+    group = ctx.command
+    assert isinstance(group, click.Group)
+    given = {
+        param.name: (ctx.params[param.name], param.opts[0])
+        for param in group.params
+        if param.name is not None
+        and ctx.get_parameter_source(param.name) == ParameterSource.COMMANDLINE
+    }
+    if not given:
+        return
+    verb = group.get_command(ctx, ctx.invoked_subcommand)
+    assert verb is not None
+    verb_params = {param.name for param in verb.params}
+    for name, (_, opt) in given.items():
+        if name not in verb_params:
+            ctx.fail(
+                f"'{opt}' is a `list` option that `{group.name} "
+                f"{ctx.invoked_subcommand}` does not accept. To use it, list "
+                f"instead: `inspect ctl {group.name} list {opt} ...`."
+            )
+    ctx.default_map = {
+        **(ctx.default_map or {}),
+        ctx.invoked_subcommand: {name: value for name, (value, _) in given.items()},
+    }
 
 
 @click.group("ctl")
@@ -157,6 +197,8 @@ def task_group(ctx: click.Context, as_json: bool) -> None:
     """
     if ctx.invoked_subcommand is None:
         _run_task_list(as_json)
+    else:
+        _forward_group_options(ctx)
 
 
 assert isinstance(task_group, _NounGroup)
@@ -249,6 +291,8 @@ def sample_group(ctx: click.Context, active_since: float | None, as_json: bool) 
     """
     if ctx.invoked_subcommand is None:
         _run_sample_list(None, active_since, as_json)
+    else:
+        _forward_group_options(ctx)
 
 
 assert isinstance(sample_group, _NounGroup)
@@ -378,7 +422,8 @@ def sample_show_command(
     default=None,
     help=(
         "Start this many events from the end (when --cursor is not given). "
-        f"Default: {_DEFAULT_EVENTS_TAIL}."
+        f"Default: {_DEFAULT_EVENTS_TAIL}, applied only to a fully unseeded "
+        "read (no --cursor and no --since-time/--until window)."
     ),
 )
 @click.option(
@@ -601,6 +646,8 @@ def process_group(ctx: click.Context, as_json: bool) -> None:
     """
     if ctx.invoked_subcommand is None:
         _run_process_list(as_json)
+    else:
+        _forward_group_options(ctx)
 
 
 assert isinstance(process_group, _NounGroup)
@@ -1024,7 +1071,7 @@ def _run_sample_events(
 
     # The unseeded default is a recent tail — never an empty page, never the
     # full backlog. A cursor or an explicit window disables it.
-    if cursor is None and tail is None and since_time is None:
+    if cursor is None and tail is None and since_time is None and until is None:
         tail = _DEFAULT_EVENTS_TAIL
 
     summaries = _fetch_summaries(list_discovered_servers())

@@ -117,7 +117,7 @@ Other options:
 
 | Option | Description |
 |----|----|
-| `--tail N` | Start N events from the end (default 20 when no `--cursor` is given). |
+| `--tail N` | Start N events from the end (default 20 on a fully unseeded read — no `--cursor` and no `--since-time`/`--until` window). |
 | `--type model,tool` | Filter by event type (`*` for all). By default, high-volume structural events are excluded. |
 | `--full` | Return complete raw events instead of compact one-line summaries. |
 | `--since-time` / `--until` | Filter to a wall-clock window (unix timestamps). |

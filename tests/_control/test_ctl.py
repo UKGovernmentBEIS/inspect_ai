@@ -986,11 +986,65 @@ def test_events_unseeded_defaults_to_recent_tail(
     )
     assert captured["tail"] is None and captured["since_time"] == 5.0
 
+    # --until alone is also an explicit window: the server applies the tail
+    # slice before the wall-clock filter, so a defaulted tail would reduce a
+    # past window to an empty page
+    runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--until", "5.0"])
+    assert captured["tail"] is None and captured["until"] == 5.0
+
     # the resolved identifiers are echoed on the page
     result = runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--json"])
     payload = json.loads(result.output)
     assert payload["task_id"] == "aaa111"
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
+
+
+def test_group_option_before_verb_forwards(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A mirrored option given at the group level reaches the explicit verb."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    result = _runner().invoke(ctl_command, ["task", "--json", "list"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert "as_of" in payload
+    assert payload["tasks"][0]["task_id"] == "aaa111"
+
+
+def test_group_option_forwards_value_and_verb_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_samples(
+        socket_path: Any, eval_id: str, active_since: float | None = None
+    ) -> tuple[float, list[dict[str, Any]]]:
+        captured["active_since"] = active_since
+        return (123.0, [])
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    runner = _runner()
+
+    result = runner.invoke(ctl_command, ["sample", "--active-since", "5.0", "list"])
+    assert result.exit_code == 0, result.output
+    assert captured["active_since"] == 5.0
+
+    # the group value is a default only — spelled after the verb it wins
+    result = runner.invoke(
+        ctl_command,
+        ["sample", "--active-since", "5.0", "list", "--active-since", "9.0"],
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["active_since"] == 9.0
+
+
+def test_group_option_unsupported_by_verb_errors() -> None:
+    """A mirrored option the verb doesn't accept fails, teaching `list`."""
+    result = _runner().invoke(
+        ctl_command, ["sample", "--active-since", "5.0", "show", "t", "s1"]
+    )
+    assert result.exit_code != 0
+    assert "sample show" in result.stderr and "does not accept" in result.stderr
+    assert "sample list --active-since" in result.stderr
 
 
 def test_events_cursor_that_looks_like_timestamp_errors() -> None:
