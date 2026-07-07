@@ -3,6 +3,7 @@
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent, subagent
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model import ChatMessageSystem, ModelOutput, get_model
 from inspect_ai.scorer import includes
@@ -51,7 +52,7 @@ class TestMultiStepDelegation:
             outputs=[
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Find background information.",
@@ -64,7 +65,7 @@ class TestMultiStepDelegation:
                 ),
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "general",
                         "prompt": "Execute based on findings.",
@@ -100,7 +101,7 @@ class TestMemoryIntegration:
                 # 2. Model delegates to research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Check memory for context, then investigate further.",
@@ -139,7 +140,7 @@ class TestTodoWriteIntegration:
                 # 2. Model delegates research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Research the topic.",
@@ -179,7 +180,7 @@ class TestSubmitIntegration:
                 # 1. Model delegates to research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Find the answer.",
@@ -201,6 +202,82 @@ class TestSubmitIntegration:
         )
         assert result["status"] == "success"
 
+    def test_subagent_submit_retained_and_not_duplicated(self) -> None:
+        """Subagent submit() is kept in history and not duplicated into content.
+
+        Regression guard for keep_in_messages=True on subagent dispatch: with
+        the old stripping behavior react appends the answer to the submit-bearing
+        assistant message content (mutating the same message the ModelEvent
+        references), so the marker would leak into assistant content below.
+        """
+        marker = "SUBAGENT_FINDINGS_MARKER_42"
+        # Markdown answer (bold + bullets) so the viewer's markdown rendering of
+        # the retained submit can be exercised by eye in `inspect view`.
+        answer = (
+            f"## {marker}\n\n"
+            "Here are the **key findings**:\n\n"
+            "- **A** = 42 (below target)\n"
+            "- **B** = 17 (below target)\n"
+            "- **C** = 91 (healthy)\n\n"
+            "Recommend tuning *A* and *B*."
+        )
+        result = _eval_deepagent(
+            agent_kwargs={"submit": True},
+            outputs=[
+                # 1. Parent dispatches research
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Find the answer.",
+                    },
+                ),
+                # 2. Research subagent submits (markdown answer carrying the marker)
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": answer},
+                ),
+                # 3. Parent submits its own (different) answer
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "done"},
+                ),
+            ],
+        )
+        assert result["status"] == "success"
+        events = result["events"]
+
+        # The subagent's submit() call is retained as a ToolEvent.
+        submit_results = [
+            str(e.result)
+            for e in events
+            if isinstance(e, ToolEvent) and e.function == "submit"
+        ]
+        assert any(marker in r for r in submit_results), (
+            "subagent submit() was not retained in the transcript"
+        )
+
+        # The answer is not duplicated into any assistant message content.
+        for e in events:
+            if isinstance(e, ModelEvent) and e.output.choices:
+                content = str(e.output.choices[0].message.content)
+                assert marker not in content, (
+                    "submit answer leaked into assistant message content"
+                )
+
+        # The parent still receives the subagent's answer via the agent result.
+        agent_results = [
+            str(e.result)
+            for e in events
+            if isinstance(e, ToolEvent) and e.function == "agent"
+        ]
+        assert any(marker in r for r in agent_results), (
+            "parent did not receive the subagent's answer"
+        )
+
 
 class TestCustomSubagents:
     def test_user_defined_subagent(self) -> None:
@@ -216,7 +293,7 @@ class TestCustomSubagents:
                 # 1. Model delegates to custom subagent
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "analyzer",
                         "prompt": "Analyze this data.",
@@ -318,7 +395,7 @@ class TestFullWorkflow:
                 # 3. Delegate to research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Research X.",
@@ -360,7 +437,7 @@ class TestPlanSubagent:
             outputs=[
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "plan",
                         "prompt": "Create a plan for solving this problem.",
@@ -376,9 +453,9 @@ class TestPlanSubagent:
         )
         assert result["status"] == "success"
         tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
-        task_events = [e for e in tool_events if e.function == "task"]
-        assert len(task_events) == 1
-        assert task_events[0].error is None
+        agent_events = [e for e in tool_events if e.function == "agent"]
+        assert len(agent_events) == 1
+        assert agent_events[0].error is None
 
 
 class TestGeneralInheritsParentTools:
@@ -392,7 +469,7 @@ class TestGeneralInheritsParentTools:
                 # Delegate to general which should have think() available
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "general",
                         "prompt": "Think carefully then answer.",
@@ -451,7 +528,7 @@ class TestMultipleCallsToSameSubagent:
                 # First research call
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Research topic A.",
@@ -465,7 +542,7 @@ class TestMultipleCallsToSameSubagent:
                 # Second research call
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Research topic B.",
@@ -482,8 +559,8 @@ class TestMultipleCallsToSameSubagent:
         )
         assert result["status"] == "success"
         tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
-        task_events = [e for e in tool_events if e.function == "task"]
-        assert len(task_events) == 2
+        agent_events = [e for e in tool_events if e.function == "agent"]
+        assert len(agent_events) == 2
 
 
 class TestInterleavedToolUseAndDelegation:
@@ -501,7 +578,7 @@ class TestInterleavedToolUseAndDelegation:
                 # 2. Delegate to research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Find data.",
@@ -536,7 +613,7 @@ class TestInterleavedToolUseAndDelegation:
                 # 5. Delegate to general
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "general",
                         "prompt": "Process the data.",
@@ -555,7 +632,7 @@ class TestInterleavedToolUseAndDelegation:
         tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
         tool_names = [e.function for e in tool_events]
         assert "memory" in tool_names
-        assert "task" in tool_names
+        assert "agent" in tool_names
         assert "todo_write" in tool_names
 
 

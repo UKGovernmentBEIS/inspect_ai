@@ -1,6 +1,5 @@
 import json
-from collections.abc import MutableMapping
-from functools import lru_cache
+from collections.abc import Mapping, MutableMapping
 from logging import getLogger
 from typing import (
     Callable,
@@ -8,7 +7,7 @@ from typing import (
     Sequence,
 )
 
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
@@ -27,6 +26,15 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.event._pool import (
+    _build_call_index,
+    _build_msg_index,
+    condense_model_event_calls,
+    condense_model_event_inputs,
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
+from inspect_ai.event._validate import validate_chat_messages, validate_events_json
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -44,25 +52,6 @@ from ..event._store import StoreEvent
 from ..event._subtask import SubtaskEvent
 from ..event._tool import ToolEvent
 from ._log import EvalSample, EventsData
-from ._pool import (
-    _build_call_index,
-    _build_msg_index,
-    condense_model_event_calls,
-    condense_model_event_inputs,
-    resolve_model_event_calls,
-    resolve_model_event_inputs,
-)
-
-
-@lru_cache(maxsize=1)
-def _events_adapter() -> TypeAdapter[list[Event]]:
-    return TypeAdapter(list[Event])
-
-
-@lru_cache(maxsize=1)
-def _chat_messages_adapter() -> TypeAdapter[list[ChatMessage]]:
-    return TypeAdapter(list[ChatMessage])
-
 
 logger = getLogger(__name__)
 
@@ -71,8 +60,39 @@ ATTACHMENT_PROTOCOL = "attachment://"
 
 
 class WalkContext(TypedDict):
-    message_cache: dict[str, ChatMessage]
+    message_cache: dict[str, tuple[ChatMessage, ChatMessage]]
+    """Cache of walked messages keyed by message id.
+
+    Each value is ``(pre_walk_message, walked_result)``: lookups verify
+    against the *pre-walk* message (by identity first, then equality)
+    because the walked result has rewritten content and never compares
+    equal to an incoming un-walked message. A message mutated in place
+    after first being walked identity-hits and resolves to its
+    first-walked form (consistent with ``event/_pool_index.py``;
+    first-party code refreshes ``message.id`` on mutation). Entries are
+    only valid for one content function — never share a context across
+    walks with different content functions.
+    """
+
     only_core: bool
+
+
+def attachment_refs_from_value(value: object) -> set[str]:
+    refs: set[str] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, str):
+            if value.startswith(ATTACHMENT_PROTOCOL):
+                refs.add(value.removeprefix(ATTACHMENT_PROTOCOL))
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                collect(item)
+
+    collect(value)
+    return refs
 
 
 def condense_events(
@@ -112,11 +132,11 @@ def expand_events(
         Events with full message inputs and call request messages restored.
     """
     if isinstance(events, str):
-        events = _events_adapter().validate_json(events)
+        events = validate_events_json(events)
     if isinstance(data, str):
         raw = json.loads(data)
         data = EventsData(
-            messages=_chat_messages_adapter().validate_python(raw.get("messages", [])),
+            messages=validate_chat_messages(raw.get("messages", [])),
             calls=raw.get("calls", []),
         )
     result = resolve_model_event_inputs(list(events), data["messages"])
@@ -146,8 +166,14 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     attachments: dict[str, str] = dict(sample.attachments)
     events_fn = events_attachment_fn(attachments, log_images)
     messages_fn = messages_attachment_fn(attachments, log_images)
-    context = WalkContext(message_cache={}, only_core=False)
-    condensed_events = walk_events(sample.events, events_fn, context)
+    # The events and messages walks rewrite content differently (events_fn
+    # pools long text as attachments; messages_fn leaves it inline), so they
+    # must not share a message cache: sample.messages contains the same
+    # objects/ids as event inputs and a shared cache would return
+    # event-walked results during the messages walk.
+    events_context = WalkContext(message_cache={}, only_core=False)
+    messages_context = WalkContext(message_cache={}, only_core=False)
+    condensed_events = walk_events(sample.events, events_fn, events_context)
 
     # condense events
     existing = sample.events_data
@@ -175,8 +201,10 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
 
     return sample.model_copy(
         update={
-            "input": walk_input(sample.input, messages_fn, context),
-            "messages": walk_chat_messages(sample.messages, messages_fn, context),
+            "input": walk_input(sample.input, messages_fn, messages_context),
+            "messages": walk_chat_messages(
+                sample.messages, messages_fn, messages_context
+            ),
             "events": condensed_events,
             "attachments": attachments,
             "events_data": events_data,
@@ -305,6 +333,50 @@ def resolve_sample_attachments(
             "events_data": None,
         }
     )
+
+
+def resolve_events_attachments(
+    events: list[Event],
+    attachments: Mapping[str, str],
+    resolve_attachments: bool | Literal["full", "core"] = "core",
+) -> list[Event]:
+    """Resolve ``attachment://`` references in a list of events.
+
+    The events must already have their message / call *pools* resolved
+    (the buffer history provider does this via
+    ``materialize_pooled_events``); this only swaps ``attachment://<hash>``
+    content references back to their underlying values from
+    ``attachments``.
+
+    Args:
+       events: Events (pool-resolved) that may carry ``attachment://`` refs.
+       attachments: Mapping of attachment hash -> underlying content.
+       resolve_attachments: Which fields to resolve. ``"core"`` (default)
+           leaves ``ModelEvent.call`` condensed — matching resident
+           in-memory events, whose model-call payloads stay condensed
+           after ``Transcript._process_event``. ``"full"`` / ``True``
+           also resolves the model call. ``False`` is a no-op.
+
+    Returns:
+       Events with attachment content resolved (a new list; inputs are
+       not mutated). Returns ``events`` unchanged when
+       ``resolve_attachments`` is ``False``.
+    """
+    if resolve_attachments is False:
+        return events
+
+    def content_fn(text: str) -> str:
+        # migrate previous flavor of content reference
+        CONTENT_PROTOCOL = "tc://"
+        if text.startswith(CONTENT_PROTOCOL):
+            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            return attachments.get(text.replace(ATTACHMENT_PROTOCOL, "", 1), text)
+        else:
+            return text
+
+    context = WalkContext(message_cache={}, only_core=resolve_attachments == "core")
+    return walk_events(events, content_fn, context)
 
 
 def attachments_content_fn(
@@ -560,8 +632,10 @@ def walk_chat_message(
     cache = context.get("message_cache")
     if cache is not None and message.id is not None:
         hit = cache.get(message.id)
-        if hit is not None and hit == message:
-            return hit
+        if hit is not None:
+            pre_walk, walked = hit
+            if pre_walk is message or pre_walk == message:
+                return walked
     if isinstance(message.content, str):
         res = message.model_copy(update=dict(content=content_fn(message.content)))
     else:
@@ -580,7 +654,7 @@ def walk_chat_message(
             )
         )
     if cache is not None and message.id is not None:
-        cache[message.id] = res
+        cache[message.id] = (message, res)
     return res
 
 
@@ -636,9 +710,12 @@ def walk_tool_call(
         parse_error=tool_call.parse_error,
         view=tool_call.view.model_copy(
             update=dict(
+                # ToolCallContent.content is a non-optional str (default ""),
+                # so preserve an empty content as "" — nulling it here breaks
+                # readback validation (e.g. title-only lifecycle-tool views).
                 content=content_fn(tool_call.view.content)
-                if tool_call.view and tool_call.view.content
-                else None,
+                if tool_call.view.content
+                else tool_call.view.content,
             )
         )
         if tool_call.view

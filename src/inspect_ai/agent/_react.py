@@ -26,8 +26,13 @@ from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.util._checkpoint import Checkpointer, checkpointer
 
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
+from ._channel import (
+    AgentInterrupted,
+    agent_channel,
+)
 from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
@@ -186,154 +191,203 @@ def react(
         )
 
     async def execute(state: AgentState) -> AgentState:
-        async with mcp_connection(tools):
+        async with checkpointer() as cp:
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
 
-            # resolve overflow handling
-            overflow = _resolve_overflow(truncation)
+            # track conversation messages (restored to prior value on resume)
+            state.messages = cp.track(
+                "messages",
+                lambda: state.messages,
+                state.messages,
+                value_type=list[ChatMessage],
+            )
+            state.output = cp.track("output", lambda: state.output, state.output)
 
-            # create compact function
-            compact = _agent_compact(compaction, state.messages, tools, model)
+            # Scoring-phase resume: the prior attempt's agent loop ran
+            # to clean exit and the harness will run scoring next. State
+            # is fully restored above; return immediately so scoring can
+            # re-run without re-doing the agent's work.
+            if cp.attempt == "resume_for_scoring":
+                return state
 
-            # track attempts
-            attempt_count = 0
+            async with (
+                mcp_connection(tools),
+                agent_channel() as ch,
+            ):
+                # resolve overflow handling
+                overflow = _resolve_overflow(truncation)
 
-            # track consecutive content_filter responses
-            consecutive_content_filter = 0
+                # create compact function
+                compact = _agent_compact(compaction, state.messages, tools, model, cp)
 
-            # main loop = will terminate after submit (subject to max_attempts)
-            # or if a message or token limit is hit
-            while True:
-                # generate output and append assistant message
-                state = await _agent_generate(
-                    model, state, tools, retry_refusals, compact
-                )
+                # track attempts (recovered from checkpoint state on resume)
+                attempt_count = cp.track("attempt_count", lambda: attempt_count, 0)
 
-                # check for context window overflow
-                if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow, compact)
-                    if handled:
-                        continue
-                    else:
-                        break
+                # track consecutive content_filter responses
+                consecutive_content_filter = 0
 
-                # check for content filter (model refusal) -- allow a few
-                # chances to recover before breaking to avoid infinite loop
-                if state.output.stop_reason == "content_filter":
-                    consecutive_content_filter += 1
-                    if consecutive_content_filter >= 3:
-                        break
-                else:
-                    consecutive_content_filter = 0
+                # main loop = will terminate after submit (subject to max_attempts)
+                # or if a message or token limit is hit
+                while True:
+                    # drain any operator-supplied messages for this turn
+                    state.messages.extend(await ch.before_turn(state.messages))
 
-                # resolve tool calls (if any)
-                if state.output.message.tool_calls:
-                    # call tool functions
-                    messages, output = await execute_tools(
-                        state.messages, tools, approval=approval
-                    )
-                    state.messages.extend(messages)
-                    if output:
-                        state.output = output
+                    # checkpoint at turn boundary (no-op when policy says so)
+                    await cp.tick()
 
-                    # check for a submission
-                    answer = submission(messages)
-                    if answer is not None:
-                        # set the output to the answer for scoring
-                        if submit.answer_only:
-                            state.output.completion = answer
-                        else:
-                            state.output.completion = f"{state.output.completion}{submit.answer_delimiter}{answer}".strip()
-
-                        # also populate the message text (as the submit tool will be removed)
-                        if (
-                            not submit.keep_in_messages
-                            and len(state.output.choices) > 0
-                        ):
-                            message = state.output.choices[0].message
-                            if isinstance(message.content, str):
-                                message.content = f"{message.content}{submit.answer_delimiter}{answer}".strip()
-                            else:
-                                message.content.append(ContentText(text=answer))
-
-                        # exit if we are at max_attempts
-                        attempt_count += 1
-                        if attempt_count >= attempts.attempts:
-                            break
-
-                        # exit if the submission is successful
-                        answer_scores = await score(state)
-                        if attempts.score_value(answer_scores[0].value) == 1.0:
-                            break
-
-                        # otherwise notify the model that it was incorrect and continue
-                        else:
-                            if callable(attempts.incorrect_message):
-                                if not is_callable_coroutine(
-                                    attempts.incorrect_message
-                                ):
-                                    raise ValueError(
-                                        "The incorrect_message function must be async."
-                                    )
-                                response_message: str = (
-                                    await attempts.incorrect_message(
-                                        state, answer_scores
-                                    )
-                                )
-                            else:
-                                response_message = attempts.incorrect_message
-
-                            state.messages.append(
-                                ChatMessageUser(content=response_message)
+                    try:
+                        with ch.turn_scope():
+                            # generate output and append assistant message
+                            state = await _agent_generate(
+                                model, state, tools, retry_refusals, compact
                             )
 
-                # call the on_continue hook (if any)
-                if callable(on_continue):
-                    do_continue = await _call_on_continue(on_continue, state)
-                    if do_continue is True:
-                        # if there were no tool calls we need to send back a user message
-                        if not state.output.message.tool_calls:
+                            # check for context window overflow
+                            if state.output.stop_reason == "model_length":
+                                state, handled = await _handle_overflow(
+                                    state, overflow, compact
+                                )
+                                if handled:
+                                    continue
+                                else:
+                                    break
+
+                            # check for content filter (model refusal) -- allow a few
+                            # chances to recover before breaking to avoid infinite loop
+                            if state.output.stop_reason == "content_filter":
+                                consecutive_content_filter += 1
+                                if consecutive_content_filter >= 3:
+                                    break
+                            else:
+                                consecutive_content_filter = 0
+
+                            # resolve tool calls (if any)
+                            if state.output.message.tool_calls:
+                                # call tool functions
+                                messages, output = await execute_tools(
+                                    state.messages, tools, approval=approval
+                                )
+                                state.messages.extend(messages)
+                                if output:
+                                    state.output = output
+
+                                # check for a submission
+                                answer = submission(messages)
+                                if answer is not None:
+                                    # set the output to the answer for scoring
+                                    if submit.answer_only:
+                                        state.output.completion = answer
+                                    else:
+                                        state.output.completion = f"{state.output.completion}{submit.answer_delimiter}{answer}".strip()
+
+                                    # also populate the message text (as the submit tool will be removed)
+                                    if (
+                                        not submit.keep_in_messages
+                                        and len(state.output.choices) > 0
+                                    ):
+                                        message = state.output.choices[0].message
+                                        if isinstance(message.content, str):
+                                            message.content = f"{message.content}{submit.answer_delimiter}{answer}".strip()
+                                        else:
+                                            message.content.append(
+                                                ContentText(text=answer)
+                                            )
+
+                                    # exit if we are at max_attempts
+                                    attempt_count += 1
+                                    if attempt_count >= attempts.attempts:
+                                        break
+
+                                    # exit if the submission is successful
+                                    answer_scores = await score(state)
+                                    if (
+                                        attempts.score_value(answer_scores[0].value)
+                                        == 1.0
+                                    ):
+                                        break
+
+                                    # otherwise notify the model that it was incorrect and continue
+                                    else:
+                                        if callable(attempts.incorrect_message):
+                                            if not is_callable_coroutine(
+                                                attempts.incorrect_message
+                                            ):
+                                                raise ValueError(
+                                                    "The incorrect_message function must be async."
+                                                )
+                                            response_message: str = (
+                                                await attempts.incorrect_message(
+                                                    state, answer_scores
+                                                )
+                                            )
+                                        else:
+                                            response_message = (
+                                                attempts.incorrect_message
+                                            )
+
+                                        state.messages.append(
+                                            ChatMessageUser(content=response_message)
+                                        )
+                    except AgentInterrupted:
+                        # Repair the conversation shape + drain any redirect
+                        # message posted alongside the interrupt (blocks for
+                        # an operator follow-up if none arrived).
+                        state.messages.extend(await ch.after_cancel(state.messages))
+                        continue
+
+                    # call the on_continue hook (if any)
+                    if callable(on_continue):
+                        do_continue = await _call_on_continue(on_continue, state)
+                        if do_continue is True:
+                            # if there were no tool calls we need to send back a user message
+                            if not state.output.message.tool_calls:
+                                state.messages.append(
+                                    ChatMessageUser(
+                                        content=DEFAULT_CONTINUE_PROMPT.replace(
+                                            "{submit}", submit_tool.name
+                                        )
+                                    )
+                                )
+                        elif isinstance(do_continue, str):
+                            # send back the user message
                             state.messages.append(
                                 ChatMessageUser(
-                                    content=DEFAULT_CONTINUE_PROMPT.format(
-                                        submit=submit_tool.name
+                                    content=do_continue.replace(
+                                        "{submit}", submit_tool.name
                                     )
                                 )
                             )
-                    elif isinstance(do_continue, str):
-                        # send back the user message
+                        elif isinstance(do_continue, AgentState):
+                            state.messages = do_continue.messages
+                            state.output = do_continue.output
+                        else:  # do_continue is False
+                            break
+
+                    # if there is no on_continue hook then add a user message if there were no tool calls
+                    elif not state.output.message.tool_calls:
+                        continue_msg = (
+                            DEFAULT_CONTINUE_PROMPT
+                            if on_continue is None
+                            else str(on_continue)
+                        )
                         state.messages.append(
                             ChatMessageUser(
-                                content=do_continue.format(submit=submit_tool.name)
+                                content=continue_msg.replace(
+                                    "{submit}", submit_tool.name
+                                )
                             )
                         )
-                    elif isinstance(do_continue, AgentState):
-                        state.messages = do_continue.messages
-                        state.output = do_continue.output
-                    else:  # do_continue is False
-                        break
 
-                # if there is no on_continue hook then add a user message if there were no tool calls
-                elif not state.output.message.tool_calls:
-                    continue_msg = (
-                        DEFAULT_CONTINUE_PROMPT
-                        if on_continue is None
-                        else str(on_continue)
+                if not submit.keep_in_messages:
+                    # once we are complete, remove submit tool calls from the history
+                    # (as they will potentially confuse parent agents who also have
+                    # their own submit tools that they are 'watching' for)
+                    state.messages = _remove_submit_tool(
+                        state.messages, submit_tool.name
                     )
-                    state.messages.append(
-                        ChatMessageUser(
-                            content=continue_msg.format(submit=submit_tool.name)
-                        )
-                    )
-
-            if not submit.keep_in_messages:
-                # once we are complete, remove submit tool calls from the history
-                # (as they will potentially confuse parent agents who also have
-                # their own submit tools that they are 'watching' for)
-                state.messages = _remove_submit_tool(state.messages, submit_tool.name)
-            return state
+                return state
 
     return _resolve_agent(execute, name, description)
 
@@ -358,75 +412,114 @@ def react_no_submit(
     system_message = _prompt_to_system_message(prompt, tools, None)
 
     async def execute(state: AgentState) -> AgentState:
-        async with mcp_connection(tools):
+        async with checkpointer() as cp:
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
 
-            # resolve overflow handling
-            overflow = _resolve_overflow(truncation)
+            # TODO: It would be nice if we could just .track("state", lambda: state,
+            # state). The problem is that AgentState is not a Pydantic BaseModel
+            # (which is required by .track). We could add custom support for serializing/deserializing
+            # AgentState's, but the checkpoint code is layered below AgentState.
+            # So for now, we just track two items.
 
-            # create compact function
-            compact = _agent_compact(compaction, state.messages, tools, model)
+            # track conversation messages (restored to prior value on resume)
+            state.messages = cp.track(
+                "messages",
+                lambda: state.messages,
+                state.messages,
+                value_type=list[ChatMessage],
+            )
+            state.output = cp.track("output", lambda: state.output, state.output)
 
-            # track consecutive content_filter responses
-            consecutive_content_filter = 0
+            # Scoring-phase resume: the prior attempt's agent loop ran
+            # to clean exit and the harness will run scoring next. State
+            # is fully restored above; return immediately so scoring can
+            # re-run without re-doing the agent's work.
+            if cp.attempt == "resume_for_scoring":
+                return state
 
-            # main loop
-            while True:
-                # generate output and append assistant message
-                state = await _agent_generate(
-                    model, state, tools, retry_refusals, compact
-                )
+            async with (
+                mcp_connection(tools),
+                agent_channel() as ch,
+            ):
+                # resolve overflow handling
+                overflow = _resolve_overflow(truncation)
 
-                # check for context window overflow
-                if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow, compact)
-                    if handled:
-                        continue
-                    else:
-                        break
+                # create compact function
+                compact = _agent_compact(compaction, state.messages, tools, model, cp)
 
-                # check for content filter (model refusal) -- allow a few
-                # chances to recover before breaking to avoid infinite loop
-                if state.output.stop_reason == "content_filter":
-                    consecutive_content_filter += 1
-                    if consecutive_content_filter >= 3:
-                        break
-                else:
-                    consecutive_content_filter = 0
+                # track consecutive content_filter responses
+                consecutive_content_filter = 0
 
-                # resolve tool calls (if any)
-                if state.output.message.tool_calls:
-                    # call tool functions
-                    messages, output = await execute_tools(
-                        state.messages, tools, approval=approval
-                    )
-                    state.messages.extend(messages)
-                    if output:
-                        state.output = output
+                # main loop
+                while True:
+                    # drain any operator-supplied messages for this turn
+                    state.messages.extend(await ch.before_turn(state.messages))
 
-                # call the on_continue hook (if any)
-                if on_continue:
-                    do_continue = await _call_on_continue(on_continue, state)
-                    if do_continue is True:
-                        if not state.output.message.tool_calls:
-                            state.messages.append(
-                                ChatMessageUser(
-                                    content=DEFAULT_CONTINUE_PROMPT_NO_SUBMIT
-                                )
+                    # checkpoint at turn boundary (no-op when policy says so)
+                    await cp.tick()
+
+                    try:
+                        with ch.turn_scope():
+                            # generate output and append assistant message
+                            state = await _agent_generate(
+                                model, state, tools, retry_refusals, compact
                             )
-                    elif isinstance(do_continue, str):
-                        state.messages.append(ChatMessageUser(content=do_continue))
-                    elif isinstance(do_continue, AgentState):
-                        state.messages = do_continue.messages
-                        state.output = do_continue.output
-                    else:
-                        break
-                elif not state.output.message.tool_calls:
-                    break
 
-            return state
+                            # check for context window overflow
+                            if state.output.stop_reason == "model_length":
+                                state, handled = await _handle_overflow(
+                                    state, overflow, compact
+                                )
+                                if handled:
+                                    continue
+                                else:
+                                    break
+
+                            # check for content filter (model refusal) -- allow a few
+                            # chances to recover before breaking to avoid infinite loop
+                            if state.output.stop_reason == "content_filter":
+                                consecutive_content_filter += 1
+                                if consecutive_content_filter >= 3:
+                                    break
+                            else:
+                                consecutive_content_filter = 0
+
+                            # resolve tool calls (if any)
+                            if state.output.message.tool_calls:
+                                # call tool functions
+                                messages, output = await execute_tools(
+                                    state.messages, tools, approval=approval
+                                )
+                                state.messages.extend(messages)
+                                if output:
+                                    state.output = output
+                    except AgentInterrupted:
+                        state.messages.extend(await ch.after_cancel(state.messages))
+                        continue
+
+                    # call the on_continue hook (if any)
+                    if on_continue:
+                        do_continue = await _call_on_continue(on_continue, state)
+                        if do_continue is True:
+                            if not state.output.message.tool_calls:
+                                state.messages.append(
+                                    ChatMessageUser(
+                                        content=DEFAULT_CONTINUE_PROMPT_NO_SUBMIT
+                                    )
+                                )
+                        elif isinstance(do_continue, str):
+                            state.messages.append(ChatMessageUser(content=do_continue))
+                        elif isinstance(do_continue, AgentState):
+                            state.messages = do_continue.messages
+                            state.output = do_continue.output
+                        else:
+                            break
+                    elif not state.output.message.tool_calls:
+                        break
+
+                return state
 
     return _resolve_agent(execute, name, description)
 
@@ -449,10 +542,13 @@ def _prompt_to_system_message(
                 and ("{submit}" not in prompt.assistant_prompt)
                 and prompt.submit_prompt
             ):
-                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt.format(submit=submit_tool)}"
+                assistant_prompt = (
+                    f"{prompt.assistant_prompt}\n"
+                    f"{prompt.submit_prompt.replace('{submit}', submit_tool)}"
+                )
             else:
-                assistant_prompt = prompt.assistant_prompt.format(
-                    submit=submit_tool or "submit"
+                assistant_prompt = prompt.assistant_prompt.replace(
+                    "{submit}", submit_tool or "submit"
                 )
             prompt_lines.append(assistant_prompt)
         prompt_content = "\n\n".join(prompt_lines)
@@ -533,6 +629,7 @@ def _agent_compact(
     prefix: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | None,
     model: str | Model | Agent | None,
+    checkpointer: Checkpointer,
 ) -> Compact | None:
     # create compact function
     if compaction is not None:
@@ -541,6 +638,7 @@ def _agent_compact(
             prefix=prefix,
             tools=tools,
             model=model if isinstance(model, str | Model | None) else None,
+            checkpointer=checkpointer,
         )
     else:
         return None

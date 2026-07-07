@@ -286,6 +286,12 @@ def metric_create_assert(name: str, **kwargs: Any) -> None:
     assert metric([]) == 1
 
 
+def test_accuracy_handles_empty_scores() -> None:
+    # An empty score list must not raise; mirror the std()/var() convention of
+    # returning 0 for insufficient data instead of a ZeroDivisionError.
+    assert accuracy()([]) == 0.0
+
+
 @metric
 def nested_dict_metric(correct: str = "C") -> Metric:
     def metric(scores: list[SampleScore]) -> Value:
@@ -311,10 +317,9 @@ def test_nested_dict_metrics() -> None:
         assert len(log.results.scores) == 4
         assert log.results.scores[1].name == "one"
         assert len(log.results.scores[1].metrics.values()) == 2
-        assert (
-            log.results.scores[1].metrics["nested_dict_metric_key1"].name
-            == "nested_dict_metric_key1"
-        )
+        m = log.results.scores[1].metrics["nested_dict_metric_key1"]
+        assert m.name == "key1"
+        assert m.group == "nested_dict_metric"
 
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
@@ -351,10 +356,9 @@ def test_nested_list_metrics() -> None:
         assert len(log.results.scores) == 4
         assert log.results.scores[1].name == "one"
         assert len(log.results.scores[1].metrics.values()) == 2
-        assert (
-            log.results.scores[1].metrics["nested_list_metric_0"].name
-            == "nested_list_metric_0"
-        )
+        m = log.results.scores[1].metrics["nested_list_metric_0"]
+        assert m.name == "0"
+        assert m.group == "nested_list_metric"
 
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
@@ -379,6 +383,43 @@ def test_stderr():
     assert round(se, 3) == 0.957
 
 
+def test_mean_numeric():
+    metric = mean()
+    result = metric([SampleScore(score=Score(value=i)) for i in range(10)])
+    assert result == 4.5
+
+
+def test_mean_label_vocabulary():
+    # Regression: mean() previously used Score.as_float(), which calls
+    # float("C") and raises ValueError on the framework's own CORRECT /
+    # INCORRECT / PARTIAL / NOANSWER labels -- even though accuracy() (and
+    # std/var/stderr) map them via value_to_float(). A scorer emitting these
+    # labels with [accuracy(), mean()] attached would crash at metric time.
+    # mean() now shares the same value-to-float vocabulary as its siblings.
+    metric = mean()
+    result = metric(
+        [
+            SampleScore(score=Score(value="C")),
+            SampleScore(score=Score(value="I")),
+            SampleScore(score=Score(value="P")),
+            SampleScore(score=Score(value="N")),
+        ]
+    )
+    # C=1.0, I=0, P=0.5, N=0 -> mean 0.375
+    assert result == 0.375
+
+
+def test_mean_custom_to_float():
+    metric = mean(to_float=value_to_float(correct="win"))
+    result = metric(
+        [
+            SampleScore(score=Score(value="win")),
+            SampleScore(score=Score(value="win")),
+        ]
+    )
+    assert result == 1.0
+
+
 def test_clustered_stderr():
     metric = stderr(cluster="my_cluster")
     se = metric(
@@ -388,6 +429,20 @@ def test_clustered_stderr():
         ]
     )
     assert round(se, 3) == 0.645
+
+
+def test_clustered_stderr_single_cluster():
+    # Regression: with a single cluster, cluster_count / (cluster_count - 1)
+    # divides by zero. Should return 0.0 (mirroring the non-clustered n < 2
+    # guard) rather than NaN/inf.
+    metric = stderr(cluster="my_cluster")
+    se = metric(
+        [
+            SampleScore(score=Score(value=v), sample_metadata={"my_cluster": "only"})
+            for v in [1.0, 0.0, 1.0]
+        ]
+    )
+    assert se == 0.0
 
 
 def test_grouped_mean_single():
@@ -494,6 +549,24 @@ def test_no_all():
 
     assert all(key in result for key in ["A", "B", "C", "D"])
     assert "all" not in result
+
+
+def test_grouped_all_label_collision():
+    # Regression: when a group's name collides with all_label (default "all"),
+    # the per-group metric was silently overwritten by the aggregate. Now this
+    # should raise so the user knows to pick a different all_label.
+    metric = grouped(accuracy(), group_key="category")
+    with pytest.raises(ValueError, match="all_label"):
+        metric(
+            [
+                SampleScore(
+                    score=Score(value="C"), sample_metadata={"category": "easy"}
+                ),
+                SampleScore(
+                    score=Score(value="I"), sample_metadata={"category": "all"}
+                ),
+            ]
+        )
 
 
 def test_custom_all():
@@ -838,3 +911,27 @@ def test_aggregate_invalid_on_missing_raises():
     # "zero" only when a key happens to be missing.
     with pytest.raises(ValueError, match="invalid on_missing"):
         aggregate("x", agg=mean(), on_missing="skpi")  # type: ignore[arg-type]
+
+
+def test_metrics_return_zero_for_empty_scores() -> None:
+    # Every built-in numeric metric must handle an empty score list by
+    # returning 0.0 rather than nan (with numpy empty-slice warnings). See the
+    # empty-input guards documented in accuracy()/std()/var().
+    from inspect_ai.scorer import (
+        accuracy,
+        bootstrap_stderr,
+        mean,
+        std,
+        stderr,
+        var,
+    )
+
+    for metric_fn in (
+        accuracy(),
+        mean(),
+        var(),
+        std(),
+        stderr(),
+        bootstrap_stderr(),
+    ):
+        assert metric_fn([]) == 0.0

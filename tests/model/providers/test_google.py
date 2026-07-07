@@ -3,6 +3,7 @@ import base64
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from google.genai.types import (
     Blob,
@@ -12,6 +13,7 @@ from google.genai.types import (
     FunctionCall,
     FunctionCallingConfigMode,
     GenerateContentResponse,
+    HttpOptions,
     JobState,
     Part,
 )
@@ -30,7 +32,7 @@ from inspect_ai._util.content import (
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
@@ -41,6 +43,7 @@ from inspect_ai.model._providers.google import (
     completion_choice_from_candidate,
     content,
 )
+from inspect_ai.model._providers.util.hooks import HttpHooks
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
 from inspect_ai.tool import (
@@ -78,7 +81,7 @@ def test_google_block_reason():
             # TODO: we can't seem to get a content filter to trigger!
             dataset=[Sample(input="you are a shameful model")],
         ),
-        model="google/gemini-3.1-flash-lite-preview",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(safety_settings=safety_settings),
     )[0]
     # TODO: comment in once we have an input that triggers the filter
@@ -588,6 +591,23 @@ def _create_mock_google_client(mock_generate: AsyncMock) -> MagicMock:
     return mock_client
 
 
+def _create_mock_google_count_tokens_client(total_tokens: int = 7) -> MagicMock:
+    mock_client = MagicMock()
+    mock_client.aio.__aenter__ = AsyncMock(return_value=mock_client.aio)
+    mock_client.aio.__aexit__ = AsyncMock(return_value=None)
+    mock_client.aio.models.count_tokens = AsyncMock(
+        return_value=MagicMock(total_tokens=total_tokens)
+    )
+    mock_client._api_client._async_httpx_client = MagicMock()
+    return mock_client
+
+
+def _client_http_options(client_mock: MagicMock) -> HttpOptions:
+    http_options = client_mock.call_args.kwargs["http_options"]
+    assert isinstance(http_options, HttpOptions)
+    return http_options
+
+
 def _create_malformed_response(
     finish_message: str | None = None,
 ) -> GenerateContentResponse:
@@ -633,6 +653,110 @@ def _create_test_tool() -> ToolInfo:
             required=["x"],
         ),
     )
+
+
+@pytest.mark.parametrize(
+    ("config", "expected_timeout"),
+    [
+        (GenerateConfig(), 3_600_000),
+        (GenerateConfig(timeout=123), 123_000),
+        (GenerateConfig(timeout=0), 0),
+    ],
+)
+@pytest.mark.anyio
+async def test_google_generate_http_timeout(
+    config: GenerateConfig, expected_timeout: int
+) -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=config,
+        )
+
+    http_options = _client_http_options(client)
+    assert http_options.timeout == expected_timeout
+
+
+@pytest.mark.anyio
+async def test_google_batcher_client_uses_default_http_timeout() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        config = GenerateConfig(batch=BatchConfig(size=1))
+
+        api._resolve_batcher(config, api._http_options(config))
+
+        assert api._batcher is not None
+        assert api._batcher._client is mock_client
+
+    http_options = client.call_args.kwargs["http_options"]
+    assert http_options.timeout == 3_600_000
+
+
+@pytest.mark.anyio
+async def test_google_count_tokens_none_config_uses_default_http_timeout() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        tokens = await api.count_tokens("Hello")
+
+    assert tokens == 7
+    http_options = _client_http_options(client)
+    assert http_options.timeout == 3_600_000
+
+
+@pytest.mark.anyio
+async def test_google_generate_preserves_request_extra_headers() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(extra_headers={"x-test-header": "present"}),
+        )
+
+    request_config = mock_generate.call_args.kwargs["config"]
+    assert request_config.http_options.headers["x-test-header"] == "present"
+    assert HttpHooks.REQUEST_ID_HEADER in request_config.http_options.headers
 
 
 @pytest.mark.anyio
@@ -760,7 +884,7 @@ async def test_google_count_tokens_single_tool_call() -> None:
     """Test counting tokens for a single assistant message with one tool call."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-3.1-flash-lite-preview")
+    model = get_model("google/gemini-3.1-flash-lite")
 
     # Create an assistant message with a single tool call (no tool result)
     assistant_msg = ChatMessageAssistant(
@@ -785,7 +909,7 @@ async def test_google_count_tokens_multiple_tool_calls() -> None:
     """Test counting tokens for a single assistant message with multiple tool calls."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-3.1-flash-lite-preview")
+    model = get_model("google/gemini-3.1-flash-lite")
 
     # Create an assistant message with multiple tool calls (no tool results)
     assistant_msg = ChatMessageAssistant(
@@ -820,7 +944,7 @@ async def test_google_count_tokens_single_tool_result() -> None:
     """Test counting tokens for a single tool result message (no preceding tool use)."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-3.1-flash-lite-preview")
+    model = get_model("google/gemini-3.1-flash-lite")
 
     # Create a tool result message without a preceding assistant message
     tool_msg = ChatMessageTool(
@@ -842,7 +966,7 @@ def test_google_streaming_basic():
             dataset=[Sample(input="Say hello in one sentence", target="hello")],
             scorer=includes(),
         ),
-        model="google/gemini-3.1-flash-lite-preview",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(streaming=True),
     )[0]
 
@@ -875,7 +999,7 @@ def test_google_streaming_with_tools():
             solver=use_tools([add]),
             scorer=includes(),
         ),
-        model="google/gemini-3.1-flash-lite-preview",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(streaming=True),
     )[0]
 
@@ -895,7 +1019,7 @@ def test_google_streaming_large_output():
             ],
             scorer=includes(),
         ),
-        model="google/gemini-3.1-flash-lite-preview",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(streaming=True),
         max_tokens=4096,
     )[0]
@@ -1164,3 +1288,82 @@ async def test_image_in_user_follow_up():
     assert blob is not None
     assert blob.mime_type == "image/png"
     assert blob.data == image_bytes
+
+
+@pytest.mark.parametrize(
+    "exception_factory",
+    [
+        lambda: aiohttp.ClientOSError(103, "Software caused connection abort"),
+        lambda: aiohttp.ServerDisconnectedError(),
+        lambda: aiohttp.ClientConnectorError(MagicMock(), OSError("connect failed")),
+        lambda: asyncio.TimeoutError(),
+    ],
+)
+def test_should_retry_aiohttp_transport_errors(exception_factory):
+    from inspect_ai.model._model import RetryDecision
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    decision = api.should_retry(exception_factory())
+
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "transient"
+
+
+def test_should_retry_unrelated_error_not_retried():
+    from inspect_ai.model._model import RetryDecision
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    decision = api.should_retry(ValueError("bad input"))
+
+    assert isinstance(decision, RetryDecision)
+    assert not decision.retry
+
+
+def test_usage_metadata_folds_thoughts_into_output_tokens():
+    from google.genai.types import GenerateContentResponseUsageMetadata
+
+    from inspect_ai.model._providers.google import usage_metadata_to_model_usage
+
+    usage = usage_metadata_to_model_usage(
+        GenerateContentResponseUsageMetadata(
+            prompt_token_count=100,
+            cached_content_token_count=40,
+            candidates_token_count=20,
+            thoughts_token_count=30,
+            total_token_count=150,
+        )
+    )
+
+    assert usage is not None
+    assert usage.input_tokens == 60
+    assert usage.input_tokens_cache_read == 40
+    # thoughts fold into output (OpenAI/Anthropic convention), with
+    # reasoning_tokens as the detail subset
+    assert usage.output_tokens == 50
+    assert usage.reasoning_tokens == 30
+    assert usage.total_tokens == 150
+
+
+def test_usage_metadata_without_thoughts():
+    from google.genai.types import GenerateContentResponseUsageMetadata
+
+    from inspect_ai.model._providers.google import usage_metadata_to_model_usage
+
+    usage = usage_metadata_to_model_usage(
+        GenerateContentResponseUsageMetadata(
+            prompt_token_count=10,
+            candidates_token_count=5,
+            total_token_count=15,
+        )
+    )
+
+    assert usage is not None
+    assert usage.output_tokens == 5
+    assert usage.reasoning_tokens == 0

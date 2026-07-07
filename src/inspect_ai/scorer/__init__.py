@@ -23,6 +23,7 @@ from ._metric import (
 )
 from ._metrics.accuracy import accuracy
 from ._metrics.aggregate import aggregate
+from ._metrics.categorical import categorical, frequency
 from ._metrics.grouped import grouped
 from ._metrics.mean import mean
 from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
@@ -40,6 +41,7 @@ from ._reducer import (
     median_score,
     mode_score,
     pass_at,
+    pass_k,
     score_reducer,
 )
 from ._score import score
@@ -70,9 +72,11 @@ __all__ = [
     "answer",
     "at_least",
     "bootstrap_stderr",
+    "categorical",
     "choice",
     "exact",
     "f1",
+    "frequency",
     "grouped",
     "includes",
     "match",
@@ -87,6 +91,7 @@ __all__ = [
     "model_graded_qa",
     "multi_scorer",
     "pass_at",
+    "pass_k",
     "pattern",
     "perplexity",
     "perplexity_per_seq",

@@ -19,6 +19,7 @@ from anthropic.types import (
     ToolReferenceBlockParam,
     Usage,
     WebSearchTool20250305Param,
+    WebSearchTool20260209Param,
 )
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
@@ -78,6 +79,7 @@ from .types import AgentBridge
 from .util import (
     apply_message_ids,
     bridge_generate,
+    clear_generation_params,
     resolve_generate_config,
     resolve_inspect_model,
 )
@@ -128,6 +130,8 @@ async def inspect_anthropic_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_anthropic(json_data)
+    if not bridge.forward_generation_config:
+        clear_generation_params(config)
     config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
@@ -149,7 +153,7 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # update state if we have more messages than the last generation
-    bridge._track_state(messages, output)
+    await bridge._track_state(messages, output)
 
     # return message (use beta message type if request came from beta endpoint)
     message_class = BetaMessage if beta else Message
@@ -175,11 +179,23 @@ def debug_log(caption: str, o: Any) -> None:
     pass
 
 
+def anthropic_system_to_text(value: Any) -> str:
+    """Flatten an Anthropic ``system`` value (``str`` or ``list[TextBlockParam]``) to text."""
+    if isinstance(value, str):
+        return value
+    return "\n\n".join(
+        str(b.get("text", ""))
+        for b in value
+        if isinstance(b, dict) and b.get("type") == "text"
+    )
+
+
 def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get("max_tokens", None)
     config.stop_seqs = json_data.get("stop_sequences", None) or None
-    config.system_message = json_data.get("system", None)
+    if (system := json_data.get("system")) is not None:
+        config.system_message = anthropic_system_to_text(system)
     config.temperature = json_data.get("temperature", None)
     config.top_k = json_data.get("top_k", None)
     config.top_p = json_data.get("top_p", None)
@@ -188,6 +204,16 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     if thinking:
         if thinking.get("type", None) == "enabled":
             config.reasoning_tokens = thinking.get("budget_tokens", None)
+
+    # `output_config.effort` carries the reasoning depth for adaptive thinking
+    # (Claude 4.6+ clients send `thinking: {"type": "adaptive"}` and convey the
+    # depth here rather than via `budget_tokens`). Forward it so the served model
+    # keeps the requested effort instead of silently dropping it.
+    output_config = json_data.get("output_config", None)
+    if output_config:
+        effort = output_config.get("effort", None)
+        if effort is not None:
+            config.effort = effort
 
     tool_choice = json_data.get("tool_choice", {})
     if tool_choice.get("disable_parallel_tool_use", None) is True:
@@ -290,7 +316,8 @@ def tools_from_anthropic_tools(
 
 
 def resolve_web_search_providers(
-    tool_param: WebSearchTool20250305Param, web_search: WebSearchProviders
+    tool_param: WebSearchTool20250305Param | WebSearchTool20260209Param,
+    web_search: WebSearchProviders,
 ) -> WebSearchProviders:
     # pass through anthropic options if there is no special anthropic config
     anthropic_options = web_search.get("anthropic", False)
@@ -423,6 +450,11 @@ async def messages_from_anthropic_input(
                         raise RuntimeError("Unexpected input parameter: {c}")
 
                 flush_pending_user_content()
+
+        elif param["role"] == "system":
+            messages.append(
+                ChatMessageSystem(content=anthropic_system_to_text(param["content"]))
+            )
 
         else:
             raise RuntimeError(f"Unexpected message role: {param['role']}")

@@ -22,6 +22,9 @@ description: Task scoring and metrics.
 ## Metrics
 
 ### accuracy
+### categorical
+### frequency
+### grouped
 ### mean
 ### std
 ### stderr
@@ -33,6 +36,7 @@ description: Task scoring and metrics.
 
 ### at_least
 ### pass_at
+### pass_k
 ### max_score
 ### mean_score
 ### median_score

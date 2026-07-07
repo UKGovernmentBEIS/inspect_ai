@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from shortuuid import uuid as shortuuid
@@ -13,9 +14,9 @@ from inspect_ai.tool._tool_def import ToolDef, validate_tool_parameters
 from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
 from inspect_ai.tool._tool_params import ToolParam
 from inspect_ai.util._limit import Limit, apply_limits
-from inspect_ai.util._span import span
+from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
-from ._agent import AGENT_DESCRIPTION, Agent, AgentState
+from ._agent import AGENT_DESCRIPTION, Agent, AgentState, agent_display_name
 
 
 @tool
@@ -64,7 +65,9 @@ def as_tool(
 
         # run the agent with limits
         with apply_limits(limits):
-            async with span(name=tool_info.name, type="agent", id=agent_span_id):
+            async with span(
+                name=agent_display_name(agent), type=AGENT_SPAN_TYPE, id=agent_span_id
+            ):
                 state = await agent(state, *args, **(agent_kwargs | kwargs))
 
         # Store span ID so call_tool can read it after execution
@@ -101,7 +104,7 @@ def agent_tool_info(
 ) -> ToolInfo:
     # get tool_info and name
     tool_info = parse_tool_info(agent)
-    tool_info.name = registry_unqualified_name(agent)
+    tool_info.name = agent_tool_name(agent)
 
     # remove "state" param
     def remove_param(param: str) -> None:
@@ -142,3 +145,23 @@ def agent_tool_info(
     validate_tool_parameters(tool_info.name, tool_info.parameters.properties)
 
     return tool_info
+
+
+def agent_tool_name(agent: Agent) -> str:
+    """Tool name for an agent used as a tool or handoff.
+
+    Uses the agent's display name sanitized to a valid tool name, falling back to
+    the registry name (then "agent") if the display name has no usable characters.
+    """
+    return (
+        sanitize_tool_name(agent_display_name(agent))
+        or sanitize_tool_name(registry_unqualified_name(agent))
+        or "agent"
+    )
+
+
+def sanitize_tool_name(name: str) -> str:
+    """Normalize a name for use as a tool name (lowercase, no spaces)."""
+    name = name.strip().lower()
+    name = re.sub(r"\s+", "_", name)
+    return re.sub(r"[^a-z0-9_-]", "", name)

@@ -2,6 +2,7 @@ import json
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import reduce
+from logging import getLogger
 from typing import Any, Iterable, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
@@ -31,20 +32,28 @@ from openai.types.responses import (
     ResponseInputTextParam,
     ResponseOutputMessage,
     ResponseOutputMessageParam,
+    ResponseOutputRefusal,
     ResponseOutputRefusalParam,
     ResponseOutputText,
     ResponseOutputTextParam,
     ResponseReasoningItem,
     ResponseReasoningItemParam,
+    ResponseToolSearchCall,
     ResponseUsage,
     ToolChoiceFunctionParam,
     ToolChoiceMcpParam,
     ToolChoiceTypesParam,
     ToolParam,
+    ToolSearchToolParam,
     WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
-from openai.types.responses.namespace_tool_param import NamespaceToolParam
+from openai.types.responses.namespace_tool_param import (
+    NamespaceToolParam,
+)
+from openai.types.responses.namespace_tool_param import (
+    Tool as NamespaceInnerTool,
+)
 from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_code_interpreter_tool_call import (
     OutputImage,
@@ -72,6 +81,7 @@ from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
     FunctionCallOutput,
     Message,
+    ToolSearchCall,
 )
 from openai.types.responses.response_input_item_param import McpCall as McpCallParam
 from openai.types.responses.response_input_item_param import (
@@ -103,8 +113,10 @@ from openai.types.responses.response_output_text import (
 from openai.types.responses.response_output_text_param import (
     Annotation as AnnotationParam,
 )
-from openai.types.responses.response_reasoning_item_param import Content as ContentParam
 from openai.types.responses.response_reasoning_item_param import Summary as SummaryParam
+from openai.types.responses.response_tool_search_output_item_param_param import (
+    ResponseToolSearchOutputItemParamParam,
+)
 from openai.types.responses.response_usage import (
     InputTokensDetails,
     OutputTokensDetails,
@@ -154,8 +166,10 @@ from inspect_ai.model._model_output import (
     Logprob,
     Logprobs,
     ModelUsage,
+    StopDetails,
     StopReason,
     TopLogprob,
+    collect_stop_details,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -171,13 +185,17 @@ from ._providers._openai_computer_use import (
 )
 from ._providers._openai_web_search import maybe_web_search_tool
 
+logger = getLogger(__name__)
+
 MESSAGE_ID = "message_id"
 MESSAGE_PHASE = "message_phase"
+REASONING_ENCRYPTED_CONTENT = "reasoning_encrypted_content"
 
 
 class ResponsesModelInfo(Protocol):
     def has_reasoning_options(self) -> bool: ...
     def reasoning_only_fallback(self) -> bool: ...
+    def is_latest(self) -> bool: ...
     def is_gpt(self) -> bool: ...
     def is_gpt_5(self) -> bool: ...
     def is_gpt_5_plus(self) -> bool: ...
@@ -224,12 +242,13 @@ async def openai_responses_inputs(
     messages: list[ChatMessage],
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
+    swap_todo_write: bool = False,
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
         for item in await _openai_input_item_from_chat_message(
-            message, model_info, synthesize_phase
+            message, model_info, synthesize_phase, swap_todo_write
         )
     ]
 
@@ -238,6 +257,7 @@ async def _openai_input_item_from_chat_message(
     message: ChatMessage,
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
+    swap_todo_write: bool = False,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -259,14 +279,21 @@ async def _openai_input_item_from_chat_message(
         ]
     elif message.role == "assistant":
         return _openai_input_items_from_chat_message_assistant(
-            message, model_info, synthesize_phase
+            message, model_info, synthesize_phase, swap_todo_write
         )
     elif message.role == "tool":
-        # see if we need to recover the call id for the computer tool calls
+        # recover the original call (by call_id) to replay the matching output item
         responses_tool_call = assistant_internal().tool_calls.get(
             message.tool_call_id or str(message.function)
         )
         if (
+            responses_tool_call is not None
+            and responses_tool_call["type"] == "tool_search_call"
+        ):
+            # client-resolved tool_search: replay the discovered tools (carried as
+            # JSON in the tool message content) as a native tool_search_output item
+            return [_tool_search_output_param_from_tool_message(message)]
+        elif (
             responses_tool_call is not None
             and responses_tool_call["type"] == "computer_call"
         ):
@@ -303,6 +330,38 @@ async def _openai_input_item_from_chat_message(
 
     else:
         raise ValueError(f"Unexpected message role '{message.role}'")
+
+
+def _tool_search_output_param_from_tool_message(
+    message: ChatMessageTool,
+) -> ResponseToolSearchOutputItemParamParam:
+    # tools were carried as JSON in the tool message content; parse them back
+    content = message.content
+    tools_json = (
+        content
+        if isinstance(content, str)
+        else "".join(c.text for c in content if isinstance(c, ContentText))
+    )
+    try:
+        validated = tool_search_tools_adapter.validate_json(tools_json)
+        # validate_json yields lazy `ValidatorIterator`s for namespace tools
+        # (NamespaceToolParam.tools is typed `Iterable`). Such an iterator is
+        # single-consumption: inspect serializes the request for the transcript
+        # before the OpenAI client serializes it for the wire, so the iterator is
+        # exhausted on the first pass and the wire body carries an empty `tools`
+        # array (OpenAI then rejects it as "empty array"). dump_python
+        # materializes the iterators into plain lists that survive re-serialization.
+        tools = tool_search_tools_adapter.dump_python(validated, mode="json")
+    except (ValidationError, ValueError):
+        # e.g. content cleared by compaction; fall back to an empty tool list
+        tools = []
+    return ResponseToolSearchOutputItemParamParam(
+        type="tool_search_output",
+        call_id=message.tool_call_id or str(message.function),
+        tools=tools,
+        execution="client",
+        status="completed",
+    )
 
 
 async def _openai_responses_function_call_output(
@@ -434,14 +493,51 @@ def openai_responses_tool_choice(
                 else ToolChoiceTypesParam(type="web_search_preview")
                 if tool_choice.name == "web_search"
                 and any(tool["type"] == "web_search" for tool in tools)
-                else ToolChoiceFunctionParam(type="function", name=tool_choice.name)
+                else ToolChoiceFunctionParam(
+                    type="function",
+                    name=_responses_tool_choice_name(tool_choice.name, tools),
+                )
             )
 
 
+RESPONSES_NAMESPACE = "__responses_namespace__"
+"""``ToolInfo.options`` key under which the agent bridge stashes the
+``(name, description)`` of the ``NamespaceToolParam`` a tool was flattened
+from, so that :func:`openai_responses_tools` can re-group it on the outgoing
+request. Without this, namespaced tools (e.g. codex's
+``multi_agent_v1.spawn_agent``) are sent flat as ``functions.spawn_agent``,
+which OpenAI's reserved-name validation rejects on models configured for
+encrypted tool use."""
+
+
 def openai_responses_tools(
-    tools: list[ToolInfo], model_name: str, config: GenerateConfig
+    tools: list[ToolInfo],
+    model_name: str,
+    config: GenerateConfig,
+    is_latest: bool = False,
 ) -> list[ToolParam]:
-    result = [_tool_param_for_tool_info(tool, model_name, config) for tool in tools]
+    result: list[ToolParam] = []
+    namespaces: dict[tuple[str, str], list[FunctionToolParam | CustomToolParam]] = {}
+    for tool in tools:
+        param = _tool_param_for_tool_info(tool, model_name, config, is_latest)
+        ns = (tool.options or {}).get(RESPONSES_NAMESPACE)
+        if isinstance(ns, tuple) and len(ns) == 2:
+            # Only function/custom tools may live inside a NamespaceToolParam;
+            # the bridge only stashes RESPONSES_NAMESPACE on those, so cast.
+            namespaces.setdefault(ns, []).append(
+                cast(FunctionToolParam | CustomToolParam, param)
+            )
+        else:
+            result.append(param)
+    for (ns_name, ns_desc), ns_tools in namespaces.items():
+        result.append(
+            NamespaceToolParam(
+                type="namespace",
+                name=ns_name,
+                description=ns_desc,
+                tools=cast(list[NamespaceInnerTool], ns_tools),
+            )
+        )
 
     # Add at most one image_generation tool if image output modality requested
     img_config = image_output_config(config.modalities)
@@ -455,6 +551,36 @@ def openai_responses_tools(
     return result
 
 
+def responses_stop_details(response: OpenAIResponse) -> StopDetails | None:
+    """Extract refusal detail from a Responses API result.
+
+    The Responses API has no category breakdown; refusal text comes from
+    `ResponseOutputRefusal` parts and the content-filter signal from
+    `incomplete_details.reason`.
+    """
+    refusals: list[str] = []
+    for output in response.output:
+        if isinstance(output, ResponseOutputMessage):
+            for c in output.content:
+                if isinstance(c, ResponseOutputRefusal) and c.refusal:
+                    refusals.append(c.refusal)
+
+    explanation = "\n".join(refusals) if refusals else None
+    incomplete = response.incomplete_details
+    is_content_filter = (
+        incomplete is not None
+        and getattr(incomplete, "reason", None) == "content_filter"
+    )
+
+    if not explanation and not is_content_filter:
+        return None
+
+    return StopDetails(
+        type="content_filter" if is_content_filter else "refusal",
+        explanation=explanation,
+    )
+
+
 def openai_responses_chat_choices(
     model: str | None, response: OpenAIResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
@@ -464,16 +590,25 @@ def openai_responses_chat_choices(
     )
     return [
         ChatCompletionChoice(
-            message=message, stop_reason=stop_reason, logprobs=logprobs
+            message=message,
+            stop_reason=stop_reason,
+            stop_details=collect_stop_details(
+                "openai_responses", logger, lambda: responses_stop_details(response)
+            ),
+            logprobs=logprobs,
         )
     ]
 
 
 def is_native_tool_configured(
-    tools: Sequence[ToolInfo], model_name: str, config: GenerateConfig
+    tools: Sequence[ToolInfo],
+    model_name: str,
+    config: GenerateConfig,
+    is_latest: bool = False,
 ) -> bool:
     return any(
-        _maybe_native_tool_param(tool, model_name, config) is not None for tool in tools
+        _maybe_native_tool_param(tool, model_name, config, is_latest) is not None
+        for tool in tools
     )
 
 
@@ -517,7 +652,8 @@ class _AssistantInternal:
         | ResponseCustomToolCallParam
         | ResponseComputerToolCallParam
         | ResponseFunctionWebSearchParam
-        | ResponseCodeInterpreterToolCallParam,
+        | ResponseCodeInterpreterToolCallParam
+        | ToolSearchCall,
     ] = field(default_factory=dict)
     server_tool_uses: dict[str, ResponseInputItemParam] = field(default_factory=dict)
 
@@ -526,8 +662,43 @@ def assistant_internal() -> _AssistantInternal:
     return _openai_assistant_internal.get()
 
 
-def init_sample_openai_assistant_internal() -> None:
-    _openai_assistant_internal.set(_AssistantInternal())
+def init_sample_openai_assistant_internal(value: JsonValue | None = None) -> None:
+    """Initialize (``value is None``) or restore the sample's assistant internal.
+
+    Restore (``value`` from a prior :func:`dump_openai_assistant_internal`)
+    mutates the current instance in place rather than rebinding the context
+    var, so the restored state is visible outside the restoring task — see
+    ``inspect_ai.model._assistant_internal``.
+    """
+    if value is None:
+        _openai_assistant_internal.set(_AssistantInternal())
+        return
+    assert isinstance(value, dict)
+    internal = assistant_internal()
+    internal.tool_calls.update(cast("dict[str, Any]", value.get("tool_calls", {})))
+    internal.server_tool_uses.update(
+        cast("dict[str, Any]", value.get("server_tool_uses", {}))
+    )
+
+
+def dump_openai_assistant_internal() -> JsonValue | None:
+    """Dump the sample's assistant internal as a JSON value (``None`` if empty).
+
+    Values are the SDK's ``TypedDict`` request params — plain dicts at
+    runtime, so they serialize as-is and restore via cast with no
+    validation (corrupt data surfaces at request time, as it would have
+    in-memory).
+    """
+    internal = assistant_internal()
+    if not internal.tool_calls and not internal.server_tool_uses:
+        return None
+    return cast(
+        JsonValue,
+        {
+            "tool_calls": dict(internal.tool_calls),
+            "server_tool_uses": dict(internal.server_tool_uses),
+        },
+    )
 
 
 _openai_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
@@ -667,11 +838,14 @@ def _process_response_output_items(
                         output.model_dump(exclude_none=True),
                     )
 
+                call_name, call_arguments = _responses_call_to_inspect(
+                    output.name, output.arguments, tools
+                )
                 tool_calls.append(
                     parse_tool_call(
                         output.call_id,
-                        _from_responses_tool_alias(output.name),
-                        output.arguments,
+                        call_name,
+                        call_arguments,
                         tools,
                     )
                 )
@@ -736,6 +910,16 @@ def _process_response_output_items(
                 if output.status == "completed" and output.result is not None:
                     data_uri = f"data:image/png;base64,{output.result}"
                     message_content.append(ContentImage(image=data_uri))
+            case ResponseToolSearchCall():
+                # client-resolved built-in tool (like computer): represent as a
+                # standard ToolCall the scaffold will resolve. Cache the raw param
+                # (keyed by call_id) for verbatim replay within the sample.
+                has_tool_calls = True
+                tool_call = tool_call_from_openai_tool_search_call(output)
+                assistant_internal().tool_calls[tool_call.id] = cast(
+                    ToolSearchCall, output.model_dump(exclude_none=True)
+                )
+                tool_calls.append(tool_call)
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
 
@@ -825,20 +1009,35 @@ def reasoning_from_responses_reasoning(
     else:
         summary_text = None
 
-    if item.encrypted_content is not None:
+    if (
+        readable is not None
+        and item.encrypted_content is not None
+        and summary_text is None
+    ):
         return ContentReasoning(
             reasoning=item.encrypted_content,
-            summary=readable or summary_text,
+            summary=readable,
             signature=item.id,
             redacted=True,
         )
-    else:
-        return ContentReasoning(
-            reasoning=readable or "",
-            summary=summary_text,
-            signature=item.id,
-            redacted=False,
-        )
+    reasoning = readable if readable is not None else (item.encrypted_content or "")
+    # When content, encrypted_content, and summary all exist, stash the
+    # encrypted blob in `internal` so it survives a round-trip back to a
+    # ResponseReasoningItem for replay.
+    internal: dict[str, JsonValue] | None = None
+    if (
+        readable is not None
+        and summary_text is not None
+        and item.encrypted_content is not None
+    ):
+        internal = {REASONING_ENCRYPTED_CONTENT: item.encrypted_content}
+    return ContentReasoning(
+        reasoning=reasoning,
+        summary=summary_text,
+        signature=item.id,
+        redacted=readable is None and item.encrypted_content is not None,
+        internal=internal,
+    )
 
 
 # two issues addressed here:
@@ -862,11 +1061,12 @@ def responses_reasoning_from_reasoning(
 ) -> ResponseReasoningItemParam:
     encrypted_content: str | None = content.reasoning if content.redacted else None
 
-    content_params: list[ContentParam] = []
-    if not content.redacted and content.reasoning:
-        content_params.append(
-            ContentParam(type="reasoning_text", text=content.reasoning)
-        )
+    # If non-redacted, look for an encrypted blob stashed in `internal`
+    # (set when OpenAI returned content + encrypted_content + summary together).
+    if not content.redacted and isinstance(content.internal, dict):
+        stashed = content.internal.get(REASONING_ENCRYPTED_CONTENT)
+        if isinstance(stashed, str):
+            encrypted_content = stashed
 
     summary_params: list[SummaryParam] = []
     if not content.redacted and content.summary:
@@ -876,13 +1076,32 @@ def responses_reasoning_from_reasoning(
         type="reasoning",
         # OpenAI returns 'None' when store=False even though the schema requires the id
         id=content.signature,  # type: ignore[typeddict-item]
-        content=content_params,
+        # Responses API rejects non-empty content on reasoning input items
+        # (array_above_max_length); reasoning replays via encrypted_content.
+        content=[],
         summary=summary_params,
         encrypted_content=encrypted_content,
     )
 
 
 mcp_tool_adapter = TypeAdapter(list[McpListToolsToolParam])
+
+
+def tool_call_from_openai_tool_search_call(output: ResponseToolSearchCall) -> ToolCall:
+    # arguments may arrive as a dict (typed `object`) or a JSON string
+    arguments = output.arguments
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments) if arguments else {}
+        except json.JSONDecodeError:
+            arguments = {}
+    if not isinstance(arguments, dict):
+        arguments = {"query": arguments}
+    return ToolCall(
+        id=output.call_id or output.id,
+        function=TOOL_SEARCH_NAME,
+        arguments=arguments,
+    )
 
 
 def web_search_to_tool_use(output: ResponseFunctionWebSearch) -> ContentToolUse:
@@ -999,6 +1218,15 @@ def parse_web_search_action(arguments: str) -> dict[str, Any]:
 
         # Check if this is a valid OpenAI action (correct type + required fields)
         if _is_valid_openai_web_search_action(filtered):
+            # Newer search responses omit the deprecated singular `query`
+            # and only populate `queries`. The SDK still declares `query`
+            # as required, so backfill from `queries[0]` to keep strict
+            # construction (e.g. `ResponseFunctionWebSearch(...)`) happy.
+            # `queries` is preserved alongside so no parallel-search data
+            # is lost.
+            if filtered.get("type") == "search" and "query" not in filtered:
+                queries = filtered.get("queries") or []
+                filtered["query"] = queries[0] if queries else ""
             return filtered
 
         # Not an OpenAI-formatted action - create a conforming search action
@@ -1024,6 +1252,7 @@ def _openai_input_items_from_chat_message_assistant(
     message: ChatMessageAssistant,
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
+    swap_todo_write: bool = False,
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -1052,6 +1281,18 @@ def _openai_input_items_from_chat_message_assistant(
             )
         ]
     )
+
+    if message.tool_calls:
+        content_items = [
+            content
+            for content in content_items
+            if not (
+                isinstance(content, ContentText)
+                and content.text == ""
+                and not content.refusal
+                and content.internal is None
+            )
+        ]
 
     # If all content is reasoning-only (no text, no tool calls), inject a
     # NO_CONTENT fallback to prevent the Responses API from rejecting the
@@ -1208,7 +1449,7 @@ def _openai_input_items_from_chat_message_assistant(
     # final flush if necessary
     flush_pending_context_text()
 
-    return items + _tool_call_items_from_assistant_message(message)
+    return items + _tool_call_items_from_assistant_message(message, swap_todo_write)
 
 
 def _synthetic_phase_for_assistant_message(
@@ -1244,17 +1485,57 @@ def _model_tool_call_for_internal(
             raise NotImplementedError(f"Unsupported tool call type: {x}")
 
 
+# tool_search is a native Responses tool used by scaffolds (e.g. codex-cli) to do
+# client-side tool discovery. It is represented in inspect as a built-in tool the
+# scaffold resolves (like `computer`): the model emits a `tool_search_call`, the
+# scaffold returns a `tool_search_output` carrying the discovered tool defs.
+TOOL_SEARCH_NAME = "tool_search"
+TOOL_SEARCH_OUTPUT_NAME = "tool_search_output"
+# options-bag marker so we can recognize the synthesized tool_search ToolInfo
+TOOL_SEARCH_OPTIONS_MARKER = "tool_search"
+
+tool_search_tools_adapter = TypeAdapter(list[ToolParam])
+
+
+def is_tool_search_server_tool(tool: ToolInfo) -> bool:
+    return (
+        tool.name == TOOL_SEARCH_NAME
+        and tool.options is not None
+        and tool.options.get(TOOL_SEARCH_OPTIONS_MARKER) is True
+    )
+
+
+def maybe_tool_search_tool(tool: ToolInfo) -> ToolSearchToolParam | None:
+    if is_tool_search_server_tool(tool):
+        options = tool.options or {}
+        param: ToolSearchToolParam = {"type": "tool_search"}
+        description = options.get("description")
+        if description is not None:
+            param["description"] = description
+        execution = options.get("execution")
+        if execution is not None:
+            param["execution"] = execution
+        parameters = options.get("parameters")
+        if parameters is not None:
+            param["parameters"] = parameters
+        return param
+    else:
+        return None
+
+
 def _maybe_native_tool_param(
     tool: ToolInfo,
     model_name: str,
     config: GenerateConfig,
+    is_latest: bool = False,
 ) -> ToolParam | None:
     return (
         (
-            maybe_computer_use_tool(model_name, tool)
+            maybe_computer_use_tool(model_name, tool, is_latest)
             or maybe_web_search_tool(model_name, tool)
             or maybe_mcp_tool(tool)
             or maybe_code_interpreter_tool(model_name, tool)
+            or maybe_tool_search_tool(tool)
             # or self.text_editor_tool_param(tool)
             # or self.bash_tool_param(tool)
         )
@@ -1265,22 +1546,31 @@ def _maybe_native_tool_param(
 
 def _tool_call_items_from_assistant_message(
     message: ChatMessageAssistant,
+    swap_todo_write: bool = False,
 ) -> list[ResponseInputItemParam]:
     tool_calls: list[ResponseInputItemParam] = []
 
     # now standard tool calls
     for call in message.tool_calls or []:
-        # see if we have it in assistant_internal
+        # see if we have it in assistant_internal (computer/custom/tool_search are
+        # cached at parse time, and the bridge seeds tool_search calls on replay)
         assistant_internal_call = assistant_internal().tool_calls.get(call.id, None)
         if assistant_internal_call is not None:
             tool_calls.append(assistant_internal_call)
         else:
-            # create param
+            # create param (rendering todo_write -> update_plan when swapping, else
+            # the name-only alias)
+            if swap_todo_write and call.function == TODO_WRITE_NAME:
+                name = UPDATE_PLAN_NAME
+                arguments = json.dumps(_update_plan_args_from_inspect(call.arguments))
+            else:
+                name = _responses_tool_alias(call.function)
+                arguments = json.dumps(call.arguments)
             tool_call_param: ResponseFunctionToolCallParam = dict(
                 type="function_call",
                 call_id=call.id,
-                name=_responses_tool_alias(call.function),
-                arguments=json.dumps(call.arguments),
+                name=name,
+                arguments=arguments,
             )
 
             # append the param
@@ -1318,9 +1608,10 @@ def _tool_param_for_tool_info(
     tool: ToolInfo,
     model_name: str,
     config: GenerateConfig,
+    is_latest: bool = False,
 ) -> ToolParam:
     # Use a native tool implementation when available.
-    tool_param = _maybe_native_tool_param(tool, model_name, config)
+    tool_param = _maybe_native_tool_param(tool, model_name, config, is_latest)
     if tool_param is not None:
         return tool_param
 
@@ -1352,6 +1643,216 @@ def _responses_tool_alias(name: str) -> str:
 
 def _from_responses_tool_alias(name: str) -> str:
     return next((k for k, v in _responses_tool_aliases.items() if v == name), name)
+
+
+# Present inspect's canonical `todo_write` planning tool to the Responses API under the
+# name and schema that GPT-5 / Codex / o-series models are post-trained on: OpenAI's
+# `update_plan`. We do this by substituting the first-party `update_plan()` tool's
+# definition on the wire (reusing its native plan/step schema and description), then mapping
+# calls back to `todo_write` on the way out — `todo_write` remains the tool that is actually
+# registered, executed, and recorded in the transcript. The arg field names differ
+# (`todos`<->`plan`, per-step `content`<->`step`; `status`/`explanation` pass through), so
+# we also remap arguments. This mirrors how the Anthropic provider renders `text_editor` as
+# Claude's native `str_replace_editor`.
+
+TODO_WRITE_NAME = "todo_write"
+UPDATE_PLAN_NAME = "update_plan"
+
+_update_plan_tool_info_cache: ToolInfo | None = None
+
+
+def _update_plan_tool_info() -> ToolInfo:
+    """ToolInfo for the first-party update_plan() tool (built once)."""
+    global _update_plan_tool_info_cache
+    if _update_plan_tool_info_cache is None:
+        from inspect_ai.tool._tool_def import ToolDef
+        from inspect_ai.tool._tools._update_plan import update_plan
+
+        td = ToolDef(update_plan())
+        _update_plan_tool_info_cache = ToolInfo(
+            name=td.name, description=td.description, parameters=td.parameters
+        )
+    return _update_plan_tool_info_cache
+
+
+# JSON Schema keywords whose values map arbitrary *names* (e.g. parameter names) to
+# subschemas. Names under these must be preserved verbatim during description stripping —
+# a key named "description" here is a parameter, not schema metadata.
+_SCHEMA_NAME_MAPS = ("properties", "$defs", "definitions")
+
+
+def _schema_without_descriptions(value: Any) -> Any:
+    """Recursively drop schema-metadata `description` so comparison ignores prose-only diffs.
+
+    Crucially, this only strips `description` as schema metadata — not a parameter literally
+    named `description` inside a `properties`/`$defs` map, whose keys are preserved verbatim.
+    """
+    if isinstance(value, dict):
+        result: dict[str, Any] = {}
+        for k, v in value.items():
+            if k == "description":
+                continue  # schema metadata
+            if k in _SCHEMA_NAME_MAPS and isinstance(v, dict):
+                # map of name -> subschema: keep every name, strip within each subschema
+                result[k] = {
+                    name: _schema_without_descriptions(subschema)
+                    for name, subschema in v.items()
+                }
+            else:
+                result[k] = _schema_without_descriptions(v)
+        return result
+    if isinstance(value, list):
+        return [_schema_without_descriptions(v) for v in value]
+    return value
+
+
+_canonical_todo_write_schema_cache: Any = None
+
+
+def _canonical_todo_write_schema() -> Any:
+    """The canonical todo_write() parameter schema, descriptions stripped (built once)."""
+    global _canonical_todo_write_schema_cache
+    if _canonical_todo_write_schema_cache is None:
+        from inspect_ai.tool._tool_def import ToolDef
+        from inspect_ai.tool._tools._todo_write import todo_write
+
+        td = ToolDef(todo_write())
+        _canonical_todo_write_schema_cache = _schema_without_descriptions(
+            json_schema_dump(td.parameters)
+        )
+    return _canonical_todo_write_schema_cache
+
+
+def _is_canonical_todo_write(tool: ToolInfo) -> bool:
+    """Whether `tool` is inspect's planning todo_write (not just a tool sharing the name).
+
+    Guards the update_plan swap against a user-defined or bridged tool that merely reuses
+    the `todo_write` name with a different (or superset) schema — such a tool must NOT be
+    silently advertised/parsed as update_plan and have its schema dropped. We require the
+    parameter schema to match canonical `todo_write()` exactly, ignoring descriptions so a
+    re-described but structurally identical planning tool still qualifies.
+    """
+    if tool.name != TODO_WRITE_NAME:
+        return False
+    return bool(
+        _schema_without_descriptions(json_schema_dump(tool.parameters))
+        == _canonical_todo_write_schema()
+    )
+
+
+def _tools_swap_todo_write(tools: list[ToolInfo]) -> bool:
+    """Tool-list condition for the swap: a canonical todo_write present, no update_plan.
+
+    Shared by the outbound gate and the inbound parser so they agree. (The opt-out
+    `internal_tools` check is layered on top in `should_swap_todo_write`.)
+    """
+    return any(_is_canonical_todo_write(t) for t in tools) and not any(
+        t.name == UPDATE_PLAN_NAME for t in tools
+    )
+
+
+def should_swap_todo_write(tools: list[ToolInfo], config: GenerateConfig) -> bool:
+    """Whether to render `todo_write` as the native `update_plan` tool for this request.
+
+    Active only when not opted out (`internal_tools` is not False), a canonical
+    `todo_write` tool is present, and there is no first-party `update_plan` tool to collide
+    with.
+    """
+    return config.internal_tools is not False and _tools_swap_todo_write(tools)
+
+
+def substitute_update_plan_tools(
+    tools: list[ToolInfo], swap_todo_write: bool
+) -> list[ToolInfo]:
+    """Replace the canonical `todo_write` ToolInfo with the native `update_plan` one."""
+    if not swap_todo_write:
+        return tools
+    update_plan_info = _update_plan_tool_info()
+    return [update_plan_info if _is_canonical_todo_write(t) else t for t in tools]
+
+
+def _tools_contain_function(tools: list[ToolParam], name: str) -> bool:
+    return any(
+        isinstance(tool, dict)
+        and tool.get("type") == "function"
+        and tool.get("name") == name
+        for tool in tools
+    )
+
+
+def _responses_tool_choice_name(name: str, tools: list[ToolParam]) -> str:
+    """Wire name for a forced tool_choice, accounting for the todo_write->update_plan swap.
+
+    Keys off the tools actually sent: only rewrite when `update_plan` was sent in place of
+    `todo_write` (update_plan present, todo_write absent).
+    """
+    if (
+        name == TODO_WRITE_NAME
+        and _tools_contain_function(tools, UPDATE_PLAN_NAME)
+        and not _tools_contain_function(tools, TODO_WRITE_NAME)
+    ):
+        return UPDATE_PLAN_NAME
+    return name
+
+
+def _responses_call_to_inspect(
+    name: str, arguments: str, tools: list[ToolInfo]
+) -> tuple[str, str]:
+    """Map a Responses function call's name/arguments back to inspect's.
+
+    Reverses the todo_write->update_plan swap (only when a todo_write tool is present and no
+    first-party update_plan tool is — so we never hijack a user's own update_plan), then
+    falls back to the name-only alias mechanism. Malformed arguments are passed through with
+    the mapped name so parse_tool_call() reports the parse error rather than silently
+    producing an empty plan.
+    """
+    if name == UPDATE_PLAN_NAME and _tools_swap_todo_write(tools):
+        try:
+            args = json.loads(arguments) if arguments else {}
+        except json.JSONDecodeError:
+            args = None
+        if isinstance(args, dict):
+            return TODO_WRITE_NAME, json.dumps(_update_plan_args_to_inspect(args))
+        return TODO_WRITE_NAME, arguments
+    return _from_responses_tool_alias(name), arguments
+
+
+def _update_plan_args_to_inspect(args: dict[str, Any]) -> dict[str, Any]:
+    """Map update_plan call arguments back to todo_write's shape (plan->todos, step->content)."""
+    steps = args.get("plan", args.get("todos")) or []
+    result: dict[str, Any] = {
+        "todos": [
+            {
+                "content": step.get("step", step.get("content")),
+                "status": step.get("status"),
+            }
+            if isinstance(step, dict)
+            else step
+            for step in steps
+        ]
+    }
+    if "explanation" in args:
+        result["explanation"] = args["explanation"]
+    return result
+
+
+def _update_plan_args_from_inspect(args: dict[str, Any]) -> dict[str, Any]:
+    """Map todo_write call arguments to update_plan's shape (todos->plan, content->step)."""
+    steps = args.get("todos", args.get("plan")) or []
+    result: dict[str, Any] = {
+        "plan": [
+            {
+                "step": step.get("content", step.get("step")),
+                "status": step.get("status"),
+            }
+            if isinstance(step, dict)
+            else step
+            for step in steps
+        ]
+    }
+    if "explanation" in args:
+        result["explanation"] = args["explanation"]
+    return result
 
 
 def to_inspect_citation(input: Annotation | AnnotationParam) -> Citation:
@@ -1467,6 +1968,7 @@ def is_assistant_message_param(
         or is_response_reasoning_item(param)
         or is_response_mcp_list_tools(param)
         or is_response_mcp_call(param)
+        or is_response_tool_search_call(param)
     )
 
 
@@ -1555,6 +2057,20 @@ def is_response_custom_tool_call(
     return param["type"] == "custom_tool_call"
 
 
+def is_response_tool_search_call(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ToolSearchCall]:
+    return param["type"] == "tool_search_call"
+
+
+def is_tool_search_output(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseToolSearchOutputItemParamParam]:
+    # tolerate items without a "type" key (e.g. simple user messages) since this
+    # is scanned over raw input items, some of which omit "type"
+    return param.get("type") == "tool_search_output"
+
+
 def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
     return tool_param.get("type") == "function"
 
@@ -1567,6 +2083,12 @@ def is_code_interpreter_tool_param(
     tool_param: ToolParam,
 ) -> TypeGuard[CodeInterpreter]:
     return tool_param.get("type") == "code_interpreter"
+
+
+def is_tool_search_tool_param(
+    tool_param: ToolParam,
+) -> TypeGuard[ToolSearchToolParam]:
+    return tool_param.get("type") == "tool_search"
 
 
 def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:

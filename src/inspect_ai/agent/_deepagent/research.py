@@ -18,8 +18,7 @@ and analyze.
 
 Use your available tools to investigate thoroughly. Try multiple search
 strategies if your first approach doesn't find what you need — different
-queries, different paths, different sources. Batch parallel tool calls
-when searching across multiple files or paths. Cross-reference findings
+queries, different paths, different sources. Cross-reference findings
 when possible to verify accuracy.
 
 Focus on finding specific, actionable information rather than making

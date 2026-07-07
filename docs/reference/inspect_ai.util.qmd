@@ -15,15 +15,18 @@ description: Miscellaneous utility functions.
 ## Limits
 
 ### message_limit
-### token_limit
+### turn_limit
 ### cost_limit
 ### time_limit
 ### working_limit
+### token_limit
+### TokenLimit
 ### apply_limits
 ### sample_limits
 ### SampleLimits
 ### Limit
 ### LimitExceededError
+### suspend_token_limit
 
 ## Concurrency
 
@@ -37,7 +40,6 @@ description: Miscellaneous utility functions.
 ### display_counter
 ### display_type
 ### DisplayType
-### input_screen
 
 ## Utilities
 
@@ -63,6 +65,7 @@ description: Miscellaneous utility functions.
 ### SandboxConnection
 ### sandboxenv
 ### sandbox_service
+### override_sandbox_output_limit
 ### ExecRemoteProcess
 ### ExecRemoteStreamingOptions
 ### ExecRemoteAwaitableOptions
@@ -70,6 +73,26 @@ description: Miscellaneous utility functions.
 ### ExecStdout
 ### ExecStderr
 ### ExecCompleted
+
+## Intervention
+
+### notify
+### request_input
+### InputRequest
+### InputResult
+### InputResult
+
+## Checkpointing
+
+### checkpointer
+### Checkpointer
+### CheckpointConfig
+### CheckpointSampleConfig
+### CheckpointTrigger
+### TimeInterval
+### TokenInterval
+### TurnInterval
+### Manual
 
 ## Registry
 
@@ -80,6 +103,7 @@ description: Miscellaneous utility functions.
 
 ## JSON
 
+### StrEnum
 ### JSONType
 ### JSONSchema
 ### json_schema
@@ -99,3 +123,5 @@ description: Miscellaneous utility functions.
 ### ComposeService
 ### ComposeBuild
 ### ComposeHealthcheck
+
+

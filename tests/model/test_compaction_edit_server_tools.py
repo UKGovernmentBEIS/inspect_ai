@@ -202,7 +202,24 @@ async def test_server_tool_compaction_anthropic_web_search() -> None:
     """Test Anthropic native web_search tool compaction doesn't cause 400 errors."""
     tools = [_create_web_search_tool("anthropic")]
     await check_server_tool_compaction(
-        "anthropic/claude-sonnet-4-20250514",
+        "anthropic/claude-sonnet-4-5",
+        tools=tools,
+    )
+
+
+@skip_if_no_anthropic
+@pytest.mark.slow
+async def test_server_tool_compaction_anthropic_web_search_filtering() -> None:
+    """Test compaction with the web search dynamic filtering backend.
+
+    claude-sonnet-4-6 gates to web_search_20260209 (dynamic filtering), so
+    searches come back as nested server tool spans -- result clearing must
+    substitute placeholders inside the span without breaking block order,
+    nesting, or caller links.
+    """
+    tools = [_create_web_search_tool("anthropic")]
+    await check_server_tool_compaction(
+        "anthropic/claude-sonnet-4-6",
         tools=tools,
     )
 

@@ -1,5 +1,5 @@
 import types
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
@@ -18,7 +18,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI
-from inspect_ai.tool import ToolCall
+from inspect_ai.tool import ToolCall, ToolInfo
 
 
 @pytest.mark.anyio
@@ -112,6 +112,133 @@ def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
         }
 
 
+_FULL_THINKING_BETA = "dev-full-thinking-2025-05-14"
+
+
+def test_anthropic_full_thinking_removes_display_adaptive() -> None:
+    """The dev-full-thinking beta only takes effect when 'display' is absent.
+
+    See the Anthropic thinking.display param: it defaults to 'omitted' on 4.7
+    and 'summarized' elsewhere, but the dev-full-thinking beta is ignored unless
+    the param is omitted entirely. So when that beta is present we must drop it.
+    """
+    api = AnthropicAPI(
+        model_name="claude-opus-4-7", api_key="test-key", betas=[_FULL_THINKING_BETA]
+    )
+    config = GenerateConfig(max_tokens=64, reasoning_effort="high")
+    params, _extra_body, _headers, betas = api.completion_config(config)
+    assert _FULL_THINKING_BETA in betas
+    assert params["thinking"]["type"] == "adaptive"
+    assert "display" not in params["thinking"]
+
+
+def test_anthropic_full_thinking_removes_display_budget() -> None:
+    """Same removal applies on the pre-4.6 extended-thinking (budget) path."""
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6", api_key="test-key", betas=[_FULL_THINKING_BETA]
+    )
+    config = GenerateConfig(max_tokens=64, reasoning_tokens=2048)
+    params, _extra_body, _headers, _betas = api.completion_config(config)
+    assert params["thinking"]["type"] == "enabled"
+    assert "display" not in params["thinking"]
+
+
+def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
+    """Without the beta, 'display' stays 'summarized' on both thinking paths."""
+    adaptive = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    params, _e, _h, _b = adaptive.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="high")
+    )
+    assert params["thinking"]["display"] == "summarized"
+
+    budget = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    params, _e, _h, _b = budget.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_tokens=2048)
+    )
+    assert params["thinking"]["display"] == "summarized"
+
+
+@pytest.mark.parametrize(
+    "model_name,disabled",
+    [
+        # 4.7+ run adaptive thinking by default and accept `disabled`
+        ("claude-sonnet-5", True),
+        ("claude-opus-4-8", True),
+        ("claude-opus-4-7", True),
+        # Fable/Mythos 5 always think and reject `disabled` — leave thinking unset
+        ("claude-fable-5", False),
+        ("claude-mythos-5", False),
+        # pre-4.7 default to no thinking — omitting the field already means off
+        ("claude-sonnet-4-6", False),
+        ("claude-sonnet-4-5", False),
+    ],
+)
+def test_anthropic_reasoning_effort_none_disables_thinking(
+    model_name: str, disabled: bool
+) -> None:
+    """`reasoning_effort="none"` disables thinking only where it applies.
+
+    Sends `thinking:{type:"disabled"}` where thinking is on by default and can be
+    turned off (Claude 4.7+, excluding Fable/Mythos); omits it otherwise.
+    """
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none")
+    )
+    if disabled:
+        assert params["thinking"] == {"type": "disabled"}
+    else:
+        assert "thinking" not in params
+
+
+def test_anthropic_reasoning_effort_high_still_adaptive_on_sonnet_5() -> None:
+    """A real effort still routes to adaptive thinking on Sonnet 5 (not disabled)."""
+    api = AnthropicAPI(model_name="claude-sonnet-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="high")
+    )
+    assert params["thinking"]["type"] == "adaptive"
+
+
+@pytest.mark.parametrize(
+    "header_key", ["anthropic_beta", "anthropic-beta", "Anthropic-Beta"]
+)
+def test_anthropic_full_thinking_beta_via_extra_header(header_key: str) -> None:
+    """The beta is honored via extra_headers in both header spellings.
+
+    The underscore form is Inspect's convention; the hyphen form is the literal
+    Anthropic header name. Both must be parsed into betas so the beta is both
+    detected (for display removal) and forwarded, rather than silently dropped.
+    """
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    config = GenerateConfig(
+        max_tokens=64,
+        reasoning_effort="high",
+        extra_headers={header_key: _FULL_THINKING_BETA},
+    )
+    params, _extra_body, headers, betas = api.completion_config(config)
+    assert _FULL_THINKING_BETA in betas
+    assert header_key not in headers
+    assert "display" not in params["thinking"]
+
+
+def test_anthropic_full_thinking_beta_via_client_default_header() -> None:
+    """The beta is honored when set as a client default header.
+
+    Client default betas (e.g. oauth-2025-04-20) are only merged into the
+    per-request betas list after completion_config returns, so detection must
+    consult them directly rather than relying on the returned betas.
+    """
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    # original casing is preserved by the SDK; detection must be case-insensitive
+    cast(dict[str, str], api.client._custom_headers)["Anthropic-Beta"] = (
+        _FULL_THINKING_BETA
+    )
+    config = GenerateConfig(max_tokens=64, reasoning_effort="high")
+    params, _extra_body, _headers, _betas = api.completion_config(config)
+    assert "display" not in params["thinking"]
+
+
 @skip_if_no_anthropic
 def test_anthropic_should_retry():
     import httpx
@@ -186,6 +313,93 @@ def test_anthropic_should_retry():
         },
     )
     assert not model.api.should_retry(ex)
+
+
+def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
+    """Mid-stream content-filter errors arrive as a plain APIStatusError.
+
+    The Anthropic SDK raises errors that occur after streaming has begun via
+    `_make_status_error`; because the HTTP response was already 200, the SDK
+    can't infer the 400 subclass, so the exception is the base APIStatusError
+    rather than BadRequestError. handle_bad_request() must still convert
+    "content filtering" messages into a content_filter refusal.
+    """
+    import httpx
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
+    ex = APIStatusError(
+        "Output blocked by content filtering policy",
+        response=httpx.Response(
+            status_code=200,
+            request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+        ),
+        body={
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": "Output blocked by content filtering policy",
+            },
+        },
+    )
+
+    result = api.handle_bad_request(ex)
+    assert isinstance(result, ModelOutput)
+    assert result.stop_reason == "content_filter"
+
+
+@pytest.mark.anyio
+async def test_anthropic_generate_handles_midstream_content_filter() -> None:
+    """generate() must convert a mid-stream APIStatusError into a content_filter refusal.
+
+    Regression: the outer `except APIStatusError` block previously only handled
+    status_code == 413 and re-raised everything else, so content-filter errors
+    that surfaced mid-stream killed the eval instead of becoming a refusal.
+    """
+    import httpx
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        raise APIStatusError(
+            "Output blocked by content filtering policy",
+            response=httpx.Response(
+                status_code=200,
+                request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+            ),
+            body={
+                "type": "error",
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": "Output blocked by content filtering policy",
+                },
+            },
+        )
+
+    api._perform_request_and_continuations = fake_perform  # type: ignore[method-assign]
+
+    output, _model_call = await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=64),
+    )
+
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
 
 
 @skip_if_no_anthropic
@@ -413,6 +627,8 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
     api = create_autospec(AnthropicAPI, instance=True)
     api.service_model_name.return_value = "claude-sonnet-4-6"
     api.partition_tools.return_value = ([], [])
+    # instance attribute set in __init__, not captured by create_autospec
+    api.cache_ttl = None
     api.resolve_chat_input = types.MethodType(AnthropicAPI.resolve_chat_input, api)
 
     def marked(content: Any) -> list[int]:
@@ -497,6 +713,7 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
         config: GenerateConfig,
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -672,7 +889,13 @@ def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
 
 @pytest.mark.parametrize(
     "model_name",
-    ["claude-opus-4-8", "claude-opus-5-0", "claude-sonnet-4-7", "claude-sonnet-5-0"],
+    [
+        "claude-opus-4-8",
+        "claude-fable-5",
+        "claude-opus-5-0",
+        "claude-sonnet-4-7",
+        "claude-sonnet-5-0",
+    ],
 )
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
 def test_anthropic_future_4_7_plus_strips_sampling_params(
@@ -801,7 +1024,8 @@ async def test_anthropic_opus_4_7_accepts_temperature_with_reasoning_effort_none
         ("claude-opus-4-7", 128000),
         # Hypothetical future minor opus version: 128k via frontier+opus
         ("claude-opus-4-8", 128000),
-        # Hypothetical future major version: 128k via "claude 5+" branch
+        # Claude 5 (GA fable + hypothetical tier-named): 128k via "claude 5+" branch
+        ("claude-fable-5", 128000),
         ("claude-opus-5-0", 128000),
         ("claude-sonnet-5-0", 128000),
         # Non-opus 4.5 / 4.6+ (incl. 4.7 and future 4.x minor): 64k
@@ -823,6 +1047,97 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
     # Inflate via reasoning_tokens so the cap (not the base) decides the result.
     config = GenerateConfig(reasoning_tokens=200000)
     assert api.max_tokens_for_config(config) == expected_cap
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        # GA / limited-release names
+        "claude-fable-5",
+        "claude-mythos-5",
+        # forward-compat variants: point release, tier-named, new codename
+        "claude-fable-5-1",
+        "claude-opus-5-0",
+        "claude-saga-5",
+    ],
+)
+def test_anthropic_claude_5_is_known_frontier(model_name: str) -> None:
+    """Any claude-*-5 is a known frontier version, not 'latest'/unknown."""
+    from inspect_ai.model._providers.anthropic import _supports_memory
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_5() is True
+    assert api.is_claude_latest() is False
+    assert api.is_claude_frontier() is True
+    assert api.is_claude_4_7_or_later() is True
+    assert api.is_claude_4_8_or_later() is True
+    # native memory tool is enabled for all Claude 5 variants (per the launch docs)
+    assert _supports_memory(api.model_family()) is True
+
+
+# ---------------------------------------------------------------------------
+# Native computer-use tool param routing (incl. Claude 5 not supported)
+# ---------------------------------------------------------------------------
+
+
+def _computer_tool_info() -> ToolInfo:
+    """Build a ToolInfo that satisfies is_computer_tool_info() (our built-in computer())."""
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+    from inspect_ai.tool._tools._computer._computer import _COMPUTER_TOOL_PARAMETERS
+
+    return ToolInfo(
+        name="computer",
+        description="computer",
+        parameters=ToolParams(
+            properties={k: ToolParam(type="string") for k in _COMPUTER_TOOL_PARAMETERS}
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name", ["claude-fable-5", "claude-mythos-5", "claude-opus-5-0"]
+)
+def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
+    """Undocumented Claude 5 models error on computer use rather than degrade.
+
+    Covers Fable/Mythos and forward-compat non-Sonnet variants (e.g. Opus 5).
+    Sonnet 5 is supported and covered by test_anthropic_computer_use_tool_version.
+    """
+    from inspect_ai._util.error import PrerequisiteError
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    with pytest.raises(PrerequisiteError) as exc_info:
+        api.computer_use_tool_param(_computer_tool_info())
+    # PrerequisiteError stores the message on .message (it doesn't call super().__init__);
+    # .message is a RenderableType, so coerce to str for the substring checks.
+    message = str(exc_info.value.message)
+    assert "Computer use is not supported" in message
+    assert model_name in message
+
+
+@pytest.mark.parametrize(
+    "model_name,expected_type",
+    [
+        # Frontier (4.6/4.7/4.8) + Opus 4.5 → computer_20251124
+        ("claude-opus-4-8", "computer_20251124"),
+        ("claude-opus-4-6", "computer_20251124"),
+        ("claude-opus-4-5", "computer_20251124"),
+        ("claude-sonnet-4-6", "computer_20251124"),
+        # Sonnet 5: the one Claude 5 model Anthropic documents for computer use
+        ("claude-sonnet-5", "computer_20251124"),
+        # Older 4.x → computer_20250124
+        ("claude-sonnet-4-5", "computer_20250124"),
+        ("claude-haiku-4-5", "computer_20250124"),
+    ],
+)
+def test_anthropic_computer_use_tool_version(
+    model_name: str, expected_type: str
+) -> None:
+    """Models map to the correct native computer-use tool version."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    param = api.computer_use_tool_param(_computer_tool_info())
+    assert param is not None
+    assert param["type"] == expected_type
 
 
 # ---------------------------------------------------------------------------

@@ -39,6 +39,12 @@ description: Agent scaffolds and protocol.
 ### remove_tools
 ### MessageFilter
 
+## Channel
+
+### agent_channel
+### AgentChannel
+### AgentInterrupted
+
 ## Protocol
 
 ### Agent

@@ -48,6 +48,8 @@ DEFAULT_LOG_MODEL_API_CALLS = 5
 DESERIALIZING = "deserializing"
 MESSAGE_CACHE = "message_cache"
 
+SKIP_TRANSCRIPT_DISPATCH = "inspect_skip_transcript"
+
 
 def get_deserializing_context() -> dict[str, Any]:
     return {DESERIALIZING: True, MESSAGE_CACHE: {}}

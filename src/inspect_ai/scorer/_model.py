@@ -208,10 +208,14 @@ def _model_graded_qa_single(
         result = await model.generate([scoring_prompt])
 
         # extract the grade
+        default_grade_pattern = grade_pattern is None
         match = re.search(grade_pattern or DEFAULT_GRADE_PATTERN, result.completion)
         if match:
+            value = match.group(1)
+            if default_grade_pattern:
+                value = value.upper()
             return Score(
-                value=match.group(1),
+                value=value,
                 answer=state.output.completion,
                 explanation=result.completion,
                 metadata=dict(
@@ -224,6 +228,7 @@ def _model_graded_qa_single(
         else:
             return Score(
                 value=INCORRECT,
+                answer=state.output.completion,
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
                 metadata=dict(
@@ -290,8 +295,23 @@ First, write out in a step by step manner your reasoning about the criterion to 
 """
 
 
-DEFAULT_GRADE_PATTERN = r"(?i)GRADE\s*:\s*([CPI])(.*)$"
-"""Regex to extract the grade from the COT above."""
+# Whitespace plus zero-width / formatting marks that can appear around a
+# verdict separator in model output or pasted text.
+_GRADE_SPACING = r"[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*"
+
+DEFAULT_GRADE_PATTERN = (
+    rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}([CPI])"
+)
+"""Regex to extract the grade from the COT above.
+
+The leading greedy ``.*`` (with DOTALL) ensures ``re.search`` binds to the
+*last* ``GRADE: X`` in the grader output — the instructions tell the grader
+to end with the grade, so earlier mentions (e.g. echoed in chain-of-thought
+or injected via the submission) must not win. The ``GRADE`` token is bounded so
+ordinary prose like ``downgrade:`` cannot be mistaken for a verdict. No
+end-of-string anchor is used so that trailing text after the grade line does
+not suppress the match.
+"""
 
 
 def chat_history(state: TaskState) -> str:
@@ -302,8 +322,8 @@ def chat_history(state: TaskState) -> str:
         if not isinstance(message, ChatMessageSystem)
     ]
 
-    # present message history (removing the final assistant message
-    # and after as it will be contained in the 'Answer:'):
+    # present message history through the final assistant turn. The default
+    # templates also include state.output.completion in the Submission slot.
     messages = remove_last_match_and_after(
         messages, lambda message: isinstance(message, ChatMessageAssistant)
     )

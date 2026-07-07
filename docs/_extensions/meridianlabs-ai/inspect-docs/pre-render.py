@@ -75,20 +75,28 @@ def main() -> None:
 
     # user-provided website overrides (merged with extension defaults)
     user_website: YamlDict = config.get("website") or {}
-    user_navbar: YamlDict = user_website.get("navbar") or {}
+    # `inspect-docs.navbar` is an alias for `website.navbar`. Quarto deep-merges
+    # `website.navbar` natively (dict-on-dict) but never sees the inspect-docs
+    # namespace, so values set there must be forwarded into the generated navbar
+    # ourselves (see `_build_navbar`). On conflict `website.navbar` wins, since
+    # Quarto merges it on top of our generated output regardless.
+    website_navbar: YamlDict = user_website.get("navbar") or {}
+    opts_navbar: YamlDict = opts.get("navbar") or {}
+    user_navbar: YamlDict = {**opts_navbar, **website_navbar}
 
-    # create default .gitignore if none exists
-    write_if_changed(
-        Path(".gitignore"),
-        "/.quarto/\n"
-        "/_site/\n"
-        "/_include.yml\n"
-        "/reference/refs*.json\n"
-        "**/*.quarto_ipynb*\n"
-        "**/*.excalidraw.svg\n"
-        "/.venv/\n"
-        "**/__pycache__"
-    )
+    # create default .gitignore if none exists; never overwrite existing one
+    gitignore = Path(".gitignore")
+    if not gitignore.exists():
+        gitignore.write_text(
+            "/.quarto/\n"
+            "/_site/\n"
+            "/_include.yml\n"
+            "/reference/refs*.json\n"
+            "**/*.quarto_ipynb*\n"
+            "**/*.excalidraw.svg\n"
+            "/.venv/\n"
+            "**/__pycache__\n"
+        )
 
     # symlink CHANGELOG.md from repo root if it exists
     changelog_src = Path("../CHANGELOG.md")
@@ -125,21 +133,41 @@ def main() -> None:
     # generate derived website metadata
     repo: str | None = opts.get("repo")
     if repo is not None:
-        generated = generate_website_metadata(opts, repo, user_navbar)
+        generated = generate_website_metadata(opts, repo, user_navbar, opts_navbar)
 
     # build sidebar: user navigation + reference sidebar
     sidebars: list[YamlDict] = []
+    # `inspect-docs.sidebar` may be:
+    #   False        -> no sidebar
+    #   "unified"    -> fold the reference sidebar into the main sidebar
+    #   {<props>}    -> a dict of Quarto sidebar properties (e.g.
+    #                   `collapse-level`, `style`) merged onto the generated
+    #                   Main sidebar. Use `collapse-level: 1` for the
+    #                   quarto.org style where only the selected top-level
+    #                   section is expanded.
     sidebar_opt = opts.get("sidebar", has_navigation)
     show_sidebar = sidebar_opt is not False
-    unified_sidebar = sidebar_opt == "unified"
+    sidebar_overrides: YamlDict = sidebar_opt if isinstance(sidebar_opt, dict) else {}
+    # Auto-fold into the main sidebar when the user has opted in via
+    # `sidebar: "unified"` OR is using single-page reference mode
+    # (reference/index.qmd as the only reference file).
+    ref_dir_for_simple = Path("reference")
+    simple_reference = ref_dir_for_simple.is_dir() and _is_simple_reference(
+        ref_dir_for_simple
+    )
+    unified_sidebar = simple_reference or sidebar_opt == "unified"
     if show_sidebar:
-        sidebars.append(
-            {
-                "title": "Main",
-                "style": "docked",
-                "contents": nav_to_sidebar(navigation),
-            }
-        )
+        main_sidebar: YamlDict = {
+            "title": "Main",
+            "style": "docked",
+            "contents": nav_to_sidebar(navigation),
+        }
+        # user-supplied properties win, but never clobber the generated
+        # structure (title/contents)
+        for key, value in sidebar_overrides.items():
+            if key not in ("title", "contents"):
+                main_sidebar[key] = value
+        sidebars.append(main_sidebar)
 
     # resolve module name and CLI binary name (with pyproject auto-discovery)
     module_name: str | None = opts.get("module") or discover_module_name()
@@ -173,16 +201,24 @@ def main() -> None:
                     None,
                 )
                 if ref_entry:
-                    ref_entry.pop("text", None)
-                    ref_entry["section"] = "Reference"
-                    ref_entry["href"] = ref_index_href or ref_entry.get("href")
-                    ref_entry["contents"] = ref_contents
-                else:
+                    if ref_contents:
+                        ref_entry.pop("text", None)
+                        ref_entry["section"] = "Reference"
+                        ref_entry["href"] = ref_index_href or ref_entry.get("href")
+                        ref_entry["contents"] = ref_contents
+                    elif ref_index_href and not ref_entry.get("href"):
+                        # Simple mode + existing leaf nav entry: just fill in href.
+                        ref_entry["href"] = ref_index_href
+                elif ref_contents:
                     entry: YamlDict = dict(section="Reference", contents=ref_contents)
                     if ref_index_href:
                         entry["href"] = ref_index_href
                     main_contents.append(entry)
-                sidebars[0]["collapse-level"] = 2
+                elif ref_index_href:
+                    # Simple mode with no pre-existing Reference nav: append a leaf.
+                    main_contents.append({"text": "Reference", "href": ref_index_href})
+                if ref_contents:
+                    sidebars[0].setdefault("collapse-level", 2)
             else:
                 sidebars.extend(ref_sidebar)
 
@@ -318,9 +354,19 @@ def _build_footer(
 
 
 def _build_navbar(
-    opts: YamlDict, repo_url: str, title: str, user_navbar: YamlDict
+    opts: YamlDict,
+    repo_url: str,
+    title: str,
+    user_navbar: YamlDict,
+    forward_navbar: YamlDict,
 ) -> YamlDict:
-    """Build website.navbar, skipping left/right when the user provides them."""
+    """Build website.navbar, skipping left/right when the user provides them.
+
+    `user_navbar` is the combined user config (from both `website.navbar` and
+    `inspect-docs.navbar`) used to decide which sides to auto-generate.
+    `forward_navbar` is the `inspect-docs.navbar` alias block, which Quarto
+    does not merge natively, so its values are emitted here verbatim.
+    """
     navbar: YamlDict = {
         "title": title,
         "background": "light",
@@ -333,18 +379,22 @@ def _build_navbar(
         navbar["left"] = nav_to_navbar(opts.get("navigation", []))
     if "right" not in user_navbar:
         navbar["right"] = navbar_right(repo_url)
+    # forward inspect-docs.navbar values (Quarto only merges website.navbar)
+    navbar.update(forward_navbar)
     return navbar
 
 
 def generate_website_metadata(
-    opts: YamlDict, repo: str, user_navbar: YamlDict
+    opts: YamlDict, repo: str, user_navbar: YamlDict, opts_navbar: YamlDict
 ) -> YamlDict:
     """Generate derived website metadata from inspect-docs config.
 
-    `user_navbar` is the user's own `website.navbar` block (if any)
-    from `_quarto.yml`. When the user provides `left` or `right` keys
-    directly, we skip generating those sides so the user's values are
-    kept verbatim.
+    `user_navbar` is the user's combined navbar config (from `website.navbar`
+    and the `inspect-docs.navbar` alias). When the user provides `left` or
+    `right` keys via either, we skip generating those sides so the user's
+    values are kept verbatim. `opts_navbar` is just the `inspect-docs.navbar`
+    alias block, forwarded into the generated navbar (Quarto only merges
+    `website.navbar` natively).
     """
     title: str = opts.get("title", "")
     description: str = opts.get("description", "")
@@ -358,7 +408,7 @@ def generate_website_metadata(
             "description": description,
             "site-url": site_url,
             "repo-url": repo_url,
-            "navbar": _build_navbar(opts, repo_url, title, user_navbar),
+            "navbar": _build_navbar(opts, repo_url, title, user_navbar, opts_navbar),
             "page-footer": _build_footer(opts, repo, repo_url, title, org_name),
         }
     }
@@ -530,6 +580,8 @@ def generate_reference_artifacts(
     if not ref_dir.is_dir():
         return None
 
+    simple = _is_simple_reference(ref_dir)
+
     # cached scan: mtime-keyed per-file frontmatter + parsed H3 list. Entries
     # are kept only for files that still exist (stale entries are dropped).
     cache = _load_refscan_cache()
@@ -539,7 +591,8 @@ def generate_reference_artifacts(
     api_docs: list[tuple[Path, str, str, str]] = []
     cli_docs: list[tuple[Path, str, str, str]] = []
     for qmd in sorted(ref_dir.glob("*.qmd")):
-        if qmd.name == "index.qmd":
+        # Skip auto-generated index unless the user authored their own.
+        if qmd.name == "index.qmd" and not simple:
             continue
         path_key = str(qmd)
         mtime_ns = qmd.stat().st_mtime_ns
@@ -575,12 +628,13 @@ def generate_reference_artifacts(
         _save_refscan_cache(new_cache)
         return None
 
-    # generate reference/index.qmd
-    generate_reference_index(
-        ref_dir,
-        [(p, t, d) for p, t, d, _ in api_docs],
-        [(p, t, d) for p, t, d, _ in cli_docs],
-    )
+    # generate reference/index.qmd (unless the user provided their own)
+    if not simple:
+        generate_reference_index(
+            ref_dir,
+            [(p, t, d) for p, t, d, _ in api_docs],
+            [(p, t, d) for p, t, d, _ in cli_docs],
+        )
 
     # build cross-reference index from api docs (bare H3 names → href)
     index_json: dict[str, str] = {}
@@ -599,29 +653,31 @@ def generate_reference_artifacts(
 
         api_sidebar_entries.append(dict(section=title, href=str(doc), contents=refs))
 
-    # build sidebar contents
+    # build sidebar contents — simple mode is a single leaf link to index.qmd;
+    # multi-page mode wraps pages in Python API / CLI Commands sections.
     sidebar_contents: list[str | YamlDict] = [str(ref_dir / "index.qmd")]
 
-    if api_docs:
-        sidebar_contents.append(
-            dict(
-                section="Python API",
-                href=str(api_docs[0][0]),
-                contents=api_sidebar_entries,
+    if not simple:
+        if api_docs:
+            sidebar_contents.append(
+                dict(
+                    section="Python API",
+                    href=str(api_docs[0][0]),
+                    contents=api_sidebar_entries,
+                )
             )
-        )
 
-    if cli_docs:
-        cli_entries: list[YamlDict] = [
-            dict(text=title, href=str(path)) for path, title, _, _ in cli_docs
-        ]
-        sidebar_contents.append(
-            dict(
-                section="CLI Commands",
-                href=str(cli_docs[0][0]),
-                contents=cli_entries,
+        if cli_docs:
+            cli_entries: list[YamlDict] = [
+                dict(text=title, href=str(path)) for path, title, _, _ in cli_docs
+            ]
+            sidebar_contents.append(
+                dict(
+                    section="CLI Commands",
+                    href=str(cli_docs[0][0]),
+                    contents=cli_entries,
+                )
             )
-        )
 
     # write refs.json
     write_if_changed(ref_dir / "refs.json", json.dumps(index_json, indent=2))
@@ -644,6 +700,13 @@ def generate_reference_index(
     cli_docs: list[tuple[Path, str, str]],
 ) -> None:
     """Generate reference/index.qmd from discovered docs."""
+    # Never clobber a user-authored reference page (has `reference:` frontmatter).
+    index_path = ref_dir / "index.qmd"
+    if index_path.exists():
+        fm = read_frontmatter(index_path) or {}
+        if fm.get("reference"):
+            return
+
     lines = ["---", "title: Reference", "---", ""]
 
     if api_docs:
@@ -684,6 +747,21 @@ def read_frontmatter(path: Path) -> dict[str, str] | None:
         return None
     end = text.index("---", 3)
     return yaml.safe_load(text[3:end])  # type: ignore[no-any-return]
+
+
+def _is_simple_reference(ref_dir: Path) -> bool:
+    """True when `reference/` contains exactly one user-authored `index.qmd`.
+
+    Triggers single-page reference mode: the user provides `index.qmd` as
+    the sole reference page (with a `reference:` frontmatter field), and
+    the extension skips index auto-generation and the Python API / CLI
+    wrapper sections, folding a flat Reference link into the main sidebar.
+    """
+    qmds = list(ref_dir.glob("*.qmd"))
+    if len(qmds) != 1 or qmds[0].name != "index.qmd":
+        return False
+    fm = read_frontmatter(qmds[0]) or {}
+    return bool(fm.get("reference"))
 
 
 def download_external_refs(ref_dir: Path, opts: YamlDict) -> None:

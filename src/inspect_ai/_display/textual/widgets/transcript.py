@@ -3,7 +3,6 @@ from typing import Any, Callable, NamedTuple, Sequence, Type
 from pydantic import JsonValue
 from pydantic_core import to_json
 from rich.console import Group, RenderableType
-from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
 from textual.containers import ScrollableContainer
@@ -29,13 +28,15 @@ from inspect_ai.event._event import (
 )
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._input import InputEvent
+from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._logger import LoggerEvent
-from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._model import CANCEL_ERRORS, ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -80,7 +81,7 @@ class TranscriptView(ScrollableContainer):
             # if we have either a new sample or a new event count then proceed
             if (
                 sample.id != self._sample_id
-                or len(sample.transcript.events) != self._sample_events
+                or sample.transcript.history.event_count != self._sample_events
             ):
                 # update (scrolling to end if we are already close to it)
                 new_sample = sample.id != self._sample_id
@@ -91,14 +92,16 @@ class TranscriptView(ScrollableContainer):
                 async with self.batch():
                     await self.remove_children()
                     await self.mount_all(
-                        self._widgets_for_events(sample.transcript.events)
+                        self._widgets_for_events(
+                            sample.transcript.history.resident_events
+                        )
                     )
                 if scroll_to_end:
                     self.scroll_end(animate=not new_sample)
 
                 # set members
                 self._sample_id = sample.id
-                self._sample_events = len(sample.transcript.events)
+                self._sample_events = sample.transcript.history.event_count
 
         # if we aren't active then save as a pending sample
         else:
@@ -107,6 +110,8 @@ class TranscriptView(ScrollableContainer):
     def _widgets_for_events(
         self, events: Sequence[Event], limit: int = 15
     ) -> list[Widget]:
+        from rich.markdown import Markdown
+
         widgets: list[Widget] = []
 
         # function to append content
@@ -140,8 +145,6 @@ class TranscriptView(ScrollableContainer):
             display = render_event(event)
             if display:
                 for d in display:
-                    if d.prefix:
-                        append_content(d.prefix)
                     if d.content:
                         widgets.append(
                             Static(
@@ -179,9 +182,6 @@ class EventDisplay(NamedTuple):
 
     content: RenderableType | None = None
     """Optional custom content to display."""
-
-    prefix: RenderableType | None = None
-    """Optional content to display above."""
 
 
 def can_render_event(event: Event) -> bool:
@@ -231,20 +231,34 @@ def render_sample_limit_event(event: SampleLimitEvent) -> EventDisplay:
     return EventDisplay(f"limit: {event.type}", Text(event.message))
 
 
-def render_model_event(event: ModelEvent) -> EventDisplay:
-    # content
-    prefix: list[RenderableType] = []
+def render_interrupt_event(event: InterruptEvent) -> EventDisplay:
+    return EventDisplay(
+        f"interrupt: {event.source}",
+        Text(f"interrupted during {event.interrupted}"),
+    )
+
+
+def render_model_event(event: ModelEvent) -> EventDisplay | None:
+    # Hide cancelled model events entirely (operator / limit / system).
+    # The adjacent InterruptEvent communicates the cause; the cancelled
+    # call has no useful assistant output to show.
+    if event.error in CANCEL_ERRORS:
+        return None
+
     content: list[RenderableType] = []
 
-    # render preceding messages
+    # Render preceding non-tool messages (user/system context for this
+    # generation). ``ChatMessageTool`` results are intentionally NOT
+    # rendered here — each tool result has its own row via
+    # ``render_tool_event``, so including it in the prefix would
+    # duplicate that body every time a downstream model event walks
+    # back through unconsumed tool messages (e.g. after a cancel).
     preceding = messages_preceding_assistant(event.input)
     for message in preceding:
         if isinstance(message, ChatMessageTool):
-            prefix.extend(render_message(message))
-            prefix.append(Text())
-        else:
-            content.extend(render_message(message))
-            content.append(Text())
+            continue
+        content.extend(render_message(message))
+        content.append(Text())
 
     # display assistant message
     if event.output.message and event.output.message.text:
@@ -259,11 +273,49 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
     return EventDisplay(
         f"model: {event.model}",
         Group(*content),
-        Group(*prefix) if len(prefix) > 0 else None,
     )
 
 
+def render_tool_event(event: ToolEvent) -> EventDisplay | None:
+    # Hide operator-cancelled tool events. Matches the model-event
+    # treatment — the adjacent InterruptEvent already says what
+    # happened; the natural-completion result body (if it raced in
+    # before cancel propagated) is preserved in the eval log but
+    # suppressed from the live transcript.
+    if event.error is not None and event.error.type == "cancelled":
+        return None
+
+    # Skip pending tool events: the tool *call* is already visible
+    # in the preceding model event's content (via render_tool_calls),
+    # so a pending tool row would just be a titled stub with no body.
+    # Once the tool completes, _event_updated triggers a re-render
+    # via the next batched widget refresh.
+    if event.pending:
+        return None
+
+    # Resolve the body text — error message, structured content list,
+    # or plain string result. Mirrors the legacy ChatMessageTool path
+    # in render_message so the visual output is unchanged for callers.
+    if event.error is not None:
+        body_text: str = f"{event.error.type}: {event.error.message}"
+    elif isinstance(event.result, list):
+        body_text = "\n".join(
+            block.text for block in event.result if isinstance(block, ContentText)
+        )
+    else:
+        body_text = str(event.result) if event.result else ""
+
+    if body_text:
+        body: list[RenderableType] = list(tool_result_display(body_text.strip(), 50))
+    else:
+        body = [Text("(no output)")]
+
+    return EventDisplay(f"tool: {event.function}", Group(*body))
+
+
 def render_sub_events(events: list[Event]) -> list[RenderableType]:
+    from rich.markdown import Markdown
+
     content: list[RenderableType] = []
     for e in events:
         event_displays = render_event(e) or []
@@ -425,7 +477,9 @@ EventRenderer = Callable[[Any], EventDisplay | list[EventDisplay] | None]
 _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (SampleInitEvent, render_sample_init_event),
     (SampleLimitEvent, render_sample_limit_event),
+    (InterruptEvent, render_interrupt_event),
     (ModelEvent, render_model_event),
+    (ToolEvent, render_tool_event),
     (SubtaskEvent, render_subtask_event),
     (ScoreEvent, render_score_event),
     (InputEvent, render_input_event),

@@ -3,7 +3,7 @@ import html
 import json
 import re
 from logging import getLogger
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from pydantic import JsonValue
 
@@ -15,6 +15,59 @@ from inspect_ai._util.content import (
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 
 logger = getLogger(__name__)
+
+
+# Fixed effort -> token budget table used to bridge `reasoning_effort` onto
+# providers that only accept an explicit token budget (Anthropic Claude 3.7-4.5,
+# Google Gemini 2.5). Magnitudes mirror the existing Anthropic max_tokens-sizing
+# table in anthropic.py (with `minimal` added) and clear Anthropic's 1024-token
+# API floor across the board.
+_EFFORT_TO_TOKENS: dict[str, int] = {
+    "minimal": 2048,
+    "low": 4096,
+    "medium": 10000,
+    "high": 16000,
+    "xhigh": 32000,
+    "max": 32000,
+}
+
+
+def effort_to_reasoning_tokens(
+    effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+    | str
+    | None,
+) -> int | None:
+    """Translate a `reasoning_effort` value into a token budget.
+
+    Returns None for `None` and `"none"` (no reasoning requested). Returns the
+    mapped int for any supported effort level.
+    """
+    if effort is None or effort == "none":
+        return None
+    return _EFFORT_TO_TOKENS.get(effort)
+
+
+def clamp_reasoning_effort_to_low_medium_high(
+    effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+    | str
+    | None,
+) -> Literal["low", "medium", "high"] | None:
+    """Clamp a `reasoning_effort` value to the `low`/`medium`/`high` tier.
+
+    Used by providers that pass effort through to upstream APIs which only
+    accept the three-level scale (Groq, Ollama, SageMaker). Returns None for
+    `None` and `"none"`.
+    """
+    if effort is None or effort == "none":
+        return None
+    match effort:
+        case "minimal" | "low":
+            return "low"
+        case "medium":
+            return "medium"
+        case "high" | "xhigh" | "max":
+            return "high"
+    return None
 
 
 class ReasoningCapsule(NamedTuple):
@@ -35,7 +88,7 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
     """
     # Match <think> tag with any attributes
     pattern = r"<think([^>]*)>(.*?)</think>"
-    match = re.search(pattern, content, re.DOTALL)
+    match = _find_nested_think_block(content) or re.search(pattern, content, re.DOTALL)
 
     if match:
         attrs_str = match.group(1)
@@ -48,6 +101,11 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
 
         # Extract nested <summary> tag from content
         reasoning, summary = _parse_summary(reasoning)
+        if redacted and signature and signature.startswith("rs_"):
+            # Redacted reasoning bodies carry opaque provider payloads such as
+            # encrypted_content. Some text scaffolds wrap long lines; whitespace
+            # inserted there is not part of the payload.
+            reasoning = re.sub(r"\s+", "", reasoning)
 
         # Remove the matched <think>...</think> from the input
         start, end = match.span()
@@ -64,6 +122,27 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
         )
     else:
         return content, None
+
+
+def _find_nested_think_block(content: str) -> re.Match[str] | None:
+    start: int | None = None
+    depth = 0
+    pattern = re.compile(r"<think([^>]*)>(.*)</think>", re.DOTALL)
+
+    for match in re.finditer(r"<think([^>]*)>|</think>", content, re.DOTALL):
+        tag = match.group(0)
+        if tag.startswith("<think"):
+            if start is None:
+                start = match.start()
+                depth = 1
+            else:
+                depth += 1
+        elif start is not None:
+            depth -= 1
+            if depth == 0:
+                return pattern.search(content, start, match.end())
+
+    return None
 
 
 def _parse_attr(attrs_str: str, name: str) -> str | None:

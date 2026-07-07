@@ -34,7 +34,7 @@ When adaptive connections is in effect, `max_samples` automatically tracks the c
 
 ### Bounds Tuning
 
-Tune the bounds with `min`, `start`, and `max`: `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and `max` is the ceiling.
+Tune the bounds with `min`, `start`, and `max`: `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), `max` is the ceiling, and `min` is the floor the controller won't cut below (default 10). Be careful setting `min` very low: with many samples in flight, a handful of connections can stretch the gap between a given sample's model calls past provider prompt-cache windows (e.g. Anthropic's 5-minute TTL), making every request more expensive and consuming much more of your input-token rate limit.
 
 Set `max` higher than where you expect the controller to settle, since it's a ceiling for the search, not a target. If you're seeing the controller pin at `max` without ever scaling down, you likely have headroom: raise `max` until you observe occasional rate-limit cuts, which is the controller's signal that it's operating at the edge of your tier.
 
@@ -70,6 +70,18 @@ eval(
     adaptive_connections=AdaptiveConcurrency(min=4, max=80),
 )
 ```
+
+### Observing and Retuning
+
+While an eval runs, `inspect ctl limits` shows each model's live controller state — current limit, in-flight count, scaling range, and recent scale changes — and `--max-connections` retunes the ceiling mid-run (lowering clamps concurrency down immediately; raising lets the controller climb again). In mixed-model runs, `--model` scopes the change to matching models:
+
+``` bash
+inspect ctl limits                              # view live controller state
+inspect ctl limits --max-connections 20         # throttle mid-run
+inspect ctl limits --max-connections 200 --model gpt-5
+```
+
+See [Control Channel](control-channel.qmd#concurrency-limits) for details.
 
 ### Retry Types
 

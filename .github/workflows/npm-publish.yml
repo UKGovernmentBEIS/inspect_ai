@@ -30,17 +30,17 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
@@ -49,8 +49,10 @@ jobs:
 
       - name: Upgrade npm (for Trusted Publishing)
         run: |
-          npm i -g npm@^11.5.1
-          npm --version
+          # Install via prefix to avoid npm self-upgrade rebuild bug on Node 22.
+          npm install --prefix "$RUNNER_TEMP/npm-upgrade" --no-audit --no-fund npm@^11.5.1
+          echo "$RUNNER_TEMP/npm-upgrade/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/npm-upgrade/node_modules/.bin/npm" --version
 
       - name: Install dependencies
         working-directory: src/inspect_ai/_view/ts-mono

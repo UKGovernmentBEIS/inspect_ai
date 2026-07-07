@@ -16,8 +16,10 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Iterator,
     Literal,
     NamedTuple,
+    Protocol,
     Sequence,
     Type,
     TypeAlias,
@@ -25,6 +27,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
+    from inspect_ai.event._model import ModelEvent
     from inspect_ai.tool import ToolInfo
 
 import anyio
@@ -52,6 +55,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.http import status_code_of
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -78,12 +82,12 @@ from inspect_ai.util._limit import (
     check_token_limit,
     record_model_cost,
     record_model_usage,
+    record_turn,
 )
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
     copy_tools_info,
-    disable_parallel_tools,
     execute_tools,
     prepare_tools,
     snapshot_tools_for_event,
@@ -108,7 +112,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
-from ._model_output import ModelOutput, ModelUsage
+from ._model_output import ModelFallback, ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
@@ -214,6 +218,11 @@ class ModelAPI(abc.ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.api_key_vars = api_key_vars
+        # Stable pooling identity for connection_key(). Captured from the
+        # constructor before _apply_api_key_overrides() runs and never mutated
+        # afterwards, so it survives api_key rotation (e.g. a credential hook
+        # refreshing self.api_key via initialize()). See connection_key().
+        self.initial_api_key = api_key
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
@@ -273,9 +282,30 @@ class ModelAPI(abc.ABC):
         """Canonical model name for querying results."""
         return self.model_name
 
+    def service_model_name(self) -> str:
+        """Model name used by the provider service."""
+        return self.model_name
+
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens."""
         return self.canonical_name()
+
+    def model_family(self) -> str:
+        """Model name used only for capability and request-shape detection.
+
+        Returns :attr:`ModelInfo.family` if one has been registered for this
+        model via :func:`set_model_info` under the configured or canonical
+        model name, otherwise falls back to the model name sent to the provider
+        service. The returned name must not be used as the wire model
+        identifier.
+        """
+        from inspect_ai.model._model_info import _get_model_info_direct
+
+        for name in (self.model_name, self.canonical_name()):
+            info = _get_model_info_direct(name)
+            if info is not None and info.family:
+                return info.family
+        return self.service_model_name()
 
     @abc.abstractmethod
     async def generate(
@@ -386,7 +416,20 @@ class ModelAPI(abc.ABC):
         return DEFAULT_MAX_CONNECTIONS
 
     def connection_key(self) -> str:
-        """Scope for enforcement of max_connections."""
+        """Scope for enforcement of max_connections (and adaptive concurrency).
+
+        Two instances of the *same provider* that return the same key share one
+        connection pool. This method only needs to distinguish accounts/models
+        within a provider; the model layer adds the provider namespace on top
+        (see `_connection_pool_key`), so distinct providers never collide even
+        when their `connection_key()` values coincide.
+
+        Providers that scope by API key should use `self.initial_api_key` here,
+        NOT the live `self.api_key`: the live key can rotate mid-eval (e.g. a
+        credential hook refreshing it via `initialize()`), and keying on it
+        would discard all learned pool/adaptive state on every rotation.
+        ``initial_api_key`` is fixed at construction, so the scope stays stable.
+        """
         return "default"
 
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
@@ -545,6 +588,74 @@ def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
     }
 
 
+def _connection_pool_key(api: ModelAPI) -> str:
+    """Provider-namespaced connection-pool key for the model layer.
+
+    Prefixes the provider's `connection_key()` with the provider class so two
+    providers serving the same model don't share a pool (e.g. `openai/gpt-5`
+    and `azureai/gpt-5`, whose `connection_key()` both reduce to `None:gpt-5`
+    when their api keys are elided).
+    """
+    return f"{type(api).__name__}:{api.connection_key()}"
+
+
+def model_concurrency_key(api: ModelAPI) -> str:
+    """Registry key of the model's generate-concurrency context.
+
+    The single definition of the key under which `_connection_concurrency`
+    registers a model's semaphore / adaptive controller — also computed by
+    `create_sample_semaphore` to scope a task's `DynamicSampleLimiter` to its
+    own model's controller, so the two sides can't drift.
+    """
+    return f"Model{_connection_pool_key(api)}"
+
+
+async def ensure_model_controller(model: "Model", config: GenerateConfig) -> None:
+    """Create the model's adaptive-connections controller if adaptive is active.
+
+    The controller is normally created lazily inside the model's first
+    generate; the run startup calls this ahead of time (before sandbox
+    startup, whose image pulls can take minutes) so the control channel can
+    observe and retune ``max_connections`` from the start of the run rather
+    than dropping a retune with a "not using adaptive connections" warning.
+
+    ``config`` is the task's would-be active generate config; it is composed
+    with the model's own config here exactly as ``_resolve_config`` does for
+    the active model, so this and the generate path cannot disagree on
+    whether adaptive is active or on the controller's bounds. That agreement
+    is load-bearing: the registry coalesces on key with first-created bounds
+    winning, so a controller created here from a divergent config would
+    silently override the bounds generates resolve (and a controller created
+    for a model whose generates take the static path would be a phantom —
+    reported and "retuned" by ``ctl limits`` while gating nothing).
+
+    A no-op for the ``NoModel`` sentinel (nothing will generate) and when the
+    composed config says adaptive isn't active (explicit ``max_connections``,
+    batch mode, or ``adaptive_connections=False``).
+    """
+    from inspect_ai.model._providers.none import NoModel
+    from inspect_ai.util._concurrency import (
+        adaptive_active,
+        get_or_create_semaphore,
+        resolve_adaptive,
+    )
+
+    if isinstance(model.api, NoModel):
+        return
+    effective = model.config.merge(config)
+    if adaptive_active(
+        effective.adaptive_connections, effective.max_connections, effective.batch
+    ):
+        adaptive = resolve_adaptive(effective.adaptive_connections)
+        await get_or_create_semaphore(
+            str(ModelName(model)),
+            adaptive.start,
+            model_concurrency_key(model.api),
+            True,
+            adaptive,
+        )
+
+
 class Model:
     """Model interface.
 
@@ -701,10 +812,6 @@ class Model:
             config.max_tokens = self.api.max_tokens_for_config(config)
             if config.max_tokens is None:
                 config.max_tokens = self.api.max_tokens()
-
-        # disable parallel tool calls if requested by any of our tools
-        if disable_parallel_tools(tools):
-            config.parallel_tool_calls = False
 
         # normalize input to chat
         if isinstance(input, str):
@@ -895,7 +1002,7 @@ class Model:
                 config.max_tokens = self.api.max_tokens()
 
         model_name = ModelName(self)
-        key = f"ModelCompact({self.api.connection_key()})"
+        key = f"ModelCompact({_connection_pool_key(self.api)})"
 
         async with concurrency(f"{model_name}_compact", 10, key, visible=False):
 
@@ -921,7 +1028,7 @@ class Model:
 
             # Record and check usage
             if usage:
-                record_and_check_model_usage(f"{self}", usage, role=self.role)
+                record_and_check_model_usage(self, usage, role=self.role)
 
             return compacted_messages, usage
 
@@ -1112,7 +1219,21 @@ class Model:
                 time_start = time.monotonic()
                 try:
                     assert isinstance(event, ModelEvent)
-                    with track_active_model_event(event):
+                    # Local import to avoid an import cycle (agent → model → agent).
+                    from inspect_ai.agent._channel import null_execution_observer
+                    from inspect_ai.log._samples import sample_active
+
+                    _sample = sample_active()
+                    _observer = (
+                        _sample.execution_observer
+                        if _sample is not None
+                        else null_execution_observer()
+                    )
+
+                    with (
+                        track_active_model_event(event),
+                        _observer.track_model_event(event),
+                    ):
                         with timeout_cm:
                             result = await self.api.generate(
                                 input=input,
@@ -1142,9 +1263,12 @@ class Model:
             if isinstance(output, Exception):
                 complete(output, call)
 
-                # Wrap the error in a runtime error which will show the
+                # Wrap the error in a ModelGenerateError which will show the
                 # request which caused the error (truncated to last
-                # 200 lines if larger to avoid overflowing terminal)
+                # 200 lines if larger to avoid overflowing terminal). The
+                # subclass preserves the provider status_code/message so the
+                # agent bridge can forward a faithful provider error rather
+                # than crashing the model proxy.
                 error = repr(output)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
                 max_lines = 200
@@ -1155,7 +1279,11 @@ class Model:
                         + request_lines[-max_lines:]
                     )
                 error_message = f"\nRequest:\n{request}\n\n{error}"
-                raise RuntimeError(error_message)
+                raise ModelGenerateError(
+                    error_message,
+                    status_code=status_code_of(output),
+                    provider_message=str(output),
+                ) from output
 
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)
@@ -1174,7 +1302,7 @@ class Model:
 
             # record usage
             if output.usage:
-                record_and_check_model_usage(f"{self}", output.usage, role=self.role)
+                record_and_check_model_usage(self, output.usage, role=self.role)
 
                 # send telemetry to hooks
                 await emit_model_usage(
@@ -1195,6 +1323,24 @@ class Model:
         time_start = time.monotonic()
         model_output, event = await generate()
         total_time = time.monotonic() - time_start
+
+        # record any model fallback against the active sample (here in the
+        # outer frame rather than alongside usage recording so that cache
+        # hits also count -- a cached response originally served by a
+        # fallback is still a fallback-served response)
+        record_sample_model_fallback(model_output)
+
+        # record a turn (one top-level model generation) against any active
+        # turn limits. recorded here in the outer frame (rather than alongside
+        # usage recording in the inner generate()) so that a turn is counted
+        # exactly once per top-level model.generate() call -- after retries and
+        # fallbacks have resolved, and including cache hits (which also advance
+        # the conversation by one assistant message). this keeps turn counting
+        # uniform across react(), basic_agent(), and custom agents, and avoids
+        # double-counting nested generations: model.compact() does not flow
+        # through this path, and sub-agent/scorer generations are scoped by
+        # their own turn_limit() contexts (or none).
+        record_turn()
 
         # notify the adaptive controller of a clean success (no retries during
         # this logical request, AND not a cache hit since cache hits don't
@@ -1299,8 +1445,8 @@ class Model:
     # (which would likely cause the rate limit to be exceeded). conversely if
     # you are using distinct models/endpoints/accounts within an eval you should
     # be able get the full max_connections for each of them. subclasses can
-    # override the _connection_key() argument to provide a scope within which
-    # to enforce max_connections (e.g. by account/api_key, by endpoint, etc.)
+    # override connection_key() to provide a scope within which to enforce
+    # max_connections (e.g. by account/api_key, by endpoint, etc.)
 
     @contextlib.asynccontextmanager
     async def _connection_concurrency(
@@ -1317,7 +1463,7 @@ class Model:
         )
 
         model_name = ModelName(self)
-        key = f"Model{self.api.connection_key()}"
+        key = model_concurrency_key(self.api)
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
         # rules — both silent — keep deliberate overrides working under
@@ -1374,7 +1520,7 @@ class Model:
         if self == active_model():
             base_config = base_config.merge(active_config)
 
-        # otherwise merge connection-oriented config so its inherited everywhere
+        # otherwise merge operational config so its inherited everywhere
         else:
             base_config = base_config.merge(
                 GenerateConfig(
@@ -1382,6 +1528,7 @@ class Model:
                     adaptive_connections=active_config.adaptive_connections,
                     max_retries=active_config.max_retries,
                     timeout=active_config.timeout,
+                    cache=active_config.cache,
                 )
             )
 
@@ -1404,7 +1551,8 @@ class Model:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
-        # create event and add it to the transcript
+        # create event and add it to the transcript (or hand off to the
+        # installed model-event sink, if any)
         model = str(self)
         event = ModelEvent(
             model=model,
@@ -1418,12 +1566,27 @@ class Model:
             call=call,
             pending=output is None,
         )
-        transcript()._event(event)
+        sink = _model_event_sink.get()
+        if sink is None:
+            transcript()._event(event)
+        else:
+            sink.on_pending(event)
 
         # callable that can be used to update the interaction w/ output
         def complete(
             result: ModelOutput | Exception, updated_call: ModelCall | None
         ) -> None:
+            # Note on operator-cancel: ``AcpTransport.cancel_current_turn``
+            # stamps ``event.error = OPERATOR_CANCEL_ERROR`` on the
+            # in-flight event. The model API can still return inside the
+            # cancellation propagation window; we deliberately let the
+            # natural completion run so ``event.output`` / ``event.call``
+            # capture the real response for forensic logging. The
+            # success branch below does not overwrite ``event.error``,
+            # so the cancel marker stays sticky and downstream
+            # renderers (TUI + inspect view) discriminate on it to
+            # suppress display.
+
             # trace
             if isinstance(result, ModelOutput):
                 if result.choices:
@@ -1457,7 +1620,10 @@ class Model:
                     event.call.response = as_error_response(str(result))
 
             event.pending = None
-            transcript()._event_updated(event)
+            if sink is None:
+                transcript()._event_updated(event)
+            else:
+                sink.on_complete(event)
 
         # if we have output then complete it now
         if output:
@@ -1494,6 +1660,28 @@ or return ``None`` to allow default processing to continue.
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
+
+
+class ModelGenerateError(RuntimeError):
+    """A model generation failed with a provider error.
+
+    Subclass of `RuntimeError` (so existing `except RuntimeError` / `except
+    Exception` handling and retry classification are unchanged) that
+    additionally preserves the originating provider HTTP `status_code` and a
+    clean `provider_message`. The agent bridge uses these to forward a faithful
+    provider error response to the proxied agent rather than crashing.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        provider_message: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.provider_message = provider_message
 
 
 class ModelName:
@@ -1622,6 +1810,10 @@ def get_model(
     if role is not None:
         model_for_role = model_roles().get(role, None)
         if model_for_role is not None:
+            if config.model_dump(exclude_none=True):
+                model_for_role = copy(model_for_role)
+                model_for_role.config = config.merge(model_for_role.config)
+                model_for_role._set_role(role)
             return model_for_role
 
         # raise if required and not found
@@ -2114,7 +2306,7 @@ def combine_messages(
         )
 
 
-def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
     from inspect_ai._util.retry import retry_error_summary, sample_context_prefix
 
     prefix = sample_context_prefix()
@@ -2124,6 +2316,15 @@ def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
         level,
         f"{prefix}-> {model_name} retry {retry_state.attempt_number} "
         f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}",
+    )
+
+    # notify hooks of the retry (useful for surfacing time spent in rate limiting)
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    await emit_model_retry(
+        model_name=model_name,
+        attempt=retry_state.attempt_number,
+        wait_time=retry_state.upcoming_sleep,
     )
 
 
@@ -2158,6 +2359,47 @@ active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 _model_roles: ContextVar[dict[str, Model]] = ContextVar("model_roles", default={})
 
 
+class ModelEventSink(Protocol):
+    """Recipient of `ModelEvent` emissions when installed via `use_model_event_sink`.
+
+    When a sink is active, `_record_model_interaction` routes the event to the
+    sink instead of emitting it to the transcript directly. The sink can decide
+    *when* and *under which span* the event ultimately reaches the transcript.
+
+    All other `_record_model_interaction` behavior (call recording, usage
+    accounting, retry handling, the active-model-event context) is unaffected.
+    """
+
+    def on_pending(self, event: "ModelEvent") -> None:
+        """Called immediately after the pending event is constructed (before generation)."""
+        ...
+
+    def on_complete(self, event: "ModelEvent") -> None:
+        """Called after generation completes (output / error / call populated, `pending=None`)."""
+        ...
+
+
+_model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
+    "_model_event_sink", default=None
+)
+
+
+@contextlib.contextmanager
+def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
+    """Route `ModelEvent` emissions to *sink* for the duration of the block.
+
+    Passing `None` is a no-op (transcript emission continues as usual).
+    """
+    if sink is None:
+        yield
+        return
+    token = _model_event_sink.set(sink)
+    try:
+        yield
+    finally:
+        _model_event_sink.reset(token)
+
+
 # shared contexts for asyncio tasks
 def set_total_messages(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import set_active_sample_total_messages
@@ -2182,6 +2424,17 @@ def init_sample_model_usage() -> None:
     sample_model_usage_context_var.set({})
 
 
+def init_sample_model_data() -> None:
+    """Initialize all per-sample model accumulators (usage, role usage, fallbacks)."""
+    init_sample_model_usage()
+    init_sample_role_usage()
+    init_sample_model_fallbacks()
+
+
+def init_sample_model_fallbacks() -> None:
+    sample_model_fallbacks_context_var.set({})
+
+
 def init_role_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
     if initial_usage is not None:
         role_usage_context_var.set(initial_usage)
@@ -2194,17 +2447,22 @@ def init_sample_role_usage() -> None:
 
 
 def record_and_check_model_usage(
-    model: str, usage: ModelUsage, role: str | None = None
+    model: Model, usage: ModelUsage, role: str | None = None
 ) -> None:
     from inspect_ai.log._samples import (
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
-    from inspect_ai.model._model_info import get_model_info
+    from inspect_ai.model._model_info import _get_model_info_direct
+
+    # full "provider/model" identifier, used as the usage-bookkeeping dict key
+    model_name = f"{model}"
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
-    # accumulates it in the per-model usage dicts)
-    info = get_model_info(model)
+    # accumulates it in the per-model usage dicts). Use the direct (non
+    # provider-resolving) lookup: the model is already instantiated, so falling
+    # back to get_model() here would re-instantiate it (reloading local weights).
+    info = _get_model_info_direct(model)
     total_cost: float | None = None
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
     if info is not None and info.cost is not None:
@@ -2212,8 +2470,8 @@ def record_and_check_model_usage(
         usage.total_cost = total_cost
 
     # record usage
-    set_model_usage(model, usage, sample_model_usage_context_var.get(None))
-    set_model_usage(model, usage, model_usage_context_var.get(None))
+    set_model_usage(model_name, usage, sample_model_usage_context_var.get(None))
+    set_model_usage(model_name, usage, model_usage_context_var.get(None))
 
     # record usage by role name (if role is set)
     if role is not None:
@@ -2271,6 +2529,43 @@ def sample_total_tokens() -> int:
 
 sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "sample_model_usage", default={}
+)
+
+
+def record_sample_model_fallback(output: ModelOutput) -> None:
+    """Accumulate a model fallback from a generate call into the active sample."""
+    from inspect_ai.log._samples import set_active_sample_fallback_models
+
+    if output.fallback is None:
+        return
+    fallbacks = sample_model_fallbacks_context_var.get(None)
+    if fallbacks is not None:
+        key = (output.fallback.model, output.fallback.fallback_model)
+        fallbacks[key] = fallbacks.get(key, 0) + output.fallback.count
+
+        # surface serving models on the active sample for realtime display
+        set_active_sample_fallback_models(
+            list(dict.fromkeys(fallback_model for _, fallback_model in fallbacks))
+        )
+
+
+def sample_model_fallbacks() -> list[ModelFallback]:
+    """Model fallbacks accumulated for the active sample.
+
+    Rollup entries carry (model, fallback_model, count) only — per-call
+    diagnostics remain on each ModelEvent's `output.fallback.metadata`.
+    """
+    return [
+        ModelFallback(model=model, fallback_model=fallback_model, count=count)
+        for (
+            model,
+            fallback_model,
+        ), count in sample_model_fallbacks_context_var.get().items()
+    ]
+
+
+sample_model_fallbacks_context_var: ContextVar[dict[tuple[str, str], int]] = ContextVar(
+    "sample_model_fallbacks", default={}
 )
 
 

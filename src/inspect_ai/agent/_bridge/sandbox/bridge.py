@@ -7,7 +7,7 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, Model
+from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
@@ -17,6 +17,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -47,6 +48,9 @@ async def sandbox_agent_bridge(
     web_search: WebSearchProviders | None = None,
     code_execution: CodeExecutionProviders | None = None,
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
+    model_event_sink: ModelEventSink | None = None,
+    forward_generation_config: bool = False,
+    checkpointer: Checkpointer | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -90,6 +94,22 @@ async def sandbox_agent_bridge(
             makes the specified tools available to the agent. The resolved
             MCPServerConfigStdio objects to pass to CLI agents are available via
             bridge.mcp_server_configs.
+        model_event_sink: Optional sink that takes ownership of `ModelEvent`
+            emission for calls routed through the bridge. When set, the bridge
+            installs it around `model.generate()` so the sink decides when and
+            under which span each event is emitted to the transcript.
+        forward_generation_config: Forward client generation parameters (e.g.
+            `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
+            to `False`, in which case those parameters are dropped and the resolved
+            Inspect model config and provider defaults govern generation (structural
+            parameters like the system prompt, tools, and response format are always
+            forwarded). Set `True` for faithful-proxy behavior where the client's
+            generation parameters are authoritative.
+        checkpointer: Checkpointer to drive through the bridge. When provided,
+            the bridge ticks it after each generation and registers its agent
+            state (messages, output, compaction prefix) for checkpoint backup
+            and restore, so a checkpointed run survives resume. Defaults to
+            `None` (no checkpointing).
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -122,6 +142,9 @@ async def sandbox_agent_bridge(
                 port=port,
                 model=model,
                 model_aliases=model_aliases,
+                model_event_sink=model_event_sink,
+                forward_generation_config=forward_generation_config,
+                checkpointer=checkpointer,
             )
 
             # register bridged tools with the bridge

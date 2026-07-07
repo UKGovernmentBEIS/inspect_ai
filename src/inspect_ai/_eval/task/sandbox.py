@@ -22,7 +22,11 @@ from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
-from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._concurrency import (
+    concurrency,
+    get_or_create_semaphore,
+    register_sandbox_limiter,
+)
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
@@ -38,6 +42,40 @@ from inspect_ai.util._sandbox.environment import (
     TaskInitEnvironment,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+
+
+async def ensure_sandbox_limiter(
+    sandboxenv_type: type[SandboxEnvironment],
+    sandbox_type: str,
+    max_sandboxes: int | None,
+) -> int | None:
+    """Resolve a sandbox type's concurrency limit and pre-register its limiter.
+
+    The effective limit is ``max_sandboxes`` (the eval config value) or the
+    provider's ``default_concurrency()``; when one is in effect, the
+    process-global ``sandboxes/<type>`` semaphore is created (or fetched — the
+    registry coalesces on key) and tracked for the control channel. Called
+    *eagerly* by the run-level sandbox startup — before ``task_init``'s image
+    pulls — so a ``ctl limits --max-sandboxes`` issued during startup lands
+    instead of being dropped, and idempotently by the per-sample acquire path
+    (covering per-sample sandbox overrides the startup pass can't see).
+    Returns the resolved limit, or ``None`` when no limit is in effect.
+    """
+    if max_sandboxes is None:
+        default_concurrency_fn = cast(
+            Callable[[], int | None], getattr(sandboxenv_type, "default_concurrency")
+        )
+        max_sandboxes = default_concurrency_fn()
+    if max_sandboxes is not None:
+        semaphore = await get_or_create_semaphore(
+            sandbox_type,
+            max_sandboxes,
+            f"sandboxes/{sandbox_type}",
+            True,
+            resizable=True,
+        )
+        register_sandbox_limiter(sandbox_type, semaphore)
+    return max_sandboxes
 
 
 @contextlib.asynccontextmanager
@@ -56,12 +94,11 @@ async def sandboxenv_context(
     # get sandboxenv_type
     sandboxenv_type = registry_find_sandboxenv(sandbox.type)
 
-    # see if there is a max_sandboxes in play (passed or from type)
-    if max_sandboxes is None:
-        default_concurrency_fn = cast(
-            Callable[[], int | None], getattr(sandboxenv_type, "default_concurrency")
-        )
-        max_sandboxes = default_concurrency_fn()
+    # per-sample sandbox overrides aren't visible to the run-level startup
+    # pass, so they get their limiter registered here on first use
+    max_sandboxes = await ensure_sandbox_limiter(
+        sandboxenv_type, sandbox.type, max_sandboxes
+    )
 
     # if we are enforcing max_sandboxes, then when samples are scheduled they may
     # not get interleaved properly across tasks (because the first task will come
@@ -70,9 +107,16 @@ async def sandboxenv_context(
     if max_sandboxes is not None:
         await anyio.sleep(random())
 
-    # enforce concurrency if required
+    # enforce concurrency if required. `resizable=True` backs it with a
+    # ResizableLimiter so the control channel's modify-limits directive can
+    # retune max_sandboxes mid-eval (see design/control-channel.md phase 3).
     sandboxes_cm = (
-        concurrency(sandbox.type, max_sandboxes, f"sandboxes/{sandbox.type}")
+        concurrency(
+            sandbox.type,
+            max_sandboxes,
+            f"sandboxes/{sandbox.type}",
+            resizable=True,
+        )
         if max_sandboxes is not None
         else contextlib.nullcontext()
     )
@@ -193,12 +237,18 @@ class TaskSandboxEnvironment(NamedTuple):
 
 
 async def resolve_sandbox_for_task_and_sample(
-    eval_sandbox: SandboxEnvironmentSpec | None,
+    sandbox: SandboxEnvironmentSpec | None,
     task: Task,
     sample: Sample,
 ) -> TaskSandboxEnvironment | None:
-    # eval_sandbox overrides task or sample sandbox
-    sandbox = eval_sandbox or await resolve_sandbox(task.sandbox, sample)
+    # `sandbox` is the task's already-resolved sandbox (i.e. `ResolvedTask.sandbox`),
+    # which has had any eval-level override (`--sandbox <provider>`) and implicit
+    # config-file resolution applied by resolve_task_sandbox(). We layer the
+    # per-sample sandbox on top exactly as the execution path does
+    # (sandboxenv_context() -> resolve_sandbox()), so that the set of sandboxes we
+    # initialize here matches what each sample actually uses at runtime -- including
+    # docker-compatible per-sample configs (e.g. a per-sample ComposeConfig).
+    sandbox = await resolve_sandbox(sandbox, sample)
     if sandbox is not None:
         # see if there are environment variables required for init of this sample
         run_dir = task_run_dir(task)
@@ -253,24 +303,27 @@ async def resolve_sandbox(
 
 async def _retrying_httpx_get(
     url: str,
-    client: httpx.AsyncClient = httpx.AsyncClient(),
+    client: httpx.AsyncClient | None = None,
     timeout: int = 30,  # per-attempt timeout
     max_retries: int = 10,
     total_timeout: int = 120,  #  timeout for the whole retry loop. not for an individual attempt
 ) -> bytes:
-    @retry(
-        wait=wait_exponential_jitter(),
-        stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),
-        retry=retry_if_exception(httpx_should_retry),
-        before_sleep=log_httpx_retry_attempt(url),
-    )
-    async def do_get() -> bytes:
-        response = await client.get(
-            url=url,
-            follow_redirects=True,
-            timeout=(timeout, timeout, timeout, timeout),
-        )
-        response.raise_for_status()
-        return response.content
+    client = client or httpx.AsyncClient()
+    async with client:
 
-    return await do_get()
+        @retry(
+            wait=wait_exponential_jitter(),
+            stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),
+            retry=retry_if_exception(httpx_should_retry),
+            before_sleep=log_httpx_retry_attempt(url),
+        )
+        async def do_get() -> bytes:
+            response = await client.get(
+                url=url,
+                follow_redirects=True,
+                timeout=(timeout, timeout, timeout, timeout),
+            )
+            response.raise_for_status()
+            return response.content
+
+        return await do_get()

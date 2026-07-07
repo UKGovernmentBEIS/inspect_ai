@@ -14,9 +14,8 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import init_logger
-from inspect_ai._view.server import view_server
 
-from .fastapi_prereqs import verify_fastapi_prerequisites
+from .network import resolve_viewer_network_policy
 from .notify import view_data_dir
 
 logger = logging.getLogger(__name__)
@@ -30,6 +29,9 @@ def view(
     authorization: str | None = None,
     log_level: str | None = None,
     fs_options: dict[str, Any] = {},
+    trusted_origins: tuple[str, ...] = (),
+    trusted_hosts: tuple[str, ...] = (),
+    unsafe_allow_unauthenticated: bool = False,
 ) -> None:
     """Run the Inspect View server.
 
@@ -44,6 +46,11 @@ def view(
         fs_options: Additional arguments to pass through to the filesystem provider
             (e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a
             public S3 bucket with no credentials.
+        trusted_origins: Exact browser origins allowed to use the viewer.
+        trusted_hosts: Additional exact HTTP authorities allowed for non-browser
+            clients.
+        unsafe_allow_unauthenticated: Allow a non-loopback bind without request
+            authorization.
     """
     init_dotenv()
     init_logger(log_level)
@@ -52,33 +59,28 @@ def view(
     if not log_dir:
         log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
 
+    network_policy = resolve_viewer_network_policy(
+        bind_host=host,
+        port=port,
+        trusted_hosts=trusted_hosts,
+        trusted_origins=trusted_origins,
+        authorization=authorization,
+        unsafe_allow_unauthenticated=unsafe_allow_unauthenticated,
+    )
+
     # acquire the requested port
     view_acquire_port(view_data_dir(), port)
 
-    # run server — fastapi is preferred when available, but the env var
-    # can force either direction (set to "0"/"false"/"no" to force aiohttp)
-    use_fastapi = _should_use_fastapi()
-    if use_fastapi:
-        verify_fastapi_prerequisites()
-        from .fastapi_server import view_server as fastapi_view_server
+    from .fastapi_server import view_server
 
-        fastapi_view_server(
-            log_dir=log_dir,
-            recursive=recursive,
-            host=host,
-            port=port,
-            authorization=authorization,
-            fs_options=fs_options,
-        )
-    else:
-        view_server(
-            log_dir=log_dir,
-            recursive=recursive,
-            host=host,
-            port=port,
-            authorization=authorization,
-            fs_options=fs_options,
-        )
+    view_server(
+        log_dir=log_dir,
+        recursive=recursive,
+        host=host,
+        port=port,
+        network_policy=network_policy,
+        fs_options=fs_options,
+    )
 
 
 def view_port_pid_file(app_dir: Path, port: int) -> Path:
@@ -132,23 +134,3 @@ def view_acquire_port(app_dir: Path, port: int) -> None:
             pass
 
     atexit.register(release_lock_file)
-
-
-def _should_use_fastapi() -> bool:
-    """Decide whether to use the FastAPI server.
-
-    - INSPECT_VIEW_FASTAPI_SERVER set to 1/true/yes → always FastAPI
-    - INSPECT_VIEW_FASTAPI_SERVER set to 0/false/no → always aiohttp
-    - INSPECT_VIEW_FASTAPI_SERVER absent → FastAPI if importable, else aiohttp
-    """
-    env = os.getenv("INSPECT_VIEW_FASTAPI_SERVER")
-    if env is not None:
-        return env.lower() in ("1", "true", "yes")
-
-    try:
-        import fastapi  # noqa: F401
-        import uvicorn  # noqa: F401
-
-        return True
-    except ImportError:
-        return False

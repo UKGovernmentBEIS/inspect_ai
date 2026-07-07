@@ -10,10 +10,20 @@ from typing import IO
 
 from pydantic import JsonValue
 
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import to_json_safe
+from inspect_ai.event._pool import (
+    _build_call_index,
+    _build_msg_index,
+    condense_model_event_calls,
+    condense_model_event_inputs,
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._validate import validate_chat_messages
 from inspect_ai.log._condense import (
     WalkContext,
     condense_event,
@@ -27,16 +37,17 @@ from inspect_ai.log._log import (
     EvalSpec,
     EventsData,
 )
-from inspect_ai.log._pool import (
-    condense_model_event_calls,
-    condense_model_event_inputs,
-)
 from inspect_ai.log._recorders.buffer.filestore import Manifest, SampleBufferFilestore
 from inspect_ai.log._recorders.eval import ZipLogFile, _sample_filename
 from inspect_ai.model._chat_message import ChatMessage
 
 from ._attachments import StreamingAttachmentStore, write_attachments_field
-from ._reconstruct import MessageAccumulator, _deserialize_events
+from ._reconstruct import (
+    EventVersionCollapser,
+    MessageAccumulator,
+    _deserialize_events,
+    _summary_with_uuid_fallback,
+)
 
 logger = getLogger(__name__)
 
@@ -71,9 +82,13 @@ def _write_sample_streaming(
 ) -> EvalSampleSummary:
     """Stream-process a single sample's segments and write to a ZIP entry.
 
-    Processes segments one at a time: deserialize events, run attachment
-    walking, run pool dedup, write condensed events, feed to
-    MessageAccumulator. After all segments, write messages/output/attachments.
+    Two-pass per sample: first walk segments to accumulate pools /
+    attachments and feed raw event rows into an
+    ``EventVersionCollapser`` (duplicate ``event_id`` rows from the
+    pending → resolved flow can span segment boundaries, so events
+    can't be written until they've been collapsed). Then deserialize
+    the collapsed rows, run attachment walking / pool dedup, and write
+    condensed events followed by walked messages / output / attachments.
 
     Returns the summary for stats accumulation. Samples with no flushed
     event data are still written with empty events/messages so summaries
@@ -91,6 +106,7 @@ def _write_sample_streaming(
     ``Sample`` payload on ``SampleInitEvent``, so we must look at raw
     events before condensing.
     """
+    summary = _summary_with_uuid_fallback(summary)
     filename = _sample_filename(summary.id, summary.epoch)
 
     # State accumulated across segments
@@ -101,7 +117,12 @@ def _write_sample_streaming(
     call_pool: list[JsonValue] = []
     msg_index: dict[str, int] = {}
     call_index: dict[str, int] = {}
-    walk_context = WalkContext(message_cache={}, only_core=False)
+    events_context = WalkContext(message_cache={}, only_core=False)
+    # The events and messages walks rewrite content differently (condense_event
+    # pools long text as attachments; messages_fn leaves it inline), so they
+    # must not share a message cache: a hit crossing content functions would
+    # leak attachment refs into fields that keep long text inline.
+    messages_context = WalkContext(message_cache={}, only_core=False)
     accumulator = MessageAccumulator()
 
     # Per-sample reconstruction state captured from raw events
@@ -139,9 +160,7 @@ def _write_sample_streaming(
             _write_json_field(stream, "choices", summary.choices, comma=True)
             _write_json_field(stream, "target", summary.target, comma=True)
 
-            # Stream events: process segments one at a time
-            stream.write(b',"events":[')
-            first_event = True
+            collapser = EventVersionCollapser()
             read_count = 0
 
             for seg_id, seg_data in buffer.iter_sample_segments(
@@ -161,49 +180,45 @@ def _write_sample_streaming(
                 for att in seg_data.attachments:
                     attachments[att.hash] = att.content
 
-                # Deserialize events from this segment
-                raw_events = _deserialize_events([ed.event for ed in seg_data.events])
-                if not raw_events:
-                    continue
+                # Segment files written by sync_to_filestore already carry
+                # condensed events; their pools live alongside the events.
+                if seg_data.message_pool:
+                    new_messages = validate_chat_messages(
+                        [
+                            json_module.loads(entry.data)
+                            for entry in sorted(
+                                seg_data.message_pool, key=lambda entry: entry.id
+                            )
+                        ],
+                        context=get_deserializing_context(),
+                    )
+                    pool_start = len(message_pool)
+                    message_pool.extend(new_messages)
+                    msg_index.update(
+                        {
+                            key: pool_start + index
+                            for key, index in _build_msg_index(new_messages).items()
+                        }
+                    )
 
-                # Detect SampleInitEvent / SampleLimitEvent on the raw stream
-                # (before condense_event, which would rewrite Sample payloads).
-                if sample_init is None:
-                    for ev in raw_events:
-                        if isinstance(ev, SampleInitEvent):
-                            sample_init = ev
-                            break
-                for ev in raw_events:
-                    if isinstance(ev, SampleLimitEvent):
-                        sample_limit_event = ev  # keep the last
-
-                # Feed to message accumulator (before condensing)
-                accumulator.process_events(raw_events)
-
-                if include_events:
-                    # Attachment walking per event
-                    condensed = [
-                        condense_event(ev, attachments, context=walk_context)
-                        for ev in raw_events
+                if seg_data.call_pool:
+                    new_calls = [
+                        json_module.loads(entry.data)
+                        for entry in sorted(
+                            seg_data.call_pool, key=lambda entry: entry.id
+                        )
                     ]
-
-                    # Pool dedup (carrying state across segments).
-                    condensed, msg_index, new_msgs = condense_model_event_inputs(
-                        condensed, len(message_pool), msg_index
+                    pool_start = len(call_pool)
+                    call_pool.extend(new_calls)
+                    call_index.update(
+                        {
+                            key: pool_start + index
+                            for key, index in _build_call_index(new_calls).items()
+                        }
                     )
-                    message_pool.extend(msg for _, msg in new_msgs)
 
-                    condensed, call_index, new_calls = condense_model_event_calls(
-                        condensed, len(call_pool), call_index
-                    )
-                    call_pool.extend(call_msg for _, call_msg in new_calls)
-
-                    # Write condensed events to the stream
-                    for ev in condensed:
-                        if not first_event:
-                            stream.write(b",")
-                        stream.write(to_json_safe(ev, indent=None))
-                        first_event = False
+                for ed in seg_data.events:
+                    collapser.add(ed)
 
             if total_segments > 100:
                 logger.info(
@@ -211,6 +226,45 @@ def _write_sample_streaming(
                     f"{summary.epoch}: {read_count}/{total_segments}"
                 )
 
+            deduped_event_data = collapser.events()
+
+            raw_events = _deserialize_events([ed.event for ed in deduped_event_data])
+
+            for ev in raw_events:
+                if sample_init is None and isinstance(ev, SampleInitEvent):
+                    sample_init = ev
+                if isinstance(ev, SampleLimitEvent):
+                    sample_limit_event = ev  # keep the last
+
+            # Feed resolved (uncondensed) events to the message accumulator;
+            # the events written to the recovered log stay condensed below.
+            resolved_events = resolve_model_event_inputs(raw_events, message_pool)
+            resolved_events = resolve_model_event_calls(resolved_events, call_pool)
+            accumulator.process_events(resolved_events)
+
+            stream.write(b',"events":[')
+            if include_events and raw_events:
+                condensed = [
+                    condense_event(ev, attachments, context=events_context)
+                    for ev in raw_events
+                ]
+
+                condensed, msg_index, new_msgs = condense_model_event_inputs(
+                    condensed, len(message_pool), msg_index
+                )
+                message_pool.extend(msg for _, msg in new_msgs)
+
+                condensed, call_index, new_calls = condense_model_event_calls(
+                    condensed, len(call_pool), call_index
+                )
+                call_pool.extend(call_msg for _, call_msg in new_calls)
+
+                first_event = True
+                for ev in condensed:
+                    if not first_event:
+                        stream.write(b",")
+                    stream.write(to_json_safe(ev, indent=None))
+                    first_event = False
             stream.write(b"]")  # close events array
 
             if total_segments > 100:
@@ -241,8 +295,10 @@ def _write_sample_streaming(
 
             # Walk messages for attachment refs
             messages_fn = messages_attachment_fn(attachments)
-            walked_input = walk_input(summary.input, messages_fn, walk_context)
-            walked_messages = walk_chat_messages(messages, messages_fn, walk_context)
+            walked_input = walk_input(summary.input, messages_fn, messages_context)
+            walked_messages = walk_chat_messages(
+                messages, messages_fn, messages_context
+            )
 
             # Sample init-derived fields
             _write_json_field(stream, "sandbox", sandbox_value, comma=True)
@@ -258,6 +314,9 @@ def _write_sample_streaming(
 
             _write_json_field(stream, "model_usage", summary.model_usage, comma=True)
             _write_json_field(stream, "role_usage", summary.role_usage, comma=True)
+            _write_json_field(
+                stream, "model_fallbacks", summary.model_fallbacks, comma=True
+            )
             _write_json_field(stream, "started_at", summary.started_at, comma=True)
             _write_json_field(stream, "completed_at", summary.completed_at, comma=True)
             _write_json_field(stream, "total_time", summary.total_time, comma=True)

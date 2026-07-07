@@ -2,19 +2,54 @@
 
 from __future__ import annotations
 
+import json
+from logging import getLogger
 from typing import Any
 
-from pydantic import TypeAdapter
+from pydantic import JsonValue, TypeAdapter
+from shortuuid import uuid as _shortuuid
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._pool import (
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.log._recorders.buffer.types import SampleData
+from inspect_ai.log._recorders.buffer.types import (
+    CallPoolData,
+    EventData,
+    MessagePoolData,
+    SampleData,
+)
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model_output import ModelOutput
+
+logger = getLogger(__name__)
+
+_CHAT_MESSAGES_ADAPTER: TypeAdapter[list[ChatMessage]] = TypeAdapter(list[ChatMessage])
+
+
+def _summary_with_uuid_fallback(summary: EvalSampleSummary) -> EvalSampleSummary:
+    """Synthesize a uuid for legacy buffer rows that lack one.
+
+    The original state.uuid wasn't persisted; the crashed sample run had no
+    external consumers, so a fresh uuid is safe.
+    """
+    if summary.uuid is not None:
+        return summary
+    fallback = _shortuuid()
+    logger.warning(
+        "Sample summary missing uuid during recovery; synthesizing %s "
+        "(sample_id=%s epoch=%s)",
+        fallback,
+        summary.id,
+        summary.epoch,
+    )
+    return summary.model_copy(update={"uuid": fallback})
 
 
 def reconstruct_eval_sample(
@@ -39,15 +74,26 @@ def reconstruct_eval_sample(
         A fully resolved EvalSample (not condensed — condensing happens
         at write time in Step 4).
     """
-    # Deserialize events from JSON dicts
+    summary = _summary_with_uuid_fallback(summary)
+
+    deduped_event_data = collapse_event_versions(sample_data.events)
+
     events = _deserialize_events(
-        [event_data.event for event_data in sample_data.events]
+        [event_data.event for event_data in deduped_event_data]
     )
 
-    # Extract messages and output from events
+    # Buffer-DB rows store events condensed; without resolving here,
+    # _extract_messages_from_events sees empty ModelEvent.input and drops
+    # every user/tool message from the recovered sample.
+    events = resolve_model_event_inputs(
+        events, _deserialize_message_pool(sample_data.message_pool)
+    )
+    events = resolve_model_event_calls(
+        events, _deserialize_call_pool(sample_data.call_pool)
+    )
+
     messages, output = _extract_messages_from_events(events)
 
-    # Build attachments dict from buffer DB attachment data
     attachments = {
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
@@ -83,6 +129,7 @@ def reconstruct_eval_sample(
         attachments=attachments,
         model_usage=summary.model_usage,
         role_usage=summary.role_usage,
+        model_fallbacks=summary.model_fallbacks,
         started_at=summary.started_at,
         completed_at=summary.completed_at,
         total_time=summary.total_time,
@@ -92,12 +139,74 @@ def reconstruct_eval_sample(
     )
 
 
+_LIST_EVENT_ADAPTER: TypeAdapter[list[Event]] = TypeAdapter(list[Event])
+
+
+def _deserialize_message_pool(
+    entries: list[MessagePoolData],
+) -> list[ChatMessage]:
+    if not entries:
+        return []
+    return _CHAT_MESSAGES_ADAPTER.validate_python(
+        [json.loads(entry.data) for entry in sorted(entries, key=lambda e: e.id)],
+        context=get_deserializing_context(),
+    )
+
+
+def _deserialize_call_pool(entries: list[CallPoolData]) -> list[JsonValue]:
+    if not entries:
+        return []
+    return [json.loads(entry.data) for entry in sorted(entries, key=lambda e: e.id)]
+
+
 def _deserialize_events(event_dicts: list[dict[str, Any]]) -> list[Event]:
     """Deserialize event JSON dicts into typed Event objects."""
     if not event_dicts:
         return []
-    adapter: TypeAdapter[list[Event]] = TypeAdapter(list[Event])
-    return adapter.validate_python(event_dicts, context=get_deserializing_context())
+    return _LIST_EVENT_ADAPTER.validate_python(
+        event_dicts, context=get_deserializing_context()
+    )
+
+
+class EventVersionCollapser:
+    """Incremental collapser for duplicate event_id rows.
+
+    Preserves first-insertion order and substitutes the latest payload
+    for each event_id. Rows with a falsy `event_id` are kept as unique
+    slots and never replaced.
+    """
+
+    def __init__(self) -> None:
+        self._latest_by_event_id: dict[str, int] = {}
+        self._slots: list[EventData] = []
+
+    def add(self, event_data: EventData) -> None:
+        if not event_data.event_id:
+            self._slots.append(event_data)
+            return
+        slot = self._latest_by_event_id.get(event_data.event_id)
+        if slot is None:
+            self._latest_by_event_id[event_data.event_id] = len(self._slots)
+            self._slots.append(event_data)
+        else:
+            self._slots[slot] = event_data
+
+    def events(self) -> list[EventData]:
+        return self._slots
+
+
+def collapse_event_versions(events: list[EventData]) -> list[EventData]:
+    """Collapse duplicate event_id rows to one logical event per UUID.
+
+    The buffer DB events table is insert-only: every `_event_updated()` writes
+    a new row with the same `event_id`. This collapses such rows to a single
+    entry at the first-insertion position, with the latest payload. Rows
+    without an `event_id` are kept as unique logical events.
+    """
+    collapser = EventVersionCollapser()
+    for ev in events:
+        collapser.add(ev)
+    return collapser.events()
 
 
 class MessageAccumulator:

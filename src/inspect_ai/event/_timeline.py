@@ -8,7 +8,7 @@ Uses inspect_ai's event_tree() to parse span structure.
 from __future__ import annotations
 
 import contextlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Any, AsyncIterator, Callable, Literal, Sequence
 
 from pydantic import (
@@ -55,14 +55,20 @@ def _min_start_time(
         The minimum start_time, or ``datetime.max`` if empty (so empty
         spans sort last and ``min()`` callers don't crash).
     """
-    return min((node.start_time() for node in nodes), default=datetime.max)
+    return min(
+        (node.start_time() for node in nodes),
+        default=datetime.max.replace(tzinfo=timezone.utc),
+    )
 
 
 def _max_end_time(
     nodes: Sequence[TimelineEvent | TimelineSpan],
 ) -> datetime:
     """Return the latest end time among nodes (``datetime.min`` when empty)."""
-    return max((node.end_time() for node in nodes), default=datetime.min)
+    return max(
+        (node.end_time() for node in nodes),
+        default=datetime.min.replace(tzinfo=timezone.utc),
+    )
 
 
 def _sum_tokens(
@@ -389,7 +395,8 @@ def timeline_build(
     Span type                       Result
     ==============================  =======================================
     ``type="agent"``                ``TimelineSpan(span_type="agent")``
-    ``type="solver"``               ``TimelineSpan(span_type="agent")``
+    ``type="solver"`` wrapping agent ``TimelineSpan(span_type="agent")``
+    ``type="solver"`` (primitive)   Unrolled into parent
     ``type="tool"`` + ModelEvents   ``TimelineSpan(span_type="agent")``
     ToolEvent with ``agent`` field  ``TimelineSpan(span_type="agent")``
     ``type="tool"`` (no models)     Unrolled into parent
@@ -679,8 +686,12 @@ def _is_agent_span(span: EventTreeSpan) -> bool:
 
     Agent spans are:
     - Explicit agent spans (type="agent")
-    - Solver spans (type="solver")
+    - Solver spans that wrap a genuine agent (e.g. an @agent run via as_solver)
     - Tool spans containing model events (tool-spawned agents)
+
+    Primitive solver spans (system_message, generate, use_tools, ...) wrap no
+    agent of their own, so they are not agent trajectories — they get unrolled
+    into their parent rather than occupying a swimlane.
 
     Args:
         span: The EventTreeSpan to check.
@@ -688,8 +699,10 @@ def _is_agent_span(span: EventTreeSpan) -> bool:
     Returns:
         True if the span represents an agent trajectory.
     """
-    if span.type in ("agent", "solver"):
+    if span.type == "agent":
         return True
+    if span.type == "solver":
+        return _contains_agent_span(span)
     if (
         span.type == "tool"
         and _contains_model_events(span)

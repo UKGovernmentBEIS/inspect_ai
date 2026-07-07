@@ -1,8 +1,7 @@
+import math
 import statistics
 from collections import Counter
 from typing import Callable, cast
-
-import numpy as np
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
@@ -114,7 +113,7 @@ def at_least(
         else:
             return _count_scalar(scores, gte_n)
 
-    setattr(at_least, REDUCER_NAME, f"at_least_{k}")
+    setattr(reduce, REDUCER_NAME, f"at_least_{k}")
     return reduce
 
 
@@ -132,8 +131,16 @@ def pass_at(
 
     def reduce(scores: list[Score]) -> Score:
         def pass_at_k(values: list[float]) -> float:
+            import numpy as np
+
             total = len(values)
             correct = sum(1 for v in values if v >= value)
+            if total < k:
+                # NaN-filtering left fewer than k scored epochs, so the
+                # pass@k estimator is undefined; surface the unscored
+                # sentinel rather than the spurious 1.0 the short-circuit
+                # below would otherwise produce.
+                return float("nan")
             if total - correct < k:
                 return 1.0
             else:
@@ -152,7 +159,47 @@ def pass_at(
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_at_k)
 
-    setattr(pass_at, REDUCER_NAME, f"pass_at_{k}")
+    setattr(reduce, REDUCER_NAME, f"pass_at_{k}")
+    return reduce
+
+
+@score_reducer
+def pass_k(
+    k: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
+) -> ScoreReducer:
+    r"""Probability that all `k` epoch attempts succeed (<https://arxiv.org/pdf/2406.12045>).
+
+    Computed as the draw-without-replacement estimator
+    `C(correct, k) / C(total, k)`, dual to `pass_at`'s Chen 2021 estimator.
+
+    Args:
+       k: Epochs to compute probability for.
+       value: Score value threshold.
+       value_to_float: Function to convert score values to float.
+    """
+
+    def reduce(scores: list[Score]) -> Score:
+        def pass_k_k(values: list[float]) -> float:
+            total = len(values)
+            if total < k:
+                # NaN-filtering left fewer than k scored epochs, so the
+                # pass^k estimator is undefined; surface the unscored
+                # sentinel.
+                return float("nan")
+            correct = sum(1 for v in values if v >= value)
+            return math.comb(correct, k) / math.comb(total, k)
+
+        representative = _first_scored(scores)
+        if representative is None:
+            return _nan_score(scores)
+        if isinstance(representative.value, dict):
+            return _compute_dict_stat(scores, value_to_float, pass_k_k)
+        elif isinstance(representative.value, list):
+            return _compute_list_stat(scores, value_to_float, pass_k_k)
+        else:
+            return _compute_scalar_stat(scores, value_to_float, pass_k_k)
+
+    setattr(reduce, REDUCER_NAME, f"pass_k_{k}")
     return reduce
 
 
@@ -173,26 +220,34 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
             dict_result: dict[str, str | int | float | bool | None] = {}
             keys = dict_scores[0].value.keys()  # type: ignore
             for key in keys:
-                max_value = max(
-                    [score.value[key] for score in dict_scores],  # type: ignore
-                    key=value_to_float,  # type: ignore
-                )
-                dict_result[key] = max_value
+                key_values = [
+                    cast(str | int | float | bool, score.value[key])  # type: ignore
+                    for score in dict_scores
+                    if _is_reducible(score.value[key])  # type: ignore
+                ]
+                if len(key_values) == 0:
+                    dict_result[key] = float("nan")
+                else:
+                    dict_result[key] = max(key_values, key=value_to_float)  # type: ignore
             return _reduced_score(dict_result, scores)
         elif isinstance(representative.value, list):
             list_scores = _partition_list_scores(scores)
             list_result: list[str | int | float | bool] = []
             list_size = len(list_scores[0].value)  # type: ignore
             for i in range(list_size):
-                max_value = max(
-                    [score.value[i] for score in list_scores],  # type:ignore
-                    key=value_to_float,  # type: ignore
-                )
-                if max_value is None:
-                    raise ValueError(
-                        "List of scores values unexpectedly had a `None` max score"
-                    )
+                index_values = [
+                    cast(str | int | float | bool, score.value[i])  # type: ignore
+                    for score in list_scores
+                    if _is_reducible(score.value[i])  # type: ignore
+                ]
+                if len(index_values) == 0:
+                    list_result.append(float("nan"))
                 else:
+                    max_value = max(index_values, key=value_to_float)  # type: ignore
+                    if max_value is None:
+                        raise ValueError(
+                            "List of scores values unexpectedly had a `None` max score"
+                        )
                     list_result.append(max_value)
             return _reduced_score(list_result, scores)
         else:
@@ -318,7 +373,7 @@ def _compute_dict_stat(
         for score in dict_scores:
             key_value = value_to_float(score.value[key])  # type: ignore
             if _is_reducible(key_value):
-                values.append(value_to_float(key_value))
+                values.append(key_value)
 
         if len(values) == 0:
             dict_result[key] = float("nan")
@@ -387,7 +442,7 @@ def _compute_scalar_stat(
 
 def _is_unscored(value: Value) -> bool:
     r"""Check if a score value is the NaN-at-root unscored sentinel."""
-    return isinstance(value, float) and np.isnan(value)
+    return isinstance(value, float) and math.isnan(value)
 
 
 def _first_scored(scores: list[Score]) -> Score | None:
@@ -402,7 +457,8 @@ def _partition_dict_scores(scores: list[Score]) -> list[Score]:
     r"""Return the subset of scores whose value is a dict.
 
     Skips scores with NaN-at-root (treated as unscored). Raises ValueError
-    if any score has a value that is neither a dict nor a NaN scalar.
+    if any score has a value that is neither a dict nor a NaN scalar, or if the
+    dict-shaped scores don't all share the same keys.
     """
     result: list[Score] = []
     for score in scores:
@@ -414,6 +470,21 @@ def _partition_dict_scores(scores: list[Score]) -> list[Score]:
             raise ValueError(
                 "Attempting to reduce a dictionary score for a non-dictionary value"
             )
+
+    # Reducers walk the keys of the first dict and look them up in every other
+    # dict, so differing keys across epochs either crash with a KeyError or
+    # silently drop the extra keys. Reject the inconsistency up front.
+    if result:
+        keys = set(result[0].as_dict().keys())
+        for score in result[1:]:
+            score_keys = set(score.as_dict().keys())
+            if score_keys != keys:
+                raise ValueError(
+                    "Cannot reduce dictionary scores with mismatched keys: "
+                    f"{sorted(keys)} vs {sorted(score_keys)}. "
+                    "Every epoch must score the same keys; return a NaN score to "
+                    "mark an individual epoch as unscored."
+                )
     return result
 
 
@@ -421,7 +492,8 @@ def _partition_list_scores(scores: list[Score]) -> list[Score]:
     r"""Return the subset of scores whose value is a list.
 
     Skips scores with NaN-at-root (treated as unscored). Raises ValueError
-    if any score has a value that is neither a list nor a NaN scalar.
+    if any score has a value that is neither a list nor a NaN scalar, or if the
+    list-shaped scores don't all share the same length.
     """
     result: list[Score] = []
     for score in scores:
@@ -431,6 +503,21 @@ def _partition_list_scores(scores: list[Score]) -> list[Score]:
             continue
         else:
             raise ValueError("Attempting to reduce a list score for a non-list value")
+
+    # Reducers walk the indices of the first list and read them from every other
+    # list, so differing lengths across epochs either crash with an IndexError
+    # or silently drop the trailing values. Reject the inconsistency up front.
+    if result:
+        length = len(result[0].as_list())
+        for score in result[1:]:
+            score_length = len(score.as_list())
+            if score_length != length:
+                raise ValueError(
+                    "Cannot reduce list scores with mismatched lengths: "
+                    f"{length} vs {score_length}. "
+                    "Every epoch must produce the same number of values; return a "
+                    "NaN score to mark an individual epoch as unscored."
+                )
     return result
 
 
@@ -461,6 +548,11 @@ def _nan_score(scores: list[Score]) -> Score:
         value: the reduced Value
         scores: ths list of scores being reduced
     """
+    # An empty list still routes here via `_first_scored` returning None; there
+    # are no fields to carry over, so return a bare NaN score rather than
+    # indexing `scores[0]`.
+    if not scores:
+        return Score(value=float("nan"))
     return Score(
         value=float("nan"),
         # retain remaining fields only if equal across all Scores
@@ -476,4 +568,4 @@ def _nan_score(scores: list[Score]) -> Score:
 
 def _is_reducible(value: str | int | float | bool) -> bool:
     """Check if a value is reducible (not a NaN float)."""
-    return not (isinstance(value, float) and np.isnan(value))
+    return not (isinstance(value, float) and math.isnan(value))

@@ -89,6 +89,42 @@ def test_reasoning_parse_unclosed_tag():
     assert reasoning is None
 
 
+def test_reasoning_parse_nested_blocks():
+    content, reasoning = parse_content_with_reasoning(
+        "<think>Outer <think>inner</think> continues</think>Visible text"
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Outer <think>inner</think> continues"
+    assert content == "Visible text"
+
+
+def test_reasoning_parse_nested_blocks_with_extra_close_tag():
+    content, reasoning = parse_content_with_reasoning(
+        "<think>Outer <think>inner</think> continues</think></think>Visible text"
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Outer <think>inner</think> continues"
+    assert content == "</think>Visible text"
+
+
+def test_reasoning_parse_malformed_nested_block_falls_back():
+    content, reasoning = parse_content_with_reasoning(
+        "<think>Outer <think> inner text </think>Visible text"
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Outer <think> inner text"
+    assert content == "Visible text"
+
+
+def test_reasoning_parse_unclosed_nested_block_falls_back():
+    content, reasoning = parse_content_with_reasoning(
+        "<think>Outer <think>inner</think> continues<think> inner </think>Visible text"
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Outer <think>inner"
+    assert content == "continues<think> inner </think>Visible text"
+
+
 # New tests for signature attribute
 def test_reasoning_parse_with_signature():
     content, reasoning = parse_content_with_reasoning(
@@ -403,3 +439,17 @@ def test_reasoning_parse_with_invalid_internal_json():
     assert reasoning is not None
     assert reasoning.internal is None  # Invalid JSON should result in None
     assert reasoning.reasoning == "Reasoning"
+
+
+def test_reasoning_parse_redacted_collapses_wrapped_payload():
+    encrypted = "abcDEF123+/=" * 50
+    wrapped = "\n".join(encrypted[i : i + 17] for i in range(0, len(encrypted), 17))
+
+    content, reasoning = parse_content_with_reasoning(
+        f'<think signature="rs_123" redacted="true">\n{wrapped}\n</think>Content'
+    )
+
+    assert reasoning is not None
+    assert reasoning.reasoning == encrypted
+    assert reasoning.redacted is True
+    assert content == "Content"

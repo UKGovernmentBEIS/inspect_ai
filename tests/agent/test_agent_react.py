@@ -202,6 +202,20 @@ def test_react_agent_custom_prompt() -> None:
     )
 
 
+def test_react_default_prompt_encourages_parallel_tools() -> None:
+    # the default assistant prompt should encourage parallel tool calls and no
+    # longer carry the old sequential "send more messages" framing.
+    from inspect_ai.agent._types import PARALLEL_TOOLS_PROMPT
+
+    log = run_react_agent(tools=[addition()])
+    assert log.samples
+    system_msg = next(
+        m for m in log.samples[0].messages if isinstance(m, ChatMessageSystem)
+    )
+    assert PARALLEL_TOOLS_PROMPT in system_msg.text
+    assert "send more messages with additional tool calls" not in system_msg.text
+
+
 def test_react_agent_custom_submit() -> None:
     log = run_react_agent(
         prompt=AgentPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE), tools=[addition()]
@@ -389,6 +403,102 @@ def test_react_agent_on_continue_null():
     messages = log.samples[0].messages
     assert len(messages) == 7  # on continue should only appear once
     assert messages[-2].text == DEFAULT_CONTINUE_PROMPT.format(submit="submit")
+
+
+def test_react_agent_on_continue_str_with_braces():
+    # an on_continue string containing literal braces (e.g. a JSON example)
+    # must be passed through verbatim — only the documented {submit}
+    # placeholder is substituted, other braces are not str.format() fields.
+    on_continue = 'Call a tool, e.g. {"name": "{submit}", "answer": "..."}'
+    addition_task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=react(tools=[addition()], on_continue=on_continue),
+        scorer=compare_quantities(),
+    )
+    log = eval(
+        addition_task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", "I think it is 2."),
+                ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": "2"}),
+            ],
+        ),
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].error is None
+    messages = log.samples[0].messages
+    assert messages[-2].text == 'Call a tool, e.g. {"name": "submit", "answer": "..."}'
+
+
+def test_react_agent_on_continue_func_with_braces():
+    # an on_continue callable may echo model output back to the model; literal
+    # braces in that output (model-controlled) must not be treated as
+    # str.format() fields and crash the agent.
+    async def on_continue(state: AgentState) -> bool | str:
+        if not state.output.message.tool_calls:
+            return f'You said "{state.output.completion}". Please call {{submit}}.'
+        return True
+
+    addition_task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=react(tools=[addition()], on_continue=on_continue),
+        scorer=compare_quantities(),
+    )
+    log = eval(
+        addition_task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", "I refuse. {pwned}"),
+                ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": "2"}),
+            ],
+        ),
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].error is None
+    messages = log.samples[0].messages
+    assert messages[-2].text == 'You said "I refuse. {pwned}". Please call submit.'
+
+
+def test_react_agent_assistant_prompt_with_braces():
+    # a user-supplied assistant_prompt / submit_prompt may legitimately contain
+    # literal braces (e.g. a JSON output schema). Only the documented {submit}
+    # placeholder is substituted; other braces must be left intact and must
+    # not raise via str.format().
+    assistant_prompt = 'You are helpful. Output {"json": true}. Use {submit} to finish.'
+    log = run_react_agent(
+        prompt=AgentPrompt(assistant_prompt=assistant_prompt),
+        tools=[addition()],
+    )
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].error is None
+    system_msg = next(
+        m for m in log.samples[0].messages if isinstance(m, ChatMessageSystem)
+    )
+    assert '{"json": true}' in system_msg.text
+    assert f"Use {AGENT_SUBMIT_TOOL_NAME} to finish." in system_msg.text
+
+    # also exercise the branch where assistant_prompt has no {submit} so the
+    # separate submit_prompt (with braces of its own) is appended
+    log = run_react_agent(
+        prompt=AgentPrompt(
+            assistant_prompt='Respond with {"done": false} until ready.',
+            submit_prompt='When ready call {submit}() with {"done": true}.',
+        ),
+        tools=[addition()],
+    )
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].error is None
+    system_msg = next(
+        m for m in log.samples[0].messages if isinstance(m, ChatMessageSystem)
+    )
+    assert '{"done": false}' in system_msg.text
+    assert f'call {AGENT_SUBMIT_TOOL_NAME}() with {{"done": true}}.' in system_msg.text
 
 
 def test_react_agent_on_continue_func():

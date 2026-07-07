@@ -1,8 +1,6 @@
 from logging import getLogger
 from typing import cast
 
-import numpy as np
-
 from .._metric import (
     Metric,
     SampleScore,
@@ -35,7 +33,14 @@ def bootstrap_stderr(
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
+        if not values:
+            # No scores to resample; return 0 rather than nan (and avoid the
+            # numpy empty-slice warnings from the resampling loop), mirroring
+            # the insufficient-data guards in stderr()/std()/var().
+            return 0.0
         std = np.std(
             [
                 np.mean(np.random.choice(values, len(values), replace=True))
@@ -73,6 +78,8 @@ def stderr(
         For details, see Appendix A of https://arxiv.org/pdf/2411.00640.
         The version here uses a finite cluster correction (unlike the paper)
         """
+        import numpy as np
+
         assert cluster is not None
         cluster_list = []
         value_list = []
@@ -94,6 +101,12 @@ def stderr(
         unique_clusters = np.unique(clusters)
         cluster_count = len(unique_clusters)
 
+        # The finite-cluster correction divides by (cluster_count - 1), so
+        # mirror the non-clustered path's n < 2 guard and return 0 rather
+        # than NaN/inf when there is only a single cluster.
+        if cluster_count < 2:
+            return 0.0
+
         # Compute clustered variance using NumPy operations
         clustered_variance = 0.0
         for cluster_id in unique_clusters:
@@ -112,6 +125,8 @@ def stderr(
         return cast(float, standard_error)
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         n = len(values)
 
@@ -151,6 +166,8 @@ def std(to_float: ValueToFloat = value_to_float()) -> Metric:
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         n = len(values)
 
@@ -185,6 +202,8 @@ def var(to_float: ValueToFloat = value_to_float()) -> Metric:
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         n = len(values)
         # variance is calculated by dividing by n-ddof so ensure

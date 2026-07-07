@@ -1,4 +1,6 @@
+import asyncio
 import os
+import re
 from typing import Any, Callable
 
 import pytest
@@ -8,11 +10,14 @@ from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
-from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
+from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelName
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.scorer import model_graded_fact, model_graded_qa
-from inspect_ai.scorer._model import neutralize_structural_delimiters
+from inspect_ai.scorer import INCORRECT, Target, model_graded_fact, model_graded_qa
+from inspect_ai.scorer._model import (
+    DEFAULT_GRADE_PATTERN,
+    neutralize_structural_delimiters,
+)
 from inspect_ai.solver._task_state import TaskState
 
 
@@ -144,6 +149,38 @@ def test_model_role_precedence_for_model_graded_scorer(
     assert grading_event.role == expected_role
 
 
+def test_model_graded_answer_set_on_grade_parse_failure():
+    # issue #4025: when the grader output has no parseable GRADE: token the scorer
+    # falls into the parse-failure branch. value is INCORRECT, but the answer field
+    # must still carry the model's completion (matching the grade-found branch) so
+    # the log viewer doesn't show an empty answer.
+    subject_answer = "The capital of France is Paris."
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="looks right")])
+        ],
+    )
+    subject_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                "mockllm/model", [ContentText(text=subject_answer)]
+            )
+        ],
+    )
+    task = Task(
+        scorer=model_graded_fact(model=grader_model),
+        dataset=[Sample(input="What is the capital of France?", target="Paris")],
+    )
+    log = eval(task, model=subject_model)[0]
+
+    assert log.samples
+    score = log.samples[0].scores["model_graded_fact"]
+    assert score.value == INCORRECT
+    assert score.answer == subject_answer
+
+
 # Prompt injection tests (issue #3603)
 
 
@@ -198,6 +235,139 @@ _CUSTOM_TEMPLATE_LIST_ITEMS = (
 )
 def test_neutralize_structural_delimiters(raw: str, expected: str) -> None:
     assert neutralize_structural_delimiters(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ["grader_output", "expected"],
+    [
+        pytest.param("GRADE: C", "C", id="bare"),
+        pytest.param("Reasoning here.\nGRADE: C", "C", id="preceding_lines"),
+        pytest.param("Reasoning here.\nGRADE: C\n", "C", id="trailing_newline"),
+        pytest.param(
+            "The submission matches.\nGRADE: C\nHope this helps!",
+            "C",
+            id="trailing_text_after_grade_line",
+        ),
+        pytest.param(
+            "I'd write GRADE: I if wrong but it's correct so GRADE: C",
+            "C",
+            id="last_grade_on_line_wins",
+        ),
+        pytest.param(
+            "Discussing GRADE: I as a hypothetical.\n\nGRADE: C\n",
+            "C",
+            id="last_grade_across_lines_wins",
+        ),
+        pytest.param(
+            "GRADE: C. No reason to downgrade: insufficient grounds.",
+            "C",
+            id="ignore_grade_suffix_in_prose",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u200bC",
+            "C",
+            id="zero_width_before_final_grade",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE\u200e:\u200fC",
+            "C",
+            id="direction_marks_around_separator",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u2063C",
+            "C",
+            id="invisible_separator_before_final_grade",
+        ),
+        pytest.param("grade: p", "p", id="case_insensitive"),
+    ],
+)
+def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> None:
+    # The default instructions tell the grader to *end* with 'GRADE: $LETTER',
+    # so the last occurrence is authoritative and trailing chatter must not
+    # cause the grade to be missed.
+    match = re.search(DEFAULT_GRADE_PATTERN, grader_output)
+    assert match is not None, f"no grade found in {grader_output!r}"
+    assert match.group(1) == expected
+
+
+@pytest.mark.parametrize(
+    "grader_output",
+    [
+        pytest.param(
+            "GRADE: C. No reason to downgrade: insufficient grounds.",
+            id="ignore_grade_suffix_in_prose",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u200bC",
+            id="zero_width_before_final_grade",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE\u200e:\u200fC",
+            id="direction_marks_around_separator",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u2063C",
+            id="invisible_separator_before_final_grade",
+        ),
+        pytest.param("The answer is right. grade: c", id="normalize_lowercase_grade"),
+    ],
+)
+def test_model_graded_default_grade_parsing_scores_correct_verdict(
+    grader_output: str,
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=grader_output)])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is the capital of France?", target="Paris")],
+        scorer=model_graded_qa(model=grader_model),
+    )
+    log = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", [ContentText(text="Paris")])
+            ],
+        ),
+        display="none",
+    )[0]
+
+    assert log.samples
+    assert log.results
+    assert log.samples[0].scores
+    score = log.samples[0].scores["model_graded_qa"]
+    assert score.value == "C"
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+def test_model_graded_custom_grade_pattern_preserves_capture_case() -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="RESULT: a")])
+        ],
+    )
+    scorer = model_graded_qa(
+        model=grader_model,
+        instructions="Return RESULT: a or RESULT: b.",
+        grade_pattern=r"(?is).*RESULT:\s*([ab])",
+    )
+    state = TaskState(
+        model=ModelName("mockllm/model"),
+        sample_id=1,
+        epoch=1,
+        input="Question",
+        messages=[ChatMessageUser(content="Question")],
+        output=ModelOutput.from_content("mockllm/model", [ContentText(text="Answer")]),
+    )
+    score = asyncio.run(scorer(state, Target("Criterion")))
+
+    assert score is not None
+    assert score.value == "a"
 
 
 def test_neutralize_structural_delimiters_is_idempotent() -> None:

@@ -9,6 +9,8 @@ from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import bash
+from inspect_ai.tool._tool_def import tool_registry_info
+from inspect_ai.tool._tool_info import parse_tool_info
 
 
 @skip_if_no_docker
@@ -77,3 +79,149 @@ def test_bash_profile() -> None:
     tool_call_response = get_tool_response(messages, tool_call)
     assert tool_call_response is not None
     assert tool_call_response.content == "custom_value\n"
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_bash_null_byte() -> None:
+    """A null byte in a bash command surfaces as a tool error, not a sample crash."""
+    task = minimal_task_for_tool_use(bash())
+    result = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name=bash.__name__,
+                    tool_arguments={"command": "echo -n '\x00' > /tmp/poc"},
+                ),
+            ],
+        ),
+    )[0]
+    assert result.samples
+    sample = result.samples[0]
+    assert sample.error is None
+    tool_call = get_tool_call(sample.messages, bash.__name__)
+    assert tool_call is not None
+    tool_response = get_tool_response(sample.messages, tool_call)
+    assert tool_response is not None
+    assert tool_response.error is not None
+    assert tool_response.error.type == "parsing"
+    assert "embedded null byte" in tool_response.error.message
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_bash_chmodless_script() -> None:
+    """Running a non-executable script surfaces as a tool response with stderr, not a sample crash."""
+    task = minimal_task_for_tool_use(bash())
+    result = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name=bash.__name__,
+                    tool_arguments={
+                        "command": "echo 'true' > /tmp/myscript && /tmp/myscript"
+                    },
+                ),
+            ],
+        ),
+    )[0]
+    assert result.samples
+    sample = result.samples[0]
+    assert sample.error is None, f"unexpected sample error: {sample.error}"
+    tool_call = get_tool_call(sample.messages, bash.__name__)
+    assert tool_call is not None
+    tool_response = get_tool_response(sample.messages, tool_call)
+    assert tool_response is not None
+    assert "Permission denied" in str(tool_response.content)
+
+
+def test_bash_default_description_unchanged() -> None:
+    """The opt-in background flag must not alter the default tool."""
+    info = parse_tool_info(bash())
+    assert info.description == "Use this function to execute bash commands."
+
+    # the model-facing name comes from the registry, not the raw function name
+    name, _, parallel, viewer, _, _ = tool_registry_info(bash())
+    assert name == "bash"
+    assert parallel is True
+    assert viewer is not None
+
+
+def test_bash_background_guidance() -> None:
+    info = parse_tool_info(bash(background=True))
+    assert info.name == "bash"
+    description = info.description
+    # the background pattern is present
+    assert "nohup" in description
+    assert 'echo "PID $!"' in description
+    assert "ps -p" in description
+    assert "tail -n 50" in description
+    # command parameter description is preserved through the ToolDef wrap
+    assert (
+        info.parameters.properties["command"].description
+        == "The bash command to execute."
+    )
+
+    # viewer and parallel survive the ToolDef wrap
+    name, _, parallel, viewer, _, _ = tool_registry_info(bash(background=True))
+    assert name == "bash"
+    assert parallel is True
+    assert viewer is not None
+
+
+def test_bash_background_timeout_templated() -> None:
+    description = parse_tool_info(bash(background=True, timeout=120)).description
+    assert "longer than 120 seconds" in description
+    assert "longer than 120s is itself terminated" in description
+
+
+def test_bash_background_no_timeout_omits_deadline() -> None:
+    description = parse_tool_info(bash(background=True)).description
+    # with no configured timeout there is no kill deadline to warn about
+    assert "terminates any command" not in description
+    assert "sleep" not in description.lower()
+
+
+def test_bash_background_no_eval_cueing() -> None:
+    """Model-facing guidance must not reference the sandbox / evaluation."""
+    for tool in (bash(background=True), bash(background=True, timeout=60)):
+        assert "sandbox" not in parse_tool_info(tool).description.lower()
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_bash_invalid_utf8() -> None:
+    """Non-UTF-8 command output does not crash the sample."""
+    task = minimal_task_for_tool_use(bash())
+    result = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name=bash.__name__,
+                    tool_arguments={"command": "printf '\\xff'"},
+                ),
+            ],
+        ),
+    )[0]
+    assert result.samples
+    sample = result.samples[0]
+    assert sample.error is None
+    tool_call = get_tool_call(sample.messages, bash.__name__)
+    assert tool_call is not None
+    tool_response = get_tool_response(sample.messages, tool_call)
+    assert tool_response is not None
+    # The sandbox interface allows `exec` to raise UnicodeDecodeError (which
+    # the tool call framework converts to a friendly result), but built-in
+    # sandboxes use lossy decoding instead of raising. Either is acceptable.
+    assert (
+        tool_response.error is not None and tool_response.error.type == "unicode_decode"
+    ) or tool_response.content is not None

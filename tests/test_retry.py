@@ -20,6 +20,7 @@ from inspect_ai.log import (
     write_eval_log,
 )
 from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
 
@@ -103,6 +104,62 @@ def test_eval_retry_with_model_generate_config():
     log = eval_retry(log)[0]
     assert log.status == "success"
     assert log.eval.model_generate_config == generate_config
+
+
+def test_eval_retry_preserves_token_limit_type():
+    log = eval(
+        model="mockllm/model",
+        tasks=hello_world(),
+        token_limit="output:1m",
+    )[0]
+
+    assert log.status == "success"
+    assert log.eval.config.token_limit == 1_000_000
+    assert log.eval.config.token_limit_type == "output"
+
+    log = eval_retry(log)[0]
+    assert log.status == "success"
+    assert log.eval.config.token_limit == 1_000_000
+    assert log.eval.config.token_limit_type == "output"
+
+
+def test_eval_retry_honors_zero_max_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = eval(
+        tasks=hello_world(),
+        model="mockllm/model",
+        max_retries=2,
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert original.plan.config.max_retries == 2
+    original = invalidate_samples(
+        original,
+        sample_uuids="all",
+        provenance=ProvenanceData(author="test"),
+    )
+
+    attempts = 0
+
+    async def retryable_failure(*args: object, **kwargs: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise RuntimeError("retryable failure")
+
+    monkeypatch.setattr(MockLLM, "generate", retryable_failure)
+    monkeypatch.setattr(MockLLM, "should_retry", lambda _self, _ex: True)
+
+    retried = eval_retry(
+        original,
+        max_retries=0,
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+
+    assert retried.status == "error"
+    assert retried.plan.config.max_retries == 0
+    assert attempts == 1
 
 
 @solver
@@ -222,6 +279,47 @@ def test_invalidation(tmp_path: Path):
     assert new_uuids != old_uuids
     reused_uuids = old_uuids.intersection(new_uuids)
     assert reused_uuids == old_uuids - {invalid_sample_uuid}
+
+
+def test_eval_retry_preserves_scorer_attribution(monkeypatch) -> None:
+    # Restored (cached) samples must carry the same SampleScore.scorer
+    # attribution as freshly executed samples. Regression: the cached path
+    # previously omitted `scorer=` so restored scores had scorer=None and
+    # were indistinguishable from solver-set scores in results aggregation.
+    import inspect_ai._eval.task.run as run_mod
+
+    captured: list[list[dict]] = []
+    orig = getattr(run_mod, "eval_results")
+
+    def spy(*args, **kwargs):
+        scores = kwargs.get("scores", args[1] if len(args) > 1 else None)
+        captured.append(list(scores))
+        return orig(*args, **kwargs)
+
+    monkeypatch.setattr(run_mod, "eval_results", spy)
+
+    # 2 samples: first passes, second fails -> retry restores first from
+    # cache and reruns second fresh
+    log1 = eval(
+        failing_task_deterministic([False, True]),
+        model="mockllm/model",
+        fail_on_error=False,
+    )[0]
+    assert log1.status == "success"
+    captured.clear()
+
+    log2 = eval_retry(log1)[0]
+    assert log2.status == "success"
+
+    by_id: dict[int, str | None] = {}
+    for call_scores in captured:
+        for d in call_scores:
+            for ss in d.values():
+                by_id[ss.sample_id] = ss.scorer
+
+    assert 1 in by_id and 2 in by_id
+    assert by_id[2] == "match", f"fresh sample scorer={by_id[2]!r}"
+    assert by_id[1] == "match", f"restored sample scorer={by_id[1]!r}"
 
 
 def test_eval_retry_preserves_token_usage():

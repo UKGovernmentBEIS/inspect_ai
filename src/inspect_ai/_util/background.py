@@ -1,6 +1,6 @@
 import asyncio
 from contextvars import ContextVar
-from typing import Awaitable, Callable
+from typing import Any, Callable, Coroutine
 
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
@@ -9,14 +9,14 @@ from ._async import PosArgsT, current_async_backend
 
 
 def run_in_background(
-    func: Callable[[Unpack[PosArgsT]], Awaitable[None]],
+    func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, None]],
     *args: Unpack[PosArgsT],
 ) -> None:
     """
     Runs the given asynchronous function in the background using the most appropriate form of structured concurrency.
 
     Args:
-      func (Callable[[Unpack[PosArgsT]], Awaitable[None]]): The asynchronous function to run in the background.
+      func (Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, None]]): The asynchronous function to run in the background.
       *args (Unpack[PosArgsT]): Positional arguments to pass to the function.
 
     Note:
@@ -38,7 +38,7 @@ def run_in_background(
             asyncio.create_task(wrapper())
         else:
             raise RuntimeError(
-                f"run_coroutine cannot be used {'with trio' if backend == 'trio' else 'outside of an async context'}"
+                f"run_in_background cannot be used {'with trio' if backend == 'trio' else 'outside of an async context'}"
             )
 
 

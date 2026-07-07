@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Literal, Mapping, Sequence
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class ScannerResultField(BaseModel):
@@ -26,7 +26,7 @@ class ScannerResultField(BaseModel):
 
 
 class MetadataField(BaseModel):
-    """A metadata key promoted out of metadata into a top level value."""
+    """Identifies a field in metadata."""
 
     kind: Literal["metadata"] = "metadata"
 
@@ -41,18 +41,18 @@ class MetadataField(BaseModel):
 
 
 class ScannerResultView(BaseModel):
-    """Customizes the rendering of scanner results."""
+    """Customizes the rendering of the sample scanner results."""
 
-    fields: list[ScannerResultField | MetadataField | str] | None = None
-    """Ordered list of sections to render. List order is render order; `None` means fall back to the built-in default order."""
+    fields: Sequence[ScannerResultField | MetadataField | str] | None = None
+    """Ordered list of sections to render. The list order provides any preferred render order; fields that are not included in the list will be rendered in their natural order after the included fields are rendered. `None` means fall back to the built-in default order. """
 
-    exclude_fields: list[ScannerResultField | MetadataField | str] = Field(
+    exclude_fields: Sequence[ScannerResultField | MetadataField | str] = Field(
         default_factory=list
     )
     """Fields to suppress. For a `ScannerResultField` entry, the matching
     section is removed from the resolved `fields` list (useful to subtract
     from the default order). For a `MetadataField` entry, the key is
-    additionally removed from the generic `metadata` section's dump."""
+    additionally removed from the generic `metadata` section's display."""
 
 
 class SampleScoreViewSort(BaseModel):
@@ -69,32 +69,106 @@ class SampleScoreViewSort(BaseModel):
 class SampleScoreView(BaseModel):
     """How the sample-header score panel should render when there are 3 or more scores."""
 
-    view: Literal["chips", "grid"] | None = None
+    default: Literal["chips", "grid"] | None = Field(
+        default=None, validation_alias=AliasChoices("default", "view")
+    )
     """Default rendering mode. `chips` = wrapping pills; `grid` = sortable
-    table. When None, the viewer picks based on score count."""
+    table. When None, the viewer picks based on score count. (The legacy
+    `view` key is still accepted on input.)"""
 
     sort: SampleScoreViewSort | None = None
     """Default sort. When None, scores render in their natural order."""
 
 
-class SamplesSort(BaseModel):
+TaskSamplesColumnId = Literal[
+    "sampleStatus",
+    "sampleId",
+    "sampleUuid",
+    "epoch",
+    "input",
+    "target",
+    "answer",
+    "tokens",
+    "duration",
+    "retries",
+    "error",
+    "limit",
+]
+"""Built-in column ids for the per-task Sample List grid.
+
+Score columns are referenced via `TaskSamplesColumn.score()` /
+`TaskSamplesSort.score()`. Plain strings remain valid for custom or
+forward-compatible ids."""
+
+
+def _score_column_id(scorer: str, score: str | None) -> str:
+    return f"score__{scorer}__{score if score is not None else scorer}"
+
+
+class TaskSamplesSort(BaseModel):
     """A single sort entry for the task's Sample List grid."""
 
-    column: str
-    """Column id (e.g. `"tokens"`, `"score__judge__correctness"`)."""
+    column: TaskSamplesColumnId | str
+    """Column id. Use a built-in `TaskSamplesColumnId` or `TaskSamplesSort.score()`
+    for score columns."""
 
     dir: Literal["asc", "desc"] = "asc"
     """Sort direction."""
 
+    @classmethod
+    def score(
+        cls,
+        scorer: str,
+        score: str | None = None,
+        *,
+        dir: Literal["asc", "desc"] = "asc",
+    ) -> "TaskSamplesSort":
+        """Sort entry referencing a score column.
 
-class SamplesColumn(BaseModel):
+        Args:
+            scorer: Scorer name (the key under `sample.scores`).
+            score: Sub-score key, used only when a scorer emits a
+                dictionary of named values. Defaults to `scorer`, which is
+                correct for the common case of a scorer producing a single
+                value. This is *not* a metric such as `accuracy` or
+                `stderr` — those are aggregated across samples and do not
+                appear as per-sample columns.
+            dir: Sort direction.
+        """
+        return cls(column=_score_column_id(scorer, score), dir=dir)
+
+
+class TaskSamplesColumn(BaseModel):
     """A column entry in the task's Sample List view."""
 
-    id: str
-    """Column id."""
+    id: TaskSamplesColumnId | str
+    """Column id. Use a built-in `TaskSamplesColumnId` or
+    `TaskSamplesColumn.score()` for score columns."""
 
     visible: bool = True
     """Whether the column is visible by default."""
+
+    @classmethod
+    def score(
+        cls,
+        scorer: str,
+        score: str | None = None,
+        *,
+        visible: bool = True,
+    ) -> "TaskSamplesColumn":
+        """Column entry referencing a score column.
+
+        Args:
+            scorer: Scorer name (the key under `sample.scores`).
+            score: Sub-score key, used only when a scorer emits a
+                dictionary of named values. Defaults to `scorer`, which is
+                correct for the common case of a scorer producing a single
+                value. This is *not* a metric such as `accuracy` or
+                `stderr` — those are aggregated across samples and do not
+                appear as per-sample columns.
+            visible: Whether the column is visible by default.
+        """
+        return cls(id=_score_column_id(scorer, score), visible=visible)
 
 
 class ScoreColorScale(BaseModel):
@@ -120,14 +194,12 @@ class ScoreColorScale(BaseModel):
     """Upper anchor for the gradient. None = descriptor's auto-detected max."""
 
 
-class SamplesView(BaseModel):
+class TaskSamplesView(BaseModel):
     """Default configuration for the task's Sample List grid.
 
-    Configures the list of samples shown in a task's eval-log view —
-    distinct from `sample_score_view`, which configures the score panel
-    within an individual sample's detail view.
+    Configures the list of samples shown in a task's eval-log view.
 
-    The viewer applies `SamplesView` only when the user has not
+    The viewer applies `TaskSamplesView` only when the user has not
     explicitly overridden the view in their browser. User overrides
     shadow the eval-author default; the resolution priority is
     `user > eval default > built-in`.
@@ -136,16 +208,12 @@ class SamplesView(BaseModel):
     name: str
     """Display name. Surfaced in the future view switcher."""
 
-    columns: list[SamplesColumn] | None = None
-    """Ordered list of columns. None = use the viewer's built-in defaults
+    columns: list[TaskSamplesColumn] | None = None
+    """Default Ordered list of columns. None = use the viewer's built-in defaults
     for this log's column shape."""
 
-    sort: list[SamplesSort] | None = None
-    """Sort order. None = no eval-author default (viewer default applies)."""
-
-    filter: str | None = None
-    """DSL filter expression applied by default (e.g.
-    `"has_error or score < 0.5"`, `"input_contains(\\"abc\\")"`)."""
+    sort: list[TaskSamplesSort] | None = None
+    """Default Sort order. None = no eval-author default (viewer default applies)."""
 
     multiline: bool | None = None
     """Default row layout. True = list-style multi-line rows; False =
@@ -164,11 +232,11 @@ class SamplesView(BaseModel):
     name itself when no override is set."""
 
     score_color_scales: (
-        dict[
+        Mapping[
             str,
             Literal["good-high", "good-low", "neutral", "diverging"]
             | ScoreColorScale
-            | dict[str, Literal["good", "bad", "warn", "info", "muted"]],
+            | Mapping[str, Literal["good", "bad", "warn", "info", "muted"]],
         ]
         | None
     ) = None
@@ -202,9 +270,8 @@ class SamplesView(BaseModel):
 class ViewerConfig(BaseModel):
     """Top-level viewer configuration.
 
-    `scanner_result_view` keys are fnmatch-style glob patterns (`"*"`,
-    ``"audit_*"``, exact names). Pass a ScannerResultView to apply a single
-    configuration to every scanner.
+    This allows per task customization of the
+    Task's sample list and each sample's score and scanner result display.
     """
 
     scanner_result_view: ScannerResultView | dict[str, ScannerResultView] = Field(
@@ -217,7 +284,7 @@ class ViewerConfig(BaseModel):
     """Defaults for the sample-header score panel. Honoured only when the
     user has not explicitly overridden the view or sort in their browser."""
 
-    task_samples_view: SamplesView | list[SamplesView] | None = None
+    task_samples_view: TaskSamplesView | list[TaskSamplesView] | None = None
     """Default configuration for the task's Sample List grid (the list of
     samples shown in a task's eval-log view). When a list is supplied,
     the first entry is the default for now; multi-view selection UI may

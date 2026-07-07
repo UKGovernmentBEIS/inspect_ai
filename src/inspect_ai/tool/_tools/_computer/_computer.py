@@ -149,7 +149,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           region (list[int] | None): The region to zoom into as [x0, y0, x1, y1] coordinates. Required only by `action=zoom`.
           scroll_amount (int | None): The number of 'clicks' to scroll. Required only by `action=scroll`.
           scroll_direction (Literal["up", "down", "left", "right] | None): The direction to scroll the screen. Required only by `action=scroll`.
-          start_coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen from which to initiate a drag. Required only by `action=scroll`.
+          start_coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen from which to initiate a drag. Required only by `action=left_click_drag`.
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
           press_enter (bool): If True and action is "type", press Return after typing. Defaults to False.
           actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
