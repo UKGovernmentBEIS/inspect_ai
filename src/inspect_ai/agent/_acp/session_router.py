@@ -31,6 +31,7 @@ from inspect_ai.agent._acp.event_mapping import (
 )
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_SESSION_ENDED_METHOD,
+    INSPECT_TURN_STATE_METHOD,
     REPLAY_META_KEY,
     PlanPolicyTransformer,
     RawEventForwarder,
@@ -177,6 +178,8 @@ class Forwarders:
         # Elicitation client unsubscribe callable (only set when the
         # peer advertised ``elicitation.form`` capability).
         self._elicitation_unsub: Callable[[], None] | None = None
+        # Turn-state subscriber unsubscribe callable.
+        self._turn_state_unsub: Callable[[], None] | None = None
         # Drain barrier — see :meth:`drain` and ``_run_semantic_forwarder``.
         # ``_notifications_sent`` counts items the forwarder has
         # fully processed (transform + send + finally tick). The
@@ -237,6 +240,12 @@ class Forwarders:
         # Register as an approver client so the configured
         # ``human_approver`` can route tool-approval prompts here.
         self._approver_unsub = target.attach_approver_client(self._approver_client)
+        # Subscribe to turn-scope transitions so the client gets an
+        # exact "agent is working" signal via ``inspect/turn_state``.
+        # The callback fires synchronously from the agent's task on
+        # the same event loop; schedule the send as a fire-and-forget
+        # task so it can't stall the agent's turn boundary.
+        self._turn_state_unsub = target.subscribe_turn_state(self._on_turn_state)
         # Register as an elicitation client only when the peer
         # advertised ``elicitation.form`` capability — clients without
         # that capability would silently drop ``elicitation/create``.
@@ -314,6 +323,12 @@ class Forwarders:
             except Exception:
                 logger.exception("Error detaching ACP elicitation client")
             self._elicitation_unsub = None
+        if self._turn_state_unsub is not None:
+            try:
+                self._turn_state_unsub()
+            except Exception:
+                logger.exception("Error detaching ACP turn_state subscriber")
+            self._turn_state_unsub = None
         if self._semantic_task is not None and not self._semantic_task.done():
             if graceful:
                 try:
@@ -478,6 +493,29 @@ class Forwarders:
             await self._connection.send_notification(
                 INSPECT_SESSION_ENDED_METHOD,
                 {"sessionId": self._wire_session_id},
+            )
+
+    def _on_turn_state(self, state: str) -> None:
+        """Sync callback from the agent's task; schedule the wire notification.
+
+        Fire-and-forget: the callback runs inside the agent's
+        :meth:`turn_scope` boundary on the same event loop as this
+        forwarder, so ``asyncio.create_task`` is safe. Any failure
+        (including a missing running loop in exotic test harnesses)
+        is swallowed under the same never-stall-the-agent contract
+        as the channel's own observer fan-out.
+        """
+        with acp_guard("ACP turn_state forwarder: scheduling failed"):
+            asyncio.create_task(
+                self._send_turn_state(state),
+                name=f"acp-fwd-turn-state-{self._target_session_id}",
+            )
+
+    async def _send_turn_state(self, state: str) -> None:
+        with acp_send_guard("ACP turn_state forwarder: send failed"):
+            await self._connection.send_notification(
+                INSPECT_TURN_STATE_METHOD,
+                {"sessionId": self._wire_session_id, "state": state},
             )
 
     async def drain(self) -> None:

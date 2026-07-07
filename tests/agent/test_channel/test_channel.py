@@ -310,6 +310,80 @@ def test_subscribe_drained_unsubscribe_is_idempotent() -> None:
     unsub()  # must not raise
 
 
+# ---------------------------------------------------------------------------
+# subscribe_turn_state observer
+# ---------------------------------------------------------------------------
+
+
+async def test_subscribe_turn_state_fires_started_then_ended() -> None:
+    """Normal turn_scope() fires "started" on entry and "ended" on exit."""
+    ch = AgentChannel()
+    states: list[str] = []
+    ch.subscribe_turn_state(lambda s: states.append(s))
+    with ch.turn_scope():
+        assert states == ["started"]
+    assert states == ["started", "ended"]
+
+
+async def test_subscribe_turn_state_fires_cancelled_on_interrupt() -> None:
+    """An operator interrupt fires "cancelled" (not "ended") on exit."""
+    ch = AgentChannel()
+    ref = ch._ref()
+    states: list[str] = []
+    ch.subscribe_turn_state(lambda s: states.append(s))
+
+    async def fire() -> None:
+        await anyio.sleep(0.01)
+        ref.interrupt(Cancel(reason="user_cancel"))
+
+    raised = False
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(fire)
+            with ch.turn_scope():
+                await anyio.sleep(1.0)
+    except BaseException as exc:
+        if isinstance(exc, AgentInterrupted):
+            raised = True
+        elif isinstance(exc, BaseExceptionGroup):
+            raised = any(isinstance(e, AgentInterrupted) for e in exc.exceptions)
+
+    assert raised
+    assert states == ["started", "cancelled"]
+
+
+def test_subscribe_turn_state_unsubscribe_is_idempotent() -> None:
+    ch = AgentChannel()
+    unsub = ch.subscribe_turn_state(lambda s: None)
+    unsub()
+    unsub()  # must not raise
+
+
+async def test_subscribe_turn_state_broken_observer_does_not_break_scope() -> None:
+    """A raising observer must not stall the agent's turn boundary."""
+    ch = AgentChannel()
+    good: list[str] = []
+
+    def broken(state: str) -> None:
+        raise RuntimeError("boom")
+
+    ch.subscribe_turn_state(broken)
+    ch.subscribe_turn_state(lambda s: good.append(s))
+    with ch.turn_scope():
+        pass
+    assert good == ["started", "ended"]
+
+
+def test_inert_channel_turn_scope_does_not_fire_turn_state() -> None:
+    """The inert singleton's turn_scope() is a no-op yield; observers never fire."""
+    states: list[str] = []
+    unsub = _INERT_CHANNEL.subscribe_turn_state(lambda s: states.append(s))
+    with _INERT_CHANNEL.turn_scope():
+        pass
+    assert states == []
+    unsub()
+
+
 def test_subscribe_drained_broken_observer_does_not_break_drain() -> None:
     """A raising observer must not break sibling observers or the drain itself.
 

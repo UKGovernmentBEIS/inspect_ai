@@ -128,6 +128,13 @@ class AgentChannel:
         # transport clears its ``interrupt_pending`` flag when a
         # pre-queued operator message is drained).
         self._on_drained: list[Callable[[list[ChannelItem]], None]] = []
+        # Producer-side observers fired when :meth:`turn_scope` enters
+        # ("started"), exits normally ("ended"), or exits via
+        # :exc:`AgentInterrupted` ("cancelled"). Producers register via
+        # :meth:`subscribe_turn_state` to learn the agent's working /
+        # idle boundary without inferring it from drains or scope
+        # presence.
+        self._on_turn_state: list[Callable[[str], None]] = []
         # External-reach marker count. Producers that represent a
         # reachable external surface (e.g. an ACP socket server actually
         # accepting client connections) call ``mark_live`` to flip
@@ -205,13 +212,16 @@ class AgentChannel:
         self._pending_interrupt = False
         with anyio.CancelScope() as cs:
             self._scope = cs
+            self._fire_turn_state("started")
             try:
                 yield
             finally:
                 self._scope = None
         if cs.cancelled_caught and self._pending_interrupt:
             self._pending_interrupt = False
+            self._fire_turn_state("cancelled")
             raise AgentInterrupted()
+        self._fire_turn_state("ended")
 
     def _drain(self) -> list[ChannelItem]:
         """Pop and return all currently-queued items (non-blocking).
@@ -266,6 +276,48 @@ class AgentChannel:
                 pass
 
         return _unsubscribe
+
+    def subscribe_turn_state(
+        self, callback: Callable[[str], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired on :meth:`turn_scope` transitions.
+
+        The callback receives ``"started"`` immediately after the
+        scope binds, ``"ended"`` on normal exit, and ``"cancelled"``
+        when the scope exits via :exc:`AgentInterrupted`. A
+        sample-level cancel (or any other exception) propagating out
+        of the scope fires nothing — the consumer's loop is unwinding
+        and the session-end signal is the producer's cue.
+
+        Same resilience contract as :meth:`subscribe_drained`:
+        callbacks run synchronously in the consumer's task and
+        exceptions are swallowed so a broken observer cannot stall
+        the agent loop. Returns an idempotent unsubscribe callable.
+
+        Producer use case: the ACP transport relays these transitions
+        as ``inspect/turn_state`` notifications so a client knows
+        exactly when the agent is working — ACP's ``session/prompt``
+        cannot carry that signal here because it returns immediately
+        (the channel decouples prompt delivery from turn execution).
+        """
+        self._on_turn_state.append(callback)
+
+        def _unsubscribe() -> None:
+            try:
+                self._on_turn_state.remove(callback)
+            except ValueError:
+                pass
+
+        return _unsubscribe
+
+    def _fire_turn_state(self, state: str) -> None:
+        # Snapshot to tolerate unsubscribes that fire during iteration.
+        for cb in list(self._on_turn_state):
+            try:
+                cb(state)
+            except Exception:
+                # Same resilience contract as the drain observer fan-out.
+                pass
 
     def mark_live(self) -> Callable[[], None]:
         """Producer marker — call iff this producer has external reach.

@@ -165,6 +165,17 @@ INSPECT_LIST_SAMPLES_METHOD = "inspect/list_samples"
 # picker). Params: ``{"sessionId": "<live-session-uuid>"}``.
 INSPECT_SESSION_ENDED_METHOD = "inspect/session_ended"
 
+# Server → client notification: the bound agent's turn scope has
+# transitioned. Params: ``{"sessionId": "...", "state": "started" |
+# "ended" | "cancelled"}``. Standard ACP expects ``session/prompt`` to
+# span the turn (request → ``end_turn`` response), but Inspect's
+# producer/consumer channel decouples prompt delivery from turn
+# execution — ``session/prompt`` returns immediately and the agent
+# drains the prompt at its own boundary. This notification gives an
+# ACP client an exact "agent is working" signal it would otherwise
+# have to infer from message-chunk traffic.
+INSPECT_TURN_STATE_METHOD = "inspect/turn_state"
+
 
 # ---------------------------------------------------------------------------
 # Capability-detection inputs

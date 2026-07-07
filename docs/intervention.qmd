@@ -311,6 +311,7 @@ Inspect-aware clients can opt into richer behavior by declaring capabilities at 
 | `inspect/cancel_tool_call` | Cancel one in-flight tool call without unwinding the turn. |
 | `inspect/event` | Raw transcript event stream (opt-in via `clientCapabilities._meta["inspect.raw_events"]`). |
 | `inspect/session_ended` | Notification when a sample has completed, so the client can flip its UI to a terminal state without waiting for socket EOF. |
+| `inspect/turn_state` | Notification when the agent enters or leaves a turn (`state` of `started`, `ended`, or `cancelled`) — an exact "agent is working" signal, since `session/prompt` returns immediately. |
 : {tbl-colwidths=[35,65]}
 
 Samples enumerated by `inspect/list_samples` carry an `inspect.interactive` flag. When it is `false` the sample is *observe-only* — its agent hasn't bound a turn loop (no `agent_channel()`), so the client can attach to stream the transcript and call `inspect/cancel_sample` / `inspect/cancel_tool_call`, but `session/prompt` is rejected with `invalid_request` and `session/cancel` is ignored. Custom clients should disable their message composer for these sessions. The bind confirmation echoes the same flag in its `_meta` under `inspect.interactive`. (The standard `session/new` picker lists only interactive sessions; observe-only ones are reachable solely via `inspect/list_samples`.)
