@@ -145,7 +145,7 @@ jobs:
 
       - name: Build
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter inspect build
+        run: pnpm --filter @meridianlabs/log-viewer build
 
       - name: Check dist is up-to-date
         run: |
@@ -155,7 +155,7 @@ jobs:
             echo ""
             echo "The build output has changed. Run:"
             echo "  cd src/inspect_ai/_view/ts-mono"
-            echo "  pnpm --filter inspect build"
+            echo "  pnpm --filter @meridianlabs/log-viewer build"
             echo ""
             echo "Then commit the updated dist/ directory."
             exit 1
