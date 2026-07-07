@@ -610,6 +610,63 @@ def _connection_pool_key(api: ModelAPI) -> str:
     return f"{type(api).__name__}:{api.connection_key()}"
 
 
+def model_concurrency_key(api: ModelAPI) -> str:
+    """Registry key of the model's generate-concurrency context.
+
+    The single definition of the key under which `_connection_concurrency`
+    registers a model's semaphore / adaptive controller — also computed by
+    `create_sample_semaphore` to scope a task's `DynamicSampleLimiter` to its
+    own model's controller, so the two sides can't drift.
+    """
+    return f"Model{_connection_pool_key(api)}"
+
+
+async def ensure_model_controller(model: "Model", config: GenerateConfig) -> None:
+    """Create the model's adaptive-connections controller if adaptive is active.
+
+    The controller is normally created lazily inside the model's first
+    generate; the run startup calls this ahead of time (before sandbox
+    startup, whose image pulls can take minutes) so the control channel can
+    observe and retune ``max_connections`` from the start of the run rather
+    than dropping a retune with a "not using adaptive connections" warning.
+
+    ``config`` is the task's would-be active generate config; it is composed
+    with the model's own config here exactly as ``_resolve_config`` does for
+    the active model, so this and the generate path cannot disagree on
+    whether adaptive is active or on the controller's bounds. That agreement
+    is load-bearing: the registry coalesces on key with first-created bounds
+    winning, so a controller created here from a divergent config would
+    silently override the bounds generates resolve (and a controller created
+    for a model whose generates take the static path would be a phantom —
+    reported and "retuned" by ``ctl limits`` while gating nothing).
+
+    A no-op for the ``NoModel`` sentinel (nothing will generate) and when the
+    composed config says adaptive isn't active (explicit ``max_connections``,
+    batch mode, or ``adaptive_connections=False``).
+    """
+    from inspect_ai.model._providers.none import NoModel
+    from inspect_ai.util._concurrency import (
+        adaptive_active,
+        get_or_create_semaphore,
+        resolve_adaptive,
+    )
+
+    if isinstance(model.api, NoModel):
+        return
+    effective = model.config.merge(config)
+    if adaptive_active(
+        effective.adaptive_connections, effective.max_connections, effective.batch
+    ):
+        adaptive = resolve_adaptive(effective.adaptive_connections)
+        await get_or_create_semaphore(
+            str(ModelName(model)),
+            adaptive.start,
+            model_concurrency_key(model.api),
+            True,
+            adaptive,
+        )
+
+
 class Model:
     """Model interface.
 
@@ -1417,7 +1474,7 @@ class Model:
         )
 
         model_name = ModelName(self)
-        key = f"Model{_connection_pool_key(self.api)}"
+        key = model_concurrency_key(self.api)
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
         # rules — both silent — keep deliberate overrides working under
