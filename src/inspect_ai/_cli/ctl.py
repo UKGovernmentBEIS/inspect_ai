@@ -1524,13 +1524,11 @@ def _resolve_scope(
             siblings=len(tasks_in_proc),
         )
     if per_task_option is not None:
-        click.echo(
+        _exit_ambiguous(
+            candidates,
             f"{per_task_option} targets a single task, but this process is "
-            f"running {len(candidates)} tasks. Pass a task id "
-            "(see `inspect ctl task`).",
-            err=True,
+            f"running {len(candidates)} tasks",
         )
-        raise click.exceptions.Exit(code=1)
     return _DirectiveScope(
         socket_path=socket_path,
         task_id=None,  # process-global scope
@@ -1793,11 +1791,29 @@ def _match_by_task_name(
 
 
 def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
-    """Echo an ambiguity error listing ``task_id (name)`` and exit."""
-    listing = ", ".join(
-        f"{_short_id(s.get('task_id', ''))} ({s.get('task') or '?'})" for s in matches
+    """Echo an ambiguity error with a candidate table and exit.
+
+    The same columns `ctl task list` leads with, so same-named tasks (one
+    task against several models) are still tellable apart — an inline
+    `id (name)` listing can't disambiguate those. A pid column appears only
+    when the candidates span more than one process (the common case is one).
+    """
+    click.echo(f"{prefix} — pass a task id to choose one:\n", err=True)
+    multi_process = len({s.get("pid") for s in matches}) > 1
+    headers = ("task id", "task", "model", "status") + (
+        ("pid",) if multi_process else ()
     )
-    click.echo(f"{prefix} ({listing}). Pass a task id to choose one.", err=True)
+    rows = [
+        (
+            _short_id(str(s.get("task_id") or "")),
+            str(s.get("task") or "?"),
+            str(s.get("model") or ""),
+            str(s.get("status") or ""),
+        )
+        + ((str(s.get("pid") or ""),) if multi_process else ())
+        for s in matches
+    ]
+    _render_table(headers, rows, err=True)
     raise click.exceptions.Exit(code=1)
 
 
@@ -2466,8 +2482,13 @@ def _print_samples_table(
     _render_table(tuple(headers), rows)
 
 
-def _render_table(headers: tuple[str, ...], rows: Sequence[tuple[str, ...]]) -> None:
-    """Print an aligned, dashed-underline table to stdout."""
+def _render_table(
+    headers: tuple[str, ...],
+    rows: Sequence[tuple[str, ...]],
+    *,
+    err: bool = False,
+) -> None:
+    """Print an aligned, dashed-underline table (to stderr when ``err``)."""
     widths = [
         max(len(h), max((len(r[i]) for r in rows), default=0))
         for i, h in enumerate(headers)
@@ -2476,10 +2497,10 @@ def _render_table(headers: tuple[str, ...], rows: Sequence[tuple[str, ...]]) -> 
     def _fmt_row(row: tuple[str, ...]) -> str:
         return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row))
 
-    click.echo(_fmt_row(headers))
-    click.echo(_fmt_row(tuple("-" * w for w in widths)))
+    click.echo(_fmt_row(headers), err=err)
+    click.echo(_fmt_row(tuple("-" * w for w in widths)), err=err)
     for row in rows:
-        click.echo(_fmt_row(row))
+        click.echo(_fmt_row(row), err=err)
 
 
 def _format_samples(samples: dict[str, Any]) -> str:
