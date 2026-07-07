@@ -19,12 +19,14 @@ from .config import (
     CheckpointSampleConfig,
     normalize_checkpoint,
 )
+from .report import ResumeReport
 
 __all__ = [
     "CheckpointConfig",
     "CheckpointSampleConfig",
     "CheckpointTrigger",
     "Manual",
+    "ResumeReport",
     "TimeInterval",
     "TokenInterval",
     "TurnInterval",

@@ -62,6 +62,9 @@ on:
   #   This is a one-time repository configuration that needs to be
   #   done by someone with admin permissions on the repo.
 
+permissions:
+  contents: read
+
 jobs:
   # VERSION CHANGE DETECTION:
   # This job compares sandbox_tools_version.txt between the PR branch and base branch.
@@ -79,7 +82,7 @@ jobs:
       old-version: ${{ steps.check-version.outputs.old-version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -122,15 +125,15 @@ jobs:
     if: needs.detect-version.outputs.version-changed == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build all executables
         run: |
@@ -138,7 +141,7 @@ jobs:
           python build_within_container.py --all --dev=false
 
       - name: Upload executable artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: inspect-sandbox-tools-v${{ needs.detect-version.outputs.new-version }}-all
           path: src/inspect_ai/binaries/inspect-sandbox-tools-*-v${{ needs.detect-version.outputs.new-version }}*
@@ -148,13 +151,17 @@ jobs:
     name: Update PR with build status
     runs-on: ubuntu-latest
     needs: [detect-version, build-executables]
+    permissions:
+      actions: read # getWorkflowRun
+      issues: write # PR comments
+      statuses: write # merge-gating commit status
     # PR-context only (comments + commit status). Skipped on workflow_dispatch,
     # which has no PR; ready for when the commented-out pull_request trigger returns.
     if: always() && github.event_name == 'pull_request' && needs.detect-version.outputs.version-changed == 'true'
     steps:
       - name: Comment on PR - Success
         if: needs.build-executables.result == 'success'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { data: run } = await github.rest.actions.getWorkflowRun({
@@ -186,7 +193,7 @@ jobs:
 
       - name: Comment on PR - Failure
         if: needs.build-executables.result == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const comment = `## ❌ Container Tools Build Failed
@@ -213,7 +220,7 @@ jobs:
       #    'build-tool-support' status check, ensuring no version bumps merge
       #    without successful executable builds
       - name: Set status check
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const state = '${{ needs.build-executables.result }}' === 'success' ? 'success' : 'failure';

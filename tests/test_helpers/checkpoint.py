@@ -4,6 +4,8 @@ import contextlib
 from collections.abc import AsyncIterator, Callable
 from typing import Literal, TypeVar
 
+from inspect_ai.util import ResumeReport
+
 T = TypeVar("T")
 
 
@@ -29,6 +31,12 @@ class RecordingCheckpointer:
     @property
     def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
         return "resume" if self._restored else "initial"
+
+    @property
+    def restored(self) -> ResumeReport | None:
+        # Distinct from the ``restored`` ctor arg (seeded tracked state): this
+        # is the on_resume report, which this double does not simulate.
+        return None
 
     async def tick(self) -> None:
         return None
