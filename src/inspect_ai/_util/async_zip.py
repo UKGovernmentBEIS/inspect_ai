@@ -40,7 +40,7 @@ class CentralDirectory:
     entries: list[ZipEntry]
     etag: str | None = None
     _by_name: dict[str, ZipEntry] | None = field(
-        default=None, compare=False, repr=False
+        default=None, init=False, compare=False, repr=False
     )
 
     def entry(self, name: str) -> ZipEntry | None:
