@@ -172,6 +172,7 @@ inspect = "inspect_ai._cli.main:main"
 [tool.typos.default.extend-words]
 ba = "ba"
 lsat = "lsat"
+aimd = "aimd"
 
 [dependency-groups]
 dev = ["inspect_ai[dev]"]

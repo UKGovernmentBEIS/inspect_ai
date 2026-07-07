@@ -1491,13 +1491,21 @@
             "type": "integer"
           },
           "reason": {
-            "enum": [
-              "slow_start",
-              "steady_state_up",
-              "rate_limit"
+            "anyOf": [
+              {
+                "enum": [
+                  "slow_start",
+                  "steady_state_up",
+                  "rate_limit"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "manual",
+                "type": "string"
+              }
             ],
-            "title": "Reason",
-            "type": "string"
+            "title": "Reason"
           },
           "timestamp": {
             "title": "Timestamp",
@@ -2661,6 +2669,21 @@
               }
             ],
             "title": "Token Limit"
+          },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "all",
+                  "output"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
           },
           "turn_limit": {
             "anyOf": [

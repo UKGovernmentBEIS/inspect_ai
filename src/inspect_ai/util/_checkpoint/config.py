@@ -15,10 +15,21 @@ filled in with their canonical defaults.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from ._triggers import CheckpointTrigger, TokenInterval
+
+if TYPE_CHECKING:
+    from inspect_ai.solver._task_state import TaskState
+    from inspect_ai.util._checkpoint.report import ResumeReport
+
+    OnCheckpointCallback = Callable[[TaskState], Awaitable[None]]
+    OnResumeCallback = Callable[
+        [TaskState, Literal["initial", "resume", "resume_for_scoring"]],
+        Awaitable["ResumeReport | str | None"],
+    ]
 
 DEFAULT_CHECKPOINT_TRIGGER = TokenInterval(every=500_000)
 """Trigger used when checkpointing is enabled but no layer set a trigger."""
@@ -109,12 +120,17 @@ class ResolvedCheckpointConfig:
     retention: Literal["delete", "retain"] = "delete"
     checkpoints_location: str | None = None
     max_consecutive_failures: int | None = None
+    on_checkpoint: OnCheckpointCallback | None = None
+    on_resume: OnResumeCallback | None = None
 
 
 def merge_checkpoint_configs(
     task: CheckpointConfig | None = None,
     sample: CheckpointSampleConfig | None = None,
     eval_: CheckpointConfig | None = None,
+    *,
+    on_checkpoint: OnCheckpointCallback | None = None,
+    on_resume: OnResumeCallback | None = None,
 ) -> ResolvedCheckpointConfig | None:
     """Merge checkpoint config layers across task, sample, and eval.
 
@@ -180,6 +196,8 @@ def merge_checkpoint_configs(
         retention=retention if retention is not None else "delete",
         checkpoints_location=checkpoints_location,
         max_consecutive_failures=max_consecutive_failures,
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
     )
 
 
