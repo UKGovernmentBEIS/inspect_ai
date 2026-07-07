@@ -732,7 +732,7 @@ def test_bare_task_noun_implies_list(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     result = _runner().invoke(ctl_command, ["task", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert "as_of" in payload
     assert payload["tasks"][0]["task_id"] == "aaa111"
 
@@ -759,7 +759,7 @@ def test_bare_sample_noun_empty_envelope(monkeypatch: pytest.MonkeyPatch) -> Non
     _patch_surface(monkeypatch, [], samples_by_eval={})
     result = _runner().invoke(ctl_command, ["sample", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["samples"] == []
     assert "as_of" in payload
 
@@ -776,7 +776,7 @@ def test_sample_list_unscoped_spans_tasks(monkeypatch: pytest.MonkeyPatch) -> No
     )
     result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["as_of"] == 123.0  # server-provided, not client-minted
     assert [(r["task_id"], r["sample_id"]) for r in payload["samples"]] == [
         ("aaa111", "s1"),
@@ -794,7 +794,7 @@ def test_sample_list_scoped_rows_still_carry_task_id(
         samples_by_eval={"eval_aaa111": [_sample_row("s1")]},
     )
     result = _runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["samples"][0]["task_id"] == "aaa111"
     assert payload["samples"][0]["task"] == "t1"
 
@@ -811,7 +811,7 @@ def test_sample_errors_unscoped_filters_across_tasks(
         },
     )
     result = _runner().invoke(ctl_command, ["sample", "errors", "--json"])
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert [(r["task_id"], r["sample_id"]) for r in payload["samples"]] == [
         ("aaa111", "bad"),
         ("bbb222", "retried"),
@@ -849,7 +849,7 @@ def test_sample_list_unscoped_skips_unreachable_eval(
     _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
     result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert [(r["task_id"], r["sample_id"]) for r in payload["samples"]] == [
         ("bbb222", "s2")
     ]
@@ -870,7 +870,7 @@ def test_sample_list_unscoped_single_eval_unreachable_still_skips(
     _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
     result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["samples"] == []
     assert "Skipping eval eval_aaa111" in result.stderr
 
@@ -937,7 +937,7 @@ def test_sample_show_merges_summary_row_and_detail(
         "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: detail
     )
     result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["task_id"] == "aaa111"
     assert payload["total_tokens"] == 42  # from the listing row
     assert payload["error"] == {"message": "boom"}  # detail wins on overlap
@@ -970,7 +970,7 @@ def test_sample_show_listing_unreachable_keeps_detail(
     )
     result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["error"] == {"message": "boom"}
     assert "total_tokens" not in payload  # the listing row never arrived
     assert "Could not read the samples listing for eval eval_aaa111" in result.stderr
@@ -1106,7 +1106,7 @@ def test_process_release_json_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     result = _runner().invoke(ctl_command, ["process", "release", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["target"] == {"pid": 7}
     assert payload["applied"] is True and payload["dry_run"] is False
     assert payload["detail"] == {"keep_alive": False, "changed": True}
@@ -1152,7 +1152,7 @@ def test_process_list_json(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     result = _runner().invoke(ctl_command, ["process", "list", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert "as_of" in payload
     rows = payload["processes"]
     assert [r["pid"] for r in rows] == [7, 8]
@@ -1206,7 +1206,7 @@ def test_events_unseeded_defaults_to_recent_tail(
 
     # the resolved identifiers are echoed on the page
     result = runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--json"])
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["task_id"] == "aaa111"
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
 
@@ -1220,7 +1220,7 @@ def test_events_json_no_servers_echoes_identifiers(
         ctl_command, ["sample", "events", "aaa111", "s1", "--json"]
     )
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["task_id"] is None
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
     assert payload["events"] == [] and payload["next"] is None and payload["done"]
@@ -1231,7 +1231,7 @@ def test_group_option_before_verb_forwards(monkeypatch: pytest.MonkeyPatch) -> N
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     result = _runner().invoke(ctl_command, ["task", "--json", "list"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert "as_of" in payload
     assert payload["tasks"][0]["task_id"] == "aaa111"
 
@@ -1371,7 +1371,7 @@ def test_log_flush_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> No
     )
     result = _runner().invoke(ctl_command, ["task", "log-flush", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["target"]["task_id"] == "aaa111"
     assert payload["applied"] is True and payload["dry_run"] is False
     assert payload["detail"] == {"flushed": 2}
