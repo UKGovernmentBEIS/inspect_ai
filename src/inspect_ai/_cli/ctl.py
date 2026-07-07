@@ -478,8 +478,8 @@ def sample_events_command(
     as listed by `inspect ctl task`); SAMPLE_ID is the sample's id; EPOCH
     defaults to 1.
 
-    The first (unseeded) call returns the recent tail (the last
-    20 events); each page ends with a `next` cursor — pass it back via
+    The first (unseeded) call returns a recent tail (default shown under
+    `--tail`); each page ends with a `next` cursor — pass it back via
     `--cursor` to get only what's new, without re-reading what you've seen.
     Filter with `--type`, widen the window with `--tail`, expand raw events
     with `--full`.
@@ -1071,7 +1071,15 @@ def _run_sample_show(
     try:
         _as_of, samples = _fetch_samples(target["socket_path"], target["eval_id"])
     except _ServerUnreachable as exc:
-        _exit_samples_unreachable(target["eval_id"], exc)
+        # The detail already in hand answers the question; the process exiting
+        # between the two reads shouldn't discard it.
+        click.echo(
+            f"Could not read the samples listing for eval {target['eval_id']} "
+            f"({_unreachable_detail(exc)}); showing the sample without its "
+            "summary fields (timing / tokens / messages).",
+            err=True,
+        )
+        samples = []
     row = next(
         (
             s

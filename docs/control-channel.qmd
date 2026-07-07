@@ -24,7 +24,7 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 
 : {tbl-colwidths=[35,65]}
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `task list` / `sample *` commands are read-only. The others adjust the run deliberately and conservatively: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, and `process keep`/`release` only affect what happens after the eval finishes. Nothing on the control channel can cancel or modify samples.
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `task list` / `sample *` / `process list` commands are read-only. The others adjust the run deliberately and conservatively: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, and `process keep`/`release` only affect what happens after the eval finishes. Nothing on the control channel can cancel or modify samples.
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 

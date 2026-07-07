@@ -945,6 +945,37 @@ def test_sample_show_merges_summary_row_and_detail(
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)  # echoed
 
 
+def test_sample_show_listing_unreachable_keeps_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`show` still answers from the fetched detail if the listing read fails.
+
+    The process exiting between the detail read and the supplemental listing
+    read costs only the summary fields (timing / tokens / messages), not the
+    authoritative detail already in hand.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    detail = {
+        "sample_id": "s1",
+        "epoch": 1,
+        "status": "error",
+        "retries": 0,
+        "error": {"message": "boom"},
+        "error_retries": [],
+        "scores": {},
+    }
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: detail
+    )
+    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["error"] == {"message": "boom"}
+    assert "total_tokens" not in payload  # the listing row never arrived
+    assert "Could not read the samples listing for eval eval_aaa111" in result.stderr
+
+
 def test_old_flat_spellings_hidden_from_help() -> None:
     result = _runner().invoke(ctl_command, ["--help"])
     for old in (
