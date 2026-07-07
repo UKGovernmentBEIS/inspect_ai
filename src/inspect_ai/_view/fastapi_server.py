@@ -30,9 +30,18 @@ from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.local_server import get_machine_ip
-from inspect_ai._view import notify
-from inspect_ai._view._dist import resolve_dist_directory
-from inspect_ai._view.common import (
+from inspect_ai.log import EvalLog
+from inspect_ai.log._edit import LogUpdate
+from inspect_ai.log._file import read_eval_log_headers_async
+from inspect_ai.log._recorders.buffer import sample_buffer
+from inspect_ai.log._recorders.buffer.types import (
+    PendingSampleUrls,
+    SampleData,
+    Samples,
+)
+
+from ._dist import resolve_dist_directory
+from .common import (
     AppConfig,
     LogDirResponse,
     LogFilesResponse,
@@ -53,7 +62,7 @@ from inspect_ai._view.common import (
     parse_log_token,
     stream_log_bytes,
 )
-from inspect_ai._view.network import (
+from .network import (
     BrowserOriginMiddleware,
     HostValidationMiddleware,
     SecurityHeadersMiddleware,
@@ -61,17 +70,9 @@ from inspect_ai._view.network import (
     resolve_viewer_network_policy,
     unsafe_network_warning,
 )
-from inspect_ai._view.scout_routes import get_scout_search_router
-from inspect_ai._view.user_info import UserInfo, user_info
-from inspect_ai.log import EvalLog
-from inspect_ai.log._edit import LogUpdate
-from inspect_ai.log._file import read_eval_log_headers_async
-from inspect_ai.log._recorders.buffer import sample_buffer
-from inspect_ai.log._recorders.buffer.types import (
-    PendingSampleUrls,
-    SampleData,
-    Samples,
-)
+from .notify import view_last_eval_time
+from .scout_routes import get_scout_search_router
+from .user_info import UserInfo, user_info
 
 logger = getLogger(__name__)
 
@@ -442,7 +443,7 @@ def view_server_app(
     ) -> list[str]:
         return (
             ["refresh-evals"]
-            if last_eval_time and notify.view_last_eval_time() > int(last_eval_time)
+            if last_eval_time and view_last_eval_time() > int(last_eval_time)
             else []
         )
 
