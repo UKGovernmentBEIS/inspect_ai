@@ -20,6 +20,7 @@ from inspect_ai.log import (
     write_eval_log,
 )
 from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
 
@@ -103,6 +104,62 @@ def test_eval_retry_with_model_generate_config():
     log = eval_retry(log)[0]
     assert log.status == "success"
     assert log.eval.model_generate_config == generate_config
+
+
+def test_eval_retry_preserves_token_limit_type():
+    log = eval(
+        model="mockllm/model",
+        tasks=hello_world(),
+        token_limit="output:1m",
+    )[0]
+
+    assert log.status == "success"
+    assert log.eval.config.token_limit == 1_000_000
+    assert log.eval.config.token_limit_type == "output"
+
+    log = eval_retry(log)[0]
+    assert log.status == "success"
+    assert log.eval.config.token_limit == 1_000_000
+    assert log.eval.config.token_limit_type == "output"
+
+
+def test_eval_retry_honors_zero_max_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = eval(
+        tasks=hello_world(),
+        model="mockllm/model",
+        max_retries=2,
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert original.plan.config.max_retries == 2
+    original = invalidate_samples(
+        original,
+        sample_uuids="all",
+        provenance=ProvenanceData(author="test"),
+    )
+
+    attempts = 0
+
+    async def retryable_failure(*args: object, **kwargs: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise RuntimeError("retryable failure")
+
+    monkeypatch.setattr(MockLLM, "generate", retryable_failure)
+    monkeypatch.setattr(MockLLM, "should_retry", lambda _self, _ex: True)
+
+    retried = eval_retry(
+        original,
+        max_retries=0,
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+
+    assert retried.status == "error"
+    assert retried.plan.config.max_retries == 0
+    assert attempts == 1
 
 
 @solver
