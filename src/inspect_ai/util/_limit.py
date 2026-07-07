@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import abc
 import logging
+import re
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from types import TracebackType
-from typing import TYPE_CHECKING, Generic, Iterator, Literal, TypeVar
+from typing import TYPE_CHECKING, Generic, Iterator, Literal, NamedTuple, TypeVar
 
 import anyio
+from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Self, override
 
 from inspect_ai._util.logger import warn_once
@@ -246,7 +248,104 @@ _sample_limit_data: ContextVar[SampleLimits | None] = ContextVar(
 )
 
 
-def token_limit(limit: int | None) -> _TokenLimit:
+class TokenLimit(BaseModel):
+    """Specification of a token limit (count plus which tokens are metered)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tokens: int = Field(ge=0)
+    """Maximum number of tokens."""
+
+    type: Literal["all", "output"] = Field(default="all")
+    """Which tokens are metered ("all" counts total tokens, "output" counts only output tokens, which include reasoning tokens)."""
+
+
+_TOKEN_LIMIT_RE = re.compile(
+    r"^\s*(?:(all|output)\s*:)?\s*(\d+(?:\.\d+)?)\s*([kmb]?)\s*$", re.IGNORECASE
+)
+_TOKEN_LIMIT_UNITS = {"k": 1_000, "m": 1_000_000, "b": 1_000_000_000}
+
+
+def parse_token_limit(value: str) -> int | TokenLimit:
+    """Parse a token limit string.
+
+    The format is `[all:|output:]<number>[k|m|b]` (case-insensitive), e.g.
+    `500000`, `500k`, `1m`, or `output:1m`. Suffixes are decimal
+    (`k` = 1,000, `m` = 1,000,000, `b` = 1,000,000,000) and decimal numbers
+    are allowed as long as the result is a whole number of tokens.
+
+    Args:
+      value: String to parse.
+
+    Returns:
+      A plain `int` for limits which meter all tokens, otherwise a `TokenLimit`.
+    """
+    m = _TOKEN_LIMIT_RE.match(value)
+    if m is None:
+        raise ValueError(
+            f"token limit: expected [all:|output:]<number>[k|m|b], got {value!r}"
+        )
+    type_prefix, number, unit = m.groups()
+    tokens = float(number) * (_TOKEN_LIMIT_UNITS[unit.lower()] if unit else 1)
+    if not tokens.is_integer():
+        raise ValueError(
+            f"token limit: must resolve to a whole number of tokens, got {value!r}"
+        )
+    if type_prefix is not None and type_prefix.lower() == "output":
+        return TokenLimit(tokens=int(tokens), type="output")
+    return int(tokens)
+
+
+def resolve_token_limit(
+    value: int | str | TokenLimit | None,
+) -> int | TokenLimit | None:
+    """Normalize a token limit value to its canonical form.
+
+    Strings are parsed with `parse_token_limit()`; a `TokenLimit` which meters
+    all tokens is collapsed to a plain `int` (so that e.g. serialized configs
+    only carry the richer form when output-metering is actually used).
+
+    Args:
+      value: Token limit value to normalize.
+    """
+    if isinstance(value, str):
+        value = parse_token_limit(value)
+    if isinstance(value, TokenLimit) and value.type == "all":
+        return value.tokens
+    return value
+
+
+class TokenLimitFields(NamedTuple):
+    """Decomposed form of a token limit (numeric limit plus metering type).
+
+    Used for config storage where the numeric limit must remain a plain `int`
+    for backwards compatibility (e.g. `EvalConfig`).
+    """
+
+    tokens: int | None
+    type: Literal["all", "output"] | None
+    """Metering type (None indicates "all")."""
+
+
+def token_limit_fields(value: int | str | TokenLimit | None) -> TokenLimitFields:
+    """Decompose a token limit into a numeric limit and metering type.
+
+    The type field is None (rather than "all") when all tokens are metered, so
+    that serialized configs only carry a type when output-metering is used.
+
+    Args:
+      value: Token limit value to decompose.
+    """
+    resolved = resolve_token_limit(value)
+    if isinstance(resolved, TokenLimit):
+        return TokenLimitFields(tokens=resolved.tokens, type=resolved.type)
+    return TokenLimitFields(tokens=resolved, type=None)
+
+
+def token_limit(
+    limit: int | TokenLimit | None,
+    type: Literal["all", "output"] = "all",
+) -> _TokenLimit:
     """Limits the total number of tokens which can be used.
 
     The counter starts when the context manager is opened and ends when it is closed.
@@ -261,9 +360,18 @@ def token_limit(limit: int | None) -> _TokenLimit:
     Args:
       limit: The maximum number of tokens that can be used while the context manager is
         open. Tokens used before the context manager was opened are not counted. A value
-        of None means unlimited tokens.
+        of None means unlimited tokens. Can also be a `TokenLimit` which specifies both
+        the count and the metering type (in which case `type` may not also be passed).
+      type: Which tokens are metered: "all" (total tokens, the default) or "output"
+        (output tokens only, which include reasoning tokens).
     """
-    return _TokenLimit(limit)
+    if isinstance(limit, TokenLimit):
+        if type != "all":
+            raise ValueError(
+                "Pass 'type' via either TokenLimit or the 'type' parameter, not both."
+            )
+        return _TokenLimit(limit.tokens, type=limit.type)
+    return _TokenLimit(limit, type=type)
 
 
 def record_model_usage(usage: ModelUsage) -> None:
@@ -672,15 +780,20 @@ class _Node:
 
 
 class _TokenLimit(Limit, _Node):
-    def __init__(self, limit: int | None) -> None:
+    def __init__(
+        self, limit: int | None, type: Literal["all", "output"] = "all"
+    ) -> None:
         from inspect_ai.model._model_output import ModelUsage
 
         super().__init__()
         self._validate_token_limit(limit)
+        if type not in ("all", "output"):
+            raise ValueError(f'Token limit type must be "all" or "output": {type!r}')
         self._limit = limit
+        self._type: Literal["all", "output"] = type
         self._usage = ModelUsage()
 
-    def __enter__(self) -> Limit:
+    def __enter__(self) -> _TokenLimit:
         super()._check_reuse()
         token_limit_tree.push(self)
         return self
@@ -695,7 +808,14 @@ class _TokenLimit(Limit, _Node):
 
     @property
     def usage(self) -> float:
+        if self._type == "output":
+            return self._usage.output_tokens
         return self._usage.total_tokens
+
+    @property
+    def type(self) -> Literal["all", "output"]:
+        """Which tokens are metered by this limit."""
+        return self._type
 
     @property
     def limit(self) -> int | None:
@@ -741,9 +861,14 @@ class _TokenLimit(Limit, _Node):
 
         if self.limit is None:
             return
-        total = self._usage.total_tokens
+        total = (
+            self._usage.output_tokens
+            if self._type == "output"
+            else self._usage.total_tokens
+        )
         if total > self.limit:
-            message = f"Token limit exceeded. value: {total:,}; limit: {self.limit:,}"
+            label = "Output token" if self._type == "output" else "Token"
+            message = f"{label} limit exceeded. value: {total:,}; limit: {self.limit:,}"
             transcript()._event(
                 SampleLimitEvent(type="token", limit=self.limit, message=message)
             )

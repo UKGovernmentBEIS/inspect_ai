@@ -235,11 +235,13 @@ async def eval_run(
                 else:
                     task.message_limit = task_eval_config.message_limit
 
-                # sample token limit
+                # sample token limit (limit and metering type travel as a unit)
                 if task_eval_config.token_limit is None:
                     task_eval_config.token_limit = task.token_limit
+                    task_eval_config.token_limit_type = task.token_limit_type
                 else:
                     task.token_limit = task_eval_config.token_limit
+                    task.token_limit_type = task_eval_config.token_limit_type
 
                 # sample turn limit
                 if task_eval_config.turn_limit is None:

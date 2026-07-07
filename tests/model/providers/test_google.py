@@ -1324,3 +1324,46 @@ def test_should_retry_unrelated_error_not_retried():
 
     assert isinstance(decision, RetryDecision)
     assert not decision.retry
+
+
+def test_usage_metadata_folds_thoughts_into_output_tokens():
+    from google.genai.types import GenerateContentResponseUsageMetadata
+
+    from inspect_ai.model._providers.google import usage_metadata_to_model_usage
+
+    usage = usage_metadata_to_model_usage(
+        GenerateContentResponseUsageMetadata(
+            prompt_token_count=100,
+            cached_content_token_count=40,
+            candidates_token_count=20,
+            thoughts_token_count=30,
+            total_token_count=150,
+        )
+    )
+
+    assert usage is not None
+    assert usage.input_tokens == 60
+    assert usage.input_tokens_cache_read == 40
+    # thoughts fold into output (OpenAI/Anthropic convention), with
+    # reasoning_tokens as the detail subset
+    assert usage.output_tokens == 50
+    assert usage.reasoning_tokens == 30
+    assert usage.total_tokens == 150
+
+
+def test_usage_metadata_without_thoughts():
+    from google.genai.types import GenerateContentResponseUsageMetadata
+
+    from inspect_ai.model._providers.google import usage_metadata_to_model_usage
+
+    usage = usage_metadata_to_model_usage(
+        GenerateContentResponseUsageMetadata(
+            prompt_token_count=10,
+            candidates_token_count=5,
+            total_token_count=15,
+        )
+    )
+
+    assert usage is not None
+    assert usage.output_tokens == 5
+    assert usage.reasoning_tokens == 0

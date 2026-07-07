@@ -88,6 +88,7 @@ from inspect_ai.util._display import (
     display_type_initialized,
     init_display_type,
 )
+from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
@@ -140,7 +141,7 @@ def eval(
     score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
-    token_limit: int | None = None,
+    token_limit: int | str | TokenLimit | None = None,
     turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
@@ -246,7 +247,10 @@ def eval(
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
-        token_limit: Limit on total tokens used for each sample.
+        token_limit: Limit on tokens used for each sample. An `int` (or a
+            `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+            with type "output" limits only output tokens. Also accepts strings
+            like "500k", "1m", or "output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
@@ -421,7 +425,7 @@ async def eval_async(
     score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
-    token_limit: int | None = None,
+    token_limit: int | str | TokenLimit | None = None,
     turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
@@ -510,7 +514,10 @@ async def eval_async(
             log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them) so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
-        token_limit: Limit on total tokens used for each sample.
+        token_limit: Limit on tokens used for each sample. An `int` (or a
+            `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+            with type "output" limits only output tokens. Also accepts strings
+            like "500k", "1m", or "output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
@@ -683,7 +690,7 @@ async def _eval_async_inner(
     score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
-    token_limit: int | None = None,
+    token_limit: int | str | TokenLimit | None = None,
     turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
@@ -859,6 +866,7 @@ async def _eval_async_inner(
 
         # create config
         epochs_reducer = epochs.reducer if epochs else None
+        token_limit_tokens, token_limit_type = token_limit_fields(token_limit)
         eval_config = EvalConfig(
             limit=limit,
             sample_id=sample_id,
@@ -874,7 +882,8 @@ async def _eval_async_inner(
             retry_on_error=retry_on_error,
             score_on_error=score_on_error,
             message_limit=message_limit,
-            token_limit=token_limit,
+            token_limit=token_limit_tokens,
+            token_limit_type=token_limit_type,
             turn_limit=turn_limit,
             cost_limit=cost_limit,
             time_limit=time_limit,
@@ -1591,7 +1600,13 @@ async def eval_retry_async(
         approval = eval_log.eval.config.approval
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
-        token_limit = eval_log.eval.config.token_limit
+        config_token_limit = eval_log.eval.config.token_limit
+        token_limit: int | TokenLimit | None = (
+            TokenLimit(tokens=config_token_limit, type="output")
+            if config_token_limit is not None
+            and eval_log.eval.config.token_limit_type == "output"
+            else config_token_limit
+        )
         turn_limit = eval_log.eval.config.turn_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit

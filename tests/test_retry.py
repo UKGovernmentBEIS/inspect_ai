@@ -106,6 +106,23 @@ def test_eval_retry_with_model_generate_config():
     assert log.eval.model_generate_config == generate_config
 
 
+def test_eval_retry_preserves_token_limit_type():
+    log = eval(
+        model="mockllm/model",
+        tasks=hello_world(),
+        token_limit="output:1m",
+    )[0]
+
+    assert log.status == "success"
+    assert log.eval.config.token_limit == 1_000_000
+    assert log.eval.config.token_limit_type == "output"
+
+    log = eval_retry(log)[0]
+    assert log.status == "success"
+    assert log.eval.config.token_limit == 1_000_000
+    assert log.eval.config.token_limit_type == "output"
+
+
 def test_eval_retry_honors_zero_max_retries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

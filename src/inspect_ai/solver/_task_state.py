@@ -3,7 +3,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 from random import Random
-from typing import Any, Type, Union, cast, overload
+from typing import Any, Literal, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -158,6 +158,7 @@ class TaskState:
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
+        token_limit_type: Literal["all", "output"] = "all",
         cost_limit: float | None = None,
         completed: bool = False,
         metadata: dict[str, Any] | None = None,
@@ -175,7 +176,7 @@ class TaskState:
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))
         self._message_limit = create_message_limit(message_limit)
-        self._token_limit = create_token_limit(token_limit)
+        self._token_limit = create_token_limit(token_limit, type=token_limit_type)
         self._cost_limit = create_cost_limit(cost_limit)
         self._completed = completed
         self._store = Store(store)
@@ -333,12 +334,15 @@ class TaskState:
 
     @property
     def token_limit(self) -> int | None:
-        """Limit on total tokens allowed per conversation."""
+        """Limit on tokens allowed per conversation."""
         return self._token_limit.limit
 
     @token_limit.setter
     def token_limit(self, tokens: int | None) -> None:
-        """Set limit on total tokens allowed per conversation.
+        """Set limit on tokens allowed per conversation.
+
+        The metering type (all vs. output tokens) is fixed at sample init and
+        is not affected by setting a new numeric limit.
 
         Also checks whether the current token usage exceeds the new limit.
         """
@@ -348,6 +352,11 @@ class TaskState:
         from inspect_ai.log._samples import set_active_sample_token_limit
 
         set_active_sample_token_limit(tokens)
+
+    @property
+    def token_limit_type(self) -> Literal["all", "output"]:
+        """Which tokens the token limit meters (fixed at sample init)."""
+        return self._token_limit.type
 
     @property
     def token_usage(self) -> int:
