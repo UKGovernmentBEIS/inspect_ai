@@ -323,6 +323,7 @@ def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
     assert isinstance(score.value, float) and math.isnan(score.value), (
         f"expected unscored (NaN) for {grader_output!r}, got {score.value!r}"
     )
+    assert score.metadata is not None
     assert score.metadata["unscored_reason"] == "grade_parse_failure"
 
 
