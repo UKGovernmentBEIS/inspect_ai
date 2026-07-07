@@ -41,11 +41,6 @@ POLLING_INTERVAL = 0.1
 
 SERVICE_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 FILENAME_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
-LIST_REQUESTS_SCRIPT = (
-    'for request_file in "$1"/*.json; do '
-    '[ -f "$request_file" ] && printf "%s\\0" "$request_file"; '
-    "done"
-)
 
 # Output limit applied when reading a service request file. A service request
 # payload (e.g. a model generate request carrying base64 images) can be far
@@ -304,13 +299,19 @@ class SandboxService:
 
     async def handle_requests(self) -> None:
         """Handle all pending service requests."""
+        # NUL-delimited so hostile filenames (e.g. containing newlines) can't
+        # forge extra entries in the listing
         result = await self._exec(
             [
-                "sh",
-                "-c",
-                LIST_REQUESTS_SCRIPT,
-                "sandbox-service-list",
+                "find",
                 self._requests_dir,
+                "-maxdepth",
+                "1",
+                "-name",
+                "*.json",
+                "-type",
+                "f",
+                "-print0",
             ]
         )
 
@@ -327,6 +328,11 @@ class SandboxService:
                             self._handle_request,
                             file,
                         )
+        else:
+            logger.warning(
+                f"Error listing requests for sandbox service '{self._name}': "
+                f"{result.stderr}"
+            )
 
     async def _handle_request(self, request_file: str) -> None:
         request_path = PurePosixPath(request_file)

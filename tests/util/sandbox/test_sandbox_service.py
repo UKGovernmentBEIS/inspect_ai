@@ -371,7 +371,7 @@ class _RequestReadSandbox:
       style), otherwise returns ``cat_stdout`` (use a non-JSON tail to model a
       provider that silently truncates an oversized read, e.g. docker/local).
     - ``wc -c``: returns ``file_size`` (the on-disk size check).
-    - queue listing: returns ``list_stdout`` (NUL-delimited request paths).
+    - queue listing (``find``): returns ``list_stdout`` (NUL-delimited paths).
     - ``tee``/``rm``: recorded in ``writes`` / ``removed``.
     """
 
@@ -394,7 +394,7 @@ class _RequestReadSandbox:
         concurrency: bool = True,
     ) -> ExecResult[str]:
         self.calls.append(cmd)
-        if cmd[:2] == ["sh", "-c"]:
+        if cmd[0] == "find":
             return cast(ExecResult[str], FakeExecResult(stdout=self.list_stdout))
         if cmd[0] == "cat":
             if self.raise_on_cat:
@@ -666,23 +666,28 @@ async def test_handle_requests_lists_paths_without_shell_interpolation() -> None
 
     await service.handle_requests()
 
-    list_call = fake.calls[0]
-    assert list_call[:2] == ["sh", "-c"]
-    assert list_call[3:] == ["sandbox-service-list", service._requests_dir]
-    assert service._requests_dir not in list_call[2]
-    assert all(
-        call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls[1:]
-    )
+    assert fake.calls[0] == [
+        "find",
+        service._requests_dir,
+        "-maxdepth",
+        "1",
+        "-name",
+        "*.json",
+        "-type",
+        "f",
+        "-print0",
+    ]
+    assert all(call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls)
     response_path = f"{service._responses_dir}/{request_id}.json"
     assert json.loads(fake.writes[response_path])["result"] == "ok"
 
 
-class _RealShellListingSandbox(_RequestReadSandbox):
-    """Variant of _RequestReadSandbox that runs the `sh -c` listing for real.
+class _RealListingSandbox(_RequestReadSandbox):
+    """Variant of _RequestReadSandbox that runs the queue listing for real.
 
     The canned fake always reports the listing as successful, which hides the
-    script's actual exit-status behavior; running it against a real directory
-    lets tests observe what the sandbox would.
+    listing command's actual exit-status behavior; running it against a real
+    directory lets tests observe what the sandbox would.
     """
 
     async def exec(
@@ -694,7 +699,7 @@ class _RealShellListingSandbox(_RequestReadSandbox):
         timeout: int | None = None,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        if cmd[:2] == ["sh", "-c"]:
+        if cmd[0] == "find":
             self.calls.append(cmd)
             completed = subprocess.run(cmd, capture_output=True, text=True)
             return cast(
@@ -711,7 +716,7 @@ class _RealShellListingSandbox(_RequestReadSandbox):
         )
 
 
-@pytest.mark.skipif(shutil.which("sh") is None, reason="sh not available")
+@pytest.mark.skipif(shutil.which("find") is None, reason="find not available")
 async def test_handle_requests_survives_stray_non_file_entry(tmp_path: Path) -> None:
     """A stray non-regular `*.json` entry must not starve the request queue.
 
@@ -720,7 +725,7 @@ async def test_handle_requests_survives_stray_non_file_entry(tmp_path: Path) -> 
     handled when one is present.
     """
     request_id = "listed-request"
-    fake = _RealShellListingSandbox(
+    fake = _RealListingSandbox(
         cat_stdout=json.dumps({"id": request_id, "method": "run", "params": {}})
     )
     service = _service_with_dirs(fake)
