@@ -5,6 +5,7 @@
 - Agent Bridge: Sandbox model proxy now forwards a failed generation to the proxied agent as a provider-dialect error response (preserving the original HTTP status where available).
 - Checkpointing: tasks can register `on_checkpoint`/`on_resume` callbacks; `on_resume` may return a `ResumeReport` surfaced to agents via `checkpointer().restored`.
 - Checkpointing: The restic binary download now retries transient network failures and verifies the binary against vendored checksums instead of fetching them at runtime.
+- Checkpointing: resume no longer hard-errors when a run contains a duplicate checkpoint span left by a tolerated (non-fatal) capture failure.
 - Control Channel: Added `inspect ctl limits` to view or retune a running eval's `max_samples` / `max_sandboxes` / `max_connections` concurrency limits mid-flight (with `--dry-run`).
 - Docker: Support the `devices` field on compose services (device mappings such as `/dev/kvm`), previously rejected as an unknown field.
 - Google: Include thinking tokens in reported `output_tokens` (matching the OpenAI/Anthropic convention where reasoning is a subset of output), so output-metered token limits and cost computations count Gemini thinking tokens.
@@ -29,6 +30,7 @@
 - Bugfix: A `react` sub-agent nested inside another `react` (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.
 
 ## 0.3.243 (30 June 2026)
+
 - Checkpointing: Run `restic backup` with `--quiet` so its progress output can't overflow the sandbox output cap on long backups.
 - Control Channel: Added `inspect ctl flush` (write a running eval's buffered samples to the log now, e.g. to make S3-backed results analyzable without waiting) and `inspect ctl buffer` (view or change the `--log-buffer` / `--log-shared` sample-buffer params of a running eval).
 - Control Channel: `inspect ctl tasks` no longer drops eval processes owned by another user, which were previously misreported as dead.
