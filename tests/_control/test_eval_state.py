@@ -122,6 +122,19 @@ def test_detach_eval_live_clears_live_data() -> None:
     detach_eval_live("never-registered")
 
 
+async def test_summary_carries_model_and_solver() -> None:
+    """Registration metadata (model, solver) flows through to /evals summaries."""
+    from inspect_ai._control.state import current_eval_summaries
+
+    register_eval(
+        "e1", 1, task="t", task_id="tid", model="mockllm/model", solver="react"
+    )
+
+    [entry] = await current_eval_summaries(0.0)
+    assert entry["model"] == "mockllm/model"
+    assert entry["solver"] == "react"
+
+
 async def test_deferred_sample_stats_resolve_lazily_and_once() -> None:
     """Reused evals' summaries-derived stats resolve on first read, memoized.
 
