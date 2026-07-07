@@ -398,7 +398,7 @@ def test_api_log_delete_rejects_passive_fetch_destinations(
     assert Path(full_path).exists()
 
 
-def test_api_log_delete_rejects_cross_origin_request(
+def test_api_log_delete_cross_origin_metadata_still_requires_frontend_header(
     view_client: ViewTestClient,
 ) -> None:
     fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
@@ -763,7 +763,7 @@ def test_api_log_message_rejects_passive_fetch_destinations(
     assert client_log_messages == []
 
 
-def test_api_log_message_rejects_cross_origin_request(
+def test_api_log_message_cross_origin_metadata_still_requires_frontend_header(
     view_client: ViewTestClient, client_log_messages: list[str]
 ) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
