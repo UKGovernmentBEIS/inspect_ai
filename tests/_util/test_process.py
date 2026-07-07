@@ -1,6 +1,7 @@
 """Unit tests for :mod:`inspect_ai._util.process`."""
 
 import os
+from unittest.mock import patch
 
 from inspect_ai._util.process import pid_alive
 
@@ -27,3 +28,13 @@ def test_pid_alive_for_high_pid_is_dead() -> None:
     # is essentially never assignable, so this is a stable "dead" PID
     # without racing against process recycling.
     assert pid_alive(999_999_999) is False
+
+
+def test_pid_alive_permission_error_means_alive() -> None:
+    """PermissionError from os.kill(pid, 0) means the process exists."""
+
+    def raise_permission_error(_pid: int, _sig: int) -> None:
+        raise PermissionError("Operation not permitted")
+
+    with patch("inspect_ai._util.process.os.kill", side_effect=raise_permission_error):
+        assert pid_alive(12345) is True
