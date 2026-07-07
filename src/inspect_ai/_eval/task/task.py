@@ -39,6 +39,7 @@ from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._checkpoint.config import CheckpointConfig, normalize_checkpoint
+from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
@@ -85,7 +86,7 @@ class Task:
         continue_on_fail: bool | None = None,
         score_on_error: bool | None = None,
         message_limit: int | None = None,
-        token_limit: int | None = None,
+        token_limit: int | str | TokenLimit | None = None,
         turn_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
@@ -132,7 +133,10 @@ class Task:
                 Errors still count toward the `fail_on_error` threshold for marking the eval log
                 as 'error'. Only takes effect after retries (if any) are exhausted.
             message_limit: Limit on total messages used for each sample.
-            token_limit: Limit on total tokens used for each sample.
+            token_limit: Limit on tokens used for each sample. An `int` (or a
+                `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+                with type "output" limits only output tokens. Also accepts strings
+                like "500k", "1m", or "output:1m".
             turn_limit: Limit on total turns (model generations) used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
@@ -195,7 +199,7 @@ class Task:
         self.continue_on_fail = continue_on_fail
         self.score_on_error = score_on_error
         self.message_limit = message_limit
-        self.token_limit = token_limit
+        self.token_limit, self.token_limit_type = token_limit_fields(token_limit)
         self.turn_limit = turn_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
@@ -270,7 +274,7 @@ def task_with(
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
     score_on_error: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
-    token_limit: int | None | NotGiven = NOT_GIVEN,
+    token_limit: int | str | TokenLimit | None | NotGiven = NOT_GIVEN,
     turn_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
@@ -320,7 +324,10 @@ def task_with(
             Errors still count toward the `fail_on_error` threshold for marking the eval log
             as 'error'. Only takes effect after retries (if any) are exhausted.
         message_limit: Limit on total messages used for each sample.
-        token_limit: Limit on total tokens used for each sample.
+        token_limit: Limit on tokens used for each sample. An `int` (or a
+            `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+            with type "output" limits only output tokens. Also accepts strings
+            like "500k", "1m", or "output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
@@ -380,7 +387,7 @@ def task_with(
     if not isinstance(message_limit, NotGiven):
         task.message_limit = message_limit
     if not isinstance(token_limit, NotGiven):
-        task.token_limit = token_limit
+        task.token_limit, task.token_limit_type = token_limit_fields(token_limit)
     if not isinstance(turn_limit, NotGiven):
         task.turn_limit = turn_limit
     if not isinstance(time_limit, NotGiven):
