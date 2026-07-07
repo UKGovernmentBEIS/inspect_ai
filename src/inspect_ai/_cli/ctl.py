@@ -123,7 +123,7 @@ def _forward_group_options(ctx: click.Context) -> None:
 
 @click.group("ctl")
 def ctl_command() -> None:
-    r"""Read the state of running evals and manage kept-alive processes.
+    """Read the state of running evals and manage kept-alive processes.
 
     Commands are grouped by resource noun:
 
@@ -134,16 +134,16 @@ def ctl_command() -> None:
       process  the running Inspect process — list (the bare noun), keep, release
 
     Each command operates on a live Inspect eval via the control
-    channel — the HTTP server every running ``inspect eval`` process
-    binds by default. All commands accept ``--json``; ``list`` verbs are
-    implied by the bare noun (``inspect ctl task`` ≡ ``inspect ctl task
-    list``). Further state-mutating directives (task cancel / drain, sample
+    channel — the HTTP server every running `inspect eval` process
+    binds by default. All commands accept `--json`; `list` verbs are
+    implied by the bare noun (`inspect ctl task` ≡ `inspect ctl task
+    list`). Further state-mutating directives (task cancel / drain, sample
     cancel / requeue) are planned but not yet available.
 
-    A process exits when its eval finishes; launch with ``inspect eval
-    --ctl-server=keep`` to keep it inspectable (and its results
-    readable) here until you run ``inspect ctl process release``.
-    """
+    A process exits when its eval finishes; launch with `inspect eval
+    --ctl-server=keep` to keep it inspectable (and its results
+    readable) here until you run `inspect ctl process release`.
+    """  # noqa: D301
     return None
 
 
@@ -574,7 +574,7 @@ def config_command(
     dry_run: bool,
     as_json: bool,
 ) -> None:
-    r"""View or retune a running eval's launch configuration mid-flight.
+    """View or retune a running eval's launch configuration mid-flight.
 
     Any `inspect eval` launch flag that can be retuned while the eval runs is
     settable here, under the same spelling. With no set options, shows the
@@ -606,7 +606,7 @@ def config_command(
     setting a task-scoped knob then requires the TASK. In a mixed-model run,
     `--model` restricts `--max-connections` (and the adaptive view) to
     matching models.
-    """
+    """  # noqa: D301
     _run_config(
         task,
         max_samples=max_samples,
