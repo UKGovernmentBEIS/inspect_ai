@@ -125,25 +125,14 @@ def _forward_group_options(ctx: click.Context) -> None:
 def ctl_command() -> None:
     """Read the state of running evals and manage kept-alive processes.
 
-    Commands are grouped by resource noun:
-
-    \b
-      task     running tasks — list (the bare noun), log-flush
-      sample   a task's samples — list (the bare noun), show, errors, events
-      config   view / retune launch config mid-flight (limits, log buffer)
-      process  the running Inspect process — list (the bare noun), keep, release
-
-    Each command operates on a live Inspect eval via the control
-    channel — the HTTP server every running `inspect eval` process
-    binds by default. All commands accept `--json`; `list` verbs are
-    implied by the bare noun (`inspect ctl task` ≡ `inspect ctl task
-    list`). Further state-mutating directives (task cancel / drain, sample
-    cancel / requeue) are planned but not yet available.
+    Commands are grouped by resource noun (listed below); `list` verbs are
+    implied by the bare noun (`inspect ctl task` ≡ `inspect ctl task list`).
+    All commands accept `--json`.
 
     A process exits when its eval finishes; launch with `inspect eval
-    --ctl-server=keep` to keep it inspectable (and its results
-    readable) here until you run `inspect ctl process release`.
-    """  # noqa: D301
+    --ctl-server=keep` to keep it inspectable here until you run
+    `inspect ctl process release`.
+    """
     return None
 
 
@@ -191,9 +180,9 @@ def _deprecation_note(old: str, new: str) -> None:
 def task_group(ctx: click.Context, as_json: bool) -> None:
     """Operate on the tasks of running evals (bare `task` lists them).
 
-    A task is the stable unit of work in a running process — its id survives
-    retries, unlike a per-attempt eval id. Verbs: `list` (implied by the bare
-    noun), `log-flush`; `add` / `cancel` / `drain` are planned.
+    Task ids are stable across retries and are the TASK selector other
+    commands take. `add` / `cancel` / `drain` are planned but not yet
+    available.
     """
     if ctx.invoked_subcommand is None:
         _run_task_list(as_json)
@@ -219,15 +208,11 @@ task_group.hint = lambda token: (
 def task_list_command(as_json: bool) -> None:
     """List running tasks across all live Inspect processes.
 
-    Each `--json` row carries the identifiers the other commands take:
-    `task_id` (the selector, stable across retries), plus `pid`,
-    `socket_path`, and `log_location` (where results are being written —
-    the handle for reading logs after the run).
-
-    A task is finished exactly when `completed_at` is non-null; `status`
-    (`running` / `completed`) is derived from it. Do NOT infer completion
-    from sample counts — a cancelled or errored eval finishes with
-    `completed < total`.
+    Each `--json` row carries the selectors other commands take (`task_id`,
+    `pid`) plus `log_location`, where results are being written. A task is
+    finished exactly when `completed_at` is non-null — do not infer
+    completion from sample counts (a cancelled or errored eval finishes
+    with `completed < total`).
     """
     _run_task_list(as_json)
 
@@ -244,15 +229,9 @@ def task_list_command(as_json: bool) -> None:
 def task_log_flush_command(task: str | None, as_json: bool) -> None:
     """Flush a running task's buffered samples to its log now.
 
-    Completed samples are buffered and written to the (possibly remote, eg. S3)
-    log only once the flush buffer fills. This forces that write immediately, so
-    the samples become readable / analyzable in the log without waiting. Safe to
-    repeat — a flush with nothing pending writes nothing.
-
-    TASK selects which running task to target — a task-id prefix or task name
-    (as listed by `inspect ctl task`); omit it when only one task is running
-    (a mutation never fans out — with several tasks running the selector is
-    required).
+    Completed samples are written to the (possibly remote) log only when
+    the buffer fills; this forces the write immediately. Safe to repeat.
+    TASK (a task-id prefix or name) is required when several tasks run.
     """
     _run_log_flush(task, as_json)
 
@@ -284,10 +263,8 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
 def sample_group(ctx: click.Context, active_since: float | None, as_json: bool) -> None:
     """Operate on samples of running evals (bare `sample` lists them).
 
-    Verbs: `list` (implied by the bare noun), `show`, `errors`, `events`;
-    `cancel` / `requeue` are planned. Reads take `TASK` (or `TASK SAMPLE_ID
-    [EPOCH]`) selectors; an omitted `TASK` on `list` / `errors` reads across
-    all running tasks.
+    An omitted TASK on `list` / `errors` reads across all running tasks.
+    `cancel` / `requeue` are planned but not yet available.
     """
     if ctx.invoked_subcommand is None:
         _run_sample_list(None, active_since, as_json)
@@ -328,16 +305,10 @@ def sample_list_command(
 ) -> None:
     """List the samples (running and completed) of running evals.
 
-    TASK selects one task (as shown by `inspect ctl task`): a task id (or
-    unique prefix), or a task name. A task id is stable across retries —
-    unlike a per-attempt eval id, it still resolves after a task errors
-    and is retried. A name matches at the start of the task name or after
-    a `/` (so `gpqa` matches `inspect_evals/gpqa_diamond`). Omitted, the
-    listing spans ALL running tasks (each row carries its `task_id`).
-
-    Pass `--active-since <ts>` to get only the samples that changed since a
-    prior poll (started or last active at/after that time) — use the `as_of`
-    value from the prior response's envelope, not a locally minted timestamp.
+    TASK is a task id (or unique prefix) or task name, matched at the start
+    or after a `/`; omitted, the listing spans all running tasks. To poll
+    for what changed, pass `--active-since` the `as_of` from the prior
+    response's envelope.
     """
     _run_sample_list(task, active_since, as_json)
 
@@ -354,14 +325,8 @@ def sample_list_command(
 def sample_errors_command(task: str | None, as_json: bool) -> None:
     """List the samples of running evals that errored or were retried.
 
-    A triage overview: one row per sample with a current error or any
-    retries, showing the latest error message. Drill into a single sample's
-    full detail (including prior attempts) with `inspect ctl sample show`.
-
-    TASK selects one running task — a task-id prefix or task name
-    (as listed by `inspect ctl task`); omitted, the listing spans ALL
-    running tasks (the eval-set triage question "what's erroring anywhere?"
-    is the zero-argument spelling).
+    One row per sample with the latest error message; an omitted TASK spans
+    all running tasks. Drill into one sample with `inspect ctl sample show`.
     """
     _run_sample_errors(task, as_json)
 
@@ -390,16 +355,10 @@ def sample_show_command(
 ) -> None:
     """Show one sample's summary and error history.
 
-    TASK selects which running eval to target (a task-id prefix or task name,
-    as listed by `inspect ctl task`); SAMPLE_ID is the sample's id (as shown
-    by `inspect ctl sample list`); EPOCH defaults to 1. The output echoes the
-    resolved `{sample_id, epoch}` so a defaulted epoch is visible.
-
-    Reports the sample's status / timing / token usage / score, the current
-    error (if the sample failed), and the error from each prior attempt
-    (task-level retries and sample-level `retry_on_error`). Pairs with
-    `inspect ctl sample events` as summary-vs-transcript drill-down. Pass
-    `--traceback` to expand full tracebacks.
+    Reports status / timing / token usage / score and the error from the
+    current and each prior attempt; use `inspect ctl sample events` for the
+    transcript. EPOCH defaults to 1 (the response echoes the resolved
+    epoch).
     """
     _run_sample_show(task, sample_id, epoch, show_traceback, as_json)
 
@@ -474,15 +433,9 @@ def sample_events_command(
 ) -> None:
     """Read one running sample's transcript events (cursored pull).
 
-    TASK selects which running eval to target (a task-id prefix or task name,
-    as listed by `inspect ctl task`); SAMPLE_ID is the sample's id; EPOCH
-    defaults to 1.
-
-    The first (unseeded) call returns a recent tail (default shown under
-    `--tail`); each page ends with a `next` cursor — pass it back via
-    `--cursor` to get only what's new, without re-reading what you've seen.
-    Filter with `--type`, widen the window with `--tail`, expand raw events
-    with `--full`.
+    The first call returns a recent tail; each page ends with a `next`
+    cursor — pass it back via `--cursor` to read only what's new. `done:
+    true` means the sample has terminated and no more events will come.
     """
     _run_sample_events(
         task,
@@ -576,39 +529,18 @@ def config_command(
 ) -> None:
     """View or retune a running eval's launch configuration mid-flight.
 
-    Any `inspect eval` launch flag that can be retuned while the eval runs is
-    settable here, under the same spelling. With no set options, shows the
-    current configuration. Scope is a property of each knob, not of this
-    command, and is labeled per-knob in the output:
+    Any `inspect eval` launch flag that can be retuned while the eval runs
+    is settable here, under the same spelling; with no set options, shows
+    the current configuration. Each option below states its scope (task- or
+    process-wide), and the output labels every knob with its scope. Pass
+    `--dry-run` to see what would change without applying it.
 
-    \b
-      --max-samples      task     sample concurrency
-      --max-sandboxes    process  per-provider sandbox concurrency
-      --max-connections  process  adaptive-connections scaling ceiling
-      --log-buffer       task     completed samples buffered per log write
-      --log-shared       task     shared-log event sync interval (seconds)
-
-    Lowering a concurrency limit below what's currently in use blocks new work
-    until in-flight holders drain — it never interrupts running samples;
-    raising it lets more start immediately. `--log-buffer` changes the
-    threshold for future writes only — to write what's already pending now,
-    run `inspect ctl task log-flush`. A knob with no adjustable limiter for
-    this task is reported with a warning rather than an error — including on
-    an explicit set, so a combined retune is never all-or-nothing; the one
-    hard error is setting `--log-buffer`/`--log-shared` on a task with no
-    live sample buffer.
-
-    Pass `--dry-run` with a set option to see what would change (including
-    the blast radius of a process-scoped knob) without applying it.
-
-    TASK selects which running task the task-scoped knobs target — a task-id
-    prefix or task name (as listed by `inspect ctl task`). Omit it to default
-    to the sole running task; in a multi-task process the process-scoped
-    knobs still work without a selector (they apply process-wide), while
-    setting a task-scoped knob then requires the TASK. In a mixed-model run,
-    `--model` restricts `--max-connections` (and the adaptive view) to
-    matching models.
-    """  # noqa: D301
+    Lowering a concurrency limit never interrupts running samples — new
+    work waits until in-flight holders drain. `--log-buffer` affects future
+    writes only (run `inspect ctl task log-flush` to write what's pending
+    now). TASK is required only for setting a task-scoped knob when several
+    tasks run.
+    """
     _run_config(
         task,
         max_samples=max_samples,
@@ -643,9 +575,8 @@ def config_command(
 def process_group(ctx: click.Context, as_json: bool) -> None:
     """Operate on running Inspect processes (bare `process` lists them).
 
-    Verbs: `list` (implied by the bare noun), `keep`, `release`. The
-    selector is a PID (positional); with a single running process it can
-    be omitted.
+    The selector is a positional PID, optional when a single process is
+    running.
     """
     if ctx.invoked_subcommand is None:
         _run_process_list(as_json)
@@ -690,20 +621,10 @@ def process_list_command(as_json: bool) -> None:
 def process_keep_command(pid: int | None, as_json: bool) -> None:
     """Keep a running inspect process alive after its eval finishes.
 
-    Posts to the process's control endpoint /keep route, latching keep-alive:
-    the process parks after the eval finishes (until `inspect ctl process
-    release` or Ctrl+C) instead of exiting. The inverse of `release`. Use it
-    to make a process you launched WITHOUT `--ctl-server=keep` inspectable —
-    its state readable, its log final — after the eval completes.
-
-    PID selects the process (as listed by `inspect ctl process`); with a
-    single running process it can be omitted.
-
-    Issued while the eval is still running, it takes effect when the eval
-    finishes; the keep-alive status shown by `inspect ctl task` flips to on.
-    `keep` and `release` are last-write-wins, so a `keep` issued after a
-    `release` (while the eval is still running) is the last word and restores
-    the park.
+    The process parks after the eval — state and results stay readable
+    here — until `inspect ctl process release` or Ctrl+C. The runtime
+    equivalent of launching with `--ctl-server=keep`; `keep` and `release`
+    are last-write-wins while the eval is still running.
     """
     _run_keep_alive(pid, keep=True, as_json=as_json)
 
@@ -720,17 +641,9 @@ def process_keep_command(pid: int | None, as_json: bool) -> None:
 def process_release_command(pid: int | None, as_json: bool) -> None:
     """Release a lingering --ctl-server=keep process so it can exit.
 
-    Posts to the process's control endpoint /release route, letting a parked
-    process exit. Issued while the eval is still running it means "exit when
-    done" — the process skips the keep-alive park and exits as soon as the
-    eval finishes — unless a later `keep` overrides it (`keep` and `release`
-    are last-write-wins).
-
-    PID selects the process (as listed by `inspect ctl process`); with a
-    single running process it can be omitted.
-
-    Does NOT cancel a running eval — it has no effect on in-flight samples
-    (cancelling a running eval is a later-phase directive, not yet available).
+    Issued while the eval is still running it means "exit when done",
+    unless a later `keep` overrides it (last-write-wins). Does NOT cancel
+    the eval or affect in-flight samples.
     """
     _run_keep_alive(pid, keep=False, as_json=as_json)
 

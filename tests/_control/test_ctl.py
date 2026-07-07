@@ -992,21 +992,6 @@ def test_old_flat_spellings_hidden_from_help() -> None:
         assert f"\n  {old} " not in result.output, old
 
 
-def test_help_tables_render_unwrapped() -> None:
-    r"""The `\b` no-rewrap marker needs a non-raw docstring to reach click.
-
-    A raw docstring leaves a literal backslash-b in the help text and click
-    then rewraps the command/knob tables into run-together paragraphs.
-    """
-    for args, table_row in (
-        ([], "task     running tasks"),
-        (["config"], "--max-samples      task"),
-    ):
-        result = _runner().invoke(ctl_command, [*args, "--help"])
-        assert "\\b" not in result.output, args
-        assert f"\n    {table_row}" in result.output, args
-
-
 def test_tasks_alias_delegates_with_deprecation_note(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
