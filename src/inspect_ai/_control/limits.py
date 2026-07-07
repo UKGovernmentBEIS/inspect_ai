@@ -4,7 +4,7 @@ Reads (and optionally retunes) a running task's concurrency limits mid-flight �
 ``max_samples`` (per-task sample concurrency) and ``max_sandboxes`` (per-provider
 sandbox concurrency, process-global). The first of the phase-3 modify directives
 (see ``design/control-channel.md``). Keyed by task_id — the identity that is
-stable across retry attempts — via ``GET``/``PATCH /tasks/<task-id>/limits``.
+stable across retry attempts — via ``GET``/``PATCH /tasks/<task-id>/config``.
 
 Both knobs are backed by a :class:`~inspect_ai.util._concurrency.ResizableLimiter`
 whose limit is settable at runtime: lowering it below the current in-use count
@@ -33,7 +33,7 @@ ones that apply.
 
 Since ``max_sandboxes`` and ``max_connections`` are process-global (shared across
 the process's tasks), :func:`process_limits` exposes them without a task — the
-process-level ``GET``/``PATCH /limits`` endpoint — for the common case of viewing
+process-level ``GET``/``PATCH /config`` endpoint — for the common case of viewing
 or throttling a whole process without naming one of its tasks.
 """
 

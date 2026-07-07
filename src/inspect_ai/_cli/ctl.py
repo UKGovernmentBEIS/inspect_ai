@@ -1078,7 +1078,18 @@ def _run_sample_events(
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
         if as_json:
-            click.echo('{"events": [], "next": null, "done": true}')
+            # Carry the identifier echo even on the empty page so every
+            # --json page has a uniform shape (task_id is unresolvable
+            # with no running evals).
+            empty_page: dict[str, Any] = {
+                "task_id": None,
+                "sample_id": sample_id,
+                "epoch": epoch,
+                "events": [],
+                "next": None,
+                "done": True,
+            }
+            click.echo(json_lib.dumps(empty_page, indent=2))
             return
         _echo_no_running_evals()
         return

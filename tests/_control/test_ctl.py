@@ -1068,6 +1068,21 @@ def test_events_unseeded_defaults_to_recent_tail(
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
 
 
+def test_events_json_no_servers_echoes_identifiers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The no-running-evals empty page keeps the identifier echo shape."""
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    result = _runner().invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["task_id"] is None
+    assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
+    assert payload["events"] == [] and payload["next"] is None and payload["done"]
+
+
 def test_group_option_before_verb_forwards(monkeypatch: pytest.MonkeyPatch) -> None:
     """A mirrored option given at the group level reaches the explicit verb."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
