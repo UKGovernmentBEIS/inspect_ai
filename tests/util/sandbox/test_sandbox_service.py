@@ -1,4 +1,6 @@
 import json
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
@@ -672,6 +674,74 @@ async def test_handle_requests_lists_paths_without_shell_interpolation() -> None
         call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls[1:]
     )
     response_path = f"{service._responses_dir}/{request_id}.json"
+    assert json.loads(fake.writes[response_path])["result"] == "ok"
+
+
+class _RealShellListingSandbox(_RequestReadSandbox):
+    """Variant of _RequestReadSandbox that runs the `sh -c` listing for real.
+
+    The canned fake always reports the listing as successful, which hides the
+    script's actual exit-status behavior; running it against a real directory
+    lets tests observe what the sandbox would.
+    """
+
+    async def exec(
+        self,
+        cmd: list[str],
+        *,
+        user: str | None = None,
+        input: str | None = None,
+        timeout: int | None = None,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if cmd[:2] == ["sh", "-c"]:
+            self.calls.append(cmd)
+            completed = subprocess.run(cmd, capture_output=True, text=True)
+            return cast(
+                ExecResult[str],
+                FakeExecResult(
+                    success=completed.returncode == 0,
+                    returncode=completed.returncode,
+                    stdout=completed.stdout,
+                    stderr=completed.stderr,
+                ),
+            )
+        return await super().exec(
+            cmd, user=user, input=input, timeout=timeout, concurrency=concurrency
+        )
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="sh not available")
+async def test_handle_requests_survives_stray_non_file_entry(tmp_path: Path) -> None:
+    """A stray non-regular `*.json` entry must not starve the request queue.
+
+    Sandbox code owns the requests dir and can freely create a directory or
+    dangling symlink named `*.json` there; valid queued requests must still be
+    handled when one is present.
+    """
+    request_id = "listed-request"
+    fake = _RealShellListingSandbox(
+        cat_stdout=json.dumps({"id": request_id, "method": "run", "params": {}})
+    )
+    service = _service_with_dirs(fake)
+    requests_dir = tmp_path / "requests"
+    requests_dir.mkdir()
+    service._requests_dir = str(requests_dir)
+    (requests_dir / f"{request_id}.json").touch()
+    # non-regular entry that globs after the valid request
+    (requests_dir / "zzz.json").mkdir()
+
+    async def run() -> str:
+        return "ok"
+
+    service.add_method("run", run)
+
+    await service.handle_requests()
+
+    response_path = f"{service._responses_dir}/{request_id}.json"
+    assert response_path in fake.writes, (
+        "valid request was dropped because the listing script reported failure"
+    )
     assert json.loads(fake.writes[response_path])["result"] == "ok"
 
 
