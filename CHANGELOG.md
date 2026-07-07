@@ -15,6 +15,7 @@
 - Scoring: Fix edge case where `pattern` `match_all=True` could incorrectly return the target value when no matches were present.
 - Security: Constrain Docker sandbox `read_file()` staging to a generated regular file so container paths cannot copy outside the private host temporary directory.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
+- Checkpointing: tasks can register `on_checkpoint`/`on_resume` callbacks; `on_resume` may return a `ResumeReport` surfaced to agents via `checkpointer().restored`.
 
 ## 0.3.244 (01 July 2026)
 
