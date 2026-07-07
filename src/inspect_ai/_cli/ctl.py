@@ -461,18 +461,21 @@ def sample_events_command(
 @click.option(
     "--max-samples",
     type=click.IntRange(min=1),
+    metavar="INTEGER",
     default=None,
     help="Set the max samples to run concurrently (task-scoped).",
 )
 @click.option(
     "--max-sandboxes",
     type=click.IntRange(min=1),
+    metavar="INTEGER",
     default=None,
     help="Set the max sandboxes per provider (process-scoped, all tasks).",
 )
 @click.option(
     "--max-connections",
     type=click.IntRange(min=1),
+    metavar="INTEGER",
     default=None,
     help=(
         "Set the adaptive-connections scaling ceiling — the controller's max "
@@ -491,6 +494,7 @@ def sample_events_command(
 @click.option(
     "--log-buffer",
     type=click.IntRange(min=1),
+    metavar="INTEGER",
     default=None,
     help=(
         "Set the number of completed samples to buffer before writing to the "
@@ -500,6 +504,7 @@ def sample_events_command(
 @click.option(
     "--log-shared",
     type=click.IntRange(min=1),
+    metavar="INTEGER",
     default=None,
     help="Set the shared-log event sync interval, in seconds (task-scoped).",
 )
