@@ -8,6 +8,10 @@ from inspect_ai.util._early_stopping import EarlyStopping
 
 if TYPE_CHECKING:
     from inspect_ai.scorer._scorers import Scorers
+    from inspect_ai.util._checkpoint.config import (
+        OnCheckpointCallback,
+        OnResumeCallback,
+    )
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
@@ -80,6 +84,8 @@ class Task:
         model_roles: dict[str, str | Model] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         checkpoint: CheckpointConfig | bool | None = None,
+        on_checkpoint: OnCheckpointCallback | None = None,
+        on_resume: OnResumeCallback | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
@@ -119,6 +125,19 @@ class Task:
                 enable checkpointing with the default trigger (every 500k
                 tokens). Overridden by eval-level `checkpoint` when set;
                 overrides any sample-level `checkpoint`.
+            on_checkpoint: Callback invoked before each checkpoint snapshot is
+                taken, so state it flushes to the sandbox/store is captured by
+                that checkpoint. May fire many times (including the final
+                checkpoint on clean completion); must be idempotent.
+            on_resume: Callback invoked after a sample is restored on resume,
+                before the agent resumes. Receives the TaskState and the resume
+                ``attempt`` ('resume' or 'resume_for_scoring'). At call time
+                ``state.store``, the transcript, and the sandbox are restored,
+                but ``state.messages``/``state.output`` are NOT yet restored
+                (the agent restores those itself) — use ``state.store``/sandbox,
+                not ``state.messages``. May return a ``ResumeReport`` (or a
+                ``str`` shorthand, or ``None``) surfaced to the agent via
+                ``checkpointer().restored``.
             approval: Tool use approval policies.
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             epochs: Epochs to repeat samples for and optional score
@@ -184,6 +203,8 @@ class Task:
         self.setup = setup
         self.solver = resolve_solver(solver)
         self.cleanup = cleanup
+        self.on_checkpoint = on_checkpoint
+        self.on_resume = on_resume
         self.scorer = resolve_scorer_metrics(resolve_scorer(scorer), metrics)
         self.metrics = metrics
         self.model = resolve_model(model)
@@ -264,6 +285,8 @@ def task_with(
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
+    on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
+    on_resume: OnResumeCallback | None | NotGiven = NOT_GIVEN,
     approval: str
     | ApprovalPolicyConfig
     | list[ApprovalPolicy]
@@ -310,6 +333,19 @@ def task_with(
             enable checkpointing with the default trigger (every 500k
             tokens). Overridden by eval-level `checkpoint` when set;
             overrides any sample-level `checkpoint`.
+        on_checkpoint: Callback invoked before each checkpoint snapshot is
+            taken, so state it flushes to the sandbox/store is captured by
+            that checkpoint. May fire many times (including the final
+            checkpoint on clean completion); must be idempotent.
+        on_resume: Callback invoked after a sample is restored on resume,
+            before the agent resumes. Receives the TaskState and the resume
+            ``attempt`` ('resume' or 'resume_for_scoring'). At call time
+            ``state.store``, the transcript, and the sandbox are restored,
+            but ``state.messages``/``state.output`` are NOT yet restored
+            (the agent restores those itself) — use ``state.store``/sandbox,
+            not ``state.messages``. May return a ``ResumeReport`` (or a
+            ``str`` shorthand, or ``None``) surfaced to the agent via
+            ``checkpointer().restored``.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         epochs: Epochs to repeat samples for and optional score
@@ -358,6 +394,10 @@ def task_with(
         task.solver = resolve_solver(solver)
     if not isinstance(cleanup, NotGiven):
         task.cleanup = cleanup
+    if not isinstance(on_checkpoint, NotGiven):
+        task.on_checkpoint = on_checkpoint
+    if not isinstance(on_resume, NotGiven):
+        task.on_resume = on_resume
     if not isinstance(scorer, NotGiven):
         task.scorer = resolve_scorer(scorer)
     if not isinstance(metrics, NotGiven):
