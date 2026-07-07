@@ -610,7 +610,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--continue-on-fail",
         type=bool,
         is_flag=True,
-        default=False,
+        default=None,
         help=CONTINUE_ON_FAIL_HELP,
         envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
     )
@@ -627,7 +627,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--score-on-error",
         type=bool,
         is_flag=True,
-        default=False,
+        default=None,
         help=SCORE_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_SCORE_ON_ERROR",
     )
@@ -2087,7 +2087,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--continue-on-fail",
     type=bool,
     is_flag=True,
-    default=False,
+    default=None,
     help=CONTINUE_ON_FAIL_HELP,
     envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
 )
@@ -2104,7 +2104,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--score-on-error",
     type=bool,
     is_flag=True,
-    default=False,
+    default=None,
     help=SCORE_ON_ERROR_HELP,
     envvar="INSPECT_EVAL_SCORE_ON_ERROR",
 )
