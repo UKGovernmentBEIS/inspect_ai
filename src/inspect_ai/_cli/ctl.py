@@ -593,8 +593,10 @@ def config_command(
     raising it lets more start immediately. `--log-buffer` changes the
     threshold for future writes only — to write what's already pending now,
     run `inspect ctl task log-flush`. A knob with no adjustable limiter for
-    this task is reported with a warning rather than an error; explicitly
-    *setting* such a knob is an error.
+    this task is reported with a warning rather than an error — including on
+    an explicit set, so a combined retune is never all-or-nothing; the one
+    hard error is setting `--log-buffer`/`--log-shared` on a task with no
+    live sample buffer.
 
     Pass `--dry-run` with a set option to see what would change (including
     the blast radius of a process-scoped knob) without applying it.
@@ -945,9 +947,21 @@ def _list_sample_rows(
     for target in targets:
         # Query by the task's current eval id (resolved fresh each invocation,
         # so this still works after a retry minted a new one).
-        target_as_of, samples = _fetch_samples(
-            target["socket_path"], target["eval_id"], active_since
-        )
+        try:
+            target_as_of, samples = _fetch_samples(
+                target["socket_path"], target["eval_id"], active_since
+            )
+        except _ServerUnreachable as exc:
+            if len(targets) == 1:
+                _exit_samples_unreachable(target["eval_id"], exc)
+            # An unscoped read spans every running eval; one process exiting
+            # between discovery and this read shouldn't discard the rest.
+            click.echo(
+                f"Skipping eval {target['eval_id']}: its samples could not be "
+                f"read ({_unreachable_detail(exc)}) — it may have just exited.",
+                err=True,
+            )
+            continue
         as_of_values.append(target_as_of)
         for sample in samples:
             rows.append(
@@ -1031,7 +1045,10 @@ def _run_sample_show(
 
     # The error detail is the authoritative core; fold in the sample's listing
     # row for the summary fields (timing / tokens / messages) it doesn't carry.
-    _as_of, samples = _fetch_samples(target["socket_path"], target["eval_id"])
+    try:
+        _as_of, samples = _fetch_samples(target["socket_path"], target["eval_id"])
+    except _ServerUnreachable as exc:
+        _exit_samples_unreachable(target["eval_id"], exc)
     row = next(
         (
             s
@@ -1775,11 +1792,9 @@ def _fetch_summaries(
                 what=f"Reading tasks from pid {server.pid}",
             )
         except _ServerUnreachable as exc:
-            cause = exc.__cause__
-            detail = _error_detail(cause) if isinstance(cause, Exception) else str(exc)
             click.echo(
                 f"Skipping pid {server.pid}: its control endpoint could not be "
-                f"read ({detail}) — it may have just exited.",
+                f"read ({_unreachable_detail(exc)}) — it may have just exited.",
                 err=True,
             )
             continue
@@ -1845,6 +1860,21 @@ def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
     raise click.exceptions.Exit(code=1)
 
 
+def _unreachable_detail(exc: _ServerUnreachable) -> str:
+    """Human-readable cause of an unreachable-server error."""
+    cause = exc.__cause__
+    return _error_detail(cause) if isinstance(cause, Exception) else str(exc)
+
+
+def _exit_samples_unreachable(eval_id: str, exc: _ServerUnreachable) -> NoReturn:
+    """Echo a samples-read failure for ``eval_id`` and exit non-zero."""
+    click.echo(
+        f"Failed to read samples for eval {eval_id}: {_unreachable_detail(exc)}",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1) from exc
+
+
 def _fetch_samples(
     socket_path: str, eval_id: str, active_since: float | None = None
 ) -> tuple[float, list[dict[str, Any]]]:
@@ -1856,24 +1886,19 @@ def _fetch_samples(
     landed during the read. With ``active_since`` (unix ts), restricts to
     samples started or updated since then — the recency delta. Tolerates an
     older server's bare array (stamping ``as_of`` client-side, pre-request).
+
+    Raises :class:`_ServerUnreachable` on a non-retryable read failure; the
+    caller decides whether to warn-and-skip (an unscoped fan-out over many
+    evals) or fail the command (a single targeted read).
     """
     fallback_as_of = time.time()
     params = {} if active_since is None else {"active_since": active_since}
-    try:
-        page = _get_with_retry(
-            socket_path,
-            f"/evals/{eval_id}/samples",
-            params=params,
-            what=f"Reading samples for eval {eval_id}",
-        )
-    except _ServerUnreachable as exc:
-        cause = exc.__cause__
-        detail = _error_detail(cause) if isinstance(cause, Exception) else str(exc)
-        click.echo(
-            f"Failed to read samples for eval {eval_id}: {detail}",
-            err=True,
-        )
-        raise click.exceptions.Exit(code=1) from exc
+    page = _get_with_retry(
+        socket_path,
+        f"/evals/{eval_id}/samples",
+        params=params,
+        what=f"Reading samples for eval {eval_id}",
+    )
     if isinstance(page, dict):
         samples = page.get("samples")
         as_of = page.get("as_of")

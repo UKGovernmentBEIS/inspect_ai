@@ -818,6 +818,59 @@ def test_sample_errors_unscoped_filters_across_tasks(
     ]
 
 
+def _patch_samples_unreachable_for(
+    monkeypatch: pytest.MonkeyPatch, gone_eval_id: str
+) -> None:
+    """Stub `_fetch_samples` so one eval's read fails as unreachable."""
+    import httpx
+
+    from inspect_ai._cli.ctl import _ServerUnreachable
+
+    def fake_samples(
+        socket_path: Any, eval_id: str, active_since: float | None = None
+    ) -> tuple[float, list[dict[str, Any]]]:
+        if eval_id == gone_eval_id:
+            exc = _ServerUnreachable()
+            exc.__cause__ = httpx.ConnectError("refused")
+            raise exc
+        return (123.0, [_sample_row("s2")])
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+
+
+def test_sample_list_unscoped_skips_unreachable_eval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fan-out spanning tasks warns-and-skips one gone eval, keeps the rest."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+    )
+    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert [(r["task_id"], r["sample_id"]) for r in payload["samples"]] == [
+        ("bbb222", "s2")
+    ]
+    # the skipped eval is surfaced on stderr, not swallowed
+    assert "Skipping eval eval_aaa111" in result.stderr
+
+
+def test_sample_list_scoped_unreachable_exits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A single targeted read keeps the hard failure — nothing else to show."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+    )
+    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    result = _runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
+    assert result.exit_code == 1
+    assert "Failed to read samples for eval eval_aaa111" in result.stderr
+
+
 def test_sample_show_merges_summary_row_and_detail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
