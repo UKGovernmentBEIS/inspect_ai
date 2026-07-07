@@ -857,6 +857,24 @@ def test_sample_list_unscoped_skips_unreachable_eval(
     assert "Skipping eval eval_aaa111" in result.stderr
 
 
+def test_sample_list_unscoped_single_eval_unreachable_still_skips(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unscoped tolerance keys on intent, not target count.
+
+    With exactly one eval running, an unscoped read still warns-and-skips
+    (exit 0, JSON envelope) when that eval exits between discovery and the
+    read.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["samples"] == []
+    assert "Skipping eval eval_aaa111" in result.stderr
+
+
 def test_sample_list_scoped_unreachable_exits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

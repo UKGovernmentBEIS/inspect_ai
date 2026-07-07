@@ -952,10 +952,11 @@ def _list_sample_rows(
                 target["socket_path"], target["eval_id"], active_since
             )
         except _ServerUnreachable as exc:
-            if len(targets) == 1:
+            if task is not None:
                 _exit_samples_unreachable(target["eval_id"], exc)
-            # An unscoped read spans every running eval; one process exiting
-            # between discovery and this read shouldn't discard the rest.
+            # An unscoped read spans whatever evals happen to be running; one
+            # process exiting between discovery and this read shouldn't fail
+            # the invocation (even if it was the only eval).
             click.echo(
                 f"Skipping eval {target['eval_id']}: its samples could not be "
                 f"read ({_unreachable_detail(exc)}) — it may have just exited.",
