@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai._control.events import (
     HIGH_SIGNAL_EVENT_TYPES,
@@ -296,11 +297,12 @@ async def test_evicted_events_without_provider_is_a_hard_error(
 
 
 def _register_buffered_eval(db: Any, location: str) -> None:
-    """Register an eval whose events provider pages the given buffer db.
+    """Register an eval whose ``live.sample_events_provider`` pages the buffer db.
 
-    Mirrors what ``TaskLogger.sample_events_provider`` hands to
-    ``register_eval`` in production: a factory constructing a
-    ``BufferTranscriptHistoryProvider`` over the eval's own buffer instance.
+    Mirrors production, where the control layer calls
+    ``EvalState.live.sample_events_provider`` (i.e. ``TaskLogger``'s method),
+    which builds a ``BufferTranscriptHistoryProvider`` over the eval's own
+    buffer instance.
     """
     from inspect_ai._control.eval_state import register_eval
     from inspect_ai.log._recorders.buffer.transcript_history_provider import (
@@ -311,8 +313,8 @@ def _register_buffered_eval(db: Any, location: str) -> None:
         "e1",
         1,
         log_location=location,
-        events_provider=lambda id, epoch: BufferTranscriptHistoryProvider(
-            db, id, epoch
+        live=FakeLiveEvalData(
+            events=lambda id, epoch: BufferTranscriptHistoryProvider(db, id, epoch)
         ),
     )
 
@@ -417,7 +419,9 @@ async def test_buffer_served_events_page_through_the_provider(
             "e1",
             1,
             log_location=location,
-            events_provider=lambda id, epoch: CapturingProvider(db, id, epoch),
+            live=FakeLiveEvalData(
+                events=lambda id, epoch: CapturingProvider(db, id, epoch)
+            ),
         )
         _event_less_sample_stub(monkeypatch)
 
@@ -467,7 +471,9 @@ async def test_buffer_torn_down_before_read_degrades(
 
     try:
         # deletion landed between provider resolution and the first read
-        register_eval("e1", 1, events_provider=lambda id, epoch: TornDownProvider())
+        register_eval(
+            "e1", 1, live=FakeLiveEvalData(events=lambda id, epoch: TornDownProvider())
+        )
         page = await sample_events("e1", "s1", 1)
         assert page is not None, "teardown race must degrade, not 404/500"
         assert page["events"] == []  # recorder sample is event-less
@@ -477,7 +483,7 @@ async def test_buffer_torn_down_before_read_degrades(
 
     try:
         # buffer already torn down: the factory itself returns None
-        register_eval("e1", 1, events_provider=lambda id, epoch: None)
+        register_eval("e1", 1, live=FakeLiveEvalData(events=lambda id, epoch: None))
         page = await sample_events("e1", "s1", 1)
         assert page is not None
         assert page["events"] == []
@@ -514,7 +520,11 @@ async def test_buffer_torn_down_between_count_and_fetch_degrades(
             raise TranscriptHistoryUnavailableError("history store torn down")
 
     try:
-        register_eval("e1", 1, events_provider=lambda id, epoch: TornDownAfterCount())
+        register_eval(
+            "e1",
+            1,
+            live=FakeLiveEvalData(events=lambda id, epoch: TornDownAfterCount()),
+        )
         page = await sample_events("e1", "s1", 1)
         assert page is not None, "teardown race must degrade, not 404/500"
         assert page["events"] == []
