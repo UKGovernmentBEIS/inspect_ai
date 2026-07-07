@@ -162,6 +162,9 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 "task": first.task,
                 "task_id": "",
                 "model": first.model,
+                # ActiveSample doesn't carry the solver name; it arrives with
+                # the eval's registration (which hasn't happened yet here)
+                "solver": "",
                 "log_location": local_path(first.log_location),
                 "status": "running",
                 "started_at": min(
@@ -202,7 +205,7 @@ async def current_sample_summaries(
     - **running** ← ``active_samples`` (the only place a running sample
       exists; freshest live detail).
     - **completed** ← the recorder's in-memory summaries while the eval
-      runs (gap-free, ahead of disk; via ``EvalState.summaries_provider``),
+      runs (gap-free, ahead of disk; via ``EvalState.live.sample_summaries``),
       falling back to the finalized on-disk log once the recorder is gone
       (eval finished / torn down).
     - **pending** ← synthesized from the eval's registered planned
@@ -326,8 +329,8 @@ async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     # logging. It returns None once torn down (eval finished) — a clean
     # signal to fall back to the log. Any other failure is unexpected and
     # propagates to the API entry point.
-    if state is not None and state.summaries_provider is not None:
-        summaries = await state.summaries_provider()
+    if state is not None and state.live is not None:
+        summaries = await state.live.sample_summaries()
         if summaries is not None:
             return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
 
@@ -352,9 +355,9 @@ async def _full_sample(
     The single place the per-sample control reads (error detail, event pages)
     source a sample that is no longer running, so they can't disagree: prefer
     the live recorder's not-yet-flushed in-memory sample
-    (``EvalState.sample_provider`` — the same gap-free source
+    (``EvalState.live.read_sample`` — the same gap-free source
     :func:`current_sample_summaries` lists from), falling back to the finalized
-    on-disk log when there's no provider (a reused/synthetic eval) or the
+    on-disk log when there's no live source (a reused/synthetic eval) or the
     recorder no longer holds it. ``None`` when the eval isn't in this process or
     the sample is in neither source.
 
@@ -383,11 +386,11 @@ async def _read_full_sample(
     exclude_fields: set[str] | None,
 ) -> Any | None:
     """Read one concrete ``(sample_id, epoch)`` — recorder, else on-disk log."""
-    # The provider already does recorder-then-disk; only when there's no
-    # provider (reused/synthetic eval, or a superseded retry attempt whose
-    # providers were detached) do we read the on-disk log directly.
-    if state.sample_provider is not None:
-        return await state.sample_provider(
+    # The live logger already does recorder-then-disk; only when there's no
+    # live source (reused/synthetic eval, or a superseded retry attempt whose
+    # logger was detached) do we read the on-disk log directly.
+    if state.live is not None:
+        return await state.live.read_sample(
             sample_id, epoch, exclude_fields=exclude_fields
         )
 
@@ -628,8 +631,20 @@ def _build_summary(
     model = first_sample.model if first_sample else latest.model
     run_id = first_sample.run_id if first_sample else latest.run_id
 
+    # Pin the eval's start to its earliest sample start, tracked as a running
+    # minimum on the EvalState. ``samples`` only holds *currently active*
+    # samples, so a plain min over it creeps forward as early samples finish
+    # and leave ``active_samples`` (#4305); fold the live minimum into
+    # ``latest.started_at`` to keep it fixed. The terminal records
+    # (``record_sample_*``) feed the same running minimum, so a sample that
+    # finished before this first poll is already accounted for. Both this fold
+    # and those records run on the eval's loop, so the writes are serialised.
     sample_starts = [s.started for s in samples if s.started is not None]
-    eval_started_at = min(sample_starts) if sample_starts else started_at_fallback
+    if sample_starts:
+        latest.observe_started(min(sample_starts))
+    eval_started_at = (
+        latest.started_at if latest.started_at is not None else started_at_fallback
+    )
 
     in_flight_samples = [
         s for s in samples if s.started is not None and s.completed is None
@@ -658,6 +673,7 @@ def _build_summary(
         "task": task_name,
         "task_id": latest.task_id,
         "model": model,
+        "solver": latest.solver,
         # Where this attempt's results are written — lets an agent monitoring a
         # run it didn't launch find the log without knowing the launch args.
         # `local_path` drops the `file://` prefix for local logs (leaving

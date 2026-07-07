@@ -6,7 +6,8 @@ the concurrency context manager, status display, and initialization.
 
 import contextlib
 import time
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Callable, Iterable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any, cast
 
 import anyio
@@ -119,6 +120,10 @@ async def test_legacy_registry_without_adaptive_argument() -> None:
         @property
         def value(self) -> int:
             return self._sem.value
+
+        @property
+        def in_use(self) -> int:
+            return self.concurrency - self._sem.value
 
     class LegacyRegistry:
         def __init__(self) -> None:
@@ -494,3 +499,195 @@ async def test_concurrent_waits_not_double_counted() -> None:
     assert waiting_time < elapsed
     # Should have some waiting time (2 tasks had to wait)
     assert waiting_time > 0.05
+
+
+# ResizableLimiter / resizable ConcurrencySemaphore tests
+
+
+@pytest.mark.anyio
+async def test_resizable_limiter_basics() -> None:
+    """ResizableLimiter reports its limit and can be resized live."""
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(5)
+    assert limiter.limit == 5
+    assert limiter.in_use == 0
+    assert limiter.available == 5
+
+    limiter.limit = 8
+    assert limiter.limit == 8
+    assert limiter.available == 8
+
+
+@pytest.mark.anyio
+async def test_resizable_limiter_tracks_in_use() -> None:
+    """Entering the limiter borrows a slot; leaving returns it."""
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(3)
+    async with limiter:
+        assert limiter.in_use == 1
+        assert limiter.available == 2
+    assert limiter.in_use == 0
+
+
+@asynccontextmanager
+async def _two_holders(
+    acquire: Callable[[], AbstractAsyncContextManager[Any]],
+) -> AsyncIterator[None]:
+    """Park two tasks inside ``acquire()`` and yield while both hold slots.
+
+    A single task can't borrow the same CapacityLimiter twice, so
+    shrink-below-in-use tests need two real holder tasks; this owns that
+    scaffolding (entry rendezvous, task group, release on exit).
+    """
+    both_in = anyio.Event()
+    release = anyio.Event()
+    entered = 0
+
+    async def holder() -> None:
+        nonlocal entered
+        async with acquire():
+            entered += 1
+            if entered == 2:
+                both_in.set()
+            await release.wait()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(holder)
+        tg.start_soon(holder)
+        await both_in.wait()
+        try:
+            yield
+        finally:
+            release.set()
+
+
+@pytest.mark.anyio
+async def test_resizable_limiter_lower_below_in_use_clamps_available() -> None:
+    """Lowering below the in-use count never preempts; available clamps to 0."""
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(3)
+    async with _two_holders(lambda: limiter):
+        assert limiter.in_use == 2
+        # lower below in-use — the two holders keep running (never preempted)
+        limiter.limit = 1
+        assert limiter.limit == 1
+        assert limiter.available == 0  # clamped, not negative
+
+
+@pytest.mark.anyio
+async def test_resizable_semaphore_in_use_exact_below_limit() -> None:
+    """`ResizableSemaphore.in_use` stays exact once the limit drops below in-use.
+
+    The `concurrency - value` derivation the status display uses would report
+    `concurrency` here (because `value` clamps to 0); `in_use` reads the
+    limiter's borrowed count directly and stays exact.
+    """
+    from inspect_ai.util._concurrency import ResizableSemaphore
+
+    sem = ResizableSemaphore("docker", 3, True)
+    async with _two_holders(lambda: sem.semaphore):
+        assert sem.in_use == 2
+        # lower below in-use: value clamps to 0 (so concurrency - value == limit),
+        # but in_use stays the true borrowed count
+        sem.concurrency = 1
+        assert sem.value == 0
+        assert sem.concurrency - sem.value == 1  # the misleading derivation
+        assert sem.in_use == 2  # exact
+
+
+@pytest.mark.anyio
+async def test_status_display_exact_in_use_after_shrink() -> None:
+    """The status footer shows true in-flight after a limit drops below in-use.
+
+    Regression: `concurrency_status_display` derived in-use as
+    `concurrency - value`, which reports `concurrency` once a ctl retune (or
+    an adaptive rate-limit cut) shrinks the limit below the in-flight count —
+    e.g. the footer showed "docker 1/1" while 2 sandboxes were actually
+    running. It now reads the exact borrowed count where available.
+    """
+    from inspect_ai.util._concurrency import (
+        ConcurrencySemaphore,
+        ResizableSemaphore,
+        concurrency,
+        concurrency_status_display,
+        init_concurrency,
+    )
+
+    init_concurrency()
+    captured: ConcurrencySemaphore | None = None
+
+    @asynccontextmanager
+    async def acquire() -> AsyncIterator[None]:
+        nonlocal captured
+        async with concurrency("docker", 3, "sandboxes/docker", resizable=True) as sem:
+            captured = sem
+            yield
+
+    async with _two_holders(acquire):
+        assert concurrency_status_display()["docker"] == (2, 3)
+        # shrink below in-use (what a ctl limits --max-sandboxes retune does)
+        assert isinstance(captured, ResizableSemaphore)
+        captured.concurrency = 1
+        assert concurrency_status_display()["docker"] == (2, 1)  # was (1, 1)
+
+
+@pytest.mark.anyio
+async def test_resizable_limiter_rejects_non_positive() -> None:
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(2)
+    with pytest.raises(ValueError):
+        limiter.limit = 0
+
+
+@pytest.mark.anyio
+async def test_resizable_semaphore_via_registry() -> None:
+    """`resizable=True` yields a ResizableSemaphore whose limit is settable live."""
+    from inspect_ai.util._concurrency import ResizableSemaphore
+
+    init_concurrency()
+    sem = await get_or_create_semaphore(
+        "docker", 4, "sandboxes/docker", True, resizable=True
+    )
+    assert isinstance(sem, ResizableSemaphore)
+    assert sem.concurrency == 4
+    assert sem.value == 4
+
+    sem.concurrency = 9
+    assert sem.concurrency == 9
+    assert sem.value == 9
+
+    # same key coalesces onto the first instance
+    again = await get_or_create_semaphore(
+        "docker", 4, "sandboxes/docker", True, resizable=True
+    )
+    assert again is sem
+
+
+@pytest.mark.anyio
+async def test_sandbox_limiter_registry_and_reset() -> None:
+    """register_sandbox_limiter tracks resizable sandbox semaphores; a run reset clears them."""
+    from inspect_ai.util._concurrency import (
+        ResizableSemaphore,
+        register_sandbox_limiter,
+        sandbox_limiters,
+    )
+
+    init_concurrency()
+    assert sandbox_limiters() == {}
+
+    sem = ResizableSemaphore("docker", 4, True)
+    register_sandbox_limiter("docker", sem)
+    assert sandbox_limiters() == {"docker": sem}
+
+    # a non-resizable semaphore is not tracked
+    plain = await get_or_create_semaphore("k8s", 2, "sandboxes/k8s", True)
+    register_sandbox_limiter("k8s", plain)
+    assert "k8s" not in sandbox_limiters()
+
+    # a fresh run clears the tracked limiters
+    init_concurrency()
+    assert sandbox_limiters() == {}

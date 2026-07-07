@@ -34,8 +34,10 @@ from typing import Any, AsyncIterator, NamedTuple
 
 import anyio
 
+from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
+from inspect_ai._control.limits import process_limits, task_limits
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
@@ -239,6 +241,20 @@ class ControlServer:
                 status_code=500, content={"error": f"{type(exc).__name__}: {exc}"}
             )
 
+        def _limits_below_one(*knobs: tuple[str, int | None]) -> JSONResponse | None:
+            """400 for the first requested limit below 1, else None.
+
+            Shared by both PATCH limits routes so the knob validation can't
+            drift between them.
+            """
+            for label, value in knobs:
+                if value is not None and value < 1:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": f"{label} must be >= 1 (got {value})"},
+                    )
+            return None
+
         @app.get("/evals")
         async def list_evals() -> list[dict[str, Any]]:
             summaries = await current_eval_summaries(started_at)
@@ -316,6 +332,136 @@ class ControlServer:
                     content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
                 )
             return page
+
+        # Flush the eval's buffered completed samples to the (possibly remote,
+        # eg. S3) log now, so they're readable without waiting for the flush
+        # buffer to fill. Idempotent — a flush with nothing pending writes
+        # nothing and reports `flushed: 0`.
+        @app.post("/evals/{eval_id}/flush")
+        async def flush_samples(eval_id: str) -> Any:
+            result = await flush_eval_samples(eval_id)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"eval {eval_id} not found or not flushable"},
+                )
+            return result
+
+        # Read the eval's sample-buffer parameters. The companion POST applies
+        # changes; GET is a pure read (no side effects).
+        @app.get("/evals/{eval_id}/buffer")
+        async def get_buffer(eval_id: str) -> Any:
+            result = await eval_buffer_config(eval_id)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"eval {eval_id} not found"},
+                )
+            return result
+
+        # Update the eval's sample-buffer parameters. `log_buffer` (completed
+        # samples buffered before a log write) and `log_shared` (shared-log
+        # sync interval, seconds) are optional query params — omitting both
+        # makes this a read, like GET. Returns the resulting config.
+        @app.post("/evals/{eval_id}/buffer")
+        async def set_buffer(
+            eval_id: str,
+            log_buffer: int | None = None,
+            log_shared: int | None = None,
+        ) -> Any:
+            result = await eval_buffer_config(
+                eval_id, log_buffer=log_buffer, log_shared=log_shared
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"eval {eval_id} not found"},
+                )
+            return result
+
+        # Read the process-global concurrency limits (max_sandboxes /
+        # max_connections) without naming an eval — the common case for viewing
+        # or throttling a whole process. No max_samples (that's per-task; use
+        # the /tasks/<task-id>/limits routes for it).
+        @app.get("/limits")
+        async def get_process_limits(model: str | None = None) -> Any:
+            return await process_limits(model=model)
+
+        # Retune the process-global limits. Omitting both set values makes this a
+        # read, like GET. `model` filters the adaptive controllers (name start or
+        # after a `/`). `dry_run=true` reports the intended change without
+        # applying it. Never 404s — a process always exists.
+        @app.patch("/limits")
+        async def patch_process_limits(
+            max_sandboxes: int | None = None,
+            max_connections: int | None = None,
+            model: str | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            if error := _limits_below_one(
+                ("max_sandboxes", max_sandboxes),
+                ("max_connections", max_connections),
+            ):
+                return error
+            return await process_limits(
+                max_sandboxes=max_sandboxes,
+                max_connections=max_connections,
+                model=model,
+                dry_run=dry_run,
+            )
+
+        # Read the task's live concurrency limits (max_samples / max_sandboxes).
+        # Keyed by task_id — stable across retry attempts, matching the limits'
+        # own scope (max_samples is task-scoped; the other knobs process-wide)
+        # — where a per-attempt eval id would go stale on every retry. A pure
+        # read — the companion PATCH applies changes. `model` filters the
+        # adaptive controllers shown.
+        @app.get("/tasks/{task_id}/limits")
+        async def get_limits(task_id: str, model: str | None = None) -> Any:
+            result = await task_limits(task_id, model=model)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            return result
+
+        # Retune the task's live concurrency limits. `max_samples`,
+        # `max_sandboxes` and `max_connections` are optional query params —
+        # omitting all makes this a read, like GET. `dry_run=true` validates
+        # and reports the intended change without applying it (the phase-3
+        # agent-shape constraint). Idempotent: re-applying the same limit is a
+        # no-op. Returns the resulting limits view (with any warnings for a
+        # knob that isn't adjustable for this task).
+        @app.patch("/tasks/{task_id}/limits")
+        async def patch_limits(
+            task_id: str,
+            max_samples: int | None = None,
+            max_sandboxes: int | None = None,
+            max_connections: int | None = None,
+            model: str | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            if error := _limits_below_one(
+                ("max_samples", max_samples),
+                ("max_sandboxes", max_sandboxes),
+                ("max_connections", max_connections),
+            ):
+                return error
+            result = await task_limits(
+                task_id,
+                max_samples=max_samples,
+                max_sandboxes=max_sandboxes,
+                max_connections=max_connections,
+                model=model,
+                dry_run=dry_run,
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            return result
 
         # Latches keep-alive OFF for the process (the inverse of /keep) and
         # wakes the park: a parked process exits, and a release received while
@@ -439,9 +585,20 @@ class ControlServer:
                             "during shutdown",
                             exc_info=True,
                         )
-                except (asyncio.CancelledError, Exception):
-                    # serve() failed (or was cancelled) instead of draining
-                    # cleanly. Best-effort teardown: log and fall through to the
+                except asyncio.CancelledError:
+                    # The eval's cancel scope is tearing down (eg. a Ctrl-C with
+                    # samples in flight) — `wait_for` cancels and reaps the serve
+                    # task, then propagates the cancellation. This is an expected
+                    # teardown, not a server fault, so re-raise it to keep
+                    # structured cancellation intact rather than logging a
+                    # misleading "did not shut down cleanly" warning. The
+                    # `finally` below still runs, so discovery/socket cleanup
+                    # happens regardless.
+                    raise
+                except Exception:
+                    # serve() raised (rather than draining cleanly or being
+                    # cancelled) instead of shutting down — a genuine unclean
+                    # shutdown. Best-effort teardown: log and fall through to the
                     # discovery/socket cleanup in `finally` rather than masking
                     # it silently.
                     logger.warning(

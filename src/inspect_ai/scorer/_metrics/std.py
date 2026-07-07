@@ -36,6 +36,11 @@ def bootstrap_stderr(
         import numpy as np
 
         values = [to_float(score.score.value) for score in scores]
+        if not values:
+            # No scores to resample; return 0 rather than nan (and avoid the
+            # numpy empty-slice warnings from the resampling loop), mirroring
+            # the insufficient-data guards in stderr()/std()/var().
+            return 0.0
         std = np.std(
             [
                 np.mean(np.random.choice(values, len(values), replace=True))

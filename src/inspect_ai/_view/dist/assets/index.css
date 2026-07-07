@@ -17480,6 +17480,17 @@ li > ul {
     transform: translateX(2000%);
   }
 }
+/* Rendered markdown defines its own whitespace semantics, so neutralize any
+   `white-space: pre-wrap` inherited from an ancestor container. Without this,
+   markdown-it-mathjax3's pretty-printed math output (newlines/indentation
+   around each `<span id="mjx-…">` wrapper) is preserved as real line breaks,
+   stacking every inline formula onto its own line. Block elements that need
+   preserved whitespace (`pre`/`code`) carry their own directly-matching
+   white-space rules, which override this inherited value. */
+.markdown-content {
+  white-space: normal;
+}
+
 .markdown-ordered-list-item {
   margin-bottom: 0.2em;
 }
@@ -18840,6 +18851,12 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 ._preCompact_seqs2_15 {
   margin-bottom: 0;
 }
+._notice_mpxkz_1 {
+  margin-top: 0.25rem;
+  font-size: var(--inspect-font-size-smaller);
+  color: var(--bs-secondary-color);
+  font-style: italic;
+}
 ._keyPairContainer_1u1d5_1 {
   display: grid;
   grid-template-columns: max-content auto;
@@ -19793,6 +19810,10 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   height: 100%;
   position: relative;
 }
+._reference_7p4hu_1 {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
 ._title_1pwo3_1 {
   margin-bottom: 0.25em;
   display: grid;
@@ -20545,6 +20566,133 @@ a._citationLink_1ggvf_9:hover {
     opacity: 0.55;
   }
 }
+._bar_q6epo_1 {
+  --glint: rgba(64, 72, 104, 0.1);
+  --label: #5c5c63;
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 15px;
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+  border: 1px solid var(--bs-light-border-subtle);
+  background: var(--bs-body-bg);
+}
+
+._bar_q6epo_1::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    var(--glint) 50%,
+    transparent 62%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: _le-sweep_q6epo_1 2.8s linear infinite;
+}
+
+._compact_q6epo_33 {
+  border: none;
+  background: transparent;
+  padding: 8px;
+  gap: 8px;
+}
+
+._compact_q6epo_33::before {
+  display: none;
+}
+
+._spinner_q6epo_44 {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in oklab, var(--label) 25%, transparent);
+  border-top-color: var(--label);
+  animation: _le-spin_q6epo_1 0.8s linear infinite;
+}
+
+._label_q6epo_55 {
+  position: relative;
+  font-weight: 400;
+  font-size: 13.5px;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  color: var(--label);
+}
+
+._compact_q6epo_33 ._label_q6epo_55 {
+  font-size: 11.5px;
+}
+
+._ell_q6epo_68 {
+  display: inline-flex;
+}
+
+._ell_q6epo_68 i {
+  font-style: normal;
+  animation: _le-ell_q6epo_1 1.5s ease-in-out infinite both;
+}
+
+._ell_q6epo_68 i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+._ell_q6epo_68 i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes _le-sweep_q6epo_1 {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+@keyframes _le-spin_q6epo_1 {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes _le-ell_q6epo_1 {
+  0%,
+  80%,
+  100% {
+    opacity: 0.22;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  ._bar_q6epo_1 {
+    --glint: rgba(255, 255, 255, 0.08);
+    --label: #c2c2c9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ._bar_q6epo_1::before,
+  ._spinner_q6epo_44,
+  ._ell_q6epo_68 i {
+    animation: none;
+  }
+  ._ell_q6epo_68 i {
+    opacity: 0.55;
+  }
+}
 ._list_zuqui_1 {
   width: 100%;
   margin-top: 1em;
@@ -20843,7 +20991,7 @@ a._citationLink_1ggvf_9:hover {
   padding: 0;
   color: inherit !important;
 }
-._eventRow_moh1w_1 {
+._eventRow_lpuxs_1 {
   display: grid;
   grid-template-columns: 0.7em 1fr;
   column-gap: 0.25em;
@@ -20851,35 +20999,35 @@ a._citationLink_1ggvf_9:hover {
   padding-left: 0.7em;
 }
 
-._eventRow_moh1w_1._selected_moh1w_9 {
+._eventRow_lpuxs_1._selected_lpuxs_9 {
   font-weight: 800;
 }
 
-._eventRow_moh1w_1 ._toggle_moh1w_13 {
+._eventRow_lpuxs_1 ._toggle_lpuxs_13 {
   font-size: 0.7em;
   margin-top: 4px;
 }
 
-._eventLink_moh1w_18,
-._eventLink_moh1w_18 a {
+._eventLink_lpuxs_18,
+._eventLink_lpuxs_18 a {
   color: var(--bs-body-color);
   text-decoration: none;
   cursor: pointer;
 }
 
-._eventLink_moh1w_18:hover,
-._eventLink_moh1w_18 a:hover {
+._eventLink_lpuxs_18:hover,
+._eventLink_lpuxs_18 a:hover {
   text-decoration: underline;
   color: var(--bs-link-hover-color);
 }
 
-._label_moh1w_31 {
+._label_lpuxs_31 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._iconSlot_moh1w_37 {
+._iconSlot_lpuxs_37 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -20887,15 +21035,40 @@ a._citationLink_1ggvf_9:hover {
   margin-right: 0.3em;
 }
 
-._eventRow_moh1w_1._selected_moh1w_9 ._iconSlot_moh1w_37 {
+._eventRow_lpuxs_1._selected_lpuxs_9 ._iconSlot_lpuxs_37 {
   opacity: 1;
 }
 
-._progress_moh1w_49 {
+._progress_lpuxs_49 {
   margin-left: 0.3em !important;
 }
 
-._popover_moh1w_53 {
+._loadingRow_lpuxs_53 {
+  cursor: default;
+}
+
+._spinner_lpuxs_57 {
+  width: 0.85em;
+  height: 0.85em;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in oklab, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  animation: _outline-spin_lpuxs_1 0.8s linear infinite;
+}
+
+@keyframes _outline-spin_lpuxs_1 {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ._spinner_lpuxs_57 {
+    animation: none;
+  }
+}
+
+._popover_lpuxs_78 {
   min-width: 300px;
   max-width: 80%;
 }
@@ -23158,7 +23331,7 @@ a._citationLink_1ggvf_9:hover {
   align-self: stretch;
   flex: 1;
 }
-._card_zuaa2_1 {
+._card_wikv3_1 {
   flex: 1;
   border: 1px solid var(--bs-border-color);
   border-radius: 8px;
@@ -23168,32 +23341,46 @@ a._citationLink_1ggvf_9:hover {
     border-color 0.12s ease;
 }
 
-._cardCollapsed_zuaa2_11 {
+._cardCollapsed_wikv3_11 {
   background: var(--bs-tertiary-bg);
 }
 
-._cardOpen_zuaa2_15 {
+._cardOpen_wikv3_15 {
   background: var(--bs-body-bg);
 }
 
-._header_zuaa2_19 {
+._header_wikv3_19 {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 11px 14px;
+  padding: 13px 14px;
   cursor: pointer;
 }
 
-._attemptLabel_zuaa2_27 {
+._attemptLabel_wikv3_27 {
+  flex: none;
   font-weight: 700;
   font-size: 13.5px;
   color: var(--bs-body-color);
   white-space: nowrap;
 }
 
-._errorChip_zuaa2_34 {
+/* Right-aligned per-attempt metadata; tabular-nums keeps the timestamps from
+   jittering as digits change. */
+._timestamp_wikv3_37 {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--bs-font-monospace);
+  font-size: 12px;
+  color: var(--bs-tertiary-color);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+._errorChip_wikv3_47 {
   display: inline-flex;
   align-items: center;
+  flex: none;
   font-family: var(--bs-font-monospace);
   font-size: 12px;
   font-weight: 600;
@@ -23205,7 +23392,7 @@ a._citationLink_1ggvf_9:hover {
   white-space: nowrap;
 }
 
-._message_zuaa2_48 {
+._message_wikv3_62 {
   font-size: 12.5px;
   color: var(--bs-secondary-color);
   min-width: 0;
@@ -23214,43 +23401,48 @@ a._citationLink_1ggvf_9:hover {
   white-space: nowrap;
 }
 
-/* Right-aligned group: the (expanded-only) Error/Events toggle, duration, and
-   chevron. */
-._headerRight_zuaa2_59 {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-._headerToggle_zuaa2_66 {
-  display: flex;
-}
-
-._duration_zuaa2_70 {
-  font-family: var(--bs-font-monospace);
-  font-size: 12px;
-  color: var(--bs-tertiary-color);
-  white-space: nowrap;
-}
-
-._chevron_zuaa2_77 {
+._chevron_wikv3_71 {
+  flex: none;
   color: var(--bs-tertiary-color);
   font-size: 14px;
 }
 
 /* No horizontal padding: the Events transcript goes edge-to-edge so its row
-   borders meet the card edges. The error panel re-adds its own inset. */
-._body_zuaa2_84 {
-  padding-top: 10px;
-  padding-bottom: 16px;
+   borders meet the card edges. The divider band and error panel re-add their
+   own inset. */
+._body_wikv3_80 {
+  padding: 2px 0 16px;
 }
 
-._errorPanel_zuaa2_89 {
+/* Centered Error/Events control on a hairline that extends to both card edges,
+   reading as a labeled section divider between the header and the content. */
+._dividerBand_wikv3_86 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 0 14px;
 }
 
-._ansi_zuaa2_93 {
+._hairline_wikv3_93 {
+  flex: 1;
+  height: 1px;
+  background: var(--bs-border-color);
+}
+
+._toggle_wikv3_99 {
+  flex: none;
+  display: flex;
+}
+
+._content_wikv3_104 {
+  padding-top: 14px;
+}
+
+._errorPanel_wikv3_108 {
+  margin: 0 14px;
+}
+
+._ansi_wikv3_112 {
   margin: 0.5em 0;
   font-size: clamp(0.3rem, 1.1vw, 0.8rem) !important;
 }
@@ -25768,11 +25960,11 @@ pre._value_8citi_25 {
 ._code_ovp9s_12 {
   background: transparent !important;
 }
-._container_15zex_1 {
+._container_9l9dc_1 {
   padding: 1em;
 }
 
-._loading_15zex_5 {
+._loading_9l9dc_5 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -25781,22 +25973,43 @@ pre._value_8citi_25 {
   color: var(--bs-secondary);
 }
 
-._header_15zex_14 {
+._header_9l9dc_14 {
   margin-bottom: 1em;
 }
 
-._sampleInfo_15zex_18 {
+._heading_9l9dc_18 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  column-gap: 0.5em;
+  margin-bottom: 2em;
+  justify-content: space-between;
+  border-bottom: solid 1px silver;
+}
+
+._headingTask_9l9dc_27 {
+  font-weight: 600;
+}
+
+._headingModel_9l9dc_31 {
+  text-align: center;
+}
+
+._headingTime_9l9dc_35 {
+  text-align: right;
+}
+
+._sampleInfo_9l9dc_39 {
   font-size: 1.1em;
   font-weight: 600;
   margin-top: 0.25em;
 }
 
 @media print {
-  ._loading_15zex_5 {
+  ._loading_9l9dc_5 {
     display: none;
   }
 
-  ._container_15zex_1 {
+  ._container_9l9dc_1 {
     padding: 0;
   }
 

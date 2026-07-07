@@ -729,6 +729,16 @@ class GoogleGenAIAPI(ModelAPI):
             ),
         ):
             return RetryDecision.transient()
+        # A ClientPayloadError means the response body was truncated mid-stream
+        # (connection reset by peer / intermediary), not a request defect. aiohttp
+        # exposes the parser cause as __cause__; PayloadEncodingError covers both
+        # the chunked (TransferEncodingError) and Content-Length (ContentLengthError)
+        # framings of a cut-off stream, while leaving a corrupt-compression
+        # DecompressionError to fall through as non-retryable.
+        if isinstance(ex, aiohttp.ClientPayloadError) and isinstance(
+            ex.__cause__, aiohttp.http_exceptions.PayloadEncodingError
+        ):
+            return RetryDecision.transient()
         return RetryDecision.no()
 
     @override
@@ -740,7 +750,7 @@ class GoogleGenAIAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def tool_result_images(self) -> bool:
@@ -1940,12 +1950,18 @@ def usage_metadata_to_model_usage(
     # cached count from `input_tokens` and surface it separately.
     cached = metadata.cached_content_token_count or 0
     prompt = metadata.prompt_token_count or 0
+    # Gemini also reports thoughts separately from candidates. Fold them into
+    # `output_tokens` to match the OpenAI/Anthropic convention — reasoning is
+    # included in output (Gemini bills thinking at the output rate), with
+    # `reasoning_tokens` as the detail subset. This also keeps output-metered
+    # token limits (`token_limit(type="output")`) counting thinking tokens.
+    thoughts = metadata.thoughts_token_count or 0
     return ModelUsage(
         input_tokens=max(prompt - cached, 0),
-        output_tokens=metadata.candidates_token_count or 0,
+        output_tokens=(metadata.candidates_token_count or 0) + thoughts,
         total_tokens=metadata.total_token_count or 0,
         input_tokens_cache_read=cached or None,
-        reasoning_tokens=metadata.thoughts_token_count or 0,
+        reasoning_tokens=thoughts,
     )
 
 

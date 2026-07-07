@@ -77,6 +77,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample_summaries_async,
 )
 from inspect_ai.log._log import (
+    EvalPlan,
     EvalRetryError,
     EvalSampleLimit,
     EvalSampleReductions,
@@ -308,6 +309,17 @@ def plan_agent_name(plan: Plan) -> str | None:
     return None
 
 
+def eval_plan_agent_name(plan: EvalPlan) -> str | None:
+    """Unqualified name of a recorded plan's terminal step (agent or solver).
+
+    The log-header counterpart of `plan_agent_name`. `plan_to_eval_plan`
+    records a `finish` solver again as the trailing step, so skip it to
+    match the live derivation.
+    """
+    steps = plan.steps[:-1] if plan.finish else plan.steps
+    return registry_unqualified_name(steps[-1].solver) if steps else None
+
+
 def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
     """Add tasks a TaskSource callback returned to the running eval's queue.
 
@@ -497,6 +509,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # call hook
             await emit_task_start(logger)
 
+            sample_semaphore = create_sample_semaphore(
+                config,
+                model.config.merge(generate_config),
+                model.api,
+                task_id=logger.eval.task_id,
+            )
+
             # Register this eval with the process-level state aggregate
             # so the control channel (and other readers) can answer
             # "how many samples queued / running / done?" without
@@ -508,10 +527,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 task=logger.eval.task,
                 task_id=logger.eval.task_id,
                 model=str(model),
+                solver=profile.agent,
                 log_location=logger.location,
-                summaries_provider=logger.sample_summaries,
-                sample_provider=logger.read_sample,
-                events_provider=logger.sample_events_provider,
+                live=logger,
                 sample_ids=sample_ids,
                 epochs=epochs,
                 run_id=logger.eval.run_id,
@@ -553,11 +571,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                 # set generate for fork module
                 set_task_generate(generate)
-
-                # semaphore to limit concurrency
-                sample_semaphore = create_sample_semaphore(
-                    config, generate_config, model.api
-                )
 
                 scanned_per_scanner = scanned_transcripts_for_resume(
                     scanner, scan_id, profile.log_location
@@ -699,6 +712,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 messages=sample_messages(sample),
                                 message_limit=config.message_limit,
                                 token_limit=config.token_limit,
+                                token_limit_type=config.token_limit_type or "all",
                                 cost_limit=config.cost_limit,
                                 completed=False,
                                 metadata=sample.metadata if sample.metadata else {},
@@ -1023,6 +1037,19 @@ def _sample_usage(state: TaskState) -> dict[str, int]:
     }
 
 
+def _sample_started() -> float | None:
+    """The just-finished sample's start time, for the eval's running-min start.
+
+    Read from the same sample-scoped timing contextvar that backs the logged
+    ``started_at`` (set when the sample began, still in scope in the terminal
+    block). Passed to ``record_sample_*`` so the eval's reported start pins to
+    its first sample even when that sample finished before any control poll
+    (see ``EvalState.started_at``). ``None`` for a sample that never started.
+    """
+    started = sample_start_datetime()
+    return started.timestamp() if started is not None else None
+
+
 async def task_run_sample(
     *,
     task: Task,
@@ -1142,7 +1169,11 @@ async def task_run_sample(
         # precedence eval > sample > task (per-field merge — see
         # `merge_checkpoint_configs`).
         resolved_checkpoint = merge_checkpoint_configs(
-            checkpoint, sample.checkpoint, eval_checkpoint
+            checkpoint,
+            sample.checkpoint,
+            eval_checkpoint,
+            on_checkpoint=task.on_checkpoint,
+            on_resume=task.on_resume,
         )
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
@@ -1652,43 +1683,46 @@ async def task_run_sample(
                             include_events=include_events,
                         )
 
-                    if logger:
-                        # When the full event history is still resident in
-                        # memory we can log the sample directly from memory
-                        # rather than reading every event back out of the
-                        # realtime buffer DB and re-validating it. This is the
-                        # case whenever realtime logging is off (no buffer DB)
-                        # OR the transcript was not bounded-evicted (events
-                        # never exceeded the resident tail — the common case for
-                        # high-throughput runs). Only fall back to the streaming
-                        # read-back when events were actually evicted.
-                        log_from_memory = (
-                            logger.buffer_db is None
-                            or not sample_transcript.history.resident_events_truncated
+                    with anyio.CancelScope(
+                        shield=error is not None or cancelled_error is not None
+                    ):
+                        if logger:
+                            # When the full event history is still resident in
+                            # memory we can log the sample directly from memory
+                            # rather than reading every event back out of the
+                            # realtime buffer DB and re-validating it. This is the
+                            # case whenever realtime logging is off (no buffer DB)
+                            # OR the transcript was not bounded-evicted (events
+                            # never exceeded the resident tail — the common case for
+                            # high-throughput runs). Only fall back to the streaming
+                            # read-back when events were actually evicted.
+                            log_from_memory = (
+                                logger.buffer_db is None
+                                or not sample_transcript.history.resident_events_truncated
+                            )
+                            eval_sample = await log_sample(
+                                eval_sample=make_eval_sample(
+                                    include_events=log_from_memory
+                                ),
+                                logger=logger,
+                                log_images=log_images,
+                                from_memory=log_from_memory,
+                            )
+                        else:
+                            eval_sample = make_eval_sample()
+                        await scan_eval_sample(
+                            eval_sample,
+                            scanner,
+                            scan_id=scan_id,
+                            eval_id=task_id,
+                            log_location=log_location,
+                            model=str(state.model),
+                            eval_spec=logger.eval if logger else None,
                         )
-                        eval_sample = await log_sample(
-                            eval_sample=make_eval_sample(
-                                include_events=log_from_memory
-                            ),
-                            logger=logger,
-                            log_images=log_images,
-                            from_memory=log_from_memory,
+                        await emit_attempt_end(will_retry=False)
+                        await emit_sample_end(
+                            eval_set_id, run_id, task_id, state.uuid, eval_sample
                         )
-                    else:
-                        eval_sample = make_eval_sample()
-                    await scan_eval_sample(
-                        eval_sample,
-                        scanner,
-                        scan_id=scan_id,
-                        eval_id=task_id,
-                        log_location=log_location,
-                        model=str(state.model),
-                        eval_spec=logger.eval if logger else None,
-                    )
-                    await emit_attempt_end(will_retry=False)
-                    await emit_sample_end(
-                        eval_set_id, run_id, task_id, state.uuid, eval_sample
-                    )
                     # notify a TaskSource (if the run has one) as each sample
                     # completes, so it can react in real time (and add tasks)
                     if task_source is not None:
@@ -1762,7 +1796,9 @@ async def task_run_sample(
         # a cancelled sample is terminal but not a genuine error — count it so
         # the eval can reach `total` and be marked finished (eg. a final-attempt
         # failure that cancels an in-flight sibling)
-        record_sample_cancelled(task_id, **_sample_usage(state))
+        record_sample_cancelled(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise cancelled_error
 
     # no error
@@ -1770,17 +1806,23 @@ async def task_run_sample(
         # call sample_complete callback if we have score results
         if results is not None:
             await sample_complete(state.sample_id, state.epoch, results)
-        record_sample_completed(task_id, **_sample_usage(state))
+        record_sample_completed(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return results
 
     # we have an error and should raise it
     elif raise_error is not None:
-        record_sample_errored(task_id, **_sample_usage(state))
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise raise_error
 
     # we have an error and should not raise it
     else:
-        record_sample_errored(task_id, **_sample_usage(state))
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return None
 
 
@@ -2031,40 +2073,86 @@ def eval_log_sample_source(
         return EvalSampleSource(read_from_memory, memory_error_history)
 
 
-# semaphore to limit concurrency. default max_samples to
-# max_connections + 1 if not explicitly specified (this is
-# to make sure it always saturates the connection pool)
 def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
+    task_id: str | None = None,
 ) -> contextlib.AbstractAsyncContextManager[Any]:
+    """Create (or reuse) the task's sample-concurrency semaphore.
+
+    Bounds how many samples run at once so setup work (sandboxes, state)
+    stays proportional to what the model can actually serve: an explicit
+    ``max_samples`` is honored as a user setpoint; otherwise the adaptive
+    path follows the model's connection controller, and the static path
+    defaults from ``max_connections`` (so the connection pool always
+    saturates).
+
+    ``generate_config`` must be the model-composed config
+    (``model.config.merge(task_config)``, the same composition
+    ``Model._resolve_config`` applies) — classifying from the task-level
+    config alone would disagree with the generate path when the model
+    carries its own ``max_connections`` / ``adaptive_connections``,
+    coupling sample concurrency to a controller generates never use (see
+    ``ensure_model_controller`` for the same contract on the eager side).
+
+    Semaphores are task-scoped, not attempt-scoped: they're registered under
+    ``task_id`` and an in-process retry reuses its predecessor's semaphore,
+    so a mid-flight ``ctl limits --max-samples`` retune survives the retry
+    rather than silently reverting to the config value (see the registry's
+    rationale in ``_concurrency.py``). The control channel's modify-limits
+    directive reads and retunes ``max_samples`` through this same registry
+    entry.
+    """
+    from inspect_ai.model._model import model_concurrency_key
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,
+        ResizableLimiter,
         adaptive_active,
+        register_task_sample_semaphore,
         resolve_adaptive,
+        task_sample_semaphore,
     )
 
+    # sample semaphores are task-scoped, not attempt-scoped: an in-process
+    # retry reuses its predecessor's semaphore so a mid-flight `ctl limits
+    # --max-samples` retune survives the retry rather than silently reverting
+    # to the config value (see the registry's rationale in _concurrency.py)
+    if task_id is not None:
+        existing = task_sample_semaphore(task_id)
+        if existing is not None:
+            return existing
+
+    semaphore: "ResizableLimiter | DynamicSampleLimiter"
     if config.max_samples is not None:
         # explicit max_samples wins silently — under default-on
         # adaptive_connections, warning when max_samples < adaptive.max
-        # would fire for nearly every deliberate max_samples setting
-        return anyio.Semaphore(config.max_samples)
+        # would fire for nearly every deliberate max_samples setting.
+        # ResizableLimiter (not a fixed Semaphore) so the control channel can
+        # retune max_samples mid-eval (see design/control-channel.md phase 3).
+        semaphore = ResizableLimiter(config.max_samples)
     elif adaptive_active(
         generate_config.adaptive_connections,
         generate_config.max_connections,
         generate_config.batch,
     ):
-        # adaptive: dynamic limiter that tracks the controller(s) — sample
-        # concurrency grows with the controller's current limit so setup work
-        # (sandboxes etc.) stays proportional to actual model concurrency.
+        # adaptive: dynamic limiter that tracks this model's controller —
+        # sample concurrency grows with the controller's current limit so setup
+        # work (sandboxes etc.) stays proportional to actual model concurrency.
+        # The connection-pool key scopes the limiter to the task's own model's
+        # controller: controllers for other models in the process (graders,
+        # eval-set siblings) must not drive it. Without a ModelAPI (tests) the
+        # sentinel key matches no controller and the limiter stays at its
+        # initial value.
         # Both explicit max_connections and batch mode silently override
         # adaptive (matches the precedence in Model._connection_concurrency).
-        return DynamicSampleLimiter(
-            resolve_adaptive(generate_config.adaptive_connections)
+        semaphore = DynamicSampleLimiter(
+            resolve_adaptive(generate_config.adaptive_connections),
+            model_concurrency_key(modelapi) if modelapi else "<no-model>",
         )
     else:
-        # static path (existing behavior, unchanged)
+        # static path (default max_samples derived from max_connections).
+        # ResizableLimiter so the control channel can retune it mid-eval.
         max_samples = (
             generate_config.max_connections
             if generate_config.max_connections is not None
@@ -2074,7 +2162,11 @@ def create_sample_semaphore(
             if modelapi
             else DEFAULT_MAX_CONNECTIONS
         )
-        return anyio.Semaphore(max_samples)
+        semaphore = ResizableLimiter(max_samples)
+
+    if task_id is not None:
+        register_task_sample_semaphore(task_id, semaphore)
+    return semaphore
 
 
 def _eval_retry_error(
