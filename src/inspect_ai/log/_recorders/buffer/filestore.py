@@ -1,9 +1,12 @@
 import os
 import tempfile
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import Iterator, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from urllib.parse import urlparse
 from zipfile import ZipFile
 
 from pydantic import BaseModel, Field
@@ -11,13 +14,17 @@ from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
-from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
+from inspect_ai._util.file import FileSystem, basename, dirname, filesystem, open_file
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._file import read_eval_log
 
 from ..._log import EvalSampleSummary
-from .types import SampleBuffer, SampleData, Samples
+from .types import SampleBuffer, SampleData, Samples, TranscriptEventSink
+
+if TYPE_CHECKING:
+    from .history import SampleHistory
+
 
 logger = getLogger(__name__)
 
@@ -30,6 +37,14 @@ class Segment(BaseModel):
     last_call_pool_id: int = 0
 
 
+class SampleSegment(Segment):
+    # Same shape as Segment, but scoped to one sample's contribution.
+    pass
+
+
+SampleSegmentEntry: TypeAlias = int | SampleSegment
+
+
 class SegmentFile(BaseModel):
     id: str | int
     epoch: int
@@ -38,7 +53,7 @@ class SegmentFile(BaseModel):
 
 class SampleManifest(BaseModel):
     summary: EvalSampleSummary
-    segments: list[int] = Field(default_factory=list)
+    segments: list[SampleSegmentEntry] = Field(default_factory=list)
 
 
 class Manifest(BaseModel):
@@ -64,6 +79,18 @@ def _find_sample(
     )
 
 
+def sample_segment_id(segment: SampleSegmentEntry) -> int:
+    return segment if isinstance(segment, int) else segment.id
+
+
+def sample_segment_cursor(
+    segment: SampleSegmentEntry, segments_by_id: dict[int, Segment]
+) -> Segment | None:
+    if isinstance(segment, SampleSegment):
+        return segment
+    return segments_by_id.get(segment)
+
+
 def segments_for_sample_cursor(
     manifest: Manifest,
     sample: SampleManifest,
@@ -78,6 +105,8 @@ def segments_for_sample_cursor(
     OR-logic across cursor types: a segment qualifies if any of its
     last_*_id values exceeds the corresponding cursor. Over-inclusive
     by design; individual items must be post-filtered by the caller.
+    Legacy integer entries fall back to global segment maxima. That preserves
+    compatibility but can over-include old co-batched manifests.
 
     Cursors are floored at 0 because SQL AUTOINCREMENT ids start at 1,
     so a cursor of `None`, `-1`, or `0` are equivalent: "no items of
@@ -93,18 +122,29 @@ def segments_for_sample_cursor(
     after_message_pool = max(0, after_message_pool_id or 0)
     after_call_pool = max(0, after_call_pool_id or 0)
 
-    by_id = sorted(
-        (s for s in manifest.segments if s.id in sample.segments),
-        key=lambda s: s.id,
-    )
-    return [
-        s
-        for s in by_id
-        if s.last_event_id > after_event
-        or s.last_attachment_id > after_attachment
-        or s.last_message_pool_id > after_message_pool
-        or s.last_call_pool_id > after_call_pool
-    ]
+    segments_by_id = {s.id: s for s in manifest.segments}
+    matching: list[Segment] = []
+    seen_ids: set[int] = set()
+    for sample_segment in sample.segments:
+        segment_id = sample_segment_id(sample_segment)
+        if segment_id in seen_ids:
+            continue
+        segment = segments_by_id.get(segment_id)
+        if segment is None:
+            continue
+        cursor = (
+            sample_segment if isinstance(sample_segment, SampleSegment) else segment
+        )
+        if (
+            cursor.last_event_id > after_event
+            or cursor.last_attachment_id > after_attachment
+            or cursor.last_message_pool_id > after_message_pool
+            or cursor.last_call_pool_id > after_call_pool
+        ):
+            seen_ids.add(segment_id)
+            matching.append(segment)
+
+    return sorted(matching, key=lambda s: s.id)
 
 
 @dataclass(frozen=True)
@@ -128,6 +168,28 @@ class PendingSampleSegments:
 MANIFEST = "manifest.json"
 
 
+def _is_s3_tagging_denied(ex: Exception) -> bool:
+    """Whether a failed S3 write was rejected for lacking object-tagging permission.
+
+    Tagging an object on write (the ``x-amz-tagging`` header) requires
+    ``s3:PutObjectTagging`` in addition to ``s3:PutObject``. s3fs maps an S3
+    ``AccessDenied`` to ``PermissionError`` and preserves the underlying botocore
+    error (which names the denied action, e.g. ``PutObjectTagging``) on the
+    exception chain. Match either signal without taking a botocore dependency.
+    """
+    seen: set[int] = set()
+    cur: BaseException | None = ex
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if isinstance(cur, PermissionError):
+            return True
+        text = str(cur).lower()
+        if "accessdenied" in text or "tagging" in text:
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
 class SampleBufferFilestore(SampleBuffer):
     def __init__(
         self,
@@ -140,15 +202,49 @@ class SampleBufferFilestore(SampleBuffer):
         self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{os.path.splitext(basename(location))[0]}{self._fs.sep}"
         self.update_interval = update_interval
 
+        # Tag the ephemeral buffer objects synced to S3 (see _write_bytes for the
+        # permission fallback).
+        self._write_fs_options: dict[str, Any] = (
+            {"s3_additional_kwargs": {"Tagging": "inspect-ephemeral=true"}}
+            if urlparse(location).scheme == "s3"
+            else {}
+        )
+
         if create:
             self._fs.mkdir(self._dir, exist_ok=True)
 
             # place a file in the dir to force it to be created
-            self._fs.touch(f"{self._dir}.keep")
+            self._write_bytes(f"{self._dir}.keep", b"")
+
+    def _write_bytes(self, path: str, data: bytes) -> None:
+        """Write bytes to the filestore, tagging S3 objects as ephemeral.
+
+        S3 buffer objects are written with an ``inspect-ephemeral`` tag so they
+        can be expired by an S3 lifecycle rule. Tagging on write requires the
+        ``s3:PutObjectTagging`` permission in addition to ``s3:PutObject``; if a
+        tagged write is denied for lacking it, disable tagging for the remainder
+        of this session and retry untagged so shared-log sync keeps working (the
+        objects simply won't be lifecycle-expirable by tag).
+        """
+        try:
+            with open_file(path, "wb", fs_options=self._write_fs_options) as f:
+                f.write(data)
+        except Exception as ex:
+            if not self._write_fs_options or not _is_s3_tagging_denied(ex):
+                raise
+            logger.warning(
+                "S3 object tagging denied when writing shared buffer objects "
+                "(missing s3:PutObjectTagging?); continuing untagged for the rest "
+                "of this session. Tag-based S3 lifecycle expiration will not apply "
+                "to this run's buffer objects. (%s)",
+                ex,
+            )
+            self._write_fs_options = {}
+            with open_file(path, "wb") as f:
+                f.write(data)
 
     def write_manifest(self, manifest: Manifest) -> None:
-        with file(self._manifest_file(), "wb") as f:
-            f.write(to_json_safe(manifest))
+        self._write_bytes(self._manifest_file(), to_json_safe(manifest))
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
         # write the file locally
@@ -163,18 +259,15 @@ class SampleBufferFilestore(SampleBuffer):
             segment_file.flush()
             os.fsync(segment_file.fileno())
 
-        # write then move for atomicity
         try:
             with open(name, "rb") as zf:
-                with file(f"{self._dir}{segment_name(id)}", "wb") as f:
-                    f.write(zf.read())
-                    f.flush()
+                self._write_bytes(f"{self._dir}{segment_name(id)}", zf.read())
         finally:
             os.unlink(name)
 
     def read_manifest(self) -> Manifest | None:
         try:
-            with file(self._manifest_file(), "r") as f:
+            with open_file(self._manifest_file(), "r") as f:
                 contents = f.read()
                 return Manifest.model_validate_json(contents)
         except FileNotFoundError:
@@ -184,7 +277,7 @@ class SampleBufferFilestore(SampleBuffer):
         self, id: int, sample_id: str | int, epoch_id: int
     ) -> SampleData:
         segment_file = f"{self._dir}{segment_name(id)}"
-        with file(segment_file, "rb") as f:
+        with open_file(segment_file, "rb") as f:
             with ZipFile(f, mode="r") as zip:
                 with zip.open(segment_file_name(sample_id, epoch_id), "r") as sf:
                     return SampleData.model_validate_json(sf.read())
@@ -213,8 +306,9 @@ class SampleBufferFilestore(SampleBuffer):
         if sample is None:
             return
 
+        sample_segment_ids = {sample_segment_id(segment) for segment in sample.segments}
         for segment in sorted(manifest.segments, key=lambda s: s.id):
-            if segment.id not in sample.segments:
+            if segment.id not in sample_segment_ids:
                 continue
             try:
                 data = self.read_segment_data(segment.id, id, epoch)
@@ -339,6 +433,47 @@ class SampleBufferFilestore(SampleBuffer):
         ]
 
         return sample_data
+
+    @override
+    def sample_event_count(self, id: str | int, epoch: int) -> int:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def sample_has_event(self, id: str | int, epoch: int, event_id: str) -> bool:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def export_transcript_events(
+        self, id: str | int, epoch: int, transcript_store: TranscriptEventSink
+    ) -> int:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def open_sample_history_tail(
+        self,
+        id: str | int,
+        epoch: int,
+        n: int,
+    ) -> AbstractContextManager["SampleHistory"]:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def open_sample_history_from(
+        self,
+        id: str | int,
+        epoch: int,
+        start: int,
+        limit: int | None = None,
+    ) -> AbstractContextManager["SampleHistory"]:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def open_sample_history(
+        self,
+        id: str | int,
+        epoch: int,
+    ) -> AbstractContextManager["SampleHistory"]:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
 
     def get_pending_segments(
         self,

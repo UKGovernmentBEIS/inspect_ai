@@ -13,47 +13,75 @@ from __future__ import annotations
 
 import contextlib
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Mapping,
+)
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timezone
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
-import anyio
 from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.file import write_text_atomic
+from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.trace import trace_action
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
-from inspect_ai.log._pool import (
-    _build_call_index,
-    _build_msg_index,
-    condense_model_event_calls,
-    condense_model_event_inputs,
-)
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._transcript import transcript
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.log._transcript_store import TranscriptEventStore
+from inspect_ai.model._assistant_internal import (
+    dump_sample_assistant_internal,
+    init_sample_assistant_internal,
+)
 from inspect_ai.solver._task_state import sample_state
-from inspect_ai.util._restic import ResticBackupSummary, run_backup
+from inspect_ai.util._checkpoint.report import ResumeReport, resolve_resume_report
+from inspect_ai.util._restic import (
+    ResticBackupSummary,
+    list_changed_files,
+    run_backup,
+)
 from inspect_ai.util._sandbox.context import sandbox
-from inspect_ai.util._span import span
+from inspect_ai.util._span import SpanRotationScope
 from inspect_ai.util._store import Store, store_jsonable
 
-from ._layout import CheckpointDetails, SnapshotDetails, host_context, write_sidecar
+from ._host_egress import host_egress
+from ._layout.host_context import (
+    AGENT_STATE,
+    ASSISTANT_INTERNAL,
+    ATTACHMENTS,
+    EVENTS,
+    EVENTS_DATA,
+    STORE,
+)
+from ._layout.sample_checkpoints_dir import (
+    scan_latest_committed_id,
+    write_checkpoint_file,
+)
+from ._layout.schemas import Checkpoint, SnapshotDetails
+from ._layout.staging_dir import sandbox_repo_dir
 from ._sandbox_restic import egress_sandbox, run_sandbox_backup
 from ._triggers import CheckpointTriggerKind, create_trigger
 from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
 )
-from .config import ResolvedCheckpointConfig
+from .config import MAX_LISTED_FILES, ResolvedCheckpointConfig
 from .hydrate import HydrationResult, hydrate
+from .sandbox_paths import SandboxBackupPaths
 
 logger = getLogger(__name__)
 
 T = TypeVar("T")
+
+CHECKPOINT_TRANSCRIPT_STORE = "checkpoint_transcript.sqlite"
 
 # JSON-primitive Python types; these round-trip identically through
 # `json.dumps`/`json.loads`, so `track()` can return them on resume
@@ -86,9 +114,20 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         self._epoch = epoch
         self._resume_checkpoint = resume_checkpoint
         self._cached: _EnteredCheckpointer | None = None
+        self._reset_transcript_store_on_next_enter = True
+        # One-shot finalize gate. The first clean cm exit fires the
+        # "agent_complete" checkpoint; subsequent ``__aexit__`` calls
+        # (e.g. a hook re-entering ``checkpointer()`` after the agent
+        # returned) are no-ops.
+        self._finalized = False
+        # Whether the agent's ``async with checkpointer()`` scope is currently
+        # open. Gates ``current()`` so a borrowed session isn't handed out
+        # (and fired through) after the scope — and its span machinery — closes.
+        self._entered = False
 
     async def __aenter__(self) -> Checkpointer:
         if self._cached is not None:
+            self._entered = True
             return self._cached
         result = await hydrate(
             config=self._config,
@@ -97,15 +136,91 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
             epoch=self._epoch,
             resume_checkpoint=self._resume_checkpoint,
         )
+        if result.host.assistant_internal is not None:
+            init_sample_assistant_internal(result.host.assistant_internal)
+        restored: ResumeReport | None = None
+        if self._resume_checkpoint is not None:
+            if self._config.on_resume is not None:
+                state = sample_state()
+                if state is None:
+                    raise RuntimeError("on_resume requires active sample state")
+                restored = resolve_resume_report(
+                    await self._config.on_resume(state, self._resume_checkpoint.attempt)
+                )
+            transcript()._event(
+                InfoEvent(
+                    source="checkpoint",
+                    data={
+                        "event": "resume",
+                        "attempt": self._resume_checkpoint.attempt,
+                        "report": restored.model_dump(mode="json")
+                        if restored
+                        else None,
+                    },
+                )
+            )
+        reset_transcript_store = self._reset_transcript_store_on_next_enter
         self._cached = _EnteredCheckpointer(
             config=self._config,
             hydration=result,
             resume_checkpoint=self._resume_checkpoint,
+            reset_transcript_store=reset_transcript_store,
+            restored=restored,
         )
+        self._reset_transcript_store_on_next_enter = False
+        self._entered = True
         return self._cached
 
     async def __aexit__(self, *exc: object) -> None:
-        return None
+        # Leaving the agent's ``async with checkpointer()`` scope ends the
+        # borrow window: ``current()`` must stop handing out the session (its
+        # span scope is now closing). Reset unconditionally, ahead of the
+        # finalize gate's early returns.
+        self._entered = False
+        # `exc[0]` is the propagating exception type (or None on a clean exit),
+        # per the context-manager protocol.
+        exc_type = exc[0] if exc else None
+        # Fire a final "agent_complete" checkpoint iff:
+        #
+        # - the cm was actually entered (hydrate ran),
+        # - no exception is propagating through the exit (agent didn't
+        #   raise / cancel / hit a limit),
+        # - this isn't the scoring-phase resume short-circuit (the
+        #   latest checkpoint is already ``agent_complete``), and
+        # - we haven't already finalized (idempotent across multiple
+        #   ``async with checkpointer():`` blocks in the same sample).
+        if (
+            self._cached is None
+            or exc_type is not None
+            or self._cached.attempt == "resume_for_scoring"
+            or self._finalized
+        ):
+            return
+        self._finalized = True
+        cp = self._cached
+        await cp._fire("agent_complete", final=True)
+
+    def current(self) -> Checkpointer | None:
+        # Expose the session only while the owner's scope is open. ``_cached``
+        # outlives that scope (until ``close()`` at teardown), but firing
+        # through it post-exit writes a span-less, unresumable checkpoint — so
+        # gate on ``_entered``, not ``_cached``.
+        return self._cached if self._entered else None
+
+    def close(self) -> None:
+        if self._cached is not None:
+            self._cached.close()
+            self._cached = None
+
+
+class CheckpointFailureLimitExceeded(RuntimeError):
+    """Raised when a sample exceeds ``max_consecutive_failures``.
+
+    Chains the underlying fire error via ``__cause__`` (``raise ... from``).
+    Propagates to the agent loop, where inspect's normal sample-error
+    machinery (``fail_on_error`` / ``retry_on_error``) handles it like
+    any other ``Exception``.
+    """
 
 
 class _EnteredCheckpointer:
@@ -114,7 +229,7 @@ class _EnteredCheckpointer:
     Constructed by :class:`_CheckpointerSetup.__aenter__` once the
     on-disk + sandbox dependencies are in place. No lifecycle methods
     and no Optional state — the agent uses :meth:`tick`,
-    :meth:`checkpoint`, :meth:`track`, and :attr:`is_resuming` directly.
+    :meth:`checkpoint`, :meth:`track`, and :attr:`attempt` directly.
     """
 
     def __init__(
@@ -123,98 +238,100 @@ class _EnteredCheckpointer:
         config: ResolvedCheckpointConfig,
         hydration: HydrationResult,
         resume_checkpoint: ResumeCheckpoint | None,
+        reset_transcript_store: bool,
+        restored: ResumeReport | None = None,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = hydration.sample_checkpoints_dir
-        self._sample_working_dir = hydration.sample_working_dir
+        self._sample_staging_dir = hydration.sample_staging_dir
+        self._sample_root = hydration.sample_root
+        self._context_dir = hydration.context_dir
         self._host_restic = hydration.host_restic
         self._host_repo = hydration.host_repo
         self._restic_password = hydration.restic_password
+        self._sandbox_backup_paths = hydration.sandbox_backup_paths
         self._resume_checkpoint = resume_checkpoint
+        self._restored = restored
         self._agent_state: dict[str, Any] = (
             hydration.host.agent_state if hydration.host.agent_state is not None else {}
         )
         # Sync per-session state — turn counters, callbacks, pools.
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
+        # Consecutive failed-fire count, against `max_consecutive_failures`.
+        # Reset to 0 on any successful fire. Fresh (0) per session, so a
+        # resumed attempt starts with a clean tolerance budget.
+        self._consecutive_failures = 0
         # Build the concrete trigger for this session. The user's
         # config carries a frozen-dataclass spec (immutable, safely
         # shared across many samples); per-session mutable state lives
         # on the trigger instance returned by ``create_trigger``.
         self._trigger = create_trigger(config.trigger)
         # `checkpoint N` span open across the agent's current
-        # work-between-fires window. Owned across `span_session()`'s
-        # enter/exit and rotated inside `_fire()`.
-        self._current_span_cm: AbstractAsyncContextManager[None] | None = None
-        # Persisted across fires: each fire processes only the new event slice
-        # and appends to these accumulators. Safe because checkpoints fire at
-        # turn boundaries, after which prior events are immutable.
-        #
-        # The accumulator + `_events_consumed` exist for performance — the
-        # next condense uses the prior pool as a starting point rather than
-        # re-walking the full transcript each fire. Revisit if profiling
-        # later shows the from-scratch alternative is fine at expected scale.
-        #
-        # `_events_consumed` is set lazily by the first `_open_next_span()`
-        # call to the transcript index where that first `span_begin:
-        # checkpoint` will land — so pre-first-span setup events (system
-        # message, sample init chatter) never enter the accumulator, and
-        # the persisted snapshot contains only checkpoint spans + contents.
-        # On resume, hydrate seeds the pools and pushes prior span content
-        # into the transcript; the lazy init then captures the index of the
-        # new `span_begin checkpoint M+1` so the next fire's slice is just
-        # the new span.
-        self._condensed_events: list[Event] = list(hydration.host.condensed_events)
-        self._msg_pool: list[ChatMessage] = list(hydration.host.msg_pool)
-        self._msg_index: dict[str, int] = _build_msg_index(self._msg_pool)
-        self._call_pool: list[JsonValue] = list(hydration.host.call_pool)
-        self._call_index: dict[str, int] = _build_call_index(self._call_pool)
-        self._events_consumed: int | None = None
+        # work-between-fires window. Opened/closed across `span_session()`'s
+        # enter/exit and rotated inside `_fire()`. A rotation scope (not
+        # `span()`) because fires can run in tasks spawned after the session
+        # opened (e.g. sandbox bridge RPC handlers): the scope's shared cell
+        # makes the rotation visible to those tasks' events.
+        self._span_scope = SpanRotationScope(type="checkpoint")
+        # Keep checkpoint transcript state outside the live Transcript. The
+        # live transcript may evict old events in bounded mode; this store is
+        # seeded once, then updated by subscription so each checkpoint can
+        # export complete host-context event files.
+        self._transcript_store = TranscriptEventStore(
+            Path(self._context_dir) / CHECKPOINT_TRANSCRIPT_STORE,
+            reset=reset_transcript_store,
+        )
+        self._transcript_subscription: Callable[[], None] | None = None
+        self._closed = False
+        self._transcript_seeded = False
+        self._ensure_transcript_subscription()
+        self._seed_transcript_store(hydration)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        if self._transcript_subscription is not None:
+            self._transcript_subscription()
+            self._transcript_subscription = None
+        self._transcript_store.close()
+        self._closed = True
 
     @property
-    def is_resuming(self) -> bool:
-        return self._resume_checkpoint is not None
+    def attempt(self) -> Literal["initial", "resume", "resume_for_scoring"]:
+        if self._resume_checkpoint is None:
+            return "initial"
+        return self._resume_checkpoint.attempt
+
+    @property
+    def restored(self) -> ResumeReport | None:
+        return self._restored
 
     async def tick(self) -> None:
         self._turn += 1
-        kind = self._trigger.tick()
-        if kind is not None:
-            await self._fire(kind)
+        fire = self._trigger.tick()
+        if fire is not None:
+            await self._fire(fire.kind, metadata=fire.metadata)
 
     async def checkpoint(self) -> None:
         await self._fire("manual")
 
     @contextlib.asynccontextmanager
     async def span_session(self) -> AsyncIterator[None]:
-        await self._open_next_span()
+        await self._span_scope.open(await self._next_span_name())
         try:
             yield
         finally:
-            await self._close_current_span()
+            await self._span_scope.close()
 
-    async def _open_next_span(self) -> None:
-        # Span name matches the sidecar id this span will fire under
-        # (1-indexed, same as `ckpt-NNNNN.json`). Fresh run opens
+    async def _next_span_name(self) -> str:
+        # Span name matches the checkpoint id this span will fire
+        # under (1-indexed, same as `ckpt-NNNNN.json`). Fresh run opens
         # `checkpoint 1`; on resume of an attempt with M prior commits,
         # opens `checkpoint M+1`. A sample that ends without firing
         # leaves an unclosed span at whatever id was about to fire next.
-        next_id = await anyio.to_thread.run_sync(
-            _scan_next_checkpoint_id, self._sample_checkpoints_dir
-        )
-        # First-span lazy init for `_events_consumed`: capture the
-        # transcript index where the about-to-open `span_begin` will land
-        # so the persisted snapshot starts at the first checkpoint span.
-        if self._events_consumed is None:
-            self._events_consumed = len(transcript().events)
-        cm = span(name=f"checkpoint {next_id}", type="checkpoint")
-        await cm.__aenter__()
-        self._current_span_cm = cm
-
-    async def _close_current_span(self) -> None:
-        if self._current_span_cm is None:
-            return
-        cm, self._current_span_cm = self._current_span_cm, None
-        await cm.__aexit__(None, None, None)
+        next_id = await _scan_next_checkpoint_id(self._sample_root)
+        return f"checkpoint {next_id}"
 
     def track(
         self,
@@ -242,7 +359,7 @@ class _EnteredCheckpointer:
             )
         self._on_checkpoint_callbacks[key] = callback
         if key in self._agent_state:
-            raw = self._agent_state[key]
+            raw = self._agent_state.pop(key)
             if value_type is not None:
                 return TypeAdapter(value_type).validate_python(raw)
             if isinstance(initial_value, BaseModel):
@@ -262,166 +379,315 @@ class _EnteredCheckpointer:
             return value
         return initial_value
 
-    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
+    async def _fire(
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
+    ) -> None:
+        """Fire a checkpoint, enforcing ``max_consecutive_failures``.
+
+        Wraps :meth:`_fire_once` so a failed attempt is *non-fatal by
+        default* (working.md §8d): the failure is recorded and the
+        sample keeps running. ``max_consecutive_failures`` bounds the
+        tolerance — ``None`` = unlimited (default), ``N`` = fail on the
+        (N+1)th consecutive failure, ``0`` = any failure is fatal. A
+        successful fire resets the count. On breach we re-raise so the
+        sample fails through inspect's normal sample-error machinery.
+
+        ``final=True`` signals this is the harness-driven
+        "agent_complete" fire at solver exit — :meth:`_fire_once`
+        skips opening the next checkpoint span (no more agent work
+        will land in it).
+        """
+        try:
+            await self._fire_once(trigger, metadata=metadata, final=final)
+        except Exception as err:
+            self._consecutive_failures += 1
+            self._record_fire_failure(trigger, err)
+            max_failures = self._config.max_consecutive_failures
+            if max_failures is not None and self._consecutive_failures > max_failures:
+                raise CheckpointFailureLimitExceeded(
+                    f"checkpoint failed {self._consecutive_failures} consecutive "
+                    f"time(s) (max_consecutive_failures={max_failures})"
+                ) from err
+        else:
+            self._consecutive_failures = 0
+
+    def _record_fire_failure(
+        self, trigger: CheckpointTriggerKind, err: Exception
+    ) -> None:
+        """Record a failed checkpoint attempt (working.md §8d).
+
+        Emits a durable, structured ``InfoEvent`` into the transcript
+        (queryable by ``source="checkpoint"``) and logs a warning for
+        operator/stderr visibility. Used for tolerated failures *and*
+        the threshold-breaching one (recorded before the re-raise; the
+        raise itself becomes the sample's ``ErrorEvent``).
+        """
+        transcript()._event(
+            InfoEvent(
+                source="checkpoint",
+                data={
+                    "event": "checkpoint_failed",
+                    "trigger": trigger,
+                    "turn": self._turn,
+                    "consecutive_failures": self._consecutive_failures,
+                    "error": f"{type(err).__name__}: {err}",
+                },
+            )
+        )
+        logger.warning(
+            "Checkpoint attempt failed (trigger=%s, turn=%s, consecutive=%s): %s",
+            trigger,
+            self._turn,
+            self._consecutive_failures,
+            err,
+        )
+
+    async def _fire_once(
+        self,
+        trigger: CheckpointTriggerKind,
+        *,
+        metadata: dict[str, JsonValue] | None = None,
+        final: bool = False,
+    ) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
-        # the per-checkpoint sidecar.
+        # the per-checkpoint file.
         cycle_start = time.monotonic()
 
-        # Sidecar numbering continues from any sidecars already present
-        # in the dir (incl. those FS-copied from a prior eval on resume).
-        # Scanned per-fire rather than tracked in memory so the count
-        # naturally bridges resumed runs without an explicit handoff.
-        next_checkpoint_id = await anyio.to_thread.run_sync(
-            _scan_next_checkpoint_id, self._sample_checkpoints_dir
-        )
+        # Checkpoint file numbering continues from the latest committed
+        # checkpoint. Torn checkpoint files are intentionally ignored so
+        # the next successful fire can replace them.
+        next_checkpoint_id = await _scan_next_checkpoint_id(self._sample_root)
 
-        # Close `checkpoint N` *before* `write_host_context` so the
-        # ``SpanEndEvent`` lands in this checkpoint's ``events.json`` —
-        # the persisted snapshot must show the span closing within it.
-        await self._close_current_span()
-
-        state = sample_state()
-        if not state:
-            raise RuntimeError("Checkpointer must find sample state")
-        ts = transcript()
-        await self._write_host_context(
-            self._sample_working_dir,
-            ts.events,
-            ts.attachments,
-            state.store,
-        )
-
-        # Host + each sandbox (backup → egress) in parallel. The
-        # backup-then-egress pair for a given sandbox is sequential
-        # (egress diffs against what backup just wrote), but the pairs
-        # are independent across sandboxes and from the host backup.
-        # `tg_collect` takes thunks (zero-arg callables) so coroutines
-        # are only created at task-group start time.
-        sandbox_items = list((self._config.sandbox_paths or {}).items())
-        backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
-            partial(self._backup_host, next_checkpoint_id),
-            *[
-                partial(
-                    self._backup_and_egress_sandbox, name, paths, next_checkpoint_id
+        # Wrap the whole fire in a trace action so an in-progress fire is
+        # observable live (`inspect trace anomalies` Running Actions) and a
+        # hung/cancelled/errored fire is surfaced as an anomaly. The action
+        # lives here (not in `_fire`) so the error/cancel record is emitted
+        # before `_fire`'s `max_consecutive_failures` handling sees it.
+        with trace_action(
+            logger,
+            "Checkpoint",
+            f"fire {_restic_tag(next_checkpoint_id)} (trigger={trigger})",
+        ):
+            # Close `checkpoint N` *before* `write_host_context` so the
+            # ``SpanEndEvent`` lands in this checkpoint's ``events.json`` —
+            # the persisted snapshot must show the span closing within it.
+            await self._span_scope.end_span()
+            try:
+                state = sample_state()
+                if not state:
+                    raise RuntimeError("Checkpointer must find sample state")
+                # Task flush hook: mem -> disk before the snapshot, so what it
+                # writes lands in this checkpoint. Runs inside _fire_once, so a
+                # raise routes through _fire's max_consecutive_failures handling.
+                if self._config.on_checkpoint is not None:
+                    await self._config.on_checkpoint(state)
+                await self._write_host_context(
+                    self._context_dir,
+                    state.store,
                 )
-                for name, paths in sandbox_items
-            ],
-        ]
-        summaries = await tg_collect(backup_funcs)
-        host_info = _snapshot_info(summaries[0])
-        sandbox_infos = {
-            name: _snapshot_info(summary)
-            for (name, _), summary in zip(sandbox_items, summaries[1:])
-        }
 
-        # Cycle duration measured up to the sidecar write — the write
-        # itself is the commit point, so its cost lands on the next
-        # cycle's clock if anywhere.
-        duration_ms = int((time.monotonic() - cycle_start) * 1000)
+                # Host + each sandbox (backup → egress) in parallel. The
+                # backup-then-egress pair for a given sandbox is sequential
+                # (egress diffs against what backup just wrote), but the pairs
+                # are independent across sandboxes and from the host backup.
+                # `tg_collect` takes thunks (zero-arg callables) so coroutines
+                # are only created at task-group start time.
+                sandbox_items = list(self._sandbox_backup_paths.items())
+                backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
+                    partial(self._backup_host, next_checkpoint_id),
+                    *[
+                        partial(
+                            self._backup_and_egress_sandbox,
+                            name,
+                            spec,
+                            next_checkpoint_id,
+                        )
+                        for name, spec in sandbox_items
+                    ],
+                ]
+                summaries = await tg_collect(backup_funcs)
+                host_info = _snapshot_info(summaries[0])
+                sandbox_summaries = [
+                    (name, summary)
+                    for (name, _), summary in zip(sandbox_items, summaries[1:])
+                ]
 
-        sidecar = CheckpointDetails(
-            checkpoint_id=next_checkpoint_id,
-            trigger=trigger,
-            turn=self._turn,
-            created_at=datetime.now(timezone.utc),
-            duration_ms=duration_ms,
-            size_bytes=host_info.size_bytes
-            + sum(s.size_bytes for s in sandbox_infos.values()),
-            host=host_info,
-            sandboxes=sandbox_infos,
-        )
+                # List each sandbox snapshot's added/changed files (capped at
+                # MAX_LISTED_FILES). Diffs host-side against the
+                # already-egressed repos in parallel, so the in-sandbox
+                # exec-output limit is never hit.
+                file_lists: list[tuple[list[str] | None, int]] = await tg_collect(
+                    [
+                        partial(
+                            list_changed_files,
+                            self._host_restic,
+                            sandbox_repo_dir(self._sample_root, name),
+                            self._restic_password,
+                            summary.snapshot_id,
+                            MAX_LISTED_FILES,
+                        )
+                        for name, summary in sandbox_summaries
+                    ]
+                )
 
-        await write_sidecar(
-            sample_checkpoints_dir=self._sample_checkpoints_dir,
-            sidecar=sidecar,
-        )
+                sandbox_infos = {
+                    name: _snapshot_info(
+                        summary, files=files, additional_files=extra or None
+                    )
+                    for (name, summary), (files, extra) in zip(
+                        sandbox_summaries, file_lists
+                    )
+                }
 
-        # Emit the CheckpointEvent now that the sidecar is committed.
-        # By construction the event is NOT in this fire's events.json
-        # (already written above); it IS captured in the next fire's
-        # events.json. On resume, hydrate synthesizes the trailing
-        # event from the latest sidecar (working.md §8a).
-        transcript()._event(CheckpointEvent.from_details(sidecar))
+                # Cycle duration measured up to the checkpoint file write — the
+                # write itself is the commit point, so its cost lands on the
+                # next cycle's clock if anywhere.
+                duration_ms = int((time.monotonic() - cycle_start) * 1000)
 
-        # Sidecar is committed; open the next `checkpoint N+1` span so
-        # subsequent agent events nest under it.
-        await self._open_next_span()
+                checkpoint = Checkpoint(
+                    checkpoint_id=next_checkpoint_id,
+                    trigger=trigger,
+                    trigger_metadata=metadata,
+                    turn=self._turn,
+                    created_at=datetime.now(timezone.utc),
+                    duration_ms=duration_ms,
+                    size_bytes=host_info.size_bytes
+                    + sum(s.size_bytes for s in sandbox_infos.values()),
+                    host=host_info,
+                    sandboxes=sandbox_infos,
+                )
+
+                await write_checkpoint_file(
+                    sample_checkpoints_dir=self._sample_root,
+                    checkpoint=checkpoint,
+                )
+
+                # Remote destination: ship the new staging-dir files (restic
+                # repo additions + checkpoint file) to the destination. The
+                # checkpoint file is shipped last in the safe order — its
+                # arrival at the destination is the remote commit point.
+                if self._sample_staging_dir is not None:
+                    await host_egress(
+                        staging_dir=self._sample_staging_dir,
+                        destination_dir=self._sample_checkpoints_dir,
+                    )
+
+                # Emit the CheckpointEvent now that the checkpoint file is
+                # committed (locally and, when remote, at the destination too).
+                # By construction the event is NOT in this fire's events.json
+                # (already written above); it IS captured in the next fire's
+                # events.json. On resume, hydrate synthesizes the trailing
+                # event from the latest checkpoint file (working.md §8a).
+                transcript()._event(CheckpointEvent.from_details(checkpoint))
+
+            finally:
+                # Reopen even if checkpointing fails after closing the prior
+                # span; subsequent agent events should stay nested under a
+                # checkpoint span. Skip on the harness-driven final fire —
+                # there is no more agent work to land in another span — and
+                # when no span session is active (fires driven outside
+                # `span_session()`, e.g. in tests).
+                if not final and self._span_scope.is_open:
+                    await self._span_scope.begin_span(await self._next_span_name())
 
     async def _write_host_context(
         self,
-        sample_working_dir: str,
-        events: Sequence[Event],
-        attachments: Mapping[str, str],
+        context_dir: str,
         store: Store,
     ) -> None:
-        """Write the host context across up to five files.
+        """Write the host context snapshot files.
 
-        - ``events.json`` — condensed events; ModelEvent inputs / calls
-          replaced with refs into the pools below.
-        - ``events_data.json`` — ``{messages, calls}`` dedup pools.
-        - ``attachments.json`` — hash → original-content pool that
-          ``ModelEvent.call`` refs (`attachment://<hash>`) point into.
-          Captured live by ``Transcript._process_event``; serialized
-          here so the snapshot is self-contained.
-        - ``store.json`` — Store key/value as a single JSON object.
-        - ``agent_state.json`` — agent-defined property bag, written
-          only when the agent registered at least one callback via
-          :meth:`Checkpointer.track`. Each registered key becomes a
-          top-level field in the dict. The agent's conversation
-          messages typically live here (e.g. under the ``"messages"``
-          key) — the protocol no longer privileges them as a top-level
-          file. Presence on disk signals opt-in.
+        Transcript events, pools, and attachments are already accumulated in
+        ``self._transcript_store`` via seeding and subscription. This method
+        composes the checkpoint-owned Store / tracked agent state files with
+        transcript-owned event files.
         """
-        # Pool ModelEvent input + call messages — the big O(N²) redundancy.
-        # We process only the new event slice each fire and append to the
-        # accumulators on the session, so total hashing work is O(N) over a
-        # sample rather than O(N) per fire. Safe because checkpoints fire at
-        # turn boundaries, after which prior events are immutable.
-        # Attachments come pre-extracted on the transcript (call payloads
-        # >100 chars are rewritten to attachment:// refs as events flow in,
-        # with originals in transcript.attachments) — we persist that pool
-        # here so resume can resolve the refs.
-        # `_events_consumed` is set lazily by the first `_open_next_span()`,
-        # which runs in `span_session().__aenter__()` before any fire can
-        # happen — so it's guaranteed non-None here.
-        assert self._events_consumed is not None
-        # Filter the new slice: persisted events.json contains only events
-        # inside checkpoint / prior_run spans (inclusive of begin/end) plus
-        # CheckpointEvents. Stray events that land between checkpoint spans
-        # (e.g. `sandbox:exec` / `sandbox:read_file` emitted by restic
-        # operations during the fire's backup phase) stay in the live
-        # transcript but don't get persisted. See working.md §5.
-        new = _filter_persisted_events(events[self._events_consumed :])
-        if new:
-            cond, self._msg_index, new_msgs = condense_model_event_inputs(
-                new, len(self._msg_pool), self._msg_index
-            )
-            self._msg_pool.extend(m for _, m in new_msgs)
-            cond, self._call_index, new_calls = condense_model_event_calls(
-                cond, len(self._call_pool), self._call_index
-            )
-            self._call_pool.extend(c for _, c in new_calls)
-            self._condensed_events.extend(cond)
-        # Advance regardless of whether the filtered slice was empty:
-        # this fire's events have been consumed from the live transcript's
-        # perspective even if none made it into the persisted snapshot.
-        self._events_consumed = len(events)
         agent_state = (
             {key: cb() for key, cb in self._on_checkpoint_callbacks.items()}
             if self._on_checkpoint_callbacks
             else None
         )
-        await host_context.write(
-            sample_working_dir,
-            host_context.HostContext(
-                condensed_events=self._condensed_events,
-                msg_pool=self._msg_pool,
-                call_pool=self._call_pool,
-                attachments=dict(attachments),
-                store=store_jsonable(store),
-                agent_state=agent_state,
-            ),
+        context_path = Path(context_dir)
+        write_text_atomic(
+            context_path / STORE,
+            to_json_str_safe(store_jsonable(store)),
+        )
+        if agent_state is not None:
+            write_text_atomic(
+                context_path / AGENT_STATE,
+                to_json_str_safe(agent_state),
+            )
+        assistant_internal = dump_sample_assistant_internal()
+        if assistant_internal is not None:
+            write_text_atomic(
+                context_path / ASSISTANT_INTERNAL,
+                to_json_str_safe(assistant_internal),
+            )
+        self._transcript_store.write_transcript_files(
+            events_path=context_path / EVENTS,
+            events_data_path=context_path / EVENTS_DATA,
+            attachments_path=context_path / ATTACHMENTS,
+        )
+
+    def _seed_transcript_store(self, hydration: HydrationResult) -> None:
+        if self._transcript_seeded:
+            return
+        ts = transcript()
+        try:
+            attachments = ts.attachments
+            attachment_lookup = self._attachment_lookup(attachments)
+            self._transcript_store.merge_message_pool(hydration.host.msg_pool)
+            self._transcript_store.merge_call_pool(hydration.host.call_pool)
+            seeded_event_ids: set[str] = set()
+            if hydration.host.condensed_events:
+                for event in hydration.host.condensed_events:
+                    if event.uuid is None:
+                        continue
+                    seeded_event_ids.add(event.uuid)
+                    if not self._transcript_store.has_event(event.uuid):
+                        self._transcript_store.merge_event(event, attachment_lookup)
+            history = ts.history
+            if history.resident_events_truncated:
+                history_provider = history.provider
+                if history_provider is None:
+                    raise RuntimeError(
+                        "Cannot seed transcript events from a truncated Transcript. "
+                        "Create the checkpointer before bounded transcript eviction starts."
+                    )
+                history_provider.export_transcript_events(self._transcript_store)
+            else:
+                for event in history.resident_events:
+                    if event.uuid in seeded_event_ids:
+                        continue
+                    self._transcript_store.merge_event(event, attachment_lookup)
+            self._transcript_store.merge_attachments(attachments)
+            self._transcript_seeded = True
+        except Exception:
+            self.close()
+            raise
+
+    def _ensure_transcript_subscription(self) -> None:
+        if self._transcript_subscription is not None:
+            return
+        self._transcript_subscription = transcript()._subscribe(
+            self._track_transcript_event
+        )
+
+    def _track_transcript_event(self, event: Event) -> None:
+        self._transcript_store.merge_event(
+            event, self._attachment_lookup(transcript().attachments)
+        )
+
+    def _attachment_lookup(
+        self, attachments: Mapping[str, str]
+    ) -> Callable[[str], str | None]:
+        return lambda ref: (
+            self._transcript_store.attachment(ref) or attachments.get(ref)
         )
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
@@ -429,17 +695,19 @@ class _EnteredCheckpointer:
             self._host_restic,
             self._host_repo,
             self._restic_password,
-            self._sample_working_dir,
+            self._context_dir,
             _restic_tag(checkpoint_id),
         )
 
     async def _backup_and_egress_sandbox(
-        self, name: str, paths: list[str], checkpoint_id: int
+        self, name: str, spec: SandboxBackupPaths, checkpoint_id: int
     ) -> ResticBackupSummary:
         env = sandbox(name)
         tag = _restic_tag(checkpoint_id)
-        summary = await run_sandbox_backup(env, self._restic_password, paths, tag)
-        dest_repo = f"{self._sample_checkpoints_dir}/sandboxes/{name}"
+        summary = await run_sandbox_backup(
+            env, self._restic_password, spec.include, tag, exclude=spec.exclude
+        )
+        dest_repo = sandbox_repo_dir(self._sample_root, name)
         await egress_sandbox(
             env,
             dest_repo=dest_repo,
@@ -451,85 +719,35 @@ class _EnteredCheckpointer:
         return summary
 
 
-def _scan_next_checkpoint_id(sample_checkpoints_dir: str) -> int:
-    """Return the next sidecar ordinal for this sample.
+async def _scan_next_checkpoint_id(sample_root: str) -> int:
+    """Return the next checkpoint file ordinal for this sample.
 
-    Walks the sample checkpoints dir for ``ckpt-NNNNN.json`` filenames
-    and returns ``max(N) + 1`` — or 1 if none exist yet. Used by
-    ``_fire`` so the count continues across resume without an explicit
-    handoff through ``_hydrate``.
+    Uses the latest parseable checkpoint file as the commit point. A
+    torn ``ckpt-NNNNN.json`` is not committed, so the next successful
+    fire reuses that id instead of skipping ahead.
     """
-    sample_dir = Path(sample_checkpoints_dir)
-    if not sample_dir.is_dir():
-        return 1
-    ids = [int(p.stem.removeprefix("ckpt-")) for p in sample_dir.glob("ckpt-*.json")]
-    return (max(ids) + 1) if ids else 1
+    latest = await scan_latest_committed_id(sample_root)
+    return latest + 1 if latest is not None else 1
 
 
 def _restic_tag(checkpoint_id: int) -> str:
     """Format the restic ``--tag`` for a checkpoint's snapshots.
 
-    Matches the sidecar filename's ``ckpt-NNNNN`` prefix, so a tag and a
-    sidecar share the same N for the same checkpoint.
+    Matches the checkpoint file's ``ckpt-NNNNN`` prefix, so a tag and a
+    checkpoint file share the same N for the same checkpoint.
     """
     return f"ckpt-{checkpoint_id:05d}"
 
 
-def _snapshot_info(summary: ResticBackupSummary) -> SnapshotDetails:
+def _snapshot_info(
+    summary: ResticBackupSummary,
+    files: list[str] | None = None,
+    additional_files: int | None = None,
+) -> SnapshotDetails:
     return SnapshotDetails(
         snapshot_id=summary.snapshot_id,
         size_bytes=summary.data_added_packed,
         duration_ms=int(summary.total_duration * 1000),
+        files=files,
+        additional_files=additional_files,
     )
-
-
-def _filter_persisted_events(events: Sequence[Event]) -> list[Event]:
-    r"""Keep only events that belong in the persisted ``events.json``.
-
-    Three things pass through:
-
-    - Events inside a ``type="checkpoint"`` span (inclusive of the
-      span_begin/span_end).
-    - Events inside a ``type="prior_run"`` span (inclusive).
-    - ``CheckpointEvent``\ s, even when between checkpoint spans.
-
-    Everything else is dropped — in practice the ``sandbox:exec`` and
-    ``sandbox:read_file`` events emitted by restic operations during
-    the fire's backup phase, which land in the live transcript between
-    ``span_end checkpoint N`` and ``span_begin checkpoint N+1``. They
-    stay in the live transcript (visible in ``inspect view`` of the
-    running eval) but don't get persisted.
-    """
-    result: list[Event] = []
-    # Track currently-open tracked-span ids. Depth = len(tracked_open_ids).
-    # We track checkpoint + prior_run spans; everything inside (including
-    # nested non-tracked spans like bash/tool) is kept.
-    tracked_open_ids: set[str] = set()
-    for e in events:
-        if e.event == "span_begin":
-            type_ = getattr(e, "type", None)
-            if type_ in ("checkpoint", "prior_run"):
-                tracked_open_ids.add(e.id)
-                result.append(e)
-            elif tracked_open_ids:
-                # Nested non-tracked span inside a tracked one — keep.
-                result.append(e)
-            # else: stray span_begin outside any tracked span — drop.
-        elif e.event == "span_end":
-            id_ = getattr(e, "id", None)
-            if id_ in tracked_open_ids:
-                tracked_open_ids.discard(id_)
-                result.append(e)
-            elif tracked_open_ids:
-                # Inner span_end inside a tracked span — keep.
-                result.append(e)
-            # else: stray span_end outside any tracked span — drop.
-        elif e.event == "checkpoint":
-            # CheckpointEvent — always keep, whether inside a tracked
-            # span or not (in practice it lands between checkpoint spans).
-            result.append(e)
-        elif tracked_open_ids:
-            # Inside a tracked span — keep.
-            result.append(e)
-        # else: stray event outside any tracked span — drop.
-    return result

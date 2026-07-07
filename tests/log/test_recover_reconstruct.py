@@ -26,7 +26,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_output import ModelFallback, ModelOutput
 from inspect_ai.scorer._metric import Score
 
 
@@ -69,6 +69,11 @@ def _make_completed_summary() -> EvalSampleSummary:
         input="What is 2+2?",
         target="4",
         scores={"accuracy": Score(value="C", answer="4")},
+        model_fallbacks=[
+            ModelFallback(
+                model="claude-fable-5", fallback_model="claude-opus-4-8", count=2
+            )
+        ],
         started_at=datetime.now(timezone.utc).isoformat(),
         completed_at=datetime.now(timezone.utc).isoformat(),
     )
@@ -106,6 +111,7 @@ def test_reconstruct_completed_sample() -> None:
     assert sample.scores is not None
     assert "accuracy" in sample.scores
     assert sample.error is None
+    assert sample.model_fallbacks == summary.model_fallbacks
 
     # Messages extracted from ModelEvent
     assert len(sample.messages) == 2  # user + assistant

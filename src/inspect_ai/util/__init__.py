@@ -7,32 +7,39 @@ from inspect_ai._util.registry import (
     registry_create,
     registry_info,
 )
+from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
     LimitScope,
     SampleLimits,
+    TokenLimit,
     apply_limits,
     cost_limit,
     message_limit,
     sample_limits,
     suspend_token_limit,
+    suspend_turn_limit,
     time_limit,
     token_limit,
+    turn_limit,
     working_limit,
 )
 
 from ._background import background
 from ._checkpoint import (
     CheckpointConfig,
+    Checkpointer,
     CheckpointSampleConfig,
     CheckpointTrigger,
     Manual,
-    Retention,
+    ResumeReport,
     TimeInterval,
+    TokenInterval,
     TurnInterval,
     checkpointer,
+    current_checkpointer,
 )
 from ._collect import collect
 from ._concurrency import AdaptiveConcurrency, concurrency
@@ -43,7 +50,9 @@ from ._early_stopping import (
     EarlyStopping,
     EarlyStoppingSummary,
 )
+from ._input import InputOutcome, InputRequest, InputResult, request_input
 from ._json import JSONSchema, JSONType, json_schema
+from ._notify import notify
 from ._panel import InputPanel, input_panel
 from ._resource import resource
 from ._sandbox import (
@@ -68,6 +77,7 @@ from ._sandbox import (
     SandboxEnvironmentType,
     is_compose_yaml,
     is_dockerfile,
+    override_sandbox_output_limit,
     parse_compose_yaml,
     sandbox,
     sandbox_default,
@@ -103,17 +113,23 @@ __all__ = [
     "DisplayType",
     "display_counter",
     "display_type",
+    "InputOutcome",
     "InputPanel",
+    "InputRequest",
+    "InputResult",
     "input_panel",
     "input_screen",
     "is_compose_yaml",
     "is_dockerfile",
     "JSONType",
     "JSONSchema",
+    "StrEnum",
     "json_schema",
     "Limit",
     "message_limit",
+    "notify",
     "OutputLimitExceededError",
+    "override_sandbox_output_limit",
     "parse_compose_yaml",
     "resource",
     "subprocess",
@@ -148,7 +164,10 @@ __all__ = [
     "background",
     "cost_limit",
     "suspend_token_limit",
+    "suspend_turn_limit",
     "token_limit",
+    "TokenLimit",
+    "turn_limit",
     "time_limit",
     "working_limit",
     "trace_action",
@@ -158,6 +177,7 @@ __all__ = [
     "RegistryType",
     "registry_create",
     "registry_info",
+    "request_input",
     "EarlyStopping",
     "EarlyStop",
     "EarlyStoppingSummary",
@@ -168,12 +188,15 @@ __all__ = [
     "ExecRemoteStreamingOptions",
     "ExecStderr",
     "ExecStdout",
+    "checkpointer",
+    "current_checkpointer",
+    "Checkpointer",
     "CheckpointConfig",
     "CheckpointSampleConfig",
     "CheckpointTrigger",
-    "checkpointer",
     "Manual",
-    "Retention",
+    "ResumeReport",
     "TimeInterval",
+    "TokenInterval",
     "TurnInterval",
 ]

@@ -15,10 +15,10 @@ class Subagent:
     """Configuration blueprint for a subagent within a deep agent system."""
 
     name: str
-    """Identifier used as the subagent_type value in task() dispatch."""
+    """Identifier used as the subagent_type value in agent() dispatch."""
 
     description: str
-    """Role description shown in the task() tool description."""
+    """Role description shown in the agent() tool description."""
 
     prompt: str
     """System prompt for the subagent's react() loop."""
@@ -70,10 +70,10 @@ def subagent(
     """Create a subagent configuration for use within a deep agent system.
 
     Args:
-        name: Identifier used as the subagent_type value in task()
+        name: Identifier used as the subagent_type value in agent()
             dispatch. Must be a valid Python identifier (letters,
             digits, underscores).
-        description: Role description shown in the task() tool
+        description: Role description shown in the agent() tool
             description so the model knows when to delegate to
             this subagent.
         prompt: System prompt for the subagent's react() loop. For
@@ -82,7 +82,7 @@ def subagent(
             any user-provided instructions.
         tools: Tools available to this subagent. None means "use
             defaults" (built-in factories set their own defaults;
-            task() resolves at dispatch time).
+            agent() resolves at dispatch time).
         extra_tools: Additional tools merged with the subagent's
             default tools. Use this to extend a built-in subagent
             without replacing its default tool set.

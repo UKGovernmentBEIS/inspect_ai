@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from inspect_ai._util.config import resolve_args
 from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.util._limit import TokenLimit, parse_token_limit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
@@ -52,6 +53,55 @@ def int_or_bool_flag_callback(
                 )
 
     return callback
+
+
+def token_limit_flag_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> int | TokenLimit | None:
+    """Parse the ``--token-limit`` option (e.g. ``500000``, ``1m``, ``output:1m``)."""
+    if value is None:
+        return None
+    try:
+        return parse_token_limit(str(value))
+    except ValueError as ex:
+        raise click.BadParameter(str(ex)) from ex
+
+
+def ctl_server_flag_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> bool | str | None:
+    """Parse the ``--ctl-server`` option (mirrors the ``--acp-server`` shape).
+
+    Desired behavior:
+    - Not specified at all -> None (default: control server on, no park)
+    - Specified with no value, or with "true" -> True (on)
+    - Specified with "false" -> False (off)
+    - Specified with "keep" -> "keep" (on + park after the eval)
+
+    The value grammar lives in :func:`resolve_ctl_server` (the same function
+    ``eval()`` / ``eval_set()`` use), so the CLI and the Python API accept
+    exactly the same values; this callback just translates its rejection into
+    a click usage error. Unlike ``--acp-server`` (whose free strings are
+    socket paths), ``--ctl-server`` admits exactly one string value today, so
+    anything else is more likely a typo of ``keep`` than an intentional
+    choice.
+    """
+    source = ctx.get_parameter_source(param.name) if param.name else ""
+    if source == click.core.ParameterSource.DEFAULT:
+        return None
+    if value is None:
+        return True
+
+    from inspect_ai._control.server import resolve_ctl_server
+    from inspect_ai._util.error import PrerequisiteError
+
+    try:
+        ctl = resolve_ctl_server(str(value))
+    except PrerequisiteError as ex:
+        raise click.BadParameter(
+            f"Expected 'true', 'false', or 'keep' for --ctl-server. Got: {value}"
+        ) from ex
+    return "keep" if ctl.keep_alive else ctl.enabled
 
 
 def int_bool_or_str_retry_flag_callback(
@@ -205,7 +255,7 @@ def parse_model_role_cli_args(
             model_name = params.pop("model", None)
             model_args = params.pop("model_args", {})
             if not isinstance(model_args, dict):
-                raise ValueError("model_args must be a dict")
+                raise TypeError("model_args must be a dict")
             try:
                 config = GenerateConfig(**params)
             except ValidationError as e:

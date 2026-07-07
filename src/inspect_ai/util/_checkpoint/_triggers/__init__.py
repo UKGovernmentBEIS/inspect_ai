@@ -14,6 +14,7 @@ from .types import (
     TimeInterval,
     TokenInterval,
     Trigger,
+    TriggerFire,
     TurnInterval,
 )
 
@@ -24,6 +25,7 @@ __all__ = [
     "TimeInterval",
     "TokenInterval",
     "Trigger",
+    "TriggerFire",
     "TurnInterval",
     "create_trigger",
 ]

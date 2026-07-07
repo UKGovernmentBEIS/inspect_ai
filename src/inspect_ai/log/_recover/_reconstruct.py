@@ -14,11 +14,11 @@ from inspect_ai._util.error import EvalError
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.log._pool import (
+from inspect_ai.event._pool import (
     resolve_model_event_calls,
     resolve_model_event_inputs,
 )
+from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.types import (
     CallPoolData,
     EventData,
@@ -129,6 +129,7 @@ def reconstruct_eval_sample(
         attachments=attachments,
         model_usage=summary.model_usage,
         role_usage=summary.role_usage,
+        model_fallbacks=summary.model_fallbacks,
         started_at=summary.started_at,
         completed_at=summary.completed_at,
         total_time=summary.total_time,

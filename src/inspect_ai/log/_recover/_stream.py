@@ -8,13 +8,22 @@ import tempfile
 from logging import getLogger
 from typing import IO
 
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import to_json_safe
+from inspect_ai.event._pool import (
+    _build_call_index,
+    _build_msg_index,
+    condense_model_event_calls,
+    condense_model_event_inputs,
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._validate import validate_chat_messages
 from inspect_ai.log._condense import (
     WalkContext,
     condense_event,
@@ -27,14 +36,6 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalSpec,
     EventsData,
-)
-from inspect_ai.log._pool import (
-    _build_call_index,
-    _build_msg_index,
-    condense_model_event_calls,
-    condense_model_event_inputs,
-    resolve_model_event_calls,
-    resolve_model_event_inputs,
 )
 from inspect_ai.log._recorders.buffer.filestore import Manifest, SampleBufferFilestore
 from inspect_ai.log._recorders.eval import ZipLogFile, _sample_filename
@@ -49,8 +50,6 @@ from ._reconstruct import (
 )
 
 logger = getLogger(__name__)
-
-_CHAT_MESSAGES_ADAPTER: TypeAdapter[list[ChatMessage]] = TypeAdapter(list[ChatMessage])
 
 
 def _write_json_field(
@@ -118,7 +117,12 @@ def _write_sample_streaming(
     call_pool: list[JsonValue] = []
     msg_index: dict[str, int] = {}
     call_index: dict[str, int] = {}
-    walk_context = WalkContext(message_cache={}, only_core=False)
+    events_context = WalkContext(message_cache={}, only_core=False)
+    # The events and messages walks rewrite content differently (condense_event
+    # pools long text as attachments; messages_fn leaves it inline), so they
+    # must not share a message cache: a hit crossing content functions would
+    # leak attachment refs into fields that keep long text inline.
+    messages_context = WalkContext(message_cache={}, only_core=False)
     accumulator = MessageAccumulator()
 
     # Per-sample reconstruction state captured from raw events
@@ -179,7 +183,7 @@ def _write_sample_streaming(
                 # Segment files written by sync_to_filestore already carry
                 # condensed events; their pools live alongside the events.
                 if seg_data.message_pool:
-                    new_messages = _CHAT_MESSAGES_ADAPTER.validate_python(
+                    new_messages = validate_chat_messages(
                         [
                             json_module.loads(entry.data)
                             for entry in sorted(
@@ -241,7 +245,7 @@ def _write_sample_streaming(
             stream.write(b',"events":[')
             if include_events and raw_events:
                 condensed = [
-                    condense_event(ev, attachments, context=walk_context)
+                    condense_event(ev, attachments, context=events_context)
                     for ev in raw_events
                 ]
 
@@ -291,8 +295,10 @@ def _write_sample_streaming(
 
             # Walk messages for attachment refs
             messages_fn = messages_attachment_fn(attachments)
-            walked_input = walk_input(summary.input, messages_fn, walk_context)
-            walked_messages = walk_chat_messages(messages, messages_fn, walk_context)
+            walked_input = walk_input(summary.input, messages_fn, messages_context)
+            walked_messages = walk_chat_messages(
+                messages, messages_fn, messages_context
+            )
 
             # Sample init-derived fields
             _write_json_field(stream, "sandbox", sandbox_value, comma=True)
@@ -308,6 +314,9 @@ def _write_sample_streaming(
 
             _write_json_field(stream, "model_usage", summary.model_usage, comma=True)
             _write_json_field(stream, "role_usage", summary.role_usage, comma=True)
+            _write_json_field(
+                stream, "model_fallbacks", summary.model_fallbacks, comma=True
+            )
             _write_json_field(stream, "started_at", summary.started_at, comma=True)
             _write_json_field(stream, "completed_at", summary.completed_at, comma=True)
             _write_json_field(stream, "total_time", summary.total_time, comma=True)

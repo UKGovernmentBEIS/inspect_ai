@@ -4,6 +4,7 @@ from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
 
 class SandboxAgentBridge(AgentBridge):
@@ -21,6 +22,8 @@ class SandboxAgentBridge(AgentBridge):
         mcp_server_configs: list[MCPServerConfigHTTP] | None = None,
         bridged_tools: dict[str, dict[str, Tool]] | None = None,
         model_event_sink: ModelEventSink | None = None,
+        forward_generation_config: bool = False,
+        checkpointer: Checkpointer | None = None,
     ) -> None:
         super().__init__(
             state,
@@ -30,6 +33,8 @@ class SandboxAgentBridge(AgentBridge):
             model=model,
             model_aliases=model_aliases,
             model_event_sink=model_event_sink,
+            forward_generation_config=forward_generation_config,
+            checkpointer=checkpointer,
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []

@@ -1,3 +1,4 @@
+import codecs
 import json
 from logging import getLogger
 from typing import Any
@@ -185,6 +186,10 @@ class SagemakerAPI(ModelAPI):
 
         # Add stream parameter to request body
         request_body["stream"] = self.stream
+        if self.stream:
+            # Ask vLLM to emit a final usage chunk in the stream so token
+            # counts are populated (otherwise streaming usage is all zeros).
+            request_body["stream_options"] = {"include_usage": True}
 
         # Make request
         async with self._create_client() as client:
@@ -488,17 +493,111 @@ class SagemakerAPI(ModelAPI):
         # Process streaming response
         event_stream = response["Body"]
 
-        # Accumulate text and chunks
+        # Accumulate content and reasoning text separately. vLLM emits the
+        # chain-of-thought of reasoning models in `delta.reasoning_content`
+        # (or `delta.reasoning`) rather than `delta.content`, so both must be
+        # captured to avoid silently dropping the model's answer.
         accumulated_text = ""
-        accumulated_chunks = []
-        partial_content = ""  # Buffer for incomplete JSON
+        accumulated_reasoning = ""
+        n_chunks = 0
+        # Accumulate streamed tool-call deltas keyed by their index.
+        tool_calls: dict[int, dict[str, Any]] = {}
         # Track metadata incrementally — the stop chunk (with finish_reason)
         # and the usage chunk may arrive in any order in vLLM streaming.
         final_id = ""
         final_created = 0
         final_model = self.endpoint_name
-        final_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        final_usage: dict[str, Any] | None = None
         final_finish_reason = "stop"
+
+        # Incremental UTF-8 decoder: SageMaker splits the response body on
+        # arbitrary byte boundaries, which can fall in the middle of a
+        # multi-byte character (common with the math/Greek symbols in these
+        # prompts). The decoder buffers partial code points across chunks.
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="strict")
+        # Line buffer: SSE messages are newline-delimited, but a single
+        # PayloadPart may contain zero, one, or many (partial) lines.
+        line_buffer = ""
+
+        def handle_data_line(data: str) -> None:
+            nonlocal accumulated_text, accumulated_reasoning, n_chunks
+            nonlocal final_id, final_created, final_model, final_usage
+            nonlocal final_finish_reason
+            if data == "[DONE]":
+                return
+            try:
+                chunk_data = json.loads(data)
+            except json.JSONDecodeError:
+                logger.warning("Skipping unparseable stream line: %.120r", data)
+                return
+
+            n_chunks += 1
+
+            # Track metadata from each chunk
+            if chunk_data.get("id"):
+                final_id = chunk_data["id"]
+            if chunk_data.get("created"):
+                final_created = chunk_data["created"]
+            if chunk_data.get("model"):
+                final_model = chunk_data["model"]
+            if chunk_data.get("usage"):
+                final_usage = chunk_data["usage"]
+
+            choices = chunk_data.get("choices") or []
+            if not choices:
+                return
+            choice = choices[0]
+            delta = choice.get("delta") or {}
+
+            content = delta.get("content")
+            if content:
+                accumulated_text += content
+
+            reasoning = delta.get("reasoning_content") or delta.get("reasoning")
+            if reasoning:
+                accumulated_reasoning += reasoning
+
+            for tc in delta.get("tool_calls") or []:
+                idx = tc.get("index", 0)
+                slot = tool_calls.setdefault(
+                    idx,
+                    {
+                        "id": None,
+                        "type": "function",
+                        "function": {"name": None, "arguments": ""},
+                    },
+                )
+                if tc.get("id"):
+                    slot["id"] = tc["id"]
+                if tc.get("type"):
+                    slot["type"] = tc["type"]
+                fn = tc.get("function") or {}
+                if fn.get("name"):
+                    slot["function"]["name"] = fn["name"]
+                if fn.get("arguments"):
+                    slot["function"]["arguments"] += fn["arguments"]
+
+            # Track finish_reason across all chunks — only the dedicated stop
+            # chunk has a non-null value, and it may arrive before the usage
+            # chunk.
+            fr = choice.get("finish_reason")
+            if fr is not None:
+                final_finish_reason = fr
+
+        def process_buffer(flush: bool = False) -> None:
+            nonlocal line_buffer
+            # Normalize CRLF then split complete lines off the buffer.
+            line_buffer = line_buffer.replace("\r\n", "\n")
+            while "\n" in line_buffer:
+                line, line_buffer = line_buffer.split("\n", 1)
+                line = line.strip()
+                if line.startswith("data:"):
+                    handle_data_line(line[len("data:") :].strip())
+            if flush:
+                line = line_buffer.strip()
+                line_buffer = ""
+                if line.startswith("data:"):
+                    handle_data_line(line[len("data:") :].strip())
 
         async for event in event_stream:
             # Check for error events first
@@ -518,88 +617,56 @@ class SagemakerAPI(ModelAPI):
 
             # Process payload chunks
             if "PayloadPart" in event:
-                chunk = event["PayloadPart"]["Bytes"].decode("utf-8")
+                line_buffer += decoder.decode(event["PayloadPart"]["Bytes"])
+                process_buffer()
 
-                # Strip "data: " prefix if present
-                partial_content += chunk[6:] if chunk.startswith("data: ") else chunk
+        # Flush any trailing buffered bytes / final line.
+        line_buffer += decoder.decode(b"", final=True)
+        process_buffer(flush=True)
 
-                try:
-                    chunk_data = json.loads(partial_content)
+        logger.info(
+            "Streaming complete: %d chunks, content length: %d, reasoning length: %d",
+            n_chunks,
+            len(accumulated_text),
+            len(accumulated_reasoning),
+        )
 
-                    partial_content = ""
-                    accumulated_chunks.append(chunk_data)
-
-                    # Track metadata from each chunk
-                    if chunk_data.get("id"):
-                        final_id = chunk_data["id"]
-                    if chunk_data.get("created"):
-                        final_created = chunk_data["created"]
-                    if chunk_data.get("model"):
-                        final_model = chunk_data["model"]
-                    if chunk_data.get("usage"):
-                        final_usage = chunk_data["usage"]
-
-                    if "choices" in chunk_data and len(chunk_data["choices"]) > 0:
-                        choice = chunk_data["choices"][0]
-                        delta = choice.get("delta", {})
-
-                        if "content" in delta and delta["content"]:
-                            accumulated_text += delta["content"]
-
-                        # Track finish_reason across all chunks — only the
-                        # dedicated stop chunk has a non-null value, and it may
-                        # arrive before the usage chunk
-                        fr = choice.get("finish_reason")
-                        if fr is not None:
-                            final_finish_reason = fr
-
-                except json.JSONDecodeError:
-                    # Continue accumulating content until we have valid JSON
-                    continue
-
-        # Build final response from accumulated chunks
-        if accumulated_chunks:
-            # Debug logging
-            logger.info(
-                f"Streaming complete: {len(accumulated_chunks)} chunks, accumulated text length: {len(accumulated_text)}"
+        if n_chunks == 0:
+            # No data chunks at all — surface as an error so the request can be
+            # retried / counted as a failure rather than silently scored as an
+            # empty (wrong) completion.
+            raise RuntimeError(
+                "No data chunks received from streaming SageMaker endpoint "
+                f"'{self.endpoint_name}'."
             )
 
-            # Construct complete response in OpenAI format
-            final_response = {
-                "id": final_id,
-                "object": "chat.completion",
-                "created": final_created,
-                "model": final_model,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": accumulated_text},
-                        "finish_reason": final_finish_reason,
-                    }
-                ],
-                "usage": final_usage,
-            }
-        else:
-            # Fallback if no chunks received
-            logger.warning("No chunks received from streaming endpoint")
-            final_response = {
-                "id": "",
-                "object": "chat.completion",
-                "created": 0,
-                "model": self.endpoint_name,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": ""},
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {
-                    "prompt_tokens": 0,
-                    "completion_tokens": 0,
-                    "total_tokens": 0,
-                },
-            }
+        # Build the assistant message. Reasoning is carried via
+        # `reasoning_content`, which the OpenAI response parser knows how to
+        # extract (ChatCompletionMessage allows extra fields).
+        message: dict[str, Any] = {
+            "role": "assistant",
+            "content": accumulated_text,
+        }
+        if accumulated_reasoning:
+            message["reasoning_content"] = accumulated_reasoning
+        if tool_calls:
+            message["tool_calls"] = [tool_calls[i] for i in sorted(tool_calls)]
+
+        final_response = {
+            "id": final_id,
+            "object": "chat.completion",
+            "created": final_created,
+            "model": final_model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": message,
+                    "finish_reason": final_finish_reason,
+                }
+            ],
+            "usage": final_usage
+            or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
 
         # Return both raw bytes (for logging) and parsed response
         response_bytes = json.dumps(final_response).encode("utf-8")
@@ -664,9 +731,18 @@ async def process_content(content: list[Content] | str) -> str | list[dict[str, 
                 }
             )
         elif item.type == "reasoning":
-            processed_content.append({"type": "reasoning", "reasoning": item.reasoning})
+            # Do not serialize reasoning as a content part: this endpoint's
+            # chat schema rejects a "reasoning" content type (it only accepts
+            # text/thinking/etc.), and the standard multi-turn convention for
+            # reasoning models is to drop the prior turn's chain-of-thought
+            # from context. The turn's answer text is still replayed via the
+            # "text" parts above.
+            continue
 
-    # Return string if single text item, otherwise return list
+    # Return string if single text item, otherwise return list. If everything
+    # was dropped (e.g. a reasoning-only message), fall back to empty string.
+    if not processed_content:
+        return ""
     if len(processed_content) == 1 and processed_content[0]["type"] == "text":
         return processed_content[0]["text"]
     return processed_content

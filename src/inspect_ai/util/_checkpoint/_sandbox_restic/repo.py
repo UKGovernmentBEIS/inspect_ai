@@ -80,13 +80,25 @@ async def run_sandbox_backup(
     password: str,
     paths: list[str],
     tag: str,
+    exclude: list[str] | None = None,
 ) -> ResticBackupSummary:
     """Run ``restic backup`` inside the sandbox; return the parsed summary.
 
     ``--compression max`` (zstd level 22) for parity with the host
     backup. Mixed sandbox content (text, configs, sometimes binaries)
     benefits less than pure JSON, but the per-cycle CPU cost is small
-    relative to the network/IO savings on the egress path.
+    relative to the network/IO savings on the egress path. ``exclude``
+    paths become ``--exclude`` patterns (used to drop the XDG cache dir
+    in auto-home mode); a pattern matching nothing is a harmless no-op.
+
+    ``--quiet`` suppresses restic's periodic ``status`` JSON lines (one
+    per progress tick, ~60/s). ``from_stdout`` reads only the trailing
+    ``summary`` line, so the status stream is pure waste. Worse, ``env.exec``
+    buffers it in full against a capped output size
+    (``MAX_EXEC_OUTPUT_SIZE``), so a long backup would overflow that cap and
+    fail the checkpoint. ``RESTIC_PROGRESS_FPS=""`` is belt-and-suspenders:
+    a non-empty value inherited from the container env re-enables the
+    status stream even under ``--quiet`` (empty parses as "unset").
     """
     cmd = [
         _SANDBOX_RESTIC_PATH,
@@ -94,13 +106,19 @@ async def run_sandbox_backup(
         _SANDBOX_RESTIC_REPO,
         "backup",
         *paths,
+        *[arg for path in (exclude or []) for arg in ("--exclude", path)],
         "--compression",
         "max",
         "--tag",
         tag,
         "--json",
+        "--quiet",
     ]
-    result = await env.exec(cmd, env={"RESTIC_PASSWORD": password}, user="root")
+    result = await env.exec(
+        cmd,
+        env={"RESTIC_PASSWORD": password, "RESTIC_PROGRESS_FPS": ""},
+        user="root",
+    )
     if not result.success:
         raise RuntimeError(f"sandbox restic backup failed: {result.stderr}")
     return ResticBackupSummary.from_stdout(result.stdout)

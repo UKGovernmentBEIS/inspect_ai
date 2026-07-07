@@ -52,6 +52,7 @@ def acp_test_active_sample(transcript: Transcript) -> ActiveSample:
         sandboxes={},
         checkpointer=_NoopCheckpointer(),
         eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
     )
     # Wire a bare LiveAcpTransport onto the sample. We deliberately skip
     # __aenter__ ceremony (router attach, pubsub setup) — tests that

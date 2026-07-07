@@ -20,8 +20,9 @@ logger = getLogger(__name__)
 
 
 class HFHandler(ChatAPIHandler):
-    def __init__(self, model_name: str) -> None:
+    def __init__(self, model_name: str, model_family: str | None = None) -> None:
         self.model_name = model_name
+        self.model_family = model_family or model_name
 
     @override
     def parse_assistant_response(
@@ -34,7 +35,7 @@ class HFHandler(ChatAPIHandler):
         """
         # extract tool calls
         content, tool_calls_content = model_specific_tool_parse(
-            response, self.model_name
+            response, self.model_family
         )
         # if there are tool calls proceed with parsing
         if len(tool_calls_content) > 0:

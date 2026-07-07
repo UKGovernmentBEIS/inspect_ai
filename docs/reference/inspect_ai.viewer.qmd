@@ -1,0 +1,26 @@
+---
+reference: inspect_ai.viewer
+description: Customize Inspect view behavior.
+---
+
+## Viewer
+### ViewerConfig
+
+## Scanner Results
+### ScannerResultView
+
+## Sample Score Panel
+### SampleScoreView
+### SampleScoreViewSort
+
+## Sample List
+### TaskSamplesView
+### TaskSamplesColumn
+### TaskSamplesSort
+
+## Score Colors
+### ScoreColorScale
+
+## Fields
+### MetadataField
+### ScannerResultField

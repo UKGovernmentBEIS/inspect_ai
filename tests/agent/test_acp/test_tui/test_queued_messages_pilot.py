@@ -146,15 +146,18 @@ async def test_send_during_running_appends_queued_ephemeral_and_clears_composer(
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_send_during_idle_does_not_create_ephemeral(
+async def test_send_during_idle_creates_ephemeral(
     sample_rows: list[SessionRow],
 ) -> None:
-    """Send during ``idle`` skips the optimistic ephemeral.
+    """Send during ``idle`` still mounts the optimistic ephemeral.
 
-    The agent is parked in ``before_turn`` and the chunk usually
-    round-trips within milliseconds, so an ephemeral would just flash.
-    Skipping the optimistic echo on idle keeps the transcript steady
-    on the common case.
+    We deliberately do NOT skip on idle: for a bridged agent (claude_code
+    / codex) ``idle`` can occur mid-turn — scaffold startup / ``--resume``
+    relaunch or an inter-model-call gap — where the message is NOT drained
+    within ms but waits for the next turn boundary, so the operator needs
+    the ``user · queued`` chip. The only cost on a native agent that does
+    drain instantly is a sub-perceptible dim→solid flicker (the queued→real
+    swap is atomic). Only ``scoring`` / ``complete`` suppress the echo.
     """
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
@@ -167,11 +170,14 @@ async def test_send_during_idle_does_not_create_ephemeral(
         await screen.action_submit()
         await pilot.pause()
 
-        # Request was sent, composer cleared, NO ephemeral mounted.
+        # Request was sent, composer cleared, AND the ephemeral is mounted.
         assert composer.text == ""
         conn = cast(Any, screen._session.connection)
         assert len(conn.requests) == 1
-        assert _queued(screen) == []
+        queued = _queued(screen)
+        assert len(queued) == 1
+        assert queued[0].text == "kick off"
+        assert queued[0].user_source == "operator"
 
 
 @skip_if_trio

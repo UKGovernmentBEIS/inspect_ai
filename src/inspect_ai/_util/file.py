@@ -1,14 +1,18 @@
 import datetime
+import importlib
 import io
 import logging
 import os
 import re
 import string
+import tempfile
 import unicodedata
 from contextlib import contextmanager
 from copy import deepcopy
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from pathlib import Path
-from typing import Any, BinaryIO, Iterator, Literal, cast, overload
+from typing import Any, BinaryIO, Callable, Iterator, Literal, TextIO, cast, overload
 from urllib.parse import quote_from_bytes, urlparse
 
 import fsspec  # type: ignore  # type: ignore
@@ -24,11 +28,13 @@ from inspect_ai._util.azure import (
     is_azure_delete_permission_error,
     is_azure_path,
 )
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.trace import trace_message
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
+
+HF_FILESYSTEM_REQUIRED_VERSION = "1.6.0"
 
 
 OpenTextMode = Literal["r", "a", "w"]
@@ -120,6 +126,33 @@ def copy_file(
             if not chunk:
                 break
             fout.write(chunk)
+
+
+def write_text_atomic(path: str | Path, content: str) -> None:
+    """Atomically write UTF-8 text to a local filesystem path."""
+    write_atomic_text(path, lambda file: file.write(content))
+
+
+def write_atomic_text(path: str | Path, write: Callable[[TextIO], object]) -> None:
+    """Atomically write UTF-8 text with a caller-provided writer."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        text=True,
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with open(fd, "w", encoding="utf-8") as file:
+            write(file)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def basename(file: str) -> str:
@@ -245,7 +278,7 @@ class FileSystem:
         # Data Writer). The marker file can just be gc'd later.
         _WRITE_TEST_FILENAME = ".inspect_write_test"
         touch_filename = _WRITE_TEST_FILENAME if is_azure_path(path) else uuid()
-        path.rstrip("/\\")
+        path = path.rstrip("/\\")
         touch_file = f"{path}{self.fs.sep}{touch_filename}"
         try:
             self.touch(touch_file)
@@ -420,6 +453,8 @@ def default_fs_options(file: str) -> dict[str, Any]:
         raise PrerequisiteError(
             "ERROR: The s3 interface is not supported when running under the trio async backend."
         )
+    if scheme == "hf":
+        _ensure_hf_filesystem_dependencies()
 
     options = deepcopy(DEFAULT_FS_OPTIONS.get(scheme, {}))
     # Inject Azure Blob/DataLake credentials only when the path actually uses an
@@ -437,9 +472,67 @@ def default_fs_options(file: str) -> dict[str, Any]:
     return options
 
 
+def _ensure_hf_filesystem_dependencies() -> None:
+    """Import and register Hugging Face Hub support for hf:// fsspec paths."""
+    feature = "Hugging Face Storage Buckets"
+    package = "huggingface_hub"
+    try:
+        huggingface_hub = importlib.import_module(package)
+        hf_filesystem = getattr(huggingface_hub, "HfFileSystem")
+    except (ImportError, AttributeError):
+        raise pip_dependency_error(
+            feature, [f"{package}>={HF_FILESYSTEM_REQUIRED_VERSION}"]
+        ) from None
+
+    installed_version = getattr(huggingface_hub, "__version__", None)
+    if installed_version is None:
+        try:
+            installed_version = package_version(package)
+        except PackageNotFoundError:
+            installed_version = "0"
+
+    if not _hf_filesystem_version_supported(installed_version):
+        raise PrerequisiteError(
+            f"ERROR: {feature} requires at least version "
+            f"{HF_FILESYSTEM_REQUIRED_VERSION} of package {package} "
+            f"(you have version {installed_version} installed).\n\n"
+            f'Upgrade with: pip install --upgrade "{package}>={HF_FILESYSTEM_REQUIRED_VERSION}"'
+        )
+
+    fsspec.register_implementation("hf", hf_filesystem, clobber=True)
+
+
+def _hf_filesystem_version_supported(installed_version: str) -> bool:
+    required = _hf_release_version(HF_FILESYSTEM_REQUIRED_VERSION)
+    installed = _hf_release_version(installed_version)
+    if required is None or installed is None:
+        return False
+    if installed != required:
+        return installed > required
+
+    suffix = _hf_version_suffix(installed_version).lower()
+    return suffix == "" or suffix.startswith(("post", ".post", "+"))
+
+
+def _hf_release_version(version: str) -> tuple[int, int, int] | None:
+    match = re.match(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?", version)
+    if match is None:
+        return None
+    return (
+        int(match.group(1)),
+        int(match.group(2) or 0),
+        int(match.group(3) or 0),
+    )
+
+
+def _hf_version_suffix(version: str) -> str:
+    match = re.match(r"^\d+(?:\.\d+){0,2}(.*)$", version)
+    return match.group(1) if match is not None else ""
+
+
 def size_in_mb(file: str) -> float:
     # Open the file using fsspec and retrieve the file's information
-    fs, path = fsspec.core.url_to_fs(file)
+    fs, path = fsspec.core.url_to_fs(file, **default_fs_options(file))
 
     # Use the filesystem's info method to get the size
     file_info = fs.info(path)

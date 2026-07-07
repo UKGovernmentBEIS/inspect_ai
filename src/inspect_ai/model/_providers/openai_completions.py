@@ -58,7 +58,7 @@ async def generate_completions(
     # unlike text models, vision models require a max_tokens (and set it to a very low
     # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
     OPENAI_IMAGE_DEFAULT_TOKENS = 4096
-    if "vision" in openai_api.service_model_name():
+    if "vision" in openai_api.model_family():
         if isinstance(config.max_tokens, int):
             config.max_tokens = max(config.max_tokens, OPENAI_IMAGE_DEFAULT_TOKENS)
         else:
@@ -78,7 +78,8 @@ async def generate_completions(
         tool_choice=openai_chat_tool_choice(tool_choice)
         if len(tools) > 0
         else NOT_GIVEN,
-        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+        | (config.extra_headers or {}),
         **completion_params_completions(openai_api, config, len(tools) > 0),
     )
     if isinstance(prompt_cache_key, str):
@@ -121,7 +122,7 @@ def completion_params_completions(
     openai_api: "OpenAIAPI", config: GenerateConfig, tools: bool
 ) -> dict[str, Any]:
     # first call the default processing
-    params = openai_completion_params(openai_api.service_model_name(), config, tools)
+    params = openai_completion_params(openai_api.api_model_name(), config, tools)
 
     # add service_tier if specified
     if openai_api.service_tier is not None:

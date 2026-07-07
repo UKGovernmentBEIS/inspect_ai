@@ -1,4 +1,4 @@
-name: Build Log Viewer
+name: Validate Embedded Viewer
 
 on:
   push:
@@ -8,6 +8,15 @@ on:
     branches:
       - "*"
 
+# Cancel superseded in-flight runs when a PR branch is updated; runs on
+# main queue rather than cancel so every merge commit gets a full build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
 env:
   UV_VERSION: 0.9.4
 
@@ -15,19 +24,19 @@ jobs:
   check-schema-and-types:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.11
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.3.1
         with:
           enable-cache: true
           version: "${{ env.UV_VERSION }}"
@@ -35,11 +44,11 @@ jobs:
       - name: Install Python dependencies
         run: uv pip install --system .[dev]
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22.x"
           cache: pnpm
@@ -48,24 +57,52 @@ jobs:
         working-directory: src/inspect_ai/_view/ts-mono
         run: pnpm install --frozen-lockfile
 
-      - name: Update schema and types
+      # The pipeline is Python → inspect-openapi.json → generated.ts. The two
+      # arrows are checked independently: json → ts must match exactly, while
+      # Python → json tolerates docstring-only ("description") drift so that
+      # doc changes don't require regenerating checked-in artifacts. As a
+      # result, description text in the committed artifacts can lag the Python
+      # docstrings until the next structural change forces a regeneration.
+
+      - name: Check generated types are in sync with checked-in schema
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: |
+          pnpm --filter @tsmono/inspect-common types:generate
+          if ! git diff --exit-code -- packages/inspect-common/src/types/generated.ts
+          then
+            echo "generated.ts is out of sync with the committed inspect-openapi.json."
+            echo "Regenerate both artifacts and commit them:"
+            echo "  python src/inspect_ai/_view/schema.py"
+            exit 1
+          fi
+
+      - name: Regenerate schema from Python source
         run: python src/inspect_ai/_view/schema.py
 
-      - name: Ensure schema and types changes are checked in
+      - name: Check schema is up to date (docstring-only drift tolerated)
+        run: python .github/scripts/check_openapi_drift.py
+
+      - name: Ensure regeneration produced no other changes
         run: |
-          if [[ $(git status --porcelain) != "" ]]
+          if git status --porcelain \
+              | grep -vE 'src/inspect_ai/_view/(inspect-openapi\.json|ts-mono)$' \
+              | grep -q . \
+            || git -C src/inspect_ai/_view/ts-mono status --porcelain \
+              | grep -v 'packages/inspect-common/src/types/generated\.ts$' \
+              | grep -q .
           then
-            echo "Schemas or generated types are out of date. Please run:"
-            echo "  python src/inspect_ai/_view/schema.py"
+            echo "Unexpected changes after regeneration:"
             git status
-            git diff
+            git diff -- . ':!src/inspect_ai/_view/inspect-openapi.json'
+            git -C src/inspect_ai/_view/ts-mono status
+            git -C src/inspect_ai/_view/ts-mono diff -- . ':!packages/inspect-common/src/types/generated.ts'
             exit 1
           fi
 
   submodule-on-main:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Verify submodule commit is on ts-mono main
         run: |
@@ -87,16 +124,16 @@ jobs:
   dist-validation:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22.x"
           cache: pnpm
@@ -108,7 +145,7 @@ jobs:
 
       - name: Build
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter inspect build
+        run: pnpm --filter @meridianlabs/log-viewer build
 
       - name: Check dist is up-to-date
         run: |
@@ -118,7 +155,7 @@ jobs:
             echo ""
             echo "The build output has changed. Run:"
             echo "  cd src/inspect_ai/_view/ts-mono"
-            echo "  pnpm --filter inspect build"
+            echo "  pnpm --filter @meridianlabs/log-viewer build"
             echo ""
             echo "Then commit the updated dist/ directory."
             exit 1
