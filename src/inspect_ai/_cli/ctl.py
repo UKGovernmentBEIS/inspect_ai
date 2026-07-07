@@ -921,21 +921,30 @@ def _run_task_list(as_json: bool) -> None:
     _print_keep_alive_footer(summaries)
 
 
-def _list_sample_rows(
-    task: str | None, active_since: float | None
-) -> tuple[float, list[dict[str, Any]], list[dict[str, Any]]]:
-    """Fetch sample rows for one task (``task`` given) or all running tasks.
+class _SampleRows(NamedTuple):
+    """Result of :func:`_list_sample_rows`.
 
-    Returns ``(as_of, targets, rows)`` — the envelope timestamp (the earliest
-    of the per-server ``as_of`` values, so nothing between them is missed),
-    the resolved target summaries, and the sample rows. Every row carries
-    ``task_id`` / ``task`` unconditionally (outputs feed inputs: the row's
-    identifiers are the selectors other commands take).
+    ``as_of`` is the envelope timestamp (the earliest of the per-server
+    ``as_of`` values, so nothing between them is missed). ``targets`` are the
+    resolved target summaries; ``read`` the subset whose samples read actually
+    succeeded (an unscoped fan-out warn-and-skips unreachable evals, and the
+    human output must not make positive claims about samples it never saw).
+    Every row carries ``task_id`` / ``task`` unconditionally (outputs feed
+    inputs: the row's identifiers are the selectors other commands take).
     """
+
+    as_of: float
+    targets: list[dict[str, Any]]
+    read: list[dict[str, Any]]
+    rows: list[dict[str, Any]]
+
+
+def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRows:
+    """Fetch sample rows for one task (``task`` given) or all running tasks."""
     fallback_as_of = time.time()
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
-        return fallback_as_of, [], []
+        return _SampleRows(as_of=fallback_as_of, targets=[], read=[], rows=[])
 
     if task is not None:
         targets = [_resolve_target_eval(summaries, task)]
@@ -943,6 +952,7 @@ def _list_sample_rows(
         targets = summaries
 
     as_of_values: list[float] = []
+    read: list[dict[str, Any]] = []
     rows: list[dict[str, Any]] = []
     for target in targets:
         # Query by the task's current eval id (resolved fresh each invocation,
@@ -964,6 +974,7 @@ def _list_sample_rows(
             )
             continue
         as_of_values.append(target_as_of)
+        read.append(target)
         for sample in samples:
             rows.append(
                 {
@@ -972,13 +983,18 @@ def _list_sample_rows(
                     **sample,
                 }
             )
-    return min(as_of_values, default=fallback_as_of), targets, rows
+    return _SampleRows(
+        as_of=min(as_of_values, default=fallback_as_of),
+        targets=targets,
+        read=read,
+        rows=rows,
+    )
 
 
 def _run_sample_list(
     task: str | None, active_since: float | None, as_json: bool
 ) -> None:
-    as_of, targets, rows = _list_sample_rows(task, active_since)
+    as_of, targets, read, rows = _list_sample_rows(task, active_since)
 
     if as_json:
         click.echo(json_lib.dumps({"as_of": as_of, "samples": rows}, indent=2))
@@ -988,22 +1004,25 @@ def _run_sample_list(
         _echo_no_running_evals()
         return
 
+    # "(no samples started yet)" is a positive claim; when every target was
+    # warn-and-skipped as unreachable we never saw its samples, so say that.
+    empty = "(no samples started yet)" if read else "(samples unavailable)"
     if len(targets) == 1:
         click.echo(_task_header(targets[0]))
         if not rows:
-            click.echo("(no samples started yet)")
+            click.echo(empty)
             return
         click.echo()
         _print_samples_table(rows)
     else:
         if not rows:
-            click.echo("(no samples started yet)")
+            click.echo(empty)
             return
         _print_samples_table(rows, show_task=True)
 
 
 def _run_sample_errors(task: str | None, as_json: bool) -> None:
-    as_of, targets, rows = _list_sample_rows(task, None)
+    as_of, targets, read, rows = _list_sample_rows(task, None)
     errored = [s for s in rows if s.get("error") or (s.get("retries") or 0) > 0]
 
     if as_json:
@@ -1014,16 +1033,19 @@ def _run_sample_errors(task: str | None, as_json: bool) -> None:
         _echo_no_running_evals()
         return
 
+    # As in `_run_sample_list`: don't assert "(no errors or retries)" for
+    # targets whose samples read was warn-and-skipped as unreachable.
+    empty = "(no errors or retries)" if read else "(samples unavailable)"
     if len(targets) == 1:
         click.echo(_task_header(targets[0]))
         if not errored:
-            click.echo("(no errors or retries)")
+            click.echo(empty)
             return
         click.echo()
         _print_errors_table(errored)
     else:
         if not errored:
-            click.echo("(no errors or retries)")
+            click.echo(empty)
             return
         _print_errors_table(errored, show_task=True)
 

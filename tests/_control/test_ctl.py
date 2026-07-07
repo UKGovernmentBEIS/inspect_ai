@@ -875,6 +875,32 @@ def test_sample_list_unscoped_single_eval_unreachable_still_skips(
     assert "Skipping eval eval_aaa111" in result.stderr
 
 
+def test_sample_list_human_skipped_target_says_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The human output makes no positive claim about samples it never read."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    result = _runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert "(samples unavailable)" in result.output
+    assert "no samples started yet" not in result.output
+    assert "Skipping eval eval_aaa111" in result.stderr
+
+
+def test_sample_errors_human_skipped_target_says_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`sample errors` likewise avoids '(no errors or retries)' when unread."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    result = _runner().invoke(ctl_command, ["sample", "errors"])
+    assert result.exit_code == 0, result.output
+    assert "(samples unavailable)" in result.output
+    assert "no errors or retries" not in result.output
+    assert "Skipping eval eval_aaa111" in result.stderr
+
+
 def test_sample_list_scoped_unreachable_exits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
