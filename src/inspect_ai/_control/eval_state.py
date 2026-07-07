@@ -325,9 +325,9 @@ def register_eval(
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
-    Idempotent on ``eval_id`` — re-registering an existing eval (eg.
-    on retry) returns the existing state without resetting its
-    counters.
+    Idempotent on ``eval_id`` — re-registering an existing eval (eg. on
+    retry, which mints a fresh ``eval_id`` via ``TaskLogger.reinit``) returns
+    the existing state without resetting its counters.
     """
     with _lock:
         existing = _eval_states.get(eval_id)
@@ -515,6 +515,24 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def task_registered(task_id: str) -> bool:
+    """True if any attempt of ``task_id`` is tracked in this process.
+
+    A pure existence check (no latest-attempt semantics): task-scoped state
+    like the sample limiter lives in task_id-keyed registries (see
+    ``_task_sample_semaphores`` in ``util/_concurrency.py``), so consumers such
+    as the limits directive only need to know whether the task is known here —
+    including reused-log tasks registered via :func:`register_completed_eval`,
+    which never run and so have no registry entries but should still get the
+    "not adjustable" warning rather than a 404. A falsy ``task_id`` is never
+    registered (states without one are addressable only by eval id).
+    """
+    if not task_id:
+        return False
+    with _lock:
+        return any(s.task_id == task_id for s in _eval_states.values())
+
+
 def detach_eval_live(eval_id: str) -> None:
     """Detach a superseded attempt's live data source.
 
@@ -525,7 +543,9 @@ def detach_eval_live(eval_id: str) -> None:
     Clearing it makes the superseded attempt's reads fall back to its own
     ``log_location`` — its data stays correct until the retry sweep removes
     that log, after which per-sample reads degrade to empty/404 (the counters
-    on the state itself are unaffected). No-ops if the eval isn't registered.
+    on the state itself are unaffected).
+
+    No-ops if the eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
