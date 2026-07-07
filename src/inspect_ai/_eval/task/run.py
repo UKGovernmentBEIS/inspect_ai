@@ -699,6 +699,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 messages=sample_messages(sample),
                                 message_limit=config.message_limit,
                                 token_limit=config.token_limit,
+                                token_limit_type=config.token_limit_type or "all",
                                 cost_limit=config.cost_limit,
                                 completed=False,
                                 metadata=sample.metadata if sample.metadata else {},
