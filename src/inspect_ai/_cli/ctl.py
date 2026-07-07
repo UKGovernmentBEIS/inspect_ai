@@ -34,7 +34,7 @@ import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, NoReturn
+from typing import Any, Literal, NamedTuple, NoReturn, overload
 
 import click
 import httpx
@@ -546,7 +546,7 @@ def sample_events_command(
 )
 @click.option(
     "--log-shared",
-    type=int,
+    type=click.IntRange(min=1),
     default=None,
     help="Set the shared-log event sync interval, in seconds (task-scoped).",
 )
@@ -593,7 +593,8 @@ def config_command(
     raising it lets more start immediately. `--log-buffer` changes the
     threshold for future writes only — to write what's already pending now,
     run `inspect ctl task log-flush`. A knob with no adjustable limiter for
-    this task is reported with a warning rather than an error.
+    this task is reported with a warning rather than an error; explicitly
+    *setting* such a knob is an error.
 
     Pass `--dry-run` with a set option to see what would change (including
     the blast radius of a process-scoped knob) without applying it.
@@ -1322,6 +1323,7 @@ def _run_config(
     # no dry-run, so a dry-run reads the current values and reports the
     # request in `requested` without posting.
     buffer_view: dict[str, Any] | None = None
+    buffer_warnings: list[str] = []
     requested_buffer: dict[str, int] = {
         name: value
         for name, value in (("log_buffer", log_buffer), ("log_shared", log_shared))
@@ -1335,6 +1337,30 @@ def _run_config(
             log_shared=log_shared,
             set_values=set_buffer and not dry_run,
         )
+        # No live sample buffer (e.g. a reused log): on a view this is just a
+        # knob with nothing to adjust, reported as a warning like the limits
+        # knobs. Only an explicit --log-buffer/--log-shared is an error
+        # (there's nothing to apply it to) — and since a limits set has
+        # already landed above, the error must not read as "nothing applied".
+        if buffer_view is None:
+            if set_buffer:
+                click.echo(
+                    f"Eval '{scope.eval_id}' has no sample buffer in this "
+                    "process (e.g. a reused log, or a retry attempt that's "
+                    "been superseded) — --log-buffer/--log-shared cannot be "
+                    "set for this task."
+                    + (
+                        " The other requested knobs were still applied."
+                        if set_limits and not dry_run
+                        else ""
+                    ),
+                    err=True,
+                )
+                raise click.exceptions.Exit(code=1)
+            buffer_warnings.append(
+                "log_buffer/log_shared are not adjustable for this task "
+                "(no live sample buffer — e.g. a reused log)"
+            )
 
     # The process-scoped knobs reach every task in the process — surface that
     # blast radius structurally when a set (or dry-run) used one.
@@ -1359,6 +1385,7 @@ def _run_config(
         dry_run=dry_run,
         set_values=set_values,
         notes=notes,
+        extra_warnings=buffer_warnings,
     )
 
     if as_json:
@@ -1379,6 +1406,7 @@ def _compose_config(
     dry_run: bool,
     set_values: bool,
     notes: list[str],
+    extra_warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     """Merge the limits + buffer views into one scope-labeled config view.
 
@@ -1418,7 +1446,7 @@ def _compose_config(
             "task": scope.task,
         },
         "knobs": knobs,
-        "warnings": limits_view.get("warnings") or [],
+        "warnings": [*(limits_view.get("warnings") or []), *(extra_warnings or [])],
         "notes": notes,
         "applied": bool(set_values and not dry_run),
         "dry_run": dry_run,
@@ -1925,6 +1953,7 @@ def _fetch_sample_events(
     return page if isinstance(page, dict) else {}
 
 
+@overload
 def _request_json(
     socket_path: str,
     path: str,
@@ -1933,7 +1962,30 @@ def _request_json(
     not_found: str,
     params: dict[str, Any] | None = None,
     mutate: Literal["post", "patch"] | None = None,
-) -> dict[str, Any]:
+) -> dict[str, Any]: ...
+
+
+@overload
+def _request_json(
+    socket_path: str,
+    path: str,
+    *,
+    what: str,
+    not_found: None,
+    params: dict[str, Any] | None = None,
+    mutate: Literal["post", "patch"] | None = None,
+) -> dict[str, Any] | None: ...
+
+
+def _request_json(
+    socket_path: str,
+    path: str,
+    *,
+    what: str,
+    not_found: str | None,
+    params: dict[str, Any] | None = None,
+    mutate: Literal["post", "patch"] | None = None,
+) -> dict[str, Any] | None:
     """GET (retrying a busy process) or mutate ``path``; return its JSON dict.
 
     The shared transport / error policy for the per-eval and per-task ctl
@@ -1941,7 +1993,10 @@ def _request_json(
     isn't idempotent across transport failures, so it gets a single attempt
     with the full mutation budget (see :data:`_MUTATION_TIMEOUT` — eg. a
     remote S3 log flush can take a while). A 404 prints ``not_found`` and
-    exits non-zero; a 400 surfaces the server's ``{"error": ...}`` body;
+    exits non-zero — unless ``not_found`` is ``None``, in which case the 404
+    returns ``None`` (for callers where the resource is a per-task optional,
+    eg. the sample buffer of a reused-log eval, and absence is handled at the
+    call site); a 400 surfaces the server's ``{"error": ...}`` body;
     transport errors exit with ``what`` as context.
     """
     verb = "update" if mutate else "read"
@@ -1962,6 +2017,8 @@ def _request_json(
                 socket_path, path, params=params, what=f"Reading {what}"
             )
         if response.status_code == 404:
+            if not_found is None:
+                return None
             click.echo(not_found, err=True)
             raise click.exceptions.Exit(code=1)
         if response.status_code == 400:
@@ -2007,8 +2064,14 @@ def _exec_buffer_config(
     log_buffer: int | None,
     log_shared: int | None,
     set_values: bool,
-) -> dict[str, Any]:
-    """Read (``set_values=False``) or update an eval's sample-buffer config."""
+) -> dict[str, Any] | None:
+    """Read (``set_values=False``) or update an eval's sample-buffer config.
+
+    Returns ``None`` when the eval has no live sample buffer in its process
+    (the endpoint 404s — e.g. a reused log, or a retry attempt that's been
+    superseded). The caller decides whether that absence is a warning (a
+    pure view) or an error (an explicit ``--log-buffer``/``--log-shared``).
+    """
     params: dict[str, Any] = {}
     if set_values:
         if log_buffer is not None:
@@ -2019,10 +2082,7 @@ def _exec_buffer_config(
         socket_path,
         f"/evals/{eval_id}/buffer",
         what=f"buffer config for eval {eval_id}",
-        not_found=(
-            f"Eval '{eval_id}' has no sample buffer in this process "
-            "(e.g. a reused log, or a retry attempt that's been superseded)."
-        ),
+        not_found=None,
         params=params,
         mutate="post" if set_values else None,
     )

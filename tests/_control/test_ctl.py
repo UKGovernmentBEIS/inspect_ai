@@ -453,9 +453,10 @@ def _stub_httpx(
 ) -> dict[str, int]:
     """Replace httpx in ctl so each ``client.get`` consumes one ``sequence`` item.
 
-    Each item is either an ``Exception`` to raise (e.g. a ``TimeoutException``)
-    or a payload to return from ``response.json()``. Returns a dict whose
-    ``"gets"`` entry counts how many requests were attempted.
+    Each item is either an ``Exception`` to raise (e.g. a ``TimeoutException``),
+    a payload to return from ``response.json()``, or a ``(status_code, payload)``
+    tuple for a non-200 response. Returns a dict whose ``"gets"`` entry counts
+    how many requests were attempted.
     """
     counter = {"gets": 0, "posts": 0}
     seq = list(sequence)
@@ -486,6 +487,9 @@ def _stub_httpx(
             item = seq.pop(0)
             if isinstance(item, Exception):
                 raise item
+            if isinstance(item, tuple):
+                status, payload = item
+                return _Resp(payload, status)
             return _Resp(item)
 
         def get(self, path: str, params: object = None) -> _Resp:
@@ -588,6 +592,18 @@ def test_buffer_set_does_not_retry_timeout(
     assert exc_info.value.exit_code == 1
     assert counter["posts"] == 1  # tried once, no retry
     assert "Failed to update buffer config" in capsys.readouterr().err
+
+
+def test_buffer_read_404_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing buffer (e.g. a reused-log eval) reads as None, not an exit."""
+    from inspect_ai._cli.ctl import _exec_buffer_config
+
+    counter = _stub_httpx(monkeypatch, [(404, {"error": "not found"})])
+    view = _exec_buffer_config(
+        "/tmp/x.sock", "e1", log_buffer=None, log_shared=None, set_values=False
+    )
+    assert view is None
+    assert counter["gets"] == 1
 
 
 def test_get_with_retry_does_not_retry_connection_error(
@@ -860,8 +876,8 @@ def test_tasks_alias_delegates_with_deprecation_note(
     assert "is now `inspect ctl task list`" in result.stderr
 
 
-def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+def _stub_limits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub the limits leg of `ctl config` with a minimal adjustable view."""
     monkeypatch.setattr(
         "inspect_ai._cli.ctl._exec_limits",
         lambda *a, **k: {
@@ -873,6 +889,11 @@ def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> No
             "dry_run": False,
         },
     )
+
+
+def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_limits(monkeypatch)
     monkeypatch.setattr(
         "inspect_ai._cli.ctl._exec_buffer_config",
         lambda *a, **k: {"log_buffer": 10, "pending": 0, "log_shared": None},
@@ -882,6 +903,54 @@ def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> No
     payload = json.loads(result.stdout)
     assert payload["knobs"]["max_samples"]["scope"] == "task"
     assert "is now `inspect ctl config`" in result.stderr
+
+
+def test_config_view_tolerates_missing_buffer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A view of a task with no live buffer (reused log) warns — exit 0."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_limits(monkeypatch)
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_buffer_config", lambda *a, **k: None)
+    result = _runner().invoke(ctl_command, ["config", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert "log_buffer" not in payload["knobs"]
+    assert any("log_buffer" in w for w in payload["warnings"])
+
+    human = _runner().invoke(ctl_command, ["config"])
+    assert human.exit_code == 0
+    assert "! log_buffer/log_shared are not adjustable" in human.output
+
+
+def test_config_set_buffer_knob_errors_when_no_buffer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit --log-buffer with no live buffer errors.
+
+    And when a limits knob was set alongside it, the error says that set
+    still landed.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_limits(monkeypatch)
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_buffer_config", lambda *a, **k: None)
+    result = _runner().invoke(ctl_command, ["config", "--log-buffer", "2"])
+    assert result.exit_code == 1
+    assert "has no sample buffer" in result.stderr
+    assert "still applied" not in result.stderr  # no limits knob was set
+
+    both = _runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "5"]
+    )
+    assert both.exit_code == 1
+    assert "still applied" in both.stderr
+
+
+def test_config_log_shared_rejects_below_one() -> None:
+    """--log-shared validates up front like --log-buffer (IntRange min=1)."""
+    result = _runner().invoke(ctl_command, ["config", "--log-shared", "0"])
+    assert result.exit_code == 2
+    assert "--log-shared" in result.stderr
 
 
 def test_process_release_json_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
