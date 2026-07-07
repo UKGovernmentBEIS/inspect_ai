@@ -137,6 +137,16 @@ def test_registry_kwargs() -> None:
         assert isinstance(arg_solver, Solver)
 
 
+def test_registry_arg_preserves_ordinary_registry_shaped_dict() -> None:
+    """Ordinary user dicts must not be treated as encoded registry objects."""
+    from inspect_ai._util.registry import is_registry_dict, registry_arg
+
+    ordinary = {"type": "ordinary-data", "name": "example", "params": {}}
+    assert not is_registry_dict(ordinary)
+    assert registry_arg(ordinary) == ordinary
+    assert registry_arg({"config": ordinary}) == {"config": ordinary}
+
+
 def _extract(fn, *args, **kwargs):
     """Helper to call extract_named_params with apply_defaults=True."""
     return extract_named_params(fn, True, *args, **kwargs)

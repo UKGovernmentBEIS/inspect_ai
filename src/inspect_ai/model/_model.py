@@ -55,6 +55,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.http import status_code_of
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -598,6 +599,63 @@ def _connection_pool_key(api: ModelAPI) -> str:
     return f"{type(api).__name__}:{api.connection_key()}"
 
 
+def model_concurrency_key(api: ModelAPI) -> str:
+    """Registry key of the model's generate-concurrency context.
+
+    The single definition of the key under which `_connection_concurrency`
+    registers a model's semaphore / adaptive controller — also computed by
+    `create_sample_semaphore` to scope a task's `DynamicSampleLimiter` to its
+    own model's controller, so the two sides can't drift.
+    """
+    return f"Model{_connection_pool_key(api)}"
+
+
+async def ensure_model_controller(model: "Model", config: GenerateConfig) -> None:
+    """Create the model's adaptive-connections controller if adaptive is active.
+
+    The controller is normally created lazily inside the model's first
+    generate; the run startup calls this ahead of time (before sandbox
+    startup, whose image pulls can take minutes) so the control channel can
+    observe and retune ``max_connections`` from the start of the run rather
+    than dropping a retune with a "not using adaptive connections" warning.
+
+    ``config`` is the task's would-be active generate config; it is composed
+    with the model's own config here exactly as ``_resolve_config`` does for
+    the active model, so this and the generate path cannot disagree on
+    whether adaptive is active or on the controller's bounds. That agreement
+    is load-bearing: the registry coalesces on key with first-created bounds
+    winning, so a controller created here from a divergent config would
+    silently override the bounds generates resolve (and a controller created
+    for a model whose generates take the static path would be a phantom —
+    reported and "retuned" by ``ctl limits`` while gating nothing).
+
+    A no-op for the ``NoModel`` sentinel (nothing will generate) and when the
+    composed config says adaptive isn't active (explicit ``max_connections``,
+    batch mode, or ``adaptive_connections=False``).
+    """
+    from inspect_ai.model._providers.none import NoModel
+    from inspect_ai.util._concurrency import (
+        adaptive_active,
+        get_or_create_semaphore,
+        resolve_adaptive,
+    )
+
+    if isinstance(model.api, NoModel):
+        return
+    effective = model.config.merge(config)
+    if adaptive_active(
+        effective.adaptive_connections, effective.max_connections, effective.batch
+    ):
+        adaptive = resolve_adaptive(effective.adaptive_connections)
+        await get_or_create_semaphore(
+            str(ModelName(model)),
+            adaptive.start,
+            model_concurrency_key(model.api),
+            True,
+            adaptive,
+        )
+
+
 class Model:
     """Model interface.
 
@@ -970,7 +1028,7 @@ class Model:
 
             # Record and check usage
             if usage:
-                record_and_check_model_usage(f"{self}", usage, role=self.role)
+                record_and_check_model_usage(self, usage, role=self.role)
 
             return compacted_messages, usage
 
@@ -1205,9 +1263,12 @@ class Model:
             if isinstance(output, Exception):
                 complete(output, call)
 
-                # Wrap the error in a runtime error which will show the
+                # Wrap the error in a ModelGenerateError which will show the
                 # request which caused the error (truncated to last
-                # 200 lines if larger to avoid overflowing terminal)
+                # 200 lines if larger to avoid overflowing terminal). The
+                # subclass preserves the provider status_code/message so the
+                # agent bridge can forward a faithful provider error rather
+                # than crashing the model proxy.
                 error = repr(output)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
                 max_lines = 200
@@ -1218,7 +1279,11 @@ class Model:
                         + request_lines[-max_lines:]
                     )
                 error_message = f"\nRequest:\n{request}\n\n{error}"
-                raise RuntimeError(error_message)
+                raise ModelGenerateError(
+                    error_message,
+                    status_code=status_code_of(output),
+                    provider_message=str(output),
+                ) from output
 
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)
@@ -1237,7 +1302,7 @@ class Model:
 
             # record usage
             if output.usage:
-                record_and_check_model_usage(f"{self}", output.usage, role=self.role)
+                record_and_check_model_usage(self, output.usage, role=self.role)
 
                 # send telemetry to hooks
                 await emit_model_usage(
@@ -1398,7 +1463,7 @@ class Model:
         )
 
         model_name = ModelName(self)
-        key = f"Model{_connection_pool_key(self.api)}"
+        key = model_concurrency_key(self.api)
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
         # rules — both silent — keep deliberate overrides working under
@@ -1595,6 +1660,28 @@ or return ``None`` to allow default processing to continue.
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
+
+
+class ModelGenerateError(RuntimeError):
+    """A model generation failed with a provider error.
+
+    Subclass of `RuntimeError` (so existing `except RuntimeError` / `except
+    Exception` handling and retry classification are unchanged) that
+    additionally preserves the originating provider HTTP `status_code` and a
+    clean `provider_message`. The agent bridge uses these to forward a faithful
+    provider error response to the proxied agent rather than crashing.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        provider_message: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.provider_message = provider_message
 
 
 class ModelName:
@@ -2360,17 +2447,22 @@ def init_sample_role_usage() -> None:
 
 
 def record_and_check_model_usage(
-    model: str, usage: ModelUsage, role: str | None = None
+    model: Model, usage: ModelUsage, role: str | None = None
 ) -> None:
     from inspect_ai.log._samples import (
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
-    from inspect_ai.model._model_info import get_model_info
+    from inspect_ai.model._model_info import _get_model_info_direct
+
+    # full "provider/model" identifier, used as the usage-bookkeeping dict key
+    model_name = f"{model}"
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
-    # accumulates it in the per-model usage dicts)
-    info = get_model_info(model)
+    # accumulates it in the per-model usage dicts). Use the direct (non
+    # provider-resolving) lookup: the model is already instantiated, so falling
+    # back to get_model() here would re-instantiate it (reloading local weights).
+    info = _get_model_info_direct(model)
     total_cost: float | None = None
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
     if info is not None and info.cost is not None:
@@ -2378,8 +2470,8 @@ def record_and_check_model_usage(
         usage.total_cost = total_cost
 
     # record usage
-    set_model_usage(model, usage, sample_model_usage_context_var.get(None))
-    set_model_usage(model, usage, model_usage_context_var.get(None))
+    set_model_usage(model_name, usage, sample_model_usage_context_var.get(None))
+    set_model_usage(model_name, usage, model_usage_context_var.get(None))
 
     # record usage by role name (if role is set)
     if role is not None:
