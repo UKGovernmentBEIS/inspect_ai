@@ -224,6 +224,16 @@ async def checkpointer() -> AsyncIterator[Checkpointer]:
     active = sample_active()
     if active is None:
         raise RuntimeError("checkpointer() must be called inside an active sample")
+    # The checkpoint session is one-per-sample. A nested re-entry — a react
+    # sub-agent run as a tool / handoff / deepagent task — must not re-open the
+    # owner's session (re-opening its span scope trips "SpanRotationScope
+    # already open"); hand the nested loop an inert session instead.
+    if active.checkpointer.current() is not None:
+        from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+        async with _NoopCheckpointer() as nested:
+            yield nested
+        return
     async with active.checkpointer as cp:
         async with cp.span_session():
             yield cp
@@ -242,7 +252,8 @@ def current_checkpointer() -> Checkpointer | None:
     The session is shared and singular, so:
 
     - Do **not** re-enter :func:`checkpointer` from a sub-component — that
-      opens a duplicate ``span_session``.
+      yields an inert no-op session, so its ``track`` calls are silently
+      dropped. Borrow via this accessor instead.
     - ``track`` keys share one namespace and collide (raising
       ``ValueError``) across components; prefix yours uniquely (the agent
       bridge uses ``"bridge_*"`` keys, for example).
