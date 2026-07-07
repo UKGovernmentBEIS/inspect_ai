@@ -712,6 +712,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 messages=sample_messages(sample),
                                 message_limit=config.message_limit,
                                 token_limit=config.token_limit,
+                                token_limit_type=config.token_limit_type or "all",
                                 cost_limit=config.cost_limit,
                                 completed=False,
                                 metadata=sample.metadata if sample.metadata else {},
@@ -1168,7 +1169,11 @@ async def task_run_sample(
         # precedence eval > sample > task (per-field merge — see
         # `merge_checkpoint_configs`).
         resolved_checkpoint = merge_checkpoint_configs(
-            checkpoint, sample.checkpoint, eval_checkpoint
+            checkpoint,
+            sample.checkpoint,
+            eval_checkpoint,
+            on_checkpoint=task.on_checkpoint,
+            on_resume=task.on_resume,
         )
 
         # helper to handle exceptions (will throw if we've exceeded the limit)

@@ -84,6 +84,11 @@ from inspect_ai.util._display import (
     display_type_plain,
     init_display_type,
 )
+from inspect_ai.util._limit import (
+    TokenLimit,
+    resolve_token_limit,
+    token_limit_fields,
+)
 
 from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args, solver_from_spec
@@ -110,7 +115,7 @@ class EvalSetArgsInTaskIdentifier:
     config: GenerateConfig
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None
     message_limit: int | None = None
-    token_limit: int | None = None
+    token_limit: int | TokenLimit | None = None
     turn_limit: int | None = None
     time_limit: int | None = None
     working_limit: int | None = None
@@ -158,7 +163,7 @@ def eval_set(
     score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
-    token_limit: int | None = None,
+    token_limit: int | str | TokenLimit | None = None,
     turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
@@ -279,7 +284,10 @@ def eval_set(
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
-        token_limit: Limit on total tokens used for each sample.
+        token_limit: Limit on tokens used for each sample. An `int` (or a
+            `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+            with type "output" limits only output tokens. Also accepts strings
+            like "500k", "1m", or "output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
@@ -326,6 +334,9 @@ def eval_set(
         A tuple of bool (whether all tasks completed successfully) and a list of `EvalLog` headers (i.e. raw sample data is not included in the logs returned).
     """
     from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
+
+    # canonical form so task_identifier hashing sees a stable value
+    token_limit = resolve_token_limit(token_limit)
 
     num_retry_attempts = 10 if retry_attempts is None else retry_attempts
     if retry_immediate is None:
@@ -1279,11 +1290,21 @@ def task_identifier(
         model_args: dict[str, Any]
         version: int | str
         message_limit: int | None
-        token_limit: int | None
+        # int for all-token limits (the historical encoding, so existing
+        # eval-set identifiers are unchanged); "output:<n>" when only output
+        # tokens are metered
+        token_limit: int | str | None
         turn_limit: int | None
         time_limit: int | None
         working_limit: int | None
         cost_limit: float | None
+
+    def token_limit_hash_value(
+        tokens: int | None, type: Literal["all", "output"] | None
+    ) -> int | str | None:
+        if tokens is not None and type == "output":
+            return f"output:{tokens}"
+        return tokens
 
     if isinstance(task, ResolvedTask):
         assert eval_set_args is not None, (
@@ -1307,9 +1328,11 @@ def task_identifier(
             message_limit=task.task.message_limit
             if eval_set_args.message_limit is None
             else eval_set_args.message_limit,
-            token_limit=task.task.token_limit
+            token_limit=token_limit_hash_value(
+                task.task.token_limit, task.task.token_limit_type
+            )
             if eval_set_args.token_limit is None
-            else eval_set_args.token_limit,
+            else token_limit_hash_value(*token_limit_fields(eval_set_args.token_limit)),
             turn_limit=task.task.turn_limit
             if eval_set_args.turn_limit is None
             else eval_set_args.turn_limit,
@@ -1335,7 +1358,9 @@ def task_identifier(
             model_args=task.eval.model_args,
             version=task.eval.task_version,
             message_limit=task.eval.config.message_limit,
-            token_limit=task.eval.config.token_limit,
+            token_limit=token_limit_hash_value(
+                task.eval.config.token_limit, task.eval.config.token_limit_type
+            ),
             turn_limit=task.eval.config.turn_limit,
             time_limit=task.eval.config.time_limit,
             working_limit=task.eval.config.working_limit,
