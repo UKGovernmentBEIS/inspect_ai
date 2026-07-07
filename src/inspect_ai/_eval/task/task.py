@@ -75,8 +75,6 @@ class Task:
         setup: Solver | list[Solver] | None = None,
         solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
-        on_checkpoint: OnCheckpointCallback | None = None,
-        on_resume: OnResumeCallback | None = None,
         scorer: "Scorers" | None = None,
         metrics: list[Metric | dict[str, list[Metric]]]
         | dict[str, list[Metric]]
@@ -86,6 +84,8 @@ class Task:
         model_roles: dict[str, str | Model] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         checkpoint: CheckpointConfig | bool | None = None,
+        on_checkpoint: OnCheckpointCallback | None = None,
+        on_resume: OnResumeCallback | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
@@ -115,6 +115,16 @@ class Task:
             cleanup: Optional cleanup function for task. Called after
                 all solvers and scorers have run for each sample (including if an
                 exception occurs during the run)
+            scorer: Scorer used to evaluate model output.
+            metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
+            model: Default model for task (Optional, defaults to eval model).
+            config: Model generation config for default model (does not apply to model roles)
+            model_roles: Named roles for use in `get_model()`.
+            sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+            checkpoint: Checkpoint configuration for this task, or `True` to
+                enable checkpointing with the default trigger (every 500k
+                tokens). Overridden by eval-level `checkpoint` when set;
+                overrides any sample-level `checkpoint`.
             on_checkpoint: Callback invoked before each checkpoint snapshot is
                 taken, so state it flushes to the sandbox/store is captured by
                 that checkpoint. May fire many times (including the final
@@ -128,16 +138,6 @@ class Task:
                 not ``state.messages``. May return a ``ResumeReport`` (or a
                 ``str`` shorthand, or ``None``) surfaced to the agent via
                 ``checkpointer().restored``.
-            scorer: Scorer used to evaluate model output.
-            metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
-            model: Default model for task (Optional, defaults to eval model).
-            config: Model generation config for default model (does not apply to model roles)
-            model_roles: Named roles for use in `get_model()`.
-            sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
-            checkpoint: Checkpoint configuration for this task, or `True` to
-                enable checkpointing with the default trigger (every 500k
-                tokens). Overridden by eval-level `checkpoint` when set;
-                overrides any sample-level `checkpoint`.
             approval: Tool use approval policies.
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             epochs: Epochs to repeat samples for and optional score
@@ -275,8 +275,6 @@ def task_with(
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
-    on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
-    on_resume: OnResumeCallback | None | NotGiven = NOT_GIVEN,
     scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
     | dict[str, list[Metric]]
@@ -287,6 +285,8 @@ def task_with(
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
+    on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
+    on_resume: OnResumeCallback | None | NotGiven = NOT_GIVEN,
     approval: str
     | ApprovalPolicyConfig
     | list[ApprovalPolicy]
@@ -323,6 +323,16 @@ def task_with(
         cleanup: Optional cleanup function for task. Called after
             all solvers and scorers have run for each sample (including if an
             exception occurs during the run)
+        scorer: Scorer used to evaluate model output.
+        metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
+        model: Default model for task (Optional, defaults to eval model).
+        config: Model generation config for default model (does not apply to model roles)
+        model_roles: Named roles for use in `get_model()`.
+        sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+        checkpoint: Checkpoint configuration for this task, or `True` to
+            enable checkpointing with the default trigger (every 500k
+            tokens). Overridden by eval-level `checkpoint` when set;
+            overrides any sample-level `checkpoint`.
         on_checkpoint: Callback invoked before each checkpoint snapshot is
             taken, so state it flushes to the sandbox/store is captured by
             that checkpoint. May fire many times (including the final
@@ -336,16 +346,6 @@ def task_with(
             not ``state.messages``. May return a ``ResumeReport`` (or a
             ``str`` shorthand, or ``None``) surfaced to the agent via
             ``checkpointer().restored``.
-        scorer: Scorer used to evaluate model output.
-        metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
-        model: Default model for task (Optional, defaults to eval model).
-        config: Model generation config for default model (does not apply to model roles)
-        model_roles: Named roles for use in `get_model()`.
-        sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
-        checkpoint: Checkpoint configuration for this task, or `True` to
-            enable checkpointing with the default trigger (every 500k
-            tokens). Overridden by eval-level `checkpoint` when set;
-            overrides any sample-level `checkpoint`.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         epochs: Epochs to repeat samples for and optional score
