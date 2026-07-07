@@ -14,7 +14,6 @@
 - Security: Constrain Docker sandbox `read_file()` staging to a generated regular file so container paths cannot copy outside the private host temporary directory.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
 
-
 ## 0.3.244 (01 July 2026)
 
 - Anthropic: Various changes related to [Sonnet 5](https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5).
