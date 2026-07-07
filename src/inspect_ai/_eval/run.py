@@ -33,7 +33,7 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
-from inspect_ai.model._model import Model, ModelName
+from inspect_ai.model._model import Model, ModelName, ensure_model_controller
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -62,7 +62,11 @@ from .task.run import (
     resolve_plan,
     task_run,
 )
-from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task_and_sample
+from .task.sandbox import (
+    TaskSandboxEnvironment,
+    ensure_sandbox_limiter,
+    resolve_sandbox_for_task_and_sample,
+)
 from .task.task_source import TaskSource
 from .task.util import slice_dataset, task_run_dir
 
@@ -161,6 +165,17 @@ async def eval_run(
             # Ensure sample ids are unique
             ensure_unique_ids(task.dataset)
 
+        # eagerly create each task model's adaptive-connections controller
+        # (normally created lazily on the first generate) so `ctl limits` can
+        # observe and retune max_connections during run startup — the sandbox
+        # image pulls below can take minutes before any generate happens
+        if run_samples:
+            for resolved_task in resolved_tasks:
+                await ensure_model_controller(
+                    resolved_task.model,
+                    resolved_task.task.config.merge(GenerateConfigArgs(**kwargs)),
+                )
+
         # run startup pass for the sandbox environments these tasks need
         if run_samples and any(t.has_sandbox for t in resolved_tasks):
             await sandbox_manager.start(resolved_tasks)
@@ -220,11 +235,13 @@ async def eval_run(
                 else:
                     task.message_limit = task_eval_config.message_limit
 
-                # sample token limit
+                # sample token limit (limit and metering type travel as a unit)
                 if task_eval_config.token_limit is None:
                     task_eval_config.token_limit = task.token_limit
+                    task_eval_config.token_limit_type = task.token_limit_type
                 else:
                     task.token_limit = task_eval_config.token_limit
+                    task.token_limit_type = task_eval_config.token_limit_type
 
                 # sample turn limit
                 if task_eval_config.turn_limit is None:
@@ -932,6 +949,13 @@ class SandboxManager:
             for sandboxenv in sandboxenvs:
                 # find type
                 sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+
+                # pre-register the type's resizable concurrency limiter before
+                # task_init (image pulls/builds can take minutes) so a `ctl
+                # limits --max-sandboxes` issued during startup isn't dropped
+                await ensure_sandbox_limiter(
+                    sandboxenv_type, sandboxenv.sandbox.type, self._config.max_sandboxes
+                )
 
                 # run startup
                 task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))

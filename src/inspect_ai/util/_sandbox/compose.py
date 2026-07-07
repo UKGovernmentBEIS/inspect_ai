@@ -250,6 +250,9 @@ class ComposeService(ComposeModel):
     volumes: list[str] | None = Field(default=None)
     """Volume mounts."""
 
+    devices: list[str] | None = Field(default=None)
+    """Device mappings (e.g. ``["/dev/kvm"]`` or ``["/dev/snd:/dev/snd"]``)."""
+
     networks: list[str] | dict[str, Any] | None = Field(default=None)
     """Networks to connect to."""
 
