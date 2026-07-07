@@ -298,8 +298,8 @@ def test_central_directory_entry_index_is_cached() -> None:
     assert cd._by_name is index  # same dict reused, not rebuilt
 
 
-async def test_get_member_entry_is_constant_time(test_zip_file: Path) -> None:
-    """get_member_entry uses the cached O(1) name index rather than a scan."""
+async def test_get_member_entry_uses_name_index(test_zip_file: Path) -> None:
+    """get_member_entry resolves via the cached name index and misses cleanly."""
     async with AsyncFilesystem() as fs:
         reader = AsyncZipReader(fs, str(test_zip_file))
         entry = await reader.get_member_entry("test.json")
