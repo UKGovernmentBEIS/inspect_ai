@@ -170,24 +170,49 @@ async def test_buffer_route_get_and_post() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_print_buffer_config(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_buffer_config
+def test_print_config_renders_buffer_knobs(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The buffer params (absorbed into `ctl config`) render as task knobs."""
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_buffer_config(
-        {"log_buffer": 7, "pending": 3, "log_shared": 30}, changed=False
+    def _knobs(log_buffer: int, pending: int, log_shared: int | None) -> dict:
+        return {
+            "max_sandboxes": {"scope": "process", "providers": []},
+            "max_connections": {"scope": "process", "adaptive": []},
+            "log_buffer": {"scope": "task", "value": log_buffer, "pending": pending},
+            "log_shared": {"scope": "task", "value": log_shared},
+        }
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": _knobs(7, 3, 30),
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
     )
     out = capsys.readouterr().out
-    assert "buffer config:" in out
+    assert "config:" in out
     assert "7 samples" in out
-    assert "3 buffered" in out
+    assert "(3 pending)" in out
     assert "30s" in out
 
-    _print_buffer_config(
-        {"log_buffer": 1, "pending": 0, "log_shared": None}, changed=True
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": _knobs(1, 0, None),
+            "requested": {"log_buffer": 1},
+            "warnings": [],
+            "notes": [],
+        },
+        changed=True,
     )
     out = capsys.readouterr().out
-    assert "updated buffer config:" in out
-    assert "off" in out
+    assert "updated config:" in out
+    assert "shared sync [task]:      off" in out
 
 
 def test_flush_route_error_becomes_500(monkeypatch: pytest.MonkeyPatch) -> None:

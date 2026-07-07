@@ -111,9 +111,9 @@ All live-eval management commands live under a single `inspect ctl` subcommand r
 
 `inspect tui` stays at the top level rather than under `ctl` — it's an *application* (like `inspect view`) that happens to be a control-channel client, not an operation on a running eval.
 
-#### CLI command hierarchy: noun groups (proposed)
+#### CLI command hierarchy: noun groups
 
-> **Status: proposal, not implemented.** The rest of this doc uses the current flat spellings (`inspect ctl tasks`, `ctl cancel-sample`, ...); if this reorganization lands, read those as the historical names.
+> **Status: implemented** (for the shipped surface — the planned verbs land with their phases). The rest of this doc still uses the historical flat spellings (`inspect ctl tasks`, `ctl cancel-sample`, ...); read those as the pre-reorganization names. Docs and help show only the noun spellings; the flat names survive as hidden, deprecation-noted aliases per the Migration section below (except `sample`, whose name is claimed by the group).
 
 The `ctl` group is **flat** today: ten shipped verbs, heading for ~17 once the remaining phase-3 directives, phase-4 `--follow`, and the eval-set surface land. Two problems are already visible at ten:
 

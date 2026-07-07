@@ -530,7 +530,7 @@ class TaskLogger:
         This forces that write now — so the samples become readable in the log
         without waiting — and returns the number written (0 if none were
         pending, or the eval has finished). Handed to the control channel via
-        ``register_eval`` so ``inspect ctl flush`` can push a long-running
+        ``register_eval`` so ``inspect ctl task log-flush`` can push a long-running
         eval's results out to S3 on demand.
         """
         # an on-demand flush writes everything pending, so quiesce the stale
@@ -560,7 +560,7 @@ class TaskLogger:
         it does not flush samples already buffered under the previous threshold.
         Lowering it therefore takes effect when the next sample finalizes and
         crosses the new threshold; to write what's already pending now, use
-        ``inspect ctl flush``. (Keeping the directive policy-only avoids coupling
+        ``inspect ctl task log-flush``. (Keeping the directive policy-only avoids coupling
         a parameter change to a possibly-remote write.)
 
         ``log_shared`` cannot turn shared sync on at runtime: a buffer started
@@ -569,7 +569,7 @@ class TaskLogger:
         ("off") rather than echoing a value that won't take effect. It's also a
         no-op when realtime logging — and thus the buffer database — is off.
         Returns the resulting configuration. Handed to the control channel via
-        ``register_eval`` for ``inspect ctl buffer``.
+        ``register_eval`` for ``inspect ctl config``.
         """
         from inspect_ai._control.eval_state import BufferConfig
 

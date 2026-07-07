@@ -209,7 +209,7 @@ def _match_controllers(
 
     Uses the shared name-selector rule (prefix at the name start or after a
     ``/``, exact match winning) — the same rule the CLI uses for task names,
-    so ``ctl limits --model gpt-4`` resolves like any other name selector.
+    so ``ctl config --model gpt-4`` resolves like any other name selector.
     """
     return match_name_prefix(controllers, model, lambda c: c.name)
 

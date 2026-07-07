@@ -78,7 +78,7 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
     - ``None`` / ``True`` — control server on (the default).
     - ``False`` — control server off.
     - ``"keep"`` — control server on, and the process parks after the eval
-      finishes (until ``inspect ctl release`` / ``POST /release``).
+      finishes (until ``inspect ctl process release`` / ``POST /release``).
 
     The CLI spellings (``"true"`` / ``"yes"`` / ``"1"``, ``"false"`` /
     ``"no"`` / ``"0"``, case-insensitive) are accepted too, so programmatic
@@ -116,8 +116,8 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
 
 # Whether this process intends to park after the eval finishes. A single
 # last-write-wins flag: set at launch (``--ctl-server=keep``) and toggled at
-# runtime by ``POST /keep`` (``inspect ctl keep`` -> on) and ``POST /release``
-# (``inspect ctl release`` -> off). Last-write-wins rather than "release is
+# runtime by ``POST /keep`` (``inspect ctl process keep`` -> on) and ``POST /release``
+# (``inspect ctl process release`` -> off). Last-write-wins rather than "release is
 # sticky" so that, while the eval is still running, keep -> release -> keep
 # leaves the process in the keep state — each call simply overwrites the
 # intent. Module-level (not per-ControlServer) because the eval-set park binds
@@ -261,7 +261,7 @@ class ControlServer:
             # Keep-alive is a process-level property, so every task this
             # process hosts shares it. Stamp each row with the live value
             # (which reflects a runtime `POST /keep` or `/release`, not just
-            # the launch flag) so `inspect ctl tasks` can report it.
+            # the launch flag) so `inspect ctl task list` can report it.
             keep_alive = keep_alive_intent()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
@@ -270,10 +270,17 @@ class ControlServer:
         @app.get("/evals/{eval_id}/samples")
         async def list_eval_samples(
             eval_id: str, active_since: float | None = None
-        ) -> list[dict[str, Any]]:
+        ) -> dict[str, Any]:
             # `active_since` (unix ts) is the recency delta: only samples that
-            # started or updated since then. A filter, not a cursor.
-            return await current_sample_summaries(eval_id, active_since)
+            # started or updated since then. A filter, not a cursor. The
+            # response is an `{as_of, samples}` envelope — `as_of` is stamped
+            # BEFORE the listing is built, so a client feeding it back as the
+            # next `active_since` can't miss changes that land mid-read.
+            as_of = time.time()
+            return {
+                "as_of": as_of,
+                "samples": await current_sample_summaries(eval_id, active_since),
+            }
 
         # `sample_id` is a query parameter (not a path segment) here and on
         # `/sample/events`: sample ids are arbitrary strings and may contain
@@ -382,8 +389,8 @@ class ControlServer:
         # Read the process-global concurrency limits (max_sandboxes /
         # max_connections) without naming an eval — the common case for viewing
         # or throttling a whole process. No max_samples (that's per-task; use
-        # the /tasks/<task-id>/limits routes for it).
-        @app.get("/limits")
+        # the /tasks/<task-id>/config routes for it).
+        @app.get("/config")
         async def get_process_limits(model: str | None = None) -> Any:
             return await process_limits(model=model)
 
@@ -391,7 +398,7 @@ class ControlServer:
         # read, like GET. `model` filters the adaptive controllers (name start or
         # after a `/`). `dry_run=true` reports the intended change without
         # applying it. Never 404s — a process always exists.
-        @app.patch("/limits")
+        @app.patch("/config")
         async def patch_process_limits(
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
@@ -416,7 +423,7 @@ class ControlServer:
         # — where a per-attempt eval id would go stale on every retry. A pure
         # read — the companion PATCH applies changes. `model` filters the
         # adaptive controllers shown.
-        @app.get("/tasks/{task_id}/limits")
+        @app.get("/tasks/{task_id}/config")
         async def get_limits(task_id: str, model: str | None = None) -> Any:
             result = await task_limits(task_id, model=model)
             if result is None:
@@ -433,7 +440,7 @@ class ControlServer:
         # agent-shape constraint). Idempotent: re-applying the same limit is a
         # no-op. Returns the resulting limits view (with any warnings for a
         # knob that isn't adjustable for this task).
-        @app.patch("/tasks/{task_id}/limits")
+        @app.patch("/tasks/{task_id}/config")
         async def patch_limits(
             task_id: str,
             max_samples: int | None = None,
@@ -471,9 +478,12 @@ class ControlServer:
         # directive.
         @app.post("/release")
         async def release() -> dict[str, bool]:
+            # `changed` lets the client report applied vs the idempotent
+            # already-in-that-state no-op (the agent output contract).
+            changed = keep_alive_intent()
             request_release()
             await self.notify_park_change()
-            return {"ok": True}
+            return {"ok": True, "keep_alive": False, "changed": changed}
 
         # Latches keep-alive ON for the process (the inverse of /release): it
         # parks after the eval finishes instead of exiting, even if launched
@@ -484,8 +494,9 @@ class ControlServer:
         # park to honour).
         @app.post("/keep")
         async def keep() -> dict[str, bool]:
+            changed = not keep_alive_intent()
             request_keep_alive()
-            return {"ok": True}
+            return {"ok": True, "keep_alive": True, "changed": changed}
 
         return app
 

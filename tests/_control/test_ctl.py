@@ -1,17 +1,38 @@
-"""Unit tests for `inspect ctl` target resolution (id + name matching)."""
+"""Unit tests for the `inspect ctl` CLI.
 
+Covers target resolution (id + name matching), the noun-group command
+surface (implied `list`, strict verb boundary, hidden aliases), the agent
+output contract (envelopes, unconditional task_id, mutation results,
+cursor validation), and rendering helpers.
+"""
+
+import json
 from typing import Any
 
 import click
 import pytest
+from click.testing import CliRunner
 
 from inspect_ai._cli.ctl import (
     _print_keep_alive_footer,
     _print_samples_table,
     _resolve_target_eval,
     _resolve_target_server,
+    ctl_command,
 )
 from inspect_ai._control.discovery import DiscoveredControlServer
+
+
+def _runner() -> CliRunner:
+    """A CliRunner that captures stderr separately across click versions.
+
+    click < 8.2 mixes stderr into output unless ``mix_stderr=False``; click
+    >= 8.2 removed the parameter and always captures stderr separately.
+    """
+    try:
+        return CliRunner(mix_stderr=False)  # type: ignore[call-arg]
+    except TypeError:
+        return CliRunner()
 
 
 def _summary(task_id: str, task: str) -> dict[str, str]:
@@ -348,7 +369,7 @@ def test_keep_alive_footer_off_hints_keep_command(
     out = capsys.readouterr().out
     assert "keep-alive: off" in out
     # off everywhere → hint at the command that turns it on
-    assert "inspect ctl keep" in out
+    assert "inspect ctl process keep" in out
 
 
 def test_keep_alive_footer_off_when_field_absent(
@@ -622,3 +643,454 @@ def test_fetch_summaries_unresponsive_server_exits(
     with pytest.raises(click.exceptions.Exit):
         _fetch_summaries([_disc(7)])
     assert "gave up" in capsys.readouterr().err
+
+
+# --- noun-group surface + agent output contract -----------------------------
+
+
+class _DiscServer:
+    """Discovery entry double (pid / socket_path / started_at)."""
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.socket_path = f"/tmp/{pid}.sock"
+        self.started_at = 100.0
+
+
+def _full_summary(
+    task_id: str, task: str, *, pid: int = 7, status: str = "running"
+) -> dict[str, Any]:
+    return {
+        "task_id": task_id,
+        "task": task,
+        "eval_id": f"eval_{task_id}",
+        "socket_path": f"/tmp/{pid}.sock",
+        "pid": pid,
+        "status": status,
+        "samples": {},
+        "started_at": 100.0,
+        "keep_alive": False,
+    }
+
+
+def _sample_row(sample_id: str, **overrides: Any) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": 1,
+        "status": "completed",
+        "total_time": 1.0,
+        "total_tokens": 5,
+        "message_count": 1,
+        "scores": {},
+        "error": None,
+        "retries": 0,
+    }
+    row.update(overrides)
+    return row
+
+
+def _patch_surface(
+    monkeypatch: pytest.MonkeyPatch,
+    summaries: list[dict[str, Any]],
+    samples_by_eval: dict[str, list[dict[str, Any]]] | None = None,
+    servers: list[Any] | None = None,
+) -> None:
+    """Stub discovery + the HTTP reads so CLI commands run hermetically."""
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: servers if servers is not None else [_DiscServer(7)],
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_summaries", lambda s: summaries)
+    if samples_by_eval is not None:
+        monkeypatch.setattr(
+            "inspect_ai._cli.ctl._fetch_samples",
+            lambda socket_path, eval_id, active_since=None: (
+                123.0,
+                samples_by_eval.get(eval_id, []),
+            ),
+        )
+
+
+def test_bare_task_noun_implies_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`ctl task --json` (no verb) runs `list` — with the mirrored option."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    result = _runner().invoke(ctl_command, ["task", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert "as_of" in payload
+    assert payload["tasks"][0]["task_id"] == "aaa111"
+
+
+def test_task_list_explicit_matches_bare(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    runner = _runner()
+    bare = runner.invoke(ctl_command, ["task", "--json"]).output
+    explicit = runner.invoke(ctl_command, ["task", "list", "--json"]).output
+    assert json.loads(bare)["tasks"] == json.loads(explicit)["tasks"]
+
+
+def test_sample_selector_in_verb_slot_teaches() -> None:
+    """The implied-list default never fires past a positional; the error teaches."""
+    result = _runner().invoke(ctl_command, ["sample", "my-task"])
+    assert result.exit_code != 0
+    assert "sample list my-task" in result.stderr
+    # ...and points the old `ctl sample TASK SID` invocation at `sample show`
+    assert "sample show my-task" in result.stderr
+
+
+def test_bare_sample_noun_empty_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`ctl sample --json` with nothing running emits an empty envelope."""
+    _patch_surface(monkeypatch, [], samples_by_eval={})
+    result = _runner().invoke(ctl_command, ["sample", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["samples"] == []
+    assert "as_of" in payload
+
+
+def test_sample_list_unscoped_spans_tasks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No TASK = unfiltered across tasks; every row carries task identity."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("s1")],
+            "eval_bbb222": [_sample_row("s2")],
+        },
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["as_of"] == 123.0  # server-provided, not client-minted
+    assert [(r["task_id"], r["sample_id"]) for r in payload["samples"]] == [
+        ("aaa111", "s1"),
+        ("bbb222", "s2"),
+    ]
+
+
+def test_sample_list_scoped_rows_still_carry_task_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """task_id is unconditional — present even when rows are from one task."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={"eval_aaa111": [_sample_row("s1")]},
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
+    payload = json.loads(result.output)
+    assert payload["samples"][0]["task_id"] == "aaa111"
+    assert payload["samples"][0]["task"] == "t1"
+
+
+def test_sample_errors_unscoped_filters_across_tasks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("ok"), _sample_row("bad", error="boom")],
+            "eval_bbb222": [_sample_row("retried", retries=2)],
+        },
+    )
+    result = _runner().invoke(ctl_command, ["sample", "errors", "--json"])
+    payload = json.loads(result.output)
+    assert [(r["task_id"], r["sample_id"]) for r in payload["samples"]] == [
+        ("aaa111", "bad"),
+        ("bbb222", "retried"),
+    ]
+
+
+def test_sample_show_merges_summary_row_and_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`show` reports the full sample summary, not just the error detail."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={"eval_aaa111": [_sample_row("s1", total_tokens=42)]},
+    )
+    detail = {
+        "sample_id": "s1",
+        "epoch": 1,
+        "status": "error",
+        "retries": 0,
+        "error": {"message": "boom"},
+        "error_retries": [],
+        "scores": {},
+    }
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: detail
+    )
+    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
+    payload = json.loads(result.output)
+    assert payload["task_id"] == "aaa111"
+    assert payload["total_tokens"] == 42  # from the listing row
+    assert payload["error"] == {"message": "boom"}  # detail wins on overlap
+    assert payload["status"] == "error"
+    assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)  # echoed
+
+
+def test_old_flat_spellings_hidden_from_help() -> None:
+    result = _runner().invoke(ctl_command, ["--help"])
+    for old in (
+        "tasks",
+        "samples",
+        "errors",
+        "events",
+        "keep",
+        "release",
+        "flush",
+        "buffer",
+        "limits",
+    ):
+        assert f"\n  {old} " not in result.output, old
+
+
+def test_tasks_alias_delegates_with_deprecation_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The hidden alias runs the new implementation (new JSON) + stderr note."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    result = _runner().invoke(ctl_command, ["tasks", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)  # note on stderr keeps stdout parseable
+    assert payload["tasks"][0]["task_id"] == "aaa111"
+    assert "is now `inspect ctl task list`" in result.stderr
+
+
+def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._exec_limits",
+        lambda *a, **k: {
+            "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+            "max_sandboxes": [],
+            "adaptive": [],
+            "requested": None,
+            "warnings": [],
+            "dry_run": False,
+        },
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._exec_buffer_config",
+        lambda *a, **k: {"log_buffer": 10, "pending": 0, "log_shared": None},
+    )
+    result = _runner().invoke(ctl_command, ["limits", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["knobs"]["max_samples"]["scope"] == "task"
+    assert "is now `inspect ctl config`" in result.stderr
+
+
+def test_process_release_json_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._post_to_server",
+        lambda socket_path, path: {"ok": True, "keep_alive": False, "changed": True},
+    )
+    result = _runner().invoke(ctl_command, ["process", "release", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["target"] == {"pid": 7}
+    assert payload["applied"] is True and payload["dry_run"] is False
+    assert payload["detail"] == {"keep_alive": False, "changed": True}
+
+
+def test_process_keep_reports_idempotent_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._post_to_server",
+        lambda socket_path, path: {"ok": True, "keep_alive": True, "changed": False},
+    )
+    result = _runner().invoke(ctl_command, ["process", "keep"])
+    assert result.exit_code == 0
+    assert "already on" in result.output
+
+
+def test_process_keep_pid_is_positional(monkeypatch: pytest.MonkeyPatch) -> None:
+    posted: list[str] = []
+
+    def record(socket_path: Any, path: str) -> dict[str, Any]:
+        posted.append(str(socket_path))
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_DiscServer(7), _DiscServer(8)],
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._post_to_server", record)
+    result = _runner().invoke(ctl_command, ["process", "keep", "8"])
+    assert result.exit_code == 0, result.output
+    assert posted == ["/tmp/8.sock"]
+
+
+def test_process_list_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2", pid=8)],
+        servers=[_DiscServer(7), _DiscServer(8)],
+    )
+    result = _runner().invoke(ctl_command, ["process", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert "as_of" in payload
+    rows = payload["processes"]
+    assert [r["pid"] for r in rows] == [7, 8]
+    assert rows[0]["keep_alive"] is False
+    assert rows[0]["tasks"] == [
+        {"task_id": "aaa111", "task": "t1", "status": "running"}
+    ]
+    assert rows[1]["tasks"][0]["task_id"] == "bbb222"
+
+
+def test_events_unseeded_defaults_to_recent_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The first events page is never empty: unseeded reads take a tail."""
+    captured: dict[str, Any] = {}
+
+    def fake_events(
+        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        captured.clear()
+        captured.update(kwargs)
+        return {"events": [], "next": None, "done": True}
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    runner = _runner()
+
+    result = runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    assert captured["tail"] == 20
+
+    # a cursor (or a wall-clock window) disables the default tail
+    from inspect_ai._control.events import encode_cursor
+
+    runner.invoke(
+        ctl_command,
+        ["sample", "events", "aaa111", "s1", "--cursor", encode_cursor("n", 3)],
+    )
+    assert captured["tail"] is None and captured["cursor"] == encode_cursor("n", 3)
+
+    runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--since-time", "5.0"]
+    )
+    assert captured["tail"] is None and captured["since_time"] == 5.0
+
+    # the resolved identifiers are echoed on the page
+    result = runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--json"])
+    payload = json.loads(result.output)
+    assert payload["task_id"] == "aaa111"
+    assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
+
+
+def test_events_cursor_that_looks_like_timestamp_errors() -> None:
+    result = _runner().invoke(
+        ctl_command, ["sample", "events", "t", "s1", "--cursor", "1751900000.5"]
+    )
+    assert result.exit_code == 1
+    assert "did you mean --since-time" in result.stderr
+
+
+def test_events_garbage_cursor_errors() -> None:
+    result = _runner().invoke(
+        ctl_command, ["sample", "events", "t", "s1", "--cursor", "!!!"]
+    )
+    assert result.exit_code == 1
+    assert "prior page" in result.stderr
+
+
+def test_compose_config_labels_every_knob_with_scope() -> None:
+    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope
+
+    scope = _DirectiveScope(
+        socket_path="/tmp/7.sock",
+        task_id="t1",
+        eval_id="e1",
+        task="tn",
+        header="h",
+        siblings=3,
+    )
+    limits_view = {
+        "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+        "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
+        "adaptive": [],
+        "requested": {"max_samples": 3},
+        "warnings": ["w"],
+        "dry_run": False,
+    }
+    buffer_view = {"log_buffer": 10, "pending": 2, "log_shared": None}
+    config = _compose_config(
+        scope,
+        limits_view,
+        buffer_view,
+        requested_buffer={"log_buffer": 5},
+        dry_run=False,
+        set_values=True,
+        notes=["blast radius"],
+    )
+    assert config["target"] == {"scope": "task", "task_id": "t1", "task": "tn"}
+    assert config["knobs"]["max_samples"]["scope"] == "task"
+    assert config["knobs"]["max_sandboxes"]["scope"] == "process"
+    assert config["knobs"]["max_connections"]["scope"] == "process"
+    assert config["knobs"]["log_buffer"]["scope"] == "task"
+    assert config["knobs"]["log_shared"]["scope"] == "task"
+    assert config["applied"] is True and config["dry_run"] is False
+    assert config["requested"] == {"max_samples": 3, "log_buffer": 5}
+    assert config["warnings"] == ["w"]
+    assert config["notes"] == ["blast radius"]
+
+
+def test_compose_config_process_scope_dry_run() -> None:
+    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope
+
+    scope = _DirectiveScope(
+        socket_path="/tmp/7.sock",
+        task_id=None,
+        eval_id=None,
+        task=None,
+        header="process · 2 tasks",
+        siblings=2,
+    )
+    limits_view = {
+        "max_sandboxes": [],
+        "adaptive": [],
+        "requested": {"max_connections": 9},
+        "warnings": [],
+        "dry_run": True,
+    }
+    config = _compose_config(
+        scope,
+        limits_view,
+        None,
+        requested_buffer={},
+        dry_run=True,
+        set_values=True,
+        notes=[],
+    )
+    assert config["target"]["scope"] == "process"
+    assert "max_samples" not in config["knobs"]  # process view has no task knob
+    assert "log_buffer" not in config["knobs"]
+    assert config["applied"] is False and config["dry_run"] is True
+
+
+def test_log_flush_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 2}
+    )
+    result = _runner().invoke(ctl_command, ["task", "log-flush", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert payload["applied"] is True and payload["dry_run"] is False
+    assert payload["detail"] == {"flushed": 2}

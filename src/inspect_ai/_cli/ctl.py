@@ -4,23 +4,34 @@ The ``ctl`` group hosts the commands that operate on a *running* Inspect
 eval via the per-process control server's HTTP endpoints. See
 ``design/control-channel.md`` for the design.
 
-Implemented (read surface + keep-alive): ``tasks`` (enumerate running
-tasks, with a keep-alive status footer), ``samples`` (a task's samples),
-``sample`` (one sample's error detail), ``errors`` (errored / retried samples),
-``events`` (a sample's transcript events), ``keep`` (make a running process
-park after its eval finishes), and ``release`` (let a kept-alive process exit).
-The buffer directives ``flush`` (write buffered samples to the log now) and
-``buffer`` (view / change the sample-buffer params) are also available, as is
-``limits`` (view / change the ``max_samples`` / ``max_sandboxes`` /
-``max_connections`` concurrency limits mid-flight). The remaining state-mutating
-directives (cancel / drain /
-requeue) are planned but not yet available.
+Commands are grouped by **resource noun**, mirroring the HTTP API's object
+model (see "CLI command hierarchy: noun groups" in the design doc):
+
+- ``task`` — a logical task in a running process (stable across retries):
+  ``list`` (implied by the bare noun), ``log-flush``; ``add`` / ``cancel`` /
+  ``drain`` are planned.
+- ``sample`` — one sample (``TASK SAMPLE_ID [EPOCH]``) or a task's samples:
+  ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``;
+  ``cancel`` / ``requeue`` are planned.
+- ``config`` — a top-level *command* (not a group): view / retune launch
+  configuration mid-flight (concurrency limits, log buffering). Scope is a
+  property of each knob (task vs process), labeled in the output.
+- ``process`` — the running Inspect process itself: ``list`` (implied by the
+  bare noun), ``keep``, ``release``.
+
+The old flat spellings (``tasks``, ``samples``, ``errors``, ``events``,
+``keep``, ``release``, ``flush``, ``buffer``, ``limits``) survive as hidden,
+deprecation-noted aliases for a transition window — thin delegations to the
+new implementations (new behavior and JSON shapes included). The old
+``sample`` command's name is claimed by the group and breaks immediately;
+its error message points at ``sample show``.
 """
 
 from __future__ import annotations
 
 import json as json_lib
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, NamedTuple, NoReturn
@@ -35,29 +46,63 @@ from inspect_ai._control.discovery import (
 )
 from inspect_ai._util.name_match import match_name_prefix
 
+# Events shown on an unseeded `sample events` read (no --cursor / --tail /
+# --since-time): a recent tail rather than the full backlog — the first call
+# must never be empty or a context-flooding dump (see the agent output
+# contract in design/control-channel.md).
+_DEFAULT_EVENTS_TAIL = 20
+
+
+class _NounGroup(click.Group):
+    """A resource-noun command group (``task`` / ``sample`` / ``process``).
+
+    Bare invocation implies ``list`` (git precedent: bare ``git branch`` /
+    ``git remote``) — implemented via ``invoke_without_command`` plus the
+    ``list`` options mirrored onto the group, so ``ctl task --json`` works.
+    The boundary is strict: the default never fires once a positional
+    argument is present. A selector in the verb slot (``ctl sample my-task``)
+    therefore fails — and the failure teaches the corrected spelling via
+    ``hint`` rather than click's stock "No such command".
+    """
+
+    hint: Callable[[str], str] | None = None
+    """Builds the unknown-command error message from the offending token."""
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, click.Command | None, list[str]]:
+        token = str(args[0])
+        if (
+            not token.startswith("-")
+            and self.get_command(ctx, token) is None
+            and self.hint is not None
+        ):
+            ctx.fail(self.hint(token))
+        return super().resolve_command(ctx, args)
+
 
 @click.group("ctl")
 def ctl_command() -> None:
-    """Read the state of running evals and manage kept-alive processes.
+    r"""Read the state of running evals and manage kept-alive processes.
 
-    Commands: ``tasks`` (running tasks + keep-alive status), ``samples`` /
-    ``sample`` / ``errors`` (an eval's samples), ``events`` (a sample's
-    transcript), ``keep`` (park a process after its eval finishes), ``release``
-    (let a kept-alive process exit), ``flush`` (write an eval's buffered samples
-    to the log now), ``buffer`` (view / change the sample-buffer params),
-    ``limits`` (view / change the ``max_samples`` / ``max_sandboxes`` /
-    ``max_connections`` concurrency limits). All are read-only except ``keep`` /
-    ``release`` / ``flush`` /
-    ``buffer`` / ``limits`` — further state-mutating directives (cancel, drain)
-    are planned but not yet available.
+    Commands are grouped by resource noun:
+
+    \b
+      task     running tasks — list (the bare noun), log-flush
+      sample   a task's samples — list (the bare noun), show, errors, events
+      config   view / retune launch config mid-flight (limits, log buffer)
+      process  the running Inspect process — list (the bare noun), keep, release
 
     Each command operates on a live Inspect eval via the control
     channel — the HTTP server every running ``inspect eval`` process
-    binds by default.
+    binds by default. All commands accept ``--json``; ``list`` verbs are
+    implied by the bare noun (``inspect ctl task`` ≡ ``inspect ctl task
+    list``). Further state-mutating directives (task cancel / drain, sample
+    cancel / requeue) are planned but not yet available.
 
     A process exits when its eval finishes; launch with ``inspect eval
     --ctl-server=keep`` to keep it inspectable (and its results
-    readable) here until you run ``inspect ctl release``.
+    readable) here until you run ``inspect ctl process release``.
     """
     return None
 
@@ -76,32 +121,146 @@ def _echo_no_running_evals() -> None:
     )
 
 
-@ctl_command.command("tasks")
+def _deprecation_note(old: str, new: str) -> None:
+    """Print (to stderr, keeping ``--json`` stdout parseable) an alias note."""
+    click.echo(
+        f"note: `inspect ctl {old}` is now `inspect ctl {new}` — this hidden "
+        "alias will be removed in a future release.",
+        err=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# task group
+# ---------------------------------------------------------------------------
+
+
+@ctl_command.group(
+    "task",
+    cls=_NounGroup,
+    invoke_without_command=True,
+)
 @click.option(
     "--json",
     "as_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (one array of task summaries).",
+    help="Output as JSON (mirrored from `list` for the bare-noun default).",
 )
-def tasks_command(as_json: bool) -> None:
-    """List running tasks across all live Inspect processes."""
-    servers = list_discovered_servers()
-    summaries = _fetch_summaries(servers)
+@click.pass_context
+def task_group(ctx: click.Context, as_json: bool) -> None:
+    """Operate on the tasks of running evals (bare `task` lists them).
 
-    if as_json:
-        click.echo(json_lib.dumps(summaries, indent=2))
-        return
-
-    if not summaries:
-        _echo_no_running_evals()
-        return
-
-    _print_human_table(summaries)
-    _print_keep_alive_footer(summaries)
+    A task is the stable unit of work in a running process — its id survives
+    retries, unlike a per-attempt eval id. Verbs: `list` (implied by the bare
+    noun), `log-flush`; `add` / `cancel` / `drain` are planned.
+    """
+    if ctx.invoked_subcommand is None:
+        _run_task_list(as_json)
 
 
-@ctl_command.command("samples")
+assert isinstance(task_group, _NounGroup)
+task_group.hint = lambda token: (
+    f"No such command '{token}'. To list running tasks: "
+    "`inspect ctl task list` (or the bare `inspect ctl task`)."
+)
+
+
+@task_group.command("list")
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (an `{as_of, tasks}` envelope).",
+)
+def task_list_command(as_json: bool) -> None:
+    """List running tasks across all live Inspect processes.
+
+    Each `--json` row carries the identifiers the other commands take:
+    `task_id` (the selector, stable across retries), plus `pid`,
+    `socket_path`, and `log_location` (where results are being written —
+    the handle for reading logs after the run).
+
+    A task is finished exactly when `completed_at` is non-null; `status`
+    (`running` / `completed`) is derived from it. Do NOT infer completion
+    from sample counts — a cancelled or errored eval finishes with
+    `completed < total`.
+    """
+    _run_task_list(as_json)
+
+
+@task_group.command("log-flush")
+@click.argument("task", required=False)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the mutation result envelope).",
+)
+def task_log_flush_command(task: str | None, as_json: bool) -> None:
+    """Flush a running task's buffered samples to its log now.
+
+    Completed samples are buffered and written to the (possibly remote, eg. S3)
+    log only once the flush buffer fills. This forces that write immediately, so
+    the samples become readable / analyzable in the log without waiting. Safe to
+    repeat — a flush with nothing pending writes nothing.
+
+    TASK selects which running task to target — a task-id prefix or task name
+    (as listed by `inspect ctl task`); omit it when only one task is running
+    (a mutation never fans out — with several tasks running the selector is
+    required).
+    """
+    _run_log_flush(task, as_json)
+
+
+# ---------------------------------------------------------------------------
+# sample group
+# ---------------------------------------------------------------------------
+
+
+@ctl_command.group(
+    "sample",
+    cls=_NounGroup,
+    invoke_without_command=True,
+)
+@click.option(
+    "--active-since",
+    type=float,
+    default=None,
+    help="Mirrored from `list` for the bare-noun default.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (mirrored from `list` for the bare-noun default).",
+)
+@click.pass_context
+def sample_group(ctx: click.Context, active_since: float | None, as_json: bool) -> None:
+    """Operate on samples of running evals (bare `sample` lists them).
+
+    Verbs: `list` (implied by the bare noun), `show`, `errors`, `events`;
+    `cancel` / `requeue` are planned. Reads take `TASK` (or `TASK SAMPLE_ID
+    [EPOCH]`) selectors; an omitted `TASK` on `list` / `errors` reads across
+    all running tasks.
+    """
+    if ctx.invoked_subcommand is None:
+        _run_sample_list(None, active_since, as_json)
+
+
+assert isinstance(sample_group, _NounGroup)
+sample_group.hint = lambda token: (
+    f"No such command '{token}'. `inspect ctl sample` is now a command "
+    f"group. To list a task's samples: `inspect ctl sample list {token}`; "
+    f"for one sample's detail (the old `inspect ctl sample`): "
+    f"`inspect ctl sample show {token} SAMPLE_ID [EPOCH]`."
+)
+
+
+@sample_group.command("list")
 @click.argument("task", required=False)
 @click.option(
     "--active-since",
@@ -109,7 +268,8 @@ def tasks_command(as_json: bool) -> None:
     default=None,
     help=(
         "Only samples that started or were updated at/after this unix "
-        "timestamp — the 'what changed since I last looked' delta."
+        "timestamp — the 'what changed since I last looked' delta. Feed it "
+        "the `as_of` from the prior response's envelope."
     ),
 )
 @click.option(
@@ -117,92 +277,52 @@ def tasks_command(as_json: bool) -> None:
     "as_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (one array of sample summaries).",
+    help="Output as JSON (an `{as_of, samples}` envelope).",
 )
-def samples_command(
+def sample_list_command(
     task: str | None, active_since: float | None, as_json: bool
 ) -> None:
-    """List the samples (running and completed) of a running eval.
+    """List the samples (running and completed) of running evals.
 
-    TASK selects the task (as shown by `inspect ctl tasks`): a task id (or
+    TASK selects one task (as shown by `inspect ctl task`): a task id (or
     unique prefix), or a task name. A task id is stable across retries —
     unlike a per-attempt eval id, it still resolves after a task errors
     and is retried. A name matches at the start of the task name or after
-    a `/` (so `gpqa` matches `inspect_evals/gpqa_diamond`). If omitted and
-    exactly one task is running, that task is used.
+    a `/` (so `gpqa` matches `inspect_evals/gpqa_diamond`). Omitted, the
+    listing spans ALL running tasks (each row carries its `task_id`).
 
     Pass `--active-since <ts>` to get only the samples that changed since a
-    prior poll (started or last active at/after that time).
+    prior poll (started or last active at/after that time) — use the `as_of`
+    value from the prior response's envelope, not a locally minted timestamp.
     """
-    summaries = _fetch_summaries(list_discovered_servers())
-    if not summaries:
-        if as_json:
-            click.echo("[]")
-            return
-        _echo_no_running_evals()
-        return
-
-    target = _resolve_target_eval(summaries, task)
-    # Query by the task's current eval id (resolved fresh each invocation,
-    # so this still works after a retry minted a new one).
-    samples = _fetch_samples(target["socket_path"], target["eval_id"], active_since)
-
-    if as_json:
-        click.echo(json_lib.dumps(samples, indent=2))
-        return
-
-    click.echo(_task_header(target))
-    if not samples:
-        click.echo("(no samples started yet)")
-        return
-    click.echo()
-    _print_samples_table(samples)
+    _run_sample_list(task, active_since, as_json)
 
 
-@ctl_command.command("errors")
+@sample_group.command("errors")
 @click.argument("task", required=False)
 @click.option(
     "--json",
     "as_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (one array of errored/retried samples).",
+    help="Output as JSON (an `{as_of, samples}` envelope).",
 )
-def errors_command(task: str | None, as_json: bool) -> None:
-    """List the samples of a running eval that errored or were retried.
+def sample_errors_command(task: str | None, as_json: bool) -> None:
+    """List the samples of running evals that errored or were retried.
 
     A triage overview: one row per sample with a current error or any
     retries, showing the latest error message. Drill into a single sample's
-    full error history (including prior attempts) with `inspect ctl sample`.
+    full detail (including prior attempts) with `inspect ctl sample show`.
 
-    TASK selects which running task to target — a task-id prefix or task name
-    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
+    TASK selects one running task — a task-id prefix or task name
+    (as listed by `inspect ctl task`); omitted, the listing spans ALL
+    running tasks (the eval-set triage question "what's erroring anywhere?"
+    is the zero-argument spelling).
     """
-    summaries = _fetch_summaries(list_discovered_servers())
-    if not summaries:
-        if as_json:
-            click.echo("[]")
-            return
-        _echo_no_running_evals()
-        return
-
-    target = _resolve_target_eval(summaries, task)
-    samples = _fetch_samples(target["socket_path"], target["eval_id"])
-    errored = [s for s in samples if s.get("error") or (s.get("retries") or 0) > 0]
-
-    if as_json:
-        click.echo(json_lib.dumps(errored, indent=2))
-        return
-
-    click.echo(_task_header(target))
-    if not errored:
-        click.echo("(no errors or retries)")
-        return
-    click.echo()
-    _print_errors_table(errored)
+    _run_sample_errors(task, as_json)
 
 
-@ctl_command.command("sample")
+@sample_group.command("show")
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
@@ -219,55 +339,47 @@ def errors_command(task: str | None, as_json: bool) -> None:
     "as_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (the sample's full error detail).",
+    help="Output as JSON (the sample's summary + error detail).",
 )
-def sample_command(
+def sample_show_command(
     task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
 ) -> None:
-    """Show one sample's error detail, including errors from prior attempts.
+    """Show one sample's summary and error history.
 
     TASK selects which running eval to target (a task-id prefix or task name,
-    as listed by `inspect ctl tasks`); SAMPLE_ID is the
-    sample's id (as shown by `inspect ctl samples`); EPOCH defaults to 1.
+    as listed by `inspect ctl task`); SAMPLE_ID is the sample's id (as shown
+    by `inspect ctl sample list`); EPOCH defaults to 1. The output echoes the
+    resolved `{sample_id, epoch}` so a defaulted epoch is visible.
 
-    Surfaces the current error (if the sample failed) and the error from each
-    prior attempt (task-level retries and sample-level `retry_on_error`). Pass
+    Reports the sample's status / timing / token usage / score, the current
+    error (if the sample failed), and the error from each prior attempt
+    (task-level retries and sample-level `retry_on_error`). Pairs with
+    `inspect ctl sample events` as summary-vs-transcript drill-down. Pass
     `--traceback` to expand full tracebacks.
     """
-    summaries = _fetch_summaries(list_discovered_servers())
-    if not summaries:
-        if as_json:
-            click.echo("null")
-            return
-        _echo_no_running_evals()
-        return
-
-    target = _resolve_target_eval(summaries, task)
-    detail = _fetch_sample_detail(
-        target["socket_path"], target["eval_id"], sample_id, epoch
-    )
-
-    if as_json:
-        click.echo(json_lib.dumps(detail, indent=2))
-        return
-
-    _print_sample_detail(detail, show_traceback)
+    _run_sample_show(task, sample_id, epoch, show_traceback, as_json)
 
 
-@ctl_command.command("events")
+@sample_group.command("events")
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
 @click.option(
-    "--since",
+    "--cursor",
     default=None,
-    help="Resume after this cursor (the `next` from a prior call).",
+    help=(
+        "Resume after this opaque cursor (the `next` from a prior page). "
+        "Not a timestamp — for a wall-clock window use --since-time."
+    ),
 )
 @click.option(
     "--tail",
     type=int,
     default=None,
-    help="Start this many events from the end (when --since is not given).",
+    help=(
+        "Start this many events from the end (when --cursor is not given). "
+        f"Default: {_DEFAULT_EVENTS_TAIL}."
+    ),
 )
 @click.option(
     "--type",
@@ -303,11 +415,11 @@ def sample_command(
     default=False,
     help="Output as JSON (the `{events, next, done}` envelope).",
 )
-def events_command(
+def sample_events_command(
     task: str,
     sample_id: str,
     epoch: int,
-    since: str | None,
+    cursor: str | None,
     tail: int | None,
     types: str | None,
     full: bool,
@@ -318,13 +430,603 @@ def events_command(
     """Read one running sample's transcript events (cursored pull).
 
     TASK selects which running eval to target (a task-id prefix or task name,
-    as listed by `inspect ctl tasks`); SAMPLE_ID is the
-    sample's id; EPOCH defaults to 1.
+    as listed by `inspect ctl task`); SAMPLE_ID is the sample's id; EPOCH
+    defaults to 1.
 
-    Returns a page of events plus a `next` cursor — pass it back via `--since`
-    to get only what's new, without re-reading what you've seen. Filter with
-    `--type`, take the tail with `--tail`, expand raw events with `--full`.
+    The first (unseeded) call returns the recent tail (the last
+    20 events); each page ends with a `next` cursor — pass it back via
+    `--cursor` to get only what's new, without re-reading what you've seen.
+    Filter with `--type`, widen the window with `--tail`, expand raw events
+    with `--full`.
     """
+    _run_sample_events(
+        task,
+        sample_id,
+        epoch,
+        cursor=cursor,
+        tail=tail,
+        types=types,
+        full=full,
+        since_time=since_time,
+        until=until,
+        as_json=as_json,
+    )
+
+
+# ---------------------------------------------------------------------------
+# config command
+# ---------------------------------------------------------------------------
+
+
+@ctl_command.command("config")
+@click.argument("task", required=False)
+@click.option(
+    "--max-samples",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Set the max samples to run concurrently (task-scoped).",
+)
+@click.option(
+    "--max-sandboxes",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Set the max sandboxes per provider (process-scoped, all tasks).",
+)
+@click.option(
+    "--max-connections",
+    type=click.IntRange(min=1),
+    default=None,
+    help=(
+        "Set the adaptive-connections scaling ceiling — the controller's max "
+        "(process-scoped, all tasks)."
+    ),
+)
+@click.option(
+    "--model",
+    default=None,
+    help=(
+        "Restrict --max-connections (and the adaptive view) to models matching "
+        "this — at the name start or after a '/' (e.g. 'gpt-4' matches "
+        "'openai/gpt-4')."
+    ),
+)
+@click.option(
+    "--log-buffer",
+    type=click.IntRange(min=1),
+    default=None,
+    help=(
+        "Set the number of completed samples to buffer before writing to the "
+        "log (task-scoped; lower it to write to S3 more often)."
+    ),
+)
+@click.option(
+    "--log-shared",
+    type=int,
+    default=None,
+    help="Set the shared-log event sync interval, in seconds (task-scoped).",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would change without applying it (with a set option).",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the config view, every knob labeled with its scope).",
+)
+def config_command(
+    task: str | None,
+    max_samples: int | None,
+    max_sandboxes: int | None,
+    max_connections: int | None,
+    model: str | None,
+    log_buffer: int | None,
+    log_shared: int | None,
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    r"""View or retune a running eval's launch configuration mid-flight.
+
+    Any `inspect eval` launch flag that can be retuned while the eval runs is
+    settable here, under the same spelling. With no set options, shows the
+    current configuration. Scope is a property of each knob, not of this
+    command, and is labeled per-knob in the output:
+
+    \b
+      --max-samples      task     sample concurrency
+      --max-sandboxes    process  per-provider sandbox concurrency
+      --max-connections  process  adaptive-connections scaling ceiling
+      --log-buffer       task     completed samples buffered per log write
+      --log-shared       task     shared-log event sync interval (seconds)
+
+    Lowering a concurrency limit below what's currently in use blocks new work
+    until in-flight holders drain — it never interrupts running samples;
+    raising it lets more start immediately. `--log-buffer` changes the
+    threshold for future writes only — to write what's already pending now,
+    run `inspect ctl task log-flush`. A knob with no adjustable limiter for
+    this task is reported with a warning rather than an error.
+
+    Pass `--dry-run` with a set option to see what would change (including
+    the blast radius of a process-scoped knob) without applying it.
+
+    TASK selects which running task the task-scoped knobs target — a task-id
+    prefix or task name (as listed by `inspect ctl task`). Omit it to default
+    to the sole running task; in a multi-task process the process-scoped
+    knobs still work without a selector (they apply process-wide), while
+    setting a task-scoped knob then requires the TASK. In a mixed-model run,
+    `--model` restricts `--max-connections` (and the adaptive view) to
+    matching models.
+    """
+    _run_config(
+        task,
+        max_samples=max_samples,
+        max_sandboxes=max_sandboxes,
+        max_connections=max_connections,
+        model=model,
+        log_buffer=log_buffer,
+        log_shared=log_shared,
+        dry_run=dry_run,
+        as_json=as_json,
+    )
+
+
+# ---------------------------------------------------------------------------
+# process group
+# ---------------------------------------------------------------------------
+
+
+@ctl_command.group(
+    "process",
+    cls=_NounGroup,
+    invoke_without_command=True,
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (mirrored from `list` for the bare-noun default).",
+)
+@click.pass_context
+def process_group(ctx: click.Context, as_json: bool) -> None:
+    """Operate on running Inspect processes (bare `process` lists them).
+
+    Verbs: `list` (implied by the bare noun), `keep`, `release`. The
+    selector is a PID (positional); with a single running process it can
+    be omitted.
+    """
+    if ctx.invoked_subcommand is None:
+        _run_process_list(as_json)
+
+
+assert isinstance(process_group, _NounGroup)
+process_group.hint = lambda token: (
+    f"No such command '{token}'. To list running processes: "
+    "`inspect ctl process list` (or the bare `inspect ctl process`); to park "
+    f"or release one: `inspect ctl process keep {token}` / "
+    f"`inspect ctl process release {token}`."
+)
+
+
+@process_group.command("list")
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (an `{as_of, processes}` envelope).",
+)
+def process_list_command(as_json: bool) -> None:
+    """List running Inspect processes (pids, keep-alive, hosted tasks).
+
+    The PID shown is the selector `process keep` / `process release` take.
+    """
+    _run_process_list(as_json)
+
+
+@process_group.command("keep")
+@click.argument("pid", required=False, type=int)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the mutation result envelope).",
+)
+def process_keep_command(pid: int | None, as_json: bool) -> None:
+    """Keep a running inspect process alive after its eval finishes.
+
+    Posts to the process's control endpoint /keep route, latching keep-alive:
+    the process parks after the eval finishes (until `inspect ctl process
+    release` or Ctrl+C) instead of exiting. The inverse of `release`. Use it
+    to make a process you launched WITHOUT `--ctl-server=keep` inspectable —
+    its state readable, its log final — after the eval completes.
+
+    PID selects the process (as listed by `inspect ctl process`); with a
+    single running process it can be omitted.
+
+    Issued while the eval is still running, it takes effect when the eval
+    finishes; the keep-alive status shown by `inspect ctl task` flips to on.
+    `keep` and `release` are last-write-wins, so a `keep` issued after a
+    `release` (while the eval is still running) is the last word and restores
+    the park.
+    """
+    _run_keep_alive(pid, keep=True, as_json=as_json)
+
+
+@process_group.command("release")
+@click.argument("pid", required=False, type=int)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the mutation result envelope).",
+)
+def process_release_command(pid: int | None, as_json: bool) -> None:
+    """Release a lingering --ctl-server=keep process so it can exit.
+
+    Posts to the process's control endpoint /release route, letting a parked
+    process exit. Issued while the eval is still running it means "exit when
+    done" — the process skips the keep-alive park and exits as soon as the
+    eval finishes — unless a later `keep` overrides it (`keep` and `release`
+    are last-write-wins).
+
+    PID selects the process (as listed by `inspect ctl process`); with a
+    single running process it can be omitted.
+
+    Does NOT cancel a running eval — it has no effect on in-flight samples
+    (cancelling a running eval is a later-phase directive, not yet available).
+    """
+    _run_keep_alive(pid, keep=False, as_json=as_json)
+
+
+# ---------------------------------------------------------------------------
+# hidden deprecated aliases (the old flat spellings)
+# ---------------------------------------------------------------------------
+#
+# Thin delegations to the new implementations: spellings are preserved,
+# output is NOT (the new `{as_of, ...}` envelopes, unconditional task_id,
+# widened unscoped reads all apply through the alias). Each prints a one-line
+# stderr pointer at the new spelling. The old `sample` command is the one
+# spelling that cannot alias — the name is claimed by the group — and its
+# unknown-command error points at `sample show`.
+
+
+@ctl_command.command("tasks", hidden=True)
+@click.option("--json", "as_json", is_flag=True, default=False)
+def tasks_alias(as_json: bool) -> None:
+    """Deprecated alias for `inspect ctl task list`."""
+    _deprecation_note("tasks", "task list")
+    _run_task_list(as_json)
+
+
+@ctl_command.command("samples", hidden=True)
+@click.argument("task", required=False)
+@click.option("--active-since", type=float, default=None)
+@click.option("--json", "as_json", is_flag=True, default=False)
+def samples_alias(task: str | None, active_since: float | None, as_json: bool) -> None:
+    """Deprecated alias for `inspect ctl sample list`."""
+    _deprecation_note("samples", "sample list")
+    _run_sample_list(task, active_since, as_json)
+
+
+@ctl_command.command("errors", hidden=True)
+@click.argument("task", required=False)
+@click.option("--json", "as_json", is_flag=True, default=False)
+def errors_alias(task: str | None, as_json: bool) -> None:
+    """Deprecated alias for `inspect ctl sample errors`."""
+    _deprecation_note("errors", "sample errors")
+    _run_sample_errors(task, as_json)
+
+
+@ctl_command.command("events", hidden=True)
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=1)
+@click.option("--since", "cursor", default=None)
+@click.option("--tail", type=int, default=None)
+@click.option("--type", "types", default=None)
+@click.option("--full", is_flag=True, default=False)
+@click.option("--since-time", type=float, default=None)
+@click.option("--until", type=float, default=None)
+@click.option("--json", "as_json", is_flag=True, default=False)
+def events_alias(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    cursor: str | None,
+    tail: int | None,
+    types: str | None,
+    full: bool,
+    since_time: float | None,
+    until: float | None,
+    as_json: bool,
+) -> None:
+    """Deprecated alias for `inspect ctl sample events` (--since is --cursor)."""
+    _deprecation_note("events", "sample events")
+    _run_sample_events(
+        task,
+        sample_id,
+        epoch,
+        cursor=cursor,
+        tail=tail,
+        types=types,
+        full=full,
+        since_time=since_time,
+        until=until,
+        as_json=as_json,
+    )
+
+
+@ctl_command.command("keep", hidden=True)
+@click.option("--pid", type=int, default=None)
+@click.option("--json", "as_json", is_flag=True, default=False)
+def keep_alias(pid: int | None, as_json: bool) -> None:
+    """Deprecated alias for `inspect ctl process keep`."""
+    _deprecation_note("keep", "process keep")
+    _run_keep_alive(pid, keep=True, as_json=as_json)
+
+
+@ctl_command.command("release", hidden=True)
+@click.option("--pid", type=int, default=None)
+@click.option("--json", "as_json", is_flag=True, default=False)
+def release_alias(pid: int | None, as_json: bool) -> None:
+    """Deprecated alias for `inspect ctl process release`."""
+    _deprecation_note("release", "process release")
+    _run_keep_alive(pid, keep=False, as_json=as_json)
+
+
+@ctl_command.command("flush", hidden=True)
+@click.argument("task", required=False)
+@click.option("--json", "as_json", is_flag=True, default=False)
+def flush_alias(task: str | None, as_json: bool) -> None:
+    """Deprecated alias for `inspect ctl task log-flush`."""
+    _deprecation_note("flush", "task log-flush")
+    _run_log_flush(task, as_json)
+
+
+@ctl_command.command("buffer", hidden=True)
+@click.argument("task", required=False)
+@click.option("--samples", "log_buffer", type=int, default=None)
+@click.option("--shared", "log_shared", type=int, default=None)
+@click.option("--json", "as_json", is_flag=True, default=False)
+def buffer_alias(
+    task: str | None,
+    log_buffer: int | None,
+    log_shared: int | None,
+    as_json: bool,
+) -> None:
+    """Deprecated alias for `inspect ctl config --log-buffer / --log-shared`."""
+    _deprecation_note("buffer", "config --log-buffer/--log-shared")
+    _run_config(
+        task,
+        max_samples=None,
+        max_sandboxes=None,
+        max_connections=None,
+        model=None,
+        log_buffer=log_buffer,
+        log_shared=log_shared,
+        dry_run=False,
+        as_json=as_json,
+    )
+
+
+@ctl_command.command("limits", hidden=True)
+@click.argument("task", required=False)
+@click.option("--max-samples", type=click.IntRange(min=1), default=None)
+@click.option("--max-sandboxes", type=click.IntRange(min=1), default=None)
+@click.option("--max-connections", type=click.IntRange(min=1), default=None)
+@click.option("--model", default=None)
+@click.option("--dry-run", is_flag=True, default=False)
+@click.option("--json", "as_json", is_flag=True, default=False)
+def limits_alias(
+    task: str | None,
+    max_samples: int | None,
+    max_sandboxes: int | None,
+    max_connections: int | None,
+    model: str | None,
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """Deprecated alias for `inspect ctl config`."""
+    _deprecation_note("limits", "config")
+    _run_config(
+        task,
+        max_samples=max_samples,
+        max_sandboxes=max_sandboxes,
+        max_connections=max_connections,
+        model=model,
+        log_buffer=None,
+        log_shared=None,
+        dry_run=dry_run,
+        as_json=as_json,
+    )
+
+
+# ---------------------------------------------------------------------------
+# command runners (shared by the canonical commands and the aliases)
+# ---------------------------------------------------------------------------
+
+
+def _run_task_list(as_json: bool) -> None:
+    # Stamp as_of BEFORE the reads: anything that changes during them has a
+    # timestamp >= as_of and is caught by the next poll rather than missed.
+    as_of = time.time()
+    summaries = _fetch_summaries(list_discovered_servers())
+
+    if as_json:
+        click.echo(json_lib.dumps({"as_of": as_of, "tasks": summaries}, indent=2))
+        return
+
+    if not summaries:
+        _echo_no_running_evals()
+        return
+
+    _print_human_table(summaries)
+    _print_keep_alive_footer(summaries)
+
+
+def _list_sample_rows(
+    task: str | None, active_since: float | None
+) -> tuple[float, list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fetch sample rows for one task (``task`` given) or all running tasks.
+
+    Returns ``(as_of, targets, rows)`` — the envelope timestamp (the earliest
+    of the per-server ``as_of`` values, so nothing between them is missed),
+    the resolved target summaries, and the sample rows. Every row carries
+    ``task_id`` / ``task`` unconditionally (outputs feed inputs: the row's
+    identifiers are the selectors other commands take).
+    """
+    fallback_as_of = time.time()
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        return fallback_as_of, [], []
+
+    if task is not None:
+        targets = [_resolve_target_eval(summaries, task)]
+    else:
+        targets = summaries
+
+    as_of_values: list[float] = []
+    rows: list[dict[str, Any]] = []
+    for target in targets:
+        # Query by the task's current eval id (resolved fresh each invocation,
+        # so this still works after a retry minted a new one).
+        target_as_of, samples = _fetch_samples(
+            target["socket_path"], target["eval_id"], active_since
+        )
+        as_of_values.append(target_as_of)
+        for sample in samples:
+            rows.append(
+                {
+                    "task_id": target.get("task_id"),
+                    "task": target.get("task"),
+                    **sample,
+                }
+            )
+    return min(as_of_values, default=fallback_as_of), targets, rows
+
+
+def _run_sample_list(
+    task: str | None, active_since: float | None, as_json: bool
+) -> None:
+    as_of, targets, rows = _list_sample_rows(task, active_since)
+
+    if as_json:
+        click.echo(json_lib.dumps({"as_of": as_of, "samples": rows}, indent=2))
+        return
+
+    if not targets:
+        _echo_no_running_evals()
+        return
+
+    if len(targets) == 1:
+        click.echo(_task_header(targets[0]))
+        if not rows:
+            click.echo("(no samples started yet)")
+            return
+        click.echo()
+        _print_samples_table(rows)
+    else:
+        if not rows:
+            click.echo("(no samples started yet)")
+            return
+        _print_samples_table(rows, show_task=True)
+
+
+def _run_sample_errors(task: str | None, as_json: bool) -> None:
+    as_of, targets, rows = _list_sample_rows(task, None)
+    errored = [s for s in rows if s.get("error") or (s.get("retries") or 0) > 0]
+
+    if as_json:
+        click.echo(json_lib.dumps({"as_of": as_of, "samples": errored}, indent=2))
+        return
+
+    if not targets:
+        _echo_no_running_evals()
+        return
+
+    if len(targets) == 1:
+        click.echo(_task_header(targets[0]))
+        if not errored:
+            click.echo("(no errors or retries)")
+            return
+        click.echo()
+        _print_errors_table(errored)
+    else:
+        if not errored:
+            click.echo("(no errors or retries)")
+            return
+        _print_errors_table(errored, show_task=True)
+
+
+def _run_sample_show(
+    task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
+) -> None:
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task)
+    detail = _fetch_sample_detail(
+        target["socket_path"], target["eval_id"], sample_id, epoch
+    )
+
+    # The error detail is the authoritative core; fold in the sample's listing
+    # row for the summary fields (timing / tokens / messages) it doesn't carry.
+    _as_of, samples = _fetch_samples(target["socket_path"], target["eval_id"])
+    row = next(
+        (
+            s
+            for s in samples
+            if str(s.get("sample_id")) == str(detail.get("sample_id"))
+            and s.get("epoch") == detail.get("epoch")
+        ),
+        None,
+    )
+    merged: dict[str, Any] = {
+        "task_id": target.get("task_id"),
+        "task": target.get("task"),
+        **(row or {}),
+        **detail,
+    }
+
+    if as_json:
+        click.echo(json_lib.dumps(merged, indent=2))
+        return
+
+    _print_sample_detail(merged, show_traceback)
+
+
+def _run_sample_events(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    cursor: str | None,
+    tail: int | None,
+    types: str | None,
+    full: bool,
+    since_time: float | None,
+    until: float | None,
+    as_json: bool,
+) -> None:
+    _validate_cursor(cursor)
+
+    # The unseeded default is a recent tail — never an empty page, never the
+    # full backlog. A cursor or an explicit window disables it.
+    if cursor is None and tail is None and since_time is None:
+        tail = _DEFAULT_EVENTS_TAIL
+
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
         if as_json:
@@ -339,13 +1041,21 @@ def events_command(
         target["eval_id"],
         sample_id,
         epoch,
-        since=since,
+        cursor=cursor,
         tail=tail,
         types=types,
         full=full,
         since_time=since_time,
         until=until,
     )
+    # Echo the resolved identifiers so a defaulted epoch is visible and the
+    # row round-trips into other commands' selectors.
+    page = {
+        "task_id": target.get("task_id"),
+        "sample_id": sample_id,
+        "epoch": epoch,
+        **page,
+    }
 
     if as_json:
         click.echo(json_lib.dumps(page, indent=2))
@@ -354,93 +1064,70 @@ def events_command(
     _print_events(page)
 
 
-@ctl_command.command("keep")
-@click.option(
-    "--pid",
-    type=int,
-    default=None,
-    help=(
-        "PID of the inspect process to keep alive. Required if more than one "
-        "process is currently running."
-    ),
-)
-def keep_command(pid: int | None) -> None:
-    """Keep a running inspect process alive after its eval finishes.
+def _validate_cursor(cursor: str | None) -> None:
+    """Reject a ``--cursor`` value that isn't an opaque cursor token.
 
-    Posts to the process's control endpoint /keep route, latching keep-alive:
-    the process parks after the eval finishes (until `inspect ctl release` or
-    Ctrl+C) instead of exiting. The inverse of `release`. Use it to make a
-    process you launched WITHOUT `--ctl-server=keep` inspectable — its
-    state readable, its log final — after the eval completes.
-
-    Issued while the eval is still running, it takes effect when the eval
-    finishes; the keep-alive status shown by `inspect ctl tasks` flips to on.
-    `keep` and `release` are last-write-wins, so a `keep` issued after a
-    `release` (while the eval is still running) is the last word and restores
-    the park.
+    The server treats a non-decodable cursor as "restart from the beginning";
+    for an agent that passed a timestamp that silent restart hides the
+    mistake, so the CLI errors instead — teaching ``--since-time`` when the
+    value looks like a timestamp.
     """
+    if cursor is None:
+        return
+    from inspect_ai._control.events import decode_cursor
+
+    nonce, _offset = decode_cursor(cursor)
+    if nonce is not None:
+        return
+    try:
+        float(cursor)
+        hint = " — this looks like a timestamp; did you mean --since-time?"
+    except ValueError:
+        hint = " — pass the `next` value from a prior page."
+    click.echo(f"Invalid --cursor value '{cursor}'{hint}", err=True)
+    raise click.exceptions.Exit(code=1)
+
+
+def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
+    """Latch keep-alive on (``keep``) or off (``release``) for one process."""
+    verb = "keep" if keep else "release"
     target = _resolve_target_server(pid)
     try:
-        _post_to_server(target.socket_path, "/keep")
+        body = _post_to_server(target.socket_path, f"/{verb}")
     except (httpx.HTTPError, OSError) as exc:
-        click.echo(f"Failed to set keep-alive for pid {target.pid}: {exc}", err=True)
+        what = "set keep-alive for" if keep else "release"
+        click.echo(f"Failed to {what} pid {target.pid}: {exc}", err=True)
         raise click.exceptions.Exit(code=1) from exc
 
-    click.echo(f"Keep-alive requested for pid {target.pid}.")
+    # `changed` distinguishes applied from the idempotent already-in-that-state
+    # no-op; an older server omits it (detail then just carries what it sent).
+    detail = {k: v for k, v in body.items() if k != "ok"} if body else {}
+    if as_json:
+        result = {
+            "target": {"pid": target.pid},
+            "applied": True,
+            "dry_run": False,
+            "detail": detail,
+        }
+        click.echo(json_lib.dumps(result, indent=2))
+        return
+
+    already = detail.get("changed") is False
+    if keep:
+        click.echo(
+            f"Keep-alive already on for pid {target.pid}."
+            if already
+            else f"Keep-alive requested for pid {target.pid}."
+        )
+    else:
+        click.echo(
+            f"Keep-alive already off for pid {target.pid}."
+            if already
+            else f"Release requested for pid {target.pid}."
+        )
 
 
-@ctl_command.command("release")
-@click.option(
-    "--pid",
-    type=int,
-    default=None,
-    help=(
-        "PID of the inspect process to release. Required if more than one "
-        "process is currently lingering."
-    ),
-)
-def release_command(pid: int | None) -> None:
-    """Release a lingering --ctl-server=keep process so it can exit.
-
-    Posts to the process's control endpoint /release route, letting a parked
-    process exit. Issued while the eval is still running it means "exit when
-    done" — the process skips the keep-alive park and exits as soon as the
-    eval finishes — unless a later `keep` overrides it (`keep` and `release`
-    are last-write-wins).
-
-    Does NOT cancel a running eval — it has no effect on in-flight samples
-    (cancelling a running eval is a later-phase directive, not yet available).
-    """
-    target = _resolve_target_server(pid)
-    try:
-        _post_to_server(target.socket_path, "/release")
-    except (httpx.HTTPError, OSError) as exc:
-        click.echo(f"Failed to release pid {target.pid}: {exc}", err=True)
-        raise click.exceptions.Exit(code=1) from exc
-
-    click.echo(f"Release requested for pid {target.pid}.")
-
-
-@ctl_command.command("flush")
-@click.argument("task", required=False)
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the `{flushed}` result).",
-)
-def flush_command(task: str | None, as_json: bool) -> None:
-    """Flush a running eval's buffered samples to the log now.
-
-    Completed samples are buffered and written to the (possibly remote, eg. S3)
-    log only once the flush buffer fills. This forces that write immediately, so
-    the samples become readable / analyzable in the log without waiting. Safe to
-    repeat — a flush with nothing pending writes nothing.
-
-    TASK selects which running task to target — a task-id prefix or task name
-    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
-    """
+def _run_log_flush(task: str | None, as_json: bool) -> None:
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
         if as_json:
@@ -453,7 +1140,16 @@ def flush_command(task: str | None, as_json: bool) -> None:
     result = _post_flush(target["socket_path"], target["eval_id"])
 
     if as_json:
-        click.echo(json_lib.dumps(result, indent=2))
+        envelope = {
+            "target": {
+                "task_id": target.get("task_id"),
+                "task": target.get("task"),
+            },
+            "applied": True,
+            "dry_run": False,
+            "detail": result,
+        }
+        click.echo(json_lib.dumps(envelope, indent=2))
         return
 
     flushed = int(result.get("flushed", 0) or 0)
@@ -466,178 +1162,96 @@ def flush_command(task: str | None, as_json: bool) -> None:
         click.echo("\nNo buffered samples to flush.")
 
 
-@ctl_command.command("buffer")
-@click.argument("task", required=False)
-@click.option(
-    "--samples",
-    "log_buffer",
-    type=int,
-    default=None,
-    help=(
-        "Set the number of completed samples to buffer before writing to the "
-        "log (lower it to write to S3 more often)."
-    ),
-)
-@click.option(
-    "--shared",
-    "log_shared",
-    type=int,
-    default=None,
-    help="Set the shared-log event sync interval, in seconds.",
-)
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the buffer config).",
-)
-def buffer_command(
-    task: str | None,
-    log_buffer: int | None,
-    log_shared: int | None,
-    as_json: bool,
-) -> None:
-    """View or change a running eval's sample-buffer parameters.
+def _run_process_list(as_json: bool) -> None:
+    as_of = time.time()
+    servers = list_discovered_servers()
+    summaries = _fetch_summaries(servers) if servers else []
 
-    With no options, shows the current config. Pass `--samples N` to change how
-    many completed samples buffer before a write to the log, and/or `--shared S`
-    to retune the shared-log event sync interval in seconds.
-
-    `--samples` changes the threshold for future writes only — it does not flush
-    samples already buffered. Lowering it takes effect from the next completed
-    sample; to write what's already pending now, run `inspect ctl flush`.
-
-    TASK selects which running task to target — a task-id prefix or task name
-    (as listed by `inspect ctl tasks`); omit it when only one eval is running.
-    """
-    summaries = _fetch_summaries(list_discovered_servers())
-    if not summaries:
-        if as_json:
-            click.echo("null")
-            return
-        _echo_no_running_evals()
-        return
-
-    target = _resolve_target_eval(summaries, task)
-    changing = log_buffer is not None or log_shared is not None
-    config = _exec_buffer_config(
-        target["socket_path"],
-        target["eval_id"],
-        log_buffer=log_buffer,
-        log_shared=log_shared,
-        set_values=changing,
-    )
+    rows: list[dict[str, Any]] = []
+    for server in servers:
+        hosted = [s for s in summaries if s.get("pid") == server.pid]
+        # keep-alive is a process-level property every hosted task shares;
+        # unknown (None) when no task has registered yet.
+        keep_alive = bool(hosted[0].get("keep_alive")) if hosted else None
+        rows.append(
+            {
+                "pid": server.pid,
+                "socket_path": str(server.socket_path),
+                "started_at": server.started_at,
+                "keep_alive": keep_alive,
+                "tasks": [
+                    {
+                        "task_id": t.get("task_id"),
+                        "task": t.get("task"),
+                        "status": t.get("status"),
+                    }
+                    for t in hosted
+                ],
+            }
+        )
 
     if as_json:
-        click.echo(json_lib.dumps(config, indent=2))
+        click.echo(json_lib.dumps({"as_of": as_of, "processes": rows}, indent=2))
         return
 
-    click.echo(_task_header(target))
-    click.echo()
-    _print_buffer_config(config, changed=changing)
+    if not rows:
+        click.echo("No running inspect processes found.")
+        return
+
+    table_rows: list[tuple[str, ...]] = []
+    for row in rows:
+        keep = row["keep_alive"]
+        tasks = row["tasks"]
+        table_rows.append(
+            (
+                str(row["pid"]),
+                "?" if keep is None else ("on" if keep else "off"),
+                ", ".join(str(t.get("task") or "?") for t in tasks) or "(starting)",
+                _format_started(row["started_at"]),
+            )
+        )
+    _render_table(("pid", "keep-alive", "tasks", "started"), table_rows)
 
 
-@ctl_command.command("limits")
-@click.argument("task", required=False)
-@click.option(
-    "--max-samples",
-    type=click.IntRange(min=1),
-    default=None,
-    help="Set the max samples to run concurrently (for this task).",
-)
-@click.option(
-    "--max-sandboxes",
-    type=click.IntRange(min=1),
-    default=None,
-    help="Set the max sandboxes per provider (process-wide, across all tasks).",
-)
-@click.option(
-    "--max-connections",
-    type=click.IntRange(min=1),
-    default=None,
-    help=(
-        "Set the adaptive-connections scaling ceiling — the controller's max "
-        "(process-wide, across all tasks)."
-    ),
-)
-@click.option(
-    "--model",
-    default=None,
-    help=(
-        "Restrict --max-connections (and the adaptive view) to models matching "
-        "this — at the name start or after a '/' (e.g. 'gpt-4' matches "
-        "'openai/gpt-4')."
-    ),
-)
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    default=False,
-    help="Report what would change without applying it (with a set option).",
-)
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the limits view).",
-)
-def limits_command(
+def _run_config(
     task: str | None,
+    *,
     max_samples: int | None,
     max_sandboxes: int | None,
     max_connections: int | None,
     model: str | None,
+    log_buffer: int | None,
+    log_shared: int | None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
-    """View or change a running task's concurrency limits.
-
-    With no set options, shows the current limits. Pass `--max-samples N` to
-    change how many samples run concurrently, and/or `--max-sandboxes N` to
-    change the per-provider sandbox concurrency. Under adaptive connections,
-    `--max-connections N` retunes the controllers' scaling ceiling instead (sample
-    concurrency then follows it). Lowering a limit below what's currently in use
-    blocks new work until in-flight holders drain — it never interrupts running
-    samples; raising it lets more start immediately.
-
-    Pass `--dry-run` with a set option to see what would change without applying
-    it. A knob with no adjustable limiter for this task (`--max-samples` under
-    adaptive connections, `--max-sandboxes` with no sandbox limit, or
-    `--max-connections` when not using adaptive connections) is reported with a
-    warning rather than an error.
-
-    TASK selects which running task to target — a task-id prefix or task name
-    (as listed by `inspect ctl tasks`). `--max-samples` is scoped to the named
-    task, while `--max-sandboxes` and `--max-connections` are process-wide: in an
-    eval-set (many tasks in one process) they affect every task, not just the one
-    named.
-
-    Omit TASK to default to the sole running process: a single-task process shows
-    its full limits, while a multi-task process shows just the process-wide limits
-    (setting `--max-samples` then still requires a task). If several processes are
-    running, pass a task to pick one.
-
-    In a mixed-model run, `--model` restricts `--max-connections` (and the
-    adaptive view) to matching models — matched at the name start or after a `/`,
-    so `gpt-4` matches `openai/gpt-4`.
-    """
-    set_values = (
+    set_limits = (
         max_samples is not None
         or max_sandboxes is not None
         or max_connections is not None
+    )
+    set_buffer = log_buffer is not None or log_shared is not None
+    set_values = set_limits or set_buffer
+
+    # Task-scoped knobs follow the mutation selector rule (sole running task
+    # default, explicit TASK otherwise); process-scoped knobs need no selector.
+    per_task_option = next(
+        (
+            name
+            for name, value in (
+                ("--max-samples", max_samples),
+                ("--log-buffer", log_buffer),
+                ("--log-shared", log_shared),
+            )
+            if value is not None
+        ),
+        None,
     )
 
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers)
 
-    scope = _resolve_scope(
-        servers,
-        summaries,
-        task,
-        per_task_option="--max-samples" if max_samples is not None else None,
-    )
+    scope = _resolve_scope(servers, summaries, task, per_task_option=per_task_option)
     if scope is None:
         if as_json:
             click.echo("null")
@@ -645,7 +1259,7 @@ def limits_command(
         _echo_no_running_evals()
         return
 
-    config = _exec_limits(
+    limits_view = _exec_limits(
         scope.socket_path,
         scope.task_id,
         max_samples=max_samples,
@@ -653,19 +1267,30 @@ def limits_command(
         max_connections=max_connections,
         model=model,
         dry_run=dry_run,
-        set_values=set_values,
+        set_values=set_limits,
     )
 
-    if as_json:
-        click.echo(json_lib.dumps(config, indent=2))
-        return
+    # The log-buffer knobs live on the (task-scoped) buffer endpoint; a
+    # process-scope resolution has no task to read them from. The endpoint has
+    # no dry-run, so a dry-run reads the current values and reports the
+    # request in `requested` without posting.
+    buffer_view: dict[str, Any] | None = None
+    requested_buffer: dict[str, int] = {
+        name: value
+        for name, value in (("log_buffer", log_buffer), ("log_shared", log_shared))
+        if value is not None
+    }
+    if scope.eval_id is not None:
+        buffer_view = _exec_buffer_config(
+            scope.socket_path,
+            scope.eval_id,
+            log_buffer=log_buffer,
+            log_shared=log_shared,
+            set_values=set_buffer and not dry_run,
+        )
 
-    click.echo(scope.header)
-    click.echo()
-    _print_limits(config, changed=set_values)
-
-    # The process-global knobs reach every eval in the process — flag that after
-    # a set that used one, when the process hosts more than one eval.
+    # The process-scoped knobs reach every task in the process — surface that
+    # blast radius structurally when a set (or dry-run) used one.
     global_knobs = [
         name
         for name, value in (
@@ -674,9 +1299,84 @@ def limits_command(
         )
         if value is not None
     ]
+    notes = []
     note = _process_scope_note(global_knobs, scope.siblings)
     if note:
-        click.echo(f"\n{note}")
+        notes.append(note)
+
+    config = _compose_config(
+        scope,
+        limits_view,
+        buffer_view,
+        requested_buffer=requested_buffer,
+        dry_run=dry_run,
+        set_values=set_values,
+        notes=notes,
+    )
+
+    if as_json:
+        click.echo(json_lib.dumps(config, indent=2))
+        return
+
+    click.echo(scope.header)
+    click.echo()
+    _print_config(config, changed=set_values)
+
+
+def _compose_config(
+    scope: _DirectiveScope,
+    limits_view: dict[str, Any],
+    buffer_view: dict[str, Any] | None,
+    *,
+    requested_buffer: dict[str, int],
+    dry_run: bool,
+    set_values: bool,
+    notes: list[str],
+) -> dict[str, Any]:
+    """Merge the limits + buffer views into one scope-labeled config view.
+
+    Every knob carries ``"scope": "task" | "process"`` — scope is a property
+    of the knob, not of the command path, so the output (not the spelling)
+    is where an agent reads a knob's blast radius.
+    """
+    knobs: dict[str, Any] = {}
+    if "max_samples" in limits_view:
+        knobs["max_samples"] = {"scope": "task", **limits_view["max_samples"]}
+    knobs["max_sandboxes"] = {
+        "scope": "process",
+        "providers": limits_view.get("max_sandboxes") or [],
+    }
+    knobs["max_connections"] = {
+        "scope": "process",
+        "adaptive": limits_view.get("adaptive") or [],
+    }
+    if buffer_view is not None:
+        knobs["log_buffer"] = {
+            "scope": "task",
+            "value": buffer_view.get("log_buffer"),
+            "pending": buffer_view.get("pending"),
+        }
+        knobs["log_shared"] = {
+            "scope": "task",
+            "value": buffer_view.get("log_shared"),
+        }
+
+    requested = dict(limits_view.get("requested") or {})
+    requested.update(requested_buffer)
+
+    return {
+        "target": {
+            "scope": "task" if scope.task_id else "process",
+            "task_id": scope.task_id,
+            "task": scope.task,
+        },
+        "knobs": knobs,
+        "warnings": limits_view.get("warnings") or [],
+        "notes": notes,
+        "applied": bool(set_values and not dry_run),
+        "dry_run": dry_run,
+        "requested": requested or None,
+    }
 
 
 class _DirectiveScope(NamedTuple):
@@ -685,6 +1385,10 @@ class _DirectiveScope(NamedTuple):
     socket_path: str
     task_id: str | None
     """``None`` targets the process-level scope."""
+    eval_id: str | None
+    """The task's current attempt (``None`` for the process-level scope)."""
+    task: str | None
+    """The task's name (``None`` for the process-level scope)."""
     header: str
     siblings: int
     """Tasks sharing the target process (0 when resolved before registration)."""
@@ -699,8 +1403,8 @@ def _resolve_scope(
 ) -> _DirectiveScope | None:
     """Resolve the task-or-process scope a directive command targets.
 
-    The one resolution rule for directives with an optional ``TASK`` (limits
-    today; cancel/drain are expected to reuse it): an explicit ``TASK``
+    The one resolution rule for directives with an optional ``TASK`` (config
+    today; task cancel/drain are expected to reuse it): an explicit ``TASK``
     targets that task; no ``TASK`` defaults to the sole process — a
     single-active-task process resolves to that task (completed eval-set
     siblings don't count), a multi-task process resolves to the process-level
@@ -721,6 +1425,8 @@ def _resolve_scope(
             return _DirectiveScope(
                 socket_path=str(servers[0].socket_path),
                 task_id=None,
+                eval_id=None,
+                task=None,
                 header="process · starting",
                 siblings=0,
             )
@@ -735,14 +1441,16 @@ def _resolve_scope(
             # by its (superseded) eval id, which the directive wire doesn't use
             click.echo(
                 f"Task '{target.get('task') or '?'}' predates task ids (an "
-                "older reused log) — its per-task limits aren't addressable. "
-                "Run without TASK to view or set the process-wide limits.",
+                "older reused log) — its per-task config isn't addressable. "
+                "Run without TASK to view or set the process-wide config.",
                 err=True,
             )
             raise click.exceptions.Exit(code=1)
         return _DirectiveScope(
             socket_path=socket_path,
             task_id=task_id,
+            eval_id=str(target.get("eval_id") or "") or None,
+            task=str(target.get("task") or "") or None,
             header=_task_header(target),
             siblings=sum(
                 1 for s in summaries if str(s.get("socket_path")) == socket_path
@@ -756,7 +1464,7 @@ def _resolve_scope(
         _exit_ambiguous(summaries, "Multiple processes are running")
     socket_path = sockets[0]
     tasks_in_proc = [s for s in summaries if str(s.get("socket_path")) == socket_path]
-    # a finished task's limits are no longer meaningfully adjustable, so the
+    # a finished task's config is no longer meaningfully adjustable, so the
     # sole-task default keys on what is still active — an eval-set with one
     # running and N completed tasks resolves to the running one
     active = [s for s in tasks_in_proc if s.get("status") in ("running", "pending")]
@@ -766,6 +1474,8 @@ def _resolve_scope(
         return _DirectiveScope(
             socket_path=socket_path,
             task_id=str(target["task_id"]),
+            eval_id=str(target.get("eval_id") or "") or None,
+            task=str(target.get("task") or "") or None,
             header=_task_header(target),
             siblings=len(tasks_in_proc),
         )
@@ -773,20 +1483,22 @@ def _resolve_scope(
         click.echo(
             f"{per_task_option} targets a single task, but this process is "
             f"running {len(candidates)} tasks. Pass a task id "
-            "(see `inspect ctl tasks`).",
+            "(see `inspect ctl task`).",
             err=True,
         )
         raise click.exceptions.Exit(code=1)
     return _DirectiveScope(
         socket_path=socket_path,
         task_id=None,  # process-global scope
+        eval_id=None,
+        task=None,
         header=f"process · {len(tasks_in_proc)} tasks",
         siblings=len(tasks_in_proc),
     )
 
 
 def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
-    """Note that process-global limit knobs reach every task in the process.
+    """Note that process-scoped config knobs reach every task in the process.
 
     ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes``)
     supplied on this invocation; ``siblings`` is the number of evals the target
@@ -798,7 +1510,7 @@ def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
         return None
     verb = "applies" if len(global_knobs) == 1 else "apply"
     return (
-        f"note: {' and '.join(global_knobs)} {verb} across all "
+        f"{' and '.join(global_knobs)} {verb} across all "
         f"{siblings} tasks sharing this process."
     )
 
@@ -806,9 +1518,11 @@ def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
 def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
     """Pick the single process a ``keep`` / ``release`` targets, or exit.
 
-    With ``--pid`` the matching process is used (error if none matches);
+    With a ``PID`` the matching process is used (error if none matches);
     without it, the sole running process is the default, and an ambiguous
-    set (more than one) errors with the candidate pids.
+    set (more than one) errors with the candidate pids. (Keep / release are
+    idempotent, last-write-wins lifecycle toggles, so they get the
+    sole-target default rather than requiring the selector outright.)
     """
     servers = list_discovered_servers()
     if not servers:
@@ -827,20 +1541,29 @@ def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
     pids = ", ".join(str(s.pid) for s in servers)
     click.echo(
         f"Multiple inspect processes are running (pids: {pids}). "
-        "Pass --pid to disambiguate.",
+        "Pass a PID to disambiguate (see `inspect ctl process`).",
         err=True,
     )
     raise click.exceptions.Exit(code=1)
 
 
-def _post_to_server(socket_path: Path, path: str) -> None:
-    """POST to a control server's ``path`` over its AF_UNIX socket."""
+def _post_to_server(socket_path: Path, path: str) -> dict[str, Any]:
+    """POST to a control server's ``path`` over its AF_UNIX socket.
+
+    Returns the response body (``{}`` when it isn't a JSON object) so
+    callers can surface the mutation result detail.
+    """
     transport = httpx.HTTPTransport(uds=str(socket_path))
     with httpx.Client(
         transport=transport, base_url="http://localhost", timeout=5.0
     ) as client:
         response = client.post(path)
         response.raise_for_status()
+        try:
+            body = response.json()
+        except ValueError:
+            return {}
+        return body if isinstance(body, dict) else {}
 
 
 # The control server is embedded in the eval process and shares its event
@@ -989,9 +1712,9 @@ def _resolve_target_eval(
 ) -> dict[str, Any]:
     """Pick the task a per-eval command targets, or exit with an error.
 
-    ``query`` matches a task id first (full, then unique prefix — ``tasks``
-    shows truncated ids; ids are stable across retries), then falls back
-    to the task name (see :func:`_match_by_task_name`). Without a query,
+    ``query`` matches a task id first (full, then unique prefix — ``task
+    list`` shows truncated ids; ids are stable across retries), then falls
+    back to the task name (see :func:`_match_by_task_name`). Without a query,
     default to the sole running task.
     """
     if query is not None:
@@ -1022,7 +1745,7 @@ def _match_by_task_name(
     not ``failing_gpqa_diamond`` (mid-name). An exact name/leaf match wins
     over prefix matches, so ``gpqa`` resolves cleanly even when both
     ``gpqa`` and ``gpqa_diamond`` are running. (The same selector rule
-    resolves model names in ``ctl limits --model`` — see `match_name_prefix`.)
+    resolves model names in ``ctl config --model`` — see `match_name_prefix`.)
     """
     return match_name_prefix(summaries, query, lambda s: str(s.get("task", "")))
 
@@ -1038,15 +1761,20 @@ def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
 
 def _fetch_samples(
     socket_path: str, eval_id: str, active_since: float | None = None
-) -> list[dict[str, Any]]:
+) -> tuple[float, list[dict[str, Any]]]:
     """Query one control server for an eval's samples.
 
-    With ``active_since`` (unix ts), restricts to samples started or updated
-    since then — the recency delta.
+    Returns ``(as_of, samples)`` from the server's ``{as_of, samples}``
+    envelope — ``as_of`` is stamped server-side before the listing is built,
+    so feeding it back as the next ``active_since`` can't miss changes that
+    landed during the read. With ``active_since`` (unix ts), restricts to
+    samples started or updated since then — the recency delta. Tolerates an
+    older server's bare array (stamping ``as_of`` client-side, pre-request).
     """
+    fallback_as_of = time.time()
     params = {} if active_since is None else {"active_since": active_since}
     try:
-        rows = _get_with_retry(
+        page = _get_with_retry(
             socket_path,
             f"/evals/{eval_id}/samples",
             params=params,
@@ -1060,7 +1788,14 @@ def _fetch_samples(
             err=True,
         )
         raise click.exceptions.Exit(code=1) from exc
-    return rows if isinstance(rows, list) else []
+    if isinstance(page, dict):
+        samples = page.get("samples")
+        as_of = page.get("as_of")
+        return (
+            float(as_of) if isinstance(as_of, (int, float)) else fallback_as_of,
+            samples if isinstance(samples, list) else [],
+        )
+    return fallback_as_of, page if isinstance(page, list) else []
 
 
 def _fetch_sample_detail(
@@ -1100,7 +1835,7 @@ def _fetch_sample_events(
     sample_id: str,
     epoch: int,
     *,
-    since: str | None,
+    cursor: str | None,
     tail: int | None,
     types: str | None,
     full: bool,
@@ -1109,10 +1844,11 @@ def _fetch_sample_events(
 ) -> dict[str, Any]:
     """Query one control server for a page of a sample's transcript events."""
     # sample_id (and all params) go in the query string so reserved-char ids
-    # address correctly; drop unset options so server defaults apply.
+    # address correctly; drop unset options so server defaults apply. The
+    # wire parameter for the cursor is `since` (the CLI flag is --cursor).
     params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
-    if since is not None:
-        params["since"] = since
+    if cursor is not None:
+        params["since"] = cursor
     if tail is not None:
         params["tail"] = tail
     if types is not None:
@@ -1227,10 +1963,11 @@ def _exec_buffer_config(
 ) -> dict[str, Any]:
     """Read (``set_values=False``) or update an eval's sample-buffer config."""
     params: dict[str, Any] = {}
-    if log_buffer is not None:
-        params["log_buffer"] = log_buffer
-    if log_shared is not None:
-        params["log_shared"] = log_shared
+    if set_values:
+        if log_buffer is not None:
+            params["log_buffer"] = log_buffer
+        if log_shared is not None:
+            params["log_shared"] = log_shared
     return _request_json(
         socket_path,
         f"/evals/{eval_id}/buffer",
@@ -1257,9 +1994,9 @@ def _exec_limits(
 ) -> dict[str, Any]:
     """Read (``set_values=False``) or retune concurrency limits.
 
-    With ``task_id`` set this targets that task's ``/tasks/<id>/limits`` (the
+    With ``task_id`` set this targets that task's ``/tasks/<id>/config`` (the
     per-task view, including ``max_samples``; task ids are stable across retry
-    attempts); with ``task_id=None`` it targets the process-level ``/limits``
+    attempts); with ``task_id=None`` it targets the process-level ``/config``
     (``max_sandboxes`` / ``max_connections`` only). ``model`` filters the
     adaptive controllers (a read param, applies to both). The read is a GET
     that retries a busy process on timeout; the update is a single-shot PATCH
@@ -1284,18 +2021,18 @@ def _exec_limits(
         not_found = (
             f"Task '{task_id}' not found in this process (it may have "
             "finished, or the process may be running an older inspect "
-            "without the limits endpoints)."
+            "without the config endpoints)."
         )
     else:
         not_found = (
-            "This process does not support the limits endpoints (older "
+            "This process does not support the config endpoints (older "
             "inspect version?)."
         )
     scope = f"task {task_id}" if task_id is not None else "process"
     return _request_json(
         socket_path,
-        f"/tasks/{task_id}/limits" if task_id is not None else "/limits",
-        what=f"limits for {scope}",
+        f"/tasks/{task_id}/config" if task_id is not None else "/config",
+        what=f"config for {scope}",
         not_found=not_found,
         params=params,
         mutate="patch" if set_values else None,
@@ -1318,13 +2055,20 @@ def _error_detail_from_response(response: httpx.Response) -> str:
     return _error_body(response) or f"HTTP {response.status_code}"
 
 
-def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
-    """Render an eval's concurrency limits as a short labelled block."""
+def _print_config(config: dict[str, Any], *, changed: bool) -> None:
+    """Render the composed config view as a short labeled block.
+
+    Every knob line carries its scope (``task`` / ``process``) — the honest
+    place to read a knob's blast radius, since the command path makes no
+    scope claim.
+    """
     dry_run = bool(config.get("dry_run"))
     if changed:
-        click.echo("would-be limits (dry run):" if dry_run else "updated limits:")
+        click.echo("would-be config (dry run):" if dry_run else "updated config:")
     else:
-        click.echo("limits:")
+        click.echo("config:")
+
+    knobs = config.get("knobs") or {}
 
     # On a dry-run the server reports the pre-change view (nothing was mutated);
     # the intended values live in `requested`. Render `current → would-be` so the
@@ -1337,40 +2081,43 @@ def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
         proposed = requested.get(key)
         return f"{current}{'' if proposed is None or proposed == current else f' → {proposed}'}"
 
-    adaptive = config.get("adaptive") or []
-
-    # The process-level view carries no `max_samples` key (it's per-eval): show it
-    # as per-task rather than claiming a value. Distinguish that from an eval view
-    # that carries an explicit `{"adjustable": false}`.
-    if "max_samples" not in config:
-        click.echo("  max samples:   per task (pass a task to view/set)")
+    # The process-level view carries no `max_samples` knob (it's per-task):
+    # show it as per-task rather than claiming a value. Distinguish that from
+    # a task view that carries an explicit `{"adjustable": false}`.
+    if "max_samples" not in knobs:
+        click.echo("  max samples [task]:      per task (pass a task to view/set)")
     else:
-        max_samples = config.get("max_samples") or {}
+        max_samples = knobs.get("max_samples") or {}
         if max_samples.get("adjustable"):
             limit = _target(max_samples.get("limit"), "max_samples")
             in_use = max_samples.get("in_use")
-            click.echo(f"  max samples:   {limit} ({in_use} in use)")
+            click.echo(f"  max samples [task]:      {limit} ({in_use} in use)")
         elif max_samples.get("tracks_adaptive"):
             # sample concurrency tracks this task's adaptive controller, so
             # there's no user setpoint to show — point at where the numbers are
-            click.echo("  max samples:   tracks adaptive connections (see below)")
+            click.echo(
+                "  max samples [task]:      tracks adaptive connections (see below)"
+            )
         else:
             # no live sample limiter for this task (e.g. a reused log) — the
             # adaptive block below, if any, belongs to other tasks' models
-            click.echo("  max samples:   not adjustable (no live sample limiter)")
+            click.echo(
+                "  max samples [task]:      not adjustable (no live sample limiter)"
+            )
 
-    sandboxes = config.get("max_sandboxes") or []
+    sandboxes = (knobs.get("max_sandboxes") or {}).get("providers") or []
     if sandboxes:
         rendered = ", ".join(
             f"{s.get('type')} {_target(s.get('limit'), 'max_sandboxes')} ({s.get('in_use')} in use)"
             for s in sandboxes
         )
-        click.echo(f"  max sandboxes: {rendered}")
+        click.echo(f"  max sandboxes [process]: {rendered}")
     else:
-        click.echo("  max sandboxes: none in effect")
+        click.echo("  max sandboxes [process]: none in effect")
 
+    adaptive = (knobs.get("max_connections") or {}).get("adaptive") or []
     if adaptive:
-        click.echo("  adaptive connections:")
+        click.echo("  adaptive connections [process]:")
         for a in adaptive:
             # on a dry-run set, `_target` renders the ceiling as `max → requested`
             ceiling = _target(a.get("max"), "max_connections")
@@ -1386,19 +2133,25 @@ def _print_limits(config: dict[str, Any], *, changed: bool) -> None:
                 )
             click.echo(line)
 
+    if "log_buffer" in knobs:
+        log_buffer = knobs.get("log_buffer") or {}
+        value = _target(log_buffer.get("value"), "log_buffer")
+        click.echo(
+            f"  log buffer [task]:       {value} samples "
+            f"({log_buffer.get('pending')} pending)"
+        )
+    if "log_shared" in knobs:
+        shared = (knobs.get("log_shared") or {}).get("value")
+        rendered_shared = _target(shared, "log_shared") if shared is not None else None
+        click.echo(
+            f"  shared sync [task]:      "
+            f"{f'{rendered_shared}s' if rendered_shared is not None else 'off'}"
+        )
+
     for warning in config.get("warnings") or []:
         click.echo(f"  ! {warning}")
-
-
-def _print_buffer_config(config: dict[str, Any], *, changed: bool) -> None:
-    """Render an eval's sample-buffer config as a short labelled block."""
-    click.echo("updated buffer config:" if changed else "buffer config:")
-    click.echo(f"  log buffer:   {config.get('log_buffer')} samples")
-    click.echo(f"  pending:      {config.get('pending')} buffered (not yet written)")
-    log_shared = config.get("log_shared")
-    click.echo(
-        f"  shared sync:  {f'{log_shared}s' if log_shared is not None else 'off'}"
-    )
+    for note in config.get("notes") or []:
+        click.echo(f"  note: {note}")
 
 
 def _print_events(page: dict[str, Any]) -> None:
@@ -1425,7 +2178,7 @@ def _print_events(page: dict[str, Any]) -> None:
     click.echo("  ·  ".join(parts))
     nxt = page.get("next")
     if nxt and not page.get("done"):
-        click.echo(f"next: {nxt}")
+        click.echo(f"next: {nxt}  (resume with --cursor)")
 
 
 def _event_summary(e: dict[str, Any]) -> str:
@@ -1456,29 +2209,43 @@ def _event_summary(e: dict[str, Any]) -> str:
     return ""
 
 
-def _print_errors_table(samples: list[dict[str, Any]]) -> None:
-    """Render errored/retried samples as a triage table on stdout."""
+def _print_errors_table(samples: list[dict[str, Any]], show_task: bool = False) -> None:
+    """Render errored/retried samples as a triage table on stdout.
+
+    ``show_task`` adds a leading task column — the rendering for a listing
+    that spans tasks (the ``--json`` rows carry ``task_id`` regardless).
+    """
     rows: list[tuple[str, ...]] = []
     for s in samples:
-        rows.append(
-            (
-                str(s["sample_id"]) if s.get("sample_id") is not None else "?",
-                str(s.get("epoch", "")),
-                s.get("status", "") or "",
-                str(s["retries"]) if s.get("retries") else "",
-                _truncate(s.get("error") or "", 64),
-            )
-        )
-    _render_table(("sample", "epoch", "status", "retries", "error"), rows)
+        row = [
+            str(s["sample_id"]) if s.get("sample_id") is not None else "?",
+            str(s.get("epoch", "")),
+            s.get("status", "") or "",
+            str(s["retries"]) if s.get("retries") else "",
+            _truncate(s.get("error") or "", 64),
+        ]
+        if show_task:
+            row.insert(0, str(s.get("task") or _short_id(str(s.get("task_id") or ""))))
+        rows.append(tuple(row))
+    headers = ["sample", "epoch", "status", "retries", "error"]
+    if show_task:
+        headers.insert(0, "task")
+    _render_table(tuple(headers), rows)
 
 
 def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
-    """Render one sample's error history (prior attempts, then final error)."""
+    """Render one sample's summary + error history (prior attempts, then final)."""
     parts = [
         f"sample {detail.get('sample_id')}",
         f"epoch {detail.get('epoch')}",
         detail.get("status") or "",
     ]
+    if detail.get("total_time") is not None:
+        parts.append(_format_duration(detail.get("total_time")))
+    if detail.get("total_tokens"):
+        parts.append(f"{detail['total_tokens']} tok")
+    if detail.get("message_count"):
+        parts.append(f"{detail['message_count']} msgs")
     if detail.get("retries"):
         parts.append(f"{detail['retries']} retries")
     scores = detail.get("scores") or {}
@@ -1540,7 +2307,7 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     for s in summaries:
         samples = s.get("samples") or {}
         # task_id (not eval_id): stable across retries, and the handle
-        # `inspect ctl samples` takes.
+        # `inspect ctl sample list` takes.
         cells = [
             _short_id(s.get("task_id", "")),
             s.get("task", "?") or "?",
@@ -1568,14 +2335,14 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     Keep-alive is a per-process property — every task a process hosts shares
     it — so across all running tasks it's ``on`` (all park after their eval),
     ``off`` (none do), or ``mixed``. When it's off everywhere, hint at
-    ``inspect ctl keep``, which turns it on for a running process.
+    ``inspect ctl process keep``, which turns it on for a running process.
     """
     flags = [bool(s.get("keep_alive")) for s in summaries]
     click.echo()
     if all(flags):
         click.echo("keep-alive: on")
     elif not any(flags):
-        click.echo("keep-alive: off  ·  set with `inspect ctl keep`")
+        click.echo("keep-alive: off  ·  set with `inspect ctl process keep`")
     else:
         on = sum(flags)
         click.echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
@@ -1601,10 +2368,14 @@ def _task_header(target: dict[str, Any]) -> str:
     return "  ·  ".join(parts)
 
 
-def _print_samples_table(samples: list[dict[str, Any]]) -> None:
+def _print_samples_table(
+    samples: list[dict[str, Any]], show_task: bool = False
+) -> None:
     """Render per-sample summaries as a simple aligned table on stdout.
 
-    Three columns are conditional, shown only when relevant (keeping the
+    ``show_task`` adds a leading task column — the rendering for a listing
+    that spans tasks (the ``--json`` rows carry ``task_id`` regardless).
+    Three more columns are conditional, shown only when relevant (keeping the
     common case uncluttered):
     - ``retries`` — when some sample was retried on error. Per-sample
       (sample-level ``retry_on_error``); blank for samples with none.
@@ -1628,6 +2399,8 @@ def _print_samples_table(samples: list[dict[str, Any]]) -> None:
             str(s.get("epoch", "")),
             s.get("status", "") or "",
         ]
+        if show_task:
+            row.insert(0, str(s.get("task") or _short_id(str(s.get("task_id") or ""))))
         if any_retries:
             row.append(str(s["retries"]) if s.get("retries") else "")
         if score_col is not None:
@@ -1649,6 +2422,8 @@ def _print_samples_table(samples: list[dict[str, Any]]) -> None:
         rows.append(tuple(row))
 
     headers = ["sample", "epoch", "status"]
+    if show_task:
+        headers.insert(0, "task")
     if any_retries:
         headers.append("retries")
     if score_col is not None:

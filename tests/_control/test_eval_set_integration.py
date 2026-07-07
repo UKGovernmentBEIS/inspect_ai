@@ -2373,7 +2373,7 @@ def test_task_retry_detaches_superseded_attempt_live(
     )
 
 
-# --- limits / GET + PATCH /tasks/<id>/limits -------------------------------
+# --- limits / GET + PATCH /tasks/<id>/config -------------------------------
 
 
 def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) -> None:
