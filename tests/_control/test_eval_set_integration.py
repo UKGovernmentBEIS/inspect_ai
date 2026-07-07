@@ -164,6 +164,9 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
         assert samples["queued"] == 0
         assert entry["status"] == "running"
         assert entry["completed_at"] is None
+        assert entry["model"] == "mockllm/model"
+        # the plan's terminal step — the gate solver — is the reported solver
+        assert entry["solver"] == "gate"
         # log_location points at this eval's log file, so an agent monitoring a
         # run it didn't launch can find where results are written — as a plain
         # local path (no `file://` prefix), directly usable.
@@ -691,6 +694,61 @@ def test_ctl_reused_log_eval_reports_usage(short_data_dir: Path) -> None:
     assert entry is not None
     assert entry["total_tokens"] > 0, entry
     assert entry["total_messages"] > 0, entry
+    # solver name recovered from the reused log's plan (terminal step)
+    assert entry["solver"] == "gen", entry
+
+
+def test_ctl_reused_log_solver_skips_finish_step() -> None:
+    """Reused-log solver derivation matches the live path for ``Plan(finish=...)``.
+
+    ``plan_to_eval_plan`` appends the plan's ``finish`` solver to the recorded
+    ``steps``, so the header's last step is the finish solver — not the
+    terminal solver ``plan_agent_name`` reports while the task runs. The
+    reused-log registration must skip it, or the same task shows one solver
+    while running and another after eval-set reuse.
+    """
+    from datetime import datetime, timezone
+
+    from inspect_ai._control.eval_state import clear_all_eval_states, get_eval_state
+    from inspect_ai._eval.evalset import Log, _register_reused_logs
+    from inspect_ai._eval.task.log import plan_to_eval_plan
+    from inspect_ai._eval.task.run import plan_agent_name
+    from inspect_ai.log._file import EvalLogInfo
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.solver import Plan, system_message
+
+    plan = Plan([system_message("hi"), generate()], finish=system_message("bye"))
+    header = EvalLog(
+        eval=EvalSpec(
+            eval_id="e-finish",
+            created=datetime.now(timezone.utc).isoformat(),
+            task="task_finish",
+            task_id="tid-finish",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=plan_to_eval_plan(plan, GenerateConfig()),
+    )
+    info = EvalLogInfo(
+        name="logs/e.eval",
+        type="file",
+        size=0,
+        mtime=None,
+        task="task_finish",
+        task_id="tid-finish",
+        suffix=None,
+    )
+
+    clear_all_eval_states()
+    try:
+        _register_reused_logs([Log(info=info, header=header, task_identifier="x")])
+        state = get_eval_state("e-finish")
+        assert state is not None
+        assert state.solver == "generate" == plan_agent_name(plan)
+    finally:
+        clear_all_eval_states()
 
 
 # --- keep-alive park -------------------------------------------------------
