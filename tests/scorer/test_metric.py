@@ -910,7 +910,7 @@ def test_aggregate_invalid_on_missing_raises():
     # Invalid on_missing must fail at construction, not silently behave like
     # "zero" only when a key happens to be missing.
     with pytest.raises(ValueError, match="invalid on_missing"):
-        aggregate("x", agg=mean(), on_missing="skpi")  # type: ignore[arg-type]
+        aggregate("x", agg=mean(), on_missing="skpi")
 
 
 def test_metrics_return_zero_for_empty_scores() -> None:
