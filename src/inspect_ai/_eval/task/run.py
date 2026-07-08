@@ -1827,7 +1827,11 @@ async def task_run_sample(
         # scores so they contribute to metrics (as documented in handling-errors),
         # rather than only being written to the sample log. The sample is still
         # counted as an error via the SampleErrorHandler. See #4412.
-        if results:
+        #
+        # `results` is only populated on the errored path when score_on_error is
+        # on (see the scoring guard above), but gate the return on it explicitly
+        # so this can never change behaviour when score_on_error is off.
+        if score_on_error and results:
             await sample_complete(state.sample_id, state.epoch, results)
             return results
         return None
