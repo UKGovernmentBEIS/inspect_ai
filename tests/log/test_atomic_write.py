@@ -266,11 +266,12 @@ class TestAtomicWriteInterruption:
         assert len(temp_files) == 0
 
     def test_keyboard_interrupt_during_write(self, tmp_path: Path) -> None:
-        """Test KeyboardInterrupt during write.
+        """KeyboardInterrupt propagates AND the temp file is cleaned up.
 
-        Note: KeyboardInterrupt is a BaseException, not Exception, so it
-        bypasses the normal exception handler. Temp file may remain after
-        KeyboardInterrupt, which is acceptable (user interrupted the process).
+        The cleanup handler catches BaseException (not just Exception) so a
+        Ctrl-C mid-write doesn't leave an orphaned .inspect_tmp_* file beside
+        the log — eval runs are interrupted often. The interrupt still
+        propagates and the target is left untouched.
         """
         target = tmp_path / "test.dat"
 
@@ -279,5 +280,31 @@ class TestAtomicWriteInterruption:
                 f.write(b"partial")
                 raise KeyboardInterrupt()
 
-        # Target file should not exist
         assert not target.exists()
+        temp_files = list(tmp_path.glob(".inspect_tmp_*"))
+        assert len(temp_files) == 0, "Ctrl-C should not leak a temp file"
+
+
+class TestAtomicWriteSymlinks:
+    """Writing through a symlinked target updates the referent."""
+
+    @pytest.mark.skipif(
+        not hasattr(os, "symlink") or sys.platform == "win32",
+        reason="symlink creation is unreliable/privileged on Windows",
+    )
+    def test_write_through_symlink_updates_referent(self, tmp_path: Path) -> None:
+        # A symlinked log path should behave like open(path, "wb") did:
+        # follow the link and update the real file, not replace the link
+        # with a regular file.
+        real = tmp_path / "real.log"
+        real.write_bytes(b"old")
+        link = tmp_path / "link.log"
+        link.symlink_to(real)
+
+        atomic_write_bytes(str(link), b"new")
+
+        assert link.is_symlink(), "the symlink itself must be preserved"
+        assert real.read_bytes() == b"new", "the referent must be updated"
+        assert link.read_bytes() == b"new"
+        # temp file lands next to the real target and is cleaned up
+        assert not list(tmp_path.glob(".inspect_tmp_*"))

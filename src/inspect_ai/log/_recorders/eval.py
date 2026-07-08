@@ -447,6 +447,14 @@ def _replace_eval_header_in_place(zip_path: str, log: EvalLog) -> None:
     become unreferenced — a small size leak that's acceptable for local
     files since we're not paying for a re-upload on every edit. Sample
     entries are untouched.
+
+    Note: unlike the flush/finalization writes (which go through
+    :func:`inspect_ai._util.atomic_write.atomic_write`), this in-place
+    header edit is not atomic — an interruption here can leave the zip's
+    central directory inconsistent. It's an intentional trade-off: header
+    edits (viewer score edits) are infrequent and rewriting a potentially
+    large `.eval` just to change the header isn't worth it. Callers that
+    need atomicity should rewrite the whole file.
     """
     eval_header = _eval_log_header(log)
     with ZipFile(zip_path, "a", **zipfile_compress_kwargs) as zf:

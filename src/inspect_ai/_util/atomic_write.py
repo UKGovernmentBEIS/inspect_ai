@@ -21,6 +21,15 @@ Blob upload, GCS upload), and inspect_ai consolidates remote I/O on
 semantics. Callers should gate calls to :func:`atomic_write` on
 ``filesystem(path).is_local()`` and route remote writes through
 ``AsyncFilesystem`` instead.
+
+Related helper: :func:`inspect_ai._util.file.write_atomic_text` provides
+the same rename-based atomicity for a *text* writer callback. This module
+is the binary counterpart, adding what the log recorders need that the
+text helper does not: a streaming context manager (so a temp file can be
+``shutil.copyfileobj``'d in), one-shot ``bytes``, mode preservation, an
+``fsync`` toggle, and ``O_EXCL`` temp creation. The two are kept separate
+deliberately; they could be unified later if the extra features are wanted
+on the text path too.
 """
 
 import os
@@ -108,14 +117,20 @@ def atomic_write(
         ```
 
     Implementation:
-        - ``tempfile.mkstemp()`` creates the temp file in the target's
-          directory with a ``.inspect_tmp_*.writing`` name.
+        - A unique temp file is created in the target's directory via
+          :func:`_create_local_tempfile` (``os.open`` with
+          ``O_CREAT | O_EXCL`` and a ``.inspect_tmp_*.writing`` name).
         - The handle is yielded to the caller for writes.
         - On normal exit: ``fsync()`` (when ``fsync=True``) is followed
           by ``os.replace()`` — atomic on POSIX (``rename()``) and on
-          Windows (``MoveFileEx`` with ``MOVEFILE_REPLACE_EXISTING``).
-        - On any exception, the temp file is unlinked and the exception
-          re-raised; the target file is left untouched.
+          Windows (``MoveFileEx`` with ``MOVEFILE_REPLACE_EXISTING``) —
+          and, on POSIX, the parent directory is ``fsync``'d so the rename
+          itself is crash-durable.
+        - If ``target_path`` is a symlink, it is resolved so the write
+          goes through to the referent (matching ``open(path, "wb")``),
+          rather than replacing the link with a regular file.
+        - On any exception (including ``KeyboardInterrupt``), the temp file
+          is unlinked and the exception re-raised; the target is untouched.
     """
     if mode != "wb":
         raise ValueError("atomic_write only supports binary write mode 'wb'")
@@ -127,12 +142,19 @@ def atomic_write(
             "Use AsyncFilesystem.write_file_streaming for remote stores."
         )
 
-    target_dir = str(Path(target_path).parent)
+    # Resolve a symlinked target so we write through to the referent and
+    # os.replace() updates the real file, rather than replacing the link
+    # with a regular file. The old `open(path, "wb")` path followed
+    # symlinks; preserve that. The temp file is then created in the
+    # *resolved* target's directory, keeping it on the same filesystem so
+    # the rename stays atomic.
+    target = (
+        os.path.realpath(target_path) if os.path.islink(target_path) else target_path
+    )
+    target_dir = str(Path(target).parent)
 
     # Match fsspec's LocalFileSystem.open behaviour: auto-create missing
-    # parent directories. Otherwise tempfile.mkstemp(dir=target_dir) would
-    # raise FileNotFoundError for callers like
-    # `write_eval_log("new/dir/log.json", format="json")`.
+    # parent directories.
     os.makedirs(target_dir, exist_ok=True)
 
     # Capture the existing target's mode before we create the temp file,
@@ -142,7 +164,7 @@ def atomic_write(
     # the previous fsspec local path). On Windows os.chmod only honours
     # the read-only bit, so this is harmless cross-platform.
     try:
-        target_mode_existing: int | None = os.stat(target_path).st_mode & 0o777
+        target_mode_existing: int | None = os.stat(target).st_mode & 0o777
     except FileNotFoundError:
         target_mode_existing = None
 
@@ -167,10 +189,25 @@ def atomic_write(
             os.chmod(temp_path, target_mode_existing)
 
         # Atomic rename: POSIX rename() / Windows MoveFileEx.
-        os.replace(temp_path, target_path)
+        os.replace(temp_path, target)
 
-    except Exception:
-        # Clean up temp file on any error; target is left untouched.
+        # Durability: fsync the parent directory so the rename survives a
+        # crash/power-loss right after os.replace (POSIX allows the new
+        # directory entry to be lost otherwise, even though the file data
+        # was fsync'd). Opening a directory fd is POSIX-only; on Windows
+        # os.open of a directory fails, so skip it there.
+        if fsync and hasattr(os, "O_DIRECTORY"):
+            dir_fd = os.open(target_dir, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+
+    except BaseException:
+        # Clean up temp file on any error, including KeyboardInterrupt —
+        # eval runs are Ctrl-C'd often, and leaked .inspect_tmp_* files
+        # would otherwise accumulate in users' log dirs. Re-raise so the
+        # interrupt still propagates; the target is left untouched.
         try:
             os.unlink(temp_path)
         except OSError:
