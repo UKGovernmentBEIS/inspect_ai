@@ -466,9 +466,11 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     producing one) together with the ``CancelType`` it was cancelled with, so a
     caller managing retries can distinguish a retry/abort request from an
     ordinary error. ``can_retry`` is surfaced to the task (via ``TaskCancel``) so
-    it knows whether requesting a retry will be honoured. Re-raises (after
-    logging) the rare error that escapes a task — e.g. a failure during the final
-    log write.
+    it knows whether requesting a retry will be honoured. The rare error that
+    escapes a task — a failure to write the log itself (e.g. the ``log_start()``
+    header flush) — is converted into an errored :class:`EvalLog` so dispatchers
+    can retry the task rather than tearing down the run; it is re-raised only
+    when ``debug_errors`` is set.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -512,12 +514,16 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
             raise
         inner = inner_exception(ex)
         log.error(
-            f"Task '{options.task.name}' encountered an error during finalisation: {inner}"
+            f"Task '{options.task.name}' encountered an error while writing its log: {inner}"
         )
+        # location points at the log file the write was destined for — it may
+        # not exist (a failed log_start() header flush) or may hold a partial
+        # log (a failed error-status log_finish())
         result = EvalLog(
             status="error",
             eval=options.logger.eval,
             error=eval_error(inner, type(inner), inner, inner.__traceback__),
+            location=options.logger.location,
         )
     return TaskRunResult(result, cancel_type)
 
