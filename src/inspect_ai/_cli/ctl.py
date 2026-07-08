@@ -761,22 +761,28 @@ def events_alias(
     )
 
 
+# The aliases keep the old `--pid` option but also accept the positional PID
+# the new spelling (and the shared ambiguity error) teaches.
 @ctl_command.command("keep", hidden=True)
+@click.argument("pid_arg", required=False, type=int, metavar="[PID]")
 @click.option("--pid", type=int, default=None)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def keep_alias(pid: int | None, as_json: bool) -> None:
+def keep_alias(pid_arg: int | None, pid: int | None, as_json: bool) -> None:
     """Deprecated alias for `inspect ctl process keep`."""
     _deprecation_note("keep", "process keep")
-    _run_keep_alive(pid, keep=True, as_json=as_json)
+    _run_keep_alive(pid_arg if pid_arg is not None else pid, keep=True, as_json=as_json)
 
 
 @ctl_command.command("release", hidden=True)
+@click.argument("pid_arg", required=False, type=int, metavar="[PID]")
 @click.option("--pid", type=int, default=None)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def release_alias(pid: int | None, as_json: bool) -> None:
+def release_alias(pid_arg: int | None, pid: int | None, as_json: bool) -> None:
     """Deprecated alias for `inspect ctl process release`."""
     _deprecation_note("release", "process release")
-    _run_keep_alive(pid, keep=False, as_json=as_json)
+    _run_keep_alive(
+        pid_arg if pid_arg is not None else pid, keep=False, as_json=as_json
+    )
 
 
 @ctl_command.command("flush", hidden=True)
@@ -1028,6 +1034,18 @@ def _run_sample_show(
             err=True,
         )
         samples = []
+    except click.exceptions.Exit:
+        # ...nor should a busy eval loop: retry exhaustion in the listing
+        # read raises Exit rather than _ServerUnreachable (the retry helper
+        # has already narrated the attempts to stderr), but the detail in
+        # hand still answers the question.
+        click.echo(
+            f"The samples listing for eval {target['eval_id']} did not "
+            "respond; showing the sample without its summary fields "
+            "(timing / tokens / messages).",
+            err=True,
+        )
+        samples = []
     row = next(
         (
             s
@@ -1183,12 +1201,15 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
     """Latch keep-alive on (``keep``) or off (``release``) for one process."""
     verb = "keep" if keep else "release"
     target = _resolve_target_server(pid)
-    try:
-        body = _post_to_server(target.socket_path, f"/{verb}")
-    except (httpx.HTTPError, OSError) as exc:
-        what = "set keep-alive for" if keep else "release"
-        click.echo(f"Failed to {what} pid {target.pid}: {exc}", err=True)
-        raise click.exceptions.Exit(code=1) from exc
+    body = _request_json(
+        str(target.socket_path),
+        f"/{verb}",
+        what=f"keep-alive for pid {target.pid}",
+        not_found=(
+            f"Pid {target.pid} does not support keep/release (older inspect version?)."
+        ),
+        mutate="post",
+    )
 
     # `changed` distinguishes applied from the idempotent already-in-that-state
     # no-op; an older server omits it (detail then just carries what it sent).
@@ -1369,7 +1390,6 @@ def _run_config(
         log_buffer=log_buffer,
         log_shared=log_shared,
         dry_run=dry_run,
-        set_values=set_values,
     )
 
     # The buffer knobs ride the task config view (`buffer` key); a task with
@@ -1527,7 +1547,11 @@ class _DirectiveScope(NamedTuple):
     """The task's name (``None`` for the process-level scope)."""
     header: str
     siblings: int
-    """Tasks sharing the target process (0 when resolved before registration)."""
+    """Active (running/pending) tasks sharing the target process.
+
+    0 when resolved before registration; completed eval-set siblings are
+    excluded — a process-scoped retune can't affect a finished task.
+    """
 
 
 def _resolve_scope(
@@ -1590,9 +1614,7 @@ def _resolve_scope(
             task_id=task_id,
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
-            siblings=sum(
-                1 for s in summaries if str(s.get("socket_path")) == socket_path
-            ),
+            siblings=_active_siblings(summaries, socket_path),
         )
 
     sockets = sorted({str(s.get("socket_path")) for s in summaries})
@@ -1614,7 +1636,7 @@ def _resolve_scope(
             task_id=str(target["task_id"]),
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
-            siblings=len(tasks_in_proc),
+            siblings=_active_siblings(summaries, socket_path),
         )
     if per_task_option is not None:
         addressable = [c for c in candidates if str(c.get("task_id") or "")]
@@ -1645,7 +1667,22 @@ def _resolve_scope(
         task_id=None,  # process-global scope
         task=None,
         header=f"process · {len(tasks_in_proc)} tasks",
-        siblings=len(tasks_in_proc),
+        siblings=_active_siblings(summaries, socket_path),
+    )
+
+
+def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
+    """Count the running/pending tasks sharing a process.
+
+    The blast-radius denominator for process-scoped knobs: completed eval-set
+    siblings share the socket but can't be affected by a retune, so counting
+    them would overstate the note (and defeat its single-task suppression).
+    """
+    return sum(
+        1
+        for s in summaries
+        if str(s.get("socket_path")) == socket_path
+        and s.get("status") in ("running", "pending")
     )
 
 
@@ -1697,25 +1734,6 @@ def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
         err=True,
     )
     raise click.exceptions.Exit(code=1)
-
-
-def _post_to_server(socket_path: Path, path: str) -> dict[str, Any]:
-    """POST to a control server's ``path`` over its AF_UNIX socket.
-
-    Returns the response body (``{}`` when it isn't a JSON object) so
-    callers can surface the mutation result detail.
-    """
-    transport = httpx.HTTPTransport(uds=str(socket_path))
-    with httpx.Client(
-        transport=transport, base_url="http://localhost", timeout=5.0
-    ) as client:
-        response = client.post(path)
-        response.raise_for_status()
-        try:
-            body = response.json()
-        except ValueError:
-            return {}
-        return body if isinstance(body, dict) else {}
 
 
 # The control server is embedded in the eval process and shares its event
@@ -2152,33 +2170,37 @@ def _exec_limits(
     log_buffer: int | None = None,
     log_shared: int | None = None,
     dry_run: bool,
-    set_values: bool,
 ) -> dict[str, Any]:
-    """Read (``set_values=False``) or retune a scope's retunable config.
+    """Read (no set knobs) or retune (any set knob) a scope's config.
 
     With ``task_id`` set this targets that task's ``/tasks/<id>/config`` (the
     per-task view, including ``max_samples`` and the ``log_buffer`` /
     ``log_shared`` buffer params; task ids are stable across retry attempts);
     with ``task_id=None`` it targets the process-level ``/config``
     (``max_sandboxes`` / ``max_connections`` only). ``model`` filters the
-    adaptive controllers (a read param, applies to both). The read is a GET
-    that retries a busy process on timeout; the update is a single-shot PATCH
-    given the full mutation budget (see :data:`_MUTATION_TIMEOUT`). ``dry_run``
-    only applies to a set.
+    adaptive controllers (a read param, applies to both). Any settable knob
+    that is not ``None`` makes this a mutation: a single-shot PATCH given the
+    full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
+    caller-supplied, so a knob can never ride a GET as an ignored query
+    param. A pure read is a GET that retries a busy process on timeout.
+    ``dry_run`` only applies to a set.
     """
-    params: dict[str, Any] = {}
-    if max_samples is not None:
-        params["max_samples"] = max_samples
-    if max_sandboxes is not None:
-        params["max_sandboxes"] = max_sandboxes
-    if max_connections is not None:
-        params["max_connections"] = max_connections
+    knob_values: dict[str, int | None] = {
+        "max_samples": max_samples,
+        "max_sandboxes": max_sandboxes,
+        "max_connections": max_connections,
+        "log_buffer": log_buffer,
+        "log_shared": log_shared,
+    }
+    # the settable knobs are exactly the scope table's — a knob added to one
+    # without the other fails loudly here rather than silently no-opping
+    assert knob_values.keys() == _KNOB_SCOPE.keys()
+    set_values = any(value is not None for value in knob_values.values())
+    params: dict[str, Any] = {
+        knob: value for knob, value in knob_values.items() if value is not None
+    }
     if model is not None:
         params["model"] = model
-    if log_buffer is not None:
-        params["log_buffer"] = log_buffer
-    if log_shared is not None:
-        params["log_shared"] = log_shared
     if dry_run:
         params["dry_run"] = True
     # the 404 messages distinguish "task unknown to the server" from version
@@ -2311,6 +2333,11 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                 )
             click.echo(line)
 
+    # The process-level view carries no buffer knobs (they're per-task, read
+    # off one task's live logger): mirror the max_samples placeholder so the
+    # knobs' existence — and how to see them — stays visible. A *task* view
+    # missing them (no live buffer) is reported via warnings instead.
+    process_scope = (config.get("target") or {}).get("scope") == "process"
     if "log_buffer" in knobs:
         log_buffer = knobs.get("log_buffer") or {}
         value = _target(log_buffer.get("value"), "log_buffer")
@@ -2318,12 +2345,22 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             f"{_knob_label('log buffer', 'log_buffer')}{value} samples "
             f"({log_buffer.get('pending')} pending)"
         )
+    elif process_scope:
+        click.echo(
+            _knob_label("log buffer", "log_buffer")
+            + "per task (pass a task to view/set)"
+        )
     if "log_shared" in knobs:
         shared = (knobs.get("log_shared") or {}).get("value")
         rendered_shared = _target(shared, "log_shared") if shared is not None else None
         click.echo(
             _knob_label("shared sync", "log_shared")
             + f"{f'{rendered_shared}s' if rendered_shared is not None else 'off'}"
+        )
+    elif process_scope:
+        click.echo(
+            _knob_label("shared sync", "log_shared")
+            + "per task (pass a task to view/set)"
         )
 
     for warning in config.get("warnings") or []:

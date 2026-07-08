@@ -196,6 +196,20 @@ async def task_limits(
             "log_buffer/log_shared are not adjustable for this task (no live "
             "sample buffer — e.g. a reused log, or a superseded retry attempt)."
         )
+    # a buffer with no shared-log sync running silently ignores a log_shared
+    # set (`set_sync_interval` reports the rejection but `buffer_config`
+    # keeps only the resulting view) — the view echoing `log_shared: None`
+    # after a request is that rejection, so warn like the other unadjustable
+    # knobs. Holds under dry_run too: a syncless buffer always reports None.
+    if (
+        log_shared is not None
+        and buffer_view is not None
+        and buffer_view.get("log_shared") is None
+    ):
+        sample_warnings.append(
+            "log_shared is not adjustable for this task (its log has no "
+            "shared-log sync running — launch with --log-shared to enable it)."
+        )
 
     views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,

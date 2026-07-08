@@ -584,7 +584,6 @@ def test_config_read_retries_timeout_then_succeeds(
         max_connections=None,
         model=None,
         dry_run=False,
-        set_values=False,
     )
     assert config == view
     assert counter["gets"] == 3
@@ -611,7 +610,6 @@ def test_config_set_does_not_retry_timeout(
             model=None,
             log_buffer=3,
             dry_run=False,
-            set_values=True,
         )
     assert exc_info.value.exit_code == 1
     assert counter["patches"] == 1  # tried once, no retry
@@ -988,6 +986,39 @@ def test_sample_show_listing_unreachable_keeps_detail(
     assert "Could not read the samples listing for eval eval_aaa111" in result.stderr
 
 
+def test_sample_show_busy_listing_keeps_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A busy eval (listing retries exhausted → Exit) doesn't discard the detail.
+
+    Retry exhaustion raises click's Exit rather than _ServerUnreachable; the
+    detail already in hand must still be rendered.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+
+    def exhausted(*args: Any, **kwargs: Any) -> tuple[float, list[dict[str, Any]]]:
+        raise click.exceptions.Exit(code=1)
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", exhausted)
+    detail = {
+        "sample_id": "s1",
+        "epoch": 1,
+        "status": "error",
+        "retries": 0,
+        "error": {"message": "boom"},
+        "error_retries": [],
+        "scores": {},
+    }
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: detail
+    )
+    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["error"] == {"message": "boom"}
+    assert "did not respond" in result.stderr
+
+
 def test_old_flat_spellings_hidden_from_help() -> None:
     result = _runner().invoke(ctl_command, ["--help"])
     for old in (
@@ -1179,8 +1210,8 @@ def test_process_release_json_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
         "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._post_to_server",
-        lambda socket_path, path: {"ok": True, "keep_alive": False, "changed": True},
+        "inspect_ai._cli.ctl._request_json",
+        lambda *a, **k: {"ok": True, "keep_alive": False, "changed": True},
     )
     result = _runner().invoke(ctl_command, ["process", "release", "--json"])
     assert result.exit_code == 0, result.output
@@ -1197,8 +1228,8 @@ def test_process_keep_reports_idempotent_noop(
         "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._post_to_server",
-        lambda socket_path, path: {"ok": True, "keep_alive": True, "changed": False},
+        "inspect_ai._cli.ctl._request_json",
+        lambda *a, **k: {"ok": True, "keep_alive": True, "changed": False},
     )
     result = _runner().invoke(ctl_command, ["process", "keep"])
     assert result.exit_code == 0
@@ -1208,7 +1239,7 @@ def test_process_keep_reports_idempotent_noop(
 def test_process_keep_pid_is_positional(monkeypatch: pytest.MonkeyPatch) -> None:
     posted: list[str] = []
 
-    def record(socket_path: Any, path: str) -> dict[str, Any]:
+    def record(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
         posted.append(str(socket_path))
         return {"ok": True}
 
@@ -1216,7 +1247,7 @@ def test_process_keep_pid_is_positional(monkeypatch: pytest.MonkeyPatch) -> None
         "inspect_ai._cli.ctl.list_discovered_servers",
         lambda: [_DiscServer(7), _DiscServer(8)],
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._post_to_server", record)
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
     result = _runner().invoke(ctl_command, ["process", "keep", "8"])
     assert result.exit_code == 0, result.output
     assert posted == ["/tmp/8.sock"]
@@ -1517,3 +1548,64 @@ def test_log_flush_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> No
     assert payload["target"]["task_id"] == "aaa111"
     assert payload["applied"] is True and payload["dry_run"] is False
     assert payload["detail"] == {"flushed": 2}
+
+
+def test_print_config_process_scope_shows_buffer_placeholder(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The process-level view points at the per-task buffer knobs.
+
+    Mirrors the max_samples placeholder, so `ctl config` (and the deprecated
+    `ctl buffer` alias) in a multi-task process never silently omits them.
+    """
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "target": {"scope": "process", "task_id": None, "task": None},
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "log buffer [task]:       per task (pass a task to view/set)" in out
+    assert "shared sync [task]:      per task (pass a task to view/set)" in out
+
+
+def test_resolve_scope_siblings_counts_active_only() -> None:
+    """Completed eval-set siblings don't inflate the blast-radius count."""
+    from inspect_ai._cli.ctl import _resolve_scope
+
+    summaries = [
+        _full_summary("aaa111", "t1", status="running"),
+        _full_summary("bbb222", "t2", status="completed"),
+    ]
+    scope = _resolve_scope([], summaries, "aaa111")
+    assert scope is not None
+    assert scope.siblings == 1  # the completed sibling is excluded
+
+
+def test_keep_alias_accepts_positional_pid(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shared ambiguity error teaches `... keep <pid>`; the alias obeys."""
+    posted: list[str] = []
+
+    def record(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        posted.append(str(socket_path))
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_DiscServer(7), _DiscServer(8)],
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
+    result = _runner().invoke(ctl_command, ["keep", "8"])
+    assert result.exit_code == 0, result.output
+    assert posted == ["/tmp/8.sock"]
+    assert "is now `inspect ctl process keep`" in result.stderr

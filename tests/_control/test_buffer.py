@@ -284,3 +284,43 @@ def test_log_flush_route_error_becomes_500(monkeypatch: pytest.MonkeyPatch) -> N
     response = asyncio.run(scenario())
     assert response.status_code == 500
     assert "disk full" in response.json()["error"]
+
+
+async def test_log_shared_set_without_sync_warns() -> None:
+    """A log_shared set the buffer ignores (no shared sync) warns, not no-ops.
+
+    `buffer_config` reports the resulting view only, so a syncless buffer
+    echoes `log_shared: None` after the request — the server must turn that
+    into a not-adjustable warning like the other knobs.
+    """
+
+    def _buffer(log_buffer: int | None, log_shared: int | None) -> BufferConfig:
+        # a buffer with no shared-log sync: log_shared sets are ignored
+        return BufferConfig(log_buffer=10, pending=0, log_shared=None)
+
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(buffer=_buffer))
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch("/tasks/t1/config", params={"log_shared": 30})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["requested"] == {"log_shared": 30}
+        assert any(
+            "log_shared is not adjustable" in w for w in patched.json()["warnings"]
+        )
+
+        # dry-run reports the same rejection
+        dry = await client.patch(
+            "/tasks/t1/config", params={"log_shared": 30, "dry_run": True}
+        )
+        assert any("log_shared is not adjustable" in w for w in dry.json()["warnings"])
+
+        # a log_shared set that lands (sync running) does not warn
+        def _synced(log_buffer: int | None, log_shared: int | None) -> BufferConfig:
+            return BufferConfig(log_buffer=10, pending=0, log_shared=log_shared or 60)
+
+        register_eval("e2", 5, task_id="t2", live=FakeLiveEvalData(buffer=_synced))
+        ok = await client.patch("/tasks/t2/config", params={"log_shared": 30})
+        assert not any("log_shared" in w for w in ok.json()["warnings"])
