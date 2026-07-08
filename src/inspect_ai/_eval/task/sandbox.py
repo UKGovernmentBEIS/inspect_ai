@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import os
+from logging import getLogger
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
@@ -18,6 +19,7 @@ from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
 from inspect_ai._util.file import FileSystem, file, filesystem
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
@@ -38,6 +40,8 @@ from inspect_ai.util._sandbox.environment import (
     TaskInitEnvironment,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+
+logger = getLogger(__name__)
 
 
 @contextlib.asynccontextmanager
@@ -250,6 +254,26 @@ async def resolve_sandbox(
             sandbox_config: SandboxEnvironmentConfigType | None = sample.sandbox.config
         else:
             sandbox_config = task_sandbox.config
+            if (
+                sample.sandbox is not None
+                and sample.sandbox.config is not None
+                and sample.sandbox.type != task_sandbox.type
+                and is_docker_compatible_config(sample.sandbox.config)
+                and not is_docker_compatible_sandbox_type(task_sandbox.type)
+            ):
+                # the sample declares a Dockerfile/compose.yaml config, but the
+                # effective sandbox type doesn't understand it (either the task
+                # itself uses an incompatible type, or an eval-level override
+                # does) -- the sample's config is silently dropped otherwise.
+                warn_once(
+                    logger,
+                    f"A sample declares sandbox '{sample.sandbox.type}' with a "
+                    "Dockerfile/compose.yaml configuration, but the effective "
+                    f"sandbox type is '{task_sandbox.type}', which does not "
+                    "support that configuration. The sample's compose services, "
+                    "packages, and tools will not be available in the "
+                    f"'{task_sandbox.type}' sandbox.",
+                )
         resolved_sandbox = SandboxEnvironmentSpec(task_sandbox.type, sandbox_config)
     elif sample.sandbox is not None:
         resolved_sandbox = sample.sandbox

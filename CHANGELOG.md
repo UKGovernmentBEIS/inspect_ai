@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Sandboxing: Warn when a task or sample declares a Dockerfile/compose.yaml sandbox config that gets silently dropped because the effective sandbox type (e.g. after a `--sandbox` override) doesn't support Docker Compose configuration.
 - Performance: make `stable_message_ids()` linear per turn.
 - Docker: Support the `devices` field on compose services (device mappings such as `/dev/kvm`), previously rejected as an unknown field.
 - Agent Bridge: Sandbox model proxy now returns an HTTP 400 error for malformed requests (missing/empty `model`, missing `messages`/`input`, or a non-object body) instead of crashing the sample. (#4187)
