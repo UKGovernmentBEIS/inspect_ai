@@ -12,6 +12,7 @@
 - Control Channel: `inspect ctl tasks` now includes model and solver columns.
 - Control Channel: Added `inspect ctl limits` to view or retune a running eval's `max_samples` / `max_sandboxes` / `max_connections` concurrency limits mid-flight (with `--dry-run`).
 - Docker: Support the `devices` field on compose services (device mappings such as `/dev/kvm`), previously rejected as an unknown field.
+- Docker: Warn when a task or sample declares a Dockerfile/compose.yaml sandbox config that gets silently dropped because the effective sandbox type doesn't support Docker Compose configuration.
 - OpenAI: Surface OpenAI Responses API response `metadata` as `ModelOutput.metadata`.
 - Google: Include thinking tokens in reported `output_tokens` (matching the OpenAI/Anthropic convention where reasoning is a subset of output), so output-metered token limits and cost computations count Gemini thinking tokens.
 - Inspect View: Validate Host and browser origins, prevent framing, and require authorization or explicit acknowledgement for non-loopback binds.
