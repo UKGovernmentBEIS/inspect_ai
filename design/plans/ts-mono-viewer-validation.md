@@ -185,6 +185,14 @@ Checks per pass:
 
 **Automation attempt** (timebox ~1h, then fall back): launch `code --remote-debugging-port=9222`, attach chrome-devtools MCP, locate the webview iframe target, drive checks there. Fallback: guided-manual script — same check list, executed by hand.
 
+**Automation result (worked)** — recipe for reruns:
+
+1. `code --remote-debugging-port=9229 <workspace>` (VS Code must not already be running). Workspace: `~/code/viewer-validation` (fixture logs at `./logs`), `.vscode/settings.json` sets `python.defaultInterpreterPath` to the pass's venv.
+2. Drive via playwright `chromium.connectOverCDP("http://127.0.0.1:9229")` (resolve playwright from ts-mono's pnpm store). The workbench page is scriptable: command palette, quick open, activity bar.
+3. **Gotchas hit**: fresh workspace opens in Restricted Mode — trust it first (palette "Manage Workspace Trust" → Trust) or the extension stays inactive and `.eval` opens as binary; the `.eval` tab may stick to the text editor — use "View: Reopen Editor With… → Inspect Log Viewer"; interpreter switching needs "Python: Select Interpreter → Enter interpreter path" + "Developer: Reload Window" (settings.json alone doesn't retarget an explicit selection); the webview's app DOM is NOT reachable via frame evaluate (service-worker iframe) — drive by coordinate clicks on the workbench page + screenshots.
+
+**Results**: new + old both render log webview (samples grid, tags, tabs), sample detail w/ image + transcript, sidebar dir-mode LOGS tree, no download buttons (per capabilities), webview state persists across reload. Old→new state upgrade restores cleanly; new→old downgrade crashes (finding 11). Status-bar version confirms which inspect_ai serves each pass (0.3.239.dev = new checkout, 0.3.235.dev = origin/main worktree).
+
 ## Findings
 
 | # | Env | Check | Old behavior | New behavior | Severity |
@@ -199,6 +207,7 @@ Checks per pass:
 | 8 | server/local | D5 run-end transition | Page watching a running eval stops polling `/pending-samples` when the run ends (probe → park) | Poll never stops after run ends: ~5/s `/pending-samples` 404 loop indefinitely (198 console errors in ~40s) until reload. Fresh open of a finished log is fine on both (probe + stop) | **high — runaway poll loop; likely related to "never park the poll on a failed tick" change** |
 | 9 | server/local | D9 deleted log opened | Silently renders stale samples from client cache — no indication the file is gone | Error page "An error occurred while loading this task. HTTP 404" — correct, but displays a raw JS stack trace and keeps the previous log's tab title | low — new is better; polish: hide stack, fix title |
 | 10 | static | missing listing.json | Renders app shell + "Error 404: <raw html of 404 page>" | Fails earlier: "Failed to load application configuration: 404: <raw html>" | low — same net effect; both dump raw 404 HTML |
+| 11 | vscode | webview state downgrade | — | Webview state persisted by the NEW viewer crashes the OLD viewer on restore ("Cannot read properties of undefined (reading 'loading')", error page w/ stack). Upgrade direction (old state → new viewer) restores fine | low — downgrade-only; consider versioning the persist key in new so stale readers ignore it |
 
 Verified matching (env 1, server/local): S2 listing data (18 rows identical), S3/D11 sort-by-score values, S4 log tabs + samples grid, S5 `.json` (incl. filter persistence across logs; per-sample tokens blank on json in both), S6 sample detail w/ image + transcript, S7 next/prev + deep-link, D1 tag edits round-trip old↔new, D10 new column-filter counts == old filtrex counts (12/24) with bidirectional FILTER-string sync, single-file mode (`?log_file=`+`inspect_server=true`), D3 download (both files valid), D5 streaming while running (both poll + render live), D7 0.0.0.0-without-token refusal (identical message), D12 cross-log Samples view (80 samples both after fresh load).
 
@@ -208,7 +217,7 @@ Verified matching (env 3+4, static bundle + embed): listing (19 items incl. tags
 
 Verified matching (env 2, server/S3): listing (19 items), sample detail + image via `/api/log-bytes` proxy, D1 tag edit persists to S3, **D2 etag conflict: both viewers return HTTP 412 with "This log was modified by someone else. Please reload and try again."**
 
-Env-2 leftover: **D8 direct presigned URLs** — needs bucket CORS (user go-ahead pending) + programmatic `view_server(generate_direct_urls=True)` launcher.
+D8 verified matching: with bucket CORS applied (ports 7579/7680) and `view_server(generate_direct_urls=True)` launchers, both viewers fetch pending-sample segments directly from presigned `meridian-scratch.s3.amazonaws.com` URLs after one `/pending-sample-data-urls` call (new: 8 direct + some proxied before direct pinned; old: 84 direct).
 
 ## Execution order
 
