@@ -231,7 +231,9 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
 
     Completed samples are written to the (possibly remote) log only when
     the buffer fills; this forces the write immediately. Safe to repeat.
-    TASK (a task-id prefix or name) is required when several tasks run.
+    Tune the buffering policy itself with `inspect ctl config --log-buffer`
+    / `--log-shared`. TASK (a task-id prefix or name) is required when
+    several tasks run.
     """
     _run_log_flush(task, as_json)
 
@@ -376,6 +378,13 @@ def sample_show_command(
     ),
 )
 @click.option(
+    "--since",
+    "legacy_since",
+    default=None,
+    hidden=True,
+    help="Removed — split into --cursor and --since-time.",
+)
+@click.option(
     "--tail",
     type=int,
     default=None,
@@ -424,6 +433,7 @@ def sample_events_command(
     sample_id: str,
     epoch: int,
     cursor: str | None,
+    legacy_since: str | None,
     tail: int | None,
     types: str | None,
     full: bool,
@@ -437,6 +447,8 @@ def sample_events_command(
     cursor — pass it back via `--cursor` to read only what's new. `done:
     true` means the sample has terminated and no more events will come.
     """
+    if legacy_since is not None:
+        _exit_removed_since(legacy_since)
     _run_sample_events(
         task,
         sample_id,
@@ -463,24 +475,24 @@ def sample_events_command(
     type=click.IntRange(min=1),
     metavar="INTEGER",
     default=None,
-    help="Set the max samples to run concurrently (task-scoped).",
+    help=(
+        "[task] Max samples to run concurrently (under adaptive connections, "
+        "sample concurrency tracks the controller instead)."
+    ),
 )
 @click.option(
     "--max-sandboxes",
     type=click.IntRange(min=1),
     metavar="INTEGER",
     default=None,
-    help="Set the max sandboxes per provider (process-scoped, all tasks).",
+    help="[process] Max sandboxes per provider.",
 )
 @click.option(
     "--max-connections",
     type=click.IntRange(min=1),
     metavar="INTEGER",
     default=None,
-    help=(
-        "Set the adaptive-connections scaling ceiling — the controller's max "
-        "(process-scoped, all tasks)."
-    ),
+    help="[process] Adaptive-connections scaling ceiling — the controllers' max.",
 )
 @click.option(
     "--model",
@@ -497,8 +509,9 @@ def sample_events_command(
     metavar="INTEGER",
     default=None,
     help=(
-        "Set the number of completed samples to buffer before writing to the "
-        "log (task-scoped; lower it to write to S3 more often)."
+        "[task] Completed samples buffered before a log write — the retune "
+        "side of `inspect ctl task log-flush` (lower it to write to S3 more "
+        "often)."
     ),
 )
 @click.option(
@@ -506,7 +519,7 @@ def sample_events_command(
     type=click.IntRange(min=1),
     metavar="INTEGER",
     default=None,
-    help="Set the shared-log event sync interval, in seconds (task-scoped).",
+    help="[task] Shared-log event sync interval, in seconds.",
 )
 @click.option(
     "--dry-run",
@@ -536,15 +549,17 @@ def config_command(
 
     Any `inspect eval` launch flag that can be retuned while the eval runs
     is settable here, under the same spelling; with no set options, shows
-    the current configuration. Each option below states its scope (task- or
-    process-wide), and the output labels every knob with its scope. Pass
-    `--dry-run` to see what would change without applying it.
+    the current configuration. Each option below is tagged with its scope —
+    [task] targets the selected task, [process] every task in the process —
+    and the output labels every knob likewise. Pass `--dry-run` to see what
+    would change without applying it.
 
     Lowering a concurrency limit never interrupts running samples — new
-    work waits until in-flight holders drain. `--log-buffer` affects future
-    writes only (run `inspect ctl task log-flush` to write what's pending
-    now). TASK is required only for setting a task-scoped knob when several
-    tasks run.
+    work waits until in-flight holders drain. `--log-buffer` / `--log-shared`
+    are the retune side of `inspect ctl task log-flush`: they set the
+    buffering policy for future writes, while log-flush writes what's
+    already buffered now. TASK is required only for setting a task-scoped
+    knob when several tasks run.
     """
     _run_config(
         task,
@@ -1087,6 +1102,27 @@ def _run_sample_events(
         return
 
     _print_events(page)
+
+
+def _exit_removed_since(value: str) -> NoReturn:
+    """Teach the `--since` split instead of click's stock no-such-option error.
+
+    The old flag was the cursor; click's own suggestion ("did you mean
+    --since-time?") points cursor-holders the wrong way, so the command keeps
+    a hidden `--since` whose only job is this error — routed by the same
+    timestamp heuristic `--cursor` validation uses.
+    """
+    try:
+        float(value)
+        hint = "this value looks like a timestamp — use --since-time"
+    except ValueError:
+        hint = "pass it to --cursor (the `next` value from a prior page)"
+    click.echo(
+        f"--since was split into --cursor (opaque resume cursor) and "
+        f"--since-time (wall-clock window): {hint}.",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1)
 
 
 def _validate_cursor(cursor: str | None) -> None:

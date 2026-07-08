@@ -1278,6 +1278,26 @@ def test_events_garbage_cursor_errors() -> None:
     assert "prior page" in result.stderr
 
 
+def test_events_removed_since_flag_teaches_split() -> None:
+    """A bare --since (the pre-rename cursor flag) routes by value type.
+
+    click's stock no-such-option error would suggest --since-time, which is
+    wrong for a cursor value — the hidden --since exists to give the right
+    pointer for each.
+    """
+    ts = _runner().invoke(
+        ctl_command, ["sample", "events", "t", "s1", "--since", "1751900000"]
+    )
+    assert ts.exit_code == 1
+    assert "use --since-time" in ts.stderr
+
+    cur = _runner().invoke(
+        ctl_command, ["sample", "events", "t", "s1", "--since", "opaque-token"]
+    )
+    assert cur.exit_code == 1
+    assert "--cursor" in cur.stderr and "prior page" in cur.stderr
+
+
 def test_compose_config_labels_every_knob_with_scope() -> None:
     from inspect_ai._cli.ctl import _compose_config, _DirectiveScope
 
