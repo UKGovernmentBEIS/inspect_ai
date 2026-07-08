@@ -15,6 +15,7 @@ from click.testing import CliRunner
 
 from inspect_ai._cli.ctl import (
     _ConfigResult,
+    _print_human_table,
     _print_keep_alive_footer,
     _print_samples_table,
     _resolve_target_eval,
@@ -104,6 +105,41 @@ def test_no_query_with_multiple_exits(capsys: pytest.CaptureFixture[str]) -> Non
     with pytest.raises(click.exceptions.Exit):
         _resolve_target_eval(summaries, None)
     assert "Multiple tasks are running" in capsys.readouterr().err
+
+
+def _task_row(task_id: str, task: str, **extra: Any) -> dict[str, Any]:
+    return {
+        "task_id": task_id,
+        "task": task,
+        "samples": {"total": 2, "completed": 1, "in_flight": 1},
+        "started_at": 1000.0,
+        **extra,
+    }
+
+
+def test_tasks_table_shows_model_and_solver_columns(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    summaries = [
+        _task_row("aaa111", "t1", model="openai/gpt-5", solver="react"),
+        _task_row("bbb222", "t2", model="mockllm/model", solver="generate"),
+    ]
+    _print_human_table(summaries)
+    lines = capsys.readouterr().out.splitlines()
+    assert "model" in lines[0] and "solver" in lines[0]
+    row = next(ln for ln in lines if ln.startswith("aaa111"))
+    assert "openai/gpt-5" in row and "react" in row
+
+
+def test_tasks_table_hides_solver_column_when_absent(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # An older server may omit `solver` entirely — drop the column rather
+    # than render it all-blank.
+    _print_human_table([_task_row("aaa111", "t1", model="openai/gpt-5")])
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "model" in header
+    assert "solver" not in header
 
 
 def _sample(
