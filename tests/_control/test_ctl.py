@@ -713,6 +713,29 @@ def test_fetch_summaries_busy_server_skipped_when_degradable(
     assert "try again shortly" in err
 
 
+def test_fetch_summaries_sole_server_rides_full_budget(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A sole busy server gets the full budget — there is no fan-out to protect.
+
+    A stall longer than the degraded budget still resolves in one invocation,
+    keeping the full-budget payload reads behind it reachable.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _DEGRADED_READ_ATTEMPTS, _fetch_summaries
+
+    stalls = _DEGRADED_READ_ATTEMPTS + 1
+    _stub_httpx(
+        monkeypatch,
+        [httpx.ReadTimeout("slow")] * stalls + [[{"task_id": "live"}]],
+    )
+    fetched = _fetch_summaries([_disc(7)], raise_on_busy=True)
+    assert [s["task_id"] for s in fetched.summaries] == ["live"]
+    assert fetched.busy_pids == []
+    assert "retrying" in capsys.readouterr().err
+
+
 def test_sample_detail_read_retries_busy_timeout(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -864,6 +887,7 @@ def _patch_surface(
     summaries: list[dict[str, Any]],
     samples_by_eval: dict[str, list[dict[str, Any]]] | None = None,
     servers: list[Any] | None = None,
+    busy_pids: list[int] | None = None,
 ) -> None:
     """Stub discovery + the HTTP reads so CLI commands run hermetically."""
     monkeypatch.setattr(
@@ -872,7 +896,7 @@ def _patch_surface(
     )
     monkeypatch.setattr(
         "inspect_ai._cli.ctl._fetch_summaries",
-        lambda s, **kwargs: _FetchedSummaries(summaries, []),
+        lambda s, **kwargs: _FetchedSummaries(summaries, busy_pids or []),
     )
     if samples_by_eval is not None:
         monkeypatch.setattr(
@@ -1827,18 +1851,27 @@ def test_sample_list_all_processes_busy_fails_honest(
     (or an empty --json envelope with exit 0) that a polling agent would read
     as nothing-to-see.
     """
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
-    )
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_summaries",
-        lambda s, **kwargs: _FetchedSummaries([], [7]),
-    )
+    _patch_surface(monkeypatch, [], busy_pids=[7])
     result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 1
-    assert "No responsive evals" in result.stderr
+    assert "No tasks visible" in result.stderr
     assert "pid 7 busy" in result.stderr
     assert "No running evals" not in result.output
+
+
+def test_sample_events_all_processes_busy_fails_honest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """All-busy `sample events` exits non-zero rather than emitting done:true.
+
+    The empty done:true page would falsely end a polling loop for an eval
+    whose events may live on the busy pid.
+    """
+    _patch_surface(monkeypatch, [], busy_pids=[7])
+    result = _runner().invoke(ctl_command, ["sample", "events", "t1", "s1", "--json"])
+    assert result.exit_code == 1
+    assert "No tasks visible" in result.stderr
+    assert "done" not in result.stdout
 
 
 def test_scoped_sample_not_found_names_busy_pid(
@@ -1849,21 +1882,45 @@ def test_scoped_sample_not_found_names_busy_pid(
     The target may live on the busy process, so the bare 'No running task
     matching' would mislead; the error names the skipped pid instead.
     """
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
-        lambda: [_DiscServer(7), _DiscServer(8)],
-    )
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_summaries",
-        lambda s, **kwargs: _FetchedSummaries(
-            [_full_summary("bbb222", "t2", pid=8)], [7]
-        ),
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("bbb222", "t2", pid=8)],
+        servers=[_DiscServer(7), _DiscServer(8)],
+        busy_pids=[7],
     )
     result = _runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
     assert result.exit_code == 1
     assert "No running task matching 'aaa111'" in result.stderr
     assert "among responsive processes" in result.stderr
     assert "pid 7 busy" in result.stderr
+
+
+def test_scoped_resolution_caveats_partial_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A name match with a busy-skipped process warns it may be incomplete.
+
+    The busy process could hold an equally-matching task (or one that would
+    have made the query ambiguous), so a match looser than an exact full
+    task id carries a stderr caveat; an exact-id match is provably right
+    (ids are unique) and stays quiet.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("bbb222", "t2", pid=8)],
+        samples_by_eval={"eval_bbb222": [_sample_row("s1")]},
+        servers=[_DiscServer(7), _DiscServer(8)],
+        busy_pids=[7],
+    )
+    runner = _runner()
+
+    result = runner.invoke(ctl_command, ["sample", "list", "t2", "--json"])
+    assert result.exit_code == 0, result.output
+    assert "matched 't2' among responsive processes only" in result.stderr
+
+    result = runner.invoke(ctl_command, ["sample", "list", "bbb222", "--json"])
+    assert result.exit_code == 0, result.output
+    assert "among responsive processes only" not in result.stderr
 
 
 def test_keep_alive_retries_busy_timeout(
