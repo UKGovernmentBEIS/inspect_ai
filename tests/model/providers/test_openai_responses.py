@@ -72,6 +72,19 @@ def test_openai_responses_no_store():
     assert log.status == "success"
 
 
+@skip_if_no_openai
+async def test_openai_responses_metadata_round_trip():
+    """Request metadata sent via extra_body is echoed back as ModelOutput.metadata."""
+    model = get_responses_model(
+        config=GenerateConfig(
+            max_tokens=50,
+            extra_body={"metadata": {"foo": "bar"}},
+        )
+    )
+    output = await model.generate("This is a test string. What are you?")
+    assert output.metadata == {"foo": "bar"}
+
+
 def test_image_generation_call_output():
     """Test that ImageGenerationCall produces ContentImage."""
     from openai.types.responses.response_output_item import ImageGenerationCall
@@ -222,6 +235,85 @@ async def test_responses_api_invalid_prompt_content_filter():
     assert isinstance(output, ModelOutput)
     assert output.stop_reason == "content_filter"
     assert "blocked by content filter" in output.completion
+
+
+async def _generate_responses_with_mock(mock_response):
+    """Run generate_responses() against a mocked client returning mock_response."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    client = MagicMock()
+    client.responses = MagicMock()
+    client.responses.create = AsyncMock(return_value=mock_response)
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    return await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[],
+        tools=[],
+        tool_choice=None,
+        config=GenerateConfig(),
+        background=None,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+    )
+
+
+async def test_responses_api_metadata_surfaced():
+    """Response-level metadata is surfaced as ModelOutput.metadata."""
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        metadata={"safeguards": "flagged"},
+        status="completed",
+    )
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.metadata == {"safeguards": "flagged"}
+
+
+async def test_responses_api_no_metadata():
+    """ModelOutput.metadata is None when the response carries no metadata."""
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+    )
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.metadata is None
 
 
 def test_fix_function_tool_parameters_string_to_dict():

@@ -206,11 +206,17 @@ async def generate_responses(
         # parse out choices
         choices = openai_responses_chat_choices(model_name, model_response, tools)
 
+        # surface response-level `metadata` (echoed request metadata, which
+        # some models augment with additional fields) so callers can read it
+        # without parsing the raw model call
+        response_metadata = getattr(model_response, "metadata", None)
+
         # return output and call
         return ModelOutput(
             model=model_response.model,
             choices=choices,
             usage=model_usage_from_response(model_response),
+            metadata=dict(response_metadata) if response_metadata else None,
         ), model_call
     except BadRequestError as e:
         model_call.set_error(
