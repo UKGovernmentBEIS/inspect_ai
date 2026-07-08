@@ -127,9 +127,14 @@ def _forward_group_options(ctx: click.Context) -> None:
                 f"{ctx.invoked_subcommand}` does not accept. To use it, list "
                 f"instead: `inspect ctl {group.name} list {opt} ...`."
             )
+    # merge into (not over) any pre-existing defaults for the verb
+    existing = dict((ctx.default_map or {}).get(ctx.invoked_subcommand) or {})
     ctx.default_map = {
         **(ctx.default_map or {}),
-        ctx.invoked_subcommand: {name: value for name, (value, _) in given.items()},
+        ctx.invoked_subcommand: {
+            **existing,
+            **{name: value for name, (value, _) in given.items()},
+        },
     }
 
 
@@ -912,7 +917,7 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
         # Query by the task's current eval id (resolved fresh each invocation,
         # so this still works after a retry minted a new one).
         try:
-            target_as_of, samples = _fetch_samples(
+            page = _fetch_samples(
                 target["socket_path"], target["eval_id"], active_since
             )
         except _ServerUnreachable as exc:
@@ -927,9 +932,9 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
                 err=True,
             )
             continue
-        as_of_values.append(target_as_of)
+        as_of_values.append(page.as_of)
         read.append(target)
-        for sample in samples:
+        for sample in page.samples:
             rows.append(
                 {
                     "task_id": target.get("task_id"),
@@ -948,60 +953,68 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
 def _run_sample_list(
     task: str | None, active_since: float | None, as_json: bool
 ) -> None:
-    as_of, targets, read, rows = _list_sample_rows(task, active_since)
-
-    if as_json:
-        click.echo(json_lib.dumps({"as_of": as_of, "samples": rows}, indent=2))
-        return
-
-    if not targets:
-        _echo_no_running_evals()
-        return
-
-    # "(no samples started yet)" is a positive claim; when every target was
-    # warn-and-skipped as unreachable we never saw its samples, so say that.
-    empty = "(no samples started yet)" if read else "(samples unavailable)"
-    if len(targets) == 1:
-        click.echo(_task_header(targets[0]))
-        if not rows:
-            click.echo(empty)
-            return
-        click.echo()
-        _print_samples_table(rows)
-    else:
-        if not rows:
-            click.echo(empty)
-            return
-        _print_samples_table(rows, show_task=True)
+    _run_sample_listing(
+        task,
+        active_since,
+        as_json,
+        select=lambda s: True,
+        empty_read="(no samples started yet)",
+        printer=_print_samples_table,
+    )
 
 
 def _run_sample_errors(task: str | None, as_json: bool) -> None:
-    as_of, targets, read, rows = _list_sample_rows(task, None)
-    errored = [s for s in rows if s.get("error") or (s.get("retries") or 0) > 0]
+    _run_sample_listing(
+        task,
+        None,
+        as_json,
+        select=lambda s: bool(s.get("error") or (s.get("retries") or 0) > 0),
+        empty_read="(no errors or retries)",
+        printer=_print_errors_table,
+    )
+
+
+def _run_sample_listing(
+    task: str | None,
+    active_since: float | None,
+    as_json: bool,
+    *,
+    select: Callable[[dict[str, Any]], bool],
+    empty_read: str,
+    printer: Callable[..., None],
+) -> None:
+    """The shared body of `sample list` / `sample errors`.
+
+    One home for the listing contract: the ``{as_of, samples}`` envelope,
+    the no-targets message, the single-vs-multi-target header/table shape,
+    and the honesty rule that ``empty_read`` (a positive "(none)" claim) is
+    made only for targets whose samples were actually read — a target
+    warn-and-skipped as unreachable gets "(samples unavailable)" instead.
+    """
+    listing = _list_sample_rows(task, active_since)
+    rows = [s for s in listing.rows if select(s)]
 
     if as_json:
-        click.echo(json_lib.dumps({"as_of": as_of, "samples": errored}, indent=2))
+        click.echo(json_lib.dumps({"as_of": listing.as_of, "samples": rows}, indent=2))
         return
 
-    if not targets:
+    if not listing.targets:
         _echo_no_running_evals()
         return
 
-    # As in `_run_sample_list`: don't assert "(no errors or retries)" for
-    # targets whose samples read was warn-and-skipped as unreachable.
-    empty = "(no errors or retries)" if read else "(samples unavailable)"
-    if len(targets) == 1:
-        click.echo(_task_header(targets[0]))
-        if not errored:
+    empty = empty_read if listing.read else "(samples unavailable)"
+    if len(listing.targets) == 1:
+        click.echo(_task_header(listing.targets[0]))
+        if not rows:
             click.echo(empty)
             return
         click.echo()
-        _print_errors_table(errored)
+        printer(rows)
     else:
-        if not errored:
+        if not rows:
             click.echo(empty)
             return
-        _print_errors_table(errored, show_task=True)
+        printer(rows, show_task=True)
 
 
 def _run_sample_show(
@@ -1023,7 +1036,7 @@ def _run_sample_show(
     # The error detail is the authoritative core; fold in the sample's listing
     # row for the summary fields (timing / tokens / messages) it doesn't carry.
     try:
-        _as_of, samples = _fetch_samples(target["socket_path"], target["eval_id"])
+        samples = _fetch_samples(target["socket_path"], target["eval_id"]).samples
     except _ServerUnreachable as exc:
         # The detail already in hand answers the question; the process exiting
         # between the two reads shouldn't discard it.
@@ -1970,17 +1983,24 @@ def _exit_samples_unreachable(eval_id: str, exc: _ServerUnreachable) -> NoReturn
     raise click.exceptions.Exit(code=1) from exc
 
 
+class _SamplesPage(NamedTuple):
+    """One eval's samples read (see :func:`_fetch_samples`)."""
+
+    as_of: float
+    samples: list[dict[str, Any]]
+
+
 def _fetch_samples(
     socket_path: str, eval_id: str, active_since: float | None = None
-) -> tuple[float, list[dict[str, Any]]]:
+) -> _SamplesPage:
     """Query one control server for an eval's samples.
 
-    Returns ``(as_of, samples)`` from the server's ``{as_of, samples}``
-    envelope — ``as_of`` is stamped server-side before the listing is built,
-    so feeding it back as the next ``active_since`` can't miss changes that
-    landed during the read. With ``active_since`` (unix ts), restricts to
-    samples started or updated since then — the recency delta. Tolerates an
-    older server's bare array (stamping ``as_of`` client-side, pre-request).
+    Returns the server's ``{as_of, samples}`` envelope — ``as_of`` is stamped
+    server-side before the listing is built, so feeding it back as the next
+    ``active_since`` can't miss changes that landed during the read. With
+    ``active_since`` (unix ts), restricts to samples started or updated since
+    then — the recency delta. Tolerates an older server's bare array
+    (stamping ``as_of`` client-side, pre-request).
 
     Raises :class:`_ServerUnreachable` on a non-retryable read failure; the
     caller decides whether to warn-and-skip (an unscoped fan-out over many
@@ -1997,11 +2017,13 @@ def _fetch_samples(
     if isinstance(page, dict):
         samples = page.get("samples")
         as_of = page.get("as_of")
-        return (
-            float(as_of) if isinstance(as_of, (int, float)) else fallback_as_of,
-            samples if isinstance(samples, list) else [],
+        return _SamplesPage(
+            as_of=float(as_of) if isinstance(as_of, (int, float)) else fallback_as_of,
+            samples=samples if isinstance(samples, list) else [],
         )
-    return fallback_as_of, page if isinstance(page, list) else []
+    return _SamplesPage(
+        as_of=fallback_as_of, samples=page if isinstance(page, list) else []
+    )
 
 
 def _fetch_sample_detail(

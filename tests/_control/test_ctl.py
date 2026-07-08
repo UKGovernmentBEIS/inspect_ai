@@ -18,6 +18,7 @@ from inspect_ai._cli.ctl import (
     _print_samples_table,
     _resolve_target_eval,
     _resolve_target_server,
+    _SamplesPage,
     ctl_command,
 )
 from inspect_ai._control.discovery import DiscoveredControlServer
@@ -730,9 +731,9 @@ def _patch_surface(
     if samples_by_eval is not None:
         monkeypatch.setattr(
             "inspect_ai._cli.ctl._fetch_samples",
-            lambda socket_path, eval_id, active_since=None: (
-                123.0,
-                samples_by_eval.get(eval_id, []),
+            lambda socket_path, eval_id, active_since=None: _SamplesPage(
+                as_of=123.0,
+                samples=samples_by_eval.get(eval_id, []),
             ),
         )
 
@@ -838,12 +839,12 @@ def _patch_samples_unreachable_for(
 
     def fake_samples(
         socket_path: Any, eval_id: str, active_since: float | None = None
-    ) -> tuple[float, list[dict[str, Any]]]:
+    ) -> _SamplesPage:
         if eval_id == gone_eval_id:
             exc = _ServerUnreachable()
             exc.__cause__ = httpx.ConnectError("refused")
             raise exc
-        return (123.0, [_sample_row("s2")])
+        return _SamplesPage(as_of=123.0, samples=[_sample_row("s2")])
 
     monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
 
@@ -996,7 +997,7 @@ def test_sample_show_busy_listing_keeps_detail(
     """
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
 
-    def exhausted(*args: Any, **kwargs: Any) -> tuple[float, list[dict[str, Any]]]:
+    def exhausted(*args: Any, **kwargs: Any) -> _SamplesPage:
         raise click.exceptions.Exit(code=1)
 
     monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", exhausted)
@@ -1352,9 +1353,9 @@ def test_group_option_forwards_value_and_verb_wins(
 
     def fake_samples(
         socket_path: Any, eval_id: str, active_since: float | None = None
-    ) -> tuple[float, list[dict[str, Any]]]:
+    ) -> _SamplesPage:
         captured["active_since"] = active_since
-        return (123.0, [])
+        return _SamplesPage(as_of=123.0, samples=[])
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
