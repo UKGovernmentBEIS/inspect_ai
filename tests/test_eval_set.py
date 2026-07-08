@@ -52,6 +52,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util._limit import TokenLimit
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
@@ -665,6 +666,25 @@ def test_task_identifier_with_model_configs():
         resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
     )
     run_eval_set(create_resolved_tasks)
+
+
+def test_task_identifier_with_token_limit_type():
+    model = get_model("mockllm/model")
+    resolved = resolve_tasks([hello_world()], {}, model, None, None, None)[0]
+
+    def identifier(token_limit: int | TokenLimit | None) -> str:
+        return task_identifier(
+            resolved,
+            EvalSetArgsInTaskIdentifier(
+                config=GenerateConfig(), token_limit=token_limit
+            ),
+        )
+
+    # an all-tokens TokenLimit hashes identically to the plain int encoding
+    # (existing eval-set identifiers are unchanged)
+    assert identifier(1000) == identifier(TokenLimit(tokens=1000, type="all"))
+    # output-metered limits hash distinctly
+    assert identifier(1000) != identifier(TokenLimit(tokens=1000, type="output"))
 
 
 def test_task_identifier_with_redacted_model_args():
