@@ -15,6 +15,7 @@ from click.testing import CliRunner
 
 from inspect_ai._cli.ctl import (
     _ConfigResult,
+    _FetchedSummaries,
     _print_human_table,
     _print_keep_alive_footer,
     _print_samples_table,
@@ -549,9 +550,7 @@ def _stub_httpx(
             return self._next("patches")
 
         def request(self, method: str, path: str, params: object = None) -> _Resp:
-            return self._next(
-                {"get": "gets", "post": "posts", "patch": "patches"}[method]
-            )
+            return getattr(self, method)(path, params)
 
     monkeypatch.setattr("inspect_ai._cli.ctl.httpx.Client", _Client)
     monkeypatch.setattr("inspect_ai._cli.ctl.httpx.HTTPTransport", lambda *a, **k: None)
@@ -684,7 +683,9 @@ def test_get_with_retry_busy_raises_without_terminal_echo(
         )
     assert counter["gets"] == 2
     err = capsys.readouterr().err
-    assert err.count("retrying") == 2
+    # the final attempt doesn't promise a retry that never comes
+    assert err.count("retrying") == 1
+    assert "attempt 2/2" in err
     assert "gave up" not in err
 
 
@@ -704,8 +705,9 @@ def test_fetch_summaries_busy_server_skipped_when_degradable(
         monkeypatch,
         [httpx.ReadTimeout("slow")] * _DEGRADED_READ_ATTEMPTS + [[{"task_id": "live"}]],
     )
-    summaries = _fetch_summaries([_disc(7), _disc(8)], raise_on_busy=True)
-    assert [s["task_id"] for s in summaries] == ["live"]
+    fetched = _fetch_summaries([_disc(7), _disc(8)], raise_on_busy=True)
+    assert [s["task_id"] for s in fetched.summaries] == ["live"]
+    assert fetched.busy_pids == [7]
     err = capsys.readouterr().err
     assert "Skipping pid 7" in err
     assert "try again shortly" in err
@@ -725,6 +727,35 @@ def test_sample_detail_read_retries_busy_timeout(
     )
     detail = _fetch_sample_detail("/tmp/x.sock", "eval_a", "s1", 1)
     assert detail == {"sample_id": "s1", "epoch": 1}
+    assert counter["gets"] == 2
+    assert "retrying" in capsys.readouterr().err
+
+
+def test_sample_events_read_retries_busy_timeout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The authoritative events read rides the narrated busy-retry policy."""
+    import httpx
+
+    from inspect_ai._cli.ctl import _fetch_sample_events
+
+    counter = _stub_httpx(
+        monkeypatch,
+        [httpx.ReadTimeout("slow"), {"events": [], "next": None, "done": True}],
+    )
+    page = _fetch_sample_events(
+        "/tmp/x.sock",
+        "eval_a",
+        "s1",
+        1,
+        cursor=None,
+        tail=5,
+        types=None,
+        full=False,
+        since_time=None,
+        until=None,
+    )
+    assert page == {"events": [], "next": None, "done": True}
     assert counter["gets"] == 2
     assert "retrying" in capsys.readouterr().err
 
@@ -761,7 +792,7 @@ def test_fetch_summaries_skips_gone_server_but_aggregates_live_one(
         monkeypatch,
         [httpx.ConnectError("refused"), [{"task_id": "live"}]],
     )
-    summaries = _fetch_summaries([_disc(7), _disc(8)])
+    summaries = _fetch_summaries([_disc(7), _disc(8)]).summaries
     assert [s["task_id"] for s in summaries] == ["live"]
     assert summaries[0]["pid"] == 8
     assert summaries[0]["socket_path"] == "/tmp/8.sock"
@@ -840,7 +871,8 @@ def _patch_surface(
         lambda: servers if servers is not None else [_DiscServer(7)],
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_summaries", lambda s, **kwargs: summaries
+        "inspect_ai._cli.ctl._fetch_summaries",
+        lambda s, **kwargs: _FetchedSummaries(summaries, []),
     )
     if samples_by_eval is not None:
         monkeypatch.setattr(
@@ -1126,13 +1158,11 @@ def test_sample_show_busy_listing_keeps_detail(
     from inspect_ai._cli.ctl import _ServerBusy
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-
-    def exhausted(*args: Any, **kwargs: Any) -> _SamplesPage:
-        raise _ServerBusy(
-            "no response after 8 attempts — the eval's event loop is busy"
-        )
-
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", exhausted)
+    _patch_samples_unreachable_for(
+        monkeypatch,
+        "eval_aaa111",
+        exc=_ServerBusy("no response after 2 attempts — the eval's event loop is busy"),
+    )
     detail = {
         "sample_id": "s1",
         "epoch": 1,
@@ -1681,8 +1711,9 @@ def test_fetch_summaries_404_names_version_skew(
     from inspect_ai._cli.ctl import _fetch_summaries
 
     _stub_httpx(monkeypatch, [(404, {"error": "not found"})])
-    summaries = _fetch_summaries([_disc(7)])
-    assert summaries == []
+    fetched = _fetch_summaries([_disc(7)])
+    assert fetched.summaries == []
+    assert fetched.busy_pids == []
     err = capsys.readouterr().err
     assert "different inspect version" in err
     assert "just exited" not in err
@@ -1785,6 +1816,54 @@ def test_sample_list_unscoped_skips_busy_eval(
     assert [s["task_id"] for s in payload["samples"]] == ["bbb222"]
     assert "Skipping eval eval_aaa111" in result.stderr
     assert "try again shortly" in result.stderr
+
+
+def test_sample_list_all_processes_busy_fails_honest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every process busy-skipped → an honest non-zero exit, not 'nothing running'.
+
+    An alive-but-busy eval must never produce the 'No running evals' message
+    (or an empty --json envelope with exit 0) that a polling agent would read
+    as nothing-to-see.
+    """
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_summaries",
+        lambda s, **kwargs: _FetchedSummaries([], [7]),
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 1
+    assert "No responsive evals" in result.stderr
+    assert "pid 7 busy" in result.stderr
+    assert "No running evals" not in result.output
+
+
+def test_scoped_sample_not_found_names_busy_pid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scoped miss with a busy-skipped process qualifies the not-found error.
+
+    The target may live on the busy process, so the bare 'No running task
+    matching' would mislead; the error names the skipped pid instead.
+    """
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_DiscServer(7), _DiscServer(8)],
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_summaries",
+        lambda s, **kwargs: _FetchedSummaries(
+            [_full_summary("bbb222", "t2", pid=8)], [7]
+        ),
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
+    assert result.exit_code == 1
+    assert "No running task matching 'aaa111'" in result.stderr
+    assert "among responsive processes" in result.stderr
+    assert "pid 7 busy" in result.stderr
 
 
 def test_keep_alive_retries_busy_timeout(
