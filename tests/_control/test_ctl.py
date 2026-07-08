@@ -1086,6 +1086,70 @@ def test_config_set_buffer_knob_errors_when_no_buffer(
     assert "still applied" in both.stderr
 
 
+def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A limits knob the server rejected is not claimed as 'still applied'.
+
+    And the server's not-adjustable warnings are surfaced on the error path
+    rather than swallowed by the exit.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._exec_limits",
+        lambda *a, **k: {
+            "max_samples": {"adjustable": False, "tracks_adaptive": True},
+            "max_sandboxes": [],
+            "adaptive": [],
+            "buffer": None,
+            "requested": {"max_samples": 5, "log_buffer": 2},
+            "warnings": [
+                "max_samples is not adjustable for this task (it uses adaptive "
+                "connection concurrency, or ran no samples in this process).",
+                "log_buffer/log_shared are not adjustable for this task (no "
+                "live sample buffer — e.g. a reused log, or a superseded "
+                "retry attempt).",
+            ],
+            "dry_run": False,
+        },
+    )
+    result = _runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "5"]
+    )
+    assert result.exit_code == 1
+    assert "has no sample buffer" in result.stderr
+    assert "still applied" not in result.stderr
+    assert "! max_samples is not adjustable" in result.stderr
+    # the buffer warning restates the headline error and is not repeated
+    assert "! log_buffer" not in result.stderr
+
+
+def test_config_task_knob_with_only_orphan_task_says_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A just-starting attempt (no task id yet) gets retry guidance.
+
+    Not the impossible 'pass a task id to choose one' over a table whose id
+    cell is blank.
+    """
+    _patch_surface(monkeypatch, [_full_summary("", "t1", status="running")])
+    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 1
+    assert "hasn't finished registering yet" in result.stderr
+    assert "retry in a moment" in result.stderr
+    assert "pass a task id" not in result.stderr
+
+
+def test_config_task_knob_with_only_pre_task_id_logs_says_unaddressable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("", "t1", status="completed")])
+    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 1
+    assert "predate task ids" in result.stderr
+    assert "pass a task id" not in result.stderr
+
+
 def test_config_log_shared_rejects_below_one() -> None:
     """--log-shared validates up front like --log-buffer (IntRange min=1)."""
     result = _runner().invoke(ctl_command, ["config", "--log-shared", "0"])

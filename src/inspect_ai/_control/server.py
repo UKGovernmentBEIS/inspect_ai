@@ -13,7 +13,7 @@ without the surface — eval correctness never depends on the control
 channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
-Current scope is the phase 1-2 read surface: ``GET /evals`` (per-task
+Current scope is the phase 1-2 read surface: ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (sample listing, with an
 ``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
 detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
@@ -123,7 +123,7 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
 # intent. Module-level (not per-ControlServer) because the eval-set park binds
 # a FRESH server after the run's server has torn down — a per-server flag
 # couldn't carry the intent across that boundary — and it's the single source
-# of truth the ``/evals`` endpoint reports as each task's keep-alive status.
+# of truth the ``/tasks`` endpoint reports as each task's keep-alive status.
 # Reset at the outermost run boundary (``eval_async`` for standalone evals,
 # ``eval_set`` for eval-sets).
 _keep_alive = False
@@ -150,7 +150,7 @@ def request_release() -> None:
 def keep_alive_intent() -> bool:
     """Whether this process will park after the eval finishes.
 
-    The live value the ``/evals`` endpoint reports per task and that the parks
+    The live value the ``/tasks`` endpoint reports per task and that the parks
     gate on — the latest of the launch flag, ``POST /keep``, and ``POST
     /release`` (last-write-wins).
     """

@@ -1347,23 +1347,51 @@ def _run_config(
     # reports it as None. On a view that's just a knob with nothing to adjust,
     # reported as a warning like the limits knobs. Only an explicit
     # --log-buffer/--log-shared is an error (there's nothing to apply it to) —
-    # and since any limits set has already landed in the same PATCH, the error
-    # must not read as "nothing applied".
+    # and since any limits set has already landed in the same PATCH, the
+    # error must say which of those knobs actually applied (a requested knob
+    # the server reported as not adjustable did NOT), and surface the
+    # server's warnings that this exit would otherwise swallow.
     buffer_warnings: list[str] = []
     if scope.task_id is not None and limits_view.get("buffer") is None:
         if set_buffer:
+            applied_names = [
+                name
+                for name, value, adjustable in (
+                    (
+                        "--max-samples",
+                        max_samples,
+                        bool((limits_view.get("max_samples") or {}).get("adjustable")),
+                    ),
+                    (
+                        "--max-sandboxes",
+                        max_sandboxes,
+                        bool(limits_view.get("max_sandboxes")),
+                    ),
+                    (
+                        "--max-connections",
+                        max_connections,
+                        bool(limits_view.get("adaptive")),
+                    ),
+                )
+                if value is not None and adjustable
+            ]
             click.echo(
                 f"Task '{scope.task_id}' has no sample buffer in this "
                 "process (e.g. a reused log, or a retry attempt that's "
                 "been superseded) — --log-buffer/--log-shared cannot be "
                 "set for this task."
                 + (
-                    " The other requested knobs were still applied."
-                    if set_limits and not dry_run
+                    f" The other requested knobs ({', '.join(applied_names)}) "
+                    "were still applied."
+                    if applied_names and not dry_run
                     else ""
                 ),
                 err=True,
             )
+            for warning in limits_view.get("warnings") or []:
+                # the buffer warning restates the headline error; skip it
+                if not warning.startswith("log_buffer"):
+                    click.echo(f"! {warning}", err=True)
             raise click.exceptions.Exit(code=1)
         buffer_warnings.append(
             "log_buffer/log_shared are not adjustable for this task "
@@ -1563,10 +1591,28 @@ def _resolve_scope(
             siblings=len(tasks_in_proc),
         )
     if per_task_option is not None:
+        addressable = [c for c in candidates if str(c.get("task_id") or "")]
+        if not addressable:
+            # no candidate carries a task id, so "pass a task id" would be
+            # impossible advice — either a just-starting attempt whose
+            # registration hasn't landed yet (status running/pending), or
+            # pre-task-id reused logs (completed)
+            starting = any(
+                c.get("status") in ("running", "pending") for c in candidates
+            )
+            reason = (
+                "the running task hasn't finished registering yet — retry in a moment"
+                if starting
+                else "this process's tasks predate task ids (older reused "
+                "logs) and can't be targeted by task-keyed directives"
+            )
+            click.echo(f"{per_task_option} needs a task id, but {reason}.", err=True)
+            raise click.exceptions.Exit(code=1)
+        count = len(candidates)
         _exit_ambiguous(
             candidates,
             f"{per_task_option} targets a single task, but this process is "
-            f"running {len(candidates)} tasks",
+            f"running {count} task{'s' if count != 1 else ''}",
         )
     return _DirectiveScope(
         socket_path=socket_path,
