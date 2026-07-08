@@ -91,7 +91,7 @@ async def sandboxenv_context(
     sample: Sample,
 ) -> AsyncGenerator[None, None]:
     # resolve sandbox
-    sandbox = await resolve_sandbox(sandbox, sample)
+    sandbox = await resolve_sandbox(sandbox, sample, task_name)
     if not sandbox:
         raise ValueError("sandboxenv_context called with no sandbox specified")
 
@@ -252,7 +252,7 @@ async def resolve_sandbox_for_task_and_sample(
     # (sandboxenv_context() -> resolve_sandbox()), so that the set of sandboxes we
     # initialize here matches what each sample actually uses at runtime -- including
     # docker-compatible per-sample configs (e.g. a per-sample ComposeConfig).
-    sandbox = await resolve_sandbox(sandbox, sample)
+    sandbox = await resolve_sandbox(sandbox, sample, task.name)
     if sandbox is not None:
         # see if there are environment variables required for init of this sample
         run_dir = task_run_dir(task)
@@ -273,6 +273,7 @@ async def resolve_sandbox_for_task_and_sample(
 async def resolve_sandbox(
     sandbox: SandboxEnvironmentSpec | None,
     sample: Sample,
+    task_name: str | None = None,
 ) -> SandboxEnvironmentSpec | None:
     # resolved sandbox
     resolved_sandbox: SandboxEnvironmentSpec | None = None
@@ -298,20 +299,17 @@ async def resolve_sandbox(
             sandbox_config: SandboxEnvironmentConfigType | None = sample.sandbox.config
         else:
             sandbox_config = task_sandbox.config
+            # a docker-compatible sample config only reaches this branch when
+            # the task's sandbox type differs and isn't docker-compatible
             if (
                 sample.sandbox is not None
                 and sample.sandbox.config is not None
-                and sample.sandbox.type != task_sandbox.type
                 and is_docker_compatible_config(sample.sandbox.config)
-                and not is_docker_compatible_sandbox_type(task_sandbox.type)
             ):
-                # the sample declares a Dockerfile/compose.yaml config, but the
-                # effective sandbox type doesn't understand it (either the task
-                # itself uses an incompatible type, or an eval-level override
-                # does) -- the sample's config is silently dropped otherwise.
+                subject = f"A sample in task '{task_name}'" if task_name else "A sample"
                 warn_once(
                     logger,
-                    f"A sample declares sandbox '{sample.sandbox.type}' with a "
+                    f"{subject} declares sandbox '{sample.sandbox.type}' with a "
                     "Dockerfile/compose.yaml configuration, but the effective "
                     f"sandbox type is '{task_sandbox.type}', which does not "
                     "support that configuration. The sample's compose services, "

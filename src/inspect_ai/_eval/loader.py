@@ -423,20 +423,12 @@ def resolve_task_sandbox(
                     resolved_sandbox = SandboxEnvironmentSpec(
                         resolved_sandbox.type, task.sandbox.config
                     )
-                elif (
-                    sandbox is not None
-                    and resolved_sandbox.type != task.sandbox.type
-                    and is_docker_compatible_config(task.sandbox.config)
-                ):
-                    # the eval overrode the task's sandbox type to one that
-                    # doesn't understand Dockerfile/compose.yaml, so the task's
-                    # config (and whatever images/packages/services it provides)
-                    # is silently dropped -- let the user know.
+                elif is_docker_compatible_config(task.sandbox.config):
                     warn_once(
                         logger,
                         f"Task '{task.name}' declares sandbox '{task.sandbox.type}' "
                         "with a Dockerfile/compose.yaml configuration, but the "
-                        f"sandbox was overridden to '{resolved_sandbox.type}', which "
+                        f"'{resolved_sandbox.type}' sandbox specified for the eval "
                         "does not support that configuration. The task's compose "
                         "services, packages, and tools will not be available in "
                         f"the '{resolved_sandbox.type}' sandbox.",

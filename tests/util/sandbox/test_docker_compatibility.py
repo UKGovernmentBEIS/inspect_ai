@@ -1,6 +1,6 @@
 """Tests for Docker compatibility functionality in sandbox environments."""
 
-from typing import Any
+from collections.abc import Iterator
 
 import pytest
 
@@ -292,7 +292,7 @@ class TestIsDockerfileTypeGuard:
 
 
 @pytest.fixture
-def _warn_once_messages() -> Any:
+def _warn_once_messages() -> Iterator[list[str]]:
     # warn_once dedupes via a module-level list; clear it and yield it so the
     # test can assert on what was emitted (see test_anthropic.py's fixture of
     # the same name -- caplog isn't reliable once some earlier test has
@@ -466,12 +466,14 @@ class TestResolveSandboxDockerCompatibility:
             sandbox=("docker", "compose.yaml"),
         )
 
-        result = await resolve_sandbox(task_sandbox, sample)
+        result = await resolve_sandbox(task_sandbox, sample, task_name="my_task")
 
         assert result is not None
         assert result.config == "task-config.yaml"
         assert any(
-            "mock_not_docker_compatible" in message and "does not support" in message
+            "task 'my_task'" in message
+            and "mock_not_docker_compatible" in message
+            and "does not support" in message
             for message in _warn_once_messages
         )
 
@@ -605,10 +607,33 @@ class TestResolveTaskSandboxDockerCompatibility:
             for message in _warn_once_messages
         )
 
-    def test_no_override_drop_no_warning(
+    def test_same_type_override_drop_warns(
         self, tmp_path, _warn_once_messages: list[str]
     ):
-        """No warning when there's no eval-level override (task sandbox used as-is)."""
+        """A bare same-type override that strips the task's compose.yaml should warn."""
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.task import Task
+
+        task = Task(
+            dataset=None,
+            sandbox=("mock_not_docker_compatible", "compose.yaml"),
+        )
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        result = resolve_task_sandbox(task, "mock_not_docker_compatible")
+
+        assert result is not None
+        assert result.config is None
+        assert any(
+            "mock_not_docker_compatible" in message and "does not support" in message
+            for message in _warn_once_messages
+        )
+
+    def test_no_override_keeps_config_no_warning(
+        self, tmp_path, _warn_once_messages: list[str]
+    ):
+        """No eval-level override: task sandbox config is kept and no warning fires."""
         from inspect_ai._eval.loader import resolve_task_sandbox
         from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
         from inspect_ai._eval.task.task import Task
@@ -622,6 +647,8 @@ class TestResolveTaskSandboxDockerCompatibility:
         result = resolve_task_sandbox(task, None)
 
         assert result is not None
+        assert isinstance(result.config, str)
+        assert result.config.endswith("compose.yaml")
         assert not _warn_once_messages
 
     def test_task_non_docker_config_not_forwarded(self, tmp_path):
