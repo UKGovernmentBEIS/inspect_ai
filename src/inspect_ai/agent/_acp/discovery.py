@@ -112,7 +112,7 @@ def list_discovered_evals() -> list[DiscoveredEval]:
 
     Sorted most-recently-started first. Stale files (dead PID,
     malformed JSON, missing fields) are silently skipped — same
-    resilience contract as :func:`cleanup_stale_discovery_files`.
+    resilience contract as :func:`list_alive_discovery_entries`.
 
     Uses the shared :func:`list_alive_discovery_entries` helper to
     walk the directory + filter on liveness, then applies the
