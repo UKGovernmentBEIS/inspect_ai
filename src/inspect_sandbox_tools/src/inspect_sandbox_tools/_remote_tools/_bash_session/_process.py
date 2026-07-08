@@ -8,9 +8,8 @@ from ..._util.timeout_event import TimeoutEvent
 from ..._util.user_switch import get_home_dir, make_preexec
 from .tool_types import InteractResult
 
-# Keep each JSON-RPC response below the host exec-output cap.
+# Keep accumulated PTY output bounded even if the command writes indefinitely.
 _DEFAULT_MAX_BASH_SESSION_RESPONSE_BYTES = 10 * 1024**2
-_JSON_RPC_RESPONSE_HEADROOM_BYTES = 64 * 1024
 _TRUNCATION_NOTICE_BUDGET = 512
 
 
@@ -195,8 +194,7 @@ def _bash_session_output_limit(max_output_bytes: int | None) -> int:
     if max_output_bytes is None or max_output_bytes <= 0:
         max_output_bytes = _DEFAULT_MAX_BASH_SESSION_RESPONSE_BYTES
 
-    headroom = min(max_output_bytes // 20, _JSON_RPC_RESPONSE_HEADROOM_BYTES)
-    return max(1, max_output_bytes - headroom)
+    return max(1, max_output_bytes)
 
 
 def _human_readable_size(size_bytes: int) -> str:

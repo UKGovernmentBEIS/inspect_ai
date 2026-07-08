@@ -15,6 +15,12 @@ from inspect_sandbox_tools._agent_bridge.proxy import run_model_proxy_server
 from inspect_sandbox_tools._cli.server import main as server_main
 from inspect_sandbox_tools._util.common_types import JSONRPCResponseJSON
 from inspect_sandbox_tools._util.constants import SERVER_DIR, SOCKET_PATH
+from inspect_sandbox_tools._util.json_rpc_chunking import (
+    JSON_RPC_RESPONSE_CHUNK_METHOD,
+    chunk_json_rpc_response_if_needed,
+    ensure_json_rpc_response_chunk_dir,
+    handle_json_rpc_response_chunk_request,
+)
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
 from inspect_sandbox_tools._util.user_switch import get_home_dir, switch_user
@@ -64,16 +70,21 @@ def healthcheck():
 # {"jsonrpc": "2.0", "method": "editor", "id": 666, "params": {"command": "view", "path": "/tmp"}}
 # {"jsonrpc": "2.0", "method": "bash", "id": 666, "params": {"command": "ls ~/Downloads"}}
 async def _exec(request: str | None) -> None:
+    ensure_json_rpc_response_chunk_dir()
     in_process_tools = load_tools("inspect_sandbox_tools._in_process_tools")
 
     request_json_str = request or sys.stdin.read().strip()
-    tool_name = JSONRPCIncoming.model_validate_json(request_json_str).method
+    request_data = json.loads(request_json_str)
+    tool_name = JSONRPCIncoming.model_validate(request_data).method
     assert isinstance(tool_name, str)
+
+    if tool_name == JSON_RPC_RESPONSE_CHUNK_METHOD:
+        print(handle_json_rpc_response_chunk_request(request_data))
+        return
 
     # For in-process tools, extract _run_as_user and setuid before dispatching.
     # The CLI is short-lived (one invocation per request), so in-process setuid is safe.
     if tool_name in in_process_tools:
-        request_data = json.loads(request_json_str)
         run_as_user = None
         if isinstance(request_data.get("params"), dict):
             run_as_user = request_data["params"].pop("_run_as_user", None)
@@ -86,13 +97,12 @@ async def _exec(request: str | None) -> None:
             switch_user(run_as_user)
             os.environ["HOME"] = get_home_dir(run_as_user)
 
-    print(
-        await (
-            _dispatch_local_method
-            if tool_name in in_process_tools
-            else _dispatch_remote_method
-        )(request_json_str)
-    )
+    response = await (
+        _dispatch_local_method
+        if tool_name in in_process_tools
+        else _dispatch_remote_method
+    )(request_json_str)
+    print(chunk_json_rpc_response_if_needed(request_data, response))
 
 
 async def _dispatch_local_method(request_json_str: str) -> JSONRPCResponseJSON:
