@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Logging: Atomic write of local eval (`.eval`) and JSON (`.json`) log files on flush and finalization. Writes go to a temp file in the target's directory, are `fsync`'d, then atomically renamed via `os.replace()`, preventing corruption from interrupted writes (e.g. disk-full). Header-only edits (viewer score edits) remain in-place; remote (S3/Azure/GCS) writes continue to use `AsyncFilesystem`. (#2949)
+- Logging: Local eval (`.eval`) and JSON (`.json`) log files are now written atomically (temp file + `fsync` + rename), preventing corruption from interrupted writes such as disk-full or process crash. (#2949)
 - Model API: New `openai-api-completions` provider for the legacy `/v1/completions` endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with `vllm-completions`.
 - Model API: `openai-api-completions` and `vllm-completions` accept pre-tokenized prompts via `ChatMessage.metadata["prompt_token_ids"]`.
 - Agent Bridge: Sandbox model proxy now returns an HTTP 400 error for malformed requests (missing/empty `model`, missing `messages`/`input`, or a non-object body) instead of crashing the sample. (#4187)

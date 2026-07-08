@@ -4,11 +4,13 @@ import os
 import stat
 import sys
 from pathlib import Path
+from typing import Literal
 from unittest import mock
 
 import pytest
 
 from inspect_ai._util.atomic_write import atomic_write, atomic_write_bytes
+from inspect_ai.log import EvalLog, read_eval_log, write_eval_log
 
 
 class TestAtomicWriteBasics:
@@ -188,14 +190,6 @@ class TestAtomicWriteEdgeCases:
 class TestAtomicWriteInvalidInputs:
     """Test error handling for invalid inputs."""
 
-    def test_invalid_mode(self, tmp_path: Path) -> None:
-        """Test error raised for non-wb mode."""
-        target = tmp_path / "test.dat"
-
-        with pytest.raises(ValueError, match="only supports binary write mode"):
-            with atomic_write(str(target), mode="rb"):
-                pass
-
     def test_creates_missing_parent_directory(self, tmp_path: Path) -> None:
         """Parent directories are auto-created (matches fsspec's local writer)."""
         target = tmp_path / "a" / "b" / "c.dat"
@@ -307,4 +301,42 @@ class TestAtomicWriteSymlinks:
         assert real.read_bytes() == b"new", "the referent must be updated"
         assert link.read_bytes() == b"new"
         # temp file lands next to the real target and is cleaned up
+        assert not list(tmp_path.glob(".inspect_tmp_*"))
+
+
+class TestRecorderIntegration:
+    """Local recorder writes must route through the atomic-write path.
+
+    The recorders branch on ``filesystem(...).is_local()`` to pick atomic
+    vs. remote writes; a regression in that branching would pass the
+    unit tests above silently. Spying on ``os.replace`` proves the local
+    write actually went temp-file-then-rename.
+    """
+
+    @pytest.fixture
+    def sample_log(self) -> EvalLog:
+        log_file = Path(__file__).parent / "test_eval_log" / "log_formats.json"
+        return read_eval_log(str(log_file))
+
+    @pytest.mark.parametrize("format", ["eval", "json"])
+    def test_local_write_is_atomic(
+        self, sample_log: EvalLog, tmp_path: Path, format: Literal["eval", "json"]
+    ) -> None:
+        target = tmp_path / f"log.{format}"
+
+        with mock.patch("os.replace", wraps=os.replace) as replace_spy:
+            write_eval_log(sample_log, str(target), format=format)
+
+        renamed_to = [
+            Path(call.args[1]).resolve() for call in replace_spy.call_args_list
+        ]
+        assert target.resolve() in renamed_to, (
+            f"local {format} write did not go through the atomic rename path"
+        )
+
+        # content survives the atomic path and no temp files leak
+        written = read_eval_log(str(target), format=format)
+        assert written.model_dump(exclude={"location"}) == sample_log.model_dump(
+            exclude={"location"}
+        )
         assert not list(tmp_path.glob(".inspect_tmp_*"))

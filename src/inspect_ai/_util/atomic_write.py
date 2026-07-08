@@ -14,6 +14,21 @@ The atomic write pattern implemented here:
 This approach ensures the target file is never left in a partially
 written or corrupted state.
 
+Known trade-offs (accepted):
+
+- Transient 2x disk usage: the temp file and the old target coexist until
+  the rename, so a write needs free space for a full extra copy. On a
+  nearly-full disk the write fails earlier (ENOSPC on the temp file) but
+  the previous valid target survives — which is the point of the pattern.
+- Windows reader contention: ``os.replace()`` needs DELETE access on the
+  target, which Windows denies while another process holds the file open
+  without ``FILE_SHARE_DELETE`` (Python's ``open()`` does not request it).
+  A viewer reading a log mid-flush can therefore cause ``PermissionError``
+  where the previous truncate-in-place write would have succeeded. Viewer
+  reads are short-lived so the window is small, and the failed flush
+  leaves the previous valid log intact; this is an accepted risk rather
+  than something we retry or fall back around.
+
 Scope: local filesystem only. Remote stores (S3, Azure, GCS) already
 provide atomic uploads at the provider level (S3 ``PutObject``, Azure
 Blob upload, GCS upload), and inspect_ai consolidates remote I/O on
@@ -81,7 +96,6 @@ def _create_local_tempfile(target_dir: str) -> tuple[int, str]:
 @contextmanager
 def atomic_write(
     target_path: str,
-    mode: str = "wb",
     fsync: bool = True,
 ) -> Iterator[BinaryIO]:
     """Context manager for atomic local-file writes with durability guarantees.
@@ -97,16 +111,15 @@ def atomic_write(
             (``s3://``, ``gs://``, etc.) raise ``ValueError``. Use
             :class:`~inspect_ai._util.asyncfiles.AsyncFilesystem` for
             remote writes.
-        mode: File mode. Only ``"wb"`` is supported.
         fsync: Whether to ``fsync()`` the temp file before renaming.
 
     Yields:
-        A binary file handle. Writes go to the temporary file; the move
-        to ``target_path`` happens on successful exit.
+        A binary file handle (opened ``"wb"``). Writes go to the temporary
+        file; the move to ``target_path`` happens on successful exit.
 
     Raises:
-        ValueError: If ``mode`` is not ``"wb"``, or if ``target_path``
-            does not resolve to a local filesystem.
+        ValueError: If ``target_path`` does not resolve to a local
+            filesystem.
         OSError: If the temp write or the atomic rename fails.
 
     Example:
@@ -132,9 +145,6 @@ def atomic_write(
         - On any exception (including ``KeyboardInterrupt``), the temp file
           is unlinked and the exception re-raised; the target is untouched.
     """
-    if mode != "wb":
-        raise ValueError("atomic_write only supports binary write mode 'wb'")
-
     fs = filesystem(target_path)
     if not fs.is_local():
         raise ValueError(
@@ -174,7 +184,7 @@ def atomic_write(
     fd, temp_path = _create_local_tempfile(target_dir)
 
     try:
-        with os.fdopen(fd, mode) as tmp_file:
+        with os.fdopen(fd, "wb") as tmp_file:
             yield cast(BinaryIO, tmp_file)
 
             if fsync:
