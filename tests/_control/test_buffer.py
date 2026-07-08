@@ -203,6 +203,13 @@ async def test_buffer_params_ride_config_routes() -> None:
         assert bare.status_code == 200, bare.text
         assert bare.json()["buffer"] is None
 
+        # ...and an explicit set against it warns like the other unadjustable
+        # knobs rather than silently no-opping
+        noop = await client.patch("/tasks/t2/config", params={"log_buffer": 2})
+        assert noop.status_code == 200, noop.text
+        assert noop.json()["requested"] == {"log_buffer": 2}
+        assert any("log_buffer" in w for w in noop.json()["warnings"])
+
         missing = await client.get("/tasks/missing/config")
         assert missing.status_code == 404
 

@@ -467,7 +467,16 @@ def _stub_httpx(
             self.status_code = status_code
 
         def raise_for_status(self) -> None:
-            pass
+            # faithful to httpx: a 4xx/5xx raises HTTPStatusError carrying a
+            # response whose status_code callers can inspect
+            if self.status_code >= 400:
+                import httpx
+
+                request = httpx.Request("GET", "http://localhost/stub")
+                response = httpx.Response(self.status_code, request=request)
+                raise httpx.HTTPStatusError(
+                    f"{self.status_code}", request=request, response=response
+                )
 
         def json(self) -> object:
             return self._payload
@@ -1366,6 +1375,56 @@ def test_compose_config_process_scope_dry_run() -> None:
     assert "max_samples" not in config["knobs"]  # process view has no task knob
     assert "log_buffer" not in config["knobs"]
     assert config["applied"] is False and config["dry_run"] is True
+
+
+def test_log_flush_resolves_sole_active_task(monkeypatch: pytest.MonkeyPatch) -> None:
+    """log-flush follows the directive resolution rule (`_resolve_scope`).
+
+    In an eval-set with one running and several completed tasks, the sole
+    *active* task is the default target — the same rule `ctl config` uses —
+    rather than erroring "Multiple tasks are running".
+    """
+    _patch_surface(
+        monkeypatch,
+        [
+            _full_summary("aaa111", "t1", status="completed"),
+            _full_summary("bbb222", "t2", status="completed"),
+            _full_summary("ccc333", "t3", status="running"),
+        ],
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 1}
+    )
+    result = _runner().invoke(ctl_command, ["task", "log-flush", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["target"]["task_id"] == "ccc333"
+
+
+def test_log_flush_multiple_active_tasks_shows_candidate_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+    )
+    result = _runner().invoke(ctl_command, ["task", "log-flush"])
+    assert result.exit_code == 1
+    assert "task log-flush targets a single task" in result.stderr
+    assert "aaa111" in result.stderr and "bbb222" in result.stderr
+
+
+def test_fetch_summaries_404_names_version_skew(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A 404 from a live server reads as version skew, not 'just exited'."""
+    from inspect_ai._cli.ctl import _fetch_summaries
+
+    _stub_httpx(monkeypatch, [(404, {"error": "not found"})])
+    summaries = _fetch_summaries([_disc(7)])
+    assert summaries == []
+    err = capsys.readouterr().err
+    assert "different inspect version" in err
+    assert "just exited" not in err
 
 
 def test_log_flush_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:

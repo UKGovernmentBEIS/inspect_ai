@@ -1189,32 +1189,25 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
 
 
 def _run_log_flush(task: str | None, as_json: bool) -> None:
-    summaries = _fetch_summaries(list_discovered_servers())
-    if not summaries:
+    servers = list_discovered_servers()
+    summaries = _fetch_summaries(servers)
+    scope = _resolve_scope(servers, summaries, task, per_task_option="task log-flush")
+    if scope is None:
         if as_json:
             click.echo("null")
             return
         _echo_no_running_evals()
         return
-
-    target = _resolve_target_eval(summaries, task)
-    task_id = str(target.get("task_id") or "")
-    if not task_id:
-        # a reused log written before task ids existed — the task-keyed wire
-        # can't address it (and it has no live buffer to flush anyway)
-        click.echo(
-            f"Task '{target.get('task') or '?'}' predates task ids (an older "
-            "reused log) — it has no live sample buffer to flush.",
-            err=True,
-        )
-        raise click.exceptions.Exit(code=1)
-    result = _post_flush(target["socket_path"], task_id)
+    # per_task_option forbids the process-scope fallbacks, so the resolved
+    # scope always carries a task
+    assert scope.task_id is not None
+    result = _post_flush(scope.socket_path, scope.task_id)
 
     if as_json:
         envelope = {
             "target": {
-                "task_id": target.get("task_id"),
-                "task": target.get("task"),
+                "task_id": scope.task_id,
+                "task": scope.task,
             },
             "applied": True,
             "dry_run": False,
@@ -1224,7 +1217,7 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
         return
 
     flushed = int(result.get("flushed", 0) or 0)
-    click.echo(_task_header(target))
+    click.echo(scope.header)
     if flushed:
         click.echo(
             f"\nFlushed {flushed} sample{'' if flushed == 1 else 's'} to the log."
@@ -1322,7 +1315,13 @@ def _run_config(
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers)
 
-    scope = _resolve_scope(servers, summaries, task, per_task_option=per_task_option)
+    scope = _resolve_scope(
+        servers,
+        summaries,
+        task,
+        per_task_option=per_task_option,
+        no_task_id_advice="Run without TASK to view or set the process-wide config.",
+    )
     if scope is None:
         if as_json:
             click.echo("null")
@@ -1480,16 +1479,20 @@ def _resolve_scope(
     task: str | None,
     *,
     per_task_option: str | None = None,
+    no_task_id_advice: str = "",
 ) -> _DirectiveScope | None:
     """Resolve the task-or-process scope a directive command targets.
 
     The one resolution rule for directives with an optional ``TASK`` (config
-    today; task cancel/drain are expected to reuse it): an explicit ``TASK``
-    targets that task; no ``TASK`` defaults to the sole process — a
-    single-active-task process resolves to that task (completed eval-set
-    siblings don't count), a multi-task process resolves to the process-level
-    scope. ``per_task_option`` names an option (e.g. ``--max-samples``) that
-    requires a single task and therefore forbids the process-scope fallbacks.
+    and task log-flush today; task cancel/drain are expected to reuse it): an
+    explicit ``TASK`` targets that task; no ``TASK`` defaults to the sole
+    process — a single-active-task process resolves to that task (completed
+    eval-set siblings don't count), a multi-task process resolves to the
+    process-level scope. ``per_task_option`` names the option or command
+    (e.g. ``--max-samples``, ``task log-flush``) that requires a single task
+    and therefore forbids the process-scope fallbacks. ``no_task_id_advice``
+    is an optional caller-specific sentence appended to the pre-task-id
+    reused-log error (e.g. config's "run without TASK" pointer).
 
     Returns ``None`` when there is nothing to target (the caller prints the
     no-running-evals message) and exits directly on ambiguous or invalid
@@ -1521,8 +1524,8 @@ def _resolve_scope(
             # by its (superseded) eval id, which the directive wire doesn't use
             click.echo(
                 f"Task '{target.get('task') or '?'}' predates task ids (an "
-                "older reused log) — its per-task config isn't addressable. "
-                "Run without TASK to view or set the process-wide config.",
+                "older reused log) — it can't be targeted by task-keyed "
+                "directives." + (f" {no_task_id_advice}" if no_task_id_advice else ""),
                 err=True,
             )
             raise click.exceptions.Exit(code=1)
@@ -1767,9 +1770,19 @@ def _fetch_summaries(
                 what=f"Reading tasks from pid {server.pid}",
             )
         except _ServerUnreachable as exc:
+            # a 404 means the process is serving a control API without this
+            # route — version skew between the CLI and the eval process —
+            # where transport errors mean the process is gone
+            cause = exc.__cause__
+            hint = (
+                "it may be running a different inspect version than this CLI"
+                if isinstance(cause, httpx.HTTPStatusError)
+                and cause.response.status_code == 404
+                else "it may have just exited"
+            )
             click.echo(
                 f"Skipping pid {server.pid}: its control endpoint could not be "
-                f"read ({_unreachable_detail(exc)}) — it may have just exited.",
+                f"read ({_unreachable_detail(exc)}) — {hint}.",
                 err=True,
             )
             continue

@@ -176,8 +176,9 @@ async def task_limits(
     # log_buffer / log_shared — the sample-buffer params, task-scoped like
     # max_samples but reached through the latest attempt's live logger. A
     # task with no live buffer (a reused log, or a superseded attempt) has a
-    # None view; the CLI decides whether that absence is a warning (a pure
-    # read) or a hard error (an explicit set).
+    # None view; an explicit set then warns like the other unadjustable
+    # knobs, so the wire contract is consistent for raw-API consumers (the
+    # CLI additionally escalates that set to a hard error client-side).
     if log_buffer is not None:
         sample_requested["log_buffer"] = log_buffer
     if log_shared is not None:
@@ -187,6 +188,11 @@ async def task_limits(
         log_buffer=log_buffer if not dry_run else None,
         log_shared=log_shared if not dry_run else None,
     )
+    if buffer_view is None and (log_buffer is not None or log_shared is not None):
+        sample_warnings.append(
+            "log_buffer/log_shared are not adjustable for this task (no live "
+            "sample buffer — e.g. a reused log, or a superseded retry attempt)."
+        )
 
     views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
