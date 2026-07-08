@@ -416,15 +416,23 @@ def resolve_task_sandbox(
             # if we found an override without a config then we may still
             # want to forward the task config if it's docker config ->
             # docker compatible sandbox
-            if (
-                resolved_sandbox.config is None
-                and task.sandbox is not None
-                and is_docker_compatible_config(task.sandbox.config)
-                and is_docker_compatible_sandbox_type(resolved_sandbox.type)
-            ):
-                resolved_sandbox = SandboxEnvironmentSpec(
-                    resolved_sandbox.type, task.sandbox.config
-                )
+            if resolved_sandbox.config is None and task.sandbox is not None:
+                if is_docker_compatible_config(
+                    task.sandbox.config
+                ) and is_docker_compatible_sandbox_type(resolved_sandbox.type):
+                    resolved_sandbox = SandboxEnvironmentSpec(
+                        resolved_sandbox.type, task.sandbox.config
+                    )
+                elif is_docker_compatible_config(task.sandbox.config):
+                    warn_once(
+                        logger,
+                        f"Task '{task.name}' declares sandbox '{task.sandbox.type}' "
+                        "with a Dockerfile/compose.yaml configuration, but the "
+                        f"'{resolved_sandbox.type}' sandbox specified for the eval "
+                        "does not support that configuration. The task's compose "
+                        "services, packages, and tools will not be available in "
+                        f"the '{resolved_sandbox.type}' sandbox.",
+                    )
 
         # resolve relative paths
         if isinstance(resolved_sandbox.config, str):
