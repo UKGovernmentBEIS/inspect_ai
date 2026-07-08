@@ -95,6 +95,17 @@ By default, Inspect's implementation of the Responses API does not store message
 inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
 
+### Responses Metadata
+
+You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 \
+    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+```
+
+The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
+
 ### Flex Processing
 
 [Flex processing](https://platform.openai.com/docs/guides/flex-processing) provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using [batch API rates](https://platform.openai.com/docs/guides/batch) for flex requests).
