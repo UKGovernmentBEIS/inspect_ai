@@ -1150,6 +1150,23 @@ def test_config_task_knob_with_only_pre_task_id_logs_says_unaddressable(
     assert "pass a task id" not in result.stderr
 
 
+def test_config_help_scope_tags_derive_from_knob_table() -> None:
+    """Every knob's --help entry carries the scope from _KNOB_SCOPE.
+
+    The help tags, the JSON "scope" fields, and the human render labels all
+    derive from that one table; this pins the help side (the JSON side is
+    pinned by test_compose_config_labels_every_knob_with_scope).
+    """
+    from inspect_ai._cli.ctl import _KNOB_SCOPE
+
+    out = _runner().invoke(ctl_command, ["config", "--help"]).output
+    options = out[out.index("Options:") :]  # the docstring also names flags
+    for knob, scope in _KNOB_SCOPE.items():
+        flag = "--" + knob.replace("_", "-")
+        start = options.index(flag)
+        assert f"[{scope}]" in options[start : start + 120], knob
+
+
 def test_config_log_shared_rejects_below_one() -> None:
     """--log-shared validates up front like --log-buffer (IntRange min=1)."""
     result = _runner().invoke(ctl_command, ["config", "--log-shared", "0"])
@@ -1377,7 +1394,6 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     scope = _DirectiveScope(
         socket_path="/tmp/7.sock",
         task_id="t1",
-        eval_id="e1",
         task="tn",
         header="h",
         siblings=3,
@@ -1416,7 +1432,6 @@ def test_compose_config_process_scope_dry_run() -> None:
     scope = _DirectiveScope(
         socket_path="/tmp/7.sock",
         task_id=None,
-        eval_id=None,
         task=None,
         header="process · 2 tasks",
         siblings=2,

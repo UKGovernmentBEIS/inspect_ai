@@ -17,7 +17,10 @@ knobs as absent.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from inspect_ai._control.eval_state import EvalState
 
 
 async def flush_task_samples(task_id: str) -> dict[str, Any] | None:
@@ -53,6 +56,23 @@ def task_buffer_config(
     from inspect_ai._control.eval_state import latest_eval_for_task
 
     state = latest_eval_for_task(task_id)
-    if state is None or state.live is None:
+    if state is None:
+        return None
+    return state_buffer_config(state, log_buffer=log_buffer, log_shared=log_shared)
+
+
+def state_buffer_config(
+    state: "EvalState",
+    *,
+    log_buffer: int | None = None,
+    log_shared: int | None = None,
+) -> dict[str, Any] | None:
+    """The state-keyed core of :func:`task_buffer_config`.
+
+    For callers (the config directive) that have already resolved the task's
+    latest attempt and shouldn't pay a second registry scan. Returns ``None``
+    when the attempt has no live data source.
+    """
+    if state.live is None:
         return None
     return state.live.buffer_config(log_buffer, log_shared)._asdict()

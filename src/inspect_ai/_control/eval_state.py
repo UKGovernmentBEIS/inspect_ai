@@ -515,32 +515,17 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
-def task_registered(task_id: str) -> bool:
-    """True if any attempt of ``task_id`` is tracked in this process.
-
-    A pure existence check (no latest-attempt semantics): task-scoped state
-    like the sample limiter lives in task_id-keyed registries (see
-    ``_task_sample_semaphores`` in ``util/_concurrency.py``), so consumers such
-    as the limits directive only need to know whether the task is known here —
-    including reused-log tasks registered via :func:`register_completed_eval`,
-    which never run and so have no registry entries but should still get the
-    "not adjustable" warning rather than a 404. A falsy ``task_id`` is never
-    registered (states without one are addressable only by eval id).
-    """
-    if not task_id:
-        return False
-    with _lock:
-        return any(s.task_id == task_id for s in _eval_states.values())
-
-
 def latest_eval_for_task(task_id: str) -> "EvalState | None":
     """The last-registered attempt of ``task_id``, or ``None`` if untracked.
 
     The same fold rule the summaries use (registration order — a retry
     registers after the attempt it supersedes), so a task-keyed directive
-    acts on the attempt the read surface reports as current. A falsy
-    ``task_id`` never resolves (states without one are addressable only by
-    eval id).
+    acts on the attempt the read surface reports as current. A non-``None``
+    result doubles as the existence check for task-keyed directives —
+    including reused-log tasks registered via :func:`register_completed_eval`,
+    which never run here but should get "not adjustable" warnings rather
+    than a 404. A falsy ``task_id`` never resolves (states without one are
+    addressable only by eval id).
     """
     if not task_id:
         return None

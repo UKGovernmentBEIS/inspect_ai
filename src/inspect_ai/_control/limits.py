@@ -105,12 +105,14 @@ async def task_limits(
     registries: the sample limiter is read straight from the task-semaphore
     registry (shared across the task's retry attempts — see
     ``_task_sample_semaphores``), the buffer params through the latest
-    attempt's live logger (see :mod:`inspect_ai._control.buffer`), while the
-    attempt-scoped ``EvalState`` rows are otherwise consulted only for
-    existence. With all knobs ``None`` this is a pure read. Returns ``None``
-    when the task isn't tracked in this process (the endpoint turns that into
-    a 404). Keyed by task_id — stable across retries — rather than a
-    per-attempt eval id, so a caller's handle never goes stale mid-run.
+    attempt's live logger (see :mod:`inspect_ai._control.buffer`) — resolved
+    once here, which doubles as the existence check. With all knobs ``None``
+    this is a pure read. Returns ``None`` when the task isn't tracked in this
+    process (the endpoint turns that into a 404); reused-log tasks are
+    tracked (registered from their headers) and report their knobs as not
+    adjustable rather than 404ing. Keyed by task_id — stable across retries —
+    rather than a per-attempt eval id, so a caller's handle never goes stale
+    mid-run.
 
     On the adaptive path the task's semaphore is a ``DynamicSampleLimiter``
     (sample concurrency tracks the controller, not a user setpoint), so
@@ -133,15 +135,16 @@ async def task_limits(
         dry_run: When set, validate and report the intended change without
             applying it.
     """
-    from inspect_ai._control.buffer import task_buffer_config
-    from inspect_ai._control.eval_state import task_registered
+    from inspect_ai._control.buffer import state_buffer_config
+    from inspect_ai._control.eval_state import latest_eval_for_task
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,
         ResizableLimiter,
         task_sample_semaphore,
     )
 
-    if not task_registered(task_id):
+    latest = latest_eval_for_task(task_id)
+    if latest is None:
         return None
 
     # max_samples — the task's sample semaphore. Only a ResizableLimiter is a
@@ -183,8 +186,8 @@ async def task_limits(
         sample_requested["log_buffer"] = log_buffer
     if log_shared is not None:
         sample_requested["log_shared"] = log_shared
-    buffer_view = task_buffer_config(
-        task_id,
+    buffer_view = state_buffer_config(
+        latest,
         log_buffer=log_buffer if not dry_run else None,
         log_shared=log_shared if not dry_run else None,
     )

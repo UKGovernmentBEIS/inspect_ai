@@ -53,6 +53,18 @@ from inspect_ai._util.name_match import match_name_prefix
 # output contract in design/control-channel.md).
 _DEFAULT_EVENTS_TAIL = 20
 
+# One source of truth for each retunable config knob's scope. The `ctl config`
+# option help tags, the composed JSON view's per-knob "scope" labels, and the
+# human rendering's [task]/[process] labels all derive from this table, so a
+# knob's advertised blast radius can't drift between the three surfaces.
+_KNOB_SCOPE: dict[str, str] = {
+    "max_samples": "task",
+    "max_sandboxes": "process",
+    "max_connections": "process",
+    "log_buffer": "task",
+    "log_shared": "task",
+}
+
 
 class _NounGroup(click.Group):
     """A resource-noun command group (``task`` / ``sample`` / ``process``).
@@ -476,8 +488,8 @@ def sample_events_command(
     metavar="INTEGER",
     default=None,
     help=(
-        "[task] Max samples to run concurrently (under adaptive connections, "
-        "sample concurrency tracks the controller instead)."
+        f"[{_KNOB_SCOPE['max_samples']}] Max samples to run concurrently (under "
+        "adaptive connections, sample concurrency tracks the controller instead)."
     ),
 )
 @click.option(
@@ -485,14 +497,17 @@ def sample_events_command(
     type=click.IntRange(min=1),
     metavar="INTEGER",
     default=None,
-    help="[process] Max sandboxes per provider.",
+    help=f"[{_KNOB_SCOPE['max_sandboxes']}] Max sandboxes per provider.",
 )
 @click.option(
     "--max-connections",
     type=click.IntRange(min=1),
     metavar="INTEGER",
     default=None,
-    help="[process] Adaptive-connections scaling ceiling — the controllers' max.",
+    help=(
+        f"[{_KNOB_SCOPE['max_connections']}] Adaptive-connections scaling "
+        "ceiling — the controllers' max."
+    ),
 )
 @click.option(
     "--model",
@@ -509,9 +524,9 @@ def sample_events_command(
     metavar="INTEGER",
     default=None,
     help=(
-        "[task] Completed samples buffered before a log write — the retune "
-        "side of `inspect ctl task log-flush` (lower it to write to S3 more "
-        "often)."
+        f"[{_KNOB_SCOPE['log_buffer']}] Completed samples buffered before a "
+        "log write — the retune side of `inspect ctl task log-flush` (lower "
+        "it to write to S3 more often)."
     ),
 )
 @click.option(
@@ -519,7 +534,7 @@ def sample_events_command(
     type=click.IntRange(min=1),
     metavar="INTEGER",
     default=None,
-    help="[task] Shared-log event sync interval, in seconds.",
+    help=f"[{_KNOB_SCOPE['log_shared']}] Shared-log event sync interval, in seconds.",
 )
 @click.option(
     "--dry-run",
@@ -1104,6 +1119,21 @@ def _run_sample_events(
     _print_events(page)
 
 
+def _looks_like_timestamp(value: str) -> bool:
+    """Whether a would-be cursor value reads as a unix timestamp.
+
+    Real cursors are opaque base64 tokens and never parse as a number, so a
+    numeric value is almost certainly a timestamp meant for ``--since-time``.
+    The one classification behind both cursor-mistake errors
+    (:func:`_exit_removed_since`, :func:`_validate_cursor`).
+    """
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
+
+
 def _exit_removed_since(value: str) -> NoReturn:
     """Teach the `--since` split instead of click's stock no-such-option error.
 
@@ -1112,11 +1142,11 @@ def _exit_removed_since(value: str) -> NoReturn:
     a hidden `--since` whose only job is this error — routed by the same
     timestamp heuristic `--cursor` validation uses.
     """
-    try:
-        float(value)
-        hint = "this value looks like a timestamp — use --since-time"
-    except ValueError:
-        hint = "pass it to --cursor (the `next` value from a prior page)"
+    hint = (
+        "this value looks like a timestamp — use --since-time"
+        if _looks_like_timestamp(value)
+        else "pass it to --cursor (the `next` value from a prior page)"
+    )
     click.echo(
         f"--since was split into --cursor (opaque resume cursor) and "
         f"--since-time (wall-clock window): {hint}.",
@@ -1140,11 +1170,11 @@ def _validate_cursor(cursor: str | None) -> None:
     nonce, _offset = decode_cursor(cursor)
     if nonce is not None:
         return
-    try:
-        float(cursor)
-        hint = " — this looks like a timestamp; did you mean --since-time?"
-    except ValueError:
-        hint = " — pass the `next` value from a prior page."
+    hint = (
+        " — this looks like a timestamp; did you mean --since-time?"
+        if _looks_like_timestamp(cursor)
+        else " — pass the `next` value from a prior page."
+    )
     click.echo(f"Invalid --cursor value '{cursor}'{hint}", err=True)
     raise click.exceptions.Exit(code=1)
 
@@ -1448,28 +1478,29 @@ def _compose_config(
     """
     knobs: dict[str, Any] = {}
     if "max_samples" in limits_view:
-        knobs["max_samples"] = {"scope": "task", **limits_view["max_samples"]}
+        knobs["max_samples"] = {
+            "scope": _KNOB_SCOPE["max_samples"],
+            **limits_view["max_samples"],
+        }
     knobs["max_sandboxes"] = {
-        "scope": "process",
+        "scope": _KNOB_SCOPE["max_sandboxes"],
         "providers": limits_view.get("max_sandboxes") or [],
     }
     knobs["max_connections"] = {
-        "scope": "process",
+        "scope": _KNOB_SCOPE["max_connections"],
         "adaptive": limits_view.get("adaptive") or [],
     }
     buffer_view = limits_view.get("buffer")
     if buffer_view is not None:
         knobs["log_buffer"] = {
-            "scope": "task",
+            "scope": _KNOB_SCOPE["log_buffer"],
             "value": buffer_view.get("log_buffer"),
             "pending": buffer_view.get("pending"),
         }
         knobs["log_shared"] = {
-            "scope": "task",
+            "scope": _KNOB_SCOPE["log_shared"],
             "value": buffer_view.get("log_shared"),
         }
-
-    requested = dict(limits_view.get("requested") or {})
 
     return {
         "target": {
@@ -1482,7 +1513,7 @@ def _compose_config(
         "notes": notes,
         "applied": bool(set_values and not dry_run),
         "dry_run": dry_run,
-        "requested": requested or None,
+        "requested": limits_view.get("requested") or None,
     }
 
 
@@ -1492,8 +1523,6 @@ class _DirectiveScope(NamedTuple):
     socket_path: str
     task_id: str | None
     """``None`` targets the process-level scope."""
-    eval_id: str | None
-    """The task's current attempt (``None`` for the process-level scope)."""
     task: str | None
     """The task's name (``None`` for the process-level scope)."""
     header: str
@@ -1536,7 +1565,6 @@ def _resolve_scope(
             return _DirectiveScope(
                 socket_path=str(servers[0].socket_path),
                 task_id=None,
-                eval_id=None,
                 task=None,
                 header="process · starting",
                 siblings=0,
@@ -1560,7 +1588,6 @@ def _resolve_scope(
         return _DirectiveScope(
             socket_path=socket_path,
             task_id=task_id,
-            eval_id=str(target.get("eval_id") or "") or None,
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
             siblings=sum(
@@ -1585,7 +1612,6 @@ def _resolve_scope(
         return _DirectiveScope(
             socket_path=socket_path,
             task_id=str(target["task_id"]),
-            eval_id=str(target.get("eval_id") or "") or None,
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
             siblings=len(tasks_in_proc),
@@ -1617,7 +1643,6 @@ def _resolve_scope(
     return _DirectiveScope(
         socket_path=socket_path,
         task_id=None,  # process-global scope
-        eval_id=None,
         task=None,
         header=f"process · {len(tasks_in_proc)} tasks",
         siblings=len(tasks_in_proc),
@@ -2197,6 +2222,11 @@ def _error_detail_from_response(response: httpx.Response) -> str:
     return _error_body(response) or f"HTTP {response.status_code}"
 
 
+def _knob_label(display: str, knob: str) -> str:
+    """Aligned human config label carrying the knob's scope from ``_KNOB_SCOPE``."""
+    return f"  {display} [{_KNOB_SCOPE[knob]}]:".ljust(27)
+
+
 def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     """Render the composed config view as a short labeled block.
 
@@ -2227,24 +2257,30 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     # show it as per-task rather than claiming a value. Distinguish that from
     # a task view that carries an explicit `{"adjustable": false}`.
     if "max_samples" not in knobs:
-        click.echo("  max samples [task]:      per task (pass a task to view/set)")
+        click.echo(
+            _knob_label("max samples", "max_samples")
+            + "per task (pass a task to view/set)"
+        )
     else:
         max_samples = knobs.get("max_samples") or {}
         if max_samples.get("adjustable"):
             limit = _target(max_samples.get("limit"), "max_samples")
             in_use = max_samples.get("in_use")
-            click.echo(f"  max samples [task]:      {limit} ({in_use} in use)")
+            label = _knob_label("max samples", "max_samples")
+            click.echo(f"{label}{limit} ({in_use} in use)")
         elif max_samples.get("tracks_adaptive"):
             # sample concurrency tracks this task's adaptive controller, so
             # there's no user setpoint to show — point at where the numbers are
             click.echo(
-                "  max samples [task]:      tracks adaptive connections (see below)"
+                _knob_label("max samples", "max_samples")
+                + "tracks adaptive connections (see below)"
             )
         else:
             # no live sample limiter for this task (e.g. a reused log) — the
             # adaptive block below, if any, belongs to other tasks' models
             click.echo(
-                "  max samples [task]:      not adjustable (no live sample limiter)"
+                _knob_label("max samples", "max_samples")
+                + "not adjustable (no live sample limiter)"
             )
 
     sandboxes = (knobs.get("max_sandboxes") or {}).get("providers") or []
@@ -2253,13 +2289,13 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             f"{s.get('type')} {_target(s.get('limit'), 'max_sandboxes')} ({s.get('in_use')} in use)"
             for s in sandboxes
         )
-        click.echo(f"  max sandboxes [process]: {rendered}")
+        click.echo(f"{_knob_label('max sandboxes', 'max_sandboxes')}{rendered}")
     else:
-        click.echo("  max sandboxes [process]: none in effect")
+        click.echo(_knob_label("max sandboxes", "max_sandboxes") + "none in effect")
 
     adaptive = (knobs.get("max_connections") or {}).get("adaptive") or []
     if adaptive:
-        click.echo("  adaptive connections [process]:")
+        click.echo(f"  adaptive connections [{_KNOB_SCOPE['max_connections']}]:")
         for a in adaptive:
             # on a dry-run set, `_target` renders the ceiling as `max → requested`
             ceiling = _target(a.get("max"), "max_connections")
@@ -2279,15 +2315,15 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         log_buffer = knobs.get("log_buffer") or {}
         value = _target(log_buffer.get("value"), "log_buffer")
         click.echo(
-            f"  log buffer [task]:       {value} samples "
+            f"{_knob_label('log buffer', 'log_buffer')}{value} samples "
             f"({log_buffer.get('pending')} pending)"
         )
     if "log_shared" in knobs:
         shared = (knobs.get("log_shared") or {}).get("value")
         rendered_shared = _target(shared, "log_shared") if shared is not None else None
         click.echo(
-            f"  shared sync [task]:      "
-            f"{f'{rendered_shared}s' if rendered_shared is not None else 'off'}"
+            _knob_label("shared sync", "log_shared")
+            + f"{f'{rendered_shared}s' if rendered_shared is not None else 'off'}"
         )
 
     for warning in config.get("warnings") or []:
