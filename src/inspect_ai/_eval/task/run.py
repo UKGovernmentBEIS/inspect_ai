@@ -77,6 +77,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample_summaries_async,
 )
 from inspect_ai.log._log import (
+    EvalPlan,
     EvalRetryError,
     EvalSampleLimit,
     EvalSampleReductions,
@@ -308,6 +309,17 @@ def plan_agent_name(plan: Plan) -> str | None:
     return None
 
 
+def eval_plan_agent_name(plan: EvalPlan) -> str | None:
+    """Unqualified name of a recorded plan's terminal step (agent or solver).
+
+    The log-header counterpart of `plan_agent_name`. `plan_to_eval_plan`
+    records a `finish` solver again as the trailing step, so skip it to
+    match the live derivation.
+    """
+    steps = plan.steps[:-1] if plan.finish else plan.steps
+    return registry_unqualified_name(steps[-1].solver) if steps else None
+
+
 def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
     """Add tasks a TaskSource callback returned to the running eval's queue.
 
@@ -515,6 +527,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 task=logger.eval.task,
                 task_id=logger.eval.task_id,
                 model=str(model),
+                solver=profile.agent,
                 log_location=logger.location,
                 live=logger,
                 sample_ids=sample_ids,
@@ -699,6 +712,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 messages=sample_messages(sample),
                                 message_limit=config.message_limit,
                                 token_limit=config.token_limit,
+                                token_limit_type=config.token_limit_type or "all",
                                 cost_limit=config.cost_limit,
                                 completed=False,
                                 metadata=sample.metadata if sample.metadata else {},
@@ -1155,7 +1169,11 @@ async def task_run_sample(
         # precedence eval > sample > task (per-field merge — see
         # `merge_checkpoint_configs`).
         resolved_checkpoint = merge_checkpoint_configs(
-            checkpoint, sample.checkpoint, eval_checkpoint
+            checkpoint,
+            sample.checkpoint,
+            eval_checkpoint,
+            on_checkpoint=task.on_checkpoint,
+            on_resume=task.on_resume,
         )
 
         # helper to handle exceptions (will throw if we've exceeded the limit)

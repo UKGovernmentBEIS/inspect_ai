@@ -46,6 +46,7 @@ from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
+from inspect_ai.util._limit import TokenLimit
 from inspect_ai.util._resource import resource
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -64,6 +65,7 @@ from .util import (
     parse_cli_config,
     parse_model_role_cli_args,
     parse_sandbox,
+    token_limit_flag_callback,
 )
 
 _SCANNER_OPTION_NAMES = {
@@ -552,8 +554,10 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--token-limit",
-        type=int,
-        help="Limit on total tokens used for each sample.",
+        type=str,
+        callback=token_limit_flag_callback,
+        help="Limit on tokens used for each sample (e.g. 500000, '500k', or '1m'; "
+        "prefix with 'output:' to limit only output tokens, e.g. 'output:1m').",
         envvar="INSPECT_EVAL_TOKEN_LIMIT",
     )
     @click.option(
@@ -606,7 +610,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--continue-on-fail",
         type=bool,
         is_flag=True,
-        default=False,
+        default=None,
         help=CONTINUE_ON_FAIL_HELP,
         envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
     )
@@ -623,7 +627,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--score-on-error",
         type=bool,
         is_flag=True,
-        default=False,
+        default=None,
         help=SCORE_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_SCORE_ON_ERROR",
     )
@@ -1035,7 +1039,7 @@ def _eval_command_impl(
     batch: int | str | None,
     modalities: str | None,
     message_limit: int | None,
-    token_limit: int | None,
+    token_limit: int | TokenLimit | None,
     turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
@@ -1303,7 +1307,7 @@ def eval_set_command(
     batch: int | str | None,
     modalities: str | None,
     message_limit: int | None,
-    token_limit: int | None,
+    token_limit: int | TokenLimit | None,
     turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
@@ -1641,7 +1645,7 @@ def eval_exec(
     sample_id: str | None,
     sample_shuffle: int | None,
     message_limit: int | None,
-    token_limit: int | None,
+    token_limit: int | TokenLimit | None,
     turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
@@ -2083,7 +2087,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--continue-on-fail",
     type=bool,
     is_flag=True,
-    default=False,
+    default=None,
     help=CONTINUE_ON_FAIL_HELP,
     envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
 )
@@ -2100,7 +2104,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--score-on-error",
     type=bool,
     is_flag=True,
-    default=False,
+    default=None,
     help=SCORE_ON_ERROR_HELP,
     envvar="INSPECT_EVAL_SCORE_ON_ERROR",
 )
