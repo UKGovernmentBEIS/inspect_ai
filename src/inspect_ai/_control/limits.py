@@ -207,8 +207,9 @@ async def task_limits(
         and buffer_view.get("log_shared") is None
     ):
         sample_warnings.append(
-            "log_shared is not adjustable for this task (its log has no "
-            "shared-log sync running — launch with --log-shared to enable it)."
+            "log_shared is not adjustable for this task (no shared-log sync "
+            "is active for its log — shared sync is enabled at launch with "
+            "--log-shared and requires realtime logging)."
         )
 
     views = _apply_process_knobs(

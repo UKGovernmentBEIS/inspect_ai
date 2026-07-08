@@ -14,6 +14,7 @@ import pytest
 from click.testing import CliRunner
 
 from inspect_ai._cli.ctl import (
+    _ConfigResult,
     _print_keep_alive_footer,
     _print_samples_table,
     _resolve_target_eval,
@@ -577,7 +578,7 @@ def test_config_read_retries_timeout_then_succeeds(
         monkeypatch,
         [httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow"), view],
     )
-    config = _exec_limits(
+    result = _exec_limits(
         "/tmp/x.sock",
         "t1",
         max_samples=None,
@@ -586,7 +587,8 @@ def test_config_read_retries_timeout_then_succeeds(
         model=None,
         dry_run=False,
     )
-    assert config == view
+    assert result.view == view
+    assert result.mutated is False
     assert counter["gets"] == 3
     assert counter["patches"] == 0
     assert "retrying" in capsys.readouterr().err
@@ -731,7 +733,7 @@ def _patch_surface(
     if samples_by_eval is not None:
         monkeypatch.setattr(
             "inspect_ai._cli.ctl._fetch_samples",
-            lambda socket_path, eval_id, active_since=None: _SamplesPage(
+            lambda socket_path, eval_id, active_since=None, **kwargs: _SamplesPage(
                 as_of=123.0,
                 samples=samples_by_eval.get(eval_id, []),
             ),
@@ -838,7 +840,10 @@ def _patch_samples_unreachable_for(
     from inspect_ai._cli.ctl import _ServerUnreachable
 
     def fake_samples(
-        socket_path: Any, eval_id: str, active_since: float | None = None
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        **kwargs: Any,
     ) -> _SamplesPage:
         if eval_id == gone_eval_id:
             exc = _ServerUnreachable()
@@ -990,15 +995,20 @@ def test_sample_show_listing_unreachable_keeps_detail(
 def test_sample_show_busy_listing_keeps_detail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A busy eval (listing retries exhausted → Exit) doesn't discard the detail.
+    """A busy eval (listing retries exhausted) doesn't discard the detail.
 
-    Retry exhaustion raises click's Exit rather than _ServerUnreachable; the
-    detail already in hand must still be rendered.
+    The listing read opts into _ServerBusy on retry exhaustion, which the
+    same except-_ServerUnreachable fallback covers; the detail already in
+    hand must still be rendered.
     """
+    from inspect_ai._cli.ctl import _ServerBusy
+
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
 
     def exhausted(*args: Any, **kwargs: Any) -> _SamplesPage:
-        raise click.exceptions.Exit(code=1)
+        raise _ServerBusy(
+            "no response after 8 attempts — the eval's event loop is busy"
+        )
 
     monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", exhausted)
     detail = {
@@ -1017,7 +1027,8 @@ def test_sample_show_busy_listing_keeps_detail(
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert payload["error"] == {"message": "boom"}
-    assert "did not respond" in result.stderr
+    assert "Could not read the samples listing" in result.stderr
+    assert "busy" in result.stderr
 
 
 def test_old_flat_spellings_hidden_from_help() -> None:
@@ -1053,18 +1064,29 @@ def _stub_limits(
     buffer: dict[str, Any] | None = None,
 ) -> None:
     """Stub the server config view for `ctl config` (minimal adjustable knobs)."""
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl._exec_limits",
-        lambda *a, **k: {
-            "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
-            "max_sandboxes": [],
-            "adaptive": [],
-            "buffer": buffer,
-            "requested": None,
-            "warnings": [],
-            "dry_run": False,
-        },
-    )
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        knobs = (
+            "max_samples",
+            "max_sandboxes",
+            "max_connections",
+            "log_buffer",
+            "log_shared",
+        )
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "buffer": buffer,
+                "requested": None,
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=any(kwargs.get(k) is not None for k in knobs),
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
 
 
 def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1129,21 +1151,24 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     monkeypatch.setattr(
         "inspect_ai._cli.ctl._exec_limits",
-        lambda *a, **k: {
-            "max_samples": {"adjustable": False, "tracks_adaptive": True},
-            "max_sandboxes": [],
-            "adaptive": [],
-            "buffer": None,
-            "requested": {"max_samples": 5, "log_buffer": 2},
-            "warnings": [
-                "max_samples is not adjustable for this task (it uses adaptive "
-                "connection concurrency, or ran no samples in this process).",
-                "log_buffer/log_shared are not adjustable for this task (no "
-                "live sample buffer — e.g. a reused log, or a superseded "
-                "retry attempt).",
-            ],
-            "dry_run": False,
-        },
+        lambda *a, **k: _ConfigResult(
+            view={
+                "max_samples": {"adjustable": False, "tracks_adaptive": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "buffer": None,
+                "requested": {"max_samples": 5, "log_buffer": 2},
+                "warnings": [
+                    "max_samples is not adjustable for this task (it uses adaptive "
+                    "connection concurrency, or ran no samples in this process).",
+                    "log_buffer/log_shared are not adjustable for this task (no "
+                    "live sample buffer — e.g. a reused log, or a superseded "
+                    "retry attempt).",
+                ],
+                "dry_run": False,
+            },
+            mutated=True,
+        ),
     )
     result = _runner().invoke(
         ctl_command, ["config", "--log-buffer", "2", "--max-samples", "5"]
@@ -1352,7 +1377,10 @@ def test_group_option_forwards_value_and_verb_wins(
     captured: dict[str, Any] = {}
 
     def fake_samples(
-        socket_path: Any, eval_id: str, active_since: float | None = None
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        **kwargs: Any,
     ) -> _SamplesPage:
         captured["active_since"] = active_since
         return _SamplesPage(as_of=123.0, samples=[])
@@ -1610,3 +1638,79 @@ def test_keep_alias_accepts_positional_pid(monkeypatch: pytest.MonkeyPatch) -> N
     assert result.exit_code == 0, result.output
     assert posted == ["/tmp/8.sock"]
     assert "is now `inspect ctl process keep`" in result.stderr
+
+
+def test_sample_list_unscoped_skips_busy_eval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A busy eval (listing retries exhausted) is skipped, not fatal.
+
+    Mirrors the unreachable-skip: the fan-out opts into _ServerBusy so one
+    busy sibling can't kill the whole listing and discard other evals' rows.
+    """
+    from inspect_ai._cli.ctl import _SamplesPage, _ServerBusy
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+    )
+
+    def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        if eval_id == "eval_aaa111":
+            raise _ServerBusy("no response after 8 attempts")
+        return _SamplesPage(as_of=123.0, samples=[_sample_row("s2")])
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert [s["task_id"] for s in payload["samples"]] == ["bbb222"]
+    assert "Skipping eval eval_aaa111" in result.stderr
+    assert "try again shortly" in result.stderr
+
+
+def test_keep_alive_retries_busy_timeout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """keep/release ride the narrated retrying policy (idempotent latches)."""
+    import httpx
+
+    from inspect_ai._cli.ctl import _request_json
+
+    counter = _stub_httpx(
+        monkeypatch,
+        [httpx.ReadTimeout("slow"), {"ok": True, "keep_alive": True}],
+    )
+    body = _request_json(
+        "/tmp/x.sock",
+        "/keep",
+        what="keep-alive for pid 7",
+        not_found="unsupported",
+        mutate="post",
+        retry_mutation=True,
+    )
+    assert body == {"ok": True, "keep_alive": True}
+    assert counter["posts"] == 2  # retried once, then succeeded
+    assert "retrying" in capsys.readouterr().err
+
+
+def test_resolve_scope_completed_target_counts_toward_siblings() -> None:
+    """Naming a completed task doesn't suppress the blast-radius note.
+
+    The named target counts even when completed — the retune reaches a
+    *different* (active) task, which is exactly what the note exists to say.
+    """
+    from inspect_ai._cli.ctl import _resolve_scope
+
+    summaries = [
+        _full_summary("aaa111", "t1", status="completed"),
+        _full_summary("bbb222", "t2", status="running"),
+    ]
+    scope = _resolve_scope([], summaries, "aaa111")
+    assert scope is not None
+    assert scope.siblings == 2  # running sibling + the named completed target

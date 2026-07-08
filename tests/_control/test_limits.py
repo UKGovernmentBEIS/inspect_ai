@@ -742,14 +742,14 @@ def test_print_config_buffer_knobs_and_notes(
             },
             "requested": None,
             "warnings": [],
-            "notes": ["--max-connections applies across all 3 tasks."],
+            "notes": ["--max-connections applies process-wide."],
         },
         changed=False,
     )
     out = capsys.readouterr().out
     assert "log buffer [task]:       10 samples (2 pending)" in out
     assert "shared sync [task]:      off" in out
-    assert "note: --max-connections applies across all 3 tasks." in out
+    assert "note: --max-connections applies process-wide." in out
 
 
 def test_process_scope_note() -> None:
@@ -762,12 +762,15 @@ def test_process_scope_note() -> None:
     assert _process_scope_note(["--max-connections"], 1) is None
     # single global knob across a multi-eval process → singular "applies"
     note = _process_scope_note(["--max-connections"], 3)
-    assert note == "--max-connections applies across all 3 tasks sharing this process."
+    assert note == (
+        "--max-connections applies process-wide — every active task in "
+        "this process is affected."
+    )
     # both global knobs → plural "apply", joined
     note = _process_scope_note(["--max-connections", "--max-sandboxes"], 2)
     assert (
         note
-        == "--max-connections and --max-sandboxes apply across all 2 tasks sharing this process."
+        == "--max-connections and --max-sandboxes apply process-wide — every active task in this process is affected."
     )
 
 

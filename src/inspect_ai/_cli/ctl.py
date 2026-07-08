@@ -34,7 +34,7 @@ import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, NoReturn
+from typing import Any, Literal, NamedTuple, NoReturn, Protocol, cast
 
 import click
 import httpx
@@ -57,6 +57,9 @@ _DEFAULT_EVENTS_TAIL = 20
 # option help tags, the composed JSON view's per-knob "scope" labels, and the
 # human rendering's [task]/[process] labels all derive from this table, so a
 # knob's advertised blast radius can't drift between the three surfaces.
+# Rendered for a task-scoped knob that a process-level view can't show.
+_PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
+
 _KNOB_SCOPE: dict[str, str] = {
     "max_samples": "task",
     "max_sandboxes": "process",
@@ -918,17 +921,26 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
         # so this still works after a retry minted a new one).
         try:
             page = _fetch_samples(
-                target["socket_path"], target["eval_id"], active_since
+                target["socket_path"],
+                target["eval_id"],
+                active_since,
+                raise_on_busy=True,
             )
         except _ServerUnreachable as exc:
             if task is not None:
                 _exit_samples_unreachable(target["eval_id"], exc)
             # An unscoped read spans whatever evals happen to be running; one
-            # process exiting between discovery and this read shouldn't fail
-            # the invocation (even if it was the only eval).
+            # process exiting — or staying busy through the retries — between
+            # discovery and this read shouldn't fail the invocation (even if
+            # it was the only eval).
+            hint = (
+                "try again shortly"
+                if isinstance(exc, _ServerBusy)
+                else "it may have just exited"
+            )
             click.echo(
                 f"Skipping eval {target['eval_id']}: its samples could not be "
-                f"read ({_unreachable_detail(exc)}) — it may have just exited.",
+                f"read ({_unreachable_detail(exc)}) — {hint}.",
                 err=True,
             )
             continue
@@ -948,6 +960,14 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
         read=read,
         rows=rows,
     )
+
+
+class _RowsPrinter(Protocol):
+    """Prints a sample-rows table (``show_task`` adds the task column)."""
+
+    def __call__(
+        self, samples: list[dict[str, Any]], show_task: bool = False
+    ) -> None: ...
 
 
 def _run_sample_list(
@@ -981,7 +1001,7 @@ def _run_sample_listing(
     *,
     select: Callable[[dict[str, Any]], bool],
     empty_read: str,
-    printer: Callable[..., None],
+    printer: "_RowsPrinter",
 ) -> None:
     """The shared body of `sample list` / `sample errors`.
 
@@ -1036,26 +1056,17 @@ def _run_sample_show(
     # The error detail is the authoritative core; fold in the sample's listing
     # row for the summary fields (timing / tokens / messages) it doesn't carry.
     try:
-        samples = _fetch_samples(target["socket_path"], target["eval_id"]).samples
+        samples = _fetch_samples(
+            target["socket_path"], target["eval_id"], raise_on_busy=True
+        ).samples
     except _ServerUnreachable as exc:
-        # The detail already in hand answers the question; the process exiting
-        # between the two reads shouldn't discard it.
+        # The detail already in hand answers the question; the process
+        # exiting — or staying busy (_ServerBusy) — between the two reads
+        # shouldn't discard it.
         click.echo(
             f"Could not read the samples listing for eval {target['eval_id']} "
             f"({_unreachable_detail(exc)}); showing the sample without its "
             "summary fields (timing / tokens / messages).",
-            err=True,
-        )
-        samples = []
-    except click.exceptions.Exit:
-        # ...nor should a busy eval loop: retry exhaustion in the listing
-        # read raises Exit rather than _ServerUnreachable (the retry helper
-        # has already narrated the attempts to stderr), but the detail in
-        # hand still answers the question.
-        click.echo(
-            f"The samples listing for eval {target['eval_id']} did not "
-            "respond; showing the sample without its summary fields "
-            "(timing / tokens / messages).",
             err=True,
         )
         samples = []
@@ -1214,6 +1225,9 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
     """Latch keep-alive on (``keep``) or off (``release``) for one process."""
     verb = "keep" if keep else "release"
     target = _resolve_target_server(pid)
+    # keep/release are idempotent last-write-wins latches, so the retried
+    # (narrated) policy is safe here and beats one silent long wait against
+    # a busy event loop
     body = _request_json(
         str(target.socket_path),
         f"/{verb}",
@@ -1222,6 +1236,7 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
             f"Pid {target.pid} does not support keep/release (older inspect version?)."
         ),
         mutate="post",
+        retry_mutation=True,
     )
 
     # `changed` distinguishes applied from the idempotent already-in-that-state
@@ -1353,13 +1368,10 @@ def _run_config(
     dry_run: bool,
     as_json: bool,
 ) -> None:
-    set_limits = (
-        max_samples is not None
-        or max_sandboxes is not None
-        or max_connections is not None
-    )
+    # `set_buffer` gates the no-live-buffer hard error below; whether the
+    # request as a whole is a mutation is derived once, in _exec_limits
+    # (returned as `mutated`), so the two can't skew for a future knob.
     set_buffer = log_buffer is not None or log_shared is not None
-    set_values = set_limits or set_buffer
 
     # Task-scoped knobs follow the mutation selector rule (sole running task
     # default, explicit TASK otherwise); process-scoped knobs need no selector.
@@ -1393,7 +1405,7 @@ def _run_config(
         _echo_no_running_evals()
         return
 
-    limits_view = _exec_limits(
+    limits_view, mutated = _exec_limits(
         scope.socket_path,
         scope.task_id,
         max_samples=max_samples,
@@ -1480,7 +1492,7 @@ def _run_config(
         scope,
         limits_view,
         dry_run=dry_run,
-        set_values=set_values,
+        set_values=mutated,
         notes=notes,
         extra_warnings=buffer_warnings,
     )
@@ -1491,7 +1503,7 @@ def _run_config(
 
     click.echo(scope.header)
     click.echo()
-    _print_config(config, changed=set_values)
+    _print_config(config, changed=mutated)
 
 
 def _compose_config(
@@ -1622,12 +1634,19 @@ def _resolve_scope(
                 err=True,
             )
             raise click.exceptions.Exit(code=1)
+        # the named target counts toward the blast radius even when it is
+        # completed — the process-scope note must not be suppressed as
+        # "process-wide is exactly the named task" while a *different*
+        # (active) task would absorb the retune
+        siblings = _active_siblings(summaries, socket_path)
+        if not _is_active(target):
+            siblings += 1
         return _DirectiveScope(
             socket_path=socket_path,
             task_id=task_id,
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
-            siblings=_active_siblings(summaries, socket_path),
+            siblings=siblings,
         )
 
     sockets = sorted({str(s.get("socket_path")) for s in summaries})
@@ -1640,7 +1659,7 @@ def _resolve_scope(
     # a finished task's config is no longer meaningfully adjustable, so the
     # sole-task default keys on what is still active — an eval-set with one
     # running and N completed tasks resolves to the running one
-    active = [s for s in tasks_in_proc if s.get("status") in ("running", "pending")]
+    active = [s for s in tasks_in_proc if _is_active(s)]
     candidates = active or tasks_in_proc
     if len(candidates) == 1 and str(candidates[0].get("task_id") or ""):
         target = candidates[0]
@@ -1649,7 +1668,7 @@ def _resolve_scope(
             task_id=str(target["task_id"]),
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
-            siblings=_active_siblings(summaries, socket_path),
+            siblings=len(active),  # == _active_siblings for this socket
         )
     if per_task_option is not None:
         addressable = [c for c in candidates if str(c.get("task_id") or "")]
@@ -1658,9 +1677,7 @@ def _resolve_scope(
             # impossible advice — either a just-starting attempt whose
             # registration hasn't landed yet (status running/pending), or
             # pre-task-id reused logs (completed)
-            starting = any(
-                c.get("status") in ("running", "pending") for c in candidates
-            )
+            starting = any(_is_active(c) for c in candidates)
             reason = (
                 "the running task hasn't finished registering yet — retry in a moment"
                 if starting
@@ -1675,13 +1692,27 @@ def _resolve_scope(
             f"{per_task_option} targets a single task, but this process is "
             f"running {count} task{'s' if count != 1 else ''}",
         )
+    total = len(tasks_in_proc)
+    header = f"process · {total} tasks" + (
+        f" ({len(active)} active)" if len(active) != total else ""
+    )
     return _DirectiveScope(
         socket_path=socket_path,
         task_id=None,  # process-global scope
         task=None,
-        header=f"process · {len(tasks_in_proc)} tasks",
-        siblings=_active_siblings(summaries, socket_path),
+        header=header,
+        siblings=len(active),  # == _active_siblings for this socket
     )
+
+
+def _is_active(summary: dict[str, Any]) -> bool:
+    """Whether a task summary is still running or pending.
+
+    The one predicate behind scope resolution's sole-task default, the
+    orphan-vs-reused-log routing, and the blast-radius sibling count — kept
+    single so a new active-like status can't desynchronize them.
+    """
+    return summary.get("status") in ("running", "pending")
 
 
 def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
@@ -1694,8 +1725,7 @@ def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
     return sum(
         1
         for s in summaries
-        if str(s.get("socket_path")) == socket_path
-        and s.get("status") in ("running", "pending")
+        if str(s.get("socket_path")) == socket_path and _is_active(s)
     )
 
 
@@ -1703,17 +1733,18 @@ def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
     """Note that process-scoped config knobs reach every task in the process.
 
     ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes``)
-    supplied on this invocation; ``siblings`` is the number of evals the target
-    process hosts. Returns ``None`` when there's nothing to flag — no such knob
-    was set, or the process hosts a single eval so "process-wide" is exactly the
-    named task and the distinction is invisible.
+    supplied on this invocation; ``siblings`` counts the tasks the retune can
+    reach (the process's active tasks, plus the named target when it is
+    completed). Returns ``None`` when there's nothing to flag — no such knob
+    was set, or the target task is the only one the change can reach, so
+    "process-wide" is invisible.
     """
     if not global_knobs or siblings <= 1:
         return None
     verb = "applies" if len(global_knobs) == 1 else "apply"
     return (
-        f"{' and '.join(global_knobs)} {verb} across all "
-        f"{siblings} tasks sharing this process."
+        f"{' and '.join(global_knobs)} {verb} process-wide — every active "
+        "task in this process is affected."
     )
 
 
@@ -1782,20 +1813,38 @@ class _ServerUnreachable(Exception):
     """
 
 
+class _ServerBusy(_ServerUnreachable):
+    """A read exhausted its busy retries (opt-in — see ``raise_on_busy``).
+
+    A subclass, so a caller's existing ``except _ServerUnreachable``
+    warn-and-skip covers it; carries its message as the detail (there is no
+    transport ``__cause__`` — every attempt timed out).
+    """
+
+
 def _get_response_with_retry(
     socket_path: str | Path,
     path: str,
     *,
     params: dict[str, Any] | None = None,
     what: str,
+    method: Literal["get", "post", "patch"] = "get",
+    raise_on_busy: bool = False,
 ) -> httpx.Response:
-    """GET ``path`` over the UDS, retrying a read timeout; return the response.
+    """Request ``path`` over the UDS, retrying a read timeout.
 
     Retries a read timeout up to ``_REQUEST_ATTEMPTS`` times, printing a status
     to the console (stderr, so ``--json`` stdout stays clean) on each — the eval
-    is most likely just busy. On exhaustion, prints an error and exits non-zero.
-    Raises :class:`_ServerUnreachable` for a non-timeout transport error (eg. a
-    refused/reset connection) so the caller can skip or fail as appropriate.
+    is most likely just busy. On exhaustion, prints an error and exits non-zero
+    — or raises :class:`_ServerBusy` when ``raise_on_busy`` is set, for callers
+    that can degrade instead of dying (a fan-out skipping one busy eval, a
+    supplemental read). Raises :class:`_ServerUnreachable` for a non-timeout
+    transport error (eg. a refused/reset connection) so the caller can skip or
+    fail as appropriate.
+
+    ``method`` extends the retry policy to **idempotent** mutations only
+    (keep/release's last-write-wins latches); a non-idempotent mutation must
+    not be retried and takes the single-shot path in :func:`_request_json`.
 
     Returns the raw response without inspecting its status, so callers that need
     to handle a meaningful status (eg. a 404) can; :func:`_get_with_retry` is the
@@ -1809,7 +1858,8 @@ def _get_response_with_retry(
                 base_url="http://localhost",
                 timeout=_REQUEST_TIMEOUT,
             ) as client:
-                return client.get(path, params=params or {})
+                request = getattr(client, method)
+                return cast(httpx.Response, request(path, params=params or {}))
         except httpx.TimeoutException:
             click.echo(
                 f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
@@ -1824,6 +1874,11 @@ def _get_response_with_retry(
         f"{_REQUEST_TIMEOUT:.0f}s each — the eval is not responding.",
         err=True,
     )
+    if raise_on_busy:
+        raise _ServerBusy(
+            f"no response after {_REQUEST_ATTEMPTS} attempts — the eval's "
+            "event loop is busy"
+        )
     raise click.exceptions.Exit(code=1)
 
 
@@ -1833,15 +1888,19 @@ def _get_with_retry(
     *,
     params: dict[str, Any] | None = None,
     what: str,
+    raise_on_busy: bool = False,
 ) -> Any:
     """GET ``path`` and return its decoded JSON, retrying a busy eval on timeout.
 
-    Wraps :func:`_get_response_with_retry`; a non-2xx status or undecodable body
-    raises :class:`_ServerUnreachable` (a server-side ``500`` or malformed
-    response is not retryable). For endpoints with a meaningful 4xx, call
-    :func:`_get_response_with_retry` directly and inspect the status.
+    Wraps :func:`_get_response_with_retry` (``raise_on_busy`` rides through);
+    a non-2xx status or undecodable body raises :class:`_ServerUnreachable`
+    (a server-side ``500`` or malformed response is not retryable). For
+    endpoints with a meaningful 4xx, call :func:`_get_response_with_retry`
+    directly and inspect the status.
     """
-    response = _get_response_with_retry(socket_path, path, params=params, what=what)
+    response = _get_response_with_retry(
+        socket_path, path, params=params, what=what, raise_on_busy=raise_on_busy
+    )
     try:
         response.raise_for_status()
         return response.json()
@@ -1991,7 +2050,11 @@ class _SamplesPage(NamedTuple):
 
 
 def _fetch_samples(
-    socket_path: str, eval_id: str, active_since: float | None = None
+    socket_path: str,
+    eval_id: str,
+    active_since: float | None = None,
+    *,
+    raise_on_busy: bool = False,
 ) -> _SamplesPage:
     """Query one control server for an eval's samples.
 
@@ -2013,6 +2076,7 @@ def _fetch_samples(
         f"/evals/{eval_id}/samples",
         params=params,
         what=f"Reading samples for eval {eval_id}",
+        raise_on_busy=raise_on_busy,
     )
     if isinstance(page, dict):
         samples = page.get("samples")
@@ -2114,6 +2178,7 @@ def _request_json(
     not_found: str,
     params: dict[str, Any] | None = None,
     mutate: Literal["post", "patch"] | None = None,
+    retry_mutation: bool = False,
 ) -> dict[str, Any]:
     """GET (retrying a busy process) or mutate ``path``; return its JSON dict.
 
@@ -2121,13 +2186,24 @@ def _request_json(
     commands. A read goes through :func:`_get_response_with_retry`; a mutation
     isn't idempotent across transport failures, so it gets a single attempt
     with the full mutation budget (see :data:`_MUTATION_TIMEOUT` — eg. a
-    remote S3 log flush can take a while). A 404 prints ``not_found`` and
-    exits non-zero; a 400 surfaces the server's ``{"error": ...}`` body;
-    transport errors exit with ``what`` as context.
+    remote S3 log flush can take a while) — EXCEPT when the caller marks it
+    ``retry_mutation`` (an idempotent last-write-wins latch like
+    keep/release), which rides the narrated retrying policy instead of one
+    silent long wait. A 404 prints ``not_found`` and exits non-zero; a 400
+    surfaces the server's ``{"error": ...}`` body; transport errors exit
+    with ``what`` as context.
     """
     verb = "update" if mutate else "read"
     try:
-        if mutate is not None:
+        if mutate is not None and retry_mutation:
+            response = _get_response_with_retry(
+                socket_path,
+                path,
+                params=params,
+                what=f"Updating {what}",
+                method=mutate,
+            )
+        elif mutate is not None:
             transport = httpx.HTTPTransport(uds=str(socket_path))
             with httpx.Client(
                 transport=transport,
@@ -2192,7 +2268,7 @@ def _exec_limits(
     log_buffer: int | None = None,
     log_shared: int | None = None,
     dry_run: bool,
-) -> dict[str, Any]:
+) -> "_ConfigResult":
     """Read (no set knobs) or retune (any set knob) a scope's config.
 
     With ``task_id`` set this targets that task's ``/tasks/<id>/config`` (the
@@ -2240,7 +2316,7 @@ def _exec_limits(
             "inspect version?)."
         )
     scope = f"task {task_id}" if task_id is not None else "process"
-    return _request_json(
+    view = _request_json(
         socket_path,
         f"/tasks/{task_id}/config" if task_id is not None else "/config",
         what=f"config for {scope}",
@@ -2248,6 +2324,19 @@ def _exec_limits(
         params=params,
         mutate="patch" if set_values else None,
     )
+    return _ConfigResult(view=view, mutated=set_values)
+
+
+class _ConfigResult(NamedTuple):
+    """A config read/retune: the server view + whether a PATCH was sent.
+
+    ``mutated`` is the single source for "was this a mutation" — callers
+    (the `applied` flag, `changed=` rendering) must not re-derive it from
+    their own knob lists, which would skew for a future knob.
+    """
+
+    view: dict[str, Any]
+    mutated: bool
 
 
 def _error_body(response: httpx.Response) -> str | None:
@@ -2301,10 +2390,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     # show it as per-task rather than claiming a value. Distinguish that from
     # a task view that carries an explicit `{"adjustable": false}`.
     if "max_samples" not in knobs:
-        click.echo(
-            _knob_label("max samples", "max_samples")
-            + "per task (pass a task to view/set)"
-        )
+        click.echo(_knob_label("max samples", "max_samples") + _PER_TASK_PLACEHOLDER)
     else:
         max_samples = knobs.get("max_samples") or {}
         if max_samples.get("adjustable"):
@@ -2368,10 +2454,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             f"({log_buffer.get('pending')} pending)"
         )
     elif process_scope:
-        click.echo(
-            _knob_label("log buffer", "log_buffer")
-            + "per task (pass a task to view/set)"
-        )
+        click.echo(_knob_label("log buffer", "log_buffer") + _PER_TASK_PLACEHOLDER)
     if "log_shared" in knobs:
         shared = (knobs.get("log_shared") or {}).get("value")
         rendered_shared = _target(shared, "log_shared") if shared is not None else None
@@ -2380,10 +2463,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             + f"{f'{rendered_shared}s' if rendered_shared is not None else 'off'}"
         )
     elif process_scope:
-        click.echo(
-            _knob_label("shared sync", "log_shared")
-            + "per task (pass a task to view/set)"
-        )
+        click.echo(_knob_label("shared sync", "log_shared") + _PER_TASK_PLACEHOLDER)
 
     for warning in config.get("warnings") or []:
         click.echo(f"  ! {warning}")
