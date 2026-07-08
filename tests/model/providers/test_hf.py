@@ -254,7 +254,7 @@ def test_hf_auto_model_class_selects_alternate_loader(monkeypatch) -> None:
     AutoModelForCausalLM and must be loaded with e.g.
     AutoModelForImageTextToText.
     """
-    import transformers
+    import transformers  # type: ignore
 
     from inspect_ai.model._providers.hf import HuggingFaceAPI
 
