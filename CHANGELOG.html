@@ -194,7 +194,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.244 (01 July 2026)</a></li>
+  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.245 (08 July 2026)</a></li>
+  <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.244 (01 July 2026)</a></li>
   <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.243 (30 June 2026)</a></li>
   <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.242 (29 June 2026)</a></li>
   <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.241 (22 June 2026)</a></li>
@@ -445,20 +446,59 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="july-2026" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026">0.3.244 (01 July 2026)</h2>
+<h2 class="anchored" data-anchor-id="july-2026">0.3.245 (08 July 2026)</h2>
+<ul>
+<li>Model API: New <code>openai-api-completions</code> provider for the legacy <code>/v1/completions</code> endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with <code>vllm-completions</code>.</li>
+<li>Model API: <code>openai-api-completions</code> and <code>vllm-completions</code> accept pre-tokenized prompts via <code>ChatMessage.metadata["prompt_token_ids"]</code>.</li>
+<li>Anthropic: Neutralize thinking blocks before <code>count_tokens</code> so compaction no longer hits 400 errors (thinking blocks “cannot be modified” / “each thinking block must contain thinking”) when counting message subsets whose assistant turns contain reasoning blocks.</li>
+<li>Agent Bridge: Sandbox model proxy now returns an HTTP 400 error for malformed requests (missing/empty <code>model</code>, missing <code>messages</code>/<code>input</code>, or a non-object body) instead of crashing the sample. (#4187)</li>
+<li>Agent Bridge: Sandbox model proxy now streams Anthropic <code>compaction</code> and <code>fallback</code> content blocks (this handling was present only in the in-repo copy and missing from the injected proxy build).</li>
+<li>Agent Bridge: Sandbox model proxy now forwards a failed generation to the proxied agent as a provider-dialect error response (preserving the original HTTP status where available).</li>
+<li>Checkpointing: tasks can register <code>on_checkpoint</code>/<code>on_resume</code> callbacks; <code>on_resume</code> may return a <code>ResumeReport</code> surfaced to agents via <code>checkpointer().restored</code>.</li>
+<li>Checkpointing: The restic binary download now retries transient network failures and verifies the binary against vendored checksums instead of fetching them at runtime.</li>
+<li>Checkpointing: resume no longer hard-errors when a run contains a duplicate checkpoint span left by a tolerated (non-fatal) capture failure.</li>
+<li>Control Channel: <code>inspect ctl tasks</code> now includes model and solver columns.</li>
+<li>Control Channel: Added <code>inspect ctl limits</code> to view or retune a running eval’s <code>max_samples</code> / <code>max_sandboxes</code> / <code>max_connections</code> concurrency limits mid-flight (with <code>--dry-run</code>).</li>
+<li>Docker: Support the <code>devices</code> field on compose services (device mappings such as <code>/dev/kvm</code>), previously rejected as an unknown field.</li>
+<li>Docker: Warn when a task or sample declares a Dockerfile/compose.yaml sandbox config that gets silently dropped because the effective sandbox type doesn’t support Docker Compose configuration.</li>
+<li>OpenAI: Surface OpenAI Responses API response <code>metadata</code> as <code>ModelOutput.metadata</code>.</li>
+<li>Google: Include thinking tokens in reported <code>output_tokens</code> (matching the OpenAI/Anthropic convention where reasoning is a subset of output), so output-metered token limits and cost computations count Gemini thinking tokens.</li>
+<li>Hugging Face: Add an <code>auto_model_class</code> model arg to select the <code>transformers</code> auto-class used to load the model, so architectures not registered with <code>AutoModelForCausalLM</code> (e.g.&nbsp;the Mistral 3 series and other image-text-to-text models) can be loaded with e.g.&nbsp;<code>AutoModelForImageTextToText</code>. (#4438)</li>
+<li>Inspect View: Validate Host and browser origins, prevent framing, and require authorization or explicit acknowledgement for non-loopback binds.</li>
+<li>Limits: Token limits can now meter only output tokens via <code>token_limit(n, type="output")</code>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> <code>token_limit=TokenLimit(...)</code> values, or string forms like <code>--token-limit output:1m</code> (with <code>k</code>/<code>m</code>/<code>b</code> magnitude suffixes).</li>
+<li>Performance: make <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#stable_message_ids">stable_message_ids()</a></span> linear per turn.</li>
+<li>Performance: Reading <code>.eval</code> logs now looks up zip members via a cached O(1) name index instead of an O(members) scan per member, removing quadratic (O(members²)) overhead when loading logs with many samples (e.g.&nbsp;<code>read_eval_log</code>, <code>eval-retry</code>, <code>samples_df(full=True)</code>).</li>
+<li>Sandbox: Validate sandbox-service names and request IDs, bind response paths to request filenames, and prevent queue filenames from being interpreted as shell commands.- Scoring: Fix edge case where <code>pattern</code> <code>match_all=True</code> could incorrectly return the target value when no matches were present.</li>
+<li>Scoring: Fix edge case where <code>pattern</code> <code>match_all=True</code> could incorrectly return the target value when no matches were present.</li>
+<li>Scoring: <code>model_graded_qa</code> / <code>model_graded_fact</code> now mark a sample unscored (instead of <code>INCORRECT</code>) when the judge’s output does not match the grade regex, tagging <code>unscored_reason="grade_parse_failure"</code> so judge-parse failures leave the rate and stay visible rather than inflating the <code>INCORRECT</code> count.</li>
+<li>Security: Constrain Docker sandbox <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span> staging to a generated regular file so container paths cannot copy outside the private host temporary directory.</li>
+<li>vLLM: Keep the connection-pool/adaptive-concurrency scope stable across lazy server startup instead of splitting it on the first generate.</li>
+<li>Bugfix <code>--score-on-error</code> and <code>--continue-on-fail</code> (when absent on the command line) silently overwriting a value set in a <code>@task</code>, a <code>--run-config</code> file, or a prior eval log being retried.</li>
+<li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#mean">mean()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#bootstrap_stderr">bootstrap_stderr()</a></span> now return <code>0.0</code> for an empty score list instead of <code>nan</code> (with numpy empty-slice warnings), matching the empty-input handling of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#accuracy">accuracy()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#std">std()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#stderr">stderr()</a></span>/<code>var()</code>.</li>
+<li>Bugfix: Sample concurrency now honors model-level <code>max_connections</code> / <code>adaptive_connections</code> settings instead of classifying the adaptive-vs-static path from task-level config alone.</li>
+<li>Bugfix: Stale-signature (<code>RequestTimeTooSkewed</code>) retries of S3 log writes now always get their full 5 attempts instead of being cut short by a 60-second wall-clock stop.</li>
+<li>Bugfix: <code>eval-retry --max-retries 0</code> now disables retries as documented instead of inheriting the original eval’s retry policy.</li>
+<li>Bugfix: Ordinary dicts shaped like <code>{type, name, params}</code> are no longer misidentified as encoded registry objects during <code>registry_kwargs()</code> round-trip. (#4374)</li>
+<li>Bugfix: Link plain HTTP sandbox ports (e.g.&nbsp;80, 8080) as <code>http://</code> instead of <code>https://</code> in the running-samples port-mappings panel.</li>
+</ul>
+</section>
+<section id="july-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-1">0.3.244 (01 July 2026)</h2>
 <ul>
 <li>Anthropic: Various changes related to <a href="https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5">Sonnet 5</a>.</li>
+<li>Bugfix: Elapsed-time displays (e.g.&nbsp;the running-sample clock and timers) no longer render an impossible <code>:60</code> seconds when the elapsed time has a fractional second.</li>
+<li>Bugfix: A <code>react</code> sub-agent nested inside another <code>react</code> (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.</li>
 </ul>
 </section>
 <section id="june-2026" class="level2">
 <h2 class="anchored" data-anchor-id="june-2026">0.3.243 (30 June 2026)</h2>
 <ul>
-<li>Bugfix: Elapsed-time displays (e.g.&nbsp;the running-sample clock and timers) no longer render an impossible <code>:60</code> seconds when the elapsed time has a fractional second.</li>
-<li>Bugfix: A <code>react</code> sub-agent nested inside another <code>react</code> (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.</li>
 <li>Checkpointing: Run <code>restic backup</code> with <code>--quiet</code> so its progress output can’t overflow the sandbox output cap on long backups.</li>
 <li>Control Channel: Added <code>inspect ctl flush</code> (write a running eval’s buffered samples to the log now, e.g.&nbsp;to make S3-backed results analyzable without waiting) and <code>inspect ctl buffer</code> (view or change the <code>--log-buffer</code> / <code>--log-shared</code> sample-buffer params of a running eval).</li>
 <li>Control Channel: <code>inspect ctl tasks</code> no longer drops eval processes owned by another user, which were previously misreported as dead.</li>
 <li>Eval Logs: Record the installed task package’s git commit in <code>EvalSpec.revision</code>, resolving the actual distribution (namespace-package aware).</li>
+<li>Bugfix: Elapsed-time displays (e.g.&nbsp;the running-sample clock and timers) no longer render an impossible <code>:60</code> seconds when the elapsed time has a fractional second.</li>
+<li>Bugfix: A <code>react</code> sub-agent nested inside another <code>react</code> (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.</li>
 </ul>
 </section>
 <section id="june-2026-1" class="level2">
@@ -522,7 +562,7 @@ ul.task-list li input[type="checkbox"] {
 <li>OpenAI: Skip the <code>_reasoning_summaries_lock</code> once the cached value is set, so highly-concurrent <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> calls no longer queue through the lock on every call.</li>
 <li>Mistral: Forward <code>GenerateConfig.extra_headers</code> on the chat completions API path (previously only the conversation-api path honored it).</li>
 <li>Anthropic: Synthesize a refusal <code>trigger</code> when validating fallback blocks from message history, fixing a <code>ValidationError</code> with <code>anthropic&gt;=0.110.0</code> (which made <code>trigger</code> a required field on <code>BetaFallbackBlock</code>).</li>
-<li>Limits: Added <code>turn_limit()</code> which tracks total generations.</li>
+<li>Limits: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#turn_limit">turn_limit()</a></span> which tracks total generations.</li>
 <li>Control Channel: <code>inspect ctl tasks</code> now reports keep-alive status (<code>on</code> / <code>off</code> / <code>mixed</code>) and a new <code>inspect ctl keep</code> command (backed by <code>POST /keep</code>) latches keep-alive on a running process so it parks after its eval.</li>
 <li>Hooks: Add <code>on_model_retry</code> hook, fired before each model retry backoff with the model name, attempt number, and upcoming <code>wait_time</code> (useful for surfacing time spent in rate limiting and other retries).</li>
 <li>Inspect View: Improve sample reading performance in viewer by serving <code>/log-bytes</code> range requests as plain responses instead of line-iterating a <code>BytesIO</code>.</li>
@@ -716,6 +756,7 @@ ul.task-list li input[type="checkbox"] {
 <li><a href="https://inspect.aisi.org.uk/intervention.html#notifications">Notifications</a> via <a href="https://appriseit.com">Apprise</a> (Slack, desktop, SMS, email, webhook, ~90 services).</li>
 <li><a href="https://inspect.aisi.org.uk/interactivity.html"><span class="element-type-name ref-interlink"><span>request_input()</span></span></a> public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as <code>ask_user()</code>.</li>
 <li>Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.</li>
+<li>Reasoning: Correctly parse nested <code>&lt;think&gt;</code> blocks without exposing inner reasoning text as visible model output.</li>
 </ul>
 </section>
 <section id="may-2026-6" class="level2">

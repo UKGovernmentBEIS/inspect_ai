@@ -33,8 +33,11 @@ inspect view start [OPTIONS]
 | Name | Type | Description | Default |
 |----|----|----|----|
 | `--recursive` | boolean | Include all logs in log_dir recursively. | `True` |
-| `--host` | text | Tcp/Ip host. Note: you can use `0.0.0.0` to expose the viewer and connect remotely (e.g. SSH). | `127.0.0.1` |
+| `--host` | text | TCP/IP bind host. Non-loopback binds require authorization or an explicit unsafe acknowledgement. | `127.0.0.1` |
 | `--port` | integer | TCP/IP port | `7575` |
+| `--trusted-origin` | text | Exact browser origin allowed to use the viewer. Repeat for multiple origins. | None |
+| `--trusted-host` | text | Additional exact HTTP authority allowed for non-browser clients. | None |
+| `--unsafe-allow-unauthenticated` | boolean | Acknowledge unauthenticated access when binding beyond loopback. | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |

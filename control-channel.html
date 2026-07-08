@@ -713,6 +713,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sample-status" id="toc-sample-status" class="nav-link" data-scroll-target="#sample-status">Sample Status</a></li>
   <li><a href="#errors-and-retries" id="toc-errors-and-retries" class="nav-link" data-scroll-target="#errors-and-retries">Errors and Retries</a></li>
   <li><a href="#transcript-events" id="toc-transcript-events" class="nav-link" data-scroll-target="#transcript-events">Transcript Events</a></li>
+  <li><a href="#concurrency-limits" id="toc-concurrency-limits" class="nav-link" data-scroll-target="#concurrency-limits">Concurrency Limits</a></li>
+  <li><a href="#log-buffer" id="toc-log-buffer" class="nav-link" data-scroll-target="#log-buffer">Log Buffer</a></li>
   <li><a href="#keep-alive" id="toc-keep-alive" class="nav-link" data-scroll-target="#keep-alive">Keep Alive</a></li>
   <li><a href="#disabling-the-control-server" id="toc-disabling-the-control-server" class="nav-link" data-scroll-target="#disabling-the-control-server">Disabling the Control Server</a></li>
   </ul>
@@ -742,7 +744,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Every <code>inspect eval</code> or <code>inspect eval-set</code> process binds a local control endpoint that exposes the live state of the run. The <code>inspect ctl</code> commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — without interrupting it or parsing log files.</p>
+<p>Every <code>inspect eval</code> or <code>inspect eval-set</code> process binds a local control endpoint that exposes the live state of the run. The <code>inspect ctl</code> commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and adjust it — concurrency limits, log buffering — without interrupting it or parsing log files.</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 35%">
@@ -776,23 +778,39 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Read one sample’s transcript events.</td>
 </tr>
 <tr class="even">
+<td><code>inspect ctl limits</code></td>
+<td>View or retune a task’s concurrency limits.</td>
+</tr>
+<tr class="odd">
+<td><code>inspect ctl flush</code></td>
+<td>Write buffered completed samples to the log now.</td>
+</tr>
+<tr class="even">
+<td><code>inspect ctl buffer</code></td>
+<td>View or change the sample-buffer parameters.</td>
+</tr>
+<tr class="odd">
+<td><code>inspect ctl keep</code></td>
+<td>Make a running process stay alive after its eval finishes.</td>
+</tr>
+<tr class="even">
 <td><code>inspect ctl release</code></td>
 <td>Let a keep-alive process exit.</td>
 </tr>
 </tbody>
 </table>
-<p>All commands accept <code>--json</code> for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. Everything is read-only: nothing you do over the control channel affects the running eval (<code>release</code> only lets an already-finished process exit).</p>
+<p>All commands accept <code>--json</code> for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The status commands (<code>tasks</code>, <code>samples</code>, <code>errors</code>, <code>sample</code>, <code>events</code>) are read-only. The others adjust the run deliberately and conservatively: <code>limits</code> and <code>buffer</code> retune resource parameters (never interrupting in-flight work), <code>flush</code> forces a log write that would happen anyway, and <code>keep</code>/<code>release</code> only affect what happens after the eval finishes. Nothing on the control channel can cancel or modify samples.</p>
 <p>The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.</p>
 </section>
 <section id="listing-tasks" class="level2">
 <h2 class="anchored" data-anchor-id="listing-tasks">Listing Tasks</h2>
 <p><code>inspect ctl tasks</code> lists the tasks of every running eval on the machine:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl tasks</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">task_id</span>       task                         samples              started</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------------</span>  <span class="at">---------------------------</span>  <span class="at">-------------------</span>  <span class="at">--------</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ZByxJpK4bKSz</span>  inspect_evals/gpqa_diamond   12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span>    <span class="ex">14:02:11</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">fR8mWn2cQspD</span>  inspect_evals/humaneval      164/164 <span class="er">(</span><span class="bu">complete</span><span class="kw">)</span>   <span class="ex">13:58:40</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Each row is one task: retried tasks stay on a single row (with an <code>attempts</code> column showing how many attempts have run), and an <code>errors</code> column appears when any samples have errored.</p>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">task_id</span>       task                        model                      solver    samples             started</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------------</span>  <span class="at">--------------------------</span>  <span class="at">-------------------------</span>  <span class="at">--------</span>  <span class="at">------------------</span>  <span class="at">--------</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ZByxJpK4bKSz</span>  inspect_evals/gpqa_diamond  openai/gpt-5               react     12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span>   <span class="ex">14:02:11</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">fR8mWn2cQspD</span>  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 <span class="er">(</span><span class="bu">complete</span><span class="kw">)</span>  <span class="ex">13:58:40</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Each row is one task: retried tasks stay on a single row (with an <code>attempts</code> column showing how many attempts have run), and an <code>errors</code> column appears when any samples have errored. The <code>solver</code> column shows the plan’s terminal solver (the agent name, e.g.&nbsp;<code>react</code>, for an agentic task).</p>
 </section>
 <section id="selecting-a-task" class="level2">
 <h2 class="anchored" data-anchor-id="selecting-a-task">Selecting a Task</h2>
@@ -872,18 +890,77 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <p>Events for samples that have already completed are also readable — they are served from the eval’s log.</p>
 </section>
+<section id="concurrency-limits" class="level2">
+<h2 class="anchored" data-anchor-id="concurrency-limits">Concurrency Limits</h2>
+<p><code>inspect ctl limits</code> shows a task’s live concurrency limits, and can retune them mid-run — for example to throttle an eval that is hammering a provider or overloading a machine, or to open it up when more capacity becomes available:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl limits gpqa</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-5  ·  running  ·  12/40</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="ex">limits:</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> samples:   tracks adaptive connections <span class="er">(</span><span class="ex">see</span> below<span class="kw">)</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> sandboxes: docker 40 <span class="er">(</span><span class="ex">12</span> in use<span class="kw">)</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">adaptive</span> connections:</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="ex">openai/gpt-5:</span> 45 <span class="er">(</span><span class="ex">38</span> in use<span class="kw">)</span><span class="ex">,</span> range 10–100, last: 40→45 steady_state_up</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl limits gpqa <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 35%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>--max-samples N</code></td>
+<td>Set the task’s sample concurrency (not applicable under <a href="./models-concurrency.html">adaptive connections</a>, where sample concurrency tracks the controller).</td>
+</tr>
+<tr class="even">
+<td><code>--max-sandboxes N</code></td>
+<td>Set the per-provider sandbox concurrency (process-wide, across all tasks).</td>
+</tr>
+<tr class="odd">
+<td><code>--max-connections N</code></td>
+<td>Set the adaptive connections scaling ceiling (process-wide, across all tasks).</td>
+</tr>
+<tr class="even">
+<td><code>--model M</code></td>
+<td>Restrict <code>--max-connections</code> (and the adaptive view) to matching models in mixed-model runs.</td>
+</tr>
+<tr class="odd">
+<td><code>--dry-run</code></td>
+<td>Report what would change (<code>current → requested</code>) without applying it.</td>
+</tr>
+</tbody>
+</table>
+<p>Changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model’s live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene.</p>
+<p>Limits are keyed by the task (stable across retries): with eval sets’ default immediate retries, a retune survives a task retry rather than reverting to the launch configuration (legacy batch-mode retries — <code>retry_immediate=False</code> — run as separate calls and revert). <code>--max-sandboxes</code> and <code>--max-connections</code> are process-wide — in an eval set they affect every task in the process, not just the one named. With no <code>TASK</code> argument the command targets the sole running process (showing just the process-wide limits when it hosts multiple tasks).</p>
+</section>
+<section id="log-buffer" class="level2">
+<h2 class="anchored" data-anchor-id="log-buffer">Log Buffer</h2>
+<p>Completed samples are buffered and written to the (possibly remote, e.g.&nbsp;S3) log in batches. Two commands control this for a running eval:</p>
+<p><code>inspect ctl flush</code> writes any buffered samples to the log immediately, so they become readable and analyzable without waiting for the buffer to fill. It is safe to repeat — a flush with nothing pending writes nothing.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl flush gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>inspect ctl buffer</code> shows or changes the buffering parameters: <code>--samples N</code> sets how many completed samples buffer before a write (lower it to write to S3 more often), and <code>--shared S</code> sets the shared-log event sync interval in seconds. Changing <code>--samples</code> affects future writes only — run <code>flush</code> to write what is already pending.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl buffer gpqa <span class="at">--samples</span> 5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
 <section id="keep-alive" class="level2">
 <h2 class="anchored" data-anchor-id="keep-alive">Keep Alive</h2>
 <p>A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The <code>--ctl-server</code> option controls this:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>keep</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>keep</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>With <code>keep</code>, the process stays running after the eval finishes — its state remains queryable via <code>inspect ctl</code> and its logs are fully written — until you release it:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl release</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl release</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You can also latch keep-alive onto an eval that is <em>already running</em> (launched without <code>--ctl-server=keep</code>) with <code>inspect ctl keep</code>.</p>
 <p>If more than one process is parked, <code>release</code> lists their pids and you disambiguate with <code>--pid</code>. Release also works ahead of time: issued while the eval is still running, it means “exit when done” — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). <code>keep</code> and <code>release</code> are last-write-wins, so a <code>keep</code> issued after a <code>release</code> (while the eval is still running) restores the park. From Python, pass <code>ctl_server="keep"</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>. For eval sets, keep-alive requires <code>retry_immediate=True</code> (the default).</p>
 </section>
 <section id="disabling-the-control-server" class="level2">
 <h2 class="anchored" data-anchor-id="disabling-the-control-server">Disabling the Control Server</h2>
 <p>The control server is on by default. To run an eval without it:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>INSPECT_EVAL_CTL_SERVER</code> environment variable mirrors the option (for example, set <code>INSPECT_EVAL_CTL_SERVER=false</code> to disable it across a CI job). If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.</p>
 
 

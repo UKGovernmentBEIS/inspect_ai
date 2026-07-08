@@ -502,6 +502,10 @@ The above code demonstrates a couple of important characteristics of a sample ba
 
 Sandbox services make available a set of methods to a sandbox for calling back into the main Inspect process. For example, the [Human Agent](./human-agent.html.md) uses a sandbox service to enable the human agent to start, stop, score, and submit tasks.
 
+> **NOTE:**
+>
+> Sandbox services use a filesystem queue and are intended for callers with the same sandbox-user authority as the service. They are not an authentication or privilege-separation boundary between sandbox users. Service names must be ASCII Python identifiers; instance names must begin with a letter or number and may then contain letters, numbers, `.`, `_`, or `-`.
+
 Sandbox service are often run using the [background()](./reference/inspect_ai.util.html.md#background) function to make them available for the lifetime of a sample.
 
 For example, here’s a simple calculator service that provides add and subtract methods to Python code within a sandbox:

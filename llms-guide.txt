@@ -14,7 +14,7 @@ Inspect is a framework for frontier AI evaluations developed by the [UK AI Secur
 - Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
 - Flexible support for tool calling—custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
 - Support for agent evaluations, including flexible built-in agents, multi-agent primitives, and the ability to run arbitrary external agents like Claude Code, Codex CLI, and Gemini CLI.
-- A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Modal, Proxmox, and other systems via an extension API.
+- A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Modal, Proxmox, Vagrant, and other systems via an extension API.
 
 We’ll walk through two short “Hello, Inspect” examples below. Read on to learn the basics, then read the documentation on [Datasets](./datasets.html.md), [Solvers](./solvers.html.md), [Scorers](./scorers.html.md), [Tools](./tools.html.md), and [Agents](./agents.html.md) to learn how to create more advanced evaluations.
 
@@ -845,10 +845,10 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 |  |  |
 |----|----|
 | `--max-connections` | Maximum number of concurrent connections to Model provider (defaults to 10) |
-| `--max-samples` | Maximum number of samples to run in parallel (default is `--max-connections`) |
+| `--max-samples` | Maximum number of samples to run in parallel (default is `--max-connections`; retunable mid-run via [`inspect ctl limits`](./control-channel.html.md#concurrency-limits)) |
 | `--max-dataset-memory` | Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk. |
 | `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`) |
-| `--max-sandboxes` | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
+| `--max-sandboxes` | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`; retunable mid-run via [`inspect ctl limits`](./control-channel.html.md#concurrency-limits)) |
 | `--max-tasks` | Maximum number of tasks to run in parallel (default is 1) |
 
 ## Errors and Limits
@@ -962,19 +962,55 @@ By default, `inspect view` will use the configured log directory of the environm
 $ inspect view --log-dir ./experiment-logs
 ```
 
-By default it will run locally (127.0.0.1) on port 7575 (and kill any existing `inspect view` using that port). If you want to run two instances of `inspect view` you can specify an alternate port:
+By default it will run locally (`127.0.0.1`) on port 7575 (and kill any existing `inspect view` using that port). If you want to run two instances of `inspect view` you can specify an alternate port:
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs --port 6565
 ```
 
-If you’re running the evaluation viewer on a remote machine (such as via SSH), you must explicitly allow access from external networks using the –host 0.0.0.0 option. You’ll be able to access the view at `http://$MACHINE_IP:6565` .
+You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
+
+### Remote Access
+
+For single-user access to a viewer on a remote machine, keep the viewer bound to loopback and use SSH port forwarding:
 
 ``` bash
-$ inspect view --log-dir ./experiment-logs --host 0.0.0.0
+$ ssh -L 7575:127.0.0.1:7575 user@remote
 ```
 
-You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
+Run `inspect view` normally on the remote machine, then open `http://127.0.0.1:7575` locally.
+
+If local DNS or a hosts file maps a custom name to loopback, declare that exact browser origin:
+
+``` bash
+$ inspect view --trusted-origin http://my-inspect:7575
+```
+
+The viewer remains bound to `127.0.0.1`. `--trusted-origin` is repeatable and accepts exact `http` or `https` origins only; it also permits the matching HTTP `Host`. Unconfigured aliases remain rejected.
+
+Binding beyond loopback requires request authorization. For browser access, place the viewer behind an authenticating reverse proxy that injects the configured upstream authorization header:
+
+``` bash
+$ INSPECT_VIEW_AUTHORIZATION_TOKEN="$UPSTREAM_SECRET" \
+    inspect view \
+    --host 0.0.0.0 \
+    --trusted-origin https://inspect.example.org
+```
+
+Load `UPSTREAM_SECRET` through your normal secret-management mechanism and set it to the complete expected `Authorization` header value (for example, `Bearer ...`). The proxy must authenticate the external user, preserve the configured public `Host`, set the public request scheme from a trusted proxy address, remove any client-supplied copy of the upstream authorization header, and inject the configured value. A browser pointed directly at an authorization-protected viewer cannot add this header to its initial navigation.
+
+Unauthenticated network exposure remains available only through an explicit acknowledgement:
+
+``` bash
+$ inspect view \
+    --host 0.0.0.0 \
+    --trusted-origin "http://$MACHINE_IP:7575" \
+    --unsafe-allow-unauthenticated
+```
+
+This permits any network client that can reach the address to call viewer APIs. Exact Host and browser-origin validation and framing protection remain active. `--trusted-host` may add an exact authority for a non-browser client or health check, but does not authorize a browser origin. Hosting the frontend and API on different origins is not supported.
+
+The frontend’s `X-Inspect-View-Request` marker distinguishes its mutation requests from passive browser resource loads. It is public defense in depth, not authorization or a same-origin secret.
 
 ### Log History
 
@@ -3113,6 +3149,12 @@ eval("arc.py", model="google/gemini-2.5-pro", max_connections=20)
 
 Use `inspect eval --help` to learn about all of the available generation config options.
 
+> **NOTE: NoteTemperature is not random assignment**
+>
+> Do not use model sampling as the source of random assignment in an eval. Increasing `temperature` can make outputs more variable, but it does not make equivalent labels, choices, or orderings equally likely.
+>
+> If the eval needs randomness, randomize in the dataset, solver, or setup code (for example, with [sample shuffling](./datasets.html.md#shuffling) or [choice shuffling](./datasets.html.md#choice-shuffling)). If the task intentionally asks the model to make a stochastic choice, run repeated [epochs](./metrics.html.md#reducing-epochs) first and report the observed label distribution, for example with a categorical scorer and [frequency()](./metrics.html.md#built-in-metrics).
+
 ## Model Args
 
 If there is an additional aspect of a model you want to tweak that isn’t covered by the [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig), you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:
@@ -3457,6 +3499,17 @@ By default, Inspect’s implementation of the Responses API does not store messa
 ``` bash
 inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
+
+### Responses Metadata
+
+You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 \
+    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+```
+
+The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
 
 ### Flex Processing
 
@@ -4259,6 +4312,26 @@ eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remo
 
 The flag is applied to both the model and tokenizer `from_pretrained()` calls.
 
+### Model Class
+
+By default the Hugging Face provider loads models with `AutoModelForCausalLM`. Some architectures are not registered with that auto-class and must be loaded with a different one — for example the Mistral 3 series and other image-text-to-text models require `AutoModelForImageTextToText`. Use the `auto_model_class` model arg to name the `transformers` auto-class to use:
+
+``` bash
+inspect eval arc.py --model hf/mistralai/Ministral-3-8B-Instruct-2512 -M auto_model_class=AutoModelForImageTextToText
+```
+
+Or from Python:
+
+``` python
+eval(
+    "arc.py",
+    model="hf/mistralai/Ministral-3-8B-Instruct-2512",
+    model_args=dict(auto_model_class="AutoModelForImageTextToText"),
+)
+```
+
+The value must be the name of a class exported by `transformers`.
+
 ### Local Models
 
 In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use `hf/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
@@ -4453,7 +4526,32 @@ Use the `vllm-completions` provider when you want vLLM to receive a raw text pro
 inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m
 ```
 
-This provider uses vLLM’s `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations.
+This provider uses vLLM’s `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations. It additionally manages the vLLM server lifecycle for you — to target an already-running OpenAI-compatible server, the [`openai-api-completions`](#openai-api-completions) provider offers the same behavior for any provider/server.
+
+#### Pre-Tokenized Prompts
+
+If you already have token IDs (custom tokenizer, pre-tokenized dataset, anything where you need exact control over the input sequence), pass them through `ChatMessage.metadata["prompt_token_ids"]` instead of a string. vLLM uses the IDs verbatim and skips re-tokenization, so you avoid an `ids → str → ids` round-trip that can change the sequence for non-bijective tokenizers.
+
+``` python
+from inspect_ai.model import ChatMessageUser, get_model
+
+token_ids = my_custom_tokenizer.encode("Hello")
+model = get_model("vllm-completions/EleutherAI/pythia-70m")
+response = await model.generate(
+    input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+)
+```
+
+When `prompt_token_ids` is present, only the IDs are sent to vLLM — the message’s `content` is not used as the prompt. The `content` field is still part of the [ChatMessage](./reference/inspect_ai.model.html.md#chatmessage) though, so it shows up in transcripts and is readable by scorers/judges. A common pattern is to put the decoded (or any human-readable) version of the prompt in `content` so downstream tooling has something useful to display:
+
+``` python
+ChatMessageUser(
+    content="Hello",  # what judges/transcripts see
+    metadata={"prompt_token_ids": token_ids},  # what the model actually receives
+)
+```
+
+vLLM only applies `add_special_tokens` when tokenizing a string prompt, so for `list[int]` prompts the IDs go through as-is regardless of that flag.
 
 ### Tool Use and Reasoning
 
@@ -4736,6 +4834,34 @@ You can enable the use of the streaming with the `openai-api` provider by passin
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
 ```
+
+### Completions API
+
+Use the `openai-api-completions` provider when you want the model to receive a raw prompt through the legacy `/v1/completions` endpoint rather than chat messages rendered through a chat template:
+
+``` bash
+inspect eval task.py --model openai-api-completions/<provider>/<model>
+```
+
+It follows the same naming and environment variable conventions as `openai-api`, accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations (echo mode, fill-in-the-middle, perplexity benchmarks).
+
+#### Pre-Tokenized Prompts
+
+If you already have token IDs (custom tokenizer, pre-tokenized dataset, anything where you need exact control over the input sequence), pass them through `ChatMessage.metadata["prompt_token_ids"]` instead of a string:
+
+``` python
+from inspect_ai.model import ChatMessageUser, get_model
+
+token_ids = my_custom_tokenizer.encode("Hello")
+model = get_model("openai-api-completions/<provider>/<model>")
+response = await model.generate(
+    input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+)
+```
+
+When `prompt_token_ids` is present, only the IDs are sent to the server — the message’s `content` is not used as the prompt. The `content` field is still part of the [ChatMessage](./reference/inspect_ai.model.html.md#chatmessage) though, so it shows up in transcripts and is readable by scorers/judges. A common pattern is to put the decoded (or any human-readable) version of the prompt in `content` so downstream tooling has something useful to display.
+
+Token IDs are passed through verbatim; whether the server adds special tokens to pre-tokenized prompts is server-dependent (vLLM does not — see [vLLM Completions API](#sec-vllm-completions)).
 
 ## OpenRouter
 
@@ -5034,6 +5160,18 @@ eval(
     adaptive_connections=AdaptiveConcurrency(min=4, max=80),
 )
 ```
+
+### Observing and Retuning
+
+While an eval runs, `inspect ctl limits` shows each model’s live controller state — current limit, in-flight count, scaling range, and recent scale changes — and `--max-connections` retunes the ceiling mid-run (lowering clamps concurrency down immediately; raising lets the controller climb again). In mixed-model runs, `--model` scopes the change to matching models:
+
+``` bash
+inspect ctl limits                              # view live controller state
+inspect ctl limits --max-connections 20         # throttle mid-run
+inspect ctl limits --max-connections 200 --model gpt-5
+```
+
+See [Control Channel](./control-channel.html.md#concurrency-limits) for details.
 
 ### Retry Types
 
@@ -9819,6 +9957,10 @@ The above code demonstrates a couple of important characteristics of a sample ba
 
 Sandbox services make available a set of methods to a sandbox for calling back into the main Inspect process. For example, the [Human Agent](./human-agent.html.md) uses a sandbox service to enable the human agent to start, stop, score, and submit tasks.
 
+> **NOTE:**
+>
+> Sandbox services use a filesystem queue and are intended for callers with the same sandbox-user authority as the service. They are not an authentication or privilege-separation boundary between sandbox users. Service names must be ASCII Python identifiers; instance names must begin with a letter or number and may then contain letters, numbers, `.`, `_`, or `-`.
+
 Sandbox service are often run using the [background()](./reference/inspect_ai.util.html.md#background) function to make them available for the lifetime of a sample.
 
 For example, here’s a simple calculator service that provides add and subtract methods to Python code within a sandbox:
@@ -12407,7 +12549,7 @@ The sandbox is also available to custom scorers.
 
 ## Environment Binding
 
-There are two sandbox environments built in to Inspect and five available as external packages. Dockerfile-compatible sandboxes accept standard `Dockerfile` and `compose.yaml` configuration files.
+There are two sandbox environments built in to Inspect and six available as external packages. Dockerfile-compatible sandboxes accept standard `Dockerfile` and `compose.yaml` configuration files.
 
 | Environment Type | Package | Dockerfile | Description |
 |----|----|----|----|
@@ -12417,6 +12559,7 @@ There are two sandbox environments built in to Inspect and five available as ext
 | `modal` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Modal](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html) cloud sandbox. |
 | `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
+| `vagrant` | [inspect_vagrant_sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) | No | [Vagrant](https://github.com/jasongwartz/inspect_vagrant_sandbox) virtual machines on any Vagrant-supported hypervisor. |
 | `local` | Built-in | No | Local file system (no sandbox). |
 
 Sandbox environment definitions can be bound at the [Sample](./reference/inspect_ai.dataset.html.md#sample), [Task](./reference/inspect_ai.html.md#task), or [eval()](./reference/inspect_ai.html.md#eval) level. Binding precedence goes from [eval()](./reference/inspect_ai.html.md#eval), to [Task](./reference/inspect_ai.html.md#task) to [Sample](./reference/inspect_ai.dataset.html.md#sample), however sandbox config files defined on the [Sample](./reference/inspect_ai.dataset.html.md#sample) always take precedence when the sandbox type for the [Sample](./reference/inspect_ai.dataset.html.md#sample) is the same as the enclosing [Task](./reference/inspect_ai.html.md#task) or [eval()](./reference/inspect_ai.html.md#eval).
@@ -14018,7 +14161,7 @@ This sets a limit of 30 total messages in a conversation before the model is for
 
 ### Token Limit
 
-Token usage (using `total_tokens` of [ModelUsage](./reference/inspect_ai.model.html.md#modelusage)) is automatically recorded for all models. Token limits are checked whenever [generate()](./reference/inspect_ai.solver.html.md#generate) is called.
+Token usage (using `total_tokens` of [ModelUsage](./reference/inspect_ai.model.html.md#modelusage)) is automatically recorded for all models. Token limits are checked whenever [generate()](./reference/inspect_ai.solver.html.md#generate) is called. By default token limits meter all tokens; use a limit with type `"output"` to meter only output tokens (which include reasoning tokens).
 
 Here we set a `token_limit` of 500K for each sample within a task:
 
@@ -14037,6 +14180,26 @@ def intercode_ctf():
         sandbox="docker",
     )
 ```
+
+The `token_limit` also accepts strings with magnitude suffixes (e.g. `"500k"` or `"1m"`) and can be scoped to only output tokens by using a [TokenLimit](./reference/inspect_ai.util.html.md#tokenlimit) value or an `"output:"` prefix:
+
+``` python
+from inspect_ai.util import TokenLimit
+
+Task(
+    ...,
+    token_limit=TokenLimit(tokens=1024*500, type="output")
+)
+
+# equivalent string form (also usable from the CLI, e.g.
+# `inspect eval ctf.py --token-limit output:500k`)
+Task(
+    ...,
+    token_limit="output:500k"
+)
+```
+
+Output token limits meter only the tokens generated by the model (including reasoning tokens), so they are unaffected by growth in conversation input tokens.
 
 > **IMPORTANT: Important**
 >
@@ -14276,7 +14439,7 @@ def myagent() -> Agent:
 
 ### Token Limit
 
-Token usage (using `total_tokens` of [ModelUsage](./reference/inspect_ai.model.html.md#modelusage)) is automatically recorded for all models. Token limits are checked whenever [generate()](./reference/inspect_ai.solver.html.md#generate) is called.
+Token usage (using `total_tokens` of [ModelUsage](./reference/inspect_ai.model.html.md#modelusage)) is automatically recorded for all models. Token limits are checked whenever [generate()](./reference/inspect_ai.solver.html.md#generate) is called. By default token limits meter all tokens; use a limit with type `"output"` to meter only output tokens (which include reasoning tokens).
 
 To limit the total number of tokens which can be used in a block of code:
 
@@ -14303,6 +14466,17 @@ def myagent() -> Solver:
                 # Tokens used here count towards both active limits
                 ...
 ```
+
+To meter only output tokens (which include reasoning tokens) rather than all tokens, pass `type="output"`:
+
+``` python
+with token_limit(1024*500, type="output"):
+    # a LimitExceededError will be raised if more than
+    # 500K output tokens are used
+    ...
+```
+
+Limits of different types can be stacked—each limit meters its own basis (all tokens or output tokens only).
 
 > **IMPORTANT: Important**
 >
@@ -14430,7 +14604,7 @@ Note that when limits are exceeded during an agent’s execution, the way this i
 
 ## Overview
 
-Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — without interrupting it or parsing log files.
+Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and adjust it — concurrency limits, log buffering — without interrupting it or parsing log files.
 
 | Command | Description |
 |----|----|
@@ -14439,9 +14613,13 @@ Every `inspect eval` or `inspect eval-set` process binds a local control endpoin
 | `inspect ctl errors` | List samples that errored or were retried. |
 | `inspect ctl sample` | Show one sample’s error detail, including prior attempts. |
 | `inspect ctl events` | Read one sample’s transcript events. |
+| `inspect ctl limits` | View or retune a task’s concurrency limits. |
+| `inspect ctl flush` | Write buffered completed samples to the log now. |
+| `inspect ctl buffer` | View or change the sample-buffer parameters. |
+| `inspect ctl keep` | Make a running process stay alive after its eval finishes. |
 | `inspect ctl release` | Let a keep-alive process exit. |
 
-All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. Everything is read-only: nothing you do over the control channel affects the running eval (`release` only lets an already-finished process exit).
+All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The status commands (`tasks`, `samples`, `errors`, `sample`, `events`) are read-only. The others adjust the run deliberately and conservatively: `limits` and `buffer` retune resource parameters (never interrupting in-flight work), `flush` forces a log write that would happen anyway, and `keep`/`release` only affect what happens after the eval finishes. Nothing on the control channel can cancel or modify samples.
 
 The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -14451,13 +14629,13 @@ The endpoint is a Unix domain socket under the current user’s Inspect data dir
 
 ``` bash
 $ inspect ctl tasks
-task_id       task                         samples              started
-------------  ---------------------------  -------------------  --------
-ZByxJpK4bKSz  inspect_evals/gpqa_diamond   12/40 (3 running)    14:02:11
-fR8mWn2cQspD  inspect_evals/humaneval      164/164 (complete)   13:58:40
+task_id       task                        model                      solver    samples             started
+------------  --------------------------  -------------------------  --------  ------------------  --------
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-5               react     12/40 (3 running)   14:02:11
+fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 (complete)  13:58:40
 ```
 
-Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored.
+Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored. The `solver` column shows the plan’s terminal solver (the agent name, e.g. `react`, for an agentic task).
 
 ## Selecting a Task
 
@@ -14533,6 +14711,51 @@ Other options:
 
 Events for samples that have already completed are also readable — they are served from the eval’s log.
 
+## Concurrency Limits
+
+`inspect ctl limits` shows a task’s live concurrency limits, and can retune them mid-run — for example to throttle an eval that is hammering a provider or overloading a machine, or to open it up when more capacity becomes available:
+
+``` bash
+$ inspect ctl limits gpqa
+inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40
+
+limits:
+  max samples:   tracks adaptive connections (see below)
+  max sandboxes: docker 40 (12 in use)
+  adaptive connections:
+    openai/gpt-5: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
+
+$ inspect ctl limits gpqa --max-connections 20
+```
+
+| Option | Description |
+|----|----|
+| `--max-samples N` | Set the task’s sample concurrency (not applicable under [adaptive connections](./models-concurrency.html.md), where sample concurrency tracks the controller). |
+| `--max-sandboxes N` | Set the per-provider sandbox concurrency (process-wide, across all tasks). |
+| `--max-connections N` | Set the adaptive connections scaling ceiling (process-wide, across all tasks). |
+| `--model M` | Restrict `--max-connections` (and the adaptive view) to matching models in mixed-model runs. |
+| `--dry-run` | Report what would change (`current → requested`) without applying it. |
+
+Changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model’s live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene.
+
+Limits are keyed by the task (stable across retries): with eval sets’ default immediate retries, a retune survives a task retry rather than reverting to the launch configuration (legacy batch-mode retries — `retry_immediate=False` — run as separate calls and revert). `--max-sandboxes` and `--max-connections` are process-wide — in an eval set they affect every task in the process, not just the one named. With no `TASK` argument the command targets the sole running process (showing just the process-wide limits when it hosts multiple tasks).
+
+## Log Buffer
+
+Completed samples are buffered and written to the (possibly remote, e.g. S3) log in batches. Two commands control this for a running eval:
+
+`inspect ctl flush` writes any buffered samples to the log immediately, so they become readable and analyzable without waiting for the buffer to fill. It is safe to repeat — a flush with nothing pending writes nothing.
+
+``` bash
+$ inspect ctl flush gpqa
+```
+
+`inspect ctl buffer` shows or changes the buffering parameters: `--samples N` sets how many completed samples buffer before a write (lower it to write to S3 more often), and `--shared S` sets the shared-log event sync interval in seconds. Changing `--samples` affects future writes only — run `flush` to write what is already pending.
+
+``` bash
+$ inspect ctl buffer gpqa --samples 5
+```
+
 ## Keep Alive
 
 A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The `--ctl-server` option controls this:
@@ -14546,6 +14769,8 @@ With `keep`, the process stays running after the eval finishes — its state rem
 ``` bash
 inspect ctl release
 ```
+
+You can also latch keep-alive onto an eval that is *already running* (launched without `--ctl-server=keep`) with `inspect ctl keep`.
 
 If more than one process is parked, `release` lists their pids and you disambiguate with `--pid`. Release also works ahead of time: issued while the eval is still running, it means “exit when done” — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). `keep` and `release` are last-write-wins, so a `keep` issued after a `release` (while the eval is still running) restores the park. From Python, pass `ctl_server="keep"` to [eval()](./reference/inspect_ai.html.md#eval) or [eval_set()](./reference/inspect_ai.html.md#eval_set). For eval sets, keep-alive requires `retry_immediate=True` (the default).
 

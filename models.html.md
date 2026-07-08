@@ -81,6 +81,12 @@ eval("arc.py", model="google/gemini-2.5-pro", max_connections=20)
 
 Use `inspect eval --help` to learn about all of the available generation config options.
 
+> **NOTE: NoteTemperature is not random assignment**
+>
+> Do not use model sampling as the source of random assignment in an eval. Increasing `temperature` can make outputs more variable, but it does not make equivalent labels, choices, or orderings equally likely.
+>
+> If the eval needs randomness, randomize in the dataset, solver, or setup code (for example, with [sample shuffling](./datasets.html.md#shuffling) or [choice shuffling](./datasets.html.md#choice-shuffling)). If the task intentionally asks the model to make a stochastic choice, run repeated [epochs](./metrics.html.md#reducing-epochs) first and report the observed label distribution, for example with a categorical scorer and [frequency()](./metrics.html.md#built-in-metrics).
+
 ## Model Args
 
 If there is an additional aspect of a model you want to tweak that isn’t covered by the [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig), you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:

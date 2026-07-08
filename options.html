@@ -1079,7 +1079,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>--max-samples</code></td>
-<td>Maximum number of samples to run in parallel (default is <code>--max-connections</code>)</td>
+<td>Maximum number of samples to run in parallel (default is <code>--max-connections</code>; retunable mid-run via <a href="./control-channel.html#concurrency-limits"><code>inspect ctl limits</code></a>)</td>
 </tr>
 <tr class="odd">
 <td><code>--max-dataset-memory</code></td>
@@ -1091,7 +1091,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>--max-sandboxes</code></td>
-<td>Maximum number of sandboxes (per-provider) to run in parallel (default is <code>2 * os.cpu_count()</code>)</td>
+<td>Maximum number of sandboxes (per-provider) to run in parallel (default is <code>2 * os.cpu_count()</code>; retunable mid-run via <a href="./control-channel.html#concurrency-limits"><code>inspect ctl limits</code></a>)</td>
 </tr>
 <tr class="even">
 <td><code>--max-tasks</code></td>

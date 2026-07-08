@@ -19,9 +19,9 @@ inspect eval-retry [OPTIONS] LOG_FILES...
 | `--no-sandbox-cleanup` | boolean | Do not cleanup sandbox environments after task completes | `False` |
 | `--fail-on-error` | float | Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. | None |
 | `--no-fail-on-error` | boolean | Do not fail the eval if errors occur within samples (instead, continue running other samples) | `False` |
-| `--continue-on-fail` | boolean | Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval). | `False` |
+| `--continue-on-fail` | boolean | Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval). | None |
 | `--retry-on-error` | text | Retry samples if they encounter errors (by default, no retries occur). Specify –retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times. | None |
-| `--score-on-error` | boolean | Score samples that error rather than failing the eval mid-run. Errors still count toward the –fail-on-error threshold for marking the log as ‘error’. Only fires after retries (if any) are exhausted. | `False` |
+| `--score-on-error` | boolean | Score samples that error rather than failing the eval mid-run. Errors still count toward the –fail-on-error threshold for marking the log as ‘error’. Only fires after retries (if any) are exhausted. | None |
 | `--no-log-samples` | boolean | Do not include samples in the log file. | `False` |
 | `--no-log-realtime` | boolean | Do not log events in realtime (affects live viewing of samples in inspect view) | `False` |
 | `--log-images` / `--no-log-images` | boolean | Include base64 encoded versions of filename or URL based images in the log file. | `True` |

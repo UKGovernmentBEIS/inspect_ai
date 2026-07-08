@@ -1034,7 +1034,7 @@ Note
 <span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            state.messages, tools<span class="op">=</span>[bash_session(instance<span class="op">=</span>instance)]</span>
 <span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then, pass a unique id as the <code>instance</code>:</p>
-<div id="868a5ac7" class="cell">
+<div id="76cc7780" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1221,6 +1221,16 @@ Note
 <section id="sandbox-service" class="level2">
 <h2 class="anchored" data-anchor-id="sandbox-service">Sandbox Service</h2>
 <p>Sandbox services make available a set of methods to a sandbox for calling back into the main Inspect process. For example, the <a href="./human-agent.html">Human Agent</a> uses a sandbox service to enable the human agent to start, stop, score, and submit tasks.</p>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Sandbox services use a filesystem queue and are intended for callers with the same sandbox-user authority as the service. They are not an authentication or privilege-separation boundary between sandbox users. Service names must be ASCII Python identifiers; instance names must begin with a letter or number and may then contain letters, numbers, <code>.</code>, <code>_</code>, or <code>-</code>.</p>
+</div>
+</div>
+</div>
 <p>Sandbox service are often run using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#background">background()</a></span> function to make them available for the lifetime of a sample.</p>
 <p>For example, here’s a simple calculator service that provides add and subtract methods to Python code within a sandbox:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> background, sandbox_service</span>

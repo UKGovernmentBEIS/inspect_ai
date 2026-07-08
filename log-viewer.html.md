@@ -44,19 +44,55 @@ By default, `inspect view` will use the configured log directory of the environm
 $ inspect view --log-dir ./experiment-logs
 ```
 
-By default it will run locally (127.0.0.1) on port 7575 (and kill any existing `inspect view` using that port). If you want to run two instances of `inspect view` you can specify an alternate port:
+By default it will run locally (`127.0.0.1`) on port 7575 (and kill any existing `inspect view` using that port). If you want to run two instances of `inspect view` you can specify an alternate port:
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs --port 6565
 ```
 
-If you’re running the evaluation viewer on a remote machine (such as via SSH), you must explicitly allow access from external networks using the –host 0.0.0.0 option. You’ll be able to access the view at `http://$MACHINE_IP:6565` .
+You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
+
+### Remote Access
+
+For single-user access to a viewer on a remote machine, keep the viewer bound to loopback and use SSH port forwarding:
 
 ``` bash
-$ inspect view --log-dir ./experiment-logs --host 0.0.0.0
+$ ssh -L 7575:127.0.0.1:7575 user@remote
 ```
 
-You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
+Run `inspect view` normally on the remote machine, then open `http://127.0.0.1:7575` locally.
+
+If local DNS or a hosts file maps a custom name to loopback, declare that exact browser origin:
+
+``` bash
+$ inspect view --trusted-origin http://my-inspect:7575
+```
+
+The viewer remains bound to `127.0.0.1`. `--trusted-origin` is repeatable and accepts exact `http` or `https` origins only; it also permits the matching HTTP `Host`. Unconfigured aliases remain rejected.
+
+Binding beyond loopback requires request authorization. For browser access, place the viewer behind an authenticating reverse proxy that injects the configured upstream authorization header:
+
+``` bash
+$ INSPECT_VIEW_AUTHORIZATION_TOKEN="$UPSTREAM_SECRET" \
+    inspect view \
+    --host 0.0.0.0 \
+    --trusted-origin https://inspect.example.org
+```
+
+Load `UPSTREAM_SECRET` through your normal secret-management mechanism and set it to the complete expected `Authorization` header value (for example, `Bearer ...`). The proxy must authenticate the external user, preserve the configured public `Host`, set the public request scheme from a trusted proxy address, remove any client-supplied copy of the upstream authorization header, and inject the configured value. A browser pointed directly at an authorization-protected viewer cannot add this header to its initial navigation.
+
+Unauthenticated network exposure remains available only through an explicit acknowledgement:
+
+``` bash
+$ inspect view \
+    --host 0.0.0.0 \
+    --trusted-origin "http://$MACHINE_IP:7575" \
+    --unsafe-allow-unauthenticated
+```
+
+This permits any network client that can reach the address to call viewer APIs. Exact Host and browser-origin validation and framing protection remain active. `--trusted-host` may add an exact authority for a non-browser client or health check, but does not authorize a browser origin. Hosting the frontend and API on different origins is not supported.
+
+The frontend’s `X-Inspect-View-Request` marker distinguishes its mutation requests from passive browser resource loads. It is public defense in depth, not authorization or a same-origin secret.
 
 ### Log History
 

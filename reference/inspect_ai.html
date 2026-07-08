@@ -2791,8 +2791,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.util.html#token_limit" class="sidebar-item-text sidebar-link">
- <span class="menu-text">token_limit</span></a>
+  <a href="../reference/inspect_ai.util.html#turn_limit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">turn_limit</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2811,6 +2811,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#working_limit" class="sidebar-item-text sidebar-link">
  <span class="menu-text">working_limit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#token_limit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">token_limit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#tokenlimit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TokenLimit</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3474,7 +3486,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval">eval</h3>
 <p>Evaluate tasks using a Model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/eval.py#L109">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/eval.py#L110">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">eval</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -3510,7 +3522,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    score_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> TokenLimit <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>    turn_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
@@ -3707,9 +3719,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Limit on total messages used for each sample.</p>
 </dd>
-<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Limit on total tokens used for each sample.</p>
+<p>Limit on tokens used for each sample. An <code>int</code> (or a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> with type “all”) limits total tokens; a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> with type “output” limits only output tokens. Also accepts strings like “500k”, “1m”, or “output:1m”.</p>
 </dd>
 <dt><code class="ref-definition">turn_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -3961,7 +3973,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_retry">eval_retry</h3>
 <p>Retry a previously failed evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/eval.py#L1186">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/eval.py#L1195">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_retry(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    tasks: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo <span class="op">|</span> EvalLog <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="bu">list</span>[EvalLogInfo] <span class="op">|</span> <span class="bu">list</span>[EvalLog],</span>
@@ -4147,7 +4159,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_set">eval_set</h3>
 <p>Evaluate a set of tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/evalset.py#L120">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/evalset.py#L125">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_set(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -4190,7 +4202,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    score_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> TokenLimit <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    turn_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
@@ -4413,9 +4425,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Limit on total messages used for each sample.</p>
 </dd>
-<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Limit on total tokens used for each sample.</p>
+<p>Limit on tokens used for each sample. An <code>int</code> (or a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> with type “all”) limits total tokens; a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> with type “output” limits only output tokens. Also accepts strings like “500k”, “1m”, or “output:1m”.</p>
 </dd>
 <dt><code class="ref-definition">turn_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -4659,7 +4671,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="score">score</h3>
 <p>Score an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/score.py#L80">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/score.py#L80">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -4721,7 +4733,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Evaluation task.</p>
 <p>Tasks are the basis for defining and running evaluations.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task.py#L61">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task.py#L66">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Task</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
@@ -4731,7 +4743,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task.py#L67">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task.py#L72">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -4746,30 +4758,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    model_roles: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> Model] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    checkpoint: CheckpointConfig <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> ApprovalPolicyConfig <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    score_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    turn_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    cost_limit: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    early_stopping: <span class="st">'EarlyStopping'</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    display_name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> ...,</span>
-<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>    tags: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>    viewer: ViewerConfig <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    plan: Plan <span class="op">|</span> Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">=</span> ...,</span>
-<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>    tool_environment: <span class="bu">str</span> <span class="op">|</span> SandboxEnvironmentSpec <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>    epochs_reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>    max_messages: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    on_checkpoint: OnCheckpointCallback <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    on_resume: OnResumeCallback <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> ApprovalPolicyConfig <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    score_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> TokenLimit <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    turn_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    cost_limit: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    early_stopping: <span class="st">'EarlyStopping'</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    display_name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> ...,</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    tags: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    viewer: ViewerConfig <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>    plan: Plan <span class="op">|</span> Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">=</span> ...,</span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>    tool_environment: <span class="bu">str</span> <span class="op">|</span> SandboxEnvironmentSpec <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>    epochs_reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>    max_messages: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">dataset</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#dataset">Dataset</a></span> | <span class="element-type-name">Sequence</span>[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -4815,6 +4829,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Checkpoint configuration for this task, or <code>True</code> to enable checkpointing with the default trigger (every 500k tokens). Overridden by eval-level <code>checkpoint</code> when set; overrides any sample-level <code>checkpoint</code>.</p>
 </dd>
+<dt><code class="ref-definition">on_checkpoint</code> <span class="element-type"><span class="element-type-name">OnCheckpointCallback</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Callback invoked before each checkpoint snapshot is taken, so state it flushes to the sandbox/store is captured by that checkpoint. May fire many times (including the final checkpoint on clean completion); must be idempotent.</p>
+</dd>
+<dt><code class="ref-definition">on_resume</code> <span class="element-type"><span class="element-type-name">OnResumeCallback</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Callback invoked after a sample is restored on resume, before the agent resumes. Receives the TaskState and the resume <code>attempt</code> (‘resume’ or ‘resume_for_scoring’). At call time <code>state.store</code>, the transcript, and the sandbox are restored, but <code>state.messages</code>/<code>state.output</code> are NOT yet restored (the agent restores those itself) — use <code>state.store</code>/sandbox, not <code>state.messages</code>. May return a <code>ResumeReport</code> (or a <code>str</code> shorthand, or <code>None</code>) surfaced to the agent via <code>checkpointer().restored</code>.</p>
+</dd>
 <dt><code class="ref-definition">approval</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">ApprovalPolicyConfig</span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.approval.html#approvalpolicy">ApprovalPolicy</a></span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Tool use approval policies. Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.</p>
@@ -4839,9 +4861,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Limit on total messages used for each sample.</p>
 </dd>
-<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Limit on total tokens used for each sample.</p>
+<p>Limit on tokens used for each sample. An <code>int</code> (or a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> with type “all”) limits total tokens; a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> with type “output” limits only output tokens. Also accepts strings like “500k”, “1m”, or “output:1m”.</p>
 </dd>
 <dt><code class="ref-definition">turn_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -4913,7 +4935,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task adapted with alternate values for one or more options.</p>
 <p>This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task_with">task_with()</a></span> you should create the underlying task multiple times.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task.py#L246">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task.py#L271">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_with(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    task: Task,</span>
@@ -4932,28 +4954,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    model_roles: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> Model] <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
 <span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
 <span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    checkpoint: CheckpointConfig <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> ApprovalPolicyConfig</span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy]</span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span></span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    score_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    turn_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>    cost_limit: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    early_stopping: EarlyStopping <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    tags: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    viewer: ViewerConfig <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Task</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    on_checkpoint: OnCheckpointCallback <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    on_resume: OnResumeCallback <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> ApprovalPolicyConfig</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy]</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    score_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> TokenLimit <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>    turn_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>    cost_limit: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>    early_stopping: EarlyStopping <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>    tags: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>    viewer: ViewerConfig <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Task</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">task</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.html#task">Task</a></span></span></dt>
 <dd>
@@ -5003,6 +5027,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Checkpoint configuration for this task, or <code>True</code> to enable checkpointing with the default trigger (every 500k tokens). Overridden by eval-level <code>checkpoint</code> when set; overrides any sample-level <code>checkpoint</code>.</p>
 </dd>
+<dt><code class="ref-definition">on_checkpoint</code> <span class="element-type"><span class="element-type-name">OnCheckpointCallback</span> | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
+<dd>
+<p>Callback invoked before each checkpoint snapshot is taken, so state it flushes to the sandbox/store is captured by that checkpoint. May fire many times (including the final checkpoint on clean completion); must be idempotent.</p>
+</dd>
+<dt><code class="ref-definition">on_resume</code> <span class="element-type"><span class="element-type-name">OnResumeCallback</span> | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
+<dd>
+<p>Callback invoked after a sample is restored on resume, before the agent resumes. Receives the TaskState and the resume <code>attempt</code> (‘resume’ or ‘resume_for_scoring’). At call time <code>state.store</code>, the transcript, and the sandbox are restored, but <code>state.messages</code>/<code>state.output</code> are NOT yet restored (the agent restores those itself) — use <code>state.store</code>/sandbox, not <code>state.messages</code>. May return a <code>ResumeReport</code> (or a <code>str</code> shorthand, or <code>None</code>) surfaced to the agent via <code>checkpointer().restored</code>.</p>
+</dd>
 <dt><code class="ref-definition">approval</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">ApprovalPolicyConfig</span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.approval.html#approvalpolicy">ApprovalPolicy</a></span>] | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
 <dd>
 <p>Tool use approval policies. Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.</p>
@@ -5027,9 +5059,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Limit on total messages used for each sample.</p>
 </dd>
-<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
+<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
 <dd>
-<p>Limit on total tokens used for each sample.</p>
+<p>Limit on tokens used for each sample. An <code>int</code> (or a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> with type “all”) limits total tokens; a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#tokenlimit">TokenLimit</a></span> with type “output” limits only output tokens. Also accepts strings like “500k”, “1m”, or “output:1m”.</p>
 </dd>
 <dt><code class="ref-definition">turn_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
 <dd>
@@ -5078,7 +5110,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task epochs.</p>
 <p>Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Epochs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -5097,7 +5129,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Task epochs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, epochs: <span class="bu">int</span>, reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -5118,7 +5150,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskinfo">TaskInfo</h3>
 <p>Task information (file, name, and attributes).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task.py#L409">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task.py#L456">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskInfo(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -5144,7 +5176,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>One or more tasks.</p>
 <p>Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/tasks.py#L7">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/tasks.py#L7">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>Tasks: TypeAlias <span class="op">=</span> (</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span></span>
@@ -5172,7 +5204,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Drives a running eval from code: a seed plus result-driven follow-ups.</p>
 <p>Subclass and override the methods you need. The default implementations are no-ops / empty, so a bare <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#tasksource">TaskSource</a></span> runs nothing — override at least <code>initial_tasks</code> and <code>next_tasks</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task_source.py#L38">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L38">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskSource</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
@@ -5183,7 +5215,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Tasks to run first (the seed).</p>
 <p>Called once, synchronously, before the run starts — so it must return immediately (no awaiting / blocking). The returned tasks drive the run’s up-front setup (concurrency, validation) and are the first batch.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task_source.py#L46">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L46">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> initial_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -5195,7 +5227,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The next batch of tasks to run, or <code>None</code> when the run is complete.</p>
 <p>Called after each batch finishes (after that batch’s <code>sample_complete</code> / <code>task_complete</code> notifications). May <code>await</code> — for more results or external input — and may block indefinitely; return <code>None</code> to end the run.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task_source.py#L55">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L55">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> next_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -5207,7 +5239,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A sample finished — observe it and optionally return follow-up tasks.</p>
 <p><code>sample</code> is the completed sample and <code>task</code> is the task it ran under (the sample alone doesn’t identify its task). Return a list of tasks to add to the run (equivalent to calling <code>enqueue_task</code> with them): they run after the current batch, before the next <code>next_tasks()</code>. Return <code>None</code> (the default) to add nothing.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task_source.py#L65">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L65">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_complete(</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, sample: <span class="st">"EvalSample"</span>, task: <span class="st">"Task"</span></span>
@@ -5228,7 +5260,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A task finished — observe its log and optionally return follow-up tasks.</p>
 <p>Return a list of tasks to add to the run (like <code>enqueue_task</code>): they run after the current batch. Return <code>None</code> (the default) to add nothing.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task_source.py#L78">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L78">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> task_complete(<span class="va">self</span>, log: <span class="st">"EvalLog"</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -5243,7 +5275,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Create a :class:<span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#tasksource">TaskSource</a></span> from a seed plus optional callbacks.</p>
 <p>A convenience for when subclassing is more than you need: provide the initial tasks directly and, optionally, callbacks that react to results. The <code>sample_complete</code> / <code>task_complete</code> callbacks may <strong>return</strong> a list of follow-up tasks to add to the run (see those methods); <code>next_tasks</code> is the blocking / explicit-pull alternative. Callbacks typically close over shared state (e.g.&nbsp;accumulated scores) to decide what to run next.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/task_source.py#L86">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L86">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_tasks(</span>
@@ -5286,7 +5318,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The tasks run in this process under the current run’s <code>run_id</code> (a fresh <code>eval_id</code>/<code>task_id</code> each, their own log files), resolved against the run’s models and config.</p>
 <p>When the run is driven by a :class:<code>~inspect_ai.TaskSource</code>, added tasks are <em>live</em>: they start as soon as there is free capacity. Otherwise they run as a follow-up batch, after the in-flight batch of tasks completes.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/enqueue.py#L91">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/enqueue.py#L91">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enqueue_task(tasks: <span class="st">"Tasks"</span>, <span class="op">*</span>, run_id: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -5307,7 +5339,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="scanners">Scanners</h3>
 <p>Argument shape accepted by <code>eval_set(scanner=...)</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/scan.py#L178">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/scan.py#L178">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>    Scanners: TypeAlias <span class="op">=</span> (</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>        Sequence[Scanner[Any] <span class="op">|</span> <span class="bu">tuple</span>[<span class="bu">str</span>, Scanner[Any]]]</span>
@@ -5320,7 +5352,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Configure scanners attached to an <code>eval_set</code> run.</p>
 <p>A subset of scout’s <code>ScanJob</code> / <code>ScanJobConfig</code> schema, narrowed to the fields that make sense when <code>eval_set</code> is generating the transcripts.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/scan.py#L53">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/scan.py#L53">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScannerConfig(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -5381,7 +5413,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Load a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#scannerconfig">ScannerConfig</a></span> from a YAML or JSON config file.</p>
 <p>Scanner entries in the file are written as <code>ScannerSpec</code> references (a registry <code>name</code> plus optional <code>params</code> and <code>file</code>). They are resolved to live <code>Scanner</code> objects via scout’s registry, loading any referenced <code>file</code> modules. <code>model_args</code> may also be a path to a separate YAML/JSON file, which is read and inlined.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/task/scan.py#L115">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/scan.py#L115">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_file(cls, path: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="st">"ScannerConfig"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -5402,7 +5434,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="view-1">view</h3>
 <p>Run the Inspect View server.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_view/view.py#L23">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_view/view.py#L24">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> view(</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -5412,7 +5444,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    authorization: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    log_level: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
-<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    trusted_origins: <span class="bu">tuple</span>[<span class="bu">str</span>, ...] <span class="op">=</span> (),</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    trusted_hosts: <span class="bu">tuple</span>[<span class="bu">str</span>, ...] <span class="op">=</span> (),</span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>    unsafe_allow_unauthenticated: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">log_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -5442,6 +5477,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Additional arguments to pass through to the filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>). Use <code>{"anon": True }</code> if you are accessing a public S3 bucket with no credentials.</p>
 </dd>
+<dt><code class="ref-definition">trusted_origins</code> <span class="element-type">tuple[<span class="element-type-name">str</span>, ...]</span></dt>
+<dd>
+<p>Exact browser origins allowed to use the viewer.</p>
+</dd>
+<dt><code class="ref-definition">trusted_hosts</code> <span class="element-type">tuple[<span class="element-type-name">str</span>, ...]</span></dt>
+<dd>
+<p>Additional exact HTTP authorities allowed for non-browser clients.</p>
+</dd>
+<dt><code class="ref-definition">unsafe_allow_unauthenticated</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dd>
+<p>Allow a non-loopback bind without request authorization.</p>
+</dd>
 </dl>
 </section>
 </section>
@@ -5451,7 +5498,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="task-1">task</h3>
 <p>Decorator for registering tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/registry.py#L98">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/registry.py#L98">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -5474,7 +5521,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Decorator for registering task sources.</p>
 <p>Mirrors <code>@task</code>: registers a function that returns a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#tasksource">TaskSource</a></span> so it can be referenced and loaded by name (e.g.&nbsp;<code>eval("file.py@my_source")</code> or <code>inspect eval file.py@my_source -T arg=value</code>) and parameterized.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/110d92fd9809fc3e42063a6aa465b25562b52e8e/src/inspect_ai/_eval/registry.py#L234">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/registry.py#L234">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_source(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>

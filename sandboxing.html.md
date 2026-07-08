@@ -203,7 +203,7 @@ The sandbox is also available to custom scorers.
 
 ## Environment Binding
 
-There are two sandbox environments built in to Inspect and five available as external packages. Dockerfile-compatible sandboxes accept standard `Dockerfile` and `compose.yaml` configuration files.
+There are two sandbox environments built in to Inspect and six available as external packages. Dockerfile-compatible sandboxes accept standard `Dockerfile` and `compose.yaml` configuration files.
 
 | Environment Type | Package | Dockerfile | Description |
 |----|----|----|----|
@@ -213,6 +213,7 @@ There are two sandbox environments built in to Inspect and five available as ext
 | `modal` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Modal](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html) cloud sandbox. |
 | `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
+| `vagrant` | [inspect_vagrant_sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) | No | [Vagrant](https://github.com/jasongwartz/inspect_vagrant_sandbox) virtual machines on any Vagrant-supported hypervisor. |
 | `local` | Built-in | No | Local file system (no sandbox). |
 
 Sandbox environment definitions can be bound at the [Sample](./reference/inspect_ai.dataset.html.md#sample), [Task](./reference/inspect_ai.html.md#task), or [eval()](./reference/inspect_ai.html.md#eval) level. Binding precedence goes from [eval()](./reference/inspect_ai.html.md#eval), to [Task](./reference/inspect_ai.html.md#task) to [Sample](./reference/inspect_ai.dataset.html.md#sample), however sandbox config files defined on the [Sample](./reference/inspect_ai.dataset.html.md#sample) always take precedence when the sandbox type for the [Sample](./reference/inspect_ai.dataset.html.md#sample) is the same as the enclosing [Task](./reference/inspect_ai.html.md#task) or [eval()](./reference/inspect_ai.html.md#eval).

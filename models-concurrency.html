@@ -711,6 +711,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#adaptive-connections" id="toc-adaptive-connections" class="nav-link" data-scroll-target="#adaptive-connections">Adaptive Connections</a>
   <ul class="collapse">
   <li><a href="#bounds-tuning" id="toc-bounds-tuning" class="nav-link" data-scroll-target="#bounds-tuning">Bounds Tuning</a></li>
+  <li><a href="#observing-and-retuning" id="toc-observing-and-retuning" class="nav-link" data-scroll-target="#observing-and-retuning">Observing and Retuning</a></li>
   <li><a href="#retry-types" id="toc-retry-types" class="nav-link" data-scroll-target="#retry-types">Retry Types</a></li>
   <li><a href="#advanced-tuning" id="toc-advanced-tuning" class="nav-link" data-scroll-target="#advanced-tuning">Advanced Tuning</a></li>
   <li><a href="#limit-history" id="toc-limit-history" class="nav-link" data-scroll-target="#limit-history">Limit History</a></li>
@@ -796,6 +797,14 @@ Note
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    adaptive_connections<span class="op">=</span>AdaptiveConcurrency(<span class="bu">min</span><span class="op">=</span><span class="dv">4</span>, <span class="bu">max</span><span class="op">=</span><span class="dv">80</span>),</span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
+<section id="observing-and-retuning" class="level3">
+<h3 class="anchored" data-anchor-id="observing-and-retuning">Observing and Retuning</h3>
+<p>While an eval runs, <code>inspect ctl limits</code> shows each model’s live controller state — current limit, in-flight count, scaling range, and recent scale changes — and <code>--max-connections</code> retunes the ceiling mid-run (lowering clamps concurrency down immediately; raising lets the controller climb again). In mixed-model runs, <code>--model</code> scopes the change to matching models:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl limits                              <span class="co"># view live controller state</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl limits <span class="at">--max-connections</span> 20         <span class="co"># throttle mid-run</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl limits <span class="at">--max-connections</span> 200 <span class="at">--model</span> gpt-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>See <a href="./control-channel.html#concurrency-limits">Control Channel</a> for details.</p>
+</section>
 <section id="retry-types" class="level3">
 <h3 class="anchored" data-anchor-id="retry-types">Retry Types</h3>
 <p>The controller distinguishes two kinds of retries.</p>
@@ -813,48 +822,48 @@ Note
 <li><p><code>decrease_factor</code> (default 0.8): multiplicative cut on each rate-limit episode. More aggressive (e.g.&nbsp;0.5) for volatile tiers where overshoots are common; gentler when tiers are stable.</p></li>
 <li><p><code>scale_up_percent</code> (default 0.05): additive growth per clean round in steady state. Increase for short evals where slow ramp-up doesn’t have time to converge.</p></li>
 </ul>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> AdaptiveConcurrency</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"task.py"</span>,</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"openai/gpt-5"</span>,</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    adaptive_connections<span class="op">=</span>AdaptiveConcurrency(</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="bu">min</span><span class="op">=</span><span class="dv">4</span>,</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">max</span><span class="op">=</span><span class="dv">80</span>,</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        cooldown_seconds<span class="op">=</span><span class="dv">30</span>,</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        decrease_factor<span class="op">=</span><span class="fl">0.5</span>,</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        scale_up_percent<span class="op">=</span><span class="fl">0.1</span>,</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> AdaptiveConcurrency</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"task.py"</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"openai/gpt-5"</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    adaptive_connections<span class="op">=</span>AdaptiveConcurrency(</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        <span class="bu">min</span><span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">max</span><span class="op">=</span><span class="dv">80</span>,</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        cooldown_seconds<span class="op">=</span><span class="dv">30</span>,</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        decrease_factor<span class="op">=</span><span class="fl">0.5</span>,</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        scale_up_percent<span class="op">=</span><span class="fl">0.1</span>,</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="limit-history" class="level3">
 <h3 class="anchored" data-anchor-id="limit-history">Limit History</h3>
 <p>The full history of scale changes is captured in the eval log under <code>stats.connection_limit_history</code>. Each entry records the timestamp, model, old and new limits, and a <code>reason</code> of <code>slow_start</code>, <code>steady_state_up</code>, or <code>rate_limit</code>. Only <code>rate_limit</code> reflects an actual scale-down (transient infra noise no longer appears here). You can stream the same events live in the trace log:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace dump <span class="at">--filter</span> <span class="st">"[connections]"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace dump <span class="at">--filter</span> <span class="st">"[connections]"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
 <section id="limiting-retries" class="level2">
 <h2 class="anchored" data-anchor-id="limiting-retries">Limiting Retries</h2>
 <p>By default, Inspect will retry model API calls indefinitely (with exponential backoff) when a recoverable HTTP error occurs. The initial backoff is 3 seconds and exponentiation will result in a 25 minute wait for the 10th request (then 30 minutes for the 11th and subsequent requests). You can limit Inspect’s retries using the <code>--max-retries</code> option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-retries</span> 10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-retries</span> 10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that model interfaces themselves may have internal retry behavior (for example, the <code>openai</code> and <code>anthropic</code> packages both retry twice by default).</p>
 <p>You can put a limit on the total time for retries using the <code>--timeout</code> option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--timeout</span> 600</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--timeout</span> 600</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="debugging-retries" class="level2">
 <h2 class="anchored" data-anchor-id="debugging-retries">Debugging Retries</h2>
 <p>If you want more insight into Model API connections and retries, specify <code>log_level=http</code>. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--log-level</span><span class="op">=</span>http</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--log-level</span><span class="op">=</span>http</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also view all of the HTTP requests for the current (or most recent) evaluation run using the <code>inspect trace http</code> command. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace http           <span class="co"># show all http requests</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace http <span class="at">--failed</span>  <span class="co"># show only failed requests</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace http           <span class="co"># show all http requests</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace http <span class="at">--failed</span>  <span class="co"># show only failed requests</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="static-connections" class="level2">
 <h2 class="anchored" data-anchor-id="static-connections">Static Connections</h2>
 <p>If you prefer a static limit for connections, use <code>--max-connections</code> rather than <code>--adaptive-connections</code>. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>When both <code>--max-connections</code> and <code>--adaptive-connections</code> are set, the explicit <code>max_connections</code> value takes precedence and adaptive is disabled. To opt out of adaptive without picking a specific cap (the provider’s default applies), pass <code>--adaptive-connections false</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--adaptive-connections</span> false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--adaptive-connections</span> false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><a href="./models-batch.html">Batch mode</a> likewise uses static concurrency regardless of <code>--adaptive-connections</code>.</p>
 <p>Increasing the max connections might yield better performance due to higher parallelism, however it might also result in <em>worse</em> performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The “correct” max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.</p>
 <p>Since it can be difficult to tune this value (especially across different times of day), you are generally much better off using <a href="#adaptive-connections">Adaptive Connections</a> which will dynamically find the maximum throughput that can be supported.</p>

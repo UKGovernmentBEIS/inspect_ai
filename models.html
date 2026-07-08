@@ -809,6 +809,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>, temperature<span class="op">=</span><span class="fl">0.9</span>)</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"google/gemini-2.5-pro"</span>, max_connections<span class="op">=</span><span class="dv">20</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Use <code>inspect eval --help</code> to learn about all of the available generation config options.</p>
+<div class="callout callout-style-simple callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Temperature is not random assignment
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Do not use model sampling as the source of random assignment in an eval. Increasing <code>temperature</code> can make outputs more variable, but it does not make equivalent labels, choices, or orderings equally likely.</p>
+<p>If the eval needs randomness, randomize in the dataset, solver, or setup code (for example, with <a href="./datasets.html#shuffling">sample shuffling</a> or <a href="./datasets.html#choice-shuffling">choice shuffling</a>). If the task intentionally asks the model to make a stochastic choice, run repeated <a href="./metrics.html#reducing-epochs">epochs</a> first and report the observed label distribution, for example with a categorical scorer and <a href="./metrics.html#built-in-metrics"><span class="element-type-name ref-interlink"><span>frequency()</span></span></a>.</p>
+</div>
+</div>
 </section>
 <section id="model-args" class="level2">
 <h2 class="anchored" data-anchor-id="model-args">Model Args</h2>
