@@ -1015,7 +1015,6 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
 
     # CLI target resolution (pure over the summaries the endpoint returns).
     summaries = [entry]
-    assert _resolve_target_eval(summaries, None) is entry  # sole task
     assert _resolve_target_eval(summaries, entry["task_id"][:12]) is entry  # id prefix
     assert _resolve_target_eval(summaries, "task_mul") is entry  # task-name prefix
     with pytest.raises(click.exceptions.Exit):

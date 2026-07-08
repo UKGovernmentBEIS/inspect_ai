@@ -928,7 +928,7 @@ class _SampleRows(NamedTuple):
 def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks."""
     fallback_as_of = time.time()
-    fetched = _fetch_sample_summaries(list_discovered_servers())
+    fetched = _fetch_sample_summaries()
     summaries = fetched.summaries
     if not summaries:
         return _SampleRows(as_of=fallback_as_of, targets=[], read=[], rows=[])
@@ -1067,7 +1067,7 @@ def _run_sample_listing(
 def _run_sample_show(
     task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
 ) -> None:
-    fetched = _fetch_sample_summaries(list_discovered_servers())
+    fetched = _fetch_sample_summaries()
     summaries = fetched.summaries
     if not summaries:
         if as_json:
@@ -1092,10 +1092,11 @@ def _run_sample_show(
         # The detail already in hand answers the question; the process
         # exiting — or staying busy (_ServerBusy) — between the two reads
         # shouldn't discard it.
+        hint = " — try again shortly" if isinstance(exc, _ServerBusy) else ""
         click.echo(
             f"Could not read the samples listing for eval {target['eval_id']} "
             f"({_unreachable_detail(exc)}); showing the sample without its "
-            "summary fields (timing / tokens / messages).",
+            f"summary fields (timing / tokens / messages){hint}.",
             err=True,
         )
         samples = []
@@ -1145,7 +1146,7 @@ def _run_sample_events(
     # the all-busy exit inside the fetch matters doubly here: the done:true
     # empty page below would falsely end a polling loop for an eval whose
     # events may live on the busy pid
-    fetched = _fetch_sample_summaries(list_discovered_servers())
+    fetched = _fetch_sample_summaries()
     summaries = fetched.summaries
     if not summaries:
         if as_json:
@@ -2045,10 +2046,8 @@ def _fetch_summaries(
     return _FetchedSummaries(summaries=summaries, busy_pids=busy_pids)
 
 
-def _fetch_sample_summaries(
-    servers: list[DiscoveredControlServer],
-) -> _FetchedSummaries:
-    """Fetch summaries for a sample command.
+def _fetch_sample_summaries() -> _FetchedSummaries:
+    """Fetch the discovered summaries for a sample command.
 
     Busy processes are warned-and-skipped (``raise_on_busy``) so one wedged
     sibling can't kill the read — but if that leaves *nothing* (every
@@ -2056,7 +2055,7 @@ def _fetch_sample_summaries(
     alive-but-busy eval must never be indistinguishable from no eval at all.
     ``busy_pids`` rides the return for scoped resolution's caveats.
     """
-    fetched = _fetch_summaries(servers, raise_on_busy=True)
+    fetched = _fetch_summaries(list_discovered_servers(), raise_on_busy=True)
     if not fetched.summaries and fetched.busy_pids:
         _exit_all_busy(fetched.busy_pids)
     return fetched
@@ -2064,7 +2063,7 @@ def _fetch_sample_summaries(
 
 def _resolve_target_eval(
     summaries: list[dict[str, Any]],
-    query: str | None,
+    query: str,
     *,
     busy_pids: list[int] | None = None,
 ) -> dict[str, Any]:
@@ -2072,45 +2071,44 @@ def _resolve_target_eval(
 
     ``query`` matches a task id first (full, then unique prefix — ``task
     list`` shows truncated ids; ids are stable across retries), then falls
-    back to the task name (see :func:`_match_by_task_name`). Without a query,
-    default to the sole running task. ``busy_pids`` (from the summaries
-    fetch) qualifies the resolution against partial discovery: a not-found
-    error notes that the target may live on a busy-skipped process, and a
-    successful match looser than an exact full task id carries a stderr
-    caveat that it was matched among responsive processes only (the busy
-    process could hold an equally-matching task).
+    back to the task name (see :func:`_match_by_task_name`). ``busy_pids``
+    (from the summaries fetch) qualifies the resolution against partial
+    discovery: a not-found error and the ambiguity table note that the busy
+    process may hold further candidates, and a successful *name* match
+    carries a stderr caveat that it was matched among responsive processes
+    only — same-named tasks across processes are the norm (one task, several
+    models), where an id/prefix collision with a *different* task is
+    effectively impossible.
     """
-    if query is not None:
-        matches = (
-            [s for s in summaries if s.get("task_id") == query]
-            or [s for s in summaries if str(s.get("task_id", "")).startswith(query)]
-            or _match_by_task_name(summaries, query)
+    id_matches = [s for s in summaries if s.get("task_id") == query] or [
+        s for s in summaries if str(s.get("task_id", "")).startswith(query)
+    ]
+    matches = id_matches or _match_by_task_name(summaries, query)
+    if not matches:
+        busy = (
+            f" among responsive processes; {_busy_note(busy_pids)}" if busy_pids else ""
         )
-        if not matches:
-            busy = (
-                f" among responsive processes; {_busy_note(busy_pids)}"
-                if busy_pids
-                else ""
-            )
-            click.echo(f"No running task matching '{query}'{busy}.", err=True)
-            raise click.exceptions.Exit(code=1)
-        if len(matches) > 1:
-            _exit_ambiguous(matches, f"'{query}' matches multiple tasks")
-        match = matches[0]
-        # an exact full-id match is provably right (ids are unique); anything
-        # looser may have also matched a task on the busy-skipped process
-        if busy_pids and str(match.get("task_id") or "") != query:
+        click.echo(f"No running task matching '{query}'{busy}.", err=True)
+        raise click.exceptions.Exit(code=1)
+    if len(matches) > 1:
+        if busy_pids:
             click.echo(
-                f"note: {_busy_pids_label(busy_pids)} busy-skipped — matched "
-                f"'{query}' among responsive processes only.",
+                f"note: {_busy_pids_label(busy_pids)} busy-skipped — candidates "
+                "drawn from responsive processes only.",
                 err=True,
             )
-        return match
-
-    if len(summaries) == 1:
-        return summaries[0]
-
-    _exit_ambiguous(summaries, "Multiple tasks are running")
+        _exit_ambiguous(matches, f"'{query}' matches multiple tasks")
+    match = matches[0]
+    # an id match can't name a different task (ids never collide across
+    # tasks; a busy pid could at most hold another attempt of the same
+    # task); a name match may have a same-named twin on the busy pid
+    if busy_pids and not id_matches:
+        click.echo(
+            f"note: {_busy_pids_label(busy_pids)} busy-skipped — matched "
+            f"'{query}' among responsive processes only.",
+            err=True,
+        )
+    return match
 
 
 def _match_by_task_name(
@@ -2169,8 +2167,9 @@ def _unreachable_detail(exc: _ServerUnreachable) -> str:
 
 def _exit_samples_unreachable(eval_id: str, exc: _ServerUnreachable) -> NoReturn:
     """Echo a samples-read failure for ``eval_id`` and exit non-zero."""
+    hint = " — try again shortly" if isinstance(exc, _ServerBusy) else ""
     click.echo(
-        f"Failed to read samples for eval {eval_id}: {_unreachable_detail(exc)}",
+        f"Failed to read samples for eval {eval_id}: {_unreachable_detail(exc)}{hint}",
         err=True,
     )
     raise click.exceptions.Exit(code=1) from exc

@@ -111,7 +111,7 @@ time      event  summary
 next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  (resume with --cursor)
 ```
 
-The first (unseeded) call returns the recent tail (the last 20 events; widen with `--tail N`). Reads are incremental: each page ends with a `next` cursor, and passing it back via `--cursor` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript.
+The first (unseeded) call returns the recent tail (the last 20 events; widen with `--tail N`). Reads are incremental: each page ends with a `next` cursor, and passing it back via `--cursor` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript. If the eval process is momentarily too busy to answer, the command fails (non-zero exit, message on stderr) rather than serving an empty page — treat that as "try again shortly", not as the sample or eval being gone.
 
 Other options:
 

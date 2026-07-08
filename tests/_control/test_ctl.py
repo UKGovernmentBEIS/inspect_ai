@@ -96,18 +96,6 @@ def test_no_match_exits(capsys: pytest.CaptureFixture[str]) -> None:
     assert "No running task matching 'nope'" in capsys.readouterr().err
 
 
-def test_default_to_sole_task() -> None:
-    summaries = [_summary("aaa111", "only_task")]
-    assert _resolve_target_eval(summaries, None)["task_id"] == "aaa111"
-
-
-def test_no_query_with_multiple_exits(capsys: pytest.CaptureFixture[str]) -> None:
-    summaries = [_summary("aaa111", "t1"), _summary("bbb222", "t2")]
-    with pytest.raises(click.exceptions.Exit):
-        _resolve_target_eval(summaries, None)
-    assert "Multiple tasks are running" in capsys.readouterr().err
-
-
 def _task_row(task_id: str, task: str, **extra: Any) -> dict[str, Any]:
     return {
         "task_id": task_id,
@@ -1900,10 +1888,10 @@ def test_scoped_resolution_caveats_partial_discovery(
 ) -> None:
     """A name match with a busy-skipped process warns it may be incomplete.
 
-    The busy process could hold an equally-matching task (or one that would
-    have made the query ambiguous), so a match looser than an exact full
-    task id carries a stderr caveat; an exact-id match is provably right
-    (ids are unique) and stays quiet.
+    Same-named tasks across processes are the norm (one task, several
+    models), so a name match carries a stderr caveat; id matches — exact or
+    the documented paste-a-truncated-id prefix — can't name a different task
+    and stay quiet (the caveat must not cry wolf on the routine workflow).
     """
     _patch_surface(
         monkeypatch,
@@ -1918,9 +1906,33 @@ def test_scoped_resolution_caveats_partial_discovery(
     assert result.exit_code == 0, result.output
     assert "matched 't2' among responsive processes only" in result.stderr
 
-    result = runner.invoke(ctl_command, ["sample", "list", "bbb222", "--json"])
-    assert result.exit_code == 0, result.output
-    assert "among responsive processes only" not in result.stderr
+    for id_query in ("bbb222", "bbb2"):
+        result = runner.invoke(ctl_command, ["sample", "list", id_query, "--json"])
+        assert result.exit_code == 0, result.output
+        assert "among responsive processes only" not in result.stderr
+
+
+def test_ambiguous_match_notes_busy_skipped_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ambiguity candidate table is qualified when discovery was partial.
+
+    The busy pid may hold further (possibly the intended) candidates, so
+    the table must not present itself as the complete match set.
+    """
+    _patch_surface(
+        monkeypatch,
+        [
+            _full_summary("aaa111", "gpqa", pid=8),
+            _full_summary("bbb222", "gpqa", pid=8),
+        ],
+        servers=[_DiscServer(7), _DiscServer(8)],
+        busy_pids=[7],
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list", "gpqa", "--json"])
+    assert result.exit_code == 1
+    assert "matches multiple tasks" in result.stderr
+    assert "candidates drawn from responsive processes only" in result.stderr
 
 
 def test_keep_alive_retries_busy_timeout(
