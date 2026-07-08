@@ -787,7 +787,7 @@ def collect_eval_data(stats: EvalStats) -> None:
                     model=model,
                     old_limit=old,
                     new_limit=new,
-                    reason=reason,  # type: ignore[arg-type]
+                    reason=reason,
                 )
             )
     history.sort(key=lambda e: e.timestamp)
