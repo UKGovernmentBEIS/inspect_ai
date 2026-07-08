@@ -12,6 +12,7 @@
 - Control Channel: `inspect ctl tasks` now includes model and solver columns.
 - Control Channel: Added `inspect ctl limits` to view or retune a running eval's `max_samples` / `max_sandboxes` / `max_connections` concurrency limits mid-flight (with `--dry-run`).
 - Docker: Support the `devices` field on compose services (device mappings such as `/dev/kvm`), previously rejected as an unknown field.
+- Docker: Warn when a task or sample declares a Dockerfile/compose.yaml sandbox config that gets silently dropped because the effective sandbox type doesn't support Docker Compose configuration.
 - OpenAI: Surface OpenAI Responses API response `metadata` as `ModelOutput.metadata`.
 - Google: Include thinking tokens in reported `output_tokens` (matching the OpenAI/Anthropic convention where reasoning is a subset of output), so output-metered token limits and cost computations count Gemini thinking tokens.
 - Hugging Face: Add an `auto_model_class` model arg to select the `transformers` auto-class used to load the model, so architectures not registered with `AutoModelForCausalLM` (e.g. the Mistral 3 series and other image-text-to-text models) can be loaded with e.g. `AutoModelForImageTextToText`. (#4438)
