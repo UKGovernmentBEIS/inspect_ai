@@ -34,7 +34,7 @@ import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, NoReturn, Protocol, cast
+from typing import Any, Literal, NamedTuple, NoReturn, Protocol
 
 import click
 import httpx
@@ -57,9 +57,6 @@ _DEFAULT_EVENTS_TAIL = 20
 # option help tags, the composed JSON view's per-knob "scope" labels, and the
 # human rendering's [task]/[process] labels all derive from this table, so a
 # knob's advertised blast radius can't drift between the three surfaces.
-# Rendered for a task-scoped knob that a process-level view can't show.
-_PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
-
 _KNOB_SCOPE: dict[str, str] = {
     "max_samples": "task",
     "max_sandboxes": "process",
@@ -67,6 +64,9 @@ _KNOB_SCOPE: dict[str, str] = {
     "log_buffer": "task",
     "log_shared": "task",
 }
+
+# Rendered for a task-scoped knob that a process-level view can't show.
+_PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
 
 
 class _NounGroup(click.Group):
@@ -904,7 +904,9 @@ class _SampleRows(NamedTuple):
 def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks."""
     fallback_as_of = time.time()
-    summaries = _fetch_summaries(list_discovered_servers())
+    # unscoped reads degrade on a busy process (skip it, keep the others);
+    # a scoped read fails honestly rather than reporting its target missing
+    summaries = _fetch_summaries(list_discovered_servers(), raise_on_busy=task is None)
     if not summaries:
         return _SampleRows(as_of=fallback_as_of, targets=[], read=[], rows=[])
 
@@ -924,7 +926,9 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
                 target["socket_path"],
                 target["eval_id"],
                 active_since,
-                raise_on_busy=True,
+                attempts=_REQUEST_ATTEMPTS
+                if task is not None
+                else _DEGRADED_READ_ATTEMPTS,
             )
         except _ServerUnreachable as exc:
             if task is not None:
@@ -1057,7 +1061,9 @@ def _run_sample_show(
     # row for the summary fields (timing / tokens / messages) it doesn't carry.
     try:
         samples = _fetch_samples(
-            target["socket_path"], target["eval_id"], raise_on_busy=True
+            target["socket_path"],
+            target["eval_id"],
+            attempts=_DEGRADED_READ_ATTEMPTS,
         ).samples
     except _ServerUnreachable as exc:
         # The detail already in hand answers the question; the process
@@ -1225,9 +1231,6 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
     """Latch keep-alive on (``keep``) or off (``release``) for one process."""
     verb = "keep" if keep else "release"
     target = _resolve_target_server(pid)
-    # keep/release are idempotent last-write-wins latches, so the retried
-    # (narrated) policy is safe here and beats one silent long wait against
-    # a busy event loop
     body = _request_json(
         str(target.socket_path),
         f"/{verb}",
@@ -1572,10 +1575,12 @@ class _DirectiveScope(NamedTuple):
     """The task's name (``None`` for the process-level scope)."""
     header: str
     siblings: int
-    """Active (running/pending) tasks sharing the target process.
+    """Blast-radius count for :func:`_process_scope_note`.
 
-    0 when resolved before registration; completed eval-set siblings are
-    excluded — a process-scoped retune can't affect a finished task.
+    The target process's active (running/pending) tasks, plus the explicitly
+    named target when it is completed — a finished task can't absorb a
+    retune, but counting it keeps the note from being suppressed while a
+    *different* active task would. 0 when resolved before registration.
     """
 
 
@@ -1668,7 +1673,7 @@ def _resolve_scope(
             task_id=str(target["task_id"]),
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
-            siblings=len(active),  # == _active_siblings for this socket
+            siblings=_active_siblings(summaries, socket_path),
         )
     if per_task_option is not None:
         addressable = [c for c in candidates if str(c.get("task_id") or "")]
@@ -1693,7 +1698,7 @@ def _resolve_scope(
             f"running {count} task{'s' if count != 1 else ''}",
         )
     total = len(tasks_in_proc)
-    header = f"process · {total} tasks" + (
+    header = f"process · {total} task{'s' if total != 1 else ''}" + (
         f" ({len(active)} active)" if len(active) != total else ""
     )
     return _DirectiveScope(
@@ -1701,7 +1706,7 @@ def _resolve_scope(
         task_id=None,  # process-global scope
         task=None,
         header=header,
-        siblings=len(active),  # == _active_siblings for this socket
+        siblings=_active_siblings(summaries, socket_path),
     )
 
 
@@ -1790,6 +1795,12 @@ def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
 _REQUEST_TIMEOUT = 15.0
 _REQUEST_ATTEMPTS = 8
 
+# Attempt budget for degradable reads (``raise_on_busy`` callers that can skip
+# an eval or omit supplemental fields rather than fail): enough to ride out a
+# momentary stall, without a fan-out spending the full `_REQUEST_ATTEMPTS *
+# _REQUEST_TIMEOUT` (2 min) per eval hosted by one wedged process.
+_DEGRADED_READ_ATTEMPTS = 2
+
 # A mutation (flush / buffer set) is issued once — it isn't idempotent, so it
 # must not be retried — but it gets the same total wall-clock budget a retried
 # read would consume (one attempt of `_REQUEST_ATTEMPTS * _REQUEST_TIMEOUT`, ie.
@@ -1830,15 +1841,18 @@ def _get_response_with_retry(
     what: str,
     method: Literal["get", "post", "patch"] = "get",
     raise_on_busy: bool = False,
+    attempts: int = _REQUEST_ATTEMPTS,
 ) -> httpx.Response:
     """Request ``path`` over the UDS, retrying a read timeout.
 
-    Retries a read timeout up to ``_REQUEST_ATTEMPTS`` times, printing a status
-    to the console (stderr, so ``--json`` stdout stays clean) on each — the eval
-    is most likely just busy. On exhaustion, prints an error and exits non-zero
-    — or raises :class:`_ServerBusy` when ``raise_on_busy`` is set, for callers
-    that can degrade instead of dying (a fan-out skipping one busy eval, a
-    supplemental read). Raises :class:`_ServerUnreachable` for a non-timeout
+    Retries a read timeout up to ``attempts`` times, printing a status to the
+    console (stderr, so ``--json`` stdout stays clean) on each — the eval is
+    most likely just busy. On exhaustion, raises :class:`_ServerBusy` when
+    ``raise_on_busy`` is set — for callers that can degrade instead of dying
+    (a fan-out skipping one busy eval, a supplemental read), who own the
+    terminal narration and typically pass the smaller
+    :data:`_DEGRADED_READ_ATTEMPTS` budget — otherwise prints an error and
+    exits non-zero. Raises :class:`_ServerUnreachable` for a non-timeout
     transport error (eg. a refused/reset connection) so the caller can skip or
     fail as appropriate.
 
@@ -1851,34 +1865,32 @@ def _get_response_with_retry(
     JSON-decoding wrapper for the common case.
     """
     transport = httpx.HTTPTransport(uds=str(socket_path))
-    for attempt in range(1, _REQUEST_ATTEMPTS + 1):
+    for attempt in range(1, attempts + 1):
         try:
             with httpx.Client(
                 transport=transport,
                 base_url="http://localhost",
                 timeout=_REQUEST_TIMEOUT,
             ) as client:
-                request = getattr(client, method)
-                return cast(httpx.Response, request(path, params=params or {}))
+                return client.request(method, path, params=params or {})
         except httpx.TimeoutException:
             click.echo(
                 f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
-                f"(attempt {attempt}/{_REQUEST_ATTEMPTS}) — the eval may be busy; "
+                f"(attempt {attempt}/{attempts}) — the eval may be busy; "
                 "retrying…",
                 err=True,
             )
         except (httpx.HTTPError, OSError) as exc:
             raise _ServerUnreachable() from exc
+    if raise_on_busy:
+        raise _ServerBusy(
+            f"no response after {attempts} attempts — the eval's event loop is busy"
+        )
     click.echo(
-        f"{what}: gave up after {_REQUEST_ATTEMPTS} attempts of "
+        f"{what}: gave up after {attempts} attempts of "
         f"{_REQUEST_TIMEOUT:.0f}s each — the eval is not responding.",
         err=True,
     )
-    if raise_on_busy:
-        raise _ServerBusy(
-            f"no response after {_REQUEST_ATTEMPTS} attempts — the eval's "
-            "event loop is busy"
-        )
     raise click.exceptions.Exit(code=1)
 
 
@@ -1889,17 +1901,23 @@ def _get_with_retry(
     params: dict[str, Any] | None = None,
     what: str,
     raise_on_busy: bool = False,
+    attempts: int = _REQUEST_ATTEMPTS,
 ) -> Any:
     """GET ``path`` and return its decoded JSON, retrying a busy eval on timeout.
 
-    Wraps :func:`_get_response_with_retry` (``raise_on_busy`` rides through);
-    a non-2xx status or undecodable body raises :class:`_ServerUnreachable`
-    (a server-side ``500`` or malformed response is not retryable). For
-    endpoints with a meaningful 4xx, call :func:`_get_response_with_retry`
-    directly and inspect the status.
+    Wraps :func:`_get_response_with_retry` (``raise_on_busy`` and ``attempts``
+    ride through); a non-2xx status or undecodable body raises
+    :class:`_ServerUnreachable` (a server-side ``500`` or malformed response
+    is not retryable). For endpoints with a meaningful 4xx, call
+    :func:`_get_response_with_retry` directly and inspect the status.
     """
     response = _get_response_with_retry(
-        socket_path, path, params=params, what=what, raise_on_busy=raise_on_busy
+        socket_path,
+        path,
+        params=params,
+        what=what,
+        raise_on_busy=raise_on_busy,
+        attempts=attempts,
     )
     try:
         response.raise_for_status()
@@ -1910,14 +1928,20 @@ def _get_with_retry(
 
 def _fetch_summaries(
     servers: list[DiscoveredControlServer],
+    *,
+    raise_on_busy: bool = False,
 ) -> list[dict[str, Any]]:
     """Query each discovered control server for its eval summary.
 
-    Each read retries on timeout (and ultimately fails the command if a server
-    stays unresponsive — see :func:`_get_with_retry`). A server that can't be
-    reached for a non-timeout reason raises :class:`_ServerUnreachable`; we warn
-    and skip it (rather than fail the whole listing — the other evals are still
-    worth showing) but the warning is surfaced rather than swallowed: the most
+    Each read retries on timeout; a server that stays busy through the retries
+    fails the command by default (``task list`` is the discovery surface — an
+    alive eval silently absent from its ``--json`` output has no in-band
+    caveat channel), but with ``raise_on_busy`` it is warned-and-skipped like
+    an unreachable one, on the smaller degraded budget — for the unscoped
+    sample fan-out, where the other processes' rows are still worth showing.
+    A server that can't be reached for a non-timeout reason raises
+    :class:`_ServerUnreachable`; we warn and skip it (rather than fail the
+    whole listing) but the warning is surfaced rather than swallowed: the most
     common cause is a process that just exited between discovery and connect,
     but the same path also catches a server-side ``500`` or a malformed
     response, which the user should see.
@@ -1929,18 +1953,25 @@ def _fetch_summaries(
                 server.socket_path,
                 "/tasks",
                 what=f"Reading tasks from pid {server.pid}",
+                raise_on_busy=raise_on_busy,
+                attempts=_DEGRADED_READ_ATTEMPTS
+                if raise_on_busy
+                else _REQUEST_ATTEMPTS,
             )
         except _ServerUnreachable as exc:
             # a 404 means the process is serving a control API without this
             # route — version skew between the CLI and the eval process —
             # where transport errors mean the process is gone
             cause = exc.__cause__
-            hint = (
-                "it may be running a different inspect version than this CLI"
-                if isinstance(cause, httpx.HTTPStatusError)
+            if isinstance(exc, _ServerBusy):
+                hint = "try again shortly"
+            elif (
+                isinstance(cause, httpx.HTTPStatusError)
                 and cause.response.status_code == 404
-                else "it may have just exited"
-            )
+            ):
+                hint = "it may be running a different inspect version than this CLI"
+            else:
+                hint = "it may have just exited"
             click.echo(
                 f"Skipping pid {server.pid}: its control endpoint could not be "
                 f"read ({_unreachable_detail(exc)}) — {hint}.",
@@ -2054,7 +2085,7 @@ def _fetch_samples(
     eval_id: str,
     active_since: float | None = None,
     *,
-    raise_on_busy: bool = False,
+    attempts: int = _REQUEST_ATTEMPTS,
 ) -> _SamplesPage:
     """Query one control server for an eval's samples.
 
@@ -2065,9 +2096,11 @@ def _fetch_samples(
     then — the recency delta. Tolerates an older server's bare array
     (stamping ``as_of`` client-side, pre-request).
 
-    Raises :class:`_ServerUnreachable` on a non-retryable read failure; the
-    caller decides whether to warn-and-skip (an unscoped fan-out over many
-    evals) or fail the command (a single targeted read).
+    Raises :class:`_ServerUnreachable` on a non-retryable read failure and
+    :class:`_ServerBusy` when the eval stays busy through ``attempts``
+    retries; the caller decides whether to warn-and-skip (an unscoped fan-out
+    over many evals, on the degraded budget) or fail the command (a single
+    targeted read, on the full one).
     """
     fallback_as_of = time.time()
     params = {} if active_since is None else {"active_since": active_since}
@@ -2076,7 +2109,8 @@ def _fetch_samples(
         f"/evals/{eval_id}/samples",
         params=params,
         what=f"Reading samples for eval {eval_id}",
-        raise_on_busy=raise_on_busy,
+        raise_on_busy=True,
+        attempts=attempts,
     )
     if isinstance(page, dict):
         samples = page.get("samples")
@@ -2093,28 +2127,34 @@ def _fetch_samples(
 def _fetch_sample_detail(
     socket_path: str, eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any]:
-    """Query one control server for a single sample's full error detail."""
+    """Query one control server for a single sample's full error detail.
+
+    The authoritative read behind ``sample show``, so it rides the full
+    narrated busy-retry policy rather than failing on a momentary event-loop
+    stall (unlike the degradable supplemental listing read).
+    """
     try:
-        transport = httpx.HTTPTransport(uds=str(socket_path))
-        with httpx.Client(
-            transport=transport, base_url="http://localhost", timeout=5.0
-        ) as client:
-            # sample_id goes in the query string (httpx URL-encodes it) so
-            # ids containing `/`, `?`, `#`, etc. address correctly — they
-            # can't be carried as a path segment.
-            response = client.get(
-                f"/evals/{eval_id}/sample",
-                params={"sample_id": sample_id, "epoch": epoch},
+        # sample_id goes in the query string (httpx URL-encodes it) so ids
+        # containing `/`, `?`, `#`, etc. address correctly — they can't be
+        # carried as a path segment.
+        response = _get_response_with_retry(
+            socket_path,
+            f"/evals/{eval_id}/sample",
+            params={"sample_id": sample_id, "epoch": epoch},
+            what=f"Reading sample {sample_id}",
+        )
+        if response.status_code == 404:
+            click.echo(
+                f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
+                "still be running or not yet written to the log.",
+                err=True,
             )
-            if response.status_code == 404:
-                click.echo(
-                    f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
-                    "still be running or not yet written to the log.",
-                    err=True,
-                )
-                raise click.exceptions.Exit(code=1)
-            response.raise_for_status()
-            detail = response.json()
+            raise click.exceptions.Exit(code=1)
+        response.raise_for_status()
+        detail = response.json()
+    except _ServerUnreachable as exc:
+        click.echo(f"Failed to read sample: {_unreachable_detail(exc)}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
         click.echo(f"Failed to read sample: {_error_detail(exc)}", err=True)
         raise click.exceptions.Exit(code=1) from exc

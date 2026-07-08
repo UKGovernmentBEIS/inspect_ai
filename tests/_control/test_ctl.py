@@ -512,6 +512,11 @@ def _stub_httpx(
         def patch(self, path: str, params: object = None) -> _Resp:
             return self._next("patches")
 
+        def request(self, method: str, path: str, params: object = None) -> _Resp:
+            return self._next(
+                {"get": "gets", "post": "posts", "patch": "patches"}[method]
+            )
+
     monkeypatch.setattr("inspect_ai._cli.ctl.httpx.Client", _Client)
     monkeypatch.setattr("inspect_ai._cli.ctl.httpx.HTTPTransport", lambda *a, **k: None)
     return counter
@@ -617,6 +622,75 @@ def test_config_set_does_not_retry_timeout(
     assert exc_info.value.exit_code == 1
     assert counter["patches"] == 1  # tried once, no retry
     assert "Failed to update config" in capsys.readouterr().err
+
+
+def test_get_with_retry_busy_raises_without_terminal_echo(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A degradable read raises _ServerBusy on exhaustion — no 'gave up' echo.
+
+    The raising caller owns the terminal narration (its skip/omit message);
+    a helper-printed 'the eval is not responding' right before it would
+    contradict it. Only the shared per-attempt retry lines print.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _get_with_retry, _ServerBusy
+
+    counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * 2)
+    with pytest.raises(_ServerBusy):
+        _get_with_retry(
+            "/tmp/x.sock",
+            "/tasks",
+            what="Reading tasks",
+            raise_on_busy=True,
+            attempts=2,
+        )
+    assert counter["gets"] == 2
+    err = capsys.readouterr().err
+    assert err.count("retrying") == 2
+    assert "gave up" not in err
+
+
+def test_fetch_summaries_busy_server_skipped_when_degradable(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With raise_on_busy, a wedged process is skipped and live ones still list.
+
+    The unscoped sample fan-out's summaries stage: one busy sibling process
+    (on the degraded attempt budget) must not kill the whole listing.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _DEGRADED_READ_ATTEMPTS, _fetch_summaries
+
+    _stub_httpx(
+        monkeypatch,
+        [httpx.ReadTimeout("slow")] * _DEGRADED_READ_ATTEMPTS + [[{"task_id": "live"}]],
+    )
+    summaries = _fetch_summaries([_disc(7), _disc(8)], raise_on_busy=True)
+    assert [s["task_id"] for s in summaries] == ["live"]
+    err = capsys.readouterr().err
+    assert "Skipping pid 7" in err
+    assert "try again shortly" in err
+
+
+def test_sample_detail_read_retries_busy_timeout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The authoritative detail read rides the narrated busy-retry policy."""
+    import httpx
+
+    from inspect_ai._cli.ctl import _fetch_sample_detail
+
+    counter = _stub_httpx(
+        monkeypatch,
+        [httpx.ReadTimeout("slow"), {"sample_id": "s1", "epoch": 1}],
+    )
+    detail = _fetch_sample_detail("/tmp/x.sock", "eval_a", "s1", 1)
+    assert detail == {"sample_id": "s1", "epoch": 1}
+    assert counter["gets"] == 2
+    assert "retrying" in capsys.readouterr().err
 
 
 def test_get_with_retry_does_not_retry_connection_error(
@@ -729,7 +803,9 @@ def _patch_surface(
         "inspect_ai._cli.ctl.list_discovered_servers",
         lambda: servers if servers is not None else [_DiscServer(7)],
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_summaries", lambda s: summaries)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_summaries", lambda s, **kwargs: summaries
+    )
     if samples_by_eval is not None:
         monkeypatch.setattr(
             "inspect_ai._cli.ctl._fetch_samples",
@@ -832,12 +908,24 @@ def test_sample_errors_unscoped_filters_across_tasks(
 
 
 def _patch_samples_unreachable_for(
-    monkeypatch: pytest.MonkeyPatch, gone_eval_id: str
+    monkeypatch: pytest.MonkeyPatch,
+    gone_eval_id: str,
+    exc: Exception | None = None,
 ) -> None:
-    """Stub `_fetch_samples` so one eval's read fails as unreachable."""
+    """Stub `_fetch_samples` so one eval's read fails.
+
+    ``exc`` is the error raised for that eval (default: a connection-refused
+    ``_ServerUnreachable``; pass a ``_ServerBusy`` to simulate retry
+    exhaustion).
+    """
     import httpx
 
     from inspect_ai._cli.ctl import _ServerUnreachable
+
+    if exc is None:
+        exc = _ServerUnreachable()
+        exc.__cause__ = httpx.ConnectError("refused")
+    failure = exc
 
     def fake_samples(
         socket_path: Any,
@@ -846,9 +934,7 @@ def _patch_samples_unreachable_for(
         **kwargs: Any,
     ) -> _SamplesPage:
         if eval_id == gone_eval_id:
-            exc = _ServerUnreachable()
-            exc.__cause__ = httpx.ConnectError("refused")
-            raise exc
+            raise failure
         return _SamplesPage(as_of=123.0, samples=[_sample_row("s2")])
 
     monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
@@ -1648,24 +1734,15 @@ def test_sample_list_unscoped_skips_busy_eval(
     Mirrors the unreachable-skip: the fan-out opts into _ServerBusy so one
     busy sibling can't kill the whole listing and discard other evals' rows.
     """
-    from inspect_ai._cli.ctl import _SamplesPage, _ServerBusy
+    from inspect_ai._cli.ctl import _ServerBusy
 
     _patch_surface(
         monkeypatch,
         [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
     )
-
-    def fake_samples(
-        socket_path: Any,
-        eval_id: str,
-        active_since: float | None = None,
-        **kwargs: Any,
-    ) -> _SamplesPage:
-        if eval_id == "eval_aaa111":
-            raise _ServerBusy("no response after 8 attempts")
-        return _SamplesPage(as_of=123.0, samples=[_sample_row("s2")])
-
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    _patch_samples_unreachable_for(
+        monkeypatch, "eval_aaa111", exc=_ServerBusy("no response after 2 attempts")
+    )
     result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
