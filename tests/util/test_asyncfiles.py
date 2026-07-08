@@ -502,7 +502,13 @@ async def test_write_file_streaming_s3_retries_stale_signature_from_start(
 async def test_write_file_streaming_s3_retries_stale_signature_full_budget(
     monkeypatch,
 ):
-    """All stop_after_attempt(5) attempts are available (no wall-clock stop)."""
+    """All stop_after_attempt(5) attempts are available.
+
+    Note: this guards the attempt budget only. With anyio.sleep no-op'd the
+    retries run in milliseconds, so it would not catch reintroduction of a
+    wall-clock stop (stop_after_delay) — that only bites when an attempt
+    itself consumes real time.
+    """
     client = _RetryingUploadClient(fail_times=4)
 
     async def s3_client_async(self):
