@@ -36,7 +36,7 @@ from inspect_ai._control.server import (
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
-from inspect_ai._eval.task.run import resolve_plan
+from inspect_ai._eval.task.run import eval_plan_agent_name, resolve_plan
 from inspect_ai._eval.task.scan import Scanners, scan_already_clean
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
@@ -847,6 +847,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             task=eval_spec.task,
             task_id=eval_spec.task_id,
             model=str(eval_spec.model) if eval_spec.model else "",
+            solver=eval_plan_agent_name(header.plan),
             log_location=log_entry.info.name,
             run_id=eval_spec.run_id,
             completed_at=completed_at,

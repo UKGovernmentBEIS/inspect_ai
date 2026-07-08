@@ -33,7 +33,7 @@ Structure:
 
 This module owns *only* the I/O-and-state side of hydration. The
 agent-facing :class:`_EnteredCheckpointer` is constructed by the caller
-using the returned :class:`_HydrationResult`.
+using the returned :class:`HydrationResult`.
 """
 
 from __future__ import annotations

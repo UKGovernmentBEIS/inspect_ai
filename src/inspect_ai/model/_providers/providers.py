@@ -53,6 +53,17 @@ def openai_api() -> type[ModelAPI]:
     return OpenAICompatibleAPI
 
 
+@modelapi(name="openai-api-completions")
+def openai_api_completions() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("OpenAI Compatible Completions API")
+
+    # in the clear
+    from .openai_compatible_completions import OpenAICompatibleCompletionsAPI
+
+    return OpenAICompatibleCompletionsAPI
+
+
 @modelapi(name="anthropic")
 def anthropic() -> type[ModelAPI]:
     # validate
