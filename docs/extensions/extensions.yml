@@ -70,6 +70,12 @@
   author: "[Debu Sinha](https://github.com/debu-sinha)"
   categories: ["Analysis"]
 
+- name: "[Inspect falsify](https://github.com/studio-11-co/falsify-inspect)"
+  description: |
+    Pre-register an evaluation's success criteria (metric, threshold, dataset hash, seed) as a tamper-evident PRML manifest before the run, then verify eval logs against the locked claim via installed hooks.
+  author: "[Cüneyt Öztürk](https://falsify.dev)"
+  categories: ["Analysis"]
+
 - name: "[CJE](https://github.com/cimo-labs/cje)"
   description: |
     Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
