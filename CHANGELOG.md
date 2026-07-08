@@ -1,3 +1,7 @@
+## Unreleased
+
+- Anthropic: Support strict tool use via `ToolInfo.options["strict"] = True` (sets `strict: true` on the tool definition, strips unsupported schema validation keywords, and adds the structured outputs beta header). (#4432)
+
 ## 0.3.245 (08 July 2026)
 
 - Model API: New `openai-api-completions` provider for the legacy `/v1/completions` endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with `vllm-completions`.
