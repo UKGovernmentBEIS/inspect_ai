@@ -958,23 +958,29 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 ._dropdownItem_1swkv_52:active {
   background-color: var(--bs-secondary-bg);
 }
-._tabs_85ts4_1 {
+._tabs_1792l_1 {
   align-items: center;
 }
 
-._tabContents_85ts4_5 {
+._tabContents_1792l_5 {
   flex: 1;
   /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
+  /* As a flex item, min-width defaults to auto = the pane's content
+   * min-width — wide content (e.g. a data grid's fixed-width table) would
+   * force the pane past the tabset and make an ancestor scroll
+   * horizontally. Let the pane shrink so wide content scrolls inside it
+   * (the vertical twin of .scrollable's min-height: 0). */
+  min-width: 0;
 }
 
-._tabContents_85ts4_5._scrollable_85ts4_11 {
+._tabContents_1792l_5._scrollable_1792l_13 {
   min-height: 0;
   overflow-y: auto;
   height: 100%;
 }
 
-._tab_85ts4_1 {
+._tab_1792l_1 {
   color: "var(--bs-body-color)";
   padding: 0.25rem 0.5rem;
   border-top-left-radius: var(--bs-border-radius);
@@ -984,29 +990,29 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   margin-bottom: -1px;
 }
 
-._tabItem_85ts4_27 {
+._tabItem_1792l_33 {
   align-self: end;
 }
 
-._pillSmallContainer_85ts4_31 {
+._pillSmallContainer_1792l_37 {
   gap: 0.25rem;
 }
 
-._pillSmall_85ts4_31 {
+._pillSmall_1792l_37 {
   padding: 0.3rem 0.5rem;
 }
 
-._tabIcon_85ts4_39 {
+._tabIcon_1792l_45 {
   margin-right: 0.5em;
 }
 
-._tabSpacer_85ts4_43 {
+._tabSpacer_1792l_49 {
   flex: 1 1 0;
   min-width: 0;
   list-style: none;
 }
 
-._tabTools_85ts4_49 {
+._tabTools_1792l_55 {
   /* Grow alongside the spacer so flex children inside (e.g. a filter
      input) can claim leftover horizontal space rather than being
      content-sized. `justify-content: end` keeps non-growing tools
@@ -1020,20 +1026,20 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   column-gap: 0.5rem;
 }
 
-._tabStyle_85ts4_63 {
+._tabStyle_1792l_69 {
   padding-left: 0.7em;
   padding-right: 0.7em;
 }
 
-._tabTools_85ts4_49 > * {
+._tabTools_1792l_55 > * {
   flex: 0 1 auto;
 }
 
-._tabTools_85ts4_49 input {
+._tabTools_1792l_55 input {
   font-size: var(--inspect-font-size-smallest);
 }
 
-._tabTools_85ts4_49 .btn {
+._tabTools_1792l_55 .btn {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
@@ -16915,19 +16921,6 @@ body[class^="vscode-"] .ansi-display {
   --ansiBrightWhite: var(--vscode-terminal-ansiBrightWhite);
 }
 
-body[class^="vscode-"] .sidebar .list-group {
-  --bs-tertiary-bg: var(--vscode-list-hoverBackground);
-  --bs-secondary-color: var(--vscode-foreground);
-  --bs-list-group-active-bg: var(--vscode-sideBarSectionHeader-background);
-  --bs-list-group-active-border-color: var(
-    --vscode-sideBarSectionHeader-background
-  );
-  --bs-list-group-action-active-bg: var(
-    --vscode-sideBarSectionHeader-background
-  );
-  --bs-list-group-active-color: var(--vscode-sideBarSectionHeader-foreground);
-}
-
 body[class^="vscode-"] .breadcrumb-item {
   --bs-breadcrumb-divider-color: var(--vscode-foreground);
 }
@@ -16939,7 +16932,6 @@ body[class^="vscode-"] div.ap-control-bar .ap-fullscreen-button {
 :root {
   --bs-navbar-padding-y: 0;
   --bs-navbar-brand-padding-y: 0;
-  --sidebar-width: 550px;
 }
 
 body {
@@ -16999,10 +16991,6 @@ body {
   padding-bottom: 0px;
 }
 
-#sidebarToggle > i.bi {
-  font-size: 1.5em;
-}
-
 .nav-link.active {
   border-bottom-width: 0 !important;
 }
@@ -17012,32 +17000,8 @@ body {
   flex-direction: column;
 }
 
-.workspace.full-screen {
-  top: 0;
-}
-
-@media (min-width: 768px) {
-  .workspace {
-    left: var(--sidebar-width);
-  }
-  .workspace.full-screen {
-    left: 0;
-  }
-  .workspace.off-canvas {
-    left: 0;
-  }
-}
-
 .no-last-para-padding > p:last-of-type {
   margin-bottom: 0;
-}
-
-.sidebar .list-group-item {
-  cursor: pointer;
-  border-left-width: none;
-  border-top: none;
-  border-right: none;
-  border-radius: 0;
 }
 
 .btn-tools {
@@ -17045,18 +17009,6 @@ body {
   --bs-btn-hover-bg: var(--bs-secondary-bg-subtle);
   --bs-btn-border-color: var(--bs-secondary-bg-subtle);
   --bs-btn-hover-border-color: var(--bs-secondary-bg-subtle);
-}
-
-.sidebar .list-group {
-  --bs-list-group-active-color: var(--bs-gray-700);
-  --bs-list-group-active-bg: var(--bs-gray-200);
-  --bs-list-group-active-border-color: var(--bs-gray-200);
-}
-
-[data-bs-theme="dark"] .sidebar .list-group {
-  --bs-list-group-active-color: var(--bs-gray-300);
-  --bs-list-group-active-bg: var(--bs-gray-800);
-  --bs-list-group-active-border-color: var(--bs-gray-800);
 }
 
 .markdown-content pre > code,
@@ -18320,6 +18272,277 @@ li > ul {
   mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 24 24%22%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Cpath d%3D%22M12.46%2C3c5.24%2C0%2C9.5%2C4.26%2C9.5%2C9.5s-4.26%2C9.5-9.5%2C9.5S2.96%2C17.74%2C2.96%2C12.5%2C7.22%2C3%2C12.46%2C3M12.46%2C1.5C6.38%2C1.5%2C1.46%2C6.42%2C1.46%2C12.5s4.92%2C11%2C11%2C11%2C11-4.92%2C11-11S18.53%2C1.5%2C12.46%2C1.5h0Z%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath d%3D%22M2.5%2C11.49h1.19c2.36%2C0%2C2.64-4%2C6.47-4%2C.76%2C0%2C.6%2C0%2C.6%2C0v2h-.51c-3.14%2C0-3.07%2C4-6.55%2C4h-1.2v-2Z%22%2F%3E    %3Cpath d%3D%22M2.5%2C13.49h1.19c2.36%2C0%2C2.64%2C4%2C6.47%2C4%2C.76%2C0%2C.6%2C0%2C.6%2C0v-2h-.51c-3.14%2C0-3.07-4-6.55-4h-1.2v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C7.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.5%2C5.47-2.5h2.6l2%2C2h-4.51c-3.14%2C0-2.07%2C2.5-5.55%2C2.5-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C9.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.49%2C5.47%2C2.49h6.6v-2h-6.51c-3.14%2C0-2.07-2.49-5.55-2.49-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C15.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.51%2C5.47-2.51h6.6v2h-6.51c-3.14%2C0-2.07%2C2.51-5.55%2C2.51-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C17.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.51%2C5.47%2C2.51h2.6l2-2h-4.51c-3.14%2C0-2.07-2.51-5.55-2.51-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
   -webkit-mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 24 24%22%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Cpath d%3D%22M12.46%2C3c5.24%2C0%2C9.5%2C4.26%2C9.5%2C9.5s-4.26%2C9.5-9.5%2C9.5S2.96%2C17.74%2C2.96%2C12.5%2C7.22%2C3%2C12.46%2C3M12.46%2C1.5C6.38%2C1.5%2C1.46%2C6.42%2C1.46%2C12.5s4.92%2C11%2C11%2C11%2C11-4.92%2C11-11S18.53%2C1.5%2C12.46%2C1.5h0Z%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath d%3D%22M2.5%2C11.49h1.19c2.36%2C0%2C2.64-4%2C6.47-4%2C.76%2C0%2C.6%2C0%2C.6%2C0v2h-.51c-3.14%2C0-3.07%2C4-6.55%2C4h-1.2v-2Z%22%2F%3E    %3Cpath d%3D%22M2.5%2C13.49h1.19c2.36%2C0%2C2.64%2C4%2C6.47%2C4%2C.76%2C0%2C.6%2C0%2C.6%2C0v-2h-.51c-3.14%2C0-3.07-4-6.55-4h-1.2v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C7.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.5%2C5.47-2.5h2.6l2%2C2h-4.51c-3.14%2C0-2.07%2C2.5-5.55%2C2.5-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C9.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.49%2C5.47%2C2.49h6.6v-2h-6.51c-3.14%2C0-2.07-2.49-5.55-2.49-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C15.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.51%2C5.47-2.51h6.6v2h-6.51c-3.14%2C0-2.07%2C2.51-5.55%2C2.51-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C17.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.51%2C5.47%2C2.51h2.6l2-2h-4.51c-3.14%2C0-2.07-2.51-5.55-2.51-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
 }
+/* Palette copied from @tanstack/devtools-ui@0.6.0 tokens (its JsonTree and
+   MainPanel styles) so the panel matches native TanStack Devtools plugins in
+   both themes. devtools-ui is Solid-only and doesn't export its tokens, so
+   the values are inlined here. */
+
+._dark_1sm80_6 {
+  --zsd-bg: #191c24; /* darkGray700 */
+  --zsd-fg: #d0d5dd; /* gray300 */
+  --zsd-border: #292e3d; /* darkGray500 */
+  --zsd-hover: #212530; /* darkGray600 */
+  --zsd-selected: #292e3d; /* darkGray500 */
+  --zsd-muted: #98a2b3; /* gray400 */
+  --zsd-key: #84caff; /* blue300 */
+  --zsd-string: #32d583; /* green400 */
+  --zsd-number: #fdb022; /* yellow400 */
+  --zsd-boolean: #ec4899; /* pink400 */
+  --zsd-null: #98a2b3; /* gray400 */
+  --zsd-function: #06b6d4; /* cyan400 */
+  --zsd-collection: #667085; /* gray500 */
+  --zsd-flash: rgba(50, 213, 131, 0.25);
+  --zsd-brand-from: #9b8afb; /* purple400 */
+  --zsd-brand-to: #53b1fd; /* blue400 */
+}
+
+._light_1sm80_25 {
+  --zsd-bg: #f9fafb; /* gray50 */
+  --zsd-fg: #344054; /* gray700 */
+  --zsd-border: #d0d5dd; /* gray300 */
+  --zsd-hover: #f2f4f7; /* gray100 */
+  --zsd-selected: #eaecf0; /* gray200 */
+  --zsd-muted: #667085; /* gray500 */
+  --zsd-key: #53b1fd; /* blue400 */
+  --zsd-string: #12b76a; /* green500 */
+  --zsd-number: #f79009; /* yellow500 */
+  --zsd-boolean: #db2777; /* pink500 */
+  --zsd-null: #667085; /* gray500 */
+  --zsd-function: #0891b2; /* cyan500 */
+  --zsd-collection: #667085; /* gray500 */
+  --zsd-flash: rgba(18, 183, 106, 0.25);
+  --zsd-brand-from: #7a5af8; /* purple500 */
+  --zsd-brand-to: #2e90fa; /* blue500 */
+}
+
+._panel_1sm80_44 {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  background: var(--zsd-bg);
+  color: var(--zsd-fg);
+  font-family: ui-sans-serif, Inter, system-ui, sans-serif;
+  /* --tsrd-font-size is the shell's root font-size variable */
+  font-size: calc(var(--tsrd-font-size, 16px) * 0.75);
+  line-height: 1.5;
+  text-align: left;
+}
+
+/* The TanStack Devtools shell injects a `.goXXX > * > *` rule forcing
+   width/height 100% on the panel's grandchildren. .inner is that grandchild
+   and absorbs the rule so header/body below it lay out freely. */
+._inner_1sm80_58 {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+/* Header mirrors devtools-ui's Header/HeaderLogo: bordered row with a
+   stacked wordmark — bold brand line over a gradient flavor line. */
+._header_1sm80_69 {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--zsd-border);
+}
+
+._brand_1sm80_78 {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+._brandName_1sm80_84 {
+  font-size: var(--tsrd-font-size, 16px);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+._brandFlavor_1sm80_91 {
+  font-size: calc(var(--tsrd-font-size, 16px) * 0.75);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  background: linear-gradient(
+    to right,
+    var(--zsd-brand-from),
+    var(--zsd-brand-to)
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+._body_1sm80_106 {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+._sidebar_1sm80_112 {
+  flex: 0 0 180px;
+  overflow-y: auto;
+  border-right: 1px solid var(--zsd-border);
+  padding: 4px 0;
+}
+
+._sidebarItem_1sm80_119 {
+  display: block;
+  width: 100%;
+  padding: 4px 12px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+._sidebarItem_1sm80_119:hover {
+  background: var(--zsd-hover);
+}
+
+._sidebarItemSelected_1sm80_135,
+._sidebarItemSelected_1sm80_135:hover {
+  background: var(--zsd-selected);
+}
+
+._tree_1sm80_140 {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 12px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+}
+
+._children_1sm80_149 {
+  margin-left: 5px;
+  padding-left: 12px;
+  border-left: 1px solid var(--zsd-border);
+}
+
+._row_1sm80_155 {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+._row_1sm80_155:hover {
+  background: var(--zsd-hover);
+}
+
+._caret_1sm80_167 {
+  flex-shrink: 0;
+  width: 14px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--zsd-key);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+._caretSpacer_1sm80_178 {
+  flex-shrink: 0;
+  width: 14px;
+}
+
+._key_1sm80_183 {
+  color: var(--zsd-key);
+  white-space: nowrap;
+}
+
+._keyExpandable_1sm80_188 {
+  cursor: pointer;
+}
+
+._value_1sm80_192 {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+._string_1sm80_198 {
+  color: var(--zsd-string);
+}
+
+._number_1sm80_202 {
+  color: var(--zsd-number);
+}
+
+._boolean_1sm80_206 {
+  color: var(--zsd-boolean);
+}
+
+._null_1sm80_210 {
+  color: var(--zsd-null);
+  font-style: italic;
+}
+
+._function_1sm80_215 {
+  color: var(--zsd-function);
+}
+
+._collection_1sm80_219 {
+  color: var(--zsd-collection);
+}
+
+._other_1sm80_223 {
+  color: var(--zsd-fg);
+}
+
+._copy_1sm80_227 {
+  visibility: hidden;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--zsd-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+._row_1sm80_155:hover ._copy_1sm80_227 {
+  visibility: visible;
+}
+
+._copy_1sm80_227:hover {
+  color: var(--zsd-fg);
+}
+
+._showMore_1sm80_245 {
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--zsd-key);
+  font: inherit;
+  cursor: pointer;
+}
+
+._empty_1sm80_254 {
+  padding: 1px 4px;
+  color: var(--zsd-muted);
+  font-style: italic;
+}
+
+._flash_1sm80_260 {
+  animation: _flash_1sm80_260 0.7s ease-out;
+}
+
+@keyframes _flash_1sm80_260 {
+  from {
+    background-color: var(--zsd-flash);
+  }
+  to {
+    background-color: transparent;
+  }
+}
 ._container_1sdtt_1 {
   display: flex;
   flex-direction: column;
@@ -19458,19 +19681,93 @@ li > ul {
   min-width: 0;
   flex: 1;
 }
-._filterButton_fuk0s_1 {
+.findBand {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin-right: 20%;
+  z-index: 1060;
+  color: var(--inspect-find-foreground);
+  background-color: var(--inspect-find-background);
+  font-size: 0.9rem;
+  display: grid;
+  grid-template-columns: auto auto auto auto auto;
+  column-gap: 0.2em;
+  padding: 0.2rem;
+  border-bottom: solid 1px var(--bs-light-border-subtle);
+  border-left: solid 1px var(--bs-light-border-subtle);
+  border-right: solid 1px var(--bs-light-border-subtle);
+  box-shadow: var(--bs-box-shadow);
+}
+
+.findBand input {
+  height: 2em;
+  font-size: 0.9em;
+  margin: 0.1rem;
+  outline: none;
+  border: solid 1px var(--inspect-input-border);
+  color: var(--inspect-input-foreground);
+  background: var(--inspect-input-background);
+}
+
+.findBand-match-count {
+  font-size: 0.85em;
+  margin-top: auto;
+  margin-bottom: auto;
+  margin-right: 0.5em;
+  white-space: nowrap;
+  color: var(--inspect-find-foreground);
+  opacity: 0.7;
+}
+
+.findBand-no-results {
+  opacity: 1;
+  color: var(--bs-danger, #dc3545);
+}
+
+.findBand .btn.next,
+.findBand .btn.prev {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: var(--inspect-fond-size-larger);
+}
+
+.findBand .btn.close {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: var(--inspect-font-size-title-secondary);
+  margin-top: -0.1rem;
+  margin-bottom: -0.1rem;
+}
+._filterButton_b38ko_1 {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
+  padding: 0 2px;
   border: none;
   background: transparent;
   color: var(--bs-secondary);
   cursor: pointer;
 }
 
-._filterButtonActive_fuk0s_12 {
+._filterButtonActive_b38ko_13 {
   color: var(--bs-primary);
+}
+
+/* Active-filter dot — small affordance at the upper-right of the
+ * funnel, matching ag-grid's convention of indicating active filters. */
+._filterButtonActive_b38ko_13::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bs-primary);
 }
 ._headerActions_uh0qk_1 {
   display: flex;
@@ -19482,20 +19779,20 @@ li > ul {
 ._filterPopover_uh0qk_8 {
   min-width: 180px;
 }
-._filterContent_1e9kw_1 {
+._filterContent_161b3_1 {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-._filterRow_1e9kw_7 {
+._filterRow_161b3_7 {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-._filterSelect_1e9kw_13,
-._filterInput_1e9kw_14 {
+._filterSelect_161b3_13,
+._filterInput_161b3_14 {
   flex: 1;
   font-size: 12px;
   padding: 4px 6px;
@@ -19505,45 +19802,59 @@ li > ul {
   color: var(--bs-body-color);
 }
 
-._filterInput_1e9kw_14:disabled,
-._filterSelect_1e9kw_13:disabled {
+._filterInput_161b3_14:disabled,
+._filterSelect_161b3_13:disabled {
   background: var(--bs-light);
   color: var(--bs-secondary);
 }
 
-._columnId_1e9kw_30 {
+._columnId_161b3_30 {
   font-weight: 600;
   font-family: var(--bs-monospace);
 }
 
-._columnIdText_1e9kw_35 {
+._columnIdText_161b3_35 {
   margin-left: 0.5rem;
 }
 
-.btn._filterButton_1e9kw_39 {
+.btn._filterButton_161b3_39 {
   width: 100%;
   padding: 0.2rem;
 }
 
-._durationInputWrapper_1e9kw_44 {
+._durationInputWrapper_161b3_44 {
   display: flex;
   flex-direction: column;
   gap: 4px;
   flex: 1;
 }
 
-._durationHelper_1e9kw_51 {
+._durationHelper_161b3_51 {
   font-size: 11px;
   color: var(--bs-secondary);
   padding-left: 2px;
 }
 
-._rangeLabel_1e9kw_57 {
+._rangeLabel_161b3_57 {
   font-size: 11px;
   color: var(--bs-secondary);
   padding-left: 2px;
 }
-._container_dc4mp_1 {
+
+._joinRow_161b3_63 {
+  gap: 12px;
+  padding: 2px 0;
+}
+
+._joinOption_161b3_68 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  margin: 0;
+}
+._container_pmuth_1 {
   position: relative;
   height: 100%;
   width: 100%;
@@ -19551,11 +19862,41 @@ li > ul {
   outline: none;
 }
 
-._table_dc4mp_9 {
-  position: relative;
+/* Visually-hidden live region: read by screen readers, absent from layout and
+ * from pointer/scroll hit-testing. */
+._srStatus_pmuth_11 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
-._thead_dc4mp_13 {
+/* Keyboard focus ring for the sortable header control (mouse clicks don't
+ * trigger :focus-visible, so this stays out of the way for pointer users). */
+._headerContent_pmuth_27:focus-visible,
+._rotatedLabel_pmuth_28:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: -2px;
+  border-radius: 2px;
+}
+
+/* The table, tbody, and rows carry explicit JS-computed widths (total column
+ * width); min-width stretches each to its parent when the columns underfill
+ * the viewport, so row borders and hover highlights span the full grid width
+ * (AG parity) instead of stopping at the last column. */
+._table_pmuth_38 {
+  position: relative;
+  min-width: 100%;
+}
+
+._thead_pmuth_43 {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -19563,7 +19904,7 @@ li > ul {
   border-bottom: 1px solid var(--bs-border-color);
 }
 
-._headerRow_dc4mp_21 {
+._headerRow_pmuth_51 {
   display: flex;
   /* Fill the thead height so cells stretch — rotated labels anchor to the
    * header's bottom edge, and bottom-aligned normal headers sit at the base
@@ -19571,7 +19912,7 @@ li > ul {
   height: 100%;
 }
 
-._headerCell_dc4mp_29 {
+._headerCell_pmuth_59 {
   display: flex;
   position: relative;
   align-items: center;
@@ -19582,12 +19923,13 @@ li > ul {
   text-align: left;
   font-weight: 400;
   color: var(--bs-secondary);
-  font-size: var(--inspect-font-size-small) !important;
+  font-size: var(--inspect-font-size-smallestest) !important;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 /* Short vertical separator between column headers (matches the prior grid). */
-._headerCell_dc4mp_29::before {
+._headerCell_pmuth_59::before {
   content: "";
   position: absolute;
   left: 0;
@@ -19598,28 +19940,45 @@ li > ul {
   background: var(--bs-border-color);
 }
 
-._headerCell_dc4mp_29:first-child::before {
+._headerCell_pmuth_59:first-child::before {
   display: none;
 }
 
-._headerContent_dc4mp_60 {
+._headerContent_pmuth_27 {
   flex: 1;
   display: flex;
   align-items: center;
   gap: 4px;
   user-select: none;
   min-width: 0;
+}
+
+/* The whole cell is the sort target (so empty-label columns like the icon
+ * column are still clickable) — so the pointer cursor lives on the cell. */
+._headerCellSortable_pmuth_102 {
   cursor: pointer;
 }
 
-._sortIcon_dc4mp_70 {
+._sortIcon_pmuth_106 {
   font-size: 9px;
   flex: 0 0 auto;
 }
 
+._sortIndicator_pmuth_111 {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* Multi-sort position badge, tight against the arrow that follows it
+ * (matching the AG grid's `1↑`). */
+._sortOrder_pmuth_119 {
+  font-size: var(--inspect-font-size-smallestest);
+}
+
 /* Filter funnel: hidden until the header is hovered, but stays visible when
  * the column has an active filter (matches the prior grid). */
-._headerFilter_dc4mp_77 {
+._headerFilter_pmuth_125 {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -19627,25 +19986,25 @@ li > ul {
   transition: opacity 120ms ease;
 }
 
-._headerCell_dc4mp_29:hover ._headerFilter_dc4mp_77,
-._headerFilterActive_dc4mp_86 {
+._headerCell_pmuth_59:hover ._headerFilter_pmuth_125,
+._headerFilterActive_pmuth_134 {
   opacity: 1;
 }
 
-._headerText_dc4mp_90 {
+._headerText_pmuth_138 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._headerCellCenter_dc4mp_96 {
+._headerCellCenter_pmuth_144 {
   justify-content: center;
 }
 
 /* Normal headers share the tall header row when score columns are rotated;
  * bottom-align their content so the labels line up with the base of the
  * angled labels. */
-._headerCellTall_dc4mp_103 {
+._headerCellTall_pmuth_151 {
   align-items: flex-end;
   padding-bottom: 6px;
 }
@@ -19655,7 +20014,7 @@ li > ul {
  * band where the previous column's angled label fans out and clashes with it.
  * Drop it to the bottom and shorten it so it sits beside the bottom-aligned
  * label, matching the AG grid. */
-._headerCellTall_dc4mp_103::before {
+._headerCellTall_pmuth_151::before {
   top: auto;
   bottom: 0;
   transform: none;
@@ -19669,19 +20028,32 @@ li > ul {
  * header and stacks over neighbours' overflowing labels) doesn't intercept
  * hover/clicks meant for the diagonal labels; only the labels are
  * interactive. */
-._headerCellRotated_dc4mp_127 {
+._headerCellRotated_pmuth_175 {
   overflow: visible;
   padding: 0;
   pointer-events: none;
 }
 
-._headerCellRotated_dc4mp_127::before {
+._headerCellRotated_pmuth_175::before {
   display: none;
+}
+
+/* ...except the first rotated header after a normal one: there's no preceding
+ * angled label whose diagonal could act as the divider (that's the job it does
+ * between adjacent rotated headers), so keep the vertical separator at the
+ * boundary — matching the prior grid. Use the bottom-aligned 22px form so it
+ * sits beside the rotated label, like the separator between two tall headers. */
+._headerCellTall_pmuth_151 + ._headerCellRotated_pmuth_175::before {
+  display: block;
+  top: auto;
+  bottom: 0;
+  transform: none;
+  height: 22px;
 }
 
 /* The 45° label, anchored flush to the column's right edge and rotated up
  * from its bottom-left corner so it fans up-and-to-the-right. */
-._rotatedLabel_dc4mp_139 {
+._rotatedLabel_pmuth_28 {
   position: absolute;
   bottom: 0;
   left: 100%;
@@ -19707,13 +20079,13 @@ li > ul {
   transform-origin: bottom left;
 }
 
-._rotatedLabel_dc4mp_139:hover {
+._rotatedLabel_pmuth_28:hover {
   /* Lift above neighbouring labels so the hovered text is fully readable. */
   background: var(--bs-tertiary-bg);
   z-index: 2;
 }
 
-._rotatedText_dc4mp_171 {
+._rotatedText_pmuth_232 {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -19724,7 +20096,7 @@ li > ul {
 
 /* Filter funnel at the end of the label: hidden until the label is hovered,
  * but kept visible while the column has an active filter. */
-._rotatedFilter_dc4mp_182 {
+._rotatedFilter_pmuth_243 {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -19732,15 +20104,15 @@ li > ul {
   transition: opacity 120ms ease;
 }
 
-._rotatedLabel_dc4mp_139:hover ._rotatedFilter_dc4mp_182,
-._rotatedLabelFiltered_dc4mp_191 ._rotatedFilter_dc4mp_182 {
+._rotatedLabel_pmuth_28:hover ._rotatedFilter_pmuth_243,
+._rotatedLabelFiltered_pmuth_252 ._rotatedFilter_pmuth_243 {
   opacity: 1;
 }
 
 /* Hidden, non-rotated positioning anchor at the cell's bottom edge. The
  * filter popover anchors here (not the funnel up in the rotated label) so it
  * opens below the header, under the column, instead of over the headers. */
-._rotatedFilterAnchor_dc4mp_198 {
+._rotatedFilterAnchor_pmuth_259 {
   position: absolute;
   bottom: 0;
   right: 0;
@@ -19749,30 +20121,90 @@ li > ul {
   pointer-events: none;
 }
 
-._tbody_dc4mp_207 {
-  position: relative;
+/* --- Drag-to-reorder columns --- */
+
+/* While a header drag is in flight, rotated cells must catch dragover/drop
+ * themselves (they're pointer-transparent for hover/clicks — see
+ * .headerCellRotated), and their overflowing diagonal labels must NOT steal
+ * those events from the columns they fan across. Hit-testing for drag
+ * events follows pointer-events, so flip both for the drag's duration. */
+._theadDragging_pmuth_275 ._headerCellRotated_pmuth_175 {
+  pointer-events: auto;
 }
 
-._row_dc4mp_211 {
+._theadDragging_pmuth_275 ._rotatedLabel_pmuth_28 {
+  pointer-events: none;
+}
+
+._headerCellDragSource_pmuth_283 {
+  opacity: 0.35;
+}
+
+/* Cursor-attached drag image (setDragImage). Parked offscreen — the browser
+ * snapshots it at dragstart; it never renders in place. */
+._dragGhost_pmuth_289 {
+  position: absolute;
+  top: -1000px;
+  left: -1000px;
+  padding: 4px 10px;
+  font-size: var(--inspect-font-size-small);
+  text-transform: uppercase;
+  color: var(--bs-body-color);
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+  white-space: nowrap;
+}
+
+/* Insertion indicator on the drop target's edge. An absolutely-positioned
+ * overlay rather than a border so the cell's layout doesn't shift while
+ * dragging. */
+._headerCellDropLeft_pmuth_307::after,
+._headerCellDropRight_pmuth_308::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--bs-primary);
+  z-index: 3;
+}
+
+._headerCellDropLeft_pmuth_307::after {
+  left: -1px;
+}
+
+._headerCellDropRight_pmuth_308::after {
+  right: -2px;
+}
+
+._tbody_pmuth_326 {
+  position: relative;
+  min-width: 100%;
+}
+
+._row_pmuth_331 {
   display: flex;
   position: absolute;
   top: 0;
   left: 0;
+  min-width: 100%;
   border-bottom: 1px solid var(--bs-border-color);
   background: var(--bs-body-bg);
   cursor: pointer;
   user-select: none;
 }
 
-._row_dc4mp_211:hover {
+._row_pmuth_331:hover {
   background: var(--bs-light);
 }
 
-._rowSelected_dc4mp_226 {
+._rowSelected_pmuth_347 {
   background: var(--bs-primary-bg-subtle) !important;
 }
 
-._cell_dc4mp_230 {
+._cell_pmuth_351 {
   display: flex;
   align-items: center;
   box-sizing: border-box;
@@ -19791,17 +20223,70 @@ li > ul {
  * content width so the ellipsis appears; without `flex: 1` the child stays
  * content-sized when it fits, so `justify-content` (center columns) still
  * positions it. `white-space: nowrap` is inherited from `.cell`. */
-._cell_dc4mp_230 > * {
+._cell_pmuth_351 > * {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._cellCenter_dc4mp_255 {
+._cellCenter_pmuth_376 {
   justify-content: center;
 }
 
-._empty_dc4mp_259 {
+/* Multiline (list) mode: rows are tall enough to host wrapped, line-clamped
+ * cells, so top-align content — a single-line cell then sits at the first line
+ * of its multiline neighbours instead of floating in the vertical centre of
+ * the tall row (matches the AG grid this replaced). */
+._multiline_pmuth_384 ._cell_pmuth_351 {
+  align-items: flex-start;
+}
+
+/* Left-pinned cells (position/left/z-index are inline — the sticky offset
+ * comes from the table's pinned-column geometry). They need an opaque
+ * background so unpinned cells sliding underneath don't show through, which
+ * must track the row's hover/selected state since the row's own background
+ * no longer reaches the viewer. The right border marks the pinned edge. */
+._headerCellPinned_pmuth_393 {
+  background: var(--bs-light-bg-subtle);
+  border-right: 1px solid var(--bs-border-color);
+}
+
+._cellPinned_pmuth_398 {
+  background: var(--bs-body-bg);
+  border-right: 1px solid var(--bs-border-color);
+}
+
+._row_pmuth_331:hover ._cellPinned_pmuth_398 {
+  background: var(--bs-light);
+}
+
+._rowSelected_pmuth_347 ._cellPinned_pmuth_398 {
+  background: var(--bs-primary-bg-subtle);
+}
+
+/* First normal column after a rotated block. The preceding angled label's
+ * bottom-border diagonal rises from the shared column edge at 45° (1px up
+ * per 1px right), so content flush at the default 8px inset collides with
+ * it — the label's text/line cut through the header text (~22px tall at
+ * the cell bottom). Indenting by the gap (kAfterRotatedGap + the default
+ * 8px) puts the diagonal safely above where the text starts; the cell is
+ * rendered kAfterRotatedGap wider to compensate, so the content box is
+ * unchanged. Applied to the header cell only — the diagonal overlaps just
+ * the header, so body cells keep the default inset (they still carry the
+ * matching extra render width, so the column edges stay aligned). */
+._afterRotatedGap_pmuth_421 {
+  padding-left: 32px;
+}
+
+/* Drop the vertical separator at the gap column's left edge — it rises
+ * straight through the anchor of the preceding angled label, whose diagonal
+ * bottom border already marks the boundary (same treatment as
+ * .headerCellRotated::before). */
+._afterRotatedGap_pmuth_421::before {
+  display: none;
+}
+
+._empty_pmuth_433 {
   position: absolute;
   top: 3rem;
   left: 0;
@@ -19814,7 +20299,7 @@ li > ul {
  * right edge; a subtle accent line shows on hover / while dragging. The strip
  * sits above cell content (z-index) and never triggers a sort (it is a sibling
  * of .headerContent, so its clicks don't reach the sort handler). */
-._resizeHandle_dc4mp_272 {
+._resizeHandle_pmuth_446 {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -19826,7 +20311,7 @@ li > ul {
   user-select: none;
 }
 
-._resizeHandle_dc4mp_272::after {
+._resizeHandle_pmuth_446::after {
   content: "";
   position: absolute;
   top: 25%;
@@ -19838,18 +20323,18 @@ li > ul {
   transition: opacity 120ms ease;
 }
 
-._resizeHandle_dc4mp_272:hover::after,
-._resizeHandleActive_dc4mp_297::after {
+._resizeHandle_pmuth_446:hover::after,
+._resizeHandleActive_pmuth_471::after {
   opacity: 1;
 }
 
 /* Tall (rotated) mode: confine the hit-zone + accent line to the bottom
  * divider band so it stays off the angled labels above. */
-._resizeHandleTall_dc4mp_303 {
+._resizeHandleTall_pmuth_477 {
   top: auto;
   height: 24px;
 }
-._resizeHandleTall_dc4mp_303::after {
+._resizeHandleTall_pmuth_477::after {
   top: 2px;
   bottom: 2px;
 }
@@ -19857,13 +20342,13 @@ li > ul {
 /* Rotated header cells are pointer-events: none; re-enable it on the handle
  * and pin it to the cell's bottom-right corner (below the diagonal label), so
  * resizing lives in the divider band and the angled label stays clickable. */
-._resizeHandleRotated_dc4mp_315 {
+._resizeHandleRotated_pmuth_489 {
   top: auto;
   bottom: 0;
   height: 24px;
   pointer-events: auto;
 }
-._resizeHandleRotated_dc4mp_315::after {
+._resizeHandleRotated_pmuth_489::after {
   top: 2px;
   bottom: 2px;
 }
@@ -19933,66 +20418,6 @@ li > ul {
   overflow: hidden;
   height: 100%;
   min-height: 0;
-}
-.findBand {
-  position: absolute;
-  top: 0;
-  right: 0;
-  margin-right: 20%;
-  z-index: 1060;
-  color: var(--inspect-find-foreground);
-  background-color: var(--inspect-find-background);
-  font-size: 0.9rem;
-  display: grid;
-  grid-template-columns: auto auto auto auto auto;
-  column-gap: 0.2em;
-  padding: 0.2rem;
-  border-bottom: solid 1px var(--bs-light-border-subtle);
-  border-left: solid 1px var(--bs-light-border-subtle);
-  border-right: solid 1px var(--bs-light-border-subtle);
-  box-shadow: var(--bs-box-shadow);
-}
-
-.findBand input {
-  height: 2em;
-  font-size: 0.9em;
-  margin: 0.1rem;
-  outline: none;
-  border: solid 1px var(--inspect-input-border);
-  color: var(--inspect-input-foreground);
-  background: var(--inspect-input-background);
-}
-
-.findBand-match-count {
-  font-size: 0.85em;
-  margin-top: auto;
-  margin-bottom: auto;
-  margin-right: 0.5em;
-  white-space: nowrap;
-  color: var(--inspect-find-foreground);
-  opacity: 0.7;
-}
-
-.findBand-no-results {
-  opacity: 1;
-  color: var(--bs-danger, #dc3545);
-}
-
-.findBand .btn.next,
-.findBand .btn.prev {
-  padding: 0;
-  border: none;
-  background: none;
-  font-size: var(--inspect-fond-size-larger);
-}
-
-.findBand .btn.close {
-  padding: 0;
-  border: none;
-  background: none;
-  font-size: var(--inspect-font-size-title-secondary);
-  margin-top: -0.1rem;
-  margin-bottom: -0.1rem;
 }
 ._container_ly812_1 {
   width: 100%;
@@ -25127,142 +25552,42 @@ pre._value_8citi_25 {
   margin-left: 0.1em;
   margin-top: -3px;
 }
-._mainLayout_1qj8a_1 {
+._mainLayout_107gr_1 {
   display: flex;
   flex-direction: column;
   width: 100%;
+  /* Flex item of the (row-flex) tab pane: without this, the grid's
+   * fixed-width table sets the layout's min-width and pushes the footer's
+   * sample count past the viewport. Shrinking to the pane makes the grid
+   * the horizontal scroller and keeps the footer pinned in view. */
+  min-width: 0;
 }
 
 /* Cell helpers — still referenced by columns.tsx. Phase 1 will migrate
  * cell renderers into shared/samples-grid/cells.tsx and this file goes
  * away entirely. */
-._cell_1qj8a_10 {
+._cell_107gr_15 {
   line-height: var(--bs-body-line-height);
 }
 
-._wrapAnywhere_1qj8a_14 {
+._wrapAnywhere_107gr_19 {
   overflow-wrap: break-word;
 }
 
-._noLeft_1qj8a_18 {
+._noLeft_107gr_23 {
   padding-left: 0;
 }
 
-._score_1qj8a_22 {
+._score_107gr_27 {
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-._centered_1qj8a_29 {
+._centered_107gr_34 {
   display: flex;
   justify-content: center;
-}
-._container_1tduz_1 {
-  display: flex;
-  flex-direction: column;
-  row-gap: 0.25rem;
-  min-width: 10rem;
-}
-
-._row_1tduz_8 {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  margin-bottom: 0;
-}
-
-._checkbox_1tduz_15 {
-  margin-right: 0.5rem;
-  cursor: pointer;
-}
-._root_1dunz_1 {
-  display: flex;
-  /* Pin the inherited font-size so the CodeMirror editor (which uses
-     `font-size: inherit`) matches the navbar's 0.7rem instead of
-     picking up whatever the surrounding container computes to. */
-  font-size: var(--inspect-font-size-smallest);
-  /* Claim leftover horizontal space (basis 0) but keep enough room for
-     the editor to be usable. min-width covers label + ~100px input +
-     help + their margins; below that the tab-tools row wraps. */
-  flex: 1 1 0;
-  min-width: 170px;
-  max-width: 500px;
-}
-
-._label_1dunz_15 {
-  align-self: center;
-  margin-right: 0.3em;
-  margin-left: 0.2em;
-}
-
-._input_1dunz_21 {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-._help_1dunz_26 {
-  position: relative;
-  margin-left: 0.5em;
-  cursor: help;
-  align-self: center;
-}
-._container_uvlpz_1 {
-  padding: 0.2em 0.3em;
-}
-
-._grid_uvlpz_5 {
-  display: grid;
-  grid-template-columns: 1fr;
-  row-gap: 0;
-  min-width: 9em;
-}
-
-._row_uvlpz_12 {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  cursor: pointer;
-  border-radius: var(--bs-border-radius);
-  padding: 0.15em 0.4em;
-  margin: 0 -0.4em;
-}
-
-._row_uvlpz_12:hover {
-  background-color: var(--bs-secondary-bg);
-}
-
-._label_uvlpz_26 {
-  align-self: center;
-  margin-right: 0.3em;
-  margin-left: 0.2em;
-}
-
-._links_uvlpz_32 {
-  display: flex;
-  padding-bottom: 0.2em;
-  margin-bottom: 0.4em;
-  column-gap: 0.3em;
-  border-bottom: solid 1px var(--bs-border-color);
-}
-
-._links_uvlpz_32 a {
-  cursor: pointer;
-  text-decoration: none;
-  color: var(--bs-link-color);
-}
-
-._links_uvlpz_32 a:hover {
-  color: var(--bs-link-hover-color);
-}
-
-._selected_uvlpz_50 {
-  font-weight: 600;
-}
-
-._bodyColorButton_uvlpz_54 {
-  background-color: var(--bs-body-bg);
 }
 ._gridWrapper_yfmzu_1 {
   height: 100%;
@@ -25478,6 +25803,111 @@ pre._value_8citi_25 {
 ._centered_yfmzu_212 {
   display: flex;
   justify-content: center;
+}
+._container_1tduz_1 {
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.25rem;
+  min-width: 10rem;
+}
+
+._row_1tduz_8 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+._checkbox_1tduz_15 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+._root_1dunz_1 {
+  display: flex;
+  /* Pin the inherited font-size so the CodeMirror editor (which uses
+     `font-size: inherit`) matches the navbar's 0.7rem instead of
+     picking up whatever the surrounding container computes to. */
+  font-size: var(--inspect-font-size-smallest);
+  /* Claim leftover horizontal space (basis 0) but keep enough room for
+     the editor to be usable. min-width covers label + ~100px input +
+     help + their margins; below that the tab-tools row wraps. */
+  flex: 1 1 0;
+  min-width: 170px;
+  max-width: 500px;
+}
+
+._label_1dunz_15 {
+  align-self: center;
+  margin-right: 0.3em;
+  margin-left: 0.2em;
+}
+
+._input_1dunz_21 {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+._help_1dunz_26 {
+  position: relative;
+  margin-left: 0.5em;
+  cursor: help;
+  align-self: center;
+}
+._container_uvlpz_1 {
+  padding: 0.2em 0.3em;
+}
+
+._grid_uvlpz_5 {
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 0;
+  min-width: 9em;
+}
+
+._row_uvlpz_12 {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  cursor: pointer;
+  border-radius: var(--bs-border-radius);
+  padding: 0.15em 0.4em;
+  margin: 0 -0.4em;
+}
+
+._row_uvlpz_12:hover {
+  background-color: var(--bs-secondary-bg);
+}
+
+._label_uvlpz_26 {
+  align-self: center;
+  margin-right: 0.3em;
+  margin-left: 0.2em;
+}
+
+._links_uvlpz_32 {
+  display: flex;
+  padding-bottom: 0.2em;
+  margin-bottom: 0.4em;
+  column-gap: 0.3em;
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+._links_uvlpz_32 a {
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--bs-link-color);
+}
+
+._links_uvlpz_32 a:hover {
+  color: var(--bs-link-hover-color);
+}
+
+._selected_uvlpz_50 {
+  font-weight: 600;
+}
+
+._bodyColorButton_uvlpz_54 {
+  background-color: var(--bs-body-bg);
 }
 ._panel_1yknn_1 {
   width: 100%;
