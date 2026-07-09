@@ -22,6 +22,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Async Concurrency**: Use `inspect_ai._util._async.tg_collect()` instead of `asyncio.gather()` for running concurrent async tasks. Use `inspect_ai.util.collect()` only inside sample subtasks (it adds transcript span grouping).
 
+- **No speculative locks**: Don't add `threading.Lock` around module-level state by default. Inspect runs on a single event loop thread (control-server handlers included — uvicorn runs as a task on the eval's loop), so async code doesn't interleave between `await` points, and a single dict/list operation is atomic under the GIL regardless. Add a lock only for demonstrated cross-thread access or a multi-operation invariant, and say in a comment/docstring what it protects; conversely, when omitting one where a reader might expect it, note why it isn't needed.
+
 - **File Paths**: All code that handles file paths must support `s3://` URLs, `file://` URIs, and plain local paths. Use `filesystem()` from `inspect_ai._util.file` for filesystem operations and `local_path()` to resolve `file://` URIs to local paths before passing to APIs that only accept local paths (e.g. `ZipFile`).
 
 - **Respect existing code patterns when modifying files. Run linting before committing changes.

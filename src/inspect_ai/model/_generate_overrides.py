@@ -25,11 +25,16 @@ The store is process-scoped (like ``max_sandboxes`` / ``max_connections``)
 and reset at the outermost run boundary alongside the other control-channel
 registries, so a later ``eval()`` in the same process starts from its launch
 configuration.
+
+No lock: the store is single-threaded by construction — the writer (the
+control server handler) runs as a task on the same event loop as the readers
+(the retry stop-condition and ``Model._generate``) — and each accessor is a
+single atomic dict operation on independent keys, with no invariant spanning
+them.
 """
 
 from __future__ import annotations
 
-from threading import Lock
 from typing import Literal
 
 GenerateConfigOverrideField = Literal["timeout", "attempt_timeout", "max_retries"]
@@ -43,7 +48,6 @@ GENERATE_CONFIG_OVERRIDE_FIELDS: tuple[GenerateConfigOverrideField, ...] = (
 """All override fields, in the order views report them."""
 
 _overrides: dict[str, int] = {}
-_lock = Lock()
 
 
 def set_generate_config_override(
@@ -55,11 +59,10 @@ def set_generate_config_override(
     retry-stop check or attempt); clearing it restores whatever each
     generate call's own config specifies.
     """
-    with _lock:
-        if value is None:
-            _overrides.pop(field, None)
-        else:
-            _overrides[field] = value
+    if value is None:
+        _overrides.pop(field, None)
+    else:
+        _overrides[field] = value
 
 
 def generate_config_override(
@@ -70,8 +73,7 @@ def generate_config_override(
     With the default ``base=None`` this is a pure override read (``None``
     means "no override in effect").
     """
-    with _lock:
-        return _overrides.get(field, base)
+    return _overrides.get(field, base)
 
 
 def generate_config_overrides() -> dict[str, int | None]:
@@ -79,13 +81,9 @@ def generate_config_overrides() -> dict[str, int | None]:
 
     The shape the control-channel config view reports.
     """
-    with _lock:
-        return {
-            field: _overrides.get(field) for field in GENERATE_CONFIG_OVERRIDE_FIELDS
-        }
+    return {field: _overrides.get(field) for field in GENERATE_CONFIG_OVERRIDE_FIELDS}
 
 
 def init_generate_config_overrides() -> None:
     """Clear all overrides (called at the outermost run boundary)."""
-    with _lock:
-        _overrides.clear()
+    _overrides.clear()
