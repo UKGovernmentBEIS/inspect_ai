@@ -121,10 +121,13 @@ class Task:
             config: Model generation config for default model (does not apply to model roles)
             model_roles: Named roles for use in `get_model()`.
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
-            checkpoint: Checkpoint configuration for this task, or `True` to
-                enable checkpointing with the default trigger (every 500k
-                tokens). Overridden by eval-level `checkpoint` when set;
-                overrides any sample-level `checkpoint`.
+            checkpoint: Checkpoint configuration for this task. `True` (or a
+                `CheckpointConfig`) enables checkpointing with the default
+                trigger (every 500k tokens) unless overridden; `None` (default)
+                inherits from the eval/CLI level; `False` vetoes checkpointing
+                for this task, overriding an eval-set/CLI `--checkpoint` enable.
+                When enabled, an eval-level `checkpoint` overrides this task's
+                config, which overrides any sample-level `checkpoint`.
             on_checkpoint: Callback invoked before each checkpoint snapshot is
                 taken, so state it flushes to the sandbox/store is captured by
                 that checkpoint. May fire many times (including the final
@@ -330,10 +333,13 @@ def task_with(
         config: Model generation config for default model (does not apply to model roles)
         model_roles: Named roles for use in `get_model()`.
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
-        checkpoint: Checkpoint configuration for this task, or `True` to
-            enable checkpointing with the default trigger (every 500k
-            tokens). Overridden by eval-level `checkpoint` when set;
-            overrides any sample-level `checkpoint`.
+        checkpoint: Checkpoint configuration for this task. `True` (or a
+            `CheckpointConfig`) enables checkpointing with the default
+            trigger (every 500k tokens) unless overridden; `None` (default)
+            inherits from the eval/CLI level; `False` vetoes checkpointing
+            for this task, overriding an eval-set/CLI `--checkpoint` enable.
+            When enabled, an eval-level `checkpoint` overrides this task's
+            config, which overrides any sample-level `checkpoint`.
         on_checkpoint: Callback invoked before each checkpoint snapshot is
             taken, so state it flushes to the sandbox/store is captured by
             that checkpoint. May fire many times (including the final
