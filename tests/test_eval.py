@@ -1,11 +1,11 @@
 import functools
 import logging
 import tempfile
-import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
 
+import anyio
 import pytest
 from botocore.exceptions import ClientError
 from test_helpers.utils import skip_if_no_docker
@@ -41,8 +41,6 @@ def _peak_model_concurrency(max_tasks: int | None) -> int:
     A `record` solver brackets its work with enter/exit markers; the peak depth
     of overlapping enter/exit pairs is how many models ran at once.
     """
-    import anyio
-
     from inspect_ai.solver import Generate, TaskState, solver
 
     events: list[str] = []
@@ -357,7 +355,7 @@ def test_failed_log_start_is_retried(
             # tolerate reading from a nonexistent prior log. Without the sleep
             # the retry usually lands on the same second and silently reuses
             # attempt 1's location, masking that path.
-            time.sleep(1.2)
+            await anyio.sleep(1.2)
             raise _skew_error()
         return await original_log_start(self, *args, **kwargs)
 

@@ -1021,7 +1021,8 @@ def test_sample_list_forwards_cap_and_filter_flags(
         ["sample", "list", "--limit", "5", "--status", "running,error", "--json"],
     )
     assert calls[-1]["limit"] == 5
-    assert calls[-1]["status"] == "running,error"
+    # the filter rides in its parsed (normalized) form, not the raw flag value
+    assert calls[-1]["status"] == "error,running"
     assert calls[-1]["all_samples"] is False
 
     _runner().invoke(ctl_command, ["sample", "list", "--json"])

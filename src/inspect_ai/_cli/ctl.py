@@ -1022,12 +1022,21 @@ def _list_sample_rows(
     task: str | None,
     active_since: float | None,
     *,
-    status: str | None = None,
+    statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
 ) -> _SampleRows:
-    """Fetch sample rows for one task (``task`` given) or all running tasks."""
+    """Fetch sample rows for one task (``task`` given) or all running tasks.
+
+    ``statuses`` is the already-parsed ``--status`` member set (``None`` =
+    no filter) — parsing lives with the caller so one parse serves the
+    request, the fallback filter, and the truncation footer.
+    """
     fallback_as_of = time.time()
+    # Loop-invariant across targets: the filter's wire form and the
+    # older-server fallback's row cap.
+    status_param = ",".join(sorted(statuses)) if statuses is not None else None
+    cap = effective_sample_limit(limit, all_samples)
     counts = dict.fromkeys(SAMPLE_STATUSES, 0)
     truncated = False
     fetched = _fetch_sample_summaries()
@@ -1058,7 +1067,7 @@ def _list_sample_rows(
                 target["socket_path"],
                 target["eval_id"],
                 active_since,
-                status=status,
+                status=status_param,
                 limit=limit,
                 all_samples=all_samples,
                 # a scoped read fails the command on busy, so it keeps the
@@ -1101,10 +1110,8 @@ def _list_sample_rows(
             for sample in samples:
                 page_status = str(sample.get("status") or "")
                 page_counts[page_status] = page_counts.get(page_status, 0) + 1
-            members = parse_status_filter(status).statuses
-            if members is not None:
-                samples = [s for s in samples if s.get("status") in members]
-            cap = effective_sample_limit(limit, all_samples)
+            if statuses is not None:
+                samples = [s for s in samples if s.get("status") in statuses]
             if cap is not None and len(samples) > cap:
                 samples = samples[:cap]
                 truncated = True
@@ -1210,8 +1217,9 @@ def _run_sample_listing(
     actually read — a target warn-and-skipped as unreachable gets "(samples
     unavailable)" instead.
     """
+    statuses = parse_status_filter(status).statuses
     listing = _list_sample_rows(
-        task, active_since, status=status, limit=limit, all_samples=all_samples
+        task, active_since, statuses=statuses, limit=limit, all_samples=all_samples
     )
     rows = [s for s in listing.rows if select(s)]
 
@@ -1250,7 +1258,7 @@ def _run_sample_listing(
         _echo_truncation_footer(
             len(rows),
             listing.counts,
-            statuses=parse_status_filter(status).statuses,
+            statuses=statuses,
             delta=active_since is not None,
         )
 
