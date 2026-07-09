@@ -502,7 +502,89 @@ def test_token_limit_rejects_spec_and_type() -> None:
 
 def test_token_limit_rejects_invalid_type() -> None:
     with pytest.raises(ValueError):
-        token_limit(10, type="outputs")  # type: ignore[arg-type]
+        token_limit(10, type="outputs")
+
+
+def test_formula_meters_input_and_output() -> None:
+    with token_limit(10, type="input + output") as limit:
+        _consume_usage(input_tokens=4, output_tokens=3)
+
+        assert limit.usage == 7
+
+        with pytest.raises(LimitExceededError) as exc_info:
+            _consume_usage(input_tokens=0, output_tokens=4)
+
+    assert exc_info.value.type == "token"
+    assert exc_info.value.value == 11
+    assert "input + output" in exc_info.value.message
+
+
+def test_formula_floors_result() -> None:
+    with token_limit(100, type="input * 0.1") as limit:
+        # 25 * 0.1 = 2.5 -> floored to 2
+        _consume_usage(input_tokens=25, output_tokens=0)
+        assert limit.usage == 2
+
+
+def test_formula_input_includes_cache_tokens() -> None:
+    with token_limit(1000, type="input") as limit:
+        record_model_usage(
+            ModelUsage(
+                input_tokens=50,
+                output_tokens=5,
+                total_tokens=55,
+                input_tokens_cache_read=20,
+                input_tokens_cache_write=10,
+            )
+        )
+        check_token_limit()
+        # input = 50 + 20 + 10 = 80 (true prompt size, output excluded)
+        assert limit.usage == 80
+
+
+def test_formula_stacks_with_keyword_limits() -> None:
+    with token_limit(1000) as outer:
+        with token_limit(10, type="input * 0.5 + output") as inner:
+            _consume_usage(input_tokens=10, output_tokens=2)
+
+            # outer meters total (12); inner meters 10*0.5 + 2 = 7
+            assert outer.usage == 12
+            assert inner.usage == 7
+
+            with pytest.raises(LimitExceededError) as exc_info:
+                _consume_usage(input_tokens=0, output_tokens=4)
+
+    assert exc_info.value.source is inner
+
+
+@pytest.mark.parametrize(
+    "formula",
+    [
+        "foo",
+        "input +",
+        "input ** 2",
+        "min(input, output)",
+        "__import__('os')",
+        "1e309",  # non-finite constant (float overflow to inf)
+    ],
+)
+def test_token_limit_rejects_invalid_formula(formula: str) -> None:
+    with pytest.raises(ValueError):
+        token_limit(10, type=formula)
+
+
+def test_token_limit_formula_non_finite_result() -> None:
+    # a formula that evaluates to NaN/inf raises a controlled ValueError rather
+    # than a raw OverflowError from math.floor()
+    with pytest.raises(ValueError):
+        with token_limit(10, type="1e308 * input"):
+            _consume_usage(input_tokens=10, output_tokens=0)
+
+
+def test_token_limit_formula_division_by_zero() -> None:
+    with pytest.raises(ValueError):
+        with token_limit(10, type="output / (input - input)"):
+            _consume_usage(input_tokens=5, output_tokens=5)
 
 
 def test_token_limit_type_defaults_to_all() -> None:
@@ -528,6 +610,14 @@ def test_token_limit_type_defaults_to_all() -> None:
         ("output:1m", TokenLimit(tokens=1_000_000, type="output")),
         ("OUTPUT:1M", TokenLimit(tokens=1_000_000, type="output")),
         ("output: 500 k", TokenLimit(tokens=500_000, type="output")),
+        (
+            "(input*0.1)+output:1m",
+            TokenLimit(tokens=1_000_000, type="(input*0.1)+output"),
+        ),
+        (
+            "input + output : 500k",
+            TokenLimit(tokens=500_000, type="input + output"),
+        ),
     ],
 )
 def test_parse_token_limit(value: str, expected: int | TokenLimit) -> None:
@@ -536,7 +626,7 @@ def test_parse_token_limit(value: str, expected: int | TokenLimit) -> None:
 
 @pytest.mark.parametrize(
     "value",
-    ["", "abc", "-5", "output:", "1.5", "1.0001k", "output", "5t", "k"],
+    ["", "abc", "-5", "output:", "1.5", "1.0001k", "output", "5t", "k", "foo:1m"],
 )
 def test_parse_token_limit_invalid(value: str) -> None:
     with pytest.raises(ValueError):

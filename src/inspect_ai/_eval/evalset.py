@@ -286,8 +286,9 @@ def eval_set(
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on tokens used for each sample. An `int` (or a
             `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
-            with type "output" limits only output tokens. Also accepts strings
-            like "500k", "1m", or "output:1m".
+            with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
@@ -1300,10 +1301,13 @@ def task_identifier(
         cost_limit: float | None
 
     def token_limit_hash_value(
-        tokens: int | None, type: Literal["all", "output"] | None
+        tokens: int | None, type: str | None
     ) -> int | str | None:
-        if tokens is not None and type == "output":
-            return f"output:{tokens}"
+        # bare int for all-token limits (keeps existing identities unchanged);
+        # "<type>:<tokens>" for output-metered or formula limits so they hash
+        # distinctly (and equal specs stay stable)
+        if tokens is not None and type is not None and type != "all":
+            return f"{type}:{tokens}"
         return tokens
 
     if isinstance(task, ResolvedTask):
