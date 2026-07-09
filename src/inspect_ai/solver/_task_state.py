@@ -3,7 +3,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 from random import Random
-from typing import Any, Literal, Type, Union, cast, overload
+from typing import Any, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -158,7 +158,7 @@ class TaskState:
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
-        token_limit_type: Literal["all", "output"] = "all",
+        token_limit_type: str = "all",
         cost_limit: float | None = None,
         completed: bool = False,
         metadata: dict[str, Any] | None = None,
@@ -354,7 +354,7 @@ class TaskState:
         set_active_sample_token_limit(tokens)
 
     @property
-    def token_limit_type(self) -> Literal["all", "output"]:
+    def token_limit_type(self) -> str:
         """Which tokens the token limit meters (fixed at sample init)."""
         return self._token_limit.type
 

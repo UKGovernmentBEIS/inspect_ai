@@ -557,7 +557,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         callback=token_limit_flag_callback,
         help="Limit on tokens used for each sample (e.g. 500000, '500k', or '1m'; "
-        "prefix with 'output:' to limit only output tokens, e.g. 'output:1m').",
+        "prefix with 'output:' to limit only output tokens, e.g. 'output:1m', or "
+        "with a formula over 'input'/'output', e.g. '(input*0.1)+output:1m').",
         envvar="INSPECT_EVAL_TOKEN_LIMIT",
     )
     @click.option(

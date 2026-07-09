@@ -1,3 +1,8 @@
+## Unreleased
+
+- Checkpointing: `Task(checkpoint=False)` now vetoes checkpointing for that task, overriding an eval-set/CLI enable (previously a no-op).
+- Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
+
 ## 0.3.245 (08 July 2026)
 
 - Model API: New `openai-api-completions` provider for the legacy `/v1/completions` endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with `vllm-completions`.
