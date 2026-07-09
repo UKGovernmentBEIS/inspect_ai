@@ -168,7 +168,7 @@ async def eval_run(
             ensure_unique_ids(task.dataset)
 
         # eagerly create each task model's adaptive-connections controller
-        # (normally created lazily on the first generate) so `ctl limits` can
+        # (normally created lazily on the first generate) so `ctl config` can
         # observe and retune max_connections during run startup — the sandbox
         # image pulls below can take minutes before any generate happens
         if run_samples:
