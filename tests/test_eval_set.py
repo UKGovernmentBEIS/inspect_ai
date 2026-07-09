@@ -685,6 +685,13 @@ def test_task_identifier_with_token_limit_type():
     assert identifier(1000) == identifier(TokenLimit(tokens=1000, type="all"))
     # output-metered limits hash distinctly
     assert identifier(1000) != identifier(TokenLimit(tokens=1000, type="output"))
+    # formula-metered limits hash distinctly, and equal formulas are stable
+    formula = TokenLimit(tokens=1000, type="input + output")
+    assert identifier(1000) != identifier(formula)
+    assert identifier(TokenLimit(tokens=1000, type="output")) != identifier(formula)
+    assert identifier(formula) == identifier(
+        TokenLimit(tokens=1000, type="input + output")
+    )
 
 
 def test_task_identifier_with_redacted_model_args():
