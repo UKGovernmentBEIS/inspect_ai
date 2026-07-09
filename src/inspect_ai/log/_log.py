@@ -150,8 +150,12 @@ class EvalConfig(BaseModel):
     token_limit: int | None = Field(default=None)
     """Maximum tokens usage per sample."""
 
-    token_limit_type: Literal["all", "output"] | None = Field(default=None)
-    """Which tokens `token_limit` meters (None indicates "all")."""
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters (None indicates "all").
+
+    Either a keyword ("all" or "output") or an arithmetic formula over `input`
+    and `output` (see `TokenLimit`).
+    """
 
     turn_limit: int | None = Field(default=None)
     """Maximum turns (model generations) per sample."""
