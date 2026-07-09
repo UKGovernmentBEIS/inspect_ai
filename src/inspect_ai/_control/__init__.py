@@ -7,8 +7,8 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 
 # Control-channel API version, for CLI <-> server skew gating. `inspect ctl`
 # talks to live eval processes that embed whatever inspect version they were
-# launched with, so a newer CLI pointed at an older process is the expected
-# first-contact scenario for any new capability. The server advertises this
+# launched with, so a newer CLI can be pointed at an older process — rare,
+# but possible when the CLI is upgraded mid-eval. The server advertises this
 # single channel-wide integer (in its discovery file and on each `/tasks`
 # row); the CLI gates version-dependent knobs on it *before* sending a
 # mutation (see `_KNOB_SINCE` in `inspect_ai._cli.ctl`) — an older server's

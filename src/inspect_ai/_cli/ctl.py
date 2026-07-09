@@ -67,14 +67,22 @@ _KNOB_SCOPE: dict[str, str] = {
 
 # Minimum control-API version each knob requires of the *server* process (the
 # `CONTROL_API_VERSION` from `inspect_ai._control` that its inspect embedded
-# at launch). Knobs absent here are since-0 — understood by every server,
-# including those that predate version reporting. A PR that adds a knob older
+# at launch). Parallel to `_KNOB_SCOPE`: every knob needs an entry (key-set
+# parity is asserted in `_exec_limits` and pinned by a test), so a new knob
+# can't silently default to "understood by every server". Since-0 knobs
+# predate version reporting and are never gated. A PR that adds a knob older
 # servers' PATCH handlers would silently ignore must bump
-# `CONTROL_API_VERSION` and record the new value here (e.g. `{"timeout": 1}`);
-# `_gate_knob_support` then hard-errors the request against an older process
-# *before* the mutation, instead of letting it partially apply behind a
-# success-shaped response.
-_KNOB_SINCE: dict[str, int] = {}
+# `CONTROL_API_VERSION` and record the new value here; `_gate_knob_support`
+# then hard-errors the request against an older process *before* the
+# mutation, instead of letting it partially apply behind a success-shaped
+# response.
+_KNOB_SINCE: dict[str, int] = {
+    "max_samples": 0,
+    "max_sandboxes": 0,
+    "max_connections": 0,
+    "log_buffer": 0,
+    "log_shared": 0,
+}
 
 # Rendered for a task-scoped knob that a process-level view can't show.
 _PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
@@ -2433,7 +2441,7 @@ def _gate_knob_support(
     the number. Applies to dry runs too — a dry-run PATCH on an older server
     would report a success-shaped view that omits the unknown knobs.
     """
-    gated = [knob for knob in requested_knobs if _KNOB_SINCE.get(knob, 0) > 0]
+    gated = [knob for knob in requested_knobs if _KNOB_SINCE[knob] > 0]
     if not gated:
         return
     server = next((s for s in servers if str(s.socket_path) == socket_path), None)
@@ -2485,9 +2493,10 @@ def _exec_limits(
         "log_buffer": log_buffer,
         "log_shared": log_shared,
     }
-    # the settable knobs are exactly the scope table's — a knob added to one
-    # without the other fails loudly here rather than silently no-opping
-    assert knob_values.keys() == _KNOB_SCOPE.keys()
+    # the settable knobs are exactly the scope and since tables' — a knob
+    # added to one without the others fails loudly here rather than silently
+    # no-opping (or riding past the version gate ungated)
+    assert knob_values.keys() == _KNOB_SCOPE.keys() == _KNOB_SINCE.keys()
     set_values = any(value is not None for value in knob_values.values())
     params: dict[str, Any] = {
         knob: value for knob, value in knob_values.items() if value is not None

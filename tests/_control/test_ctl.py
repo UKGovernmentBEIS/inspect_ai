@@ -15,6 +15,7 @@ import pytest
 from click.testing import CliRunner
 
 from inspect_ai._cli.ctl import (
+    _KNOB_SINCE,
     _SHORT_ID_LEN,
     _ConfigResult,
     _FetchedSummaries,
@@ -1392,19 +1393,22 @@ def test_config_help_scope_tags_derive_from_knob_table() -> None:
 
 
 def test_knob_since_table_is_consistent() -> None:
-    """Every gated knob is a real knob, and no entry outruns the constant.
+    """Every knob has a min-version entry, and no entry outruns the constant.
 
-    The second assertion catches forgot-to-bump variant A (a `_KNOB_SINCE`
-    entry of N+1 while `CONTROL_API_VERSION` is still N), which would make
-    the CLI block its own new knob against every server — including current
-    ones. (Variant B — reusing the current N without a bump — is convention
-    only; see the comment on `CONTROL_API_VERSION`.)
+    Key parity (also asserted at runtime in `_exec_limits`) forces a new knob
+    to declare its since-version explicitly rather than silently defaulting
+    to "understood by every server". The second assertion catches
+    forgot-to-bump variant A (a `_KNOB_SINCE` entry of N+1 while
+    `CONTROL_API_VERSION` is still N), which would make the CLI block its own
+    new knob against every server — including current ones. (Variant B —
+    reusing the current N without a bump — is convention only; see the
+    comment on `CONTROL_API_VERSION`.)
     """
-    from inspect_ai._cli.ctl import _KNOB_SCOPE, _KNOB_SINCE
+    from inspect_ai._cli.ctl import _KNOB_SCOPE
     from inspect_ai._control import CONTROL_API_VERSION
 
-    assert set(_KNOB_SINCE) <= set(_KNOB_SCOPE)
-    assert max(_KNOB_SINCE.values(), default=0) <= CONTROL_API_VERSION
+    assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
+    assert max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION
 
 
 def test_config_gates_newer_knob_on_older_server(
@@ -1421,7 +1425,7 @@ def test_config_gates_newer_knob_on_older_server(
         [_full_summary("aaa111", "t1")],
         servers=[_DiscServer(7, api_version=0)],
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._KNOB_SINCE", {"max_samples": 1})
+    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
 
     def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
         raise AssertionError("the mutation must not be sent")
@@ -1450,7 +1454,7 @@ def test_config_gate_names_only_unsupported_flags(
         [_full_summary("aaa111", "t1")],
         servers=[_DiscServer(7, api_version=0)],
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._KNOB_SINCE", {"log_buffer": 1})
+    monkeypatch.setitem(_KNOB_SINCE, "log_buffer", 1)
     result = _runner().invoke(
         ctl_command, ["config", "--log-buffer", "2", "--max-samples", "5"]
     )
@@ -1468,7 +1472,7 @@ def test_config_gate_passes_on_current_server(
         [_full_summary("aaa111", "t1")],
         servers=[_DiscServer(7, api_version=1)],
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._KNOB_SINCE", {"max_samples": 1})
+    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
     _stub_limits(
         monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
     )
@@ -1480,7 +1484,7 @@ def test_config_gate_passes_on_current_server(
 def test_config_gate_ignores_since_zero_knobs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Knobs absent from `_KNOB_SINCE` pass against any server (version 0)."""
+    """Since-0 knobs pass against any server, version-reporting or not."""
     _patch_surface(
         monkeypatch,
         [_full_summary("aaa111", "t1")],
