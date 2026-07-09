@@ -1079,17 +1079,34 @@ def _list_sample_rows(
         as_of_values.append(page.as_of)
         read.append(target)
         truncated = truncated or page.truncated
-        # An older server's envelope carries no histogram; on such a server
-        # the rows are the full listing, so derive its counts from them.
+        # An older server's envelope carries no histogram — and such a server
+        # also ignored the `status`/`limit` params entirely, so its rows are
+        # the full unfiltered listing: derive its counts from them, then apply
+        # the filter and cap client-side so the flags' contract holds across
+        # version skew rather than presenting full rows as filtered/capped.
         page_counts = page.counts
+        samples = page.samples
         if page_counts is None:
             page_counts = {}
-            for sample in page.samples:
+            for sample in samples:
                 page_status = str(sample.get("status") or "")
                 page_counts[page_status] = page_counts.get(page_status, 0) + 1
+            members = _parse_status_members(status)
+            if members is not None:
+                samples = [s for s in samples if s.get("status") in members]
+            cap = (
+                None
+                if all_samples
+                else limit
+                if limit is not None
+                else DEFAULT_SAMPLE_LIST_LIMIT
+            )
+            if cap is not None and len(samples) > cap:
+                samples = samples[:cap]
+                truncated = True
         for key, value in page_counts.items():
             counts[key] = counts.get(key, 0) + int(value)
-        for sample in page.samples:
+        for sample in samples:
             rows.append(
                 {
                     "task_id": target.get("task_id"),
@@ -1140,16 +1157,30 @@ def _run_sample_list(
     )
 
 
-def _validate_statuses(status: str | None) -> None:
-    """Reject an unknown ``--status`` member before any request is made.
-
-    The server 400s on unknown statuses too, but an unscoped listing fans
-    out over several evals — failing fast keeps a typo from producing a
-    per-eval warn-and-skip cascade instead of one clear usage error.
-    """
+def _parse_status_members(status: str | None) -> frozenset[str] | None:
+    """Parse a comma-separated ``--status`` value into its member set."""
     if status is None:
+        return None
+    return frozenset(t for t in (p.strip() for p in status.split(",")) if t)
+
+
+def _validate_statuses(status: str | None) -> None:
+    """Reject an empty or unknown ``--status`` before any request is made.
+
+    The server 400s on these too, but an unscoped listing fans out over
+    several evals — failing fast keeps a typo from producing a per-eval
+    warn-and-skip cascade instead of one clear usage error.
+    """
+    members = _parse_status_members(status)
+    if members is None:
         return
-    members = {t for t in (p.strip() for p in status.split(",")) if t}
+    # A closed-vocabulary filter with no members is always a mistake (it
+    # would silently drop every row), not "no filter".
+    if not members:
+        raise click.UsageError(
+            f"--status requires at least one status "
+            f"(expected {', '.join(SAMPLE_STATUSES)})."
+        )
     unknown = sorted(members - set(SAMPLE_STATUSES))
     if unknown:
         raise click.UsageError(

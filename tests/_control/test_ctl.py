@@ -1068,6 +1068,21 @@ def test_sample_list_unknown_status_teaches_vocabulary(
     assert calls == []
 
 
+def test_sample_list_empty_status_fails_fast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty `--status` member set errors rather than dropping every row."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    for empty in ("", ","):
+        result = _runner().invoke(
+            ctl_command, ["sample", "list", "--status", empty, "--json"]
+        )
+        assert result.exit_code != 0, empty
+        assert "at least one status" in result.stderr
+    assert calls == []
+
+
 def test_sample_list_mirrored_cap_flags_on_bare_noun(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1142,6 +1157,48 @@ def test_sample_list_counts_derived_for_older_server(
     assert payload["counts"]["running"] == 1
     assert payload["counts"]["completed"] == 1
     assert payload["counts"]["error"] == 1
+    assert payload["truncated"] is False
+
+
+def test_sample_list_filters_and_caps_for_older_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An older server ignores `status`/`limit`; the CLI applies them itself.
+
+    A histogram-less envelope signals a server that dropped the new query
+    params and returned the full listing — presenting those rows under the
+    requested flags would fake a filtered/capped read, so the filter and cap
+    run client-side (with `truncated` derived from the cap) and the counts
+    stay whole-listing.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="running"),
+                _sample_row("s2"),
+                _sample_row("s3"),
+                _sample_row("s4", status="error", error="boom"),
+            ]
+        },
+    )
+    result = _runner().invoke(
+        ctl_command, ["sample", "list", "--status", "completed", "--json"]
+    )
+    payload = json.loads(result.stdout)
+    assert [r["sample_id"] for r in payload["samples"]] == ["s2", "s3"]
+    assert payload["counts"]["running"] == 1  # counts stay whole-listing
+    assert payload["truncated"] is False
+
+    result = _runner().invoke(ctl_command, ["sample", "list", "--limit", "2", "--json"])
+    payload = json.loads(result.stdout)
+    assert [r["sample_id"] for r in payload["samples"]] == ["s1", "s2"]
+    assert payload["truncated"] is True
+
+    result = _runner().invoke(ctl_command, ["sample", "list", "--all", "--json"])
+    payload = json.loads(result.stdout)
+    assert len(payload["samples"]) == 4
     assert payload["truncated"] is False
 
 

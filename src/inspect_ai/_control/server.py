@@ -306,6 +306,18 @@ class ControlServer:
                 else None
             )
             if statuses is not None:
+                # A closed-vocabulary filter with no members is always a
+                # mistake (it would silently drop every row), not "no filter".
+                if not statuses:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": (
+                                "status requires at least one status "
+                                f"(expected {', '.join(SAMPLE_STATUSES)})"
+                            )
+                        },
+                    )
                 unknown = statuses - frozenset(SAMPLE_STATUSES)
                 if unknown:
                     return JSONResponse(

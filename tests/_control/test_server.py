@@ -359,6 +359,12 @@ async def test_samples_endpoint_rejects_bad_params(
         assert "bogus" in unknown.json()["error"]
         assert "pending" in unknown.json()["error"]  # names the valid vocabulary
 
+        # an empty member set would silently drop every row — 400 instead
+        for empty in ("", ","):
+            response = await client.get("/evals/e1/samples", params={"status": empty})
+            assert response.status_code == 400, empty
+            assert "at least one status" in response.json()["error"]
+
 
 async def test_sample_endpoint_addresses_reserved_char_ids(
     monkeypatch: pytest.MonkeyPatch,
