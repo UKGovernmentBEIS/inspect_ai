@@ -31,6 +31,7 @@ from inspect_ai._util.path import chdir
 from inspect_ai.dataset._dataset import Dataset
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
+from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import Model, ModelName, ensure_model_controller
@@ -467,9 +468,11 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     producing one) together with the ``CancelType`` it was cancelled with, so a
     caller managing retries can distinguish a retry/abort request from an
     ordinary error. ``can_retry`` is surfaced to the task (via ``TaskCancel``) so
-    it knows whether requesting a retry will be honoured. Re-raises (after
-    logging) the rare error that escapes a task — e.g. a failure during the final
-    log write.
+    it knows whether requesting a retry will be honoured. The rare error that
+    escapes a task — a failure to write the log itself (e.g. the ``log_start()``
+    header flush) — is converted into an errored :class:`EvalLog` so dispatchers
+    can retry the task rather than tearing down the run; it is re-raised only
+    when ``debug_errors`` is set.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -502,12 +505,28 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
 
                 task_tg.start_soon(run)
     except Exception as ex:
-        # errors generally don't escape from tasks (the exception being if an
-        # error occurs during the final write of the log)
+        # errors generally don't escape from tasks -- the exception is a
+        # failure to write the log itself (e.g. the log_start() header flush,
+        # or the log_finish() of an already-errored task, when log storage is
+        # unreachable). propagating would tear down the entire run (and all
+        # sibling tasks) for one task's failed write, so record an errored
+        # EvalLog instead: dispatchers already re-queue errored tasks and
+        # eval_set() retries them once storage recovers.
+        if options.debug_errors:
+            raise
+        inner = inner_exception(ex)
         log.error(
-            f"Task '{options.task.name}' encountered an error during finalisation: {inner_exception(ex)}"
+            f"Task '{options.task.name}' encountered an error while writing its log: {inner}"
         )
-        raise
+        # location points at the log file the write was destined for — it may
+        # not exist (a failed log_start() header flush) or may hold a partial
+        # log (a failed error-status log_finish())
+        result = EvalLog(
+            status="error",
+            eval=options.logger.eval,
+            error=eval_error(inner, type(inner), inner, inner.__traceback__),
+            location=options.logger.location,
+        )
     return TaskRunResult(result, cancel_type)
 
 
