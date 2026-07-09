@@ -306,7 +306,11 @@ def _compile_token_formula(
             and isinstance(node.value, (int, float))
             and not isinstance(node.value, bool)
         ):
-            pass
+            if not math.isfinite(node.value):
+                raise ValueError(
+                    f"token limit: non-finite constant {node.value} in formula "
+                    f"{formula!r}"
+                )
         elif isinstance(node, ast.Name):
             if node.id not in _TOKEN_FORMULA_VARS:
                 raise ValueError(
@@ -372,9 +376,13 @@ class _TokenMetering:
             + (usage.input_tokens_cache_read or 0)
             + (usage.input_tokens_cache_write or 0)
         )
-        return math.floor(
-            self._formula({"input": input_tokens, "output": usage.output_tokens})
-        )
+        result = self._formula({"input": input_tokens, "output": usage.output_tokens})
+        if not math.isfinite(result):
+            raise ValueError(
+                f"token limit: formula {self._type!r} produced a non-finite value "
+                f"({result})"
+            )
+        return math.floor(result)
 
 
 class TokenLimit(BaseModel):

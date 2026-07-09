@@ -559,11 +559,26 @@ def test_formula_stacks_with_keyword_limits() -> None:
 
 @pytest.mark.parametrize(
     "formula",
-    ["foo", "input +", "input ** 2", "min(input, output)", "__import__('os')"],
+    [
+        "foo",
+        "input +",
+        "input ** 2",
+        "min(input, output)",
+        "__import__('os')",
+        "1e309",  # non-finite constant (float overflow to inf)
+    ],
 )
 def test_token_limit_rejects_invalid_formula(formula: str) -> None:
     with pytest.raises(ValueError):
         token_limit(10, type=formula)
+
+
+def test_token_limit_formula_non_finite_result() -> None:
+    # a formula that evaluates to NaN/inf raises a controlled ValueError rather
+    # than a raw OverflowError from math.floor()
+    with pytest.raises(ValueError):
+        with token_limit(10, type="1e308 * input"):
+            _consume_usage(input_tokens=10, output_tokens=0)
 
 
 def test_token_limit_formula_division_by_zero() -> None:
