@@ -918,6 +918,15 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 @click.command("eval", cls=EvalCommand)
 @click.argument("tasks", nargs=-1)
+@click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_JSON",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each task's log location and status when the eval finishes.",
+)
 @eval_options
 @click.pass_context
 def eval_command(ctx: click.Context, /, **params: Any) -> None:
@@ -1067,10 +1076,18 @@ def _eval_command_impl(
     no_score_display: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
+    json_output: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
     # read config
     config = config_from_locals(dict(locals()))
+
+    # --json owns stdout (JSON lines only), so route the display to the
+    # quiet "none" renderer — including when --no-ansi would otherwise
+    # promote it back to "rich"
+    if json_output:
+        common["display"] = "none"
+        common["no_ansi"] = None
 
     # resolve common options
     process_common_options(common)
@@ -1150,6 +1167,7 @@ def _eval_command_impl(
         acp_server=acp_server,
         ctl_server=ctl_server,
         is_eval_set=False,
+        json_output=json_output,
         **config,
     )
 
@@ -1673,6 +1691,7 @@ def eval_exec(
     no_score: bool | None,
     no_score_display: bool | None,
     is_eval_set: bool = False,
+    json_output: bool = False,
     retry_attempts: int | None = None,
     retry_immediate: bool | None = None,
     retry_wait: int | None = None,
@@ -1871,8 +1890,78 @@ def eval_exec(
         return success
     else:
         params["log_header_only"] = True  # cli invocation doesn't need full log
-        eval(**params)
+        if json_output:
+            _eval_exec_json(params)
+        else:
+            eval(**params)
         return True
+
+
+def _eval_exec_json(params: dict[str, Any]) -> None:
+    """Run the eval emitting the agent-facing JSON lines on stdout.
+
+    Two records, one per line (documented in the ``--json`` option help):
+
+    - ``launch`` — printed by the launch-handoff listener the moment the
+      control surface is bound (or definitively absent), before any task
+      work begins. This is the synchronous launch handoff: an agent that
+      has read this line can trust ``inspect ctl`` immediately — an empty
+      task list means "no tasks registered yet", never "no server".
+    - ``done`` — printed after ``eval()`` returns, with each task's log
+      location and status (the live → ``inspect log`` handoff). A run
+      that raises emits no ``done`` record and exits non-zero.
+    """
+    from inspect_ai._eval.handoff import (
+        LaunchHandoff,
+        set_launch_handoff_listener,
+    )
+
+    handoffs: list[LaunchHandoff] = []
+
+    def on_launch(handoff: LaunchHandoff) -> None:
+        handoffs.append(handoff)
+        print(
+            json.dumps(
+                {
+                    "event": "launch",
+                    "run_id": handoff.run_id,
+                    "pid": handoff.pid,
+                    "log_dir": handoff.log_dir,
+                    "control": (
+                        {"socket_path": handoff.control_socket}
+                        if handoff.control_socket is not None
+                        else None
+                    ),
+                }
+            ),
+            flush=True,
+        )
+
+    set_launch_handoff_listener(on_launch)
+    try:
+        logs = eval(**params)
+    finally:
+        set_launch_handoff_listener(None)
+
+    print(
+        json.dumps(
+            {
+                "event": "done",
+                "run_id": handoffs[0].run_id if handoffs else None,
+                "logs": [
+                    {
+                        "task": log.eval.task,
+                        "task_id": log.eval.task_id,
+                        "eval_id": log.eval.eval_id,
+                        "status": log.status,
+                        "location": log.location,
+                    }
+                    for log in logs
+                ],
+            }
+        ),
+        flush=True,
+    )
 
 
 def _parse_adaptive_connections_cli(
