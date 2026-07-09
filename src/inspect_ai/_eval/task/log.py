@@ -334,7 +334,14 @@ class TaskLogger:
         self._samples_completed = 0
         self.flush_pending = []
         self._finished = False
-        self._buffer_db = None
+        # normally log_finish() has already cleaned up the buffer db, but if
+        # the attempt failed before finishing its log (e.g. the log_start()
+        # write failed) it is still live — clean it up so the new attempt
+        # can't collide with it (the location repeats if `created` lands on
+        # the same second)
+        if self._buffer_db is not None:
+            self._buffer_db.cleanup()
+            self._buffer_db = None
         await self.init()
 
     def _bump_created_past_existing_logs(self) -> None:
