@@ -203,8 +203,10 @@ def _run_eval_json(
     )
     assert result.exit_code == 0, result.output
     # every stdout line (blank included) must be JSON — that's the
-    # contract --json exists for
-    records = [json.loads(line) for line in result.output.splitlines()]
+    # contract --json exists for. Assert on ``result.stdout`` (not
+    # ``result.output``: in click >= 8.2 that is the *mixed* stdout+stderr
+    # stream, so redirected stderr diagnostics would pollute it).
+    records = [json.loads(line) for line in result.stdout.splitlines()]
     return EvalJsonResult(records=records, stderr=result.stderr)
 
 
@@ -322,6 +324,8 @@ def test_eval_json_preflight_failure_reports_to_stderr(
     )
 
     assert result.exit_code != 0
-    # stdout stays NDJSON-clean (no launch happened, so no records at all)
-    assert result.output.strip() == ""
+    # stdout stays NDJSON-clean (no launch happened, so no records at all);
+    # ``result.stdout``, not ``result.output`` — the latter mixes in stderr
+    # on click >= 8.2, where this error message lands by design
+    assert result.stdout.strip() == ""
     assert "No inspect tasks were found" in result.stderr

@@ -64,11 +64,11 @@ def short_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
 def cli_runner() -> CliRunner:
     """A CliRunner that captures stderr separately across click versions.
 
-    click < 8.2 mixes stderr into output unless ``mix_stderr=False``; click
-    >= 8.2 removed the parameter and always captures stderr separately.
-    Stderr must stay out of ``output`` for tests that assert on stdout
-    contents (e.g. that every line parses as JSON) — log/warning lines
-    would break those assertions.
+    click < 8.2 mixes stderr into stdout unless ``mix_stderr=False``; click
+    >= 8.2 removed the parameter and always captures stderr separately
+    (though its ``Result.output`` interleaves both streams — assert on
+    ``Result.stdout`` for stdout contents, e.g. that every line parses as
+    JSON, where log/warning lines would break those assertions).
     """
     try:
         return CliRunner(mix_stderr=False)  # type: ignore[call-arg]
