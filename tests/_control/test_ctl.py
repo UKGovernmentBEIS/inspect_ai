@@ -2149,6 +2149,21 @@ def test_human_unexpected_exception_not_swallowed(
     assert isinstance(result.exception, RuntimeError)
 
 
+def test_envelope_failures_rejects_runner_without_as_json() -> None:
+    """Decorating a runner lacking `as_json` fails at import, not silently.
+
+    Without the guard, such a runner would bind `as_json=False` for every
+    call and quietly revert its command to unstructured failures.
+    """
+    from inspect_ai._cli.ctl import _envelope_failures
+
+    with pytest.raises(TypeError, match="as_json"):
+
+        @_envelope_failures
+        def _runner_without_flag(task: str) -> None:  # pragma: no cover
+            pass
+
+
 def test_resolve_scope_completed_target_counts_toward_siblings() -> None:
     """Naming a completed task doesn't suppress the blast-radius note.
 

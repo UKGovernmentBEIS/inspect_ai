@@ -202,9 +202,7 @@ def _exit_all_busy(busy_pids: list[int]) -> NoReturn:
     running' message (and an empty ``--json`` envelope with exit 0) would be
     a false claim about the busy pids.
     """
-    message = f"No tasks visible: {_busy_note(busy_pids)}."
-    click.echo(message, err=True)
-    raise _CtlFailure("busy", message)
+    _fail("busy", f"No tasks visible: {_busy_note(busy_pids)}.")
 
 
 def _deprecation_note(old: str, new: str) -> None:
@@ -978,6 +976,26 @@ class _CtlFailure(click.exceptions.Exit):
         click.echo(json_lib.dumps(envelope, indent=2))
 
 
+def _fail(
+    kind: _ErrorKind,
+    message: str,
+    *,
+    exception: str | None = None,
+    status: int | None = None,
+) -> NoReturn:
+    """Echo ``message`` to stderr and raise the matching :class:`_CtlFailure`.
+
+    The standard shape for a terminal error site: the same self-contained
+    message serves as both the human stderr prose and the envelope
+    ``message``. Sites that interleave extra stderr output between the echo
+    and the raise (warnings, a candidates table) or derive the failure from
+    an exception (``raise ... from exc``) construct :class:`_CtlFailure`
+    directly instead.
+    """
+    click.echo(message, err=True)
+    raise _CtlFailure(kind, message, exception=exception, status=status)
+
+
 class _FailureKind(NamedTuple):
     """Result of :func:`_classify` (envelope ``kind`` + HTTP status when applicable)."""
 
@@ -1061,15 +1079,24 @@ _P = ParamSpec("_P")
 def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
     """Wrap a command runner in :func:`_structured_failures`.
 
-    Reads the runner's ``as_json`` argument (every runner takes one) off the
-    bound call, so the wrapper needs no per-runner plumbing and the aliases
-    are covered through their delegation.
+    Reads the runner's ``as_json`` argument off the bound call, so the
+    wrapper needs no per-runner plumbing and the aliases are covered through
+    their delegation. Every runner must take an ``as_json`` parameter —
+    enforced at decoration time so a missing/renamed parameter fails at
+    import rather than silently reverting that command to unstructured
+    failures.
     """
     signature = inspect.signature(fn)
+    if "as_json" not in signature.parameters:
+        raise TypeError(
+            f"{fn.__name__} must take an as_json parameter to use @_envelope_failures"
+        )
 
     @functools.wraps(fn)
     def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> None:
-        as_json = bool(signature.bind(*args, **kwargs).arguments.get("as_json"))
+        bound = signature.bind(*args, **kwargs)
+        bound.apply_defaults()
+        as_json = bool(bound.arguments["as_json"])
         with _structured_failures(as_json):
             fn(*args, **kwargs)
 
@@ -1438,12 +1465,11 @@ def _exit_removed_since(value: str) -> NoReturn:
         if _looks_like_timestamp(value)
         else "pass it to --cursor (the `next` value from a prior page)"
     )
-    message = (
+    _fail(
+        "invalid_request",
         f"--since was split into --cursor (opaque resume cursor) and "
-        f"--since-time (wall-clock window): {hint}."
+        f"--since-time (wall-clock window): {hint}.",
     )
-    click.echo(message, err=True)
-    raise _CtlFailure("invalid_request", message)
 
 
 def _validate_cursor(cursor: str | None) -> None:
@@ -1466,9 +1492,7 @@ def _validate_cursor(cursor: str | None) -> None:
         if _looks_like_timestamp(cursor)
         else " — pass the `next` value from a prior page."
     )
-    message = f"Invalid --cursor value '{cursor}'{hint}"
-    click.echo(message, err=True)
-    raise _CtlFailure("invalid_request", message)
+    _fail("invalid_request", f"Invalid --cursor value '{cursor}'{hint}")
 
 
 @_envelope_failures
@@ -1880,13 +1904,12 @@ def _resolve_scope(
         if not task_id:
             # a reused log written before task ids existed — addressable only
             # by its (superseded) eval id, which the directive wire doesn't use
-            message = (
+            _fail(
+                "invalid_request",
                 f"Task '{target.get('task') or '?'}' predates task ids (an "
                 "older reused log) — it can't be targeted by task-keyed "
-                "directives." + (f" {no_task_id_advice}" if no_task_id_advice else "")
+                "directives." + (f" {no_task_id_advice}" if no_task_id_advice else ""),
             )
-            click.echo(message, err=True)
-            raise _CtlFailure("invalid_request", message)
         # the named target counts toward the blast radius even when it is
         # completed — the process-scope note must not be suppressed as
         # "process-wide is exactly the named task" while a *different*
@@ -1937,9 +1960,9 @@ def _resolve_scope(
                 else "this process's tasks predate task ids (older reused "
                 "logs) and can't be targeted by task-keyed directives"
             )
-            message = f"{per_task_option} needs a task id, but {reason}."
-            click.echo(message, err=True)
-            raise _CtlFailure("invalid_request", message)
+            _fail(
+                "invalid_request", f"{per_task_option} needs a task id, but {reason}."
+            )
         count = len(candidates)
         _exit_ambiguous(
             candidates,
@@ -2013,27 +2036,22 @@ def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
     """
     servers = list_discovered_servers()
     if not servers:
-        message = "No running inspect processes found."
-        click.echo(message, err=True)
-        raise _CtlFailure("not_found", message)
+        _fail("not_found", "No running inspect processes found.")
 
     if pid is not None:
         matching = [s for s in servers if s.pid == pid]
         if not matching:
-            message = f"No running inspect process with pid {pid}."
-            click.echo(message, err=True)
-            raise _CtlFailure("not_found", message)
+            _fail("not_found", f"No running inspect process with pid {pid}.")
         return matching[0]
     if len(servers) == 1:
         return servers[0]
 
     pids = ", ".join(str(s.pid) for s in servers)
-    message = (
+    _fail(
+        "ambiguous",
         f"Multiple inspect processes are running (pids: {pids}). "
-        "Pass a PID to disambiguate (see `inspect ctl process`)."
+        "Pass a PID to disambiguate (see `inspect ctl process`).",
     )
-    click.echo(message, err=True)
-    raise _CtlFailure("ambiguous", message)
 
 
 # The control server is embedded in the eval process and shares its event
@@ -2160,15 +2178,11 @@ def _get_response_with_retry(
             f"no response after {attempts} attempts — the eval's event loop is busy",
             last_timeout=last_timeout,
         )
-    message = (
+    _fail(
+        "busy",
         f"{what}: gave up after {attempts} attempts of "
         f"{_REQUEST_TIMEOUT:.0f}s each — the eval's event loop is busy; "
-        "try again shortly."
-    )
-    click.echo(message, err=True)
-    raise _CtlFailure(
-        "busy",
-        message,
+        "try again shortly.",
         exception=_exception_name(last_timeout) if last_timeout else None,
     )
 
@@ -2332,9 +2346,7 @@ def _resolve_target_eval(
         busy = (
             f" among responsive processes; {_busy_note(busy_pids)}" if busy_pids else ""
         )
-        message = f"No running task matching '{query}'{busy}."
-        click.echo(message, err=True)
-        raise _CtlFailure("not_found", message)
+        _fail("not_found", f"No running task matching '{query}'{busy}.")
     if len(matches) > 1:
         if busy_pids:
             click.echo(
@@ -2599,12 +2611,13 @@ def _request_json(
                 socket_path, path, params=params, what=f"Reading {what}"
             )
         if response.status_code == 404:
-            click.echo(not_found, err=True)
-            raise _CtlFailure("not_found", not_found, status=404)
+            _fail("not_found", not_found, status=404)
         if response.status_code == 400:
-            message = f"Invalid request: {_error_detail_from_response(response)}"
-            click.echo(message, err=True)
-            raise _CtlFailure("invalid_request", message, status=400)
+            _fail(
+                "invalid_request",
+                f"Invalid request: {_error_detail_from_response(response)}",
+                status=400,
+            )
         response.raise_for_status()
         result = response.json()
     except _ServerUnreachable as exc:
