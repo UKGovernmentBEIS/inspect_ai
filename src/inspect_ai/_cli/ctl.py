@@ -29,12 +29,16 @@ its error message points at ``sample show``.
 
 from __future__ import annotations
 
+import functools
+import inspect
 import json as json_lib
 import time
-from collections.abc import Callable, Sequence
+import traceback
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, NoReturn, Protocol
+from typing import Any, Literal, NamedTuple, NoReturn, ParamSpec, Protocol
 
 import click
 import httpx
@@ -152,7 +156,9 @@ def ctl_command() -> None:
 
     Commands are grouped by resource noun (listed below); `list` verbs are
     implied by the bare noun (`inspect ctl task` ≡ `inspect ctl task list`).
-    All commands accept `--json`.
+    All commands accept `--json`; a failed `--json` invocation emits an
+    `{"error": {kind, exception, message, status}}` envelope on stdout
+    (exit code stays non-zero).
 
     A process exits when its eval finishes; launch with `inspect eval
     --ctl-server=keep` to keep it inspectable here until you run
@@ -195,8 +201,9 @@ def _exit_all_busy(busy_pids: list[int]) -> NoReturn:
     running' message (and an empty ``--json`` envelope with exit 0) would be
     a false claim about the busy pids.
     """
-    click.echo(f"No tasks visible: {_busy_note(busy_pids)}.", err=True)
-    raise click.exceptions.Exit(code=1)
+    message = f"No tasks visible: {_busy_note(busy_pids)}."
+    click.echo(message, err=True)
+    raise _CtlFailure("busy", message)
 
 
 def _deprecation_note(old: str, new: str) -> None:
@@ -497,7 +504,8 @@ def sample_events_command(
     true` means the sample has terminated and no more events will come.
     """
     if legacy_since is not None:
-        _exit_removed_since(legacy_since)
+        with _structured_failures(as_json):
+            _exit_removed_since(legacy_since)
     _run_sample_events(
         task,
         sample_id,
@@ -890,10 +898,191 @@ def limits_alias(
 
 
 # ---------------------------------------------------------------------------
+# --json error envelope
+# ---------------------------------------------------------------------------
+#
+# The error-path half of the agent output contract (see "Agent output
+# contract" in design/control-channel.md): the success path is enveloped
+# (`{as_of, ...}` reads, `{target, applied, ...}` mutations), so a failure
+# surfacing stderr prose or a traceback on a --json invocation would send
+# agents straight back to the string-scraping the JSON-first rule exists to
+# prevent. On --json, every terminal failure emits
+# `{"error": {kind, exception, message, status}}` on stdout, with the exit
+# code still non-zero; human (non---json) output is unchanged.
+
+
+class _CtlFailure(click.exceptions.Exit):
+    """A terminal ctl failure carrying the ``--json`` error envelope fields.
+
+    Subclasses :class:`click.exceptions.Exit` (code 1) so a path that never
+    passes through :func:`_structured_failures` still exits non-zero exactly
+    as before. Raisers echo their human prose to stderr first (unchanged in
+    both output modes — stderr stays narration); ``message`` must therefore
+    be self-contained, since the envelope is all a ``--json`` consumer reads
+    (e.g. the ambiguity error folds its candidate ids into it rather than
+    pointing at the stderr table).
+    """
+
+    def __init__(
+        self,
+        kind: str,
+        message: str,
+        *,
+        exception: str | None = None,
+        status: int | None = None,
+    ) -> None:
+        super().__init__(1)
+        self.kind = kind
+        self.message = message
+        self.exception = exception
+        self.status = status
+        self._emitted = False
+
+    @classmethod
+    def from_exception(cls, message: str, exc: BaseException) -> "_CtlFailure":
+        """Build a failure whose kind/status derive from ``exc``."""
+        kind, status = _classify(exc)
+        return cls(kind, message, exception=_exception_name(exc), status=status)
+
+    def emit(self) -> None:
+        """Print the stdout envelope (idempotent — nested wrappers can't double-print)."""
+        if self._emitted:
+            return
+        self._emitted = True
+        envelope = {
+            "error": {
+                "kind": self.kind,
+                "exception": self.exception,
+                "message": self.message,
+                "status": self.status,
+            }
+        }
+        click.echo(json_lib.dumps(envelope, indent=2))
+
+
+class _FailureKind(NamedTuple):
+    """Result of :func:`_classify` (envelope ``kind`` + HTTP status when applicable)."""
+
+    kind: str
+    status: int | None
+
+
+def _classify(exc: BaseException) -> _FailureKind:
+    """Coarse machine-branchable envelope ``kind`` for a transport exception.
+
+    The vocabulary is deliberately small — an agent branches on ``kind``
+    rather than regexing ``exception``/``message``: ``connect_timeout`` /
+    ``read_timeout`` (single-shot timeouts; retry-exhausted timeouts are
+    ``busy`` — see :func:`_unreachable_failure`), ``connect_error``
+    (refused/reset — the process is likely gone), ``not_found`` /
+    ``http_error`` (non-2xx, ``status`` carries the code),
+    ``invalid_response`` (undecodable body), ``internal`` (anything else).
+    Timeouts test before :class:`httpx.TransportError`, which subsumes them.
+    """
+    if isinstance(exc, httpx.ConnectTimeout):
+        return _FailureKind("connect_timeout", None)
+    if isinstance(exc, httpx.TimeoutException):
+        return _FailureKind("read_timeout", None)
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        return _FailureKind("not_found" if status == 404 else "http_error", status)
+    if isinstance(exc, (httpx.TransportError, OSError)):
+        return _FailureKind("connect_error", None)
+    if isinstance(exc, ValueError):
+        return _FailureKind("invalid_response", None)
+    return _FailureKind("internal", None)
+
+
+def _exception_name(exc: BaseException) -> str:
+    """Exception class for the envelope, package-qualified (``httpx.ReadTimeout``).
+
+    The top-level package (not the defining module) qualifies the name — a
+    ``httpx._exceptions.ReadTimeout`` spelling would leak a private module
+    path that agents would then match on.
+    """
+    cls = type(exc)
+    package = cls.__module__.partition(".")[0]
+    if package == "builtins":
+        return cls.__qualname__
+    return f"{package}.{cls.__qualname__}"
+
+
+@contextmanager
+def _structured_failures(as_json: bool) -> Iterator[None]:
+    """Emit the ``--json`` error envelope for any terminal failure inside.
+
+    Error sites raise :class:`_CtlFailure` (after echoing their stderr
+    prose) to carry the structured fields here; an unexpected exception
+    still gets an envelope (kind ``internal``), with its traceback preserved
+    on stderr for debugging. Other click control-flow exceptions (a plain
+    ``Exit``, usage errors, Ctrl+C) pass through untouched.
+    """
+    if not as_json:
+        yield
+        return
+    try:
+        yield
+    except _CtlFailure as exc:
+        exc.emit()
+        raise
+    except (click.exceptions.Exit, click.ClickException, click.exceptions.Abort):
+        raise
+    except Exception as exc:
+        click.echo(traceback.format_exc(), err=True, nl=False)
+        _CtlFailure(
+            "internal",
+            str(exc) or _exception_name(exc),
+            exception=_exception_name(exc),
+        ).emit()
+        raise click.exceptions.Exit(code=1) from exc
+
+
+_P = ParamSpec("_P")
+
+
+def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
+    """Wrap a command runner in :func:`_structured_failures`.
+
+    Reads the runner's ``as_json`` argument (every runner takes one) off the
+    bound call, so the wrapper needs no per-runner plumbing and the aliases
+    are covered through their delegation.
+    """
+    signature = inspect.signature(fn)
+
+    @functools.wraps(fn)
+    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> None:
+        as_json = bool(signature.bind(*args, **kwargs).arguments.get("as_json"))
+        with _structured_failures(as_json):
+            fn(*args, **kwargs)
+
+    return wrapper
+
+
+def _unreachable_failure(message: str, exc: "_ServerUnreachable") -> _CtlFailure:
+    """The envelope failure for a terminal unreachable-server error.
+
+    Busy (retry-exhausted timeouts) is its own kind — it means "alive but
+    starved; retry shortly" where the transport kinds mean "gone" — carrying
+    the last attempt's timeout class; other failures classify by their
+    transport ``__cause__``.
+    """
+    if isinstance(exc, _ServerBusy):
+        last = exc.last_timeout
+        return _CtlFailure(
+            "busy", message, exception=_exception_name(last) if last else None
+        )
+    cause = exc.__cause__
+    return _CtlFailure.from_exception(
+        message, cause if isinstance(cause, Exception) else exc
+    )
+
+
+# ---------------------------------------------------------------------------
 # command runners (shared by the canonical commands and the aliases)
 # ---------------------------------------------------------------------------
 
 
+@_envelope_failures
 def _run_task_list(as_json: bool) -> None:
     # Stamp as_of BEFORE the reads: anything that changes during them has a
     # timestamp >= as_of and is caught by the next poll rather than missed.
@@ -1026,6 +1215,7 @@ def _run_sample_errors(task: str | None, as_json: bool) -> None:
     )
 
 
+@_envelope_failures
 def _run_sample_listing(
     task: str | None,
     active_since: float | None,
@@ -1069,6 +1259,7 @@ def _run_sample_listing(
         printer(rows, show_task=True)
 
 
+@_envelope_failures
 def _run_sample_show(
     task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
 ) -> None:
@@ -1128,6 +1319,7 @@ def _run_sample_show(
     _print_sample_detail(merged, show_traceback)
 
 
+@_envelope_failures
 def _run_sample_events(
     task: str,
     sample_id: str,
@@ -1228,12 +1420,12 @@ def _exit_removed_since(value: str) -> NoReturn:
         if _looks_like_timestamp(value)
         else "pass it to --cursor (the `next` value from a prior page)"
     )
-    click.echo(
+    message = (
         f"--since was split into --cursor (opaque resume cursor) and "
-        f"--since-time (wall-clock window): {hint}.",
-        err=True,
+        f"--since-time (wall-clock window): {hint}."
     )
-    raise click.exceptions.Exit(code=1)
+    click.echo(message, err=True)
+    raise _CtlFailure("invalid_request", message)
 
 
 def _validate_cursor(cursor: str | None) -> None:
@@ -1256,10 +1448,12 @@ def _validate_cursor(cursor: str | None) -> None:
         if _looks_like_timestamp(cursor)
         else " — pass the `next` value from a prior page."
     )
-    click.echo(f"Invalid --cursor value '{cursor}'{hint}", err=True)
-    raise click.exceptions.Exit(code=1)
+    message = f"Invalid --cursor value '{cursor}'{hint}"
+    click.echo(message, err=True)
+    raise _CtlFailure("invalid_request", message)
 
 
+@_envelope_failures
 def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
     """Latch keep-alive on (``keep``) or off (``release``) for one process."""
     verb = "keep" if keep else "release"
@@ -1303,6 +1497,7 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
         )
 
 
+@_envelope_failures
 def _run_log_flush(task: str | None, as_json: bool) -> None:
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers).summaries
@@ -1341,6 +1536,7 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
         click.echo("\nNo buffered samples to flush.")
 
 
+@_envelope_failures
 def _run_process_list(as_json: bool) -> None:
     as_of = time.time()
     servers = list_discovered_servers()
@@ -1392,6 +1588,7 @@ def _run_process_list(as_json: bool) -> None:
     _render_table(("pid", "keep-alive", "tasks", "started"), table_rows)
 
 
+@_envelope_failures
 def _run_config(
     task: str | None,
     *,
@@ -1486,7 +1683,7 @@ def _run_config(
                 )
                 if value is not None and adjustable
             ]
-            click.echo(
+            message = (
                 f"Task '{scope.task_id}' has no sample buffer in this "
                 "process (e.g. a reused log, or a retry attempt that's "
                 "been superseded) — --log-buffer/--log-shared cannot be "
@@ -1496,14 +1693,14 @@ def _run_config(
                     "were still applied."
                     if applied_names and not dry_run
                     else ""
-                ),
-                err=True,
+                )
             )
+            click.echo(message, err=True)
             for warning in limits_view.get("warnings") or []:
                 # the buffer warning restates the headline error; skip it
                 if not warning.startswith("log_buffer"):
                     click.echo(f"! {warning}", err=True)
-            raise click.exceptions.Exit(code=1)
+            raise _CtlFailure("invalid_request", message)
         buffer_warnings.append(
             "log_buffer/log_shared are not adjustable for this task "
             "(no live sample buffer — e.g. a reused log)"
@@ -1665,13 +1862,13 @@ def _resolve_scope(
         if not task_id:
             # a reused log written before task ids existed — addressable only
             # by its (superseded) eval id, which the directive wire doesn't use
-            click.echo(
+            message = (
                 f"Task '{target.get('task') or '?'}' predates task ids (an "
                 "older reused log) — it can't be targeted by task-keyed "
-                "directives." + (f" {no_task_id_advice}" if no_task_id_advice else ""),
-                err=True,
+                "directives." + (f" {no_task_id_advice}" if no_task_id_advice else "")
             )
-            raise click.exceptions.Exit(code=1)
+            click.echo(message, err=True)
+            raise _CtlFailure("invalid_request", message)
         # the named target counts toward the blast radius even when it is
         # completed — the process-scope note must not be suppressed as
         # "process-wide is exactly the named task" while a *different*
@@ -1722,8 +1919,9 @@ def _resolve_scope(
                 else "this process's tasks predate task ids (older reused "
                 "logs) and can't be targeted by task-keyed directives"
             )
-            click.echo(f"{per_task_option} needs a task id, but {reason}.", err=True)
-            raise click.exceptions.Exit(code=1)
+            message = f"{per_task_option} needs a task id, but {reason}."
+            click.echo(message, err=True)
+            raise _CtlFailure("invalid_request", message)
         count = len(candidates)
         _exit_ambiguous(
             candidates,
@@ -1797,25 +1995,27 @@ def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
     """
     servers = list_discovered_servers()
     if not servers:
-        click.echo("No running inspect processes found.", err=True)
-        raise click.exceptions.Exit(code=1)
+        message = "No running inspect processes found."
+        click.echo(message, err=True)
+        raise _CtlFailure("not_found", message)
 
     if pid is not None:
         matching = [s for s in servers if s.pid == pid]
         if not matching:
-            click.echo(f"No running inspect process with pid {pid}.", err=True)
-            raise click.exceptions.Exit(code=1)
+            message = f"No running inspect process with pid {pid}."
+            click.echo(message, err=True)
+            raise _CtlFailure("not_found", message)
         return matching[0]
     if len(servers) == 1:
         return servers[0]
 
     pids = ", ".join(str(s.pid) for s in servers)
-    click.echo(
+    message = (
         f"Multiple inspect processes are running (pids: {pids}). "
-        "Pass a PID to disambiguate (see `inspect ctl process`).",
-        err=True,
+        "Pass a PID to disambiguate (see `inspect ctl process`)."
     )
-    raise click.exceptions.Exit(code=1)
+    click.echo(message, err=True)
+    raise _CtlFailure("ambiguous", message)
 
 
 # The control server is embedded in the eval process and shares its event
@@ -1864,8 +2064,18 @@ class _ServerBusy(_ServerUnreachable):
 
     A subclass, so a caller's existing ``except _ServerUnreachable``
     warn-and-skip covers it; carries its message as the detail (there is no
-    transport ``__cause__`` — every attempt timed out).
+    transport ``__cause__`` — every attempt timed out). ``last_timeout``
+    records the final attempt's timeout for the ``--json`` error envelope's
+    ``exception`` field (an attribute rather than ``__cause__``, whose
+    presence would swap the human detail from the busy narration to the
+    bare timeout string).
     """
+
+    def __init__(
+        self, message: str, last_timeout: httpx.TimeoutException | None = None
+    ) -> None:
+        super().__init__(message)
+        self.last_timeout = last_timeout
 
 
 def _get_response_with_retry(
@@ -1907,6 +2117,7 @@ def _get_response_with_retry(
     if attempts is None:
         attempts = _DEGRADED_READ_ATTEMPTS if raise_on_busy else _REQUEST_ATTEMPTS
     transport = httpx.HTTPTransport(uds=str(socket_path))
+    last_timeout: httpx.TimeoutException | None = None
     for attempt in range(1, attempts + 1):
         try:
             with httpx.Client(
@@ -1915,7 +2126,8 @@ def _get_response_with_retry(
                 timeout=_REQUEST_TIMEOUT,
             ) as client:
                 return client.request(method, path, params=params or {})
-        except httpx.TimeoutException:
+        except httpx.TimeoutException as exc:
+            last_timeout = exc
             retrying = "; retrying…" if attempt < attempts else "."
             click.echo(
                 f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
@@ -1927,15 +2139,20 @@ def _get_response_with_retry(
             raise _ServerUnreachable() from exc
     if raise_on_busy:
         raise _ServerBusy(
-            f"no response after {attempts} attempts — the eval's event loop is busy"
+            f"no response after {attempts} attempts — the eval's event loop is busy",
+            last_timeout=last_timeout,
         )
-    click.echo(
+    message = (
         f"{what}: gave up after {attempts} attempts of "
         f"{_REQUEST_TIMEOUT:.0f}s each — the eval's event loop is busy; "
-        "try again shortly.",
-        err=True,
+        "try again shortly."
     )
-    raise click.exceptions.Exit(code=1)
+    click.echo(message, err=True)
+    raise _CtlFailure(
+        "busy",
+        message,
+        exception=_exception_name(last_timeout) if last_timeout else None,
+    )
 
 
 def _get_with_retry(
@@ -2097,8 +2314,9 @@ def _resolve_target_eval(
         busy = (
             f" among responsive processes; {_busy_note(busy_pids)}" if busy_pids else ""
         )
-        click.echo(f"No running task matching '{query}'{busy}.", err=True)
-        raise click.exceptions.Exit(code=1)
+        message = f"No running task matching '{query}'{busy}."
+        click.echo(message, err=True)
+        raise _CtlFailure("not_found", message)
     if len(matches) > 1:
         if busy_pids:
             click.echo(
@@ -2142,7 +2360,8 @@ def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
     tellable apart — an inline `id (name)` listing can't disambiguate those.
     The solver column appears only when a candidate carries one (mirroring
     the task list), and a pid column only when the candidates span more than
-    one process (the common case is one).
+    one process (the common case is one). The envelope failure folds the
+    candidate ids into its message instead — the table is stderr-only.
     """
     click.echo(f"{prefix} — pass a task id to choose one:\n", err=True)
     multi_process = len({s.get("pid") for s in matches}) > 1
@@ -2165,7 +2384,11 @@ def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
         for s in matches
     ]
     _render_table(headers, rows, err=True)
-    raise click.exceptions.Exit(code=1)
+    ids = ", ".join(_short_id(str(s.get("task_id") or "")) for s in matches)
+    raise _CtlFailure(
+        "ambiguous",
+        f"{prefix} — pass a task id to choose one (candidates: {ids}).",
+    )
 
 
 def _unreachable_detail(exc: _ServerUnreachable) -> str:
@@ -2179,11 +2402,11 @@ def _exit_samples_unreachable(eval_id: str, exc: _ServerUnreachable) -> NoReturn
     # the period rides the hint: a non-busy detail is a raw transport error
     # string (multi-line, may end in a URL) that punctuation would corrupt
     hint = "; try again shortly." if isinstance(exc, _ServerBusy) else ""
-    click.echo(
-        f"Failed to read samples for eval {eval_id}: {_unreachable_detail(exc)}{hint}",
-        err=True,
+    message = (
+        f"Failed to read samples for eval {eval_id}: {_unreachable_detail(exc)}{hint}"
     )
-    raise click.exceptions.Exit(code=1) from exc
+    click.echo(message, err=True)
+    raise _unreachable_failure(message, exc) from exc
 
 
 class _SamplesPage(NamedTuple):
@@ -2359,20 +2582,21 @@ def _request_json(
             )
         if response.status_code == 404:
             click.echo(not_found, err=True)
-            raise click.exceptions.Exit(code=1)
+            raise _CtlFailure("not_found", not_found, status=404)
         if response.status_code == 400:
-            click.echo(
-                f"Invalid request: {_error_detail_from_response(response)}", err=True
-            )
-            raise click.exceptions.Exit(code=1)
+            message = f"Invalid request: {_error_detail_from_response(response)}"
+            click.echo(message, err=True)
+            raise _CtlFailure("invalid_request", message, status=400)
         response.raise_for_status()
         result = response.json()
     except _ServerUnreachable as exc:
-        click.echo(f"Failed to {verb} {what}: {_unreachable_detail(exc)}", err=True)
-        raise click.exceptions.Exit(code=1) from exc
+        message = f"Failed to {verb} {what}: {_unreachable_detail(exc)}"
+        click.echo(message, err=True)
+        raise _unreachable_failure(message, exc) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
-        click.echo(f"Failed to {verb} {what}: {_error_detail(exc)}", err=True)
-        raise click.exceptions.Exit(code=1) from exc
+        message = f"Failed to {verb} {what}: {_error_detail(exc)}"
+        click.echo(message, err=True)
+        raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
 
 
