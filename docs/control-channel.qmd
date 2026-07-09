@@ -87,6 +87,8 @@ The listing is capped at 100 rows per task by default, keeping the head of the r
 
 With `--json` the response is an `{as_of, counts, samples, truncated}` envelope. Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — feed it the `as_of` from the prior response (rather than a locally minted timestamp) so nothing that changed mid-read is missed (`counts` remains the whole-task histogram on a delta poll, so progress tracking rides along for free).
 
+The cap is enforced by the eval process's control server, so an `inspect` CLI from before the cap (≤ 0.3.245) reading a newer eval will see the capped listing without the footer or the `truncated` flag. Keep the observing CLI at least as new as the eval it inspects (a newer CLI reading an older eval handles the difference automatically).
+
 ## Errors and Retries
 
 `inspect ctl sample errors` is a triage view of the samples that errored or were retried (across all running tasks when `TASK` is omitted):

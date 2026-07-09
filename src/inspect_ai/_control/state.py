@@ -278,9 +278,7 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     return summaries
 
 
-async def current_sample_summaries(
-    eval_id: str, active_since: float | None = None
-) -> list[dict[str, Any]]:
+async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     """Per-sample summaries for one eval (``GET /evals/<eval_id>/samples``).
 
     Lists *all* of the eval's samples — running, completed, and pending —
@@ -310,11 +308,9 @@ async def current_sample_summaries(
     terminal / pending samples), ``scores`` (``{scorer: value}``, empty
     until scored), ``error``, ``retries``, ``limit``.
 
-    ``active_since`` (unix ts) restricts the result to samples that started or
-    were updated at/after that time — i.e. ``last_activity_at >= active_since``
-    — the cheap "what changed since I last looked" delta. Pending samples (no
-    activity) are excluded. It's a wall-clock *filter*, not a resume cursor (it
-    returns current state of whatever changed, not an exactly-once stream).
+    The ``active_since`` recency filter lives in
+    :func:`current_sample_listing` (its single home), which wraps this
+    full listing.
     """
     by_key: dict[tuple[Any, int], dict[str, Any]] = {}
 
@@ -339,10 +335,7 @@ async def current_sample_summaries(
     # holds these, so synthesize them from the registered planned ids.
     _add_pending_samples(eval_id, by_key)
 
-    summaries = list(by_key.values())
-    if active_since is not None:
-        summaries = _filter_active_since(summaries, active_since)
-    return _sorted_samples(summaries)
+    return _sorted_samples(list(by_key.values()))
 
 
 class SampleListing(NamedTuple):
@@ -380,6 +373,13 @@ async def current_sample_listing(
     - caps the rows at ``limit`` (``None`` = unlimited), keeping the head
       of the existing running → terminal → pending sort order — the most
       relevant rows — and flags ``truncated`` when the cap dropped any.
+
+    ``active_since`` (unix ts) keeps samples that started or were updated
+    at/after that time — i.e. ``last_activity_at >= active_since`` — the
+    cheap "what changed since I last looked" delta. Pending samples (no
+    activity) are excluded. It's a wall-clock *filter*, not a resume
+    cursor (it returns current state of whatever changed, not an
+    exactly-once stream).
     """
     summaries = await current_sample_summaries(eval_id)
 

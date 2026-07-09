@@ -246,8 +246,9 @@ class ControlServer:
         def _limits_below_one(*knobs: tuple[str, int | None]) -> JSONResponse | None:
             """400 for the first requested limit below 1, else None.
 
-            Shared by both PATCH limits routes so the knob validation can't
-            drift between them.
+            Shared by the routes that take integer knobs (both PATCH limits
+            routes and the samples listing) so the validation can't drift
+            between them.
             """
             for label, value in knobs:
                 if value is not None and value < 1:
@@ -295,11 +296,8 @@ class ControlServer:
                     status_code=400,
                     content={"error": "limit and all are mutually exclusive"},
                 )
-            if limit is not None and limit < 1:
-                return JSONResponse(
-                    status_code=400,
-                    content={"error": f"limit must be >= 1 (got {limit})"},
-                )
+            if error := _limits_below_one(("limit", limit)):
+                return error
             statuses, status_error = parse_status_filter(status)
             if status_error is not None:
                 return JSONResponse(status_code=400, content={"error": status_error})
