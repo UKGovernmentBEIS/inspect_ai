@@ -5,6 +5,7 @@
 - Control Channel: `inspect ctl` sample commands now warn and skip an eval that stays busy through the retries instead of failing outright, with stderr caveats (and an honest non-zero exit when no tasks remain visible) wherever the skip could mislead.
 - Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
+- Performance: Transcript events are now validated through a pydantic discriminator when reading logs (`read_eval_log`, `eval-retry`, `events_df`/`messages_df`), a single keyed lookup instead of trying all 23 `Event` union members in turn; ~6.4x faster per-event validation on large logs, with no change to the log format. (#4445)
 
 ## 0.3.245 (08 July 2026)
 
