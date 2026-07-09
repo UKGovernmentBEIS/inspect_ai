@@ -282,6 +282,52 @@ def test_reconstruct_multi_agent_primary_is_first_in_stream() -> None:
     assert sample.output.choices[0].message.content == "Hi there!"
 
 
+def test_reconstruct_multi_agent_compaction_survives_foreign_interleave() -> None:
+    """A compaction attributed to the primary role survives a foreign event in between.
+
+    Regression for a review comment on #4417: primary P1, then a foreign
+    secondary event, then a compaction of the primary's own conversation,
+    then primary P2. Since the secondary event is the most recent
+    ModelEvent when the compaction fires, attributing the compaction by
+    "most recent event's role" would skip flushing P1 and drop
+    p1_input/p1_output. CompactionEvent.role removes the guesswork.
+    """
+    summary = _make_completed_summary()
+
+    p1_user = ChatMessageUser(content="p1_input")
+    p1_event = _make_model_event([p1_user], "p1_output", role="primary")
+
+    s1_user = ChatMessageUser(content="s1_input")
+    s1_event = _make_model_event([s1_user], "s1_output", role="secondary")
+
+    compaction = CompactionEvent(type="summary", role="primary")
+
+    summary_msg = ChatMessageUser(content="summary")
+    p2_user = ChatMessageUser(content="p2_input")
+    p2_event = _make_model_event([summary_msg, p2_user], "p2_output", role="primary")
+
+    sample_data = SampleData(
+        events=[
+            _event_to_event_data(p1_event, id=1),
+            _event_to_event_data(s1_event, id=2),
+            _event_to_event_data(compaction, id=3),
+            _event_to_event_data(p2_event, id=4),
+        ],
+        attachments=[],
+    )
+
+    sample = reconstruct_eval_sample(summary, sample_data)
+
+    assert [m.text for m in sample.messages] == [
+        "p1_input",
+        "p1_output",
+        "summary",
+        "p2_input",
+        "p2_output",
+    ]
+    assert sample.output.choices[0].message.content == "p2_output"
+
+
 def test_reconstruct_empty_events() -> None:
     """Test reconstruction with no events at all."""
     summary = _make_in_progress_summary()
@@ -639,6 +685,41 @@ def test_message_accumulator_compaction_attributed_to_last_role() -> None:
         "Done.",
     ]
     assert output.choices[0].message.content == "Done."
+
+
+def test_message_accumulator_compaction_role_survives_foreign_interleave() -> None:
+    """CompactionEvent.role is used when present instead of the last-event heuristic.
+
+    Same regression as test_reconstruct_multi_agent_compaction_survives_foreign_interleave,
+    exercised directly against MessageAccumulator: a foreign event between the
+    primary's last event and its own compaction must not cause that
+    compaction to be skipped.
+    """
+    p1_event = _make_model_event(
+        [ChatMessageUser(content="p1_input")], "p1_output", role="primary"
+    )
+    s1_event = _make_model_event(
+        [ChatMessageUser(content="s1_input")], "s1_output", role="secondary"
+    )
+    compaction = CompactionEvent(type="summary", role="primary")
+    p2_event = _make_model_event(
+        [ChatMessageUser(content="summary"), ChatMessageUser(content="p2_input")],
+        "p2_output",
+        role="primary",
+    )
+
+    acc = MessageAccumulator()
+    acc.process_events([p1_event, s1_event, compaction, p2_event])
+    messages, output = acc.result()
+
+    assert [m.text for m in messages] == [
+        "p1_input",
+        "p1_output",
+        "summary",
+        "p2_input",
+        "p2_output",
+    ]
+    assert output.choices[0].message.content == "p2_output"
 
 
 def test_reconstruct_in_progress_summary_without_uuid_synthesizes_one() -> None:

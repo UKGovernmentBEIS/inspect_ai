@@ -221,6 +221,10 @@ class MessageAccumulator:
     only (the role of the first ModelEvent, matching the conversation the
     solver started with) so the reconstructed messages are deterministic
     rather than whichever agent's event happened to fire last.
+
+    CompactionEvent carries its own role since it was added; a compaction
+    from an older log without the field falls back to the most recent
+    ModelEvent's role.
     """
 
     def __init__(self) -> None:
@@ -254,9 +258,12 @@ class MessageAccumulator:
                 self._output = event.output
 
             elif isinstance(event, CompactionEvent):
-                # CompactionEvent carries no role; attribute it to the most
-                # recent ModelEvent's role.
-                if self._last_event_role != self._primary_role:
+                # older logs predate CompactionEvent.role; fall back to the
+                # most recent ModelEvent's role for those.
+                event_role = (
+                    event.role if event.role is not None else self._last_event_role
+                )
+                if event_role != self._primary_role:
                     continue
 
                 if event.type == "summary":
