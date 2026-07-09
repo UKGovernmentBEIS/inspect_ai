@@ -1254,7 +1254,7 @@ def test_sample_list_truncation_footer_with_filters(
 
     result = _runner().invoke(ctl_command, ["sample", "list", "--active-since", "99"])
     assert result.exit_code == 0, result.output
-    assert "showing first 1 matching samples (251 total" in result.output
+    assert "showing first 1 matching sample (251 total" in result.output
     assert "--status to filter" in result.output
 
 

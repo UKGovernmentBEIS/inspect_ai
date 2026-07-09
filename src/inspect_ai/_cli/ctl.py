@@ -1283,7 +1283,10 @@ def _echo_truncation_footer(
         f"{counts[status]} {status}" for status in SAMPLE_STATUSES if counts[status]
     )
     if delta:
-        showing = f"showing first {shown} matching samples ({total} total: {histogram})"
+        showing = (
+            f"showing first {shown} matching sample{'' if shown == 1 else 's'} "
+            f"({total} total: {histogram})"
+        )
     elif statuses is not None:
         matching = sum(counts.get(status, 0) for status in statuses)
         showing = (

@@ -75,7 +75,7 @@ sample  epoch  status     time   idle  tokens  messages
 
 The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. (Note that a single in-flight model request produces no events until it returns, so idle time also accumulates during one long model call.)
 
-The listing is capped at 100 rows per task by default, keeping the head of the running → terminal → pending sort order (running samples sort first, then finished ones — completed, error, and cancelled alike — so the cap keeps the most relevant rows and errored samples survive it alongside completed ones). A capped listing says so — the human output prints a `listing capped: showing N of M samples` footer, and the JSON envelope sets `truncated: true` — and the aggregate answer stays complete regardless: the envelope's `counts` is the status histogram over *all* of the task's samples. Adjust with:
+The listing is capped at 100 rows per task by default, keeping the head of the running → terminal → pending sort order (running samples sort first, any queued-but-not-started ones just after, then finished ones — completed, error, and cancelled alike — so the cap keeps the most relevant rows and errored samples survive it alongside completed ones). A capped listing says so — the human output prints a `listing capped: showing N of M samples` footer, and the JSON envelope sets `truncated: true` — and the aggregate answer stays complete regardless: the envelope's `counts` is the status histogram over *all* of the task's samples. Adjust with:
 
 | Option | Description |
 |----|----|
