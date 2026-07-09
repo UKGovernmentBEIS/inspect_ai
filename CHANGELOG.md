@@ -6,6 +6,7 @@
 - Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
 - Control Channel: `inspect ctl sample list` now caps its listing at the 100 most relevant rows by default (`--limit`/`--all` to adjust, `--status` to filter) and reports a complete status histogram plus a `truncated` flag in its envelope.
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
+- Eval: Task retry no longer errors its samples with `FileNotFoundError` when the prior attempt failed before writing its log file (e.g. a failed `log_start()`).
 
 ## 0.3.245 (08 July 2026)
 
