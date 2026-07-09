@@ -1,16 +1,28 @@
 from __future__ import annotations
 
 import abc
+import ast
 import logging
+import math
+import operator
 import re
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from types import TracebackType
-from typing import TYPE_CHECKING, Generic, Iterator, Literal, NamedTuple, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generic,
+    Iterator,
+    Literal,
+    Mapping,
+    NamedTuple,
+    TypeVar,
+)
 
 import anyio
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import Self, override
 
 from inspect_ai._util.logger import warn_once
@@ -248,6 +260,131 @@ _sample_limit_data: ContextVar[SampleLimits | None] = ContextVar(
 )
 
 
+_TOKEN_FORMULA_VARS = ("input", "output")
+"""Variables available in a token limit metering formula."""
+
+_TOKEN_FORMULA_BINOPS: dict[type[ast.operator], Callable[[float, float], float]] = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+}
+_TOKEN_FORMULA_UNARYOPS: dict[type[ast.unaryop], Callable[[float], float]] = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+
+def _compile_token_formula(
+    formula: str,
+) -> Callable[[Mapping[str, float]], float]:
+    """Parse and validate an arithmetic token metering formula.
+
+    Supports `+ - * /`, parentheses, unary minus, numeric literals, and the
+    variables in `_TOKEN_FORMULA_VARS`. The formula is validated eagerly (so an
+    invalid formula raises `ValueError` at construction, not mid-run) and a
+    closure evaluating it against a variable mapping is returned.
+
+    Args:
+      formula: Arithmetic expression, e.g. "(input * 0.1) + output".
+    """
+    try:
+        tree = ast.parse(formula, mode="eval")
+    except SyntaxError as ex:
+        raise ValueError(f"token limit: invalid formula {formula!r}: {ex.msg}") from ex
+
+    def validate(node: ast.AST) -> None:
+        if isinstance(node, ast.Expression):
+            validate(node.body)
+        elif isinstance(node, ast.BinOp) and type(node.op) in _TOKEN_FORMULA_BINOPS:
+            validate(node.left)
+            validate(node.right)
+        elif isinstance(node, ast.UnaryOp) and type(node.op) in _TOKEN_FORMULA_UNARYOPS:
+            validate(node.operand)
+        elif (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, (int, float))
+            and not isinstance(node.value, bool)
+        ):
+            if not math.isfinite(node.value):
+                raise ValueError(
+                    f"token limit: non-finite constant {node.value} in formula "
+                    f"{formula!r}"
+                )
+        elif isinstance(node, ast.Name):
+            if node.id not in _TOKEN_FORMULA_VARS:
+                raise ValueError(
+                    f"token limit: unknown variable {node.id!r} in formula "
+                    f"{formula!r} (allowed: {', '.join(_TOKEN_FORMULA_VARS)})"
+                )
+        else:
+            raise ValueError(
+                f"token limit: unsupported expression in formula {formula!r}"
+            )
+
+    validate(tree)
+
+    def evaluate(node: ast.AST, vars: Mapping[str, float]) -> float:
+        if isinstance(node, ast.Expression):
+            return evaluate(node.body, vars)
+        if isinstance(node, ast.BinOp):
+            return _TOKEN_FORMULA_BINOPS[type(node.op)](
+                evaluate(node.left, vars), evaluate(node.right, vars)
+            )
+        if isinstance(node, ast.UnaryOp):
+            return _TOKEN_FORMULA_UNARYOPS[type(node.op)](evaluate(node.operand, vars))
+        if isinstance(node, ast.Constant):
+            assert isinstance(node.value, (int, float))
+            return float(node.value)
+        assert isinstance(node, ast.Name)
+        return vars[node.id]
+
+    def compiled(vars: Mapping[str, float]) -> float:
+        try:
+            return evaluate(tree, vars)
+        except ZeroDivisionError as ex:
+            raise ValueError(
+                f"token limit: division by zero evaluating formula {formula!r}"
+            ) from ex
+
+    return compiled
+
+
+class _TokenMetering:
+    """Derives the metered token count for a token limit `type`.
+
+    `type` is either a keyword ("all" → total tokens, "output" → output tokens)
+    or an arithmetic formula over `input`/`output` (see `_compile_token_formula`).
+    """
+
+    def __init__(self, type: str) -> None:
+        self._type = type
+        self._formula: Callable[[Mapping[str, float]], float] | None = (
+            None if type in ("all", "output") else _compile_token_formula(type)
+        )
+
+    def value(self, usage: ModelUsage) -> int:
+        if self._type == "all":
+            return usage.total_tokens
+        if self._type == "output":
+            return usage.output_tokens
+        assert self._formula is not None
+        # `input` is the true prompt size (including cached tokens, which the
+        # `input_tokens` field excludes); `output` includes reasoning tokens.
+        input_tokens = (
+            usage.input_tokens
+            + (usage.input_tokens_cache_read or 0)
+            + (usage.input_tokens_cache_write or 0)
+        )
+        result = self._formula({"input": input_tokens, "output": usage.output_tokens})
+        if not math.isfinite(result):
+            raise ValueError(
+                f"token limit: formula {self._type!r} produced a non-finite value "
+                f"({result})"
+            )
+        return math.floor(result)
+
+
 class TokenLimit(BaseModel):
     """Specification of a token limit (count plus which tokens are metered)."""
 
@@ -256,23 +393,39 @@ class TokenLimit(BaseModel):
     tokens: int = Field(ge=0)
     """Maximum number of tokens."""
 
-    type: Literal["all", "output"] = Field(default="all")
-    """Which tokens are metered ("all" counts total tokens, "output" counts only output tokens, which include reasoning tokens)."""
+    type: str = Field(default="all")
+    """Which tokens are metered.
+
+    Either a keyword ("all" counts total tokens, "output" counts only output
+    tokens, which include reasoning tokens) or an arithmetic formula over the
+    variables `input` and `output`, e.g. "(input * 0.1) + output". In a formula,
+    `input` is the true prompt size (including cached tokens) and `output`
+    includes reasoning tokens; the result is floored to an integer.
+    """
+
+    @field_validator("type")
+    @classmethod
+    def _validate_type(cls, value: str) -> str:
+        # constructs the metering (compiling any formula) to reject invalid
+        # types/formulas at model construction rather than mid-run
+        _TokenMetering(value)
+        return value
 
 
-_TOKEN_LIMIT_RE = re.compile(
-    r"^\s*(?:(all|output)\s*:)?\s*(\d+(?:\.\d+)?)\s*([kmb]?)\s*$", re.IGNORECASE
-)
+_TOKEN_COUNT_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([kmb]?)\s*$", re.IGNORECASE)
 _TOKEN_LIMIT_UNITS = {"k": 1_000, "m": 1_000_000, "b": 1_000_000_000}
 
 
 def parse_token_limit(value: str) -> int | TokenLimit:
     """Parse a token limit string.
 
-    The format is `[all:|output:]<number>[k|m|b]` (case-insensitive), e.g.
+    The format is `[<type>:]<number>[k|m|b]` (case-insensitive), e.g.
     `500000`, `500k`, `1m`, or `output:1m`. Suffixes are decimal
     (`k` = 1,000, `m` = 1,000,000, `b` = 1,000,000,000) and decimal numbers
     are allowed as long as the result is a whole number of tokens.
+
+    `<type>` is either a keyword (`all` or `output`) or an arithmetic formula
+    over `input`/`output` (see `TokenLimit`), e.g. `(input*0.1)+output:1m`.
 
     Args:
       value: String to parse.
@@ -280,20 +433,31 @@ def parse_token_limit(value: str) -> int | TokenLimit:
     Returns:
       A plain `int` for limits which meter all tokens, otherwise a `TokenLimit`.
     """
-    m = _TOKEN_LIMIT_RE.match(value)
+    # a formula never contains a colon, so the type/formula (if any) is
+    # everything before the final colon and the count is everything after
+    if ":" in value:
+        type_prefix, count = value.rsplit(":", 1)
+        type_prefix = type_prefix.strip()
+    else:
+        type_prefix, count = "all", value
+
+    m = _TOKEN_COUNT_RE.match(count)
     if m is None:
         raise ValueError(
-            f"token limit: expected [all:|output:]<number>[k|m|b], got {value!r}"
+            f"token limit: expected [<type>:]<number>[k|m|b], got {value!r}"
         )
-    type_prefix, number, unit = m.groups()
+    number, unit = m.groups()
     tokens = float(number) * (_TOKEN_LIMIT_UNITS[unit.lower()] if unit else 1)
     if not tokens.is_integer():
         raise ValueError(
             f"token limit: must resolve to a whole number of tokens, got {value!r}"
         )
-    if type_prefix is not None and type_prefix.lower() == "output":
-        return TokenLimit(tokens=int(tokens), type="output")
-    return int(tokens)
+
+    if type_prefix.lower() == "all":
+        return int(tokens)
+    # "output" keyword (case-insensitive) or a formula; _TokenMetering validates
+    type = "output" if type_prefix.lower() == "output" else type_prefix
+    return TokenLimit(tokens=int(tokens), type=type)
 
 
 def resolve_token_limit(
@@ -323,7 +487,7 @@ class TokenLimitFields(NamedTuple):
     """
 
     tokens: int | None
-    type: Literal["all", "output"] | None
+    type: str | None
     """Metering type (None indicates "all")."""
 
 
@@ -344,7 +508,7 @@ def token_limit_fields(value: int | str | TokenLimit | None) -> TokenLimitFields
 
 def token_limit(
     limit: int | TokenLimit | None,
-    type: Literal["all", "output"] = "all",
+    type: str = "all",
 ) -> _TokenLimit:
     """Limits the total number of tokens which can be used.
 
@@ -362,8 +526,12 @@ def token_limit(
         open. Tokens used before the context manager was opened are not counted. A value
         of None means unlimited tokens. Can also be a `TokenLimit` which specifies both
         the count and the metering type (in which case `type` may not also be passed).
-      type: Which tokens are metered: "all" (total tokens, the default) or "output"
-        (output tokens only, which include reasoning tokens).
+      type: Which tokens are metered. Either a keyword ("all" — total tokens, the
+        default; "output" — output tokens only, which include reasoning tokens) or an
+        arithmetic formula over the variables `input` and `output`, e.g.
+        "(input * 0.1) + output". In a formula, `input` is the true prompt size
+        (including cached tokens) and `output` includes reasoning tokens; the result is
+        floored to an integer.
     """
     if isinstance(limit, TokenLimit):
         if type != "all":
@@ -780,17 +948,16 @@ class _Node:
 
 
 class _TokenLimit(Limit, _Node):
-    def __init__(
-        self, limit: int | None, type: Literal["all", "output"] = "all"
-    ) -> None:
+    def __init__(self, limit: int | None, type: str = "all") -> None:
         from inspect_ai.model._model_output import ModelUsage
 
         super().__init__()
         self._validate_token_limit(limit)
-        if type not in ("all", "output"):
-            raise ValueError(f'Token limit type must be "all" or "output": {type!r}')
+        # constructs (and validates) the metering; raises ValueError on an
+        # invalid type keyword or formula
+        self._metering = _TokenMetering(type)
         self._limit = limit
-        self._type: Literal["all", "output"] = type
+        self._type = type
         self._usage = ModelUsage()
 
     def __enter__(self) -> _TokenLimit:
@@ -808,12 +975,10 @@ class _TokenLimit(Limit, _Node):
 
     @property
     def usage(self) -> float:
-        if self._type == "output":
-            return self._usage.output_tokens
-        return self._usage.total_tokens
+        return self._metering.value(self._usage)
 
     @property
-    def type(self) -> Literal["all", "output"]:
+    def type(self) -> str:
         """Which tokens are metered by this limit."""
         return self._type
 
@@ -861,14 +1026,16 @@ class _TokenLimit(Limit, _Node):
 
         if self.limit is None:
             return
-        total = (
-            self._usage.output_tokens
-            if self._type == "output"
-            else self._usage.total_tokens
-        )
+        total = self._metering.value(self._usage)
         if total > self.limit:
-            label = "Output token" if self._type == "output" else "Token"
-            message = f"{label} limit exceeded. value: {total:,}; limit: {self.limit:,}"
+            if self._type == "all":
+                message = (
+                    f"Token limit exceeded. value: {total:,}; limit: {self.limit:,}"
+                )
+            elif self._type == "output":
+                message = f"Output token limit exceeded. value: {total:,}; limit: {self.limit:,}"
+            else:
+                message = f"Token limit exceeded ({self._type}). value: {total:,}; limit: {self.limit:,}"
             transcript()._event(
                 SampleLimitEvent(type="token", limit=self.limit, message=message)
             )

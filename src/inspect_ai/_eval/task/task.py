@@ -154,8 +154,9 @@ class Task:
             message_limit: Limit on total messages used for each sample.
             token_limit: Limit on tokens used for each sample. An `int` (or a
                 `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
-                with type "output" limits only output tokens. Also accepts strings
-                like "500k", "1m", or "output:1m".
+                with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
             turn_limit: Limit on total turns (model generations) used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
@@ -362,8 +363,9 @@ def task_with(
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on tokens used for each sample. An `int` (or a
             `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
-            with type "output" limits only output tokens. Also accepts strings
-            like "500k", "1m", or "output:1m".
+            with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working

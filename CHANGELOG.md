@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
+
+## 0.3.245 (08 July 2026)
+
 - Model API: New `openai-api-completions` provider for the legacy `/v1/completions` endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with `vllm-completions`.
 - Model API: `openai-api-completions` and `vllm-completions` accept pre-tokenized prompts via `ChatMessage.metadata["prompt_token_ids"]`.
 - Anthropic: Neutralize thinking blocks before `count_tokens` so compaction no longer hits 400 errors (thinking blocks "cannot be modified" / "each thinking block must contain thinking") when counting message subsets whose assistant turns contain reasoning blocks.
@@ -28,6 +32,7 @@
 - Bugfix `--score-on-error` and `--continue-on-fail` (when absent on the command line) silently overwriting a value set in a `@task`, a `--run-config` file, or a prior eval log being retried.
 - Bugfix: `mean()` and `bootstrap_stderr()` now return `0.0` for an empty score list instead of `nan` (with numpy empty-slice warnings), matching the empty-input handling of `accuracy()`/`std()`/`stderr()`/`var()`.
 - Bugfix: Sample concurrency now honors model-level `max_connections` / `adaptive_connections` settings instead of classifying the adaptive-vs-static path from task-level config alone.
+- Bugfix: Stale-signature (`RequestTimeTooSkewed`) retries of S3 log writes now always get their full 5 attempts instead of being cut short by a 60-second wall-clock stop.
 - Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
 - Bugfix: Ordinary dicts shaped like `{type, name, params}` are no longer misidentified as encoded registry objects during `registry_kwargs()` round-trip. (#4374)
 - Bugfix: Link plain HTTP sandbox ports (e.g. 80, 8080) as `http://` instead of `https://` in the running-samples port-mappings panel.
