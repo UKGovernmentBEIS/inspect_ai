@@ -342,6 +342,13 @@ def test_eval_json_redirects_subprocess_stdout_to_stderr(
     ``--json`` redirects at the fd level (``os.dup2``). An in-process
     ``CliRunner`` invocation cannot exercise that path (its streams have
     no real fds), so this test runs the actual CLI in a subprocess.
+
+    ``short_data_dir``'s monkeypatching is in-process only, so the spawned
+    CLI is sandboxed via ``XDG_DATA_HOME`` instead — effective on Linux
+    (where CI runs); on macOS platformdirs has no env override, so there
+    the CLI's control/ACP discovery entries land in the real user data
+    dir for the duration of the test (the normal production path, cleaned
+    up on exit).
     """
     task_path = short_data_dir / "handoff_cli_task.py"
     task_path.write_text(FD_LEAK_TASK_FILE)
@@ -361,6 +368,7 @@ def test_eval_json_redirects_subprocess_stdout_to_stderr(
             "--json",
         ],
         cwd=short_data_dir,
+        env={**os.environ, "XDG_DATA_HOME": str(short_data_dir / "xdg")},
         capture_output=True,
         text=True,
         timeout=300,
