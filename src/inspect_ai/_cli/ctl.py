@@ -2436,8 +2436,9 @@ def _exec_limits(
     per-task view, including ``max_samples`` and the ``log_buffer`` /
     ``log_shared`` buffer params; task ids are stable across retry attempts);
     with ``task_id=None`` it targets the process-level ``/config``
-    (``max_sandboxes`` / ``max_connections`` only). ``model`` filters the
-    adaptive controllers (a read param, applies to both). Any settable knob
+    (``max_sandboxes`` / ``max_subprocesses`` / ``max_connections`` only).
+    ``model`` filters the adaptive controllers (a read param, applies to
+    both). Any settable knob
     that is not ``None`` makes this a mutation: a single-shot PATCH given the
     full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
     caller-supplied, so a knob can never ride a GET as an ignored query
@@ -2596,7 +2597,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     else:
         click.echo(
             _knob_label("max subprocesses", "max_subprocesses")
-            + "inactive (no subprocess has run yet)"
+            + "inactive (no adjustable subprocess limiter yet)"
         )
 
     adaptive = (knobs.get("max_connections") or {}).get("adaptive") or []

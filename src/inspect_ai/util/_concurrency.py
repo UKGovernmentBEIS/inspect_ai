@@ -174,8 +174,9 @@ class ResizableLimiter:
     mid-flight: lowering it below the current in-use count blocks new acquires
     until enough holders release — it never preempts an in-flight holder. This
     is the resizable counterpart to the static ``anyio.Semaphore`` path, used
-    where a limit must be adjustable through the control channel (``max_samples``
-    and ``max_sandboxes`` today — see ``design/control-channel.md`` phase 3).
+    where a limit must be adjustable through the control channel
+    (``max_samples``, ``max_sandboxes`` and ``max_subprocesses`` today — see
+    ``design/control-channel.md`` phase 3).
 
     Used directly as an async context manager (``async with limiter:``), exactly
     as the static sample semaphore was, so it drops into the existing acquire
@@ -606,7 +607,7 @@ def _create_anyio_semaphore(
 class ResizableSemaphore:
     """A ``ConcurrencySemaphore`` whose limit can be changed live.
 
-    Backs a registry entry (``max_sandboxes`` today) with a
+    Backs a registry entry (``max_sandboxes`` and ``max_subprocesses`` today) with a
     :class:`ResizableLimiter` instead of a fixed ``anyio.Semaphore``, so the
     control channel can retune it mid-eval. ``concurrency`` delegates straight
     to the limiter's live limit — the protocol's mutable attribute is a

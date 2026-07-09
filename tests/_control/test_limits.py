@@ -649,7 +649,10 @@ def test_print_config_max_subprocesses_inactive(
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "max subprocesses [process]: inactive (no subprocess has run yet)" in out
+    assert (
+        "max subprocesses [process]: inactive (no adjustable subprocess limiter yet)"
+        in out
+    )
 
 
 def test_print_config_updated_with_warning(

@@ -332,8 +332,9 @@ def _apply_process_knobs(
         requested["max_subprocesses"] = max_subprocesses
         if subprocesses is None:
             warnings.append(
-                "max_subprocesses is not adjustable (no subprocess has run in "
-                "this process yet — the limiter is created on first use)."
+                "max_subprocesses is not adjustable (no adjustable subprocess "
+                "limiter is active — most likely no concurrency-managed "
+                "subprocess has run yet; the limiter is created on first use)."
             )
         elif not dry_run:
             subprocesses.concurrency = max_subprocesses
