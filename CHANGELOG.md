@@ -12,7 +12,7 @@
 - Control Channel: `inspect ctl task` listings now include model and solver columns.
 - Control Channel: Added `inspect ctl config` to view or retune a running eval's `max_samples` / `max_sandboxes` / `max_connections` concurrency limits mid-flight (with `--dry-run`).
 - Control Channel: Reorganized the `inspect ctl` CLI into resource-noun groups (`ctl task`, `ctl sample`, `ctl config`, `ctl process`); the old flat spellings remain as hidden deprecated aliases, except `ctl sample` which is now the group (use `ctl sample show`).
-- Control Channel: `inspect ctl` sample listings now warn and skip an eval that stays busy through the retries instead of failing with a non-zero exit (still exiting non-zero, naming the busy pids, when they leave no tasks visible), `sample show` keeps its already-fetched detail when the supplemental listing read stays busy, and a task-name match made while a busy process was skipped carries a stderr caveat that it matched among responsive processes only.
+- Control Channel: `inspect ctl` sample commands now warn and skip an eval that stays busy through the retries instead of failing outright, with stderr caveats (and an honest non-zero exit when no tasks remain visible) wherever the skip could mislead.
 - Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
 - Docker: Support the `devices` field on compose services (device mappings such as `/dev/kvm`), previously rejected as an unknown field.
 - Docker: Warn when a task or sample declares a Dockerfile/compose.yaml sandbox config that gets silently dropped because the effective sandbox type doesn't support Docker Compose configuration.

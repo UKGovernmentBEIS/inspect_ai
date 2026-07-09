@@ -68,6 +68,11 @@ _KNOB_SCOPE: dict[str, str] = {
 # Rendered for a task-scoped knob that a process-level view can't show.
 _PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
 
+# Display truncation for task ids (`task list` shows this many characters).
+# Also the id-prefix length a busy-skipped resolution trusts (see
+# `_resolve_target_eval` for the rationale).
+_SHORT_ID_LEN = 12
+
 
 class _NounGroup(click.Group):
     """A resource-noun command group (``task`` / ``sample`` / ``process``).
@@ -1926,7 +1931,8 @@ def _get_response_with_retry(
         )
     click.echo(
         f"{what}: gave up after {attempts} attempts of "
-        f"{_REQUEST_TIMEOUT:.0f}s each — the eval is not responding.",
+        f"{_REQUEST_TIMEOUT:.0f}s each — the eval's event loop is busy; "
+        "try again shortly.",
         err=True,
     )
     raise click.exceptions.Exit(code=1)
@@ -2074,13 +2080,16 @@ def _resolve_target_eval(
     back to the task name (see :func:`_match_by_task_name`). ``busy_pids``
     (from the summaries fetch) qualifies the resolution against partial
     discovery: a not-found error and the ambiguity table note that the busy
-    process may hold further candidates, and a successful *name* match
-    carries a stderr caveat that it was matched among responsive processes
-    only — same-named tasks across processes are the norm (one task, several
-    models), where an id/prefix collision with a *different* task is
-    effectively impossible.
+    process may hold further candidates, and a successful match carries a
+    stderr caveat that it was matched among responsive processes only —
+    unless it is an exact id or a prefix of at least the truncated display
+    length (:data:`_SHORT_ID_LEN`), which cannot name a different task.
+    Name matches always caveat: same-named tasks across processes are the
+    norm (one task, several models), and a shorter hand-typed id prefix
+    could collide with a task on the busy process.
     """
-    id_matches = [s for s in summaries if s.get("task_id") == query] or [
+    exact = [s for s in summaries if s.get("task_id") == query]
+    id_matches = exact or [
         s for s in summaries if str(s.get("task_id", "")).startswith(query)
     ]
     matches = id_matches or _match_by_task_name(summaries, query)
@@ -2099,10 +2108,10 @@ def _resolve_target_eval(
             )
         _exit_ambiguous(matches, f"'{query}' matches multiple tasks")
     match = matches[0]
-    # an id match can't name a different task (ids never collide across
-    # tasks; a busy pid could at most hold another attempt of the same
-    # task); a name match may have a same-named twin on the busy pid
-    if busy_pids and not id_matches:
+    # exact ids are unique; a >= _SHORT_ID_LEN prefix is the truncated
+    # task-list paste (see the docstring for the caveat rationale)
+    provably_unique = bool(exact) or (bool(id_matches) and len(query) >= _SHORT_ID_LEN)
+    if busy_pids and not provably_unique:
         click.echo(
             f"note: {_busy_pids_label(busy_pids)} busy-skipped — matched "
             f"'{query}' among responsive processes only.",
@@ -2167,7 +2176,9 @@ def _unreachable_detail(exc: _ServerUnreachable) -> str:
 
 def _exit_samples_unreachable(eval_id: str, exc: _ServerUnreachable) -> NoReturn:
     """Echo a samples-read failure for ``eval_id`` and exit non-zero."""
-    hint = " — try again shortly" if isinstance(exc, _ServerBusy) else ""
+    # the period rides the hint: a non-busy detail is a raw transport error
+    # string (multi-line, may end in a URL) that punctuation would corrupt
+    hint = "; try again shortly." if isinstance(exc, _ServerBusy) else ""
     click.echo(
         f"Failed to read samples for eval {eval_id}: {_unreachable_detail(exc)}{hint}",
         err=True,
@@ -2941,9 +2952,9 @@ def _format_samples(samples: dict[str, Any]) -> str:
 
 def _short_id(identifier: str) -> str:
     """Trim a long uuid for display — full id is in --json output."""
-    if len(identifier) <= 12:
+    if len(identifier) <= _SHORT_ID_LEN:
         return identifier
-    return identifier[:12]
+    return identifier[:_SHORT_ID_LEN]
 
 
 def _format_started(started_at: float) -> str:

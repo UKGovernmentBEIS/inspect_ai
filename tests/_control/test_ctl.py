@@ -14,6 +14,7 @@ import pytest
 from click.testing import CliRunner
 
 from inspect_ai._cli.ctl import (
+    _SHORT_ID_LEN,
     _ConfigResult,
     _FetchedSummaries,
     _print_human_table,
@@ -653,8 +654,8 @@ def test_get_with_retry_busy_raises_without_terminal_echo(
     """A degradable read raises _ServerBusy on exhaustion — no 'gave up' echo.
 
     The raising caller owns the terminal narration (its skip/omit message);
-    a helper-printed 'the eval is not responding' right before it would
-    contradict it. Only the shared per-attempt retry lines print.
+    a helper-printed 'gave up … busy; try again shortly' right before it
+    would double-narrate. Only the shared per-attempt retry lines print.
     """
     import httpx
 
@@ -1685,7 +1686,7 @@ def test_log_flush_resolves_sole_active_task(monkeypatch: pytest.MonkeyPatch) ->
 
     In an eval-set with one running and several completed tasks, the sole
     *active* task is the default target — the same rule `ctl config` uses —
-    rather than erroring "Multiple tasks are running".
+    rather than erroring "task log-flush targets a single task".
     """
     _patch_surface(
         monkeypatch,
@@ -1886,28 +1887,31 @@ def test_scoped_sample_not_found_names_busy_pid(
 def test_scoped_resolution_caveats_partial_discovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A name match with a busy-skipped process warns it may be incomplete.
+    """A loose match with a busy-skipped process warns it may be incomplete.
 
-    Same-named tasks across processes are the norm (one task, several
-    models), so a name match carries a stderr caveat; id matches — exact or
-    the documented paste-a-truncated-id prefix — can't name a different task
-    and stay quiet (the caveat must not cry wolf on the routine workflow).
+    Name matches and short hand-typed id prefixes could collide with a task
+    on the busy process, so they carry a stderr caveat; an exact id or a
+    prefix of at least the truncated ``task list`` display length can't
+    name a different task and stays quiet (the caveat must not cry wolf on
+    the routine paste-a-truncated-id workflow).
     """
+    task_id = "b7GzXqWm4KTepR2AhcVdNu"  # realistic 22-char shortuuid
     _patch_surface(
         monkeypatch,
-        [_full_summary("bbb222", "t2", pid=8)],
-        samples_by_eval={"eval_bbb222": [_sample_row("s1")]},
+        [_full_summary(task_id, "t2", pid=8)],
+        samples_by_eval={f"eval_{task_id}": [_sample_row("s1")]},
         servers=[_DiscServer(7), _DiscServer(8)],
         busy_pids=[7],
     )
     runner = _runner()
 
-    result = runner.invoke(ctl_command, ["sample", "list", "t2", "--json"])
-    assert result.exit_code == 0, result.output
-    assert "matched 't2' among responsive processes only" in result.stderr
+    for loose_query in ("t2", task_id[:4]):
+        result = runner.invoke(ctl_command, ["sample", "list", loose_query, "--json"])
+        assert result.exit_code == 0, result.output
+        assert "among responsive processes only" in result.stderr
 
-    for id_query in ("bbb222", "bbb2"):
-        result = runner.invoke(ctl_command, ["sample", "list", id_query, "--json"])
+    for unique_query in (task_id, task_id[:_SHORT_ID_LEN]):
+        result = runner.invoke(ctl_command, ["sample", "list", unique_query, "--json"])
         assert result.exit_code == 0, result.output
         assert "among responsive processes only" not in result.stderr
 
