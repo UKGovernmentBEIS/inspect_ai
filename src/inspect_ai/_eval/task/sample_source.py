@@ -31,7 +31,6 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from threading import Lock
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 if TYPE_CHECKING:
@@ -149,24 +148,26 @@ class SampleEnqueuer:
     Owned by ``task_run`` for the task's lifetime (only when the task has a
     :class:`SampleSource`). ``enqueue`` buffers; ``drain`` is the non-blocking
     pull the task's dispatch loop does between cycles.
+
+    Not thread-safe: ``enqueue`` must be called from the task's event loop
+    (the ``on_enqueue`` wake callback — ``anyio.Event.set`` — is not safe to
+    fire from other threads). The buffer needs no lock under the event loop
+    since neither method has a yield point.
     """
 
     _pending: list["Sample"] = field(default_factory=list)
-    _lock: Lock = field(default_factory=Lock)
     on_enqueue: Callable[[], None] | None = None
     """Fired after samples are buffered — used to wake the task's dispatcher."""
 
     def enqueue(self, samples: list["Sample"]) -> None:
         """Queue ``samples`` to run in the task."""
-        with self._lock:
-            self._pending.extend(samples)
+        self._pending.extend(samples)
         if self.on_enqueue is not None:
             self.on_enqueue()
 
     def drain(self) -> list["Sample"]:
         """Remove and return all currently-buffered samples (empty if none)."""
-        with self._lock:
-            batch, self._pending = self._pending, []
+        batch, self._pending = self._pending, []
         return batch
 
 
@@ -202,7 +203,9 @@ def enqueue_sample(samples: "Sample | list[Sample]") -> None:
     Only available inside a task driven by a :class:`SampleSource` (i.e. a
     ``Task`` whose ``dataset`` is a ``SampleSource``) — a plain task's sample
     set is fixed, so there is no loop to run additions. Callable from any code
-    running within such a task: a solver, a scorer, a tool.
+    running within such a task — a solver, a scorer, a tool — but it must be
+    called from the task's event loop (where those all run), not from a
+    worker thread.
 
     When the eval was run with ``--limit``, samples beyond the limit are
     ignored (with a warning); with ``--sample-id``, only samples matching the

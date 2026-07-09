@@ -128,6 +128,18 @@ dropping samples.
   `TaskSource` + eval_set (see task-source.md).
 - **Early stopping** managers receive only the seed at `start_task`;
   `schedule_sample` / `complete_sample` still fire for injected samples.
+- **The log's dataset spec stays seed-sized**: the finished log's
+  `eval.dataset.samples` / `sample_ids` describe the seed, not the grown set
+  (`log.samples` and `results.total_samples` do reflect everything that ran).
+  Consumers that read the spec as the planned set therefore under-count for
+  dynamic tasks — the analysis evals dataframe (`dataset_samples` /
+  `dataset_sample_ids` columns and the completion denominator in
+  `analysis/_dataframe/evals/table.py`) and crash recovery
+  (`log/_recover/_api.py` computes `total = dataset.samples * epochs`). This
+  is intentional, not an oversight: the seed-sized spec is load-bearing for
+  retry reuse — `eval_log_sample_source` rejects a prior log when
+  `eval.dataset.samples != len(dataset)`, and a retry's fresh seed is
+  seed-sized — so the spec must not be rewritten to the grown size at finish.
 - **Sandboxes**: the task-level sandbox startup pass runs once, up front, over
   the seed. Injected samples get per-sample sandboxes via `sandboxenv_context`
   as usual, but a *sample-level* sandbox spec appearing only on injected
