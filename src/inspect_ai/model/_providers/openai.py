@@ -577,7 +577,7 @@ class OpenAIAPI(ModelAPI):
         # context window / token accounting match (bump when a newer frontier
         # ships). Mirrors Anthropic's is_claude_latest() aliasing.
         if self.is_latest():
-            return "openai/gpt-5.5"
+            return "openai/gpt-5.6"
         return super().input_tokens_name()
 
     @override
