@@ -770,6 +770,19 @@ In a mixed-model run, **`--model`** scopes `--max-connections` (and the reported
 
 Deferred beyond this: **pin / freeze** (force a limit and stop adapting — a new controller mode, wait for a concrete ask) and the **tuning-curve knobs** (`cooldown_seconds` / `decrease_factor` / `scale_up_percent` — niche, and hard for an LLM agent to reason about).
 
+#### Retry-loop overrides — timeout / attempt-timeout / max-retries (shipped)
+
+Of the `GenerateConfig` fields excluded from `task_identifier` (safe to retune by construction — they don't affect model outputs, so a mid-flight change can't corrupt eval-set pairing), `timeout`, `attempt_timeout` and `max_retries` are the incident levers: "lower the timeout / stop retrying and fail fast" (or raise retries to ride an incident out) otherwise requires killing the run.
+
+Unlike the concurrency knobs these aren't limiter-shaped — they're read from the per-call `GenerateConfig` inside the generate retry loop. The mechanism is a **live override layer** (`inspect_ai.model._generate_overrides`, process-scoped like `max_sandboxes` / `max_connections`, reset at the outermost run boundary alongside the other control-channel registries) consulted at the *point of use* rather than merged into any config object:
+
+- The tenacity `stop` condition built by `model_retry_config` reads the `max_retries` / `timeout` overrides on **every post-attempt check** — not just at decoration time — so a retune reaches generate calls already stuck inside a retry loop (the incident case; a merged-at-generate-time config would only affect *new* generate calls, and a sample stuck retrying forever never starts one). Provider batchers that cache a `model_retry_config` at init (e.g. Anthropic's) get live overrides through the same path.
+- `Model._generate` resolves `attempt_timeout` per attempt when opening the attempt's cancel scope, so the override applies from the next attempt; an in-flight attempt's scope is never retroactively shortened (drain-don't-preempt, matching the concurrency knobs). Values a provider SDK bakes into its client at initialization are not affected.
+
+Surfaced as `timeout` / `attempt_timeout` / `max_retries` on both `PATCH /config` and `PATCH /tasks/<task-id>/config` (CLI: `inspect ctl config [--timeout S] [--attempt-timeout S] [--max-retries N]`), with **`0` clearing an override** (0 is nonsensical as a real value for all three, and the knobs are int-typed on the wire) — restoring each generate call's own launch config. The view carries a `retry` key reporting the active overrides (`null` = no override); the knobs are always adjustable (the override layer exists regardless of any task's launch config), so they never produce not-adjustable warnings — but a CLI talking to an **older server** (whose routes ignore the unknown query params, and whose view carries no `retry` key) reports the set as *not applied* rather than silently claiming success.
+
+Out of scope from the same exclusion set: `batch` (batcher already running), `cache` / `cache_prompt` (low standalone value), `adaptive_connections` (covered by the `--max-connections` ceiling retune above).
+
 #### Add a task to a running eval
 
 `POST /tasks` (CLI: `inspect ctl task add SPEC [...]`) submits a **task spec** that runs in the target process under the same `run_id`, appearing as a new sibling eval in `task list` / `sample list` / `sample events`. Returns the new `eval_id`.

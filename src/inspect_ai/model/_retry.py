@@ -3,15 +3,14 @@ from typing import TYPE_CHECKING, Awaitable, Callable
 from tenacity import (
     RetryCallState,
     retry_if_exception,
-    stop_after_attempt,
-    stop_after_delay,
-    stop_never,
     wait_exponential_jitter,
 )
 from tenacity.retry import RetryBaseT
 from tenacity.stop import StopBaseT
 from tenacity.wait import WaitBaseT
 from typing_extensions import TypedDict
+
+from inspect_ai.model._generate_overrides import generate_config_override
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
@@ -90,17 +89,31 @@ def model_retry_config(
             return result.retry
         return bool(result)
 
+    # The stop condition reads the live `inspect ctl config` overrides on
+    # every post-attempt check (not just at decoration time) so a mid-flight
+    # retune of max_retries/timeout reaches generate calls already inside
+    # their retry loop — the provider-incident case — while an in-flight
+    # attempt always drains first. Semantics match tenacity's
+    # stop_after_attempt / stop_after_delay / stop_never composition.
+    def stop(retry_state: RetryCallState) -> bool:
+        effective_max_retries = generate_config_override("max_retries", max_retries)
+        effective_timeout = generate_config_override("timeout", timeout)
+        if (
+            effective_max_retries is not None
+            and retry_state.attempt_number >= effective_max_retries
+        ):
+            return True
+        if (
+            effective_timeout is not None
+            and retry_state.seconds_since_start is not None
+            and retry_state.seconds_since_start >= effective_timeout
+        ):
+            return True
+        return False
+
     return {
         "wait": wait,
         "retry": retry_if_exception(_retry_predicate),
         "before_sleep": on_before_sleep,
-        "stop": (
-            stop_after_attempt(max_retries) | stop_after_delay(timeout)
-            if max_retries is not None and timeout is not None
-            else stop_after_attempt(max_retries)
-            if max_retries is not None
-            else stop_after_delay(timeout)
-            if timeout is not None
-            else stop_never
-        ),
+        "stop": stop,
     }

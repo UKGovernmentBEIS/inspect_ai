@@ -255,6 +255,25 @@ class ControlServer:
                     )
             return None
 
+        def _retry_knobs_negative(
+            *knobs: tuple[str, int | None],
+        ) -> JSONResponse | None:
+            """400 for the first negative retry-override knob, else None.
+
+            The retry knobs allow 0 (clear the override) where the limits
+            knobs require >= 1, hence the separate validator.
+            """
+            for label, value in knobs:
+                if value is not None and value < 0:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": f"{label} must be >= 0 (got {value}; "
+                            "0 clears the override)"
+                        },
+                    )
+            return None
+
         # Folded per-task summaries (retry attempts of a task collapse into
         # one row keyed by task_id) — the wire behind `inspect ctl task list`
         # and the selector-resolution step of every other command.
@@ -366,15 +385,19 @@ class ControlServer:
         async def get_process_limits(model: str | None = None) -> Any:
             return await process_limits(model=model)
 
-        # Retune the process-global limits. Omitting both set values makes this a
+        # Retune the process-global limits. Omitting every set value makes this a
         # read, like GET. `model` filters the adaptive controllers (name start or
-        # after a `/`). `dry_run=true` reports the intended change without
-        # applying it. Never 404s — a process always exists.
+        # after a `/`). The retry knobs (timeout / attempt_timeout / max_retries)
+        # set live overrides; 0 clears one. `dry_run=true` reports the intended
+        # change without applying it. Never 404s — a process always exists.
         @app.patch("/config")
         async def patch_process_limits(
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
             model: str | None = None,
+            timeout: int | None = None,
+            attempt_timeout: int | None = None,
+            max_retries: int | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -382,10 +405,19 @@ class ControlServer:
                 ("max_connections", max_connections),
             ):
                 return error
+            if error := _retry_knobs_negative(
+                ("timeout", timeout),
+                ("attempt_timeout", attempt_timeout),
+                ("max_retries", max_retries),
+            ):
+                return error
             return await process_limits(
                 max_sandboxes=max_sandboxes,
                 max_connections=max_connections,
                 model=model,
+                timeout=timeout,
+                attempt_timeout=attempt_timeout,
+                max_retries=max_retries,
                 dry_run=dry_run,
             )
 
@@ -421,6 +453,9 @@ class ControlServer:
             model: str | None = None,
             log_buffer: int | None = None,
             log_shared: int | None = None,
+            timeout: int | None = None,
+            attempt_timeout: int | None = None,
+            max_retries: int | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -431,6 +466,12 @@ class ControlServer:
                 ("log_shared", log_shared),
             ):
                 return error
+            if error := _retry_knobs_negative(
+                ("timeout", timeout),
+                ("attempt_timeout", attempt_timeout),
+                ("max_retries", max_retries),
+            ):
+                return error
             result = await task_limits(
                 task_id,
                 max_samples=max_samples,
@@ -439,6 +480,9 @@ class ControlServer:
                 model=model,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
+                timeout=timeout,
+                attempt_timeout=attempt_timeout,
+                max_retries=max_retries,
                 dry_run=dry_run,
             )
             if result is None:

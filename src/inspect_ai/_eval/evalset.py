@@ -68,6 +68,7 @@ from inspect_ai.model import (
     Model,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_overrides import init_generate_config_overrides
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_config import (
     model_args_for_log,
@@ -761,6 +762,7 @@ def eval_set(
         return success, results
     finally:
         clear_all_eval_states()
+        init_generate_config_overrides()
 
 
 @contextlib.contextmanager

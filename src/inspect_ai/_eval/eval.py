@@ -24,6 +24,7 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
+from inspect_ai.model._generate_overrides import init_generate_config_overrides
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_info import set_model_cost
@@ -1140,12 +1141,14 @@ async def _eval_async_inner(
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
-        # Clear the process-level EvalState registry at the run boundary
-        # (after any keep-alive park) — but only for a standalone eval.
-        # When nested in an eval-set (eval_set_id set) the eval-set owns
-        # this, clearing after its own park.
+        # Clear the process-level EvalState registry and the retry-loop
+        # config overrides at the run boundary (after any keep-alive park) —
+        # but only for a standalone eval. When nested in an eval-set
+        # (eval_set_id set) the eval-set owns this, clearing after its own
+        # park.
         if eval_set_id is None:
             clear_all_eval_states()
+            init_generate_config_overrides()
 
     # return logs
     return logs

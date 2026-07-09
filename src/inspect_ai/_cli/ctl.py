@@ -63,6 +63,9 @@ _KNOB_SCOPE: dict[str, str] = {
     "max_connections": "process",
     "log_buffer": "task",
     "log_shared": "task",
+    "timeout": "process",
+    "attempt_timeout": "process",
+    "max_retries": "process",
 }
 
 # Rendered for a task-scoped knob that a process-level view can't show.
@@ -574,6 +577,36 @@ def sample_events_command(
     help=f"[{_KNOB_SCOPE['log_shared']}] Shared-log event sync interval, in seconds.",
 )
 @click.option(
+    "--timeout",
+    type=click.IntRange(min=0),
+    metavar="SECONDS",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['timeout']}] Override the total retry budget per "
+        "generate call, in seconds (0 restores launch config)."
+    ),
+)
+@click.option(
+    "--attempt-timeout",
+    type=click.IntRange(min=0),
+    metavar="SECONDS",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['attempt_timeout']}] Override the per-attempt API "
+        "timeout, in seconds (0 restores launch config)."
+    ),
+)
+@click.option(
+    "--max-retries",
+    type=click.IntRange(min=0),
+    metavar="INTEGER",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['max_retries']}] Override the max retries per "
+        "generate call (0 restores launch config)."
+    ),
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -594,6 +627,9 @@ def config_command(
     model: str | None,
     log_buffer: int | None,
     log_shared: int | None,
+    timeout: int | None,
+    attempt_timeout: int | None,
+    max_retries: int | None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -610,8 +646,11 @@ def config_command(
     work waits until in-flight holders drain. `--log-buffer` / `--log-shared`
     are the retune side of `inspect ctl task log-flush`: they set the
     buffering policy for future writes, while log-flush writes what's
-    already buffered now. TASK is required only for setting a task-scoped
-    knob when several tasks run.
+    already buffered now. `--timeout` / `--attempt-timeout` /
+    `--max-retries` set live overrides read by the model retry loop, so a
+    change reaches even generate calls already retrying (in-flight API
+    requests still drain first); pass 0 to clear an override. TASK is
+    required only for setting a task-scoped knob when several tasks run.
     """
     _run_config(
         task,
@@ -621,6 +660,9 @@ def config_command(
         model=model,
         log_buffer=log_buffer,
         log_shared=log_shared,
+        timeout=timeout,
+        attempt_timeout=attempt_timeout,
+        max_retries=max_retries,
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -1401,6 +1443,9 @@ def _run_config(
     model: str | None,
     log_buffer: int | None,
     log_shared: int | None,
+    timeout: int | None = None,
+    attempt_timeout: int | None = None,
+    max_retries: int | None = None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -1450,8 +1495,30 @@ def _run_config(
         model=model,
         log_buffer=log_buffer,
         log_shared=log_shared,
+        timeout=timeout,
+        attempt_timeout=attempt_timeout,
+        max_retries=max_retries,
         dry_run=dry_run,
     )
+
+    # An older server ignores the retry-override query params entirely (its
+    # view carries no `retry` key), so a requested set would otherwise
+    # silently no-op — surface that instead of claiming it applied.
+    retry_requested = [
+        name
+        for name, value in (
+            ("--timeout", timeout),
+            ("--attempt-timeout", attempt_timeout),
+            ("--max-retries", max_retries),
+        )
+        if value is not None
+    ]
+    version_warnings: list[str] = []
+    if retry_requested and "retry" not in limits_view:
+        version_warnings.append(
+            f"{', '.join(retry_requested)} not applied — this process is "
+            "running an older inspect without the retry-override knobs."
+        )
 
     # The buffer knobs ride the task config view (`buffer` key); a task with
     # no live sample buffer (e.g. a reused log, or a superseded retry attempt)
@@ -1483,6 +1550,9 @@ def _run_config(
                         max_connections,
                         bool(limits_view.get("adaptive")),
                     ),
+                    ("--timeout", timeout, "retry" in limits_view),
+                    ("--attempt-timeout", attempt_timeout, "retry" in limits_view),
+                    ("--max-retries", max_retries, "retry" in limits_view),
                 )
                 if value is not None and adjustable
             ]
@@ -1503,6 +1573,8 @@ def _run_config(
                 # the buffer warning restates the headline error; skip it
                 if not warning.startswith("log_buffer"):
                     click.echo(f"! {warning}", err=True)
+            for warning in version_warnings:
+                click.echo(f"! {warning}", err=True)
             raise click.exceptions.Exit(code=1)
         buffer_warnings.append(
             "log_buffer/log_shared are not adjustable for this task "
@@ -1516,6 +1588,9 @@ def _run_config(
         for name, value in (
             ("--max-connections", max_connections),
             ("--max-sandboxes", max_sandboxes),
+            ("--timeout", timeout),
+            ("--attempt-timeout", attempt_timeout),
+            ("--max-retries", max_retries),
         )
         if value is not None
     ]
@@ -1530,7 +1605,7 @@ def _run_config(
         dry_run=dry_run,
         set_values=mutated,
         notes=notes,
-        extra_warnings=buffer_warnings,
+        extra_warnings=buffer_warnings + version_warnings,
     )
 
     if as_json:
@@ -1571,6 +1646,15 @@ def _compose_config(
         "scope": _KNOB_SCOPE["max_connections"],
         "adaptive": limits_view.get("adaptive") or [],
     }
+    # The retry-override knobs (absent from an older server's view). `override`
+    # is the live process-wide override, None = launch config applies per call.
+    retry_view = limits_view.get("retry")
+    if retry_view is not None:
+        for knob in ("timeout", "attempt_timeout", "max_retries"):
+            knobs[knob] = {
+                "scope": _KNOB_SCOPE[knob],
+                "override": retry_view.get(knob),
+            }
     buffer_view = limits_view.get("buffer")
     if buffer_view is not None:
         knobs["log_buffer"] = {
@@ -1770,8 +1854,9 @@ def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
 def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
     """Note that process-scoped config knobs reach every task in the process.
 
-    ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes``)
-    supplied on this invocation; ``siblings`` counts the tasks the retune can
+    ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes``
+    / the retry overrides) supplied on this invocation; ``siblings`` counts
+    the tasks the retune can
     reach (the process's active tasks, plus the named target when it is
     completed). Returns ``None`` when there's nothing to flag — no such knob
     was set, or the target task is the only one the change can reach, so
@@ -1780,9 +1865,12 @@ def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
     if not global_knobs or siblings <= 1:
         return None
     verb = "applies" if len(global_knobs) == 1 else "apply"
+    if len(global_knobs) == 1:
+        names = global_knobs[0]
+    else:
+        names = f"{', '.join(global_knobs[:-1])} and {global_knobs[-1]}"
     return (
-        f"{' and '.join(global_knobs)} {verb} process-wide — every active "
-        "task in this process is affected."
+        f"{names} {verb} process-wide — every active task in this process is affected."
     )
 
 
@@ -2401,6 +2489,9 @@ def _exec_limits(
     model: str | None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
+    timeout: int | None = None,
+    attempt_timeout: int | None = None,
+    max_retries: int | None = None,
     dry_run: bool,
 ) -> "_ConfigResult":
     """Read (no set knobs) or retune (any set knob) a scope's config.
@@ -2409,8 +2500,10 @@ def _exec_limits(
     per-task view, including ``max_samples`` and the ``log_buffer`` /
     ``log_shared`` buffer params; task ids are stable across retry attempts);
     with ``task_id=None`` it targets the process-level ``/config``
-    (``max_sandboxes`` / ``max_connections`` only). ``model`` filters the
-    adaptive controllers (a read param, applies to both). Any settable knob
+    (``max_sandboxes`` / ``max_connections`` / the retry overrides).
+    ``model`` filters the adaptive controllers (a read param, applies to
+    both). The retry overrides (``timeout`` / ``attempt_timeout`` /
+    ``max_retries``) accept ``0`` to clear. Any settable knob
     that is not ``None`` makes this a mutation: a single-shot PATCH given the
     full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
     caller-supplied, so a knob can never ride a GET as an ignored query
@@ -2423,6 +2516,9 @@ def _exec_limits(
         "max_connections": max_connections,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
+        "timeout": timeout,
+        "attempt_timeout": attempt_timeout,
+        "max_retries": max_retries,
     }
     # the settable knobs are exactly the scope table's — a knob added to one
     # without the other fails loudly here rather than silently no-opping
@@ -2490,8 +2586,13 @@ def _error_detail_from_response(response: httpx.Response) -> str:
 
 
 def _knob_label(display: str, knob: str) -> str:
-    """Aligned human config label carrying the knob's scope from ``_KNOB_SCOPE``."""
-    return f"  {display} [{_KNOB_SCOPE[knob]}]:".ljust(27)
+    """Aligned human config label carrying the knob's scope from ``_KNOB_SCOPE``.
+
+    A label longer than the alignment column still gets one separating space
+    (rather than the value abutting the colon).
+    """
+    label = f"  {display} [{_KNOB_SCOPE[knob]}]:"
+    return label.ljust(27) if len(label) < 27 else label + " "
 
 
 def _print_config(config: dict[str, Any], *, changed: bool) -> None:
@@ -2574,6 +2675,31 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                     f", last: {last.get('from')}→{last.get('to')} {last.get('reason')}"
                 )
             click.echo(line)
+
+    # The retry-override knobs. Absent entirely from an older server's view
+    # (which has no override layer) — skipped then rather than shown as a
+    # value claim. A knob's current value is the live override or "launch
+    # config" (no override — each generate call's own config applies); on a
+    # dry-run the requested value renders as an arrow, with 0 shown as its
+    # meaning (clearing back to launch config).
+    def _render_retry_knob(knob: str, display: str, unit: str) -> None:
+        view = knobs.get(knob)
+        if view is None:
+            return
+
+        def fmt(value: Any) -> str:
+            return "launch config" if value in (None, 0) else f"{value}{unit}"
+
+        current = view.get("override")
+        rendered = fmt(current) if current is None else f"{fmt(current)} (override)"
+        proposed = requested.get(knob)
+        if proposed is not None and fmt(proposed) != fmt(current):
+            rendered += f" → {fmt(proposed)}"
+        click.echo(_knob_label(display, knob) + rendered)
+
+    _render_retry_knob("timeout", "timeout", "s")
+    _render_retry_knob("attempt_timeout", "attempt timeout", "s")
+    _render_retry_knob("max_retries", "max retries", "")
 
     # The process-level view carries no buffer knobs (they're per-task, read
     # off one task's live logger): mirror the max_samples placeholder so the
