@@ -158,7 +158,8 @@ def ctl_command() -> None:
     implied by the bare noun (`inspect ctl task` ≡ `inspect ctl task list`).
     All commands accept `--json`; a failed `--json` invocation emits an
     `{"error": {kind, exception, message, status}}` envelope on stdout
-    (exit code stays non-zero).
+    (exit code stays non-zero; click usage errors — unknown option,
+    missing argument — still exit 2 without one).
 
     A process exits when its eval finishes; launch with `inspect eval
     --ctl-server=keep` to keep it inspectable here until you run
@@ -911,6 +912,23 @@ def limits_alias(
 # code still non-zero; human (non---json) output is unchanged.
 
 
+# The envelope's closed `kind` vocabulary (the field agents branch on).
+# Typed as a Literal so mypy rejects a typo'd kind at a raise site rather
+# than shipping it as a new vocabulary entry.
+_ErrorKind = Literal[
+    "busy",
+    "connect_timeout",
+    "read_timeout",
+    "connect_error",
+    "not_found",
+    "ambiguous",
+    "http_error",
+    "invalid_request",
+    "invalid_response",
+    "internal",
+]
+
+
 class _CtlFailure(click.exceptions.Exit):
     """A terminal ctl failure carrying the ``--json`` error envelope fields.
 
@@ -925,7 +943,7 @@ class _CtlFailure(click.exceptions.Exit):
 
     def __init__(
         self,
-        kind: str,
+        kind: _ErrorKind,
         message: str,
         *,
         exception: str | None = None,
@@ -963,7 +981,7 @@ class _CtlFailure(click.exceptions.Exit):
 class _FailureKind(NamedTuple):
     """Result of :func:`_classify` (envelope ``kind`` + HTTP status when applicable)."""
 
-    kind: str
+    kind: _ErrorKind
     status: int | None
 
 
