@@ -2981,8 +2981,8 @@ def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None
     message = error.get("message") or ""
     click.echo(f"  {label} {message}".rstrip() if label else f"  {message}")
     if show_traceback:
-        traceback = error.get("traceback_ansi") or error.get("traceback") or ""
-        for line in traceback.rstrip("\n").splitlines():
+        tb = error.get("traceback_ansi") or error.get("traceback") or ""
+        for line in tb.rstrip("\n").splitlines():
             click.echo(f"    {line}")
 
 
