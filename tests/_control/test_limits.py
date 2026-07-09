@@ -22,6 +22,7 @@ from inspect_ai.util._concurrency import (
     ResizableSemaphore,
     init_concurrency,
     register_sandbox_limiter,
+    register_subprocess_limiter,
     register_task_sample_semaphore,
 )
 
@@ -164,21 +165,59 @@ async def test_limits_max_sandboxes_adjustable_before_first_acquire() -> None:
     assert read["max_sandboxes"][0]["limit"] == 2
 
 
+async def test_limits_set_max_subprocesses() -> None:
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1", max_subprocesses=4)
+    assert result is not None
+    assert subprocs.concurrency == 4
+    assert result["max_subprocesses"] == {"limit": 4, "in_use": 0}
+    assert result["requested"] == {"max_subprocesses": 4}
+
+
+async def test_limits_max_subprocesses_not_adjustable_warns() -> None:
+    register_eval("e1", 5, task_id="t1")  # no subprocess has run in this process
+
+    result = await task_limits("t1", max_subprocesses=4)
+    assert result is not None
+    assert result["max_subprocesses"] is None
+    assert any("max_subprocesses is not adjustable" in w for w in result["warnings"])
+
+
+async def test_limits_max_subprocesses_dry_run_does_not_apply() -> None:
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1", max_subprocesses=2, dry_run=True)
+    assert result is not None
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_subprocesses": 2}
+    # view reflects the current (unchanged) value, and nothing was applied
+    assert result["max_subprocesses"] == {"limit": 8, "in_use": 0}
+    assert subprocs.concurrency == 8
+
+
 async def test_limits_all_knobs() -> None:
-    """All three knobs land in one request (per-task and process-global)."""
+    """All concurrency knobs land in one request (per-task and process-global)."""
     limiter = ResizableLimiter(10)
     docker = ResizableSemaphore("docker", 4, True)
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
     register_eval("e1", 5, task_id="t1")
     register_task_sample_semaphore("t1", limiter)
     register_sandbox_limiter("docker", docker)
+    register_subprocess_limiter(subprocs)
     ctrl = await _register_controller(max=100, start=50)
 
     result = await task_limits(
-        "t1", max_samples=15, max_sandboxes=6, max_connections=30
+        "t1", max_samples=15, max_sandboxes=6, max_subprocesses=12, max_connections=30
     )
     assert result is not None
     assert limiter.limit == 15
     assert docker.concurrency == 6
+    assert subprocs.concurrency == 12
     # ceiling lowered and live limit clamped down to it
     assert (ctrl.max, ctrl.concurrency) == (30, 30)
     a = result["adaptive"][0]
@@ -186,6 +225,7 @@ async def test_limits_all_knobs() -> None:
     assert result["requested"] == {
         "max_samples": 15,
         "max_sandboxes": 6,
+        "max_subprocesses": 12,
         "max_connections": 30,
     }
 
@@ -291,6 +331,25 @@ async def test_process_limits_set_max_sandboxes() -> None:
     assert docker.concurrency == 8
     assert result["requested"] == {"max_sandboxes": 8}
     assert result["max_sandboxes"][0]["limit"] == 8
+
+
+async def test_process_limits_set_max_subprocesses() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+    result = await process_limits(max_subprocesses=16)
+    assert subprocs.concurrency == 16
+    assert result["requested"] == {"max_subprocesses": 16}
+    assert result["max_subprocesses"] == {"limit": 16, "in_use": 0}
+
+
+async def test_process_limits_max_subprocesses_not_adjustable_warns() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits(max_subprocesses=16)  # no subprocess has run
+    assert result["max_subprocesses"] is None
+    assert any("max_subprocesses is not adjustable" in w for w in result["warnings"])
 
 
 async def test_process_limits_dry_run_does_not_apply() -> None:
@@ -435,6 +494,45 @@ async def test_process_limits_route_get_and_patch() -> None:
         assert "max_connections" in bad.json()["error"]
 
 
+async def test_process_limits_route_patch_max_subprocesses() -> None:
+    """max_subprocesses rides the process /config route like the other knobs."""
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        got = await client.get("/config")
+        assert got.status_code == 200, got.text
+        assert got.json()["max_subprocesses"] == {"limit": 8, "in_use": 0}
+
+        patched = await client.patch("/config", params={"max_subprocesses": 3})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["max_subprocesses"] == {"limit": 3, "in_use": 0}
+        assert subprocs.concurrency == 3
+
+        bad = await client.patch("/config", params={"max_subprocesses": 0})
+        assert bad.status_code == 400
+        assert "max_subprocesses" in bad.json()["error"]
+
+
+async def test_limits_route_patch_max_subprocesses_task_keyed() -> None:
+    """max_subprocesses also rides the task config route (process-scoped knob)."""
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch("/tasks/t1/config", params={"max_subprocesses": 5})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["max_subprocesses"] == {"limit": 5, "in_use": 0}
+        assert subprocs.concurrency == 5
+
+
 async def test_process_limits_route_model_filter() -> None:
     """`model` on the /config route scopes the retune to matching controllers."""
     gpt = await _register_controller(name="openai/gpt-4", max=100, start=50)
@@ -504,8 +602,54 @@ def test_print_config(capsys: pytest.CaptureFixture[str]) -> None:
     out = capsys.readouterr().out
     assert "config:" in out
     # every knob line is labeled with its scope
-    assert "max samples [task]:      20 (5 in use)" in out
-    assert "max sandboxes [process]: docker 8 (3 in use)" in out
+    assert "max samples [task]:         20 (5 in use)" in out
+    assert "max sandboxes [process]:    docker 8 (3 in use)" in out
+
+
+def test_print_config_max_subprocesses(capsys: pytest.CaptureFixture[str]) -> None:
+    """An active subprocess limiter renders its limit; a dry-run set an arrow."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": True,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_subprocesses": {"scope": "process", "limit": 16, "in_use": 9},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": {"max_subprocesses": 4},
+            "warnings": [],
+            "notes": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "max subprocesses [process]: 16 → 4 (9 in use)" in out
+
+
+def test_print_config_max_subprocesses_inactive(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run with no subprocess limiter yet renders the knob as inactive."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_subprocesses": {"scope": "process"},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "max subprocesses [process]: inactive (no subprocess has run yet)" in out
 
 
 def test_print_config_updated_with_warning(
@@ -530,7 +674,7 @@ def test_print_config_updated_with_warning(
     out = capsys.readouterr().out
     assert "updated config:" in out
     assert "not adjustable" in out
-    assert "max sandboxes [process]: none in effect" in out
+    assert "max sandboxes [process]:    none in effect" in out
     assert "! max_samples is not adjustable" in out
 
 
@@ -562,7 +706,7 @@ def test_print_config_dry_run_header(capsys: pytest.CaptureFixture[str]) -> None
     out = capsys.readouterr().out
     assert "would-be config (dry run):" in out
     # would-be values render as `current → requested`, not the bare current value
-    assert "max samples [task]:      20 → 40 (0 in use)" in out
+    assert "max samples [task]:         20 → 40 (0 in use)" in out
     assert "docker 8 → 16 (3 in use)" in out
 
 
@@ -598,7 +742,7 @@ def test_print_config_dry_run_unchanged_knob_has_no_arrow(
     )
     out = capsys.readouterr().out
     assert "→" not in out
-    assert "max samples [task]:      20 (0 in use)" in out
+    assert "max samples [task]:         20 (0 in use)" in out
     assert "docker 8 (3 in use)" in out
 
 
@@ -644,7 +788,7 @@ def test_print_config_adaptive_section(capsys: pytest.CaptureFixture[str]) -> No
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "max samples [task]:      tracks adaptive connections (see below)" in out
+    assert "max samples [task]:         tracks adaptive connections (see below)" in out
     assert "adaptive connections [process]:" in out
     assert "openai/gpt-4: 45 (40 in use), range 1–100" in out
     assert "last: 50→45 rate_limit" in out
@@ -720,7 +864,7 @@ def test_print_config_process_scope(capsys: pytest.CaptureFixture[str]) -> None:
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "max samples [task]:      per task (pass a task to view/set)" in out
+    assert "max samples [task]:         per task (pass a task to view/set)" in out
     assert "docker 8 (3 in use)" in out
     assert "adaptive connections [process]:" in out
 
@@ -747,8 +891,8 @@ def test_print_config_buffer_knobs_and_notes(
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "log buffer [task]:       10 samples (2 pending)" in out
-    assert "shared sync [task]:      off" in out
+    assert "log buffer [task]:          10 samples (2 pending)" in out
+    assert "shared sync [task]:         off" in out
     assert "note: --max-connections applies process-wide." in out
 
 

@@ -1626,6 +1626,7 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     limits_view = {
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
+        "max_subprocesses": {"limit": 8, "in_use": 1},
         "adaptive": [],
         "buffer": {"log_buffer": 10, "pending": 2, "log_shared": None},
         "requested": {"max_samples": 3, "log_buffer": 5},
@@ -1642,6 +1643,11 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     assert config["target"] == {"scope": "task", "task_id": "t1", "task": "tn"}
     assert config["knobs"]["max_samples"]["scope"] == "task"
     assert config["knobs"]["max_sandboxes"]["scope"] == "process"
+    assert config["knobs"]["max_subprocesses"] == {
+        "scope": "process",
+        "limit": 8,
+        "in_use": 1,
+    }
     assert config["knobs"]["max_connections"]["scope"] == "process"
     assert config["knobs"]["log_buffer"]["scope"] == "task"
     assert config["knobs"]["log_shared"]["scope"] == "task"
@@ -1770,8 +1776,8 @@ def test_print_config_process_scope_shows_buffer_placeholder(
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "log buffer [task]:       per task (pass a task to view/set)" in out
-    assert "shared sync [task]:      per task (pass a task to view/set)" in out
+    assert "log buffer [task]:          per task (pass a task to view/set)" in out
+    assert "shared sync [task]:         per task (pass a task to view/set)" in out
 
 
 def test_resolve_scope_siblings_counts_active_only() -> None:

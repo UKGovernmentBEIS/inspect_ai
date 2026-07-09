@@ -413,14 +413,15 @@ def init_concurrency(
     Args:
         registry: A ConcurrencySemaphoreRegistry instance, or None for default local registry.
     """
-    global _concurrency_registry
+    global _concurrency_registry, _subprocess_limiter
     _concurrency_registry = _AnyIOSemaphoreRegistry() if registry is None else registry
     # clear controller-creation observers so each eval starts fresh
     _controller_created_observers.clear()
-    # drop any resizable sandbox limiters and per-task sample semaphores tracked
-    # for the previous run so a long-lived (keep-alive) process doesn't surface
-    # or reuse stale ones
+    # drop any resizable sandbox/subprocess limiters and per-task sample
+    # semaphores tracked for the previous run so a long-lived (keep-alive)
+    # process doesn't surface or reuse stale ones
     _sandbox_limiters.clear()
+    _subprocess_limiter = None
     _task_sample_semaphores.clear()
 
 
@@ -455,6 +456,40 @@ def register_sandbox_limiter(
 def sandbox_limiters() -> "dict[str, ResizableSemaphore]":
     """The resizable sandbox concurrency semaphores for the current run, by type."""
     return dict(_sandbox_limiters)
+
+
+# ---------------------------------------------------------------------------
+# Resizable subprocess limiter
+# ---------------------------------------------------------------------------
+
+# The live-resizable subprocess concurrency semaphore for the current run
+# (registry key "subprocesses"). Registered by `subprocess()` on each
+# concurrency-managed call (idempotent — the registry coalesces on key) so
+# the control channel's modify-limits directive can read and retune
+# `max_subprocesses`. Process-global (subprocess concurrency is shared across
+# the process's evals, not per-eval) and reset per run by `init_concurrency`.
+_subprocess_limiter: "ResizableSemaphore | None" = None
+
+
+def register_subprocess_limiter(semaphore: ConcurrencySemaphore) -> None:
+    """Track the resizable subprocess concurrency semaphore for the control channel.
+
+    Idempotent — the first `subprocess()` call registers it and later calls
+    (which get the same registry instance) re-register the same object. A
+    no-op for a non-resizable semaphore (nothing to retune).
+    """
+    global _subprocess_limiter
+    if isinstance(semaphore, ResizableSemaphore):
+        _subprocess_limiter = semaphore
+
+
+def subprocess_limiter() -> "ResizableSemaphore | None":
+    """The resizable subprocess concurrency semaphore for the current run, if any.
+
+    ``None`` until the first concurrency-managed `subprocess()` call creates
+    the limiter (it is created lazily on first use, not at eval startup).
+    """
+    return _subprocess_limiter
 
 
 # ---------------------------------------------------------------------------
