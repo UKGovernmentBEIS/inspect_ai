@@ -57,7 +57,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from inspect_ai._util.name_match import match_name_prefix
 
 if TYPE_CHECKING:
-    from inspect_ai.util._concurrency import AdaptiveConcurrencyController
+    from inspect_ai.util._concurrency import (
+        AdaptiveConcurrencyController,
+        ConcurrencySemaphore,
+    )
 
 # How many of an adaptive controller's most-recent scale changes to surface in
 # the read view — enough to see whether it's actively being throttled without
@@ -348,7 +351,7 @@ class _ProcessKnobViews(NamedTuple):
     warnings: list[str]
 
 
-def _static_semaphores() -> list[Any]:
+def _static_semaphores() -> "list[ConcurrencySemaphore]":
     """The non-adaptive concurrency-registry entries (the key knob's targets).
 
     Adaptive controllers are excluded: they are surfaced through the

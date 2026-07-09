@@ -1482,10 +1482,24 @@ def _run_config(
     # returns 200 with the key silently unapplied — the absent concurrency
     # view is how that's detected (and refused) rather than misreported.
     if key is not None and limits_view.get("concurrency") is None:
+        other_knobs = any(
+            value is not None
+            for value in (
+                max_samples,
+                max_sandboxes,
+                max_connections,
+                log_buffer,
+                log_shared,
+            )
+        )
         click.echo(
             f"This process does not support --key (older inspect version?) — "
             f"'{key[0]}' was not applied."
-            + (" Any other requested knobs were still applied." if not dry_run else ""),
+            + (
+                " Any other requested knobs were still applied."
+                if other_knobs and not dry_run
+                else ""
+            ),
             err=True,
         )
         raise click.exceptions.Exit(code=1)

@@ -372,6 +372,26 @@ async def test_process_limits_key_retune() -> None:
     assert result["warnings"] == []
 
 
+async def test_process_limits_key_retune_reaches_all_entries_sharing_a_name() -> None:
+    """A name backing several entries (distinct storage keys) retunes them all.
+
+    E.g. one model on two accounts — matching by exact name fans out like
+    max_connections' name matching does.
+    """
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    account1 = await get_or_create_semaphore("model", 10, "model#account1", True)
+    account2 = await get_or_create_semaphore("model", 10, "model#account2", True)
+    result = await process_limits(key="model", key_limit=3)
+    assert account1.concurrency == 3
+    assert account2.concurrency == 3
+    # both entries appear in the view, under the shared display name
+    rows = [r for r in result["concurrency"] if r["name"] == "model"]
+    assert [r["limit"] for r in rows] == [3, 3]
+    assert result["warnings"] == []
+
+
 async def test_task_limits_key_retune() -> None:
     """The key knob rides the per-task route too (the registry is process-global)."""
     from inspect_ai.util._concurrency import get_or_create_semaphore
