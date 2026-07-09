@@ -1,9 +1,10 @@
 import contextlib
 import functools
 import json
+import os
 import sys
 from collections.abc import Callable, Iterator
-from typing import Any, Literal, cast
+from typing import Any, Literal, TextIO, cast
 
 import click
 import yaml
@@ -1948,11 +1949,12 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
       that raises emits no ``done`` record and exits non-zero.
 
     Stdout belongs exclusively to these records: ``eval()`` runs with
-    stdout redirected to stderr, so bare ``print`` writers inside the
-    run (trailing scan status, cosmetic spacing, task/solver code, ...)
-    cannot corrupt the NDJSON stream — they land on stderr instead,
-    where they remain visible as diagnostics. The records themselves are
-    written to the saved real stdout.
+    stdout redirected to stderr (see ``_stdout_owned_for_json``) — an
+    OS-level redirect, so both bare ``print`` writers inside the run
+    (trailing scan status, cosmetic spacing, task/solver code, ...) and
+    subprocesses spawned without capturing output land on stderr, where
+    they remain visible as diagnostics, instead of corrupting the NDJSON
+    stream. The records themselves are written to the saved real stdout.
 
     Pre-flight failures (``PrerequisiteError``) are re-rendered to
     stderr by ``_json_prerequisite_errors_to_stderr``, which wraps the
@@ -1960,58 +1962,97 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
     (e.g. an invalid ``--run-config``) and inside it.
     """
     handoffs: list[LaunchHandoff] = []
-    stdout = sys.stdout
 
-    def on_launch(handoff: LaunchHandoff) -> None:
-        handoffs.append(handoff)
+    with _stdout_owned_for_json() as stdout:
+
+        def on_launch(handoff: LaunchHandoff) -> None:
+            handoffs.append(handoff)
+            print(
+                json.dumps(
+                    {
+                        "event": "launch",
+                        "run_id": handoff.run_id,
+                        "pid": handoff.pid,
+                        "log_dir": handoff.log_dir,
+                        "control": (
+                            {"socket_path": handoff.control_socket}
+                            if handoff.control_socket is not None
+                            else None
+                        ),
+                    }
+                ),
+                file=stdout,
+                flush=True,
+            )
+
+        set_launch_handoff_listener(on_launch)
+        try:
+            logs = eval(**params)
+        finally:
+            set_launch_handoff_listener(None)
+            # stray prints redirected to stderr may sit in a buffered wrapper
+            # (e.g. under CliRunner); surface them before the command returns
+            sys.stderr.flush()
+
         print(
             json.dumps(
                 {
-                    "event": "launch",
-                    "run_id": handoff.run_id,
-                    "pid": handoff.pid,
-                    "log_dir": handoff.log_dir,
-                    "control": (
-                        {"socket_path": handoff.control_socket}
-                        if handoff.control_socket is not None
-                        else None
-                    ),
+                    "event": "done",
+                    "run_id": handoffs[0].run_id if handoffs else None,
+                    "logs": [
+                        {
+                            "task": log.eval.task,
+                            "task_id": log.eval.task_id,
+                            "eval_id": log.eval.eval_id,
+                            "status": log.status,
+                            "location": log.location,
+                        }
+                        for log in logs
+                    ],
                 }
             ),
             file=stdout,
             flush=True,
         )
 
-    set_launch_handoff_listener(on_launch)
-    try:
-        with contextlib.redirect_stdout(sys.stderr):
-            logs = eval(**params)
-    finally:
-        set_launch_handoff_listener(None)
-        # stray prints redirected to stderr may sit in a buffered wrapper
-        # (e.g. under CliRunner); surface them before the command returns
-        sys.stderr.flush()
 
-    print(
-        json.dumps(
-            {
-                "event": "done",
-                "run_id": handoffs[0].run_id if handoffs else None,
-                "logs": [
-                    {
-                        "task": log.eval.task,
-                        "task_id": log.eval.task_id,
-                        "eval_id": log.eval.eval_id,
-                        "status": log.status,
-                        "location": log.location,
-                    }
-                    for log in logs
-                ],
-            }
-        ),
-        file=stdout,
-        flush=True,
-    )
+@contextlib.contextmanager
+def _stdout_owned_for_json() -> Iterator[TextIO]:
+    """Redirect stdout to stderr, yielding a handle on the real stdout.
+
+    A Python-level ``redirect_stdout`` alone cannot own stdout: it only
+    rebinds the ``sys.stdout`` object, while subprocesses spawned by
+    task/solver code without capturing output inherit file descriptor 1
+    and write straight into the NDJSON stream. So dup fd 1 for the JSON
+    records, then ``dup2`` stderr's fd onto fd 1 for the duration —
+    covering C-level and subprocess writers too. ``sys.stdout`` is also
+    rebound to stderr so Python writers don't interleave through fd 1's
+    buffer.
+
+    Falls back to the Python-level redirect alone when the streams have
+    no real file descriptors (in-process harnesses like click's
+    ``CliRunner``), where subprocess capture is a non-issue for the
+    contract (there is no real stdout to corrupt).
+    """
+    try:
+        fds = (sys.stdout.fileno(), sys.stderr.fileno())
+    except (ValueError, OSError):
+        fds = None
+    if fds is None:
+        real_stdout = sys.stdout
+        with contextlib.redirect_stdout(sys.stderr):
+            yield real_stdout
+        return
+
+    stdout_fd, stderr_fd = fds
+    sys.stdout.flush()
+    with os.fdopen(os.dup(stdout_fd), "w") as saved_stdout:
+        os.dup2(stderr_fd, stdout_fd)
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                yield saved_stdout
+        finally:
+            os.dup2(saved_stdout.fileno(), stdout_fd)
 
 
 def _parse_adaptive_connections_cli(

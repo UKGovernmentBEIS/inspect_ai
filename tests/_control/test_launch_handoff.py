@@ -18,6 +18,8 @@ halves of the guarantee:
 
 import json
 import os
+import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
@@ -302,6 +304,75 @@ def test_eval_json_redirects_stray_stdout_to_stderr(
     assert result.records[-1]["event"] == "done"
     assert "stray stdout at import time" in result.stderr
     assert "stray stdout from solver" in result.stderr
+
+
+FD_LEAK_TASK_FILE = """
+import subprocess
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import generate, solver
+
+
+@solver
+def fd_leak_solver():
+    async def solve(state, generate):
+        subprocess.run(["echo", "FD1-LEAK"])
+        return state
+
+    return solve
+
+
+@task
+def handoff_cli_task():
+    return Task(
+        dataset=[Sample(input="x", target="y")], solver=[fd_leak_solver(), generate()]
+    )
+"""
+
+
+def test_eval_json_redirects_subprocess_stdout_to_stderr(
+    short_data_dir: Path,
+) -> None:
+    """Subprocess writers cannot corrupt the NDJSON stream either.
+
+    A Python-level ``redirect_stdout`` only rebinds the ``sys.stdout``
+    object — a subprocess spawned by solver code without capturing output
+    inherits file descriptor 1 and writes straight into the stream. So
+    ``--json`` redirects at the fd level (``os.dup2``). An in-process
+    ``CliRunner`` invocation cannot exercise that path (its streams have
+    no real fds), so this test runs the actual CLI in a subprocess.
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(FD_LEAK_TASK_FILE)
+    log_dir = str(short_data_dir / "logs")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "inspect_ai._cli.main",
+            "eval",
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            log_dir,
+            "--json",
+        ],
+        cwd=short_data_dir,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    assert result.returncode == 0, result.stderr
+    # every stdout line must parse — the leaked subprocess output would
+    # land between the launch and done records without the fd redirect
+    records = [json.loads(line) for line in result.stdout.splitlines()]
+    assert records[0]["event"] == "launch"
+    assert records[-1]["event"] == "done"
+    assert "FD1-LEAK" in result.stderr
 
 
 def test_eval_json_preflight_failure_reports_to_stderr(
