@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 
 
 async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
-    """Build per-eval summaries for the ``GET /evals`` endpoint.
+    """Build per-task summaries for the ``GET /tasks`` endpoint.
 
     No ``run_id`` filter — the discovery layer already scopes
     visibility per process (each running inspect process has its own
@@ -413,7 +413,7 @@ async def _read_full_sample(
 async def sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
-    """Full error detail for one sample (``GET /evals/<id>/samples/<sid>/<epoch>``).
+    """Full error detail for one sample (``GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>``).
 
     Two sources, mirroring :func:`current_sample_summaries`:
 

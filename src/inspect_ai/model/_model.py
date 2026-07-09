@@ -627,7 +627,7 @@ async def ensure_model_controller(model: "Model", config: GenerateConfig) -> Non
     winning, so a controller created here from a divergent config would
     silently override the bounds generates resolve (and a controller created
     for a model whose generates take the static path would be a phantom —
-    reported and "retuned" by ``ctl limits`` while gating nothing).
+    reported and "retuned" by ``ctl config`` while gating nothing).
 
     A no-op for the ``NoModel`` sentinel (nothing will generate) and when the
     composed config says adaptive isn't active (explicit ``max_connections``,
