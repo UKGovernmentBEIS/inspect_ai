@@ -1460,17 +1460,17 @@ def _run_config(
         _echo_no_running_evals()
         return
 
-    requested_knobs = [
-        knob
-        for knob, value in (
-            ("max_samples", max_samples),
-            ("max_sandboxes", max_sandboxes),
-            ("max_connections", max_connections),
-            ("log_buffer", log_buffer),
-            ("log_shared", log_shared),
-        )
-        if value is not None
-    ]
+    knob_values: dict[str, int | None] = {
+        "max_samples": max_samples,
+        "max_sandboxes": max_sandboxes,
+        "max_connections": max_connections,
+        "log_buffer": log_buffer,
+        "log_shared": log_shared,
+    }
+    # a knob missing here would be silently exempt from the version gate —
+    # the exact silent-skew failure `_gate_knob_support` exists to close
+    assert knob_values.keys() == _KNOB_SCOPE.keys()
+    requested_knobs = [knob for knob, value in knob_values.items() if value is not None]
     _gate_knob_support(servers, scope.socket_path, requested_knobs)
 
     limits_view, mutated = _exec_limits(
