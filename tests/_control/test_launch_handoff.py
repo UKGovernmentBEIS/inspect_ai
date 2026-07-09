@@ -18,14 +18,13 @@ halves of the guarantee:
 
 import json
 import os
-import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from click.testing import CliRunner
 
 import inspect_ai
+from _control.conftest import cli_runner
 from inspect_ai import Task, task
 from inspect_ai._cli.eval import eval_command
 from inspect_ai._control.eval_state import get_eval_states
@@ -37,53 +36,8 @@ from inspect_ai._eval.handoff import (
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate
 
-
-@pytest.fixture(autouse=True)
-def _isolate_active_model() -> Iterator[None]:
-    """Keep ``eval``'s active-model contextvar from leaking across tests.
-
-    These tests run ``eval`` *synchronously* in the test's own context
-    (not a background thread), so without isolation the set persists
-    after the call and leaks ``mockllm/model`` into later tests.
-    """
-    from inspect_ai.model._model import active_model_context_var
-
-    token = active_model_context_var.set(active_model_context_var.get(None))
-    try:
-        yield
-    finally:
-        active_model_context_var.reset(token)
-
-
-@pytest.fixture
-def short_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    """Short data dir under /tmp so AF_UNIX paths fit in 104 chars.
-
-    macOS pytest tmp_path lives under ``/private/var/folders/...`` which
-    blows past the AF_UNIX limit. Patches both control and ACP discovery
-    modules so neither subsystem writes outside the test's sandbox.
-    """
-    dirpath = Path(tempfile.mkdtemp(prefix="ctl_lh_", dir="/tmp"))
-
-    def _stub(subdir: str | None) -> Path:
-        path = (dirpath / (subdir or "")).resolve()
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    monkeypatch.setattr("inspect_ai._control.discovery.inspect_data_dir", _stub)
-    monkeypatch.setattr("inspect_ai.agent._acp.discovery.inspect_data_dir", _stub)
-    try:
-        yield dirpath
-    finally:
-        for p in sorted(dirpath.rglob("*"), reverse=True):
-            try:
-                p.unlink() if not p.is_dir() else p.rmdir()
-            except OSError:
-                pass
-        try:
-            dirpath.rmdir()
-        except OSError:
-            pass
+# `_isolate_active_model` (autouse) and `short_data_dir` come from
+# tests/_control/conftest.py.
 
 
 @pytest.fixture
@@ -207,20 +161,6 @@ def handoff_cli_task():
 """
 
 
-def _runner() -> CliRunner:
-    """A CliRunner that captures stderr separately across click versions.
-
-    click < 8.2 mixes stderr into output unless ``mix_stderr=False``; click
-    >= 8.2 removed the parameter and always captures stderr separately.
-    Stderr must stay out of ``output`` here: the tests assert every stdout
-    line parses as JSON, and log/warning lines would break that.
-    """
-    try:
-        return CliRunner(mix_stderr=False)  # type: ignore[call-arg]
-    except TypeError:
-        return CliRunner()
-
-
 def _run_eval_json(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, extra_args: list[str]
 ) -> list[dict]:
@@ -233,7 +173,7 @@ def _run_eval_json(
     # (absolute paths aren't supported by the task-file glob)
     monkeypatch.chdir(short_data_dir)
 
-    runner = _runner()
+    runner = cli_runner()
     result = runner.invoke(
         eval_command,
         [
@@ -282,4 +222,20 @@ def test_eval_json_null_control_when_server_disabled(
     launch = records[0]
     assert launch["event"] == "launch"
     assert launch["control"] is None
+    assert records[-1]["event"] == "done"
+
+
+def test_eval_json_overrides_trace(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """``--trace`` must not break the NDJSON contract.
+
+    ``--trace`` promotes the display to "conversation", whose panels are
+    written to stdout — and it also binds to ``INSPECT_EVAL_TRACE``, so a
+    user with that exported would get a silently broken stream without
+    ever typing the flag. ``--json`` clears it (``_run_eval_json`` fails
+    on any non-JSON stdout line).
+    """
+    records = _run_eval_json(short_data_dir, monkeypatch, ["--trace"])
+    assert records[0]["event"] == "launch"
     assert records[-1]["event"] == "done"

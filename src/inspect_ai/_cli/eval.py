@@ -1084,10 +1084,12 @@ def _eval_command_impl(
 
     # --json owns stdout (JSON lines only), so route the display to the
     # quiet "none" renderer — including when --no-ansi would otherwise
-    # promote it back to "rich"
+    # promote it back to "rich" or --trace (/INSPECT_EVAL_TRACE) would
+    # promote it to "conversation", which writes panels to stdout
     if json_output:
         common["display"] = "none"
         common["no_ansi"] = None
+        trace = None
 
     # resolve common options
     process_common_options(common)
