@@ -20,6 +20,7 @@ import json
 import os
 from collections.abc import Iterator
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -161,12 +162,25 @@ def handoff_cli_task():
 """
 
 
+class EvalJsonResult(NamedTuple):
+    """Parsed output of an ``inspect eval --json`` CLI invocation."""
+
+    records: list[dict]
+    """Parsed stdout JSON lines (asserting each line parses)."""
+
+    stderr: str
+    """Raw stderr (diagnostics, redirected stray prints)."""
+
+
 def _run_eval_json(
-    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, extra_args: list[str]
-) -> list[dict]:
+    short_data_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    extra_args: list[str],
+    task_file: str = TASK_FILE,
+) -> EvalJsonResult:
     """Run ``inspect eval --json`` on a trivial task; return parsed stdout lines."""
     task_path = short_data_dir / "handoff_cli_task.py"
-    task_path.write_text(TASK_FILE)
+    task_path.write_text(task_file)
     log_dir = str(short_data_dir / "logs")
 
     # task file paths on the CLI resolve relative to the working directory
@@ -188,15 +202,16 @@ def _run_eval_json(
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
-    lines = [line for line in result.output.splitlines() if line.strip()]
-    # every stdout line must be JSON — that's the contract --json exists for
-    return [json.loads(line) for line in lines]
+    # every stdout line (blank included) must be JSON — that's the
+    # contract --json exists for
+    records = [json.loads(line) for line in result.output.splitlines()]
+    return EvalJsonResult(records=records, stderr=result.stderr)
 
 
 def test_eval_json_emits_launch_then_done(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
 ) -> None:
-    records = _run_eval_json(short_data_dir, monkeypatch, [])
+    records = _run_eval_json(short_data_dir, monkeypatch, []).records
 
     launch = records[0]
     assert launch["event"] == "launch"
@@ -218,7 +233,9 @@ def test_eval_json_emits_launch_then_done(
 def test_eval_json_null_control_when_server_disabled(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
 ) -> None:
-    records = _run_eval_json(short_data_dir, monkeypatch, ["--ctl-server=false"])
+    records = _run_eval_json(
+        short_data_dir, monkeypatch, ["--ctl-server=false"]
+    ).records
     launch = records[0]
     assert launch["event"] == "launch"
     assert launch["control"] is None
@@ -236,6 +253,75 @@ def test_eval_json_overrides_trace(
     ever typing the flag. ``--json`` clears it (``_run_eval_json`` fails
     on any non-JSON stdout line).
     """
-    records = _run_eval_json(short_data_dir, monkeypatch, ["--trace"])
+    records = _run_eval_json(short_data_dir, monkeypatch, ["--trace"]).records
     assert records[0]["event"] == "launch"
     assert records[-1]["event"] == "done"
+
+
+NOISY_TASK_FILE = """
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import generate, solver
+
+print("stray stdout at import time")
+
+
+@solver
+def noisy_solver():
+    async def solve(state, generate):
+        print("stray stdout from solver")
+        return state
+
+    return solve
+
+
+@task
+def handoff_cli_task():
+    return Task(
+        dataset=[Sample(input="x", target="y")], solver=[noisy_solver(), generate()]
+    )
+"""
+
+
+def test_eval_json_redirects_stray_stdout_to_stderr(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """Bare ``print`` writers inside the run cannot corrupt the NDJSON stream.
+
+    ``eval()`` internals (trailing scan status, cosmetic spacing above
+    the task display) and user task/solver code all write to stdout with
+    builtin ``print``, which the quiet rich console does not cover.
+    ``--json`` runs the eval with stdout redirected to stderr, so those
+    writers stay visible as diagnostics while stdout carries only the
+    JSON records (``_run_eval_json`` fails on any non-JSON stdout line).
+    """
+    result = _run_eval_json(short_data_dir, monkeypatch, [], task_file=NOISY_TASK_FILE)
+    assert result.records[0]["event"] == "launch"
+    assert result.records[-1]["event"] == "done"
+    assert "stray stdout at import time" in result.stderr
+    assert "stray stdout from solver" in result.stderr
+
+
+def test_eval_json_preflight_failure_reports_to_stderr(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """A failed launch under ``--json`` must still say why, on stderr.
+
+    ``--json`` forces ``display="none"``, which quiets the global rich
+    console — the excepthook's ``PrerequisiteError`` rendering goes
+    through that console, so without re-rendering to stderr every common
+    pre-flight failure (bad task path, missing API key, ...) would exit 1
+    with no diagnostic at all, leaving the driving agent blind.
+    """
+    monkeypatch.chdir(short_data_dir)
+
+    runner = cli_runner()
+    result = runner.invoke(
+        eval_command,
+        ["definitely_not_here.py", "--model", "mockllm/model", "--json"],
+    )
+
+    assert result.exit_code != 0
+    # stdout stays NDJSON-clean (no launch happened, so no records at all)
+    assert result.output.strip() == ""
+    assert "No inspect tasks were found" in result.stderr

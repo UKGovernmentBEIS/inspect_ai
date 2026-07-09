@@ -1,5 +1,7 @@
+import contextlib
 import functools
 import json
+import sys
 from collections.abc import Callable
 from typing import Any, Literal, cast
 
@@ -28,7 +30,7 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_RETRY_ON_ERROR,
 )
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
@@ -1912,6 +1914,19 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
     - ``done`` — printed after ``eval()`` returns, with each task's log
       location and status (the live → ``inspect log`` handoff). A run
       that raises emits no ``done`` record and exits non-zero.
+
+    Stdout belongs exclusively to these records: ``eval()`` runs with
+    stdout redirected to stderr, so bare ``print`` writers inside the
+    run (trailing scan status, cosmetic spacing, task/solver code, ...)
+    cannot corrupt the NDJSON stream — they land on stderr instead,
+    where they remain visible as diagnostics. The records themselves are
+    written to the saved real stdout.
+
+    Pre-flight failures (``PrerequisiteError`` — bad task path, missing
+    model/API key, etc.) are re-rendered to stderr here: ``--json``
+    forces ``display="none"``, which quiets the global rich console, so
+    the excepthook's rendering of the message would otherwise be
+    silently dropped and the process would exit 1 with no diagnostic.
     """
     from inspect_ai._eval.handoff import (
         LaunchHandoff,
@@ -1919,6 +1934,7 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
     )
 
     handoffs: list[LaunchHandoff] = []
+    stdout = sys.stdout
 
     def on_launch(handoff: LaunchHandoff) -> None:
         handoffs.append(handoff)
@@ -1936,14 +1952,24 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
                     ),
                 }
             ),
+            file=stdout,
             flush=True,
         )
 
     set_launch_handoff_listener(on_launch)
     try:
-        logs = eval(**params)
+        with contextlib.redirect_stdout(sys.stderr):
+            logs = eval(**params)
+    except PrerequisiteError as ex:
+        from rich.console import Console
+
+        Console(file=sys.stderr).print(f"\n{ex.message}\n")
+        raise SilentException() from ex
     finally:
         set_launch_handoff_listener(None)
+        # stray prints redirected to stderr may sit in a buffered wrapper
+        # (e.g. under CliRunner); surface them before the command returns
+        sys.stderr.flush()
 
     print(
         json.dumps(
@@ -1962,6 +1988,7 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
                 ],
             }
         ),
+        file=stdout,
         flush=True,
     )
 

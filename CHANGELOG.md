@@ -4,7 +4,7 @@
 - Control Channel: Reorganized the `inspect ctl` CLI into resource-noun groups (`ctl task`, `ctl sample`, `ctl config`, `ctl process`); the old flat spellings remain as hidden deprecated aliases, except `ctl sample` which is now the group (use `ctl sample show`).
 - Control Channel: `inspect ctl` sample commands now warn and skip an eval that stays busy through the retries instead of failing outright, with stderr caveats (and an honest non-zero exit when no tasks remain visible) wherever the skip could mislead.
 - Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
-- Control Channel: New `inspect eval --json` flag emits a synchronous launch-handoff JSON line (run_id / pid / log_dir / control socket, printed only once the control server is bound) plus a `done` line with per-task log locations, so agents can trust `inspect ctl` immediately after launch instead of sleep-and-retrying.
+- Control Channel: New `inspect eval --json` flag emits a synchronous launch-handoff JSON line (run_id / pid / log_dir / control socket, printed only once the control server is bound) plus a `done` line with per-task log locations, so agents can trust `inspect ctl` immediately after launch instead of sleep-and-retrying; stdout carries only these records (stray prints and failure diagnostics go to stderr).
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
 
 ## 0.3.245 (08 July 2026)
