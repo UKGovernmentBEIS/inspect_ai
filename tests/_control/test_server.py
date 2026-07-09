@@ -647,10 +647,10 @@ async def test_keep_route_sets_the_intent() -> None:
         reset_keep_alive()
 
 
-async def test_evals_endpoint_decorates_keep_alive(
+async def test_tasks_endpoint_decorates_keep_alive(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """GET /evals stamps each task summary with the live keep-alive status."""
+    """GET /tasks stamps each task summary with the live keep-alive status."""
     from inspect_ai._control import server as server_mod
     from inspect_ai._control.server import (
         ControlServer,
@@ -672,7 +672,7 @@ async def test_evals_endpoint_decorates_keep_alive(
             async with httpx.AsyncClient(
                 transport=transport, base_url="http://localhost"
             ) as client:
-                return (await client.get("/evals")).json()
+                return (await client.get("/tasks")).json()
 
         # off by default
         rows = await _get()

@@ -467,7 +467,7 @@ def sandbox_limiters() -> "dict[str, ResizableSemaphore]":
 # semaphore — legacy batch-mode retries (eval_set retry_immediate=False) run
 # as separate eval() calls, each resetting this registry (required: the
 # limiters are event-loop-bound), so those revert to config:
-# a mid-flight `ctl limits --max-samples` retune survives the retry (the
+# a mid-flight `ctl config --max-samples` retune survives the retry (the
 # runtime setpoint wins over re-deriving from config — in-process retries share
 # their config anyway), and a retune against a superseded attempt's eval_id
 # still reaches the limiter the live attempt drains from. This mirrors how the

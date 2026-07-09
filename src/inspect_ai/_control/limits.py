@@ -4,7 +4,7 @@ Reads (and optionally retunes) a running task's concurrency limits mid-flight �
 ``max_samples`` (per-task sample concurrency) and ``max_sandboxes`` (per-provider
 sandbox concurrency, process-global). The first of the phase-3 modify directives
 (see ``design/control-channel.md``). Keyed by task_id — the identity that is
-stable across retry attempts — via ``GET``/``PATCH /tasks/<task-id>/limits``.
+stable across retry attempts — via ``GET``/``PATCH /tasks/<task-id>/config``.
 
 Both knobs are backed by a :class:`~inspect_ai.util._concurrency.ResizableLimiter`
 whose limit is settable at runtime: lowering it below the current in-use count
@@ -33,7 +33,7 @@ ones that apply.
 
 Since ``max_sandboxes`` and ``max_connections`` are process-global (shared across
 the process's tasks), :func:`process_limits` exposes them without a task — the
-process-level ``GET``/``PATCH /limits`` endpoint — for the common case of viewing
+process-level ``GET``/``PATCH /config`` endpoint — for the common case of viewing
 or throttling a whole process without naming one of its tasks.
 """
 
@@ -92,20 +92,27 @@ async def task_limits(
     max_sandboxes: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
+    log_buffer: int | None = None,
+    log_shared: int | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
-    """Read (and optionally retune) a task's concurrency limits.
+    """Read (and optionally retune) a task's retunable config.
 
-    A superset of :func:`process_limits`: it adds the per-task ``max_samples``
-    knob to the process-global ``max_sandboxes`` / ``max_connections`` view.
-    Task-scoped state lives in task_id-keyed registries: the sample limiter is
-    read straight from the task-semaphore registry (shared across the task's
-    retry attempts — see ``_task_sample_semaphores``), while the attempt-scoped
-    ``EvalState`` rows are consulted only for existence. With all three knobs
-    ``None`` this is a pure read. Returns ``None`` when the task isn't tracked
-    in this process (the endpoint turns that into a 404). Keyed by task_id —
-    stable across retries — rather than a per-attempt eval id, so a caller's
-    handle never goes stale mid-run.
+    A superset of :func:`process_limits`: it adds the per-task knobs — the
+    ``max_samples`` sample concurrency plus the ``log_buffer`` / ``log_shared``
+    sample-buffer params — to the process-global ``max_sandboxes`` /
+    ``max_connections`` view. Task-scoped state lives in task_id-keyed
+    registries: the sample limiter is read straight from the task-semaphore
+    registry (shared across the task's retry attempts — see
+    ``_task_sample_semaphores``), the buffer params through the latest
+    attempt's live logger (see :mod:`inspect_ai._control.buffer`) — resolved
+    once here, which doubles as the existence check. With all knobs ``None``
+    this is a pure read. Returns ``None`` when the task isn't tracked in this
+    process (the endpoint turns that into a 404); reused-log tasks are
+    tracked (registered from their headers) and report their knobs as not
+    adjustable rather than 404ing. Keyed by task_id — stable across retries —
+    rather than a per-attempt eval id, so a caller's handle never goes stale
+    mid-run.
 
     On the adaptive path the task's semaphore is a ``DynamicSampleLimiter``
     (sample concurrency tracks the controller, not a user setpoint), so
@@ -122,17 +129,22 @@ async def task_limits(
             every adaptive controller in the process), or ``None`` to leave it.
         model: Restrict the adaptive controllers ``max_connections`` targets (and
             the reported adaptive view) to those matching, or ``None`` for all.
+        log_buffer: New completed-samples-per-log-write buffer threshold, or
+            ``None`` to leave it.
+        log_shared: New shared-log event sync interval (seconds), or ``None``.
         dry_run: When set, validate and report the intended change without
             applying it.
     """
-    from inspect_ai._control.eval_state import task_registered
+    from inspect_ai._control.buffer import state_buffer_config
+    from inspect_ai._control.eval_state import latest_eval_for_task
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,
         ResizableLimiter,
         task_sample_semaphore,
     )
 
-    if not task_registered(task_id):
+    latest = latest_eval_for_task(task_id)
+    if latest is None:
         return None
 
     # max_samples — the task's sample semaphore. Only a ResizableLimiter is a
@@ -162,6 +174,42 @@ async def task_limits(
             "controller exists — if generates flow through a different model "
             "(e.g. model roles or an agent bridge), sample concurrency stays "
             "at its starting value."
+        )
+
+    # log_buffer / log_shared — the sample-buffer params, task-scoped like
+    # max_samples but reached through the latest attempt's live logger. A
+    # task with no live buffer (a reused log, or a superseded attempt) has a
+    # None view; an explicit set then warns like the other unadjustable
+    # knobs, so the wire contract is consistent for raw-API consumers (the
+    # CLI additionally escalates that set to a hard error client-side).
+    if log_buffer is not None:
+        sample_requested["log_buffer"] = log_buffer
+    if log_shared is not None:
+        sample_requested["log_shared"] = log_shared
+    buffer_view = state_buffer_config(
+        latest,
+        log_buffer=log_buffer if not dry_run else None,
+        log_shared=log_shared if not dry_run else None,
+    )
+    if buffer_view is None and (log_buffer is not None or log_shared is not None):
+        sample_warnings.append(
+            "log_buffer/log_shared are not adjustable for this task (no live "
+            "sample buffer — e.g. a reused log, or a superseded retry attempt)."
+        )
+    # a buffer with no shared-log sync running silently ignores a log_shared
+    # set (`set_sync_interval` reports the rejection but `buffer_config`
+    # keeps only the resulting view) — the view echoing `log_shared: None`
+    # after a request is that rejection, so warn like the other unadjustable
+    # knobs. Holds under dry_run too: a syncless buffer always reports None.
+    if (
+        log_shared is not None
+        and buffer_view is not None
+        and buffer_view.get("log_shared") is None
+    ):
+        sample_warnings.append(
+            "log_shared is not adjustable for this task (no shared-log sync "
+            "is active for its log — shared sync is enabled at launch with "
+            "--log-shared and requires realtime logging)."
         )
 
     views = _apply_process_knobs(
@@ -196,6 +244,7 @@ async def task_limits(
         "max_samples": max_samples_view,
         "max_sandboxes": views.max_sandboxes,
         "adaptive": views.adaptive,
+        "buffer": buffer_view,
         "requested": requested or None,
         "warnings": warnings,
     }
@@ -209,7 +258,7 @@ def _match_controllers(
 
     Uses the shared name-selector rule (prefix at the name start or after a
     ``/``, exact match winning) — the same rule the CLI uses for task names,
-    so ``ctl limits --model gpt-4`` resolves like any other name selector.
+    so ``ctl config --model gpt-4`` resolves like any other name selector.
     """
     return match_name_prefix(controllers, model, lambda c: c.name)
 

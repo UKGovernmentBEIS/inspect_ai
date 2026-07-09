@@ -60,7 +60,7 @@ async def ensure_sandbox_limiter(
     process-global ``sandboxes/<type>`` semaphore is created (or fetched — the
     registry coalesces on key) and tracked for the control channel. Called
     *eagerly* by the run-level sandbox startup — before ``task_init``'s image
-    pulls — so a ``ctl limits --max-sandboxes`` issued during startup lands
+    pulls — so a ``ctl config --max-sandboxes`` issued during startup lands
     instead of being dropped, and idempotently by the per-sample acquire path
     (covering per-sample sandbox overrides the startup pass can't see).
     Returns the resolved limit, or ``None`` when no limit is in effect.

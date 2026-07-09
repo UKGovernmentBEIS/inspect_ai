@@ -442,7 +442,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "scripted agents, and TUIs query). Pass `false` to disable it. "
             "Pass `keep` to also keep the process running "
             "after the eval finishes so its state and results stay readable; "
-            "the process exits when `inspect ctl release` is run (or POST "
+            "the process exits when `inspect ctl process release` is run (or POST "
             "/release is sent to the control endpoint). Without `keep` "
             "the process exits as soon as the eval body returns, taking the "
             "control surface with it."
@@ -2204,7 +2204,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
         "enabled). Pass `false` to disable it; pass `keep` "
         "to keep the process running after the retried eval finishes so "
         "external clients (the `inspect ctl` CLI, scripted agents) can still "
-        "query its state. Run `inspect ctl release` to release."
+        "query its state. Run `inspect ctl process release` to release."
     ),
     envvar="INSPECT_EVAL_CTL_SERVER",
 )

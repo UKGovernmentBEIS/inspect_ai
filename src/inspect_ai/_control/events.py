@@ -1,6 +1,6 @@
 """Per-sample transcript event pages for the control channel.
 
-Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl events``): a
+Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl sample events``): a
 **cursored-pull** window over one sample's events, read from its live
 ``Transcript`` while running, and once terminal from the recorder's
 sample, the realtime buffer (via the eval's events provider — the

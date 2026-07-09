@@ -1,7 +1,7 @@
 """Process-level per-eval state aggregate.
 
 Tracks running totals across the samples of each in-flight eval
-(``eval_id``-keyed). Consumed by the control-channel ``GET /evals``
+(``eval_id``-keyed). Consumed by the control-channel ``GET /tasks``
 endpoint to surface counts that ``active_samples()`` alone can't
 provide.
 
@@ -11,7 +11,7 @@ total sample count is known), plus :func:`record_sample_completed` /
 are not unregistered per-eval — the registry is cleared in one shot at
 the outermost run boundary (``eval`` / ``eval_set``) via
 :func:`clear_all_eval_states`, which keeps completed evals visible in
-``inspect ctl tasks`` through the run (and any keep-alive park).
+``inspect ctl task list`` through the run (and any keep-alive park).
 
 Lives under ``_control/`` because the control channel is currently
 the only consumer; if other surfaces (TUI, view server) ever need
@@ -104,7 +104,7 @@ if TYPE_CHECKING:
 
 
 class BufferConfig(NamedTuple):
-    """A running eval's sample-buffer parameters (see ``inspect ctl buffer``).
+    """A running eval's sample-buffer parameters (see ``inspect ctl config``).
 
     Reported by the buffer directive and, when set values are supplied,
     re-reported after the update.
@@ -524,22 +524,26 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
-def task_registered(task_id: str) -> bool:
-    """True if any attempt of ``task_id`` is tracked in this process.
+def latest_eval_for_task(task_id: str) -> "EvalState | None":
+    """The last-registered attempt of ``task_id``, or ``None`` if untracked.
 
-    A pure existence check (no latest-attempt semantics): task-scoped state
-    like the sample limiter lives in task_id-keyed registries (see
-    ``_task_sample_semaphores`` in ``util/_concurrency.py``), so consumers such
-    as the limits directive only need to know whether the task is known here —
+    The same fold rule the summaries use (registration order — a retry
+    registers after the attempt it supersedes), so a task-keyed directive
+    acts on the attempt the read surface reports as current. A non-``None``
+    result doubles as the existence check for task-keyed directives —
     including reused-log tasks registered via :func:`register_completed_eval`,
-    which never run and so have no registry entries but should still get the
-    "not adjustable" warning rather than a 404. A falsy ``task_id`` is never
-    registered (states without one are addressable only by eval id).
+    which never run here but should get "not adjustable" warnings rather
+    than a 404. A falsy ``task_id`` never resolves (states without one are
+    addressable only by eval id).
     """
     if not task_id:
-        return False
+        return None
     with _lock:
-        return any(s.task_id == task_id for s in _eval_states.values())
+        latest = None
+        for state in _eval_states.values():
+            if state.task_id == task_id:
+                latest = state
+        return latest
 
 
 def detach_eval_live(eval_id: str) -> None:

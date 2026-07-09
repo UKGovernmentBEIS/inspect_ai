@@ -202,7 +202,7 @@ def eval(
             `True` or `None` (default) binds the default AF_UNIX socket;
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
-            clients can still query its state — exit via `inspect ctl release`
+            clients can still query its state — exit via `inspect ctl process release`
             (or `POST /release`).
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
@@ -479,7 +479,7 @@ async def eval_async(
             `True` or `None` (default) binds the default AF_UNIX socket;
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
-            clients can still query its state — exit via `inspect ctl release`
+            clients can still query its state — exit via `inspect ctl process release`
             (or `POST /release`).
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
@@ -1116,7 +1116,7 @@ async def _eval_async_inner(
 
                 rich.get_console().print(
                     "Eval finished. Keeping process alive — press Ctrl+C "
-                    "or run `inspect ctl release` to let it exit.",
+                    "or run `inspect ctl process release` to let it exit.",
                     markup=False,
                     highlight=False,
                 )
@@ -1288,7 +1288,7 @@ def eval_retry(
             `True` or `None` (default) binds the default AF_UNIX socket;
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
-            clients can still query its state — exit via `inspect ctl release`
+            clients can still query its state — exit via `inspect ctl process release`
             (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
@@ -1466,7 +1466,7 @@ async def eval_retry_async(
             `True` or `None` (default) binds the default AF_UNIX socket;
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
-            clients can still query its state — exit via `inspect ctl release`
+            clients can still query its state — exit via `inspect ctl process release`
             (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP

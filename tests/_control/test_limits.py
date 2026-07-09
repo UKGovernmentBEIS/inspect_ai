@@ -368,16 +368,16 @@ async def test_limits_route_get_and_patch() -> None:
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        got = await client.get("/tasks/t1/limits")
+        got = await client.get("/tasks/t1/config")
         assert got.status_code == 200, got.text
         assert got.json()["max_samples"]["limit"] == 20
 
-        patched = await client.patch("/tasks/t1/limits", params={"max_samples": 40})
+        patched = await client.patch("/tasks/t1/config", params={"max_samples": 40})
         assert patched.status_code == 200, patched.text
         assert patched.json()["max_samples"]["limit"] == 40
         assert limiter.limit == 40
 
-        missing = await client.get("/tasks/missing/limits")
+        missing = await client.get("/tasks/missing/config")
         assert missing.status_code == 404
 
 
@@ -389,7 +389,7 @@ async def test_limits_route_rejects_below_one() -> None:
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        bad = await client.patch("/tasks/t1/limits", params={"max_samples": 0})
+        bad = await client.patch("/tasks/t1/config", params={"max_samples": 0})
         assert bad.status_code == 400
         assert "max_samples" in bad.json()["error"]
 
@@ -402,41 +402,41 @@ async def test_limits_route_patch_max_connections() -> None:
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        patched = await client.patch("/tasks/t1/limits", params={"max_connections": 25})
+        patched = await client.patch("/tasks/t1/config", params={"max_connections": 25})
         assert patched.status_code == 200, patched.text
         assert patched.json()["adaptive"][0]["max"] == 25
         assert ctrl.max == 25
 
-        bad = await client.patch("/tasks/t1/limits", params={"max_connections": 0})
+        bad = await client.patch("/tasks/t1/config", params={"max_connections": 0})
         assert bad.status_code == 400
         assert "max_connections" in bad.json()["error"]
 
 
 async def test_process_limits_route_get_and_patch() -> None:
-    """The process-level /limits route reads and retunes without an eval id."""
+    """The process-level /config route reads and retunes without an eval id."""
     ctrl = await _register_controller(max=100, start=50)
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        got = await client.get("/limits")
+        got = await client.get("/config")
         assert got.status_code == 200, got.text
         assert got.json()["adaptive"][0]["max"] == 100
         assert "max_samples" not in got.json()  # process view, no per-eval knob
 
-        patched = await client.patch("/limits", params={"max_connections": 25})
+        patched = await client.patch("/config", params={"max_connections": 25})
         assert patched.status_code == 200, patched.text
         assert patched.json()["adaptive"][0]["max"] == 25
         assert ctrl.max == 25
 
-        bad = await client.patch("/limits", params={"max_connections": 0})
+        bad = await client.patch("/config", params={"max_connections": 0})
         assert bad.status_code == 400
         assert "max_connections" in bad.json()["error"]
 
 
 async def test_process_limits_route_model_filter() -> None:
-    """`model` on the /limits route scopes the retune to matching controllers."""
+    """`model` on the /config route scopes the retune to matching controllers."""
     gpt = await _register_controller(name="openai/gpt-4", max=100, start=50)
     claude = await _register_controller(name="anthropic/claude", max=100, start=50)
 
@@ -445,7 +445,7 @@ async def test_process_limits_route_model_filter() -> None:
         transport=transport, base_url="http://localhost"
     ) as client:
         patched = await client.patch(
-            "/limits", params={"max_connections": 20, "model": "gpt-4"}
+            "/config", params={"max_connections": 20, "model": "gpt-4"}
         )
         assert patched.status_code == 200, patched.text
         assert [a["name"] for a in patched.json()["adaptive"]] == ["openai/gpt-4"]
@@ -463,7 +463,7 @@ async def test_limits_route_dry_run() -> None:
         transport=transport, base_url="http://localhost"
     ) as client:
         resp = await client.patch(
-            "/tasks/t1/limits", params={"max_samples": 40, "dry_run": True}
+            "/tasks/t1/config", params={"max_samples": 40, "dry_run": True}
         )
         assert resp.status_code == 200, resp.text
         assert resp.json()["dry_run"] is True
@@ -476,147 +476,209 @@ async def test_limits_route_dry_run() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_print_limits(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_limits
+def test_print_config(capsys: pytest.CaptureFixture[str]) -> None:
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": False,
-            "max_samples": {"limit": 20, "in_use": 5, "adjustable": True},
-            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
+            "knobs": {
+                "max_samples": {
+                    "scope": "task",
+                    "limit": 20,
+                    "in_use": 5,
+                    "adjustable": True,
+                },
+                "max_sandboxes": {
+                    "scope": "process",
+                    "providers": [{"type": "docker", "limit": 8, "in_use": 3}],
+                },
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
             "requested": None,
             "warnings": [],
+            "notes": [],
         },
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "limits:" in out
-    assert "max samples:   20 (5 in use)" in out
-    assert "docker 8 (3 in use)" in out
+    assert "config:" in out
+    # every knob line is labeled with its scope
+    assert "max samples [task]:      20 (5 in use)" in out
+    assert "max sandboxes [process]: docker 8 (3 in use)" in out
 
 
-def test_print_limits_updated_with_warning(
+def test_print_config_updated_with_warning(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from inspect_ai._cli.ctl import _print_limits
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": False,
-            "max_samples": {"adjustable": False},
-            "max_sandboxes": [],
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
             "requested": {"max_samples": 30},
             "warnings": ["max_samples is not adjustable for this eval."],
+            "notes": [],
         },
         changed=True,
     )
     out = capsys.readouterr().out
-    assert "updated limits:" in out
+    assert "updated config:" in out
     assert "not adjustable" in out
-    assert "max sandboxes: none in effect" in out
+    assert "max sandboxes [process]: none in effect" in out
     assert "! max_samples is not adjustable" in out
 
 
-def test_print_limits_dry_run_header(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_limits
+def test_print_config_dry_run_header(capsys: pytest.CaptureFixture[str]) -> None:
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": True,
-            "max_samples": {"limit": 20, "in_use": 0, "adjustable": True},
-            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
+            "knobs": {
+                "max_samples": {
+                    "scope": "task",
+                    "limit": 20,
+                    "in_use": 0,
+                    "adjustable": True,
+                },
+                "max_sandboxes": {
+                    "scope": "process",
+                    "providers": [{"type": "docker", "limit": 8, "in_use": 3}],
+                },
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
             "requested": {"max_samples": 40, "max_sandboxes": 16},
             "warnings": [],
+            "notes": [],
         },
         changed=True,
     )
     out = capsys.readouterr().out
-    assert "would-be limits (dry run):" in out
+    assert "would-be config (dry run):" in out
     # would-be values render as `current → requested`, not the bare current value
-    assert "max samples:   20 → 40 (0 in use)" in out
+    assert "max samples [task]:      20 → 40 (0 in use)" in out
     assert "docker 8 → 16 (3 in use)" in out
 
 
-def test_print_limits_dry_run_unchanged_knob_has_no_arrow(
+def test_print_config_dry_run_unchanged_knob_has_no_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run knob whose requested value equals the current one shows no arrow."""
-    from inspect_ai._cli.ctl import _print_limits
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": True,
-            "max_samples": {"limit": 20, "in_use": 0, "adjustable": True},
-            # max_sandboxes not in `requested` (only max_samples was set), and
-            # max_samples requested == current, so neither line gets an arrow.
-            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
+            "knobs": {
+                "max_samples": {
+                    "scope": "task",
+                    "limit": 20,
+                    "in_use": 0,
+                    "adjustable": True,
+                },
+                # max_sandboxes not in `requested` (only max_samples was set),
+                # and max_samples requested == current, so no line gets an arrow.
+                "max_sandboxes": {
+                    "scope": "process",
+                    "providers": [{"type": "docker", "limit": 8, "in_use": 3}],
+                },
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
             "requested": {"max_samples": 20},
             "warnings": [],
+            "notes": [],
         },
         changed=True,
     )
     out = capsys.readouterr().out
     assert "→" not in out
-    assert "max samples:   20 (0 in use)" in out
+    assert "max samples [task]:      20 (0 in use)" in out
     assert "docker 8 (3 in use)" in out
 
 
-def test_print_limits_adaptive_section(capsys: pytest.CaptureFixture[str]) -> None:
+def test_print_config_adaptive_section(capsys: pytest.CaptureFixture[str]) -> None:
     """The adaptive path renders live controller state instead of a bare label."""
-    from inspect_ai._cli.ctl import _print_limits
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": False,
-            "max_samples": {"adjustable": False, "tracks_adaptive": True},
-            "max_sandboxes": [],
-            "adaptive": [
-                {
-                    "name": "openai/gpt-4",
-                    "limit": 45,
-                    "in_use": 40,
-                    "min": 1,
-                    "max": 100,
-                    "recent_changes": [
-                        {"at": 1.0, "from": 50, "to": 45, "reason": "rate_limit"},
+            "knobs": {
+                "max_samples": {
+                    "scope": "task",
+                    "adjustable": False,
+                    "tracks_adaptive": True,
+                },
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {
+                    "scope": "process",
+                    "adaptive": [
+                        {
+                            "name": "openai/gpt-4",
+                            "limit": 45,
+                            "in_use": 40,
+                            "min": 1,
+                            "max": 100,
+                            "recent_changes": [
+                                {
+                                    "at": 1.0,
+                                    "from": 50,
+                                    "to": 45,
+                                    "reason": "rate_limit",
+                                },
+                            ],
+                        }
                     ],
-                }
-            ],
+                },
+            },
             "requested": None,
             "warnings": [],
+            "notes": [],
         },
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "max samples:   tracks adaptive connections (see below)" in out
-    assert "adaptive connections:" in out
+    assert "max samples [task]:      tracks adaptive connections (see below)" in out
+    assert "adaptive connections [process]:" in out
     assert "openai/gpt-4: 45 (40 in use), range 1–100" in out
     assert "last: 50→45 rate_limit" in out
 
 
-def test_print_limits_adaptive_dry_run_shows_ceiling_arrow(
+def test_print_config_adaptive_dry_run_shows_ceiling_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run max_connections renders the ceiling as `max → requested`."""
-    from inspect_ai._cli.ctl import _print_limits
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": True,
-            "max_samples": {"adjustable": False},
-            "max_sandboxes": [],
-            "adaptive": [
-                {
-                    "name": "openai/gpt-4",
-                    "limit": 50,
-                    "in_use": 10,
-                    "min": 1,
-                    "max": 100,
-                    "recent_changes": [],
-                }
-            ],
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {
+                    "scope": "process",
+                    "adaptive": [
+                        {
+                            "name": "openai/gpt-4",
+                            "limit": 50,
+                            "in_use": 10,
+                            "min": 1,
+                            "max": 100,
+                            "recent_changes": [],
+                        }
+                    ],
+                },
+            },
             "requested": {"max_connections": 30},
             "warnings": [],
+            "notes": [],
         },
         changed=True,
     )
@@ -624,33 +686,70 @@ def test_print_limits_adaptive_dry_run_shows_ceiling_arrow(
     assert "range 1–100 → 30" in out
 
 
-def test_print_limits_process_scope(capsys: pytest.CaptureFixture[str]) -> None:
-    """The process-level view (no max_samples key) shows max samples as per-task."""
-    from inspect_ai._cli.ctl import _print_limits
+def test_print_config_process_scope(capsys: pytest.CaptureFixture[str]) -> None:
+    """The process-level view (no max_samples knob) shows max samples as per-task."""
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": False,
-            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
-            "adaptive": [
-                {
-                    "name": "openai/gpt-4",
-                    "limit": 45,
-                    "in_use": 40,
-                    "min": 1,
-                    "max": 100,
-                    "recent_changes": [],
-                }
-            ],
+            "knobs": {
+                # note: no "max_samples" knob → process scope
+                "max_sandboxes": {
+                    "scope": "process",
+                    "providers": [{"type": "docker", "limit": 8, "in_use": 3}],
+                },
+                "max_connections": {
+                    "scope": "process",
+                    "adaptive": [
+                        {
+                            "name": "openai/gpt-4",
+                            "limit": 45,
+                            "in_use": 40,
+                            "min": 1,
+                            "max": 100,
+                            "recent_changes": [],
+                        }
+                    ],
+                },
+            },
             "requested": None,
             "warnings": [],
-        },  # note: no "max_samples" key → process scope
+            "notes": [],
+        },
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "max samples:   per task (pass a task to view/set)" in out
+    assert "max samples [task]:      per task (pass a task to view/set)" in out
     assert "docker 8 (3 in use)" in out
-    assert "adaptive connections:" in out
+    assert "adaptive connections [process]:" in out
+
+
+def test_print_config_buffer_knobs_and_notes(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The absorbed buffer knobs render with their task scope; notes print last."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "log_buffer": {"scope": "task", "value": 10, "pending": 2},
+                "log_shared": {"scope": "task", "value": None},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": ["--max-connections applies process-wide."],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "log buffer [task]:       10 samples (2 pending)" in out
+    assert "shared sync [task]:      off" in out
+    assert "note: --max-connections applies process-wide." in out
 
 
 def test_process_scope_note() -> None:
@@ -663,15 +762,15 @@ def test_process_scope_note() -> None:
     assert _process_scope_note(["--max-connections"], 1) is None
     # single global knob across a multi-eval process → singular "applies"
     note = _process_scope_note(["--max-connections"], 3)
-    assert (
-        note
-        == "note: --max-connections applies across all 3 tasks sharing this process."
+    assert note == (
+        "--max-connections applies process-wide — every active task in "
+        "this process is affected."
     )
     # both global knobs → plural "apply", joined
     note = _process_scope_note(["--max-connections", "--max-sandboxes"], 2)
     assert (
         note
-        == "note: --max-connections and --max-sandboxes apply across all 2 tasks sharing this process."
+        == "--max-connections and --max-sandboxes apply process-wide — every active task in this process is affected."
     )
 
 
@@ -698,7 +797,7 @@ def test_limits_route_error_becomes_500() -> None:
         async with httpx.AsyncClient(
             transport=transport, base_url="http://localhost"
         ) as client:
-            return await client.patch("/tasks/t1/limits", params={"max_samples": 9})
+            return await client.patch("/tasks/t1/config", params={"max_samples": 9})
 
     response = asyncio.run(scenario())
     assert response.status_code == 500

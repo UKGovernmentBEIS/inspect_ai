@@ -104,7 +104,7 @@ same key coexist (preserving the "explicit `max_connections` wins" rule).
 Each controller carries its registry key as `controller.key` (stamped by the
 registry at creation; defaults to `name` for direct construction in tests).
 Anything that needs to find *a specific model's* controller matches on `key`.
-Display names are for humans — the `ctl limits --model` filter matches names
+Display names are for humans — the `ctl config --model` filter matches names
 because a human types them.
 
 ## Sample-concurrency coupling
@@ -145,7 +145,7 @@ model's own generates — so a task whose generation flows entirely through
 other models (model roles, an agent-bridge alias, a solver's explicit
 `get_model()`) leaves the primary controller idle at `start` and sample
 concurrency parked at `start + BUFFER`, even while the actually-generating
-model's controller scales. The `ctl limits` view warns when the limiter's
+model's controller scales. The `ctl config` view warns when the limiter's
 controller is missing, but with eager controller creation the primary
 controller *exists* (idle), so the parked-at-start case is only indirectly
 visible (healthy controllers, stalled sample throughput). The deeper fix is
@@ -164,7 +164,7 @@ in-run (immediate) task retry reuses its predecessor's semaphore — legacy
 batch-mode retries (`retry_immediate=False`) run as separate `eval()` calls,
 each resetting the registry (required: the limiters are event-loop-bound),
 so those revert to config. This makes a
-mid-flight `ctl limits --max-samples` retune survive a retry (the runtime
+mid-flight `ctl config --max-samples` retune survive a retry (the runtime
 setpoint wins over re-deriving from config — in-process retries share their
 config anyway) and makes a retune against a superseded attempt's eval_id land
 on the limiter the live attempt drains from — consistent with how the other

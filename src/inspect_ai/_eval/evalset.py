@@ -236,7 +236,7 @@ def eval_set(
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval-set finishes so external
             clients (the `inspect ctl` CLI, scripted agents, TUIs) can still
-            query state and read results — exit via `inspect ctl release`
+            query state and read results — exit via `inspect ctl process release`
             (or `POST /release`). Requires `retry_immediate=True` (the
             default) for the `"keep"` value.
         solver: Alternative solver(s) for
@@ -701,7 +701,7 @@ def eval_set(
 
     # EvalStates accumulate as tasks run (task_run registers but never
     # unregisters); clear the registry at this run boundary — in `finally`,
-    # after any keep-alive park — so they stay visible in `inspect ctl tasks`
+    # after any keep-alive park — so they stay visible in `inspect ctl task list`
     # through the run + park, but don't leak past it.
     try:
         with (
@@ -752,7 +752,7 @@ def eval_set(
         # park last of all — display closed and summary printed, so the
         # keep-alive notice lands in the console (not the live display pane).
         # Gate on the intent (not just the launch flag) so a runtime `inspect
-        # ctl keep` during the run also parks; intent reflects the last-write
+        # ctl process keep` during the run also parks; intent reflects the last-write
         # of any keep / release received during the run.
         if keep_alive_intent():
             run_coroutine(_keep_alive_park(eval_set_id))
@@ -796,7 +796,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
     Reused tasks bypass ``task_run.py`` (their results are read from
     disk rather than re-computed), so the per-task ``register_eval``
     that normally publishes state never fires for them. Without an
-    explicit registration here, ``inspect ctl tasks`` would show zero
+    explicit registration here, ``inspect ctl task list`` would show zero
     entries for an eval-set whose tasks all came from prior logs —
     confusing for an agent driving an eval-set under ``--ctl-server=keep``
     that expects to see what the eval-set returned.
@@ -909,11 +909,11 @@ async def _keep_alive_park(eval_set_id: str) -> None:
     async with control_server(run_id=eval_set_id) as ctl_server:
         if ctl_server is None:
             # Bind failed: nothing to park on (can't be released via
-            # `inspect ctl release`), so don't linger.
+            # `inspect ctl process release`), so don't linger.
             return
         rich.get_console().print(
             "Eval-set finished. Keeping process alive — press Ctrl+C or run "
-            "`inspect ctl release` to let it exit.",
+            "`inspect ctl process release` to let it exit.",
             markup=False,
             highlight=False,
         )
