@@ -65,6 +65,17 @@ _KNOB_SCOPE: dict[str, str] = {
     "log_shared": "task",
 }
 
+# Minimum control-API version each knob requires of the *server* process (the
+# `CONTROL_API_VERSION` from `inspect_ai._control` that its inspect embedded
+# at launch). Knobs absent here are since-0 — understood by every server,
+# including those that predate version reporting. A PR that adds a knob older
+# servers' PATCH handlers would silently ignore must bump
+# `CONTROL_API_VERSION` and record the new value here (e.g. `{"timeout": 1}`);
+# `_gate_knob_support` then hard-errors the request against an older process
+# *before* the mutation, instead of letting it partially apply behind a
+# success-shaped response.
+_KNOB_SINCE: dict[str, int] = {}
+
 # Rendered for a task-scoped knob that a process-level view can't show.
 _PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
 
@@ -1441,6 +1452,19 @@ def _run_config(
         _echo_no_running_evals()
         return
 
+    requested_knobs = [
+        knob
+        for knob, value in (
+            ("max_samples", max_samples),
+            ("max_sandboxes", max_sandboxes),
+            ("max_connections", max_connections),
+            ("log_buffer", log_buffer),
+            ("log_shared", log_shared),
+        )
+        if value is not None
+    ]
+    _gate_knob_support(servers, scope.socket_path, requested_knobs)
+
     limits_view, mutated = _exec_limits(
         scope.socket_path,
         scope.task_id,
@@ -2389,6 +2413,43 @@ def _post_flush(socket_path: str, task_id: str) -> dict[str, Any]:
         ),
         mutate="post",
     )
+
+
+def _gate_knob_support(
+    servers: list[DiscoveredControlServer],
+    socket_path: str,
+    requested_knobs: list[str],
+) -> None:
+    """Hard-error before a config mutation the server is too old to apply.
+
+    ``requested_knobs`` are the knob names set on this invocation. Any knob
+    whose :data:`_KNOB_SINCE` entry exceeds the target process's advertised
+    control-API version fails the command here, *before* the PATCH is sent:
+    an older server's handler silently ignores unknown query params while
+    applying the knobs it does recognize, so a post-hoc warning would arrive
+    after a partial apply. A process with no advertised version (a discovery
+    file that predates the field) is version 0. The version integer is
+    meaningless to users, so the error names the flags and the remedy, not
+    the number. Applies to dry runs too — a dry-run PATCH on an older server
+    would report a success-shaped view that omits the unknown knobs.
+    """
+    gated = [knob for knob in requested_knobs if _KNOB_SINCE.get(knob, 0) > 0]
+    if not gated:
+        return
+    server = next((s for s in servers if str(s.socket_path) == socket_path), None)
+    api_version = server.api_version if server is not None else 0
+    unsupported = [knob for knob in gated if _KNOB_SINCE[knob] > api_version]
+    if not unsupported:
+        return
+    flags = ", ".join("--" + knob.replace("_", "-") for knob in unsupported)
+    target = f"pid {server.pid}" if server is not None else "the target process"
+    click.echo(
+        f"{flags} not supported — {target} is running an older inspect; "
+        "restart the eval to pick up the current version. No changes were "
+        "applied.",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1)
 
 
 def _exec_limits(
