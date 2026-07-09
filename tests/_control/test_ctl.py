@@ -725,6 +725,72 @@ def test_fetch_summaries_sole_server_rides_full_budget(
     assert "retrying" in capsys.readouterr().err
 
 
+def test_fetch_summaries_exact_id_match_short_circuits_fan_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An exact full-task_id match stops the fan-out at the server holding it.
+
+    Ids are unique and an exact match wins resolution outright, so the
+    remaining servers (busy or not) are never contacted — the steady-state
+    `sample events --cursor` poll costs one /tasks read, not one per process.
+    """
+    from inspect_ai._cli.ctl import _fetch_summaries
+
+    counter = _stub_httpx(monkeypatch, [[{"task_id": "aaa111"}]])
+    fetched = _fetch_summaries(
+        [_disc(7), _disc(8)], raise_on_busy=True, stop_on_task_id="aaa111"
+    )
+    assert [s["task_id"] for s in fetched.summaries] == ["aaa111"]
+    assert counter["gets"] == 1  # pid 8 never contacted
+
+
+def test_fetch_summaries_prefix_query_still_fans_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A prefix (non-exact) query never stops early — ambiguity needs all servers."""
+    from inspect_ai._cli.ctl import _fetch_summaries
+
+    counter = _stub_httpx(
+        monkeypatch, [[{"task_id": "aaa111"}], [{"task_id": "aaa222"}]]
+    )
+    fetched = _fetch_summaries(
+        [_disc(7), _disc(8)], raise_on_busy=True, stop_on_task_id="aaa"
+    )
+    assert [s["task_id"] for s in fetched.summaries] == ["aaa111", "aaa222"]
+    assert counter["gets"] == 2
+
+
+def test_events_poll_with_full_task_id_skips_sibling_servers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`sample events` with a full task_id never contacts sibling processes.
+
+    The documented monitoring loop repeats `sample events --cursor` against
+    the page's echoed task_id; a busy unrelated sibling must not tax (or
+    kill) every poll. Two servers discovered, the match on the first: the
+    whole invocation is exactly two requests (its /tasks + the events read) —
+    a third would exhaust the stub sequence and fail loudly.
+    """
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_disc(8), _disc(7)],
+    )
+    counter = _stub_httpx(
+        monkeypatch,
+        [
+            [{"task_id": "aaa111", "task": "t1", "eval_id": "eval_a"}],
+            {"events": [], "next": None, "done": True},
+        ],
+    )
+    result = _runner().invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert counter["gets"] == 2
+    payload = json.loads(result.stdout)
+    assert payload["task_id"] == "aaa111"
+
+
 def test_sample_detail_read_retries_busy_timeout(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

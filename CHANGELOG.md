@@ -4,6 +4,7 @@
 - Control Channel: Reorganized the `inspect ctl` CLI into resource-noun groups (`ctl task`, `ctl sample`, `ctl config`, `ctl process`); the old flat spellings remain as hidden deprecated aliases, except `ctl sample` which is now the group (use `ctl sample show`).
 - Control Channel: `inspect ctl` sample commands now warn and skip an eval that stays busy through the retries instead of failing outright, with stderr caveats (and an honest non-zero exit when no tasks remain visible) wherever the skip could mislead.
 - Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
+- Control Channel: `inspect ctl` sample commands given an exact full task id now stop the discovery fan-out at the process hosting it, so a steady-state `sample events --cursor` polling loop no longer pays an unrelated busy sibling process's retry budget on every poll.
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
 
 ## 0.3.245 (08 July 2026)
