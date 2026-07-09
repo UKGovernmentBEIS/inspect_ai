@@ -664,6 +664,21 @@ async def test_resizable_limiter_same_task_nested_acquire() -> None:
 
 
 @pytest.mark.anyio
+async def test_resizable_limiter_unpaired_exit_is_diagnosable() -> None:
+    """An exit whose context never entered raises a descriptive error.
+
+    The borrower stack is a ContextVar, so an enter in one task is invisible
+    to an exit in another — that misuse should name the contract rather than
+    surface as a bare IndexError on an empty tuple.
+    """
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(2)
+    with pytest.raises(RuntimeError, match="never entered"):
+        await limiter.__aexit__(None, None, None)
+
+
+@pytest.mark.anyio
 async def test_registry_static_semaphores_resizable_by_default() -> None:
     """Static registry entries are resizable without an explicit opt-in.
 

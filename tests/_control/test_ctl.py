@@ -1380,6 +1380,44 @@ def test_config_key_on_old_server_gates_applied_claim(
     assert "still applied" not in dry.stderr
 
 
+def test_config_key_on_old_server_does_not_claim_unapplied_knobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The --key skew error's 'still applied' tail is adjustability-aware.
+
+    A knob the old server reported as not adjustable is not claimed as
+    applied, and the server's warnings are surfaced rather than swallowed by
+    the exit (mirroring the no-live-buffer error path).
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._exec_limits",
+        lambda *a, **k: _ConfigResult(
+            view={  # no `concurrency` list — an old server
+                "max_samples": {"adjustable": False, "tracks_adaptive": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"max_samples": 5},
+                "warnings": [
+                    "max_samples is not adjustable for this task (it uses "
+                    "adaptive connection concurrency, or ran no samples in "
+                    "this process)."
+                ],
+                "dry_run": False,
+            },
+            mutated=True,
+        ),
+    )
+    result = _runner().invoke(
+        ctl_command, ["config", "--key", "my_api", "2", "--max-samples", "5"]
+    )
+    assert result.exit_code == 1
+    assert "does not support --key" in result.stderr
+    assert "still applied" not in result.stderr
+    assert "! max_samples is not adjustable" in result.stderr
+
+
 def test_config_task_knob_with_only_orphan_task_says_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

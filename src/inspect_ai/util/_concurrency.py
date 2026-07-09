@@ -235,6 +235,13 @@ class ResizableLimiter:
 
     async def __aexit__(self, *args: Any) -> Any:
         stack = self._borrowers.get()
+        if not stack:
+            # a ContextVar snapshot never sees pushes from other contexts, so
+            # an empty stack means enter and exit didn't pair in one task
+            raise RuntimeError(
+                "ResizableLimiter exited from a context that never entered it "
+                "(__aenter__ and __aexit__ must pair within one task)"
+            )
         self._borrowers.set(stack[:-1])
         self._limiter.release_on_behalf_of(stack[-1])
         return None

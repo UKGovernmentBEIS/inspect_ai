@@ -1415,6 +1415,60 @@ def _run_process_list(as_json: bool) -> None:
     _render_table(("pid", "keep-alive", "tasks", "started"), table_rows)
 
 
+def _applied_knob_names(
+    limits_view: dict[str, Any],
+    *,
+    max_samples: int | None,
+    max_sandboxes: int | None,
+    max_connections: int | None,
+    key: tuple[str, int] | None,
+    log_buffer: int | None,
+    log_shared: int | None,
+) -> list[str]:
+    """Names of the requested knobs the server reported as adjustable.
+
+    Serves the hard-error paths (unsupported ``--key``, no live buffer) so
+    their "other knobs were still applied" tail names only knobs that actually
+    landed — a requested knob the server reported as not adjustable did NOT
+    apply. Each path's failing knob self-excludes: its adjustability check is
+    exactly the condition that put the caller on the error path (no
+    ``concurrency`` view / no ``buffer`` view).
+    """
+    buffer_adjustable = limits_view.get("buffer") is not None
+    return [
+        name
+        for name, value, adjustable in (
+            (
+                "--max-samples",
+                max_samples,
+                bool((limits_view.get("max_samples") or {}).get("adjustable")),
+            ),
+            (
+                "--max-sandboxes",
+                max_sandboxes,
+                bool(limits_view.get("max_sandboxes")),
+            ),
+            (
+                "--max-connections",
+                max_connections,
+                bool(limits_view.get("adaptive")),
+            ),
+            (
+                "--key",
+                key,
+                key is not None
+                and any(
+                    row.get("name") == key[0] and row.get("adjustable")
+                    for row in limits_view.get("concurrency") or []
+                ),
+            ),
+            ("--log-buffer", log_buffer, buffer_adjustable),
+            ("--log-shared", log_shared, buffer_adjustable),
+        )
+        if value is not None and adjustable
+    ]
+
+
 def _run_config(
     task: str | None,
     *,
@@ -1482,26 +1536,30 @@ def _run_config(
     # returns 200 with the key silently unapplied — the absent concurrency
     # view is how that's detected (and refused) rather than misreported.
     if key is not None and limits_view.get("concurrency") is None:
-        other_knobs = any(
-            value is not None
-            for value in (
-                max_samples,
-                max_sandboxes,
-                max_connections,
-                log_buffer,
-                log_shared,
-            )
+        applied_names = _applied_knob_names(
+            limits_view,
+            max_samples=max_samples,
+            max_sandboxes=max_sandboxes,
+            max_connections=max_connections,
+            key=key,
+            log_buffer=log_buffer,
+            log_shared=log_shared,
         )
         click.echo(
             f"This process does not support --key (older inspect version?) — "
             f"'{key[0]}' was not applied."
             + (
-                " Any other requested knobs were still applied."
-                if other_knobs and not dry_run
+                f" The other requested knobs ({', '.join(applied_names)}) "
+                "were still applied."
+                if applied_names and not dry_run
                 else ""
             ),
             err=True,
         )
+        # surface the server's warnings that this exit would otherwise
+        # swallow (an old server has no key warning to restate, so echo all)
+        for warning in limits_view.get("warnings") or []:
+            click.echo(f"! {warning}", err=True)
         raise click.exceptions.Exit(code=1)
 
     # The buffer knobs ride the task config view (`buffer` key); a task with
@@ -1516,36 +1574,15 @@ def _run_config(
     buffer_warnings: list[str] = []
     if scope.task_id is not None and limits_view.get("buffer") is None:
         if set_buffer:
-            applied_names = [
-                name
-                for name, value, adjustable in (
-                    (
-                        "--max-samples",
-                        max_samples,
-                        bool((limits_view.get("max_samples") or {}).get("adjustable")),
-                    ),
-                    (
-                        "--max-sandboxes",
-                        max_sandboxes,
-                        bool(limits_view.get("max_sandboxes")),
-                    ),
-                    (
-                        "--max-connections",
-                        max_connections,
-                        bool(limits_view.get("adaptive")),
-                    ),
-                    (
-                        "--key",
-                        key,
-                        key is not None
-                        and any(
-                            row.get("name") == key[0] and row.get("adjustable")
-                            for row in limits_view.get("concurrency") or []
-                        ),
-                    ),
-                )
-                if value is not None and adjustable
-            ]
+            applied_names = _applied_knob_names(
+                limits_view,
+                max_samples=max_samples,
+                max_sandboxes=max_sandboxes,
+                max_connections=max_connections,
+                key=key,
+                log_buffer=log_buffer,
+                log_shared=log_shared,
+            )
             click.echo(
                 f"Task '{scope.task_id}' has no sample buffer in this "
                 "process (e.g. a reused log, or a retry attempt that's "
