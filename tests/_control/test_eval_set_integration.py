@@ -164,6 +164,9 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
         assert samples["queued"] == 0
         assert entry["status"] == "running"
         assert entry["completed_at"] is None
+        assert entry["model"] == "mockllm/model"
+        # the plan's terminal step — the gate solver — is the reported solver
+        assert entry["solver"] == "gate"
         # log_location points at this eval's log file, so an agent monitoring a
         # run it didn't launch can find where results are written — as a plain
         # local path (no `file://` prefix), directly usable.
@@ -691,6 +694,61 @@ def test_ctl_reused_log_eval_reports_usage(short_data_dir: Path) -> None:
     assert entry is not None
     assert entry["total_tokens"] > 0, entry
     assert entry["total_messages"] > 0, entry
+    # solver name recovered from the reused log's plan (terminal step)
+    assert entry["solver"] == "gen", entry
+
+
+def test_ctl_reused_log_solver_skips_finish_step() -> None:
+    """Reused-log solver derivation matches the live path for ``Plan(finish=...)``.
+
+    ``plan_to_eval_plan`` appends the plan's ``finish`` solver to the recorded
+    ``steps``, so the header's last step is the finish solver — not the
+    terminal solver ``plan_agent_name`` reports while the task runs. The
+    reused-log registration must skip it, or the same task shows one solver
+    while running and another after eval-set reuse.
+    """
+    from datetime import datetime, timezone
+
+    from inspect_ai._control.eval_state import clear_all_eval_states, get_eval_state
+    from inspect_ai._eval.evalset import Log, _register_reused_logs
+    from inspect_ai._eval.task.log import plan_to_eval_plan
+    from inspect_ai._eval.task.run import plan_agent_name
+    from inspect_ai.log._file import EvalLogInfo
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.solver import Plan, system_message
+
+    plan = Plan([system_message("hi"), generate()], finish=system_message("bye"))
+    header = EvalLog(
+        eval=EvalSpec(
+            eval_id="e-finish",
+            created=datetime.now(timezone.utc).isoformat(),
+            task="task_finish",
+            task_id="tid-finish",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=plan_to_eval_plan(plan, GenerateConfig()),
+    )
+    info = EvalLogInfo(
+        name="logs/e.eval",
+        type="file",
+        size=0,
+        mtime=None,
+        task="task_finish",
+        task_id="tid-finish",
+        suffix=None,
+    )
+
+    clear_all_eval_states()
+    try:
+        _register_reused_logs([Log(info=info, header=header, task_identifier="x")])
+        state = get_eval_state("e-finish")
+        assert state is not None
+        assert state.solver == "generate" == plan_agent_name(plan)
+    finally:
+        clear_all_eval_states()
 
 
 # --- keep-alive park -------------------------------------------------------
@@ -2371,3 +2429,57 @@ def test_task_retry_detaches_superseded_attempt_live(
     assert latest[1] is True, (
         f"latest attempt's live data source must stay attached: {latest}"
     )
+
+
+# --- limits / GET + PATCH /tasks/<id>/limits -------------------------------
+
+
+def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) -> None:
+    """The modify-limits directive sees the live sample limiter and can retune it.
+
+    Runs a real eval with an explicit ``max_samples`` (the static
+    ResizableLimiter path), parks its samples in flight, then verifies
+    ``task_limits`` reports the limit + in-use count and applies a new limit to
+    the underlying limiter mid-run.
+    """
+    from inspect_ai._control.limits import task_limits
+
+    @task
+    def limits_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[gate()],
+            name="limits_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 3
+
+    async def capture() -> dict:
+        task_id = (await current_eval_summaries(0.0))[0]["task_id"]
+        # read reflects the live limiter (max_samples=3, all three in flight)
+        read = await task_limits(task_id)
+        # retune it up and confirm the change is applied
+        applied = await task_limits(task_id, max_samples=7)
+        return {"read": read, "applied": applied}
+
+    with probe(ready, capture) as p:
+        eval_set(
+            tasks=[limits_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=3,
+        )
+
+    assert p.result is not None, "samples never reached 'in flight'"
+    read = p.result["read"]
+    assert read["max_samples"] == {"limit": 3, "in_use": 3, "adjustable": True}
+    assert read["max_sandboxes"] == []
+    applied = p.result["applied"]
+    assert applied["max_samples"]["limit"] == 7
+    assert applied["requested"] == {"max_samples": 7}

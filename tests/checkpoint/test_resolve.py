@@ -10,6 +10,7 @@ import pytest
 from inspect_ai.util._checkpoint import (
     CheckpointConfig,
     CheckpointSampleConfig,
+    Manual,
     TimeInterval,
     TokenInterval,
     TurnInterval,
@@ -297,3 +298,56 @@ def test_veto_is_per_task_not_eval_wide() -> None:
     eval_cfg = CheckpointConfig(trigger=TurnInterval(every=1))
     assert merge_checkpoint_configs(CheckpointDisabled(), None, eval_cfg) is None
     assert merge_checkpoint_configs(None, None, eval_cfg) is not None
+
+
+def test_merge_attaches_task_callbacks() -> None:
+    async def on_checkpoint(state: object) -> None:
+        return None
+
+    async def on_resume(state: object, attempt: str) -> str:
+        return "resumed"
+
+    resolved = merge_checkpoint_configs(
+        CheckpointConfig(trigger=Manual()),
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
+    )
+    assert resolved is not None
+    assert resolved.on_checkpoint is on_checkpoint
+    assert resolved.on_resume is on_resume
+
+
+def test_merge_disabled_ignores_callbacks() -> None:
+    async def on_resume(state: object, attempt: str) -> None:
+        return None
+
+    # No task/eval config -> checkpointing disabled -> None regardless of callbacks
+    assert merge_checkpoint_configs(None, None, None, on_resume=on_resume) is None
+
+
+def test_task_callbacks_reach_resolved_config() -> None:
+    from inspect_ai import Task
+    from inspect_ai.dataset import Sample
+
+    async def on_resume(state: object, attempt: str) -> str:
+        return "resumed"
+
+    async def on_checkpoint(state: object) -> None:
+        return None
+
+    task = Task(
+        dataset=[Sample(input="hi")],
+        checkpoint=True,
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
+    )
+    resolved = merge_checkpoint_configs(
+        task.checkpoint,
+        None,
+        None,
+        on_checkpoint=task.on_checkpoint,
+        on_resume=task.on_resume,
+    )
+    assert resolved is not None
+    assert resolved.on_checkpoint is on_checkpoint
+    assert resolved.on_resume is on_resume

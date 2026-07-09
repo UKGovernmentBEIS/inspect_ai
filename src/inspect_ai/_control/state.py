@@ -162,6 +162,9 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 "task": first.task,
                 "task_id": "",
                 "model": first.model,
+                # ActiveSample doesn't carry the solver name; it arrives with
+                # the eval's registration (which hasn't happened yet here)
+                "solver": "",
                 "log_location": local_path(first.log_location),
                 "status": "running",
                 "started_at": min(
@@ -670,6 +673,7 @@ def _build_summary(
         "task": task_name,
         "task_id": latest.task_id,
         "model": model,
+        "solver": latest.solver,
         # Where this attempt's results are written — lets an agent monitoring a
         # run it didn't launch find the log without knowing the launch args.
         # `local_path` drops the `file://` prefix for local logs (leaving
