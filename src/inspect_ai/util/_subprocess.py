@@ -221,8 +221,8 @@ async def subprocess(
             await get_or_create_semaphore(
                 "subprocesses",
                 max_subprocesses_context_var.get(),
-                None,
-                True,
+                key=None,
+                visible=True,
                 resizable=True,
             )
         )

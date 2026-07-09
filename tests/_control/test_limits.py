@@ -30,7 +30,7 @@ from inspect_ai.util._concurrency import (
 @pytest.fixture(autouse=True)
 def _clear_states():
     clear_all_eval_states()
-    init_concurrency()  # resets the sandbox-limiter registry
+    init_concurrency()  # resets the sandbox and subprocess limiter registries
     yield
     clear_all_eval_states()
     init_concurrency()
