@@ -75,7 +75,17 @@ sample  epoch  status     time   idle  tokens  messages
 
 The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. (Note that a single in-flight model request produces no events until it returns, so idle time also accumulates during one long model call.)
 
-With `--json` the response is an `{as_of, samples}` envelope. Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — feed it the `as_of` from the prior response (rather than a locally minted timestamp) so nothing that changed mid-read is missed.
+The listing is capped at 100 rows per task by default, keeping the head of the running → completed → pending sort order (so running samples always make the cut). A capped listing says so — the human output prints a `listing capped: showing N of M samples` footer, and the JSON envelope sets `truncated: true` — and the aggregate answer stays complete regardless: the envelope's `counts` is the status histogram over *all* of the task's samples. Adjust with:
+
+| Option | Description |
+|----|----|
+| `--limit N` | Cap the listing at N rows per task instead of 100. |
+| `--all` | List every sample row (no cap). |
+| `--status running,error` | Only samples with these statuses (`running`, `completed`, `error`, `cancelled`, `pending`, `queued`). Filters rows only — `counts` stays whole-task. |
+
+: {tbl-colwidths=[35,65]}
+
+With `--json` the response is an `{as_of, counts, samples, truncated}` envelope. Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — feed it the `as_of` from the prior response (rather than a locally minted timestamp) so nothing that changed mid-read is missed (`counts` remains the whole-task histogram on a delta poll, so progress tracking rides along for free).
 
 ## Errors and Retries
 

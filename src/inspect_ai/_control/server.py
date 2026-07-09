@@ -14,8 +14,8 @@ channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
 Current scope is the phase 1-2 read surface: ``GET /tasks`` (per-task
-summaries), ``GET /evals/{id}/samples`` (sample listing, with an
-``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
+summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
+status histogram and an ``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
 detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
 pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control.
 State-mutating directives (cancel / drain / requeue) and SSE push land
@@ -39,8 +39,10 @@ from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
 from inspect_ai._control.limits import process_limits, task_limits
 from inspect_ai._control.state import (
+    DEFAULT_SAMPLE_LIST_LIMIT,
+    SAMPLE_STATUSES,
     current_eval_summaries,
-    current_sample_summaries,
+    current_sample_listing,
     sample_error_detail,
 )
 from inspect_ai._util.discovery import (
@@ -272,17 +274,68 @@ class ControlServer:
 
         @app.get("/evals/{eval_id}/samples")
         async def list_eval_samples(
-            eval_id: str, active_since: float | None = None
-        ) -> dict[str, Any]:
+            eval_id: str,
+            active_since: float | None = None,
+            status: str | None = None,
+            limit: int | None = None,
+            all: bool = False,
+        ) -> Any:
             # `active_since` (unix ts) is the recency delta: only samples that
-            # started or updated since then. A filter, not a cursor. The
-            # response is an `{as_of, samples}` envelope — `as_of` is stamped
-            # BEFORE the listing is built, so a client feeding it back as the
-            # next `active_since` can't miss changes that land mid-read.
+            # started or updated since then. A filter, not a cursor. `status`
+            # is a comma-separated status filter; rows are capped at `limit`
+            # (default DEFAULT_SAMPLE_LIST_LIMIT) unless `all=true` asks for
+            # the full dump. The response is an `{as_of, counts, samples,
+            # truncated}` envelope — `as_of` is stamped BEFORE the listing is
+            # built, so a client feeding it back as the next `active_since`
+            # can't miss changes that land mid-read; `counts` is the whole
+            # eval's status histogram (complete even when rows are filtered
+            # or capped) and `truncated` reports a hit cap structurally.
+            if all and limit is not None:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "limit and all are mutually exclusive"},
+                )
+            if limit is not None and limit < 1:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": f"limit must be >= 1 (got {limit})"},
+                )
+            statuses = (
+                frozenset(t for t in (p.strip() for p in status.split(",")) if t)
+                if status is not None
+                else None
+            )
+            if statuses is not None:
+                unknown = statuses - frozenset(SAMPLE_STATUSES)
+                if unknown:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": (
+                                f"unknown status '{sorted(unknown)[0]}' "
+                                f"(expected {', '.join(SAMPLE_STATUSES)})"
+                            )
+                        },
+                    )
+            effective_limit = (
+                None
+                if all
+                else limit
+                if limit is not None
+                else DEFAULT_SAMPLE_LIST_LIMIT
+            )
             as_of = time.time()
+            listing = await current_sample_listing(
+                eval_id,
+                active_since,
+                statuses=statuses,
+                limit=effective_limit,
+            )
             return {
                 "as_of": as_of,
-                "samples": await current_sample_summaries(eval_id, active_since),
+                "counts": listing.counts,
+                "samples": listing.samples,
+                "truncated": listing.truncated,
             }
 
         # `sample_id` is a query parameter (not a path segment) here and on

@@ -45,6 +45,7 @@ from inspect_ai._control.discovery import (
     discovery_dir,
     list_discovered_servers,
 )
+from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
 from inspect_ai._util.name_match import match_name_prefix
 
 # Events shown on an unseeded `sample events` read (no --cursor / --tail /
@@ -304,6 +305,24 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     help="Mirrored from `list` for the bare-noun default.",
 )
 @click.option(
+    "--limit",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Mirrored from `list` for the bare-noun default.",
+)
+@click.option(
+    "--all",
+    "all_samples",
+    is_flag=True,
+    default=False,
+    help="Mirrored from `list` for the bare-noun default.",
+)
+@click.option(
+    "--status",
+    default=None,
+    help="Mirrored from `list` for the bare-noun default.",
+)
+@click.option(
     "--json",
     "as_json",
     is_flag=True,
@@ -311,14 +330,28 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     help="Output as JSON (mirrored from `list` for the bare-noun default).",
 )
 @click.pass_context
-def sample_group(ctx: click.Context, active_since: float | None, as_json: bool) -> None:
+def sample_group(
+    ctx: click.Context,
+    active_since: float | None,
+    limit: int | None,
+    all_samples: bool,
+    status: str | None,
+    as_json: bool,
+) -> None:
     """Operate on samples of running evals (bare `sample` lists them).
 
     An omitted TASK on `list` / `errors` reads across all running tasks.
     `cancel` / `requeue` are planned but not yet available.
     """
     if ctx.invoked_subcommand is None:
-        _run_sample_list(None, active_since, as_json)
+        _run_sample_list(
+            None,
+            active_since,
+            as_json,
+            status=status,
+            limit=limit,
+            all_samples=all_samples,
+        )
     else:
         _forward_group_options(ctx)
 
@@ -345,14 +378,45 @@ sample_group.hint = lambda token: (
     ),
 )
 @click.option(
+    "--limit",
+    type=click.IntRange(min=1),
+    default=None,
+    help=(
+        f"Cap the listing at this many rows per task (default: "
+        f"{DEFAULT_SAMPLE_LIST_LIMIT}). Running samples sort first, so the "
+        "cap keeps the most relevant rows; `counts` stays complete and "
+        "`truncated` reports a hit cap."
+    ),
+)
+@click.option(
+    "--all",
+    "all_samples",
+    is_flag=True,
+    default=False,
+    help="List every sample row (no cap).",
+)
+@click.option(
+    "--status",
+    default=None,
+    help=(
+        "Only samples with these statuses (comma-separated: "
+        f"{', '.join(SAMPLE_STATUSES)})."
+    ),
+)
+@click.option(
     "--json",
     "as_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (an `{as_of, samples}` envelope).",
+    help="Output as JSON (an `{as_of, counts, samples, truncated}` envelope).",
 )
 def sample_list_command(
-    task: str | None, active_since: float | None, as_json: bool
+    task: str | None,
+    active_since: float | None,
+    limit: int | None,
+    all_samples: bool,
+    status: str | None,
+    as_json: bool,
 ) -> None:
     """List the samples (running and completed) of running evals.
 
@@ -360,8 +424,20 @@ def sample_list_command(
     or after a `/`; omitted, the listing spans all running tasks. To poll
     for what changed, pass `--active-since` the `as_of` from the prior
     response's envelope.
+
+    The listing is capped (running samples first); `counts` in the envelope
+    is the complete status histogram regardless, and `truncated` reports
+    whether rows were dropped. Widen with `--limit N` or `--all`, or narrow
+    with `--status`.
     """
-    _run_sample_list(task, active_since, as_json)
+    _run_sample_list(
+        task,
+        active_since,
+        as_json,
+        status=status,
+        limit=limit,
+        all_samples=all_samples,
+    )
 
 
 @sample_group.command("errors")
@@ -371,7 +447,7 @@ def sample_list_command(
     "as_json",
     is_flag=True,
     default=False,
-    help="Output as JSON (an `{as_of, samples}` envelope).",
+    help="Output as JSON (an `{as_of, counts, samples, truncated}` envelope).",
 )
 def sample_errors_command(task: str | None, as_json: bool) -> None:
     """List the samples of running evals that errored or were retried.
@@ -922,21 +998,42 @@ class _SampleRows(NamedTuple):
     human output must not make positive claims about samples it never saw).
     Every row carries ``task_id`` / ``task`` unconditionally (outputs feed
     inputs: the row's identifiers are the selectors other commands take).
+    ``counts`` is the status histogram summed over the evals actually read —
+    complete over each eval's samples even when its rows were filtered or
+    capped; ``truncated`` whether any eval's rows hit the cap.
     """
 
     as_of: float
     targets: list[dict[str, Any]]
     read: list[dict[str, Any]]
     rows: list[dict[str, Any]]
+    counts: dict[str, int]
+    truncated: bool
 
 
-def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRows:
+def _list_sample_rows(
+    task: str | None,
+    active_since: float | None,
+    *,
+    status: str | None = None,
+    limit: int | None = None,
+    all_samples: bool = False,
+) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks."""
     fallback_as_of = time.time()
+    counts = dict.fromkeys(SAMPLE_STATUSES, 0)
+    truncated = False
     fetched = _fetch_sample_summaries()
     summaries = fetched.summaries
     if not summaries:
-        return _SampleRows(as_of=fallback_as_of, targets=[], read=[], rows=[])
+        return _SampleRows(
+            as_of=fallback_as_of,
+            targets=[],
+            read=[],
+            rows=[],
+            counts=counts,
+            truncated=False,
+        )
 
     if task is not None:
         targets = [_resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)]
@@ -954,6 +1051,9 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
                 target["socket_path"],
                 target["eval_id"],
                 active_since,
+                status=status,
+                limit=limit,
+                all_samples=all_samples,
                 # a scoped read fails the command on busy, so it keeps the
                 # full budget; the unscoped fan-out skips on the default
                 attempts=_REQUEST_ATTEMPTS if task is not None else None,
@@ -978,6 +1078,17 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
             continue
         as_of_values.append(page.as_of)
         read.append(target)
+        truncated = truncated or page.truncated
+        # An older server's envelope carries no histogram; on such a server
+        # the rows are the full listing, so derive its counts from them.
+        page_counts = page.counts
+        if page_counts is None:
+            page_counts = {}
+            for sample in page.samples:
+                page_status = str(sample.get("status") or "")
+                page_counts[page_status] = page_counts.get(page_status, 0) + 1
+        for key, value in page_counts.items():
+            counts[key] = counts.get(key, 0) + int(value)
         for sample in page.samples:
             rows.append(
                 {
@@ -991,6 +1102,8 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
         targets=targets,
         read=read,
         rows=rows,
+        counts=counts,
+        truncated=truncated,
     )
 
 
@@ -1003,8 +1116,17 @@ class _RowsPrinter(Protocol):
 
 
 def _run_sample_list(
-    task: str | None, active_since: float | None, as_json: bool
+    task: str | None,
+    active_since: float | None,
+    as_json: bool,
+    *,
+    status: str | None = None,
+    limit: int | None = None,
+    all_samples: bool = False,
 ) -> None:
+    if all_samples and limit is not None:
+        raise click.UsageError("--all and --limit are mutually exclusive.")
+    _validate_statuses(status)
     _run_sample_listing(
         task,
         active_since,
@@ -1012,7 +1134,27 @@ def _run_sample_list(
         select=lambda s: True,
         empty_read="(no samples started yet)",
         printer=_print_samples_table,
+        status=status,
+        limit=limit,
+        all_samples=all_samples,
     )
+
+
+def _validate_statuses(status: str | None) -> None:
+    """Reject an unknown ``--status`` member before any request is made.
+
+    The server 400s on unknown statuses too, but an unscoped listing fans
+    out over several evals — failing fast keeps a typo from producing a
+    per-eval warn-and-skip cascade instead of one clear usage error.
+    """
+    if status is None:
+        return
+    members = {t for t in (p.strip() for p in status.split(",")) if t}
+    unknown = sorted(members - set(SAMPLE_STATUSES))
+    if unknown:
+        raise click.UsageError(
+            f"Unknown --status '{unknown[0]}' (expected {', '.join(SAMPLE_STATUSES)})."
+        )
 
 
 def _run_sample_errors(task: str | None, as_json: bool) -> None:
@@ -1023,6 +1165,10 @@ def _run_sample_errors(task: str | None, as_json: bool) -> None:
         select=lambda s: bool(s.get("error") or (s.get("retries") or 0) > 0),
         empty_read="(no errors or retries)",
         printer=_print_errors_table,
+        # The error/retry filter is applied client-side over all rows, so the
+        # triage view must see the full listing — the default cap would
+        # silently hide errors beyond it.
+        all_samples=True,
     )
 
 
@@ -1034,20 +1180,37 @@ def _run_sample_listing(
     select: Callable[[dict[str, Any]], bool],
     empty_read: str,
     printer: "_RowsPrinter",
+    status: str | None = None,
+    limit: int | None = None,
+    all_samples: bool = False,
 ) -> None:
     """The shared body of `sample list` / `sample errors`.
 
-    One home for the listing contract: the ``{as_of, samples}`` envelope,
-    the no-targets message, the single-vs-multi-target header/table shape,
-    and the honesty rule that ``empty_read`` (a positive "(none)" claim) is
-    made only for targets whose samples were actually read — a target
-    warn-and-skipped as unreachable gets "(samples unavailable)" instead.
+    One home for the listing contract: the ``{as_of, counts, samples,
+    truncated}`` envelope, the no-targets message, the single-vs-multi-target
+    header/table shape, the truncation footer (a capped listing must say so —
+    no silent truncation), and the honesty rule that ``empty_read`` (a
+    positive "(none)" claim) is made only for targets whose samples were
+    actually read — a target warn-and-skipped as unreachable gets "(samples
+    unavailable)" instead.
     """
-    listing = _list_sample_rows(task, active_since)
+    listing = _list_sample_rows(
+        task, active_since, status=status, limit=limit, all_samples=all_samples
+    )
     rows = [s for s in listing.rows if select(s)]
 
     if as_json:
-        click.echo(json_lib.dumps({"as_of": listing.as_of, "samples": rows}, indent=2))
+        click.echo(
+            json_lib.dumps(
+                {
+                    "as_of": listing.as_of,
+                    "counts": listing.counts,
+                    "samples": rows,
+                    "truncated": listing.truncated,
+                },
+                indent=2,
+            )
+        )
         return
 
     if not listing.targets:
@@ -1067,6 +1230,21 @@ def _run_sample_listing(
             click.echo(empty)
             return
         printer(rows, show_task=True)
+    if listing.truncated:
+        _echo_truncation_footer(len(rows), listing.counts)
+
+
+def _echo_truncation_footer(shown: int, counts: dict[str, int]) -> None:
+    """Say a capped listing was capped (the no-silent-truncation rule)."""
+    total = sum(counts.values())
+    histogram = " · ".join(
+        f"{counts[status]} {status}" for status in SAMPLE_STATUSES if counts[status]
+    )
+    click.echo()
+    click.echo(
+        f"listing capped: showing {shown} of {total} samples ({histogram}) — "
+        f"pass --all (or --limit N) for more, --status to filter"
+    )
 
 
 def _run_sample_show(
@@ -1089,9 +1267,12 @@ def _run_sample_show(
     # The error detail is the authoritative core; fold in the sample's listing
     # row for the summary fields (timing / tokens / messages) it doesn't carry.
     try:
+        # all_samples: this lookup needs the target sample's row, which the
+        # default cap could drop.
         samples = _fetch_samples(
             target["socket_path"],
             target["eval_id"],
+            all_samples=True,
         ).samples
     except _ServerUnreachable as exc:
         # The detail already in hand answers the question; the process
@@ -2187,10 +2368,18 @@ def _exit_samples_unreachable(eval_id: str, exc: _ServerUnreachable) -> NoReturn
 
 
 class _SamplesPage(NamedTuple):
-    """One eval's samples read (see :func:`_fetch_samples`)."""
+    """One eval's samples read (see :func:`_fetch_samples`).
+
+    ``counts`` is the eval's status histogram (complete even when the rows
+    are filtered or capped); ``None`` from an older server whose envelope
+    doesn't carry it. ``truncated`` reports whether the server's row cap
+    dropped rows.
+    """
 
     as_of: float
     samples: list[dict[str, Any]]
+    counts: dict[str, int] | None = None
+    truncated: bool = False
 
 
 def _fetch_samples(
@@ -2198,16 +2387,24 @@ def _fetch_samples(
     eval_id: str,
     active_since: float | None = None,
     *,
+    status: str | None = None,
+    limit: int | None = None,
+    all_samples: bool = False,
     attempts: int | None = None,
 ) -> _SamplesPage:
     """Query one control server for an eval's samples.
 
-    Returns the server's ``{as_of, samples}`` envelope — ``as_of`` is stamped
-    server-side before the listing is built, so feeding it back as the next
-    ``active_since`` can't miss changes that landed during the read. With
-    ``active_since`` (unix ts), restricts to samples started or updated since
-    then — the recency delta. Tolerates an older server's bare array
-    (stamping ``as_of`` client-side, pre-request).
+    Returns the server's ``{as_of, counts, samples, truncated}`` envelope —
+    ``as_of`` is stamped server-side before the listing is built, so feeding
+    it back as the next ``active_since`` can't miss changes that landed
+    during the read; ``counts`` is the whole eval's status histogram and
+    ``truncated`` reports a hit row cap. With ``active_since`` (unix ts),
+    restricts to samples started or updated since then — the recency delta.
+    ``status`` (comma-separated) filters by status; the rows are capped
+    server-side (at ``limit`` when given, the server default otherwise)
+    unless ``all_samples`` asks for the full listing. Tolerates an older
+    server's bare array or histogram-less envelope (stamping ``as_of``
+    client-side, pre-request, and leaving ``counts`` to the caller).
 
     Raises :class:`_ServerUnreachable` on a non-retryable read failure and
     :class:`_ServerBusy` when the eval stays busy through ``attempts``
@@ -2219,7 +2416,15 @@ def _fetch_samples(
     default budget and drops only the summary fields).
     """
     fallback_as_of = time.time()
-    params = {} if active_since is None else {"active_since": active_since}
+    params: dict[str, Any] = {}
+    if active_since is not None:
+        params["active_since"] = active_since
+    if status is not None:
+        params["status"] = status
+    if all_samples:
+        params["all"] = True
+    elif limit is not None:
+        params["limit"] = limit
     page = _get_with_retry(
         socket_path,
         f"/evals/{eval_id}/samples",
@@ -2231,9 +2436,12 @@ def _fetch_samples(
     if isinstance(page, dict):
         samples = page.get("samples")
         as_of = page.get("as_of")
+        counts = page.get("counts")
         return _SamplesPage(
             as_of=float(as_of) if isinstance(as_of, (int, float)) else fallback_as_of,
             samples=samples if isinstance(samples, list) else [],
+            counts=counts if isinstance(counts, dict) else None,
+            truncated=bool(page.get("truncated", False)),
         )
     return _SamplesPage(
         as_of=fallback_as_of, samples=page if isinstance(page, list) else []

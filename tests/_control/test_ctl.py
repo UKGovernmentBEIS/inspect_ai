@@ -988,6 +988,209 @@ def test_sample_errors_unscoped_filters_across_tasks(
     ]
 
 
+def _capture_fetch_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+    page: _SamplesPage | None = None,
+) -> list[dict[str, Any]]:
+    """Stub `_fetch_samples`, recording each call's cap/filter kwargs."""
+    calls: list[dict[str, Any]] = []
+    result = page if page is not None else _SamplesPage(as_of=123.0, samples=[])
+
+    def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        calls.append(dict(kwargs))
+        return result
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    return calls
+
+
+def test_sample_list_forwards_cap_and_filter_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--limit` / `--status` ride the request; the default sends neither."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+
+    _runner().invoke(
+        ctl_command,
+        ["sample", "list", "--limit", "5", "--status", "running,error", "--json"],
+    )
+    assert calls[-1]["limit"] == 5
+    assert calls[-1]["status"] == "running,error"
+    assert calls[-1]["all_samples"] is False
+
+    _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert calls[-1]["limit"] is None  # server default cap applies
+    assert calls[-1]["all_samples"] is False
+
+
+def test_sample_list_all_requests_full_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = _runner().invoke(ctl_command, ["sample", "list", "--all", "--json"])
+    assert result.exit_code == 0, result.output
+    assert calls[-1]["all_samples"] is True
+
+
+def test_sample_list_all_and_limit_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--all` and `--limit` contradict; error rather than pick silently."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = _runner().invoke(
+        ctl_command, ["sample", "list", "--all", "--limit", "5", "--json"]
+    )
+    assert result.exit_code != 0
+    assert "mutually exclusive" in result.stderr
+    assert calls == []  # failed before any request
+
+
+def test_sample_list_unknown_status_teaches_vocabulary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A `--status` typo fails fast with the valid statuses, before any read."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = _runner().invoke(
+        ctl_command, ["sample", "list", "--status", "compleeted", "--json"]
+    )
+    assert result.exit_code != 0
+    assert "compleeted" in result.stderr
+    assert "pending" in result.stderr  # names the vocabulary
+    assert calls == []
+
+
+def test_sample_list_mirrored_cap_flags_on_bare_noun(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ctl sample --limit N --status S` (no verb) behaves like `list`."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = _runner().invoke(
+        ctl_command, ["sample", "--limit", "7", "--status", "running", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert calls[-1]["limit"] == 7
+    assert calls[-1]["status"] == "running"
+
+
+def test_sample_list_envelope_aggregates_counts_and_truncated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The `--json` envelope sums per-eval histograms and ORs `truncated`."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+    )
+    pages = {
+        "eval_aaa111": _SamplesPage(
+            as_of=123.0,
+            samples=[_sample_row("s1", status="running")],
+            counts={"running": 1, "completed": 200},
+            truncated=True,
+        ),
+        "eval_bbb222": _SamplesPage(
+            as_of=124.0,
+            samples=[_sample_row("s2")],
+            counts={"completed": 1},
+            truncated=False,
+        ),
+    }
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_samples",
+        lambda socket_path, eval_id, active_since=None, **kwargs: pages[eval_id],
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["truncated"] is True
+    assert payload["counts"]["running"] == 1
+    assert payload["counts"]["completed"] == 201
+    assert payload["counts"]["error"] == 0  # stable keys, zero when empty
+    assert len(payload["samples"]) == 2
+
+
+def test_sample_list_counts_derived_for_older_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A histogram-less envelope (older server) derives counts from its rows.
+
+    On such a server the rows are the full listing, so the derived histogram
+    is accurate — and the envelope keeps its shape for agents either way.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="running"),
+                _sample_row("s2"),
+                _sample_row("s3", status="error", error="boom"),
+            ]
+        },
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    payload = json.loads(result.stdout)
+    assert payload["counts"]["running"] == 1
+    assert payload["counts"]["completed"] == 1
+    assert payload["counts"]["error"] == 1
+    assert payload["truncated"] is False
+
+
+def test_sample_list_human_truncation_footer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A capped human listing says so — no silent truncation."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _capture_fetch_kwargs(
+        monkeypatch,
+        page=_SamplesPage(
+            as_of=123.0,
+            samples=[_sample_row("s1", status="running")],
+            counts={"running": 1, "completed": 250},
+            truncated=True,
+        ),
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert "showing 1 of 251 samples" in result.output
+    assert "--all" in result.output
+
+
+def test_sample_errors_requests_full_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The triage view sees every row — the cap must not hide errors."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = _runner().invoke(ctl_command, ["sample", "errors", "--json"])
+    assert result.exit_code == 0, result.output
+    assert calls[-1]["all_samples"] is True
+
+
+def test_sample_show_row_lookup_requests_full_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`show`'s supplemental row lookup must not lose its row to the cap."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail",
+        lambda *a, **k: {"sample_id": "s1", "epoch": 1, "status": "completed"},
+    )
+    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    assert calls[-1]["all_samples"] is True
+
+
 def _patch_samples_unreachable_for(
     monkeypatch: pytest.MonkeyPatch,
     gone_eval_id: str,
