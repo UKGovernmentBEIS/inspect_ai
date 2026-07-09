@@ -316,6 +316,39 @@ def test_openai_responses_max_passed_through_when_supported():
 @pytest.mark.parametrize(
     "model_name,expected",
     [
+        ("gpt-5.6", "max"),
+        ("gpt-5.6-sol", "max"),
+        ("gpt-5.5", "xhigh"),
+    ],
+)
+def test_openai_responses_max_effort_by_model(model_name, expected):
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai import OpenAIAPI
+    from inspect_ai.model._providers.openai_responses import (
+        completion_params_responses,
+    )
+
+    api = OpenAIAPI(model_name=model_name, api_key="test-key")
+    params = completion_params_responses(
+        model_name,
+        model_info=api,
+        config=GenerateConfig(reasoning_effort="max"),
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        tools=False,
+        tool_params=[],
+        has_computer_tool=False,
+    )
+    assert params["reasoning"]["effort"] == expected
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
         ("gpt-5", False),
         ("gpt-5.5", False),
         ("gpt-5.5-pro", False),
