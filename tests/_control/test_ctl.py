@@ -2092,6 +2092,50 @@ def test_json_mutation_failure_emits_error_envelope(
     assert "No running inspect processes found" in error["message"]
 
 
+@pytest.mark.parametrize(
+    ("kind", "exception", "status"),
+    [
+        ("connect_timeout", "httpx.ConnectTimeout", None),
+        ("read_timeout", "httpx.ReadTimeout", None),
+        ("http_error", "httpx.HTTPStatusError", 500),
+        ("invalid_response", "json.JSONDecodeError", None),
+    ],
+)
+def test_json_single_shot_mutation_envelope_kinds(
+    kind: str,
+    exception: str,
+    status: int | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The rest of the `kind` vocabulary, pinned through the single-shot path.
+
+    `task log-flush` is a non-idempotent mutation (`_request_json` without
+    `retry_mutation`), so a transport failure skips the retry loop and
+    classifies directly via `_CtlFailure.from_exception` — the only path that
+    can produce `connect_timeout`/`read_timeout`. Since `kind` is the closed
+    vocabulary agents branch on, this pins the `_classify` isinstance
+    ordering (`ConnectTimeout` before its `TimeoutException` base) plus the
+    non-404 `http_error` and undecodable-body kinds.
+    """
+    import httpx
+
+    failure_by_kind: dict[str, object] = {
+        "connect_timeout": httpx.ConnectTimeout("connect timed out"),
+        "read_timeout": httpx.ReadTimeout("slow"),
+        "http_error": (500, {}),
+        "invalid_response": json.JSONDecodeError("Expecting value", "<html>", 0),
+    }
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [failure_by_kind[kind]])
+    result = _runner().invoke(ctl_command, ["task", "log-flush", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == kind
+    assert error["exception"] == exception
+    assert error["status"] == status
+    assert "Failed to update log-flush of task aaa111" in error["message"]
+
+
 def test_json_invalid_cursor_emits_error_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
