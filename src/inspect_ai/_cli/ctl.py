@@ -45,7 +45,12 @@ from inspect_ai._control.discovery import (
     discovery_dir,
     list_discovered_servers,
 )
-from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
+from inspect_ai._control.state import (
+    DEFAULT_SAMPLE_LIST_LIMIT,
+    SAMPLE_STATUSES,
+    effective_sample_limit,
+    parse_status_filter,
+)
 from inspect_ai._util.name_match import match_name_prefix
 
 # Events shown on an unseeded `sample events` read (no --cursor / --tail /
@@ -1000,7 +1005,9 @@ class _SampleRows(NamedTuple):
     inputs: the row's identifiers are the selectors other commands take).
     ``counts`` is the status histogram summed over the evals actually read —
     complete over each eval's samples even when its rows were filtered or
-    capped; ``truncated`` whether any eval's rows hit the cap.
+    capped, except against an older (histogram-less) server on an
+    ``active_since`` delta poll, where only the delta's rows exist to count;
+    ``truncated`` whether any eval's rows hit the cap.
     """
 
     as_of: float
@@ -1080,10 +1087,13 @@ def _list_sample_rows(
         read.append(target)
         truncated = truncated or page.truncated
         # An older server's envelope carries no histogram — and such a server
-        # also ignored the `status`/`limit` params entirely, so its rows are
-        # the full unfiltered listing: derive its counts from them, then apply
-        # the filter and cap client-side so the flags' contract holds across
-        # version skew rather than presenting full rows as filtered/capped.
+        # ignored the `status`/`limit` params (though it did honor
+        # `active_since`): derive counts from its rows, then apply the filter
+        # and cap client-side so the flags' contract holds across version
+        # skew. On an `active_since` delta poll only the delta's rows exist
+        # to count, so the derived counts cover the delta, not the whole
+        # eval — a whole-eval histogram is unobtainable from an old server
+        # in a single delta read.
         page_counts = page.counts
         samples = page.samples
         if page_counts is None:
@@ -1091,16 +1101,10 @@ def _list_sample_rows(
             for sample in samples:
                 page_status = str(sample.get("status") or "")
                 page_counts[page_status] = page_counts.get(page_status, 0) + 1
-            members = _parse_status_members(status)
+            members = parse_status_filter(status).statuses
             if members is not None:
                 samples = [s for s in samples if s.get("status") in members]
-            cap = (
-                None
-                if all_samples
-                else limit
-                if limit is not None
-                else DEFAULT_SAMPLE_LIST_LIMIT
-            )
+            cap = effective_sample_limit(limit, all_samples)
             if cap is not None and len(samples) > cap:
                 samples = samples[:cap]
                 truncated = True
@@ -1157,13 +1161,6 @@ def _run_sample_list(
     )
 
 
-def _parse_status_members(status: str | None) -> frozenset[str] | None:
-    """Parse a comma-separated ``--status`` value into its member set."""
-    if status is None:
-        return None
-    return frozenset(t for t in (p.strip() for p in status.split(",")) if t)
-
-
 def _validate_statuses(status: str | None) -> None:
     """Reject an empty or unknown ``--status`` before any request is made.
 
@@ -1171,21 +1168,9 @@ def _validate_statuses(status: str | None) -> None:
     several evals — failing fast keeps a typo from producing a per-eval
     warn-and-skip cascade instead of one clear usage error.
     """
-    members = _parse_status_members(status)
-    if members is None:
-        return
-    # A closed-vocabulary filter with no members is always a mistake (it
-    # would silently drop every row), not "no filter".
-    if not members:
-        raise click.UsageError(
-            f"--status requires at least one status "
-            f"(expected {', '.join(SAMPLE_STATUSES)})."
-        )
-    unknown = sorted(members - set(SAMPLE_STATUSES))
-    if unknown:
-        raise click.UsageError(
-            f"Unknown --status '{unknown[0]}' (expected {', '.join(SAMPLE_STATUSES)})."
-        )
+    error = parse_status_filter(status, param="--status").error
+    if error is not None:
+        raise click.UsageError(f"{error}.")
 
 
 def _run_sample_errors(task: str | None, as_json: bool) -> None:

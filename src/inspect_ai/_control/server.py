@@ -39,10 +39,10 @@ from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
 from inspect_ai._control.limits import process_limits, task_limits
 from inspect_ai._control.state import (
-    DEFAULT_SAMPLE_LIST_LIMIT,
-    SAMPLE_STATUSES,
     current_eval_summaries,
     current_sample_listing,
+    effective_sample_limit,
+    parse_status_filter,
     sample_error_detail,
 )
 from inspect_ai._util.discovery import (
@@ -300,48 +300,15 @@ class ControlServer:
                     status_code=400,
                     content={"error": f"limit must be >= 1 (got {limit})"},
                 )
-            statuses = (
-                frozenset(t for t in (p.strip() for p in status.split(",")) if t)
-                if status is not None
-                else None
-            )
-            if statuses is not None:
-                # A closed-vocabulary filter with no members is always a
-                # mistake (it would silently drop every row), not "no filter".
-                if not statuses:
-                    return JSONResponse(
-                        status_code=400,
-                        content={
-                            "error": (
-                                "status requires at least one status "
-                                f"(expected {', '.join(SAMPLE_STATUSES)})"
-                            )
-                        },
-                    )
-                unknown = statuses - frozenset(SAMPLE_STATUSES)
-                if unknown:
-                    return JSONResponse(
-                        status_code=400,
-                        content={
-                            "error": (
-                                f"unknown status '{sorted(unknown)[0]}' "
-                                f"(expected {', '.join(SAMPLE_STATUSES)})"
-                            )
-                        },
-                    )
-            effective_limit = (
-                None
-                if all
-                else limit
-                if limit is not None
-                else DEFAULT_SAMPLE_LIST_LIMIT
-            )
+            statuses, status_error = parse_status_filter(status)
+            if status_error is not None:
+                return JSONResponse(status_code=400, content={"error": status_error})
             as_of = time.time()
             listing = await current_sample_listing(
                 eval_id,
                 active_since,
                 statuses=statuses,
-                limit=effective_limit,
+                limit=effective_sample_limit(limit, all),
             )
             return {
                 "as_of": as_of,

@@ -62,6 +62,74 @@ SAMPLE_STATUSES = ("running", "completed", "error", "cancelled", "pending", "que
 DEFAULT_SAMPLE_LIST_LIMIT = 100
 
 
+class StatusFilterParse(NamedTuple):
+    """Result of :func:`parse_status_filter`.
+
+    Exactly one field is non-``None`` when a filter was given: ``statuses``
+    is the parsed member set, ``error`` says why the value is invalid.
+    Both are ``None`` when no filter was given.
+    """
+
+    statuses: frozenset[str] | None
+    error: str | None
+
+
+def parse_status_filter(status: str | None, param: str = "status") -> StatusFilterParse:
+    """Parse a comma-separated status filter into its member set.
+
+    The single home for the filter's parse and validation, shared by the
+    server endpoint and the CLI's fail-fast check so the vocabulary error
+    wording can't drift between the two surfaces. ``param`` names the
+    parameter in error messages (``status`` server-side, ``--status`` in
+    the CLI).
+
+    Args:
+        status: The raw comma-separated value (``None`` = no filter).
+        param: Parameter name to use in error messages.
+
+    Returns:
+        The member set, or the error message describing why the value
+        is invalid (an empty or unknown member).
+    """
+    if status is None:
+        return StatusFilterParse(statuses=None, error=None)
+    members = frozenset(t for t in (p.strip() for p in status.split(",")) if t)
+    # A closed-vocabulary filter with no members is always a mistake (it
+    # would silently drop every row), not "no filter".
+    if not members:
+        return StatusFilterParse(
+            statuses=None,
+            error=(
+                f"{param} requires at least one status "
+                f"(expected {', '.join(SAMPLE_STATUSES)})"
+            ),
+        )
+    unknown = sorted(members - frozenset(SAMPLE_STATUSES))
+    if unknown:
+        return StatusFilterParse(
+            statuses=None,
+            error=(
+                f"unknown {param} '{unknown[0]}' "
+                f"(expected {', '.join(SAMPLE_STATUSES)})"
+            ),
+        )
+    return StatusFilterParse(statuses=members, error=None)
+
+
+def effective_sample_limit(limit: int | None, all_samples: bool) -> int | None:
+    """Resolve a samples listing's row cap from its `limit`/`all` params.
+
+    The single home for the cap semantics (shared by the server endpoint
+    and the CLI's older-server fallback): ``all_samples`` means no cap,
+    an explicit ``limit`` wins otherwise, and the default is
+    :data:`DEFAULT_SAMPLE_LIST_LIMIT`. Callers reject the contradictory
+    ``all_samples and limit is not None`` case before resolving.
+    """
+    if all_samples:
+        return None
+    return limit if limit is not None else DEFAULT_SAMPLE_LIST_LIMIT
+
+
 async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     """Build per-task summaries for the ``GET /tasks`` endpoint.
 
