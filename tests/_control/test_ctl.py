@@ -1220,6 +1220,41 @@ def test_sample_list_human_truncation_footer(
     assert result.exit_code == 0, result.output
     assert "showing 1 of 251 samples" in result.output
     assert "--all" in result.output
+    assert "--status to filter" in result.output
+
+
+def test_sample_list_truncation_footer_with_filters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The footer's totals honor an active filter.
+
+    `counts` is the whole-task histogram, so a `--status`-narrowed footer
+    must not claim `--all` would return the whole-task total — it reports
+    the matching total from the histogram instead (and drops the redundant
+    `--status` hint). A delta poll's matching total is unknowable
+    client-side, so that footer claims no matching total at all.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _capture_fetch_kwargs(
+        monkeypatch,
+        page=_SamplesPage(
+            as_of=123.0,
+            samples=[_sample_row("s1", status="error", error="boom")],
+            counts={"running": 3, "completed": 240, "error": 8},
+            truncated=True,
+        ),
+    )
+
+    result = _runner().invoke(ctl_command, ["sample", "list", "--status", "error"])
+    assert result.exit_code == 0, result.output
+    assert "showing 1 of 8 matching samples (251 total" in result.output
+    assert "--all" in result.output
+    assert "--status to filter" not in result.output
+
+    result = _runner().invoke(ctl_command, ["sample", "list", "--active-since", "99"])
+    assert result.exit_code == 0, result.output
+    assert "showing first 1 matching samples (251 total" in result.output
+    assert "--status to filter" in result.output
 
 
 def test_sample_errors_requests_full_listing(

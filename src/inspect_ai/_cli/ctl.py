@@ -1247,20 +1247,48 @@ def _run_sample_listing(
             return
         printer(rows, show_task=True)
     if listing.truncated:
-        _echo_truncation_footer(len(rows), listing.counts)
+        _echo_truncation_footer(
+            len(rows),
+            listing.counts,
+            statuses=parse_status_filter(status).statuses,
+            delta=active_since is not None,
+        )
 
 
-def _echo_truncation_footer(shown: int, counts: dict[str, int]) -> None:
-    """Say a capped listing was capped (the no-silent-truncation rule)."""
+def _echo_truncation_footer(
+    shown: int,
+    counts: dict[str, int],
+    *,
+    statuses: frozenset[str] | None = None,
+    delta: bool = False,
+) -> None:
+    """Say a capped listing was capped (the no-silent-truncation rule).
+
+    ``counts`` is the whole-task histogram, so when ``--status`` or an
+    ``--active-since`` delta narrowed the listing, "of {sum(counts)}" would
+    overstate how many rows ``--all`` returns. A status filter's matching
+    total is recoverable from the histogram; a delta's is not knowable
+    client-side, so the footer claims only the totals it has.
+    """
     total = sum(counts.values())
     histogram = " · ".join(
         f"{counts[status]} {status}" for status in SAMPLE_STATUSES if counts[status]
     )
+    if delta:
+        showing = f"showing first {shown} matching samples ({total} total: {histogram})"
+    elif statuses is not None:
+        matching = sum(counts.get(status, 0) for status in statuses)
+        showing = (
+            f"showing {shown} of {matching} matching samples "
+            f"({total} total: {histogram})"
+        )
+    else:
+        showing = f"showing {shown} of {total} samples ({histogram})"
+    hint = "pass --all (or --limit N) for more"
+    if statuses is None:
+        hint += ", --status to filter"
     click.echo()
-    click.echo(
-        f"listing capped: showing {shown} of {total} samples ({histogram}) — "
-        f"pass --all (or --limit N) for more, --status to filter"
-    )
+    click.echo(f"listing capped: {showing} — {hint}")
 
 
 def _run_sample_show(
