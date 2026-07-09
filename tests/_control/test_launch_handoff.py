@@ -329,3 +329,38 @@ def test_eval_json_preflight_failure_reports_to_stderr(
     # on click >= 8.2, where this error message lands by design
     assert result.stdout.strip() == ""
     assert "No inspect tasks were found" in result.stderr
+
+
+def test_eval_json_pre_eval_failure_reports_to_stderr(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """``PrerequisiteError``s raised before ``eval()`` honor the contract too.
+
+    ``parse_run_config`` (and the config conflict checks in ``eval_exec``)
+    raise while the global rich console still writes to *stdout* — the
+    quiet reconfigure only happens once the display initializes inside
+    ``eval()`` — so without command-level handling the excepthook would
+    render the message onto the NDJSON stream, with stderr empty.
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+    bad_config = short_data_dir / "bad_run_config.yaml"
+    bad_config.write_text("not_a_run_config_field: 1\n")
+    monkeypatch.chdir(short_data_dir)
+
+    runner = cli_runner()
+    result = runner.invoke(
+        eval_command,
+        [
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--json",
+            "--run-config",
+            str(bad_config),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert result.stdout.strip() == ""
+    assert "Invalid run config" in result.stderr

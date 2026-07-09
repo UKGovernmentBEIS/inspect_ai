@@ -1,5 +1,6 @@
 """Shared fixtures and helpers for the control-channel test suite."""
 
+import shutil
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -50,15 +51,7 @@ def short_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     try:
         yield dirpath
     finally:
-        for p in sorted(dirpath.rglob("*"), reverse=True):
-            try:
-                p.unlink() if not p.is_dir() else p.rmdir()
-            except OSError:
-                pass
-        try:
-            dirpath.rmdir()
-        except OSError:
-            pass
+        shutil.rmtree(dirpath, ignore_errors=True)
 
 
 def cli_runner() -> CliRunner:

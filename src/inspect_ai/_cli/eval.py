@@ -2,7 +2,7 @@ import contextlib
 import functools
 import json
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any, Literal, cast
 
 import click
@@ -19,6 +19,7 @@ from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
+from inspect_ai._eval.handoff import LaunchHandoff, set_launch_handoff_listener
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -933,43 +934,74 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 @click.pass_context
 def eval_command(ctx: click.Context, /, **params: Any) -> None:
     """Evaluate tasks."""
-    # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*) defer
-    # to the run config _for fields the run config actually provides_. Env
-    # values still apply to fields the run config leaves unset. Common-options
-    # env vars (INSPECT_LOG_LEVEL, INSPECT_LOG_DIR, ...) are never cleared —
-    # they describe how the run is logged/displayed, not what is run.
-    if params.get("run_config"):
-        from click.core import ParameterSource
+    with _json_prerequisite_errors_to_stderr(params["json_output"]):
+        # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*)
+        # defer to the run config _for fields the run config actually
+        # provides_. Env values still apply to fields the run config leaves
+        # unset. Common-options env vars (INSPECT_LOG_LEVEL, INSPECT_LOG_DIR,
+        # ...) are never cleared — they describe how the run is
+        # logged/displayed, not what is run.
+        if params.get("run_config"):
+            from click.core import ParameterSource
 
-        run_params = parse_run_config(params["run_config"])
+            run_params = parse_run_config(params["run_config"])
 
-        # Map Click parameter name -> the cli_params key it ultimately produces
-        # in eval_exec. Most are identity; these are the exceptions.
-        click_to_cli_key = {
-            "m": "model_args",
-            "t": "task_args",
-            "model_role": "model_roles",
-            "no_sandbox_cleanup": "sandbox_cleanup",
-            "s": "solver",
-            "solver_config": "solver",
-        }
+            # Map Click parameter name -> the cli_params key it ultimately
+            # produces in eval_exec. Most are identity; these are the
+            # exceptions.
+            click_to_cli_key = {
+                "m": "model_args",
+                "t": "task_args",
+                "model_role": "model_roles",
+                "no_sandbox_cleanup": "sandbox_cleanup",
+                "s": "solver",
+                "solver_config": "solver",
+            }
 
-        for param in ctx.command.params:
-            name = param.name
-            if name is None or name == "run_config":
-                continue
-            envvar = getattr(param, "envvar", None)
-            if not (isinstance(envvar, str) and envvar.startswith("INSPECT_EVAL_")):
-                continue
-            if ctx.get_parameter_source(name) != ParameterSource.ENVIRONMENT:
-                continue
-            cli_key = click_to_cli_key.get(name, name)
-            if cli_key not in run_params:
-                continue
-            value = params.get(name)
-            params[name] = () if isinstance(value, tuple) else None
+            for param in ctx.command.params:
+                name = param.name
+                if name is None or name == "run_config":
+                    continue
+                envvar = getattr(param, "envvar", None)
+                if not (isinstance(envvar, str) and envvar.startswith("INSPECT_EVAL_")):
+                    continue
+                if ctx.get_parameter_source(name) != ParameterSource.ENVIRONMENT:
+                    continue
+                cli_key = click_to_cli_key.get(name, name)
+                if cli_key not in run_params:
+                    continue
+                value = params.get(name)
+                params[name] = () if isinstance(value, tuple) else None
 
-    _eval_command_impl(**params)
+        _eval_command_impl(**params)
+
+
+@contextlib.contextmanager
+def _json_prerequisite_errors_to_stderr(json_output: bool) -> Iterator[None]:
+    """Re-render ``PrerequisiteError``s to stderr when ``--json`` owns stdout.
+
+    ``--json`` promises that stdout carries only JSON records, and the
+    default ``PrerequisiteError`` handling breaks that twice over: the
+    excepthook renders the message through the global rich console, which
+    writes to *stdout* for failures raised before the display initializes
+    (``parse_run_config``, the config conflict checks in ``eval_exec``,
+    ...) and is reconfigured to quiet once ``display="none"`` takes
+    effect inside ``eval()`` — silently dropping the diagnostic for
+    every common launch failure (bad task path, missing API key, ...).
+    So under ``--json`` render the message to stderr on a fresh console
+    and exit non-zero via ``SilentException``. This wraps the whole
+    command so pre-flight failures on either side of ``eval()`` behave
+    identically. A no-op (errors propagate unchanged) without ``--json``.
+    """
+    try:
+        yield
+    except PrerequisiteError as ex:
+        if not json_output:
+            raise
+        from rich.console import Console
+
+        Console(file=sys.stderr).print(f"\n{ex.message}\n")
+        raise SilentException() from ex
 
 
 def _eval_command_impl(
@@ -1922,17 +1954,11 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
     where they remain visible as diagnostics. The records themselves are
     written to the saved real stdout.
 
-    Pre-flight failures (``PrerequisiteError`` — bad task path, missing
-    model/API key, etc.) are re-rendered to stderr here: ``--json``
-    forces ``display="none"``, which quiets the global rich console, so
-    the excepthook's rendering of the message would otherwise be
-    silently dropped and the process would exit 1 with no diagnostic.
+    Pre-flight failures (``PrerequisiteError``) are re-rendered to
+    stderr by ``_json_prerequisite_errors_to_stderr``, which wraps the
+    whole command — covering failures raised both before ``eval()``
+    (e.g. an invalid ``--run-config``) and inside it.
     """
-    from inspect_ai._eval.handoff import (
-        LaunchHandoff,
-        set_launch_handoff_listener,
-    )
-
     handoffs: list[LaunchHandoff] = []
     stdout = sys.stdout
 
@@ -1960,11 +1986,6 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
     try:
         with contextlib.redirect_stdout(sys.stderr):
             logs = eval(**params)
-    except PrerequisiteError as ex:
-        from rich.console import Console
-
-        Console(file=sys.stderr).print(f"\n{ex.message}\n")
-        raise SilentException() from ex
     finally:
         set_launch_handoff_listener(None)
         # stray prints redirected to stderr may sit in a buffered wrapper
