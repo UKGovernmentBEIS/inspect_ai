@@ -37,7 +37,11 @@ import anyio
 from inspect_ai._control.buffer import flush_task_samples
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
-from inspect_ai._control.limits import process_limits, task_limits
+from inspect_ai._control.limits import (
+    UnknownConcurrencyKeyError,
+    process_limits,
+    task_limits,
+)
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
@@ -255,6 +259,22 @@ class ControlServer:
                     )
             return None
 
+        def _key_pair_error(
+            key: str | None, key_limit: int | None
+        ) -> JSONResponse | None:
+            """400 when only one of ``key`` / ``key_limit`` was provided.
+
+            Shared by both PATCH limits routes. A bare ``key`` has no value to
+            apply and a bare ``key_limit`` no target — either alone is a
+            malformed request, not a read.
+            """
+            if (key is None) != (key_limit is None):
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "key and key_limit must be provided together"},
+                )
+            return None
+
         # Folded per-task summaries (retry attempts of a task collapse into
         # one row keyed by task_id) — the wire behind `inspect ctl task list`
         # and the selector-resolution step of every other command.
@@ -366,28 +386,40 @@ class ControlServer:
         async def get_process_limits(model: str | None = None) -> Any:
             return await process_limits(model=model)
 
-        # Retune the process-global limits. Omitting both set values makes this a
+        # Retune the process-global limits. Omitting all set values makes this a
         # read, like GET. `model` filters the adaptive controllers (name start or
-        # after a `/`). `dry_run=true` reports the intended change without
-        # applying it. Never 404s — a process always exists.
+        # after a `/`); `key`/`key_limit` retune a named concurrency() registry
+        # entry by exact name (400 for a name with no entry — named limits are
+        # created lazily on first use). `dry_run=true` reports the intended
+        # change without applying it. Never 404s — a process always exists.
         @app.patch("/config")
         async def patch_process_limits(
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
             model: str | None = None,
+            key: str | None = None,
+            key_limit: int | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
                 ("max_sandboxes", max_sandboxes),
                 ("max_connections", max_connections),
+                ("key_limit", key_limit),
             ):
                 return error
-            return await process_limits(
-                max_sandboxes=max_sandboxes,
-                max_connections=max_connections,
-                model=model,
-                dry_run=dry_run,
-            )
+            if error := _key_pair_error(key, key_limit):
+                return error
+            try:
+                return await process_limits(
+                    max_sandboxes=max_sandboxes,
+                    max_connections=max_connections,
+                    model=model,
+                    key=key,
+                    key_limit=key_limit,
+                    dry_run=dry_run,
+                )
+            except UnknownConcurrencyKeyError as exc:
+                return JSONResponse(status_code=400, content={"error": str(exc)})
 
         # Read the task's retunable config (max_samples / max_sandboxes /
         # max_connections plus the log_buffer / log_shared buffer params).
@@ -419,6 +451,8 @@ class ControlServer:
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
             model: str | None = None,
+            key: str | None = None,
+            key_limit: int | None = None,
             log_buffer: int | None = None,
             log_shared: int | None = None,
             dry_run: bool = False,
@@ -427,20 +461,28 @@ class ControlServer:
                 ("max_samples", max_samples),
                 ("max_sandboxes", max_sandboxes),
                 ("max_connections", max_connections),
+                ("key_limit", key_limit),
                 ("log_buffer", log_buffer),
                 ("log_shared", log_shared),
             ):
                 return error
-            result = await task_limits(
-                task_id,
-                max_samples=max_samples,
-                max_sandboxes=max_sandboxes,
-                max_connections=max_connections,
-                model=model,
-                log_buffer=log_buffer,
-                log_shared=log_shared,
-                dry_run=dry_run,
-            )
+            if error := _key_pair_error(key, key_limit):
+                return error
+            try:
+                result = await task_limits(
+                    task_id,
+                    max_samples=max_samples,
+                    max_sandboxes=max_sandboxes,
+                    max_connections=max_connections,
+                    model=model,
+                    key=key,
+                    key_limit=key_limit,
+                    log_buffer=log_buffer,
+                    log_shared=log_shared,
+                    dry_run=dry_run,
+                )
+            except UnknownConcurrencyKeyError as exc:
+                return JSONResponse(status_code=400, content={"error": str(exc)})
             if result is None:
                 return JSONResponse(
                     status_code=404,
