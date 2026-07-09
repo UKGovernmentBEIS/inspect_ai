@@ -2673,10 +2673,6 @@
           "token_limit_type": {
             "anyOf": [
               {
-                "enum": [
-                  "all",
-                  "output"
-                ],
                 "type": "string"
               },
               {
