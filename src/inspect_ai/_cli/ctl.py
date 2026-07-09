@@ -1154,7 +1154,6 @@ def _run_sample_list(
 ) -> None:
     if all_samples and limit is not None:
         raise click.UsageError("--all and --limit are mutually exclusive.")
-    _validate_statuses(status)
     _run_sample_listing(
         task,
         active_since,
@@ -1162,22 +1161,23 @@ def _run_sample_list(
         select=lambda s: True,
         empty_read="(no samples started yet)",
         printer=_print_samples_table,
-        status=status,
+        statuses=_parse_statuses(status),
         limit=limit,
         all_samples=all_samples,
     )
 
 
-def _validate_statuses(status: str | None) -> None:
-    """Reject an empty or unknown ``--status`` before any request is made.
+def _parse_statuses(status: str | None) -> frozenset[str] | None:
+    """Parse ``--status``, rejecting an empty or unknown value up front.
 
     The server 400s on these too, but an unscoped listing fans out over
     several evals — failing fast keeps a typo from producing a per-eval
     warn-and-skip cascade instead of one clear usage error.
     """
-    error = parse_status_filter(status, param="--status").error
+    statuses, error = parse_status_filter(status, param="--status")
     if error is not None:
         raise click.UsageError(f"{error}.")
+    return statuses
 
 
 def _run_sample_errors(task: str | None, as_json: bool) -> None:
@@ -1203,7 +1203,7 @@ def _run_sample_listing(
     select: Callable[[dict[str, Any]], bool],
     empty_read: str,
     printer: "_RowsPrinter",
-    status: str | None = None,
+    statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
 ) -> None:
@@ -1215,9 +1215,9 @@ def _run_sample_listing(
     no silent truncation), and the honesty rule that ``empty_read`` (a
     positive "(none)" claim) is made only for targets whose samples were
     actually read — a target warn-and-skipped as unreachable gets "(samples
-    unavailable)" instead.
+    unavailable)" instead. ``statuses`` is the already-parsed ``--status``
+    member set (``None`` = no filter).
     """
-    statuses = parse_status_filter(status).statuses
     listing = _list_sample_rows(
         task, active_since, statuses=statuses, limit=limit, all_samples=all_samples
     )

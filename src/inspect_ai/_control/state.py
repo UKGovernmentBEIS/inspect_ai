@@ -299,8 +299,8 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     pending one. Sorted running → terminal → pending. Returns an empty
     list when the eval isn't in this process.
 
-    Each entry has: ``sample_id``, ``epoch``, ``status`` (running /
-    completed / error / pending), ``started_at``, ``completed_at``,
+    Each entry has: ``sample_id``, ``epoch``, ``status`` (a
+    :data:`SAMPLE_STATUSES` member), ``started_at``, ``completed_at``,
     ``total_time``, ``total_tokens``, ``message_count``,
     ``last_activity_at`` (unix ts of the sample's most recent event — for a
     running sample, ``now - last_activity_at`` is its idle time, a cheap
