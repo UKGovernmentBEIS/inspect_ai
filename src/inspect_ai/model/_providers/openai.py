@@ -768,6 +768,9 @@ class OpenAIAPI(ModelAPI):
                 else config.reasoning_effort
             )
             reasoning["effort"] = effort  # type: ignore
+        if config.reasoning_mode is not None:
+            # `mode` is not yet in the SDK's Reasoning TypedDict
+            reasoning["mode"] = config.reasoning_mode  # type: ignore[typeddict-unknown-key]
         if config.reasoning_summary is not None and config.reasoning_summary != "none":
             reasoning["summary"] = config.reasoning_summary
 

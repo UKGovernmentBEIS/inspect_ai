@@ -313,15 +313,7 @@ def test_openai_responses_max_passed_through_when_supported():
     assert params["reasoning"]["effort"] == "max"
 
 
-@pytest.mark.parametrize(
-    "model_name,expected",
-    [
-        ("gpt-5.6", "max"),
-        ("gpt-5.6-sol", "max"),
-        ("gpt-5.5", "xhigh"),
-    ],
-)
-def test_openai_responses_max_effort_by_model(model_name, expected):
+def _responses_params_for(model_name, config):
     from openai._types import NOT_GIVEN
 
     from inspect_ai.model._providers.openai import OpenAIAPI
@@ -330,10 +322,10 @@ def test_openai_responses_max_effort_by_model(model_name, expected):
     )
 
     api = OpenAIAPI(model_name=model_name, api_key="test-key")
-    params = completion_params_responses(
+    return completion_params_responses(
         model_name,
         model_info=api,
-        config=GenerateConfig(reasoning_effort="max"),
+        config=config,
         service_tier=None,
         prompt_cache_key=NOT_GIVEN,
         prompt_cache_retention=NOT_GIVEN,
@@ -343,7 +335,54 @@ def test_openai_responses_max_effort_by_model(model_name, expected):
         tool_params=[],
         has_computer_tool=False,
     )
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gpt-5.6", "max"),
+        ("gpt-5.6-sol", "max"),
+        ("gpt-5.5", "xhigh"),
+    ],
+)
+def test_openai_responses_max_effort_by_model(model_name, expected):
+    params = _responses_params_for(model_name, GenerateConfig(reasoning_effort="max"))
     assert params["reasoning"]["effort"] == expected
+
+
+# -- OpenAI Responses reasoning.mode (pro mode) --
+
+
+# reasoning_mode is passed through for all models (the API accepts "pro"
+# wherever it can be honored — gpt-5.6+ and legacy -pro models — and rejects
+# it with a clear param-naming error otherwise)
+@pytest.mark.parametrize("model_name", ["gpt-5.6-sol", "gpt-5.5", "gpt-5-pro"])
+@pytest.mark.parametrize("mode", ["pro", "standard"])
+def test_openai_responses_reasoning_mode_passed_through(model_name, mode):
+    params = _responses_params_for(model_name, GenerateConfig(reasoning_mode=mode))
+    assert params["reasoning"]["mode"] == mode
+
+
+def test_openai_responses_reasoning_mode_omitted_by_default():
+    params = _responses_params_for(
+        "gpt-5.6-sol", GenerateConfig(reasoning_effort="low")
+    )
+    assert "mode" not in params["reasoning"]
+
+
+def test_openai_responses_reasoning_mode_composes_with_effort():
+    params = _responses_params_for(
+        "gpt-5.6-sol", GenerateConfig(reasoning_mode="pro", reasoning_effort="high")
+    )
+    assert params["reasoning"]["mode"] == "pro"
+    assert params["reasoning"]["effort"] == "high"
+
+
+def test_openai_responses_pro_mode_suppresses_sampling_params():
+    params = _responses_params_for(
+        "gpt-5.6-sol", GenerateConfig(reasoning_mode="pro", temperature=0.7)
+    )
+    assert "temperature" not in params
 
 
 @pytest.mark.parametrize(
