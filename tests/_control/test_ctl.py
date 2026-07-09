@@ -1098,19 +1098,18 @@ def test_sample_list_scoped_unreachable_exits(
     assert "Failed to read samples for eval eval_aaa111" in result.stderr
 
 
-def test_sample_show_merges_summary_row_and_detail(
+def test_sample_show_reports_detail_summary_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`show` reports the full sample summary, not just the error detail."""
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        samples_by_eval={"eval_aaa111": [_sample_row("s1", total_tokens=42)]},
-    )
+    """`show` reports the summary fields the detail read itself carries."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     detail = {
         "sample_id": "s1",
         "epoch": 1,
         "status": "error",
+        "total_time": 1.0,
+        "total_tokens": 42,
+        "message_count": 3,
         "retries": 0,
         "error": {"message": "boom"},
         "error_retries": [],
@@ -1122,29 +1121,33 @@ def test_sample_show_merges_summary_row_and_detail(
     result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
     payload = json.loads(result.stdout)
     assert payload["task_id"] == "aaa111"
-    assert payload["total_tokens"] == 42  # from the listing row
-    assert payload["error"] == {"message": "boom"}  # detail wins on overlap
+    assert payload["total_tokens"] == 42
+    assert payload["message_count"] == 3
+    assert payload["error"] == {"message": "boom"}
     assert payload["status"] == "error"
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)  # echoed
 
 
-def test_sample_show_listing_unreachable_keeps_detail(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`show` still answers from the fetched detail if the listing read fails.
+def test_sample_show_is_a_single_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`show` never fetches the eval's sample listing.
 
-    The process exiting between the detail read and the supplemental listing
-    read costs only the summary fields (timing / tokens / messages), not the
-    authoritative detail already in hand.
+    The detail response carries the summary fields itself, so the former
+    O(dataset) supplemental listing read (and the torn view a retry between
+    the two reads produced) is gone.
     """
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+
+    def fail_fetch(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("sample show should not fetch the samples listing")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fail_fetch)
     detail = {
         "sample_id": "s1",
         "epoch": 1,
-        "status": "error",
+        "status": "completed",
+        "total_tokens": 7,
         "retries": 0,
-        "error": {"message": "boom"},
+        "error": None,
         "error_retries": [],
         "scores": {},
     }
@@ -1153,47 +1156,7 @@ def test_sample_show_listing_unreachable_keeps_detail(
     )
     result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.stdout)
-    assert payload["error"] == {"message": "boom"}
-    assert "total_tokens" not in payload  # the listing row never arrived
-    assert "Could not read the samples listing for eval eval_aaa111" in result.stderr
-
-
-def test_sample_show_busy_listing_keeps_detail(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A busy eval (listing retries exhausted) doesn't discard the detail.
-
-    The listing read opts into _ServerBusy on retry exhaustion, which the
-    same except-_ServerUnreachable fallback covers; the detail already in
-    hand must still be rendered.
-    """
-    from inspect_ai._cli.ctl import _ServerBusy
-
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _patch_samples_unreachable_for(
-        monkeypatch,
-        "eval_aaa111",
-        exc=_ServerBusy("no response after 2 attempts — the eval's event loop is busy"),
-    )
-    detail = {
-        "sample_id": "s1",
-        "epoch": 1,
-        "status": "error",
-        "retries": 0,
-        "error": {"message": "boom"},
-        "error_retries": [],
-        "scores": {},
-    }
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: detail
-    )
-    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.stdout)
-    assert payload["error"] == {"message": "boom"}
-    assert "Could not read the samples listing" in result.stderr
-    assert "busy" in result.stderr
+    assert json.loads(result.stdout)["total_tokens"] == 7
 
 
 def test_old_flat_spellings_hidden_from_help() -> None:

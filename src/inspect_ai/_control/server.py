@@ -15,8 +15,8 @@ notes" for the lifecycle / flag policy.
 
 Current scope is the phase 1-2 read surface: ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (sample listing, with an
-``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
-detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
+``active_since`` recency delta), ``GET /evals/{id}/sample`` (summary +
+error detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
 pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control.
 State-mutating directives (cancel / drain / requeue) and SSE push land
 in phases 3-4.

@@ -413,7 +413,7 @@ async def _read_full_sample(
 async def sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
-    """Full error detail for one sample (``GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>``).
+    """Summary + error detail for one sample (``GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>``).
 
     Two sources, mirroring :func:`current_sample_summaries`:
 
@@ -426,6 +426,16 @@ async def sample_error_detail(
       live in detail (``error_retries``); per-sample summaries carry just a
       retry *count*. Heavy fields (messages, events, store, attachments, output)
       are excluded — only error data is needed.
+
+    Alongside the error history, the response carries the sample's summary
+    fields (timing / tokens / messages — the same values its
+    :func:`current_sample_summaries` row reports): the running path reads them
+    off the same ``ActiveSample``, and the terminal path folds in the sample's
+    summary row from the recorder / on-disk log. Returning them here makes
+    ``inspect ctl sample show`` a single atomic read — without this it would
+    have to fetch the eval's *entire* listing (O(dataset) transfer) just to
+    pick one row, and a sample retrying between the two reads would tear the
+    view (fresh timing merged with a prior attempt's error history).
 
     Returns ``None`` when the eval isn't in this process, or the sample isn't
     running and isn't readable yet — the endpoint turns that into a 404.
@@ -445,7 +455,23 @@ async def sample_error_detail(
     if sample is None:
         return None
 
+    # The sample's summary row supplies the summary fields (timing / tokens /
+    # messages) the heavy-field-excluded EvalSample can't fully provide
+    # (message_count needs the excluded messages). Same source as the listing,
+    # so the two views can't disagree; the detail fields below override on
+    # overlap. A missing row (unexpected — the full sample was just readable)
+    # degrades to the detail fields alone.
+    row = next(
+        (
+            r
+            for r in await _completed_sample_summaries(eval_id)
+            if str(r["sample_id"]) == str(sample.id) and r["epoch"] == sample.epoch
+        ),
+        None,
+    )
+
     return {
+        **(row or {}),
         "sample_id": sample.id,
         "epoch": sample.epoch,
         "status": "error" if sample.error is not None else "completed",
@@ -459,12 +485,14 @@ async def sample_error_detail(
 def _running_sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
-    """Error detail for a sample currently running in this process, or None.
+    """Summary + error detail for a sample currently running in this process, or None.
 
     A running sample has no current error yet; its ``error_retries`` are the
     prior failed attempts seeded onto the ``ActiveSample``. A terminal sample
     still in ``active_samples`` is left to the on-disk log (which carries the
-    final ``error_retries``).
+    final ``error_retries``). The summary fields come from the same
+    ``ActiveSample`` row the listing reports (:func:`_active_sample_summary`),
+    read in the same pass as the error history — one atomic view.
     """
     from inspect_ai.log._samples import active_samples
 
@@ -473,13 +501,9 @@ def _running_sample_error_detail(
             if s.completed is not None:
                 return None
             return {
-                "sample_id": s.sample.id,
-                "epoch": s.epoch,
-                "status": "running",
+                **_active_sample_summary(s),
                 "retries": s.retries,
-                "error": None,
                 "error_retries": [_error_dict(e) for e in s.error_retries],
-                "scores": {},
             }
     return None
 
@@ -558,45 +582,48 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
     """The eval's currently in-flight samples (the running source)."""
     from inspect_ai.log._samples import active_samples
 
-    summaries: list[dict[str, Any]] = []
-    for s in active_samples():
-        if s.eval_id != eval_id:
-            continue
-        if s.completed is not None:
-            status = "completed"
-        elif s.started is not None:
-            status = "running"
-        else:
-            status = "queued"
-        # Liveness signals (the only freshest source is the in-memory
-        # transcript). `last_activity_at` is when the sample last produced an
-        # event; `events` is a monotonic count. Together they let a consumer
-        # tell "stalled" from "working" without diffing successive polls — the
-        # per-turn token/message counters don't move *within* an in-flight
-        # model call, but these advance on every model / tool / store event.
-        last_event = s.transcript.history.last_event
-        last_activity_at = (
-            last_event.timestamp.timestamp() if last_event is not None else s.started
-        )
-        summaries.append(
-            {
-                "sample_id": s.sample.id,
-                "epoch": s.epoch,
-                "status": status,
-                "started_at": s.started,
-                "completed_at": s.completed,
-                "total_time": s.running_time,
-                "total_tokens": s.total_tokens,
-                "message_count": s.total_messages,
-                "last_activity_at": last_activity_at,
-                "events": s.transcript.history.event_count,
-                "scores": {},  # running samples aren't scored yet
-                "error": None,
-                "retries": s.retries or None,
-                "limit": None,
-            }
-        )
-    return summaries
+    return [_active_sample_summary(s) for s in active_samples() if s.eval_id == eval_id]
+
+
+def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
+    """One in-flight sample's summary row, read off its ``ActiveSample``.
+
+    The single source of a live sample's summary fields — shared by the
+    listing (:func:`_sample_summaries_from_active`) and the per-sample detail
+    (:func:`_running_sample_error_detail`) so the two views can't drift.
+    """
+    if s.completed is not None:
+        status = "completed"
+    elif s.started is not None:
+        status = "running"
+    else:
+        status = "queued"
+    # Liveness signals (the only freshest source is the in-memory
+    # transcript). `last_activity_at` is when the sample last produced an
+    # event; `events` is a monotonic count. Together they let a consumer
+    # tell "stalled" from "working" without diffing successive polls — the
+    # per-turn token/message counters don't move *within* an in-flight
+    # model call, but these advance on every model / tool / store event.
+    last_event = s.transcript.history.last_event
+    last_activity_at = (
+        last_event.timestamp.timestamp() if last_event is not None else s.started
+    )
+    return {
+        "sample_id": s.sample.id,
+        "epoch": s.epoch,
+        "status": status,
+        "started_at": s.started,
+        "completed_at": s.completed,
+        "total_time": s.running_time,
+        "total_tokens": s.total_tokens,
+        "message_count": s.total_messages,
+        "last_activity_at": last_activity_at,
+        "events": s.transcript.history.event_count,
+        "scores": {},  # running samples aren't scored yet
+        "error": None,
+        "retries": s.retries or None,
+        "limit": None,
+    }
 
 
 def _iso_to_timestamp(value: str | None) -> float | None:

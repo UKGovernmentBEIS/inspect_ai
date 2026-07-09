@@ -1082,42 +1082,15 @@ def _run_sample_show(
         return
 
     target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    # One atomic read: the detail carries the summary fields (timing / tokens
+    # / messages) alongside the error history, so there is no supplemental
+    # listing fetch (and no torn view if the sample retries between reads).
     detail = _fetch_sample_detail(
         target["socket_path"], target["eval_id"], sample_id, epoch
-    )
-
-    # The error detail is the authoritative core; fold in the sample's listing
-    # row for the summary fields (timing / tokens / messages) it doesn't carry.
-    try:
-        samples = _fetch_samples(
-            target["socket_path"],
-            target["eval_id"],
-        ).samples
-    except _ServerUnreachable as exc:
-        # The detail already in hand answers the question; the process
-        # exiting — or staying busy (_ServerBusy) — between the two reads
-        # shouldn't discard it.
-        hint = " — try again shortly" if isinstance(exc, _ServerBusy) else ""
-        click.echo(
-            f"Could not read the samples listing for eval {target['eval_id']} "
-            f"({_unreachable_detail(exc)}); showing the sample without its "
-            f"summary fields (timing / tokens / messages){hint}.",
-            err=True,
-        )
-        samples = []
-    row = next(
-        (
-            s
-            for s in samples
-            if str(s.get("sample_id")) == str(detail.get("sample_id"))
-            and s.get("epoch") == detail.get("epoch")
-        ),
-        None,
     )
     merged: dict[str, Any] = {
         "task_id": target.get("task_id"),
         "task": target.get("task"),
-        **(row or {}),
         **detail,
     }
 
@@ -2243,11 +2216,12 @@ def _fetch_samples(
 def _fetch_sample_detail(
     socket_path: str, eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any]:
-    """Query one control server for a single sample's full error detail.
+    """Query one control server for a single sample's summary + error detail.
 
-    The authoritative read behind ``sample show``, so it rides the full
-    narrated busy-retry policy rather than failing on a momentary event-loop
-    stall (unlike the degradable supplemental listing read).
+    The one read behind ``sample show`` — the response carries the summary
+    fields (timing / tokens / messages) alongside the error history, so no
+    supplemental listing fetch is needed. It rides the full narrated
+    busy-retry policy rather than failing on a momentary event-loop stall.
     """
     # sample_id goes in the query string (httpx URL-encodes it) so ids
     # containing `/`, `?`, `#`, etc. address correctly — they can't be
