@@ -1346,6 +1346,29 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     assert "! log_buffer" not in result.stderr
 
 
+def test_config_key_on_old_server_gates_applied_claim_on_dry_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A --key sent to a server with no concurrency view exits 1.
+
+    The 'other knobs were still applied' tail is suppressed under --dry-run,
+    where the old server applied nothing.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_limits(  # view has no `concurrency` list — an old server
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
+    assert result.exit_code == 1
+    assert "does not support --key" in result.stderr
+    assert "still applied" in result.stderr
+
+    dry = _runner().invoke(ctl_command, ["config", "--key", "my_api", "2", "--dry-run"])
+    assert dry.exit_code == 1
+    assert "does not support --key" in dry.stderr
+    assert "still applied" not in dry.stderr
+
+
 def test_config_task_knob_with_only_orphan_task_says_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

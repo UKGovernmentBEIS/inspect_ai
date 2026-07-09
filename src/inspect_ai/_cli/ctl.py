@@ -1484,8 +1484,8 @@ def _run_config(
     if key is not None and limits_view.get("concurrency") is None:
         click.echo(
             f"This process does not support --key (older inspect version?) — "
-            f"'{key[0]}' was not applied. Any other requested knobs were "
-            "still applied.",
+            f"'{key[0]}' was not applied."
+            + (" Any other requested knobs were still applied." if not dry_run else ""),
             err=True,
         )
         raise click.exceptions.Exit(code=1)
