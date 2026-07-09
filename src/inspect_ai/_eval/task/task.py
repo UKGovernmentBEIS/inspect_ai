@@ -17,6 +17,10 @@ from inspect_ai.util._early_stopping import EarlyStopping
 
 if TYPE_CHECKING:
     from inspect_ai.scorer._scorers import Scorers
+    from inspect_ai.util._checkpoint.config import (
+        OnCheckpointCallback,
+        OnResumeCallback,
+    )
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
@@ -48,6 +52,7 @@ from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._checkpoint.config import CheckpointConfig, normalize_checkpoint
+from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
@@ -90,13 +95,15 @@ class Task:
         model_roles: dict[str, str | Model] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         checkpoint: CheckpointConfig | bool | None = None,
+        on_checkpoint: OnCheckpointCallback | None = None,
+        on_resume: OnResumeCallback | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
         score_on_error: bool | None = None,
         message_limit: int | None = None,
-        token_limit: int | None = None,
+        token_limit: int | str | TokenLimit | None = None,
         turn_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
@@ -126,10 +133,26 @@ class Task:
             config: Model generation config for default model (does not apply to model roles)
             model_roles: Named roles for use in `get_model()`.
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
-            checkpoint: Checkpoint configuration for this task, or `True` to
-                enable checkpointing with the default trigger (every 500k
-                tokens). Overridden by eval-level `checkpoint` when set;
-                overrides any sample-level `checkpoint`.
+            checkpoint: Checkpoint configuration for this task. `True` (or a
+                `CheckpointConfig`) enables checkpointing with the default
+                trigger (every 500k tokens) unless overridden; `None` (default)
+                inherits from the eval/CLI level; `False` vetoes checkpointing
+                for this task, overriding an eval-set/CLI `--checkpoint` enable.
+                When enabled, an eval-level `checkpoint` overrides this task's
+                config, which overrides any sample-level `checkpoint`.
+            on_checkpoint: Callback invoked before each checkpoint snapshot is
+                taken, so state it flushes to the sandbox/store is captured by
+                that checkpoint. May fire many times (including the final
+                checkpoint on clean completion); must be idempotent.
+            on_resume: Callback invoked after a sample is restored on resume,
+                before the agent resumes. Receives the TaskState and the resume
+                ``attempt`` ('resume' or 'resume_for_scoring'). At call time
+                ``state.store``, the transcript, and the sandbox are restored,
+                but ``state.messages``/``state.output`` are NOT yet restored
+                (the agent restores those itself) — use ``state.store``/sandbox,
+                not ``state.messages``. May return a ``ResumeReport`` (or a
+                ``str`` shorthand, or ``None``) surfaced to the agent via
+                ``checkpointer().restored``.
             approval: Tool use approval policies.
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             epochs: Epochs to repeat samples for and optional score
@@ -144,7 +167,11 @@ class Task:
                 Errors still count toward the `fail_on_error` threshold for marking the eval log
                 as 'error'. Only takes effect after retries (if any) are exhausted.
             message_limit: Limit on total messages used for each sample.
-            token_limit: Limit on total tokens used for each sample.
+            token_limit: Limit on tokens used for each sample. An `int` (or a
+                `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+                with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
             turn_limit: Limit on total turns (model generations) used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
@@ -194,6 +221,8 @@ class Task:
         self.setup = setup
         self.solver = resolve_solver(solver)
         self.cleanup = cleanup
+        self.on_checkpoint = on_checkpoint
+        self.on_resume = on_resume
         self.scorer = resolve_scorer_metrics(resolve_scorer(scorer), metrics)
         self.metrics = metrics
         self.model = resolve_model(model)
@@ -209,7 +238,7 @@ class Task:
         self.continue_on_fail = continue_on_fail
         self.score_on_error = score_on_error
         self.message_limit = message_limit
-        self.token_limit = token_limit
+        self.token_limit, self.token_limit_type = token_limit_fields(token_limit)
         self.turn_limit = turn_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
@@ -274,6 +303,8 @@ def task_with(
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
+    on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
+    on_resume: OnResumeCallback | None | NotGiven = NOT_GIVEN,
     approval: str
     | ApprovalPolicyConfig
     | list[ApprovalPolicy]
@@ -284,7 +315,7 @@ def task_with(
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
     score_on_error: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
-    token_limit: int | None | NotGiven = NOT_GIVEN,
+    token_limit: int | str | TokenLimit | None | NotGiven = NOT_GIVEN,
     turn_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
@@ -317,10 +348,26 @@ def task_with(
         config: Model generation config for default model (does not apply to model roles)
         model_roles: Named roles for use in `get_model()`.
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
-        checkpoint: Checkpoint configuration for this task, or `True` to
-            enable checkpointing with the default trigger (every 500k
-            tokens). Overridden by eval-level `checkpoint` when set;
-            overrides any sample-level `checkpoint`.
+        checkpoint: Checkpoint configuration for this task. `True` (or a
+            `CheckpointConfig`) enables checkpointing with the default
+            trigger (every 500k tokens) unless overridden; `None` (default)
+            inherits from the eval/CLI level; `False` vetoes checkpointing
+            for this task, overriding an eval-set/CLI `--checkpoint` enable.
+            When enabled, an eval-level `checkpoint` overrides this task's
+            config, which overrides any sample-level `checkpoint`.
+        on_checkpoint: Callback invoked before each checkpoint snapshot is
+            taken, so state it flushes to the sandbox/store is captured by
+            that checkpoint. May fire many times (including the final
+            checkpoint on clean completion); must be idempotent.
+        on_resume: Callback invoked after a sample is restored on resume,
+            before the agent resumes. Receives the TaskState and the resume
+            ``attempt`` ('resume' or 'resume_for_scoring'). At call time
+            ``state.store``, the transcript, and the sandbox are restored,
+            but ``state.messages``/``state.output`` are NOT yet restored
+            (the agent restores those itself) — use ``state.store``/sandbox,
+            not ``state.messages``. May return a ``ResumeReport`` (or a
+            ``str`` shorthand, or ``None``) surfaced to the agent via
+            ``checkpointer().restored``.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         epochs: Epochs to repeat samples for and optional score
@@ -335,7 +382,11 @@ def task_with(
             Errors still count toward the `fail_on_error` threshold for marking the eval log
             as 'error'. Only takes effect after retries (if any) are exhausted.
         message_limit: Limit on total messages used for each sample.
-        token_limit: Limit on total tokens used for each sample.
+        token_limit: Limit on tokens used for each sample. An `int` (or a
+            `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+            with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
@@ -368,6 +419,10 @@ def task_with(
         task.solver = resolve_solver(solver)
     if not isinstance(cleanup, NotGiven):
         task.cleanup = cleanup
+    if not isinstance(on_checkpoint, NotGiven):
+        task.on_checkpoint = on_checkpoint
+    if not isinstance(on_resume, NotGiven):
+        task.on_resume = on_resume
     if not isinstance(scorer, NotGiven):
         task.scorer = resolve_scorer(scorer)
     if not isinstance(metrics, NotGiven):
@@ -397,7 +452,7 @@ def task_with(
     if not isinstance(message_limit, NotGiven):
         task.message_limit = message_limit
     if not isinstance(token_limit, NotGiven):
-        task.token_limit = token_limit
+        task.token_limit, task.token_limit_type = token_limit_fields(token_limit)
     if not isinstance(turn_limit, NotGiven):
         task.turn_limit = turn_limit
     if not isinstance(time_limit, NotGiven):

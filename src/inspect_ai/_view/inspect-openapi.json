@@ -2670,6 +2670,17 @@
             ],
             "title": "Token Limit"
           },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
           "turn_limit": {
             "anyOf": [
               {

@@ -186,6 +186,11 @@ class EvalState:
     model: str = ""
     """Primary model name. Same rationale as :attr:`task`."""
 
+    solver: str = ""
+    """Solver name — the unqualified name of the plan's terminal step
+    (an agent name for agentic tasks, e.g. ``react``). Same rationale
+    as :attr:`task`."""
+
     log_location: str = ""
     """This eval's log file location. The per-sample listing reads
     completed samples from here once the live recorder is gone (see
@@ -316,6 +321,7 @@ def register_eval(
     task: str = "",
     task_id: str = "",
     model: str = "",
+    solver: str | None = None,
     log_location: str = "",
     live: "LiveEvalData | None" = None,
     sample_ids: list[str | int] | None = None,
@@ -339,6 +345,7 @@ def register_eval(
             task=task,
             task_id=task_id,
             model=model,
+            solver=solver or "",
             log_location=log_location,
             live=live,
             # copy: a SampleSource-driven task appends to its planned-ids list
@@ -367,6 +374,7 @@ def register_completed_eval(
     task: str = "",
     task_id: str = "",
     model: str = "",
+    solver: str | None = None,
     log_location: str = "",
     run_id: str | None = None,
     completed_at: float | None = None,
@@ -401,6 +409,7 @@ def register_completed_eval(
             task=task,
             task_id=task_id,
             model=model,
+            solver=solver or "",
             log_location=log_location,
             run_id=run_id,
             completed_at=completed_at if completed_at is not None else time.time(),
