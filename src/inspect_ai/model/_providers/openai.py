@@ -41,6 +41,7 @@ from .._openai import (
     is_o_series_model,
     openai_classify_retry,
     openai_should_retry,
+    supports_native_max_reasoning_effort,
 )
 from .._openai_responses import (
     chat_messages_from_compact_response,
@@ -448,6 +449,11 @@ class OpenAIAPI(ModelAPI):
         name = self.model_family()
         return self.is_gpt_5() and "-pro" in name
 
+    def supports_max_reasoning_effort(self) -> bool:
+        return supports_native_max_reasoning_effort(self.model_family()) or (
+            self.is_latest()
+        )
+
     def is_gpt_5_chat(self) -> bool:
         name = self.model_family()
         return self.is_gpt_5() and "-chat" in name
@@ -755,7 +761,10 @@ class OpenAIAPI(ModelAPI):
         if config.reasoning_effort is not None:
             effort = (
                 "xhigh"
-                if (config.reasoning_effort == "max" and not self.is_latest())
+                if (
+                    config.reasoning_effort == "max"
+                    and not self.supports_max_reasoning_effort()
+                )
                 else config.reasoning_effort
             )
             reasoning["effort"] = effort  # type: ignore
