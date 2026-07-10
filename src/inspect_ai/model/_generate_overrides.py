@@ -84,6 +84,6 @@ def generate_config_overrides() -> dict[str, int | None]:
     return {field: _overrides.get(field) for field in GENERATE_CONFIG_OVERRIDE_FIELDS}
 
 
-def init_generate_config_overrides() -> None:
+def reset_generate_config_overrides() -> None:
     """Clear all overrides (called at the outermost run boundary)."""
     _overrides.clear()

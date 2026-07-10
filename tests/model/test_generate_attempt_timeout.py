@@ -12,7 +12,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._generate_overrides import (
-    init_generate_config_overrides,
+    reset_generate_config_overrides,
     set_generate_config_override,
 )
 from inspect_ai.model._registry import modelapi
@@ -79,5 +79,5 @@ async def test_generate_attempt_timeout_live_override() -> None:
         with pytest.raises(tenacity.RetryError):
             await model.generate("hello")
     finally:
-        init_generate_config_overrides()
+        reset_generate_config_overrides()
         del _registry["modelapi:mockslow"]

@@ -19,7 +19,7 @@ from inspect_ai._control.eval_state import (
 from inspect_ai._control.limits import task_limits
 from inspect_ai.model._generate_overrides import (
     generate_config_override,
-    init_generate_config_overrides,
+    reset_generate_config_overrides,
     set_generate_config_override,
 )
 from inspect_ai.util._concurrency import (
@@ -36,11 +36,11 @@ from inspect_ai.util._concurrency import (
 def _clear_states():
     clear_all_eval_states()
     init_concurrency()  # resets the sandbox-limiter registry
-    init_generate_config_overrides()
+    reset_generate_config_overrides()
     yield
     clear_all_eval_states()
     init_concurrency()
-    init_generate_config_overrides()
+    reset_generate_config_overrides()
 
 
 # ---------------------------------------------------------------------------
