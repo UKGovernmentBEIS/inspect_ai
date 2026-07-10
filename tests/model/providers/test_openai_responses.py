@@ -270,7 +270,7 @@ async def _generate_responses_with_mock(
         model_name="gpt-4o",
         input=[],
         tools=[],
-        tool_choice=None,
+        tool_choice="auto",
         config=config,
         background=background,
         service_tier=None,
