@@ -398,7 +398,10 @@ sample_group.hint = lambda token: (
     help=(
         "Only samples that started or were updated at/after this unix "
         "timestamp — the 'what changed since I last looked' delta. Feed it "
-        "the `as_of` from the prior response's envelope."
+        "the `as_of` from the prior response's envelope. If the delta comes "
+        "back truncated, re-poll with the same value plus `--all` before "
+        "advancing to the new `as_of` — the dropped rows are terminal ones "
+        "that will never match a later delta."
     ),
 )
 @click.option(
