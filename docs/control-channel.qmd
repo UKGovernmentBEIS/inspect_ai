@@ -55,6 +55,8 @@ Stdout carries these records exclusively: the eval itself runs with stdout redir
 
 `inspect eval-set --json` follows the same contract, with eval-set specifics: the records also carry `eval_set_id`, and the `done` record adds an overall `success` field mirroring the exit code. Two deviations from "exactly one `launch`, then one `done`": a set whose tasks are all already complete runs no eval, so stdout carries only the `done` record (don't read the missing `launch` line as a failed launch once `done` arrived); and legacy batch-mode retries (`--no-retry-immediate`) emit a fresh `launch` record per retry batch, with the `done` record carrying the last launch's `run_id` — the run that produced the final state.
 
+`inspect eval-retry --json` follows the contract too, with one wrinkle: each retried log file runs as its own eval with its own `run_id`, so retrying multiple log files emits one `launch` record per file (sequentially — each supersedes the previous), and the single `done` record carries the last launch's `run_id` with one `logs` entry per retried task.
+
 ## Listing Tasks
 
 `inspect ctl task` lists the tasks of every running eval on the machine:

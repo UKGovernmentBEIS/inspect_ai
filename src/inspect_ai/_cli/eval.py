@@ -36,7 +36,7 @@ from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
-from inspect_ai.log._log import EvalConfig
+from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
@@ -1955,20 +1955,27 @@ def eval_exec(
         params["log_dir_allow_dirty"] = log_dir_allow_dirty
         params["eval_set_id"] = eval_set_id
         if json_output:
-            return _eval_exec_json(params, is_eval_set=True)
+            return _eval_exec_json(lambda: eval_set(**params), is_eval_set=True)
         success, _ = eval_set(**params)
         return success
     else:
         params["log_header_only"] = True  # cli invocation doesn't need full log
         if json_output:
-            _eval_exec_json(params)
+            _eval_exec_json(lambda: (True, eval(**params)))
         else:
             eval(**params)
         return True
 
 
-def _eval_exec_json(params: dict[str, Any], is_eval_set: bool = False) -> bool:
-    """Run the eval (or eval set) emitting the agent-facing JSON lines on stdout.
+def _eval_exec_json(
+    run: Callable[[], tuple[bool, list[EvalLog]]], is_eval_set: bool = False
+) -> bool:
+    """Run an eval (via ``run``) emitting the agent-facing JSON lines on stdout.
+
+    ``run`` executes the eval — ``eval()``, ``eval_set()``, or
+    ``eval_retry()`` — and returns overall success plus the resulting
+    logs (``eval()`` and ``eval_retry()`` report ``True`` like their
+    exit codes: per-task outcomes live in the ``logs`` statuses).
 
     Two records, one per line (documented in the ``--json`` option help):
 
@@ -1992,6 +1999,11 @@ def _eval_exec_json(params: dict[str, Any], is_eval_set: bool = False) -> bool:
     *last* launch's ``run_id`` — the run that produced the final state,
     matching the most recent ``launch`` record an agent read
     (``eval_set_id`` is stable across batches).
+
+    ``eval_retry`` runs each retried log file as its own eval with its
+    own ``run_id``, so a multi-file retry emits one ``launch`` record
+    per file (sequentially — each supersedes the previous) with the
+    same last-launch ``done`` correlation.
 
     Stdout belongs exclusively to these records: ``eval()`` runs with
     stdout redirected to stderr (see ``_stdout_owned_for_json``) — an
@@ -2033,11 +2045,7 @@ def _eval_exec_json(params: dict[str, Any], is_eval_set: bool = False) -> bool:
 
         set_launch_handoff_listener(on_launch)
         try:
-            if is_eval_set:
-                success, logs = eval_set(**params)
-            else:
-                logs = eval(**params)
-                success = True
+            success, logs = run()
         finally:
             set_launch_handoff_listener(None)
             # stray prints redirected to stderr may sit in a buffered wrapper
@@ -2275,6 +2283,15 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.command("eval-retry", cls=EvalCommand)
 @click.argument("log_files", nargs=-1, required=True)
 @click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_JSON",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each retried task's log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one 'launch' record per file (sequentially — each supersedes the previous), and the 'done' record carries the last launch's run_id.",
+)
+@click.option(
     "--max-samples", type=int, help=MAX_SAMPLES_HELP, envvar="INSPECT_EVAL_MAX_SAMPLES"
 )
 @click.option(
@@ -2492,6 +2509,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @common_options
 def eval_retry_command(
     log_files: tuple[str, ...],
+    json_output: bool,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -2537,61 +2555,54 @@ def eval_retry_command(
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
-    # resolve common options
-    process_common_options(common)
+    with _json_prerequisite_errors_to_stderr(json_output):
+        # --json owns stdout (JSON lines only), so route the display to the
+        # quiet "none" renderer — including when --no-ansi would otherwise
+        # promote it back to "rich" or --trace (/INSPECT_EVAL_TRACE) would
+        # promote it to "conversation", which writes panels to stdout
+        if json_output:
+            common["display"] = "none"
+            common["no_ansi"] = None
+            trace = None
 
-    # resolve negating options
-    sandbox_cleanup = False if no_sandbox_cleanup else None
-    log_samples = False if no_log_samples else None
-    log_realtime = False if no_log_realtime else None
-    log_images = False if log_images is False else None
-    log_refusals = True if log_refusals is True else None
-    score = False if no_score else True
-    score_display = False if no_score_display else None
+        # resolve common options
+        process_common_options(common)
 
-    # resolve fail_on_error
-    if no_fail_on_error is True:
-        fail_on_error = False
-    elif fail_on_error == 0.0:
-        fail_on_error = True
+        # resolve negating options
+        sandbox_cleanup = False if no_sandbox_cleanup else None
+        log_samples = False if no_log_samples else None
+        log_realtime = False if no_log_realtime else None
+        log_images = False if log_images is False else None
+        log_refusals = True if log_refusals is True else None
+        score = False if no_score else True
+        score_display = False if no_score_display else None
 
-    # resolve retry on error
-    if retry_on_error == 0:
-        retry_on_error = None
+        # resolve fail_on_error
+        if no_fail_on_error is True:
+            fail_on_error = False
+        elif fail_on_error == 0.0:
+            fail_on_error = True
 
-    # resolve log file
-    retry_log_files = [
-        log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
-    ]
+        # resolve retry on error
+        if retry_on_error == 0:
+            retry_on_error = None
 
-    # parse adaptive_connections (str → bool | AdaptiveConcurrency)
-    adaptive_connections_value = _parse_adaptive_connections_cli(adaptive_connections)
+        # resolve log file
+        retry_log_files = [
+            log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
+        ]
 
-    # resolve scanner spec (None unless --scanner was provided)
-    from inspect_ai._display.core.results import set_retry_args_suffix
+        # parse adaptive_connections (str → bool | AdaptiveConcurrency)
+        adaptive_connections_value = _parse_adaptive_connections_cli(
+            adaptive_connections
+        )
 
-    from ._scanner import resolve_cli_scanner, serialize_scanner_cli_args
+        # resolve scanner spec (None unless --scanner was provided)
+        from inspect_ai._display.core.results import set_retry_args_suffix
 
-    eval_scanner = resolve_cli_scanner(
-        scanner,
-        scanner_arg,
-        scans=scans,
-        scan_name=scan_name,
-        scan_tags=scan_tags,
-        scan_metadata=scan_metadata,
-        scan_filter=scan_filter,
-        scan_model=scan_model,
-        scan_model_base_url=scan_model_base_url,
-        scan_model_arg=scan_model_arg,
-        scan_model_config=scan_model_config,
-        scan_model_role=scan_model_role,
-        scan_generate_config=scan_generate_config,
-    )
+        from ._scanner import resolve_cli_scanner, serialize_scanner_cli_args
 
-    # preserve scanner flags on any further `eval-retry` suggestion shown
-    # if this retry itself interrupts
-    set_retry_args_suffix(
-        serialize_scanner_cli_args(
+        eval_scanner = resolve_cli_scanner(
             scanner,
             scanner_arg,
             scans=scans,
@@ -2606,41 +2617,66 @@ def eval_retry_command(
             scan_model_role=scan_model_role,
             scan_generate_config=scan_generate_config,
         )
-    )
 
-    # retry
-    eval_retry(
-        retry_log_files,
-        log_level=common["log_level"],
-        log_level_transcript=log_level_transcript,
-        log_dir=common["log_dir"],
-        max_samples=max_samples,
-        max_tasks=max_tasks,
-        max_subprocesses=max_subprocesses,
-        max_sandboxes=max_sandboxes,
-        sandbox_cleanup=sandbox_cleanup,
-        trace=trace,
-        fail_on_error=fail_on_error,
-        continue_on_fail=continue_on_fail,
-        retry_on_error=retry_on_error,
-        score_on_error=score_on_error,
-        debug_errors=common["debug_errors"],
-        log_samples=log_samples,
-        log_realtime=log_realtime,
-        log_images=log_images,
-        log_model_api=log_model_api,
-        log_refusals=log_refusals,
-        log_buffer=log_buffer,
-        log_shared=log_shared,
-        score=score,
-        score_display=score_display,
-        acp_server=acp_server,
-        ctl_server=ctl_server,
-        scanner=eval_scanner,
-        max_retries=max_retries,
-        timeout=timeout,
-        attempt_timeout=attempt_timeout,
-        max_connections=max_connections,
-        adaptive_connections=adaptive_connections_value,
-        checkpoint=parse_checkpoint(checkpoint),
-    )
+        # preserve scanner flags on any further `eval-retry` suggestion shown
+        # if this retry itself interrupts
+        set_retry_args_suffix(
+            serialize_scanner_cli_args(
+                scanner,
+                scanner_arg,
+                scans=scans,
+                scan_name=scan_name,
+                scan_tags=scan_tags,
+                scan_metadata=scan_metadata,
+                scan_filter=scan_filter,
+                scan_model=scan_model,
+                scan_model_base_url=scan_model_base_url,
+                scan_model_arg=scan_model_arg,
+                scan_model_config=scan_model_config,
+                scan_model_role=scan_model_role,
+                scan_generate_config=scan_generate_config,
+            )
+        )
+
+        # retry
+        def run_retry() -> list[EvalLog]:
+            return eval_retry(
+                retry_log_files,
+                log_level=common["log_level"],
+                log_level_transcript=log_level_transcript,
+                log_dir=common["log_dir"],
+                max_samples=max_samples,
+                max_tasks=max_tasks,
+                max_subprocesses=max_subprocesses,
+                max_sandboxes=max_sandboxes,
+                sandbox_cleanup=sandbox_cleanup,
+                trace=trace,
+                fail_on_error=fail_on_error,
+                continue_on_fail=continue_on_fail,
+                retry_on_error=retry_on_error,
+                score_on_error=score_on_error,
+                debug_errors=common["debug_errors"],
+                log_samples=log_samples,
+                log_realtime=log_realtime,
+                log_images=log_images,
+                log_model_api=log_model_api,
+                log_refusals=log_refusals,
+                log_buffer=log_buffer,
+                log_shared=log_shared,
+                score=score,
+                score_display=score_display,
+                acp_server=acp_server,
+                ctl_server=ctl_server,
+                scanner=eval_scanner,
+                max_retries=max_retries,
+                timeout=timeout,
+                attempt_timeout=attempt_timeout,
+                max_connections=max_connections,
+                adaptive_connections=adaptive_connections_value,
+                checkpoint=parse_checkpoint(checkpoint),
+            )
+
+        if json_output:
+            _eval_exec_json(lambda: (True, run_retry()))
+        else:
+            run_retry()

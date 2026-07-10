@@ -1,4 +1,4 @@
-"""Tests for the synchronous launch handoff (``inspect eval[-set] --json``).
+"""Tests for the synchronous launch handoff (``inspect eval[-set|-retry] --json``).
 
 The launch-and-babysit workflow needs ``inspect eval`` to say where the
 control surface is the moment it exists: right after launch, ``inspect
@@ -32,6 +32,7 @@ from inspect_ai import Task, task
 from inspect_ai._cli.eval import (
     _json_prerequisite_errors_to_stderr,
     eval_command,
+    eval_retry_command,
     eval_set_command,
 )
 from inspect_ai._control.eval_state import get_eval_states
@@ -723,3 +724,84 @@ def test_eval_set_json_preflight_failure_reports_to_stderr(
     assert result.exit_code != 0
     assert result.stdout.strip() == ""
     assert "No inspect tasks were found" in result.stderr
+
+
+# --- inspect eval-retry --json -------------------------------------------------
+
+
+def _run_eval_retry_json(short_data_dir: Path, log_files: list[str]) -> EvalJsonResult:
+    """Run ``inspect eval-retry --json`` on prior logs; return parsed stdout lines."""
+    runner = cli_runner()
+    result = runner.invoke(
+        eval_retry_command,
+        [*log_files, "--log-dir", str(short_data_dir / "logs"), "--json"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    records = [json.loads(line) for line in result.stdout.splitlines()]
+    return EvalJsonResult(records=records, stderr=result.stderr)
+
+
+def test_eval_retry_json_emits_launch_then_done(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """``inspect eval-retry --json`` follows the eval contract: launch then done.
+
+    The flaky task fails its first attempt (producing a retryable error
+    log) and succeeds on retry, so the retry's ``done`` record reports a
+    fresh run with ``status: success``.
+    """
+    first = _run_eval_json(
+        short_data_dir, monkeypatch, [], task_file=FLAKY_TASK_FILE
+    ).records
+    failed = first[-1]["logs"][0]
+    assert failed["status"] == "error"
+
+    records = _run_eval_retry_json(short_data_dir, [failed["location"]]).records
+
+    launch = records[0]
+    assert launch["event"] == "launch"
+    assert launch["run_id"] != first[0]["run_id"]
+    assert launch["pid"] == os.getpid()
+    assert launch["control"]["socket_path"]
+
+    done = records[-1]
+    assert done["event"] == "done"
+    assert done["run_id"] == launch["run_id"]
+    assert len(done["logs"]) == 1
+    log = done["logs"][0]
+    assert log["task"] == "handoff_cli_task"
+    assert log["status"] == "success"
+    assert log["location"]
+
+
+def test_eval_retry_json_multi_file_emits_launch_per_file(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """Each retried log file is its own eval: one ``launch`` record per file.
+
+    ``eval_retry`` runs the files sequentially through separate
+    ``eval()`` calls, each binding afresh — so agents see a fresh
+    ``launch`` record per file (each superseding the previous), and the
+    ``done`` record carries the *last* launch's ``run_id`` with one
+    ``logs`` entry per retried task.
+    """
+    failed_locations = [
+        _run_eval_json(
+            short_data_dir, monkeypatch, [], task_file=FAILING_TASK_FILE
+        ).records[-1]["logs"][0]["location"]
+        for _ in range(2)
+    ]
+
+    records = _run_eval_retry_json(short_data_dir, failed_locations).records
+
+    launches = [record for record in records if record["event"] == "launch"]
+    assert len(launches) == 2
+    assert launches[0]["run_id"] != launches[1]["run_id"]
+
+    done = records[-1]
+    assert done["event"] == "done"
+    assert done["run_id"] == launches[-1]["run_id"]
+    # the task fails again on retry — still a done record (exit 0), with
+    # per-task statuses saying what failed
+    assert [log["status"] for log in done["logs"]] == ["error", "error"]
