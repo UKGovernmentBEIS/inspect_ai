@@ -272,10 +272,16 @@ class ControlServer:
             Unlike the limits knobs these are declared ``str`` on the route:
             every integer >= 0 is a real value (0 = fail after the first
             attempt / a zero budget), so clearing an override is spelled with
-            the keyword ``clear`` rather than a sentinel integer. Returns the
-            parsed values plus a 400 for the first invalid one (a ``None``
-            passes through as "not requested").
+            the keyword ``clear`` rather than a sentinel integer. Values above
+            :data:`MAX_GENERATE_CONFIG_OVERRIDE` are rejected here too — the
+            store enforces the same bound, but a 400 at the wire beats a 500.
+            Returns the parsed values plus a 400 for the first invalid one
+            (a ``None`` passes through as "not requested").
             """
+            from inspect_ai.model._generate_overrides import (
+                MAX_GENERATE_CONFIG_OVERRIDE,
+            )
+
             parsed: dict[str, int | Literal["clear"] | None] = {}
             for label, raw in knobs:
                 if raw is None:
@@ -287,14 +293,16 @@ class ControlServer:
                         value = int(raw)
                     except ValueError:
                         value = -1
-                    if value < 0:
+                    if value < 0 or value > MAX_GENERATE_CONFIG_OVERRIDE:
                         return _ParsedRetryKnobs(
                             values=parsed,
                             error=JSONResponse(
                                 status_code=400,
                                 content={
-                                    "error": f"{label} must be a non-negative "
-                                    f"integer or 'clear' (got {raw!r})"
+                                    "error": f"{label} must be an integer "
+                                    f"between 0 and "
+                                    f"{MAX_GENERATE_CONFIG_OVERRIDE} or "
+                                    f"'clear' (got {raw!r})"
                                 },
                             ),
                         )

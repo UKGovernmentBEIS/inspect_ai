@@ -94,10 +94,11 @@ _KNOB_SINCE: dict[str, int] = {
 class _IntOrClearType(click.ParamType):
     """Non-negative integer, or the keyword ``clear`` (restore launch config).
 
-    The retry-override knobs' value domain: every integer >= 0 is a real
-    value (``--max-retries 0`` means fail after the first attempt), so
-    clearing an override needs an out-of-band spelling — the literal
-    ``clear``, passed through to the server verbatim.
+    The retry-override knobs' value domain: every integer >= 0 (up to the
+    server-shared ``MAX_GENERATE_CONFIG_OVERRIDE`` bound) is a real value
+    (``--max-retries 0`` means fail after the first attempt), so clearing an
+    override needs an out-of-band spelling — the literal ``clear``, passed
+    through to the server verbatim.
     """
 
     name = "integer or 'clear'"
@@ -105,17 +106,29 @@ class _IntOrClearType(click.ParamType):
     def convert(
         self, value: Any, param: click.Parameter | None, ctx: click.Context | None
     ) -> int | Literal["clear"]:
+        from inspect_ai.model._generate_overrides import (
+            MAX_GENERATE_CONFIG_OVERRIDE,
+        )
+
         if isinstance(value, int):
-            return value
-        if value.strip().lower() == "clear":
+            parsed = value
+        elif value.strip().lower() == "clear":
             return "clear"
-        try:
-            parsed = int(value)
-        except ValueError:
-            self.fail(f"{value!r} is not an integer or 'clear'.", param, ctx)
+        else:
+            try:
+                parsed = int(value)
+            except ValueError:
+                self.fail(f"{value!r} is not an integer or 'clear'.", param, ctx)
         if parsed < 0:
             self.fail(
                 f"{parsed} is negative (pass 'clear' to restore launch config).",
+                param,
+                ctx,
+            )
+        if parsed > MAX_GENERATE_CONFIG_OVERRIDE:
+            self.fail(
+                f"{parsed} is larger than the maximum override value "
+                f"({MAX_GENERATE_CONFIG_OVERRIDE}).",
                 param,
                 ctx,
             )

@@ -1211,9 +1211,16 @@ class Model:
 
             # create timeout context manager if we have an attempt timeout
             # (resolved per attempt so a live `inspect ctl config` override
-            # applies from the next attempt onward)
-            attempt_timeout = generate_config_override(
-                "attempt_timeout", config.attempt_timeout
+            # applies from the next attempt onward). A batched call keeps its
+            # launch value: its attempt awaits an entire provider batch, and
+            # an override cancelling that wait would resubmit the request
+            # into a new batch on every retry (duplicated provider work) —
+            # the whole-batch blast radius the batchers' admin-op override
+            # opt-out exists to avoid.
+            attempt_timeout = (
+                config.attempt_timeout
+                if config.batch
+                else generate_config_override("attempt_timeout", config.attempt_timeout)
             )
             timeout_cm = (
                 anyio.move_on_after(attempt_timeout)

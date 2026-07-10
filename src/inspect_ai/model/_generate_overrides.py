@@ -22,7 +22,12 @@ the concurrency knobs). Values a provider bakes into its SDK client at
 initialization are not affected, and batcher admin-operation retry loops
 (batch create/poll) deliberately opt out via ``live_overrides=False`` —
 an exhausted admin-op retry fails every request riding the batch, a blast
-radius no fail-fast retune should trigger.
+radius no fail-fast retune should trigger. For the same reason a *batched*
+generate call keeps its launch ``attempt_timeout``: its attempt awaits an
+entire provider batch, and an override cancelling that wait would resubmit
+the request into a new batch (duplicated provider work, potentially forever)
+— the ``timeout`` / ``max_retries`` levers still reach batched calls' retry
+loops.
 
 The store is process-scoped (like ``max_sandboxes`` / ``max_connections``)
 and reset at the outermost run boundary alongside the other control-channel
@@ -48,6 +53,17 @@ GENERATE_CONFIG_OVERRIDE_FIELDS: tuple[GenerateConfigOverrideField, ...] = get_a
 )
 """All override fields, in the order views report them (the Literal's order)."""
 
+MAX_GENERATE_CONFIG_OVERRIDE: int = 1_000_000_000
+"""Upper bound for an override value (~31.7 years in seconds).
+
+Far beyond any meaningful timeout or retry count, yet small enough that the
+downstream float conversions stay exact: an unbounded integer would reach
+``anyio.move_on_after``'s float conversion and raise ``OverflowError``
+inside every subsequent generate call until the override was cleared. The
+wire layers (the control-server routes and the CLI param type) reject an
+out-of-range value before it gets here.
+"""
+
 _overrides: dict[str, int] = {}
 
 
@@ -58,14 +74,18 @@ def set_generate_config_override(
 
     An override applies process-wide from the next point of use (the next
     retry-stop check or attempt); clearing it restores whatever each
-    generate call's own config specifies. A negative value raises — the
-    control-server routes reject one before reaching here, so this guards
-    programmatic callers (a sign bug must not become a live override).
+    generate call's own config specifies. An out-of-range value raises —
+    the control-server routes reject one before reaching here, so this
+    guards programmatic callers (a sign or magnitude bug must not become a
+    live override that poisons every generate call at its point of use).
     """
     if value is None:
         _overrides.pop(field, None)
-    elif value < 0:
-        raise ValueError(f"{field} override must be >= 0 (got {value})")
+    elif value < 0 or value > MAX_GENERATE_CONFIG_OVERRIDE:
+        raise ValueError(
+            f"{field} override must be between 0 and "
+            f"{MAX_GENERATE_CONFIG_OVERRIDE} (got {value})"
+        )
     else:
         _overrides[field] = value
 

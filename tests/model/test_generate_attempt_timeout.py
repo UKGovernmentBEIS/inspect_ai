@@ -87,3 +87,46 @@ async def test_generate_attempt_timeout_live_override() -> None:
     finally:
         reset_generate_config_overrides()
         del _registry["modelapi:mockslow"]
+
+
+class BriefAPI(SlowAPI):
+    """A provider whose generate outlasts the override but finishes quickly."""
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        BriefAPI.attempts += 1
+        await anyio.sleep(2)
+        return ModelOutput.from_content(model=self.model_name, content="done")
+
+
+async def test_generate_attempt_timeout_override_exempts_batched_calls() -> None:
+    """A batched call keeps its launch attempt_timeout despite a live override.
+
+    An attempt in batch mode awaits an entire provider batch; an override
+    cancelling that wait would resubmit the request into a new batch
+    (duplicated provider work), so the override deliberately does not reach
+    batched calls. The max_retries=0 override keeps a regression cheap: if
+    the attempt_timeout override were applied, the single 2s attempt would
+    time out at 1s and the call would fail fast rather than hang.
+    """
+
+    @modelapi(name="mockbrief")
+    def mockbrief() -> type[ModelAPI]:
+        return BriefAPI
+
+    try:
+        model = get_model("mockbrief/test", config=GenerateConfig(batch=True))
+        BriefAPI.attempts = 0
+        set_generate_config_override("attempt_timeout", 1)
+        set_generate_config_override("max_retries", 0)
+        output = await model.generate("hello")
+        assert BriefAPI.attempts == 1
+        assert output.completion == "done"
+    finally:
+        reset_generate_config_overrides()
+        del _registry["modelapi:mockbrief"]

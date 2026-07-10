@@ -1565,6 +1565,16 @@ def test_config_retry_overrides_accept_clear_keyword(
     assert result.exit_code == 2
     assert "negative" in result.stderr
 
+    # over the shared value bound -> click usage error, no request made
+    from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
+
+    result = _runner().invoke(
+        ctl_command,
+        ["config", "--attempt-timeout", str(MAX_GENERATE_CONFIG_OVERRIDE + 1)],
+    )
+    assert result.exit_code == 2
+    assert "maximum override value" in result.stderr
+
 
 def test_discovery_api_version_parsed_with_bootstrap_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path

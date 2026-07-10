@@ -18,6 +18,7 @@ from inspect_ai._control.eval_state import (
 )
 from inspect_ai._control.limits import task_limits
 from inspect_ai.model._generate_overrides import (
+    MAX_GENERATE_CONFIG_OVERRIDE,
     generate_config_override,
     reset_generate_config_overrides,
     set_generate_config_override,
@@ -529,11 +530,24 @@ def test_retry_override_opted_out_for_batch_admin_ops() -> None:
     assert stop(state) is False  # the fail-fast retune is ignored
 
 
-def test_set_generate_config_override_rejects_negative() -> None:
-    """A programmatic sign bug errors loudly instead of becoming an override."""
+def test_set_generate_config_override_rejects_out_of_range() -> None:
+    """A programmatic sign or magnitude bug errors loudly, not becomes an override.
+
+    An unbounded value would poison the point of use rather than the caller
+    (a huge attempt_timeout raises OverflowError inside every subsequent
+    generate call's `anyio.move_on_after`), so the store rejects it here.
+    """
     with pytest.raises(ValueError, match="max_retries"):
         set_generate_config_override("max_retries", -1)
+    with pytest.raises(ValueError, match="attempt_timeout"):
+        set_generate_config_override(
+            "attempt_timeout", MAX_GENERATE_CONFIG_OVERRIDE + 1
+        )
     assert generate_config_override("max_retries") is None
+    assert generate_config_override("attempt_timeout") is None
+    # the bound itself is a legal value
+    set_generate_config_override("timeout", MAX_GENERATE_CONFIG_OVERRIDE)
+    assert generate_config_override("timeout") == MAX_GENERATE_CONFIG_OVERRIDE
 
 
 # ---------------------------------------------------------------------------
@@ -673,9 +687,11 @@ async def test_retry_overrides_route_patch_and_clear() -> None:
         restored = await client.patch("/config", params={"max_retries": 4})
         assert restored.status_code == 200, restored.text
 
-        # negative and non-integer garbage are rejected on both routes
+        # negative, non-integer and over-bound values are rejected on both
+        # routes (an over-bound attempt_timeout would otherwise surface as
+        # an OverflowError inside every subsequent generate call)
         for path in ("/config", "/tasks/t1/config"):
-            for bad_value in ("-1", "unset"):
+            for bad_value in ("-1", "unset", str(MAX_GENERATE_CONFIG_OVERRIDE + 1)):
                 bad = await client.patch(path, params={"attempt_timeout": bad_value})
                 assert bad.status_code == 400
                 assert "attempt_timeout" in bad.json()["error"]
