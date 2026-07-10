@@ -80,6 +80,7 @@ _KNOB_SCOPE: dict[str, str] = {
 _KNOB_SINCE: dict[str, int] = {
     "max_samples": 0,
     "max_sandboxes": 0,
+    "max_subprocesses": 1,
     "max_connections": 0,
     "log_buffer": 0,
     "log_shared": 0,
@@ -1476,6 +1477,7 @@ def _run_config(
     knob_values: dict[str, int | None] = {
         "max_samples": max_samples,
         "max_sandboxes": max_sandboxes,
+        "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
         "log_buffer": log_buffer,
         "log_shared": log_shared,

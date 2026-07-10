@@ -1237,6 +1237,7 @@ def _stub_limits(
         knobs = (
             "max_samples",
             "max_sandboxes",
+            "max_subprocesses",
             "max_connections",
             "log_buffer",
             "log_shared",
@@ -1494,6 +1495,41 @@ def test_config_gate_ignores_since_zero_knobs(
         monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
     )
     result = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_config_gates_max_subprocesses_on_pre_version_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--max-subprocesses` gates on the shipped `_KNOB_SINCE` entry (since-1).
+
+    The gate-mechanism tests above monkeypatch `_KNOB_SINCE`; this pins the
+    real table: a server that predates version reporting refuses the knob,
+    and a current server (advertising `CONTROL_API_VERSION`) accepts it.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    result = _runner().invoke(ctl_command, ["config", "--max-subprocesses", "2"])
+    assert result.exit_code == 1
+    assert "--max-subprocesses not supported" in result.stderr
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(
+        ctl_command, ["config", "--max-subprocesses", "2", "--json"]
+    )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
 
