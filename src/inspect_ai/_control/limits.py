@@ -412,6 +412,7 @@ def _apply_process_knobs(
     # (process-wide, read live by the generate retry loop). "clear" removes an
     # override; the store always exists, so these never warn as unadjustable.
     from inspect_ai.model._generate_overrides import (
+        GENERATE_CONFIG_OVERRIDE_FIELDS,
         GenerateConfigOverrideField,
         generate_config_overrides,
         set_generate_config_override,
@@ -422,6 +423,9 @@ def _apply_process_knobs(
         "attempt_timeout": attempt_timeout,
         "max_retries": max_retries,
     }
+    # a field added to the override Literal but missing here would be
+    # settable in the store yet silently not applied by this directive
+    assert set(retry_values) == set(GENERATE_CONFIG_OVERRIDE_FIELDS)
     for field, value in retry_values.items():
         if value is not None:
             requested[field] = value

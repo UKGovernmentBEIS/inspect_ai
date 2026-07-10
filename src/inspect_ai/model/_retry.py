@@ -13,6 +13,7 @@ from typing_extensions import TypedDict
 from inspect_ai.model._generate_overrides import generate_config_override
 
 if TYPE_CHECKING:
+    from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model import RetryDecision
 
 
@@ -132,3 +133,33 @@ def model_retry_config(
         "before_sleep": on_before_sleep,
         "stop": stop,
     }
+
+
+def batch_admin_retry_config(
+    model_name: str,
+    config: "GenerateConfig",
+    should_retry: "Callable[[BaseException], bool | RetryDecision]",
+) -> ModelRetryConfig:
+    """Retry config for a batcher's admin operations (batch create/poll).
+
+    Encodes the batcher opt-out from the live `inspect ctl config` retry
+    overrides (``live_overrides=False``): an exhausted admin-op retry fails
+    every request riding the batch, so a fail-fast retune aimed at stuck
+    generate calls must not convert one transient poll error into a
+    whole-batch failure. Batch-mode generates still take live overrides in
+    ``Model._generate``'s own retry loop. Batching providers must build their
+    admin-op retry config through this helper rather than calling
+    :func:`model_retry_config` directly, so a new batcher can't drop the
+    opt-out by copying a generate-path call site.
+    """
+    from inspect_ai.model._model import log_model_retry
+
+    return model_retry_config(
+        model_name,
+        config.max_retries,
+        config.timeout,
+        should_retry,
+        lambda ex: None,
+        log_model_retry,
+        live_overrides=False,
+    )

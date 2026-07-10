@@ -633,3 +633,20 @@ def clear_all_eval_states() -> None:
     """
     with _lock:
         _eval_states.clear()
+
+
+def reset_run_registries() -> None:
+    """Reset the process-scoped control-channel registries at a run boundary.
+
+    The single reset call for the outermost run boundary (``eval`` /
+    ``eval_set``, after any keep-alive park). Both boundaries call this one
+    helper so a future process-scoped registry can't get its reset added at
+    one boundary and leak stale state through the other — add new resets
+    here, not at the call sites.
+    """
+    from inspect_ai.model._generate_overrides import (
+        reset_generate_config_overrides,
+    )
+
+    clear_all_eval_states()
+    reset_generate_config_overrides()

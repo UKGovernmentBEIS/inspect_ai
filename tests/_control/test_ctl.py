@@ -15,6 +15,7 @@ import pytest
 from click.testing import CliRunner
 
 from inspect_ai._cli.ctl import (
+    _KNOB_SCOPE,
     _KNOB_SINCE,
     _SHORT_ID_LEN,
     _ConfigResult,
@@ -1234,17 +1235,9 @@ def _stub_limits(
     """Stub the server config view for `ctl config` (minimal adjustable knobs)."""
 
     def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
-        knobs = (
-            "max_samples",
-            "max_sandboxes",
-            "max_subprocesses",
-            "max_connections",
-            "log_buffer",
-            "log_shared",
-            "timeout",
-            "attempt_timeout",
-            "max_retries",
-        )
+        # derive from the canonical knob table so a future knob can't be
+        # missed here (which would misreport its sets as mutated=False)
+        knobs = _KNOB_SCOPE.keys()
         return _ConfigResult(
             view={
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
@@ -1386,8 +1379,6 @@ def test_config_help_scope_tags_derive_from_knob_table() -> None:
     derive from that one table; this pins the help side (the JSON side is
     pinned by test_compose_config_labels_every_knob_with_scope).
     """
-    from inspect_ai._cli.ctl import _KNOB_SCOPE
-
     out = _runner().invoke(ctl_command, ["config", "--help"]).output
     options = out[out.index("Options:") :]  # the docstring also names flags
     for knob, scope in _KNOB_SCOPE.items():
@@ -1408,7 +1399,6 @@ def test_knob_since_table_is_consistent() -> None:
     reusing the current N without a bump — is convention only; see the
     comment on `CONTROL_API_VERSION`.)
     """
-    from inspect_ai._cli.ctl import _KNOB_SCOPE
     from inspect_ai._control import CONTROL_API_VERSION
 
     assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()

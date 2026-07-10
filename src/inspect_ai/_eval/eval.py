@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._control.eval_state import clear_all_eval_states
+from inspect_ai._control.eval_state import reset_run_registries
 from inspect_ai._control.server import (
     control_server,
     keep_alive_intent,
@@ -24,7 +24,6 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
-from inspect_ai.model._generate_overrides import reset_generate_config_overrides
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_info import set_model_cost
@@ -1147,8 +1146,7 @@ async def _eval_async_inner(
         # (eval_set_id set) the eval-set owns this, clearing after its own
         # park.
         if eval_set_id is None:
-            clear_all_eval_states()
-            reset_generate_config_overrides()
+            reset_run_registries()
 
     # return logs
     return logs

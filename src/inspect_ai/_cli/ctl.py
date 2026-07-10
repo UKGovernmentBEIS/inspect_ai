@@ -1854,37 +1854,32 @@ def _run_config(
     buffer_warnings: list[str] = []
     if scope.task_id is not None and limits_view.get("buffer") is None:
         if set_buffer:
+            # per-knob adjustability in the just-returned view (the buffer
+            # knobs are the error subject, so they're excluded). The retry
+            # overrides are always adjustable: the override layer exists
+            # regardless of any task's launch config, and
+            # `_gate_knob_support` has already excluded older servers.
+            adjustable: dict[str, bool] = {
+                "max_samples": bool(
+                    (limits_view.get("max_samples") or {}).get("adjustable")
+                ),
+                "max_sandboxes": bool(limits_view.get("max_sandboxes")),
+                "max_subprocesses": bool(limits_view.get("max_subprocesses")),
+                "max_connections": bool(limits_view.get("adaptive")),
+                "timeout": True,
+                "attempt_timeout": True,
+                "max_retries": True,
+            }
+            # a knob missing here would be silently absent from the "were
+            # still applied" list, misleading the operator on this error path
+            assert adjustable.keys() == knob_values.keys() - {
+                "log_buffer",
+                "log_shared",
+            }
             applied_names = [
-                name
-                for name, value, adjustable in (
-                    (
-                        "--max-samples",
-                        max_samples,
-                        bool((limits_view.get("max_samples") or {}).get("adjustable")),
-                    ),
-                    (
-                        "--max-sandboxes",
-                        max_sandboxes,
-                        bool(limits_view.get("max_sandboxes")),
-                    ),
-                    (
-                        "--max-subprocesses",
-                        max_subprocesses,
-                        bool(limits_view.get("max_subprocesses")),
-                    ),
-                    (
-                        "--max-connections",
-                        max_connections,
-                        bool(limits_view.get("adaptive")),
-                    ),
-                    # the retry overrides are always adjustable (the override
-                    # layer exists regardless of any task's launch config, and
-                    # `_gate_knob_support` has already excluded older servers)
-                    ("--timeout", timeout, True),
-                    ("--attempt-timeout", attempt_timeout, True),
-                    ("--max-retries", max_retries, True),
-                )
-                if value is not None and adjustable
+                f"--{knob.replace('_', '-')}"
+                for knob, value in knob_values.items()
+                if value is not None and adjustable.get(knob, False)
             ]
             message = (
                 f"Task '{scope.task_id}' has no sample buffer in this "
@@ -1980,7 +1975,11 @@ def _compose_config(
     # is the live process-wide override, None = launch config applies per call.
     retry_view = limits_view.get("retry")
     if retry_view is not None:
-        for knob in ("timeout", "attempt_timeout", "max_retries"):
+        from inspect_ai.model._generate_overrides import (
+            GENERATE_CONFIG_OVERRIDE_FIELDS,
+        )
+
+        for knob in GENERATE_CONFIG_OVERRIDE_FIELDS:
             knobs[knob] = {
                 "scope": _KNOB_SCOPE[knob],
                 "override": retry_view.get(knob),
@@ -2973,14 +2972,10 @@ def _error_detail_from_response(response: httpx.Response) -> str:
 
 
 def _knob_label(display: str, knob: str) -> str:
-    """Aligned human config label carrying the knob's scope from ``_KNOB_SCOPE``.
-
-    A label longer than the alignment column still gets one separating space
-    (rather than the value abutting the colon).
-    """
-    # width fits the longest label ("max subprocesses [process]:") plus a space
-    label = f"  {display} [{_KNOB_SCOPE[knob]}]:"
-    return label.ljust(30) if len(label) < 30 else label + " "
+    """Aligned human config label carrying the knob's scope from ``_KNOB_SCOPE``."""
+    # width fits the longest label ("max subprocesses [process]:") plus a
+    # space — widen it if a longer knob label is ever added
+    return f"  {display} [{_KNOB_SCOPE[knob]}]:".ljust(30)
 
 
 def _print_config(config: dict[str, Any], *, changed: bool) -> None:

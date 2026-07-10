@@ -12,13 +12,13 @@ from openai.types.chat import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai.model._retry import model_retry_config
+from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI, RetryDecision, log_model_retry
+from .._model import ModelAPI, RetryDecision
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -197,17 +197,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             batch_config,
             # TODO: In the future, we could pass max_retries and timeout
             # from batch_config falling back to config
-            model_retry_config(
-                self.model_name,
-                config.max_retries,
-                config.timeout,
-                self.should_retry,
-                lambda ex: None,
-                log_model_retry,
-                # admin ops only (batch create/poll): a fail-fast
-                # `inspect ctl config` retune must not fail the batch
-                live_overrides=False,
-            ),
+            batch_admin_retry_config(self.model_name, config, self.should_retry),
         )
 
 
