@@ -394,6 +394,61 @@ async def test_limits_route_rejects_below_one() -> None:
         assert "max_samples" in bad.json()["error"]
 
 
+async def test_limits_route_rejects_unknown_param_atomically() -> None:
+    """PATCH with an unknown knob 400s before applying anything (fail closed)."""
+    limiter = ResizableLimiter(20)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        bad = await client.patch(
+            "/tasks/t1/config", params={"max_samples": 40, "max_gizmos": 3}
+        )
+        assert bad.status_code == 400
+        assert "unknown config parameter(s): max_gizmos" in bad.json()["error"]
+        assert "does not support" in bad.json()["error"]
+        # atomic: the recognized knob in the same request was NOT applied
+        assert limiter.limit == 20
+
+        # multiple unknown params are all named (sorted)
+        bad = await client.patch("/tasks/t1/config", params={"zeta": 1, "alpha": 2})
+        assert bad.status_code == 400
+        assert "unknown config parameter(s): alpha, zeta" in bad.json()["error"]
+
+
+async def test_process_limits_route_rejects_unknown_param() -> None:
+    ctrl = await _register_controller(max=100, start=50)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        bad = await client.patch(
+            "/config", params={"max_connections": 30, "max_gizmos": 3}
+        )
+        assert bad.status_code == 400
+        assert "unknown config parameter(s): max_gizmos" in bad.json()["error"]
+        assert ctrl.max == 100  # nothing applied
+
+
+async def test_limits_route_get_tolerates_unknown_param() -> None:
+    """GET config routes stay tolerant — an ignored read param can't corrupt."""
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        got = await client.get("/config", params={"max_gizmos": 3})
+        assert got.status_code == 200, got.text
+        got = await client.get("/tasks/t1/config", params={"max_gizmos": 3})
+        assert got.status_code == 200, got.text
+
+
 async def test_limits_route_patch_max_connections() -> None:
     register_eval("e1", 5, task_id="t1")
     ctrl = await _register_controller(max=100, start=50)

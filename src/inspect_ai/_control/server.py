@@ -223,11 +223,27 @@ class ControlServer:
         Imported lazily so module import doesn't pay the FastAPI cost
         when control is disabled.
         """
-        from fastapi import FastAPI, Request
+        from fastapi import Depends, FastAPI, Request
         from fastapi.responses import JSONResponse
+
+        from inspect_ai._control.strict import (
+            UnknownQueryParamsError,
+            reject_unknown_query_params,
+        )
 
         app = FastAPI()
         started_at = self._started_at
+
+        # Attached to the PATCH config routes so knob skew fails closed and
+        # atomically instead of partially applying (see the strict module
+        # docstring for the rationale, including why GETs stay tolerant).
+        strict_params = [Depends(reject_unknown_query_params)]
+
+        @app.exception_handler(UnknownQueryParamsError)
+        async def on_unknown_params(
+            request: Request, exc: UnknownQueryParamsError
+        ) -> JSONResponse:
+            return JSONResponse(status_code=400, content={"error": str(exc)})
 
         @app.exception_handler(Exception)
         async def on_error(request: Request, exc: Exception) -> JSONResponse:
@@ -375,8 +391,9 @@ class ControlServer:
         # Retune the process-global limits. Omitting both set values makes this a
         # read, like GET. `model` filters the adaptive controllers (name start or
         # after a `/`). `dry_run=true` reports the intended change without
-        # applying it. Never 404s — a process always exists.
-        @app.patch("/config")
+        # applying it. Never 404s — a process always exists. Unknown query
+        # params 400 (fail closed) rather than partially applying.
+        @app.patch("/config", dependencies=strict_params)
         async def patch_process_limits(
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
@@ -417,8 +434,9 @@ class ControlServer:
         # and reports the intended change without applying it (the phase-3
         # agent-shape constraint). Idempotent: re-applying the same value is a
         # no-op. Returns the resulting config view (with any warnings for a
-        # knob that isn't adjustable for this task).
-        @app.patch("/tasks/{task_id}/config")
+        # knob that isn't adjustable for this task). Unknown query params 400
+        # (fail closed) rather than partially applying.
+        @app.patch("/tasks/{task_id}/config", dependencies=strict_params)
         async def patch_limits(
             task_id: str,
             max_samples: int | None = None,
