@@ -13,6 +13,7 @@
 - Control Channel: `inspect eval-set --json` emits the same launch-handoff and `done` JSON lines as `inspect eval --json`, with `eval_set_id` on the records and overall `success` on the `done` record.
 - CLI: `--debug` attach diagnostics ("Waiting for debugger attach") now print to stderr, keeping stdout clean for machine-readable output such as `--json`.
 - Control Channel: `inspect ctl config` now errors when the target process runs an inspect version too old to support a requested knob, instead of silently ignoring it.
+- Control Channel: `max_subprocesses` is now retunable mid-flight via `inspect ctl config --max-subprocesses` and the `PATCH /config` endpoints, alongside the other concurrency knobs.
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
 - Model Roles: `--model-role` roles that share the same model and config now report their token usage separately in `role_usage` instead of collapsing onto one role. (#4450)
 

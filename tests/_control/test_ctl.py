@@ -1231,6 +1231,7 @@ def _stub_limits(
         knobs = (
             "max_samples",
             "max_sandboxes",
+            "max_subprocesses",
             "max_connections",
             "log_buffer",
             "log_shared",
@@ -1493,6 +1494,41 @@ def test_config_gate_ignores_since_zero_knobs(
     )
     result = cli_runner().invoke(
         ctl_command, ["config", "--max-samples", "3", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_config_gates_max_subprocesses_on_pre_version_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--max-subprocesses` gates on the shipped `_KNOB_SINCE` entry (since-1).
+
+    The gate-mechanism tests above monkeypatch `_KNOB_SINCE`; this pins the
+    real table: a server that predates version reporting refuses the knob,
+    and a current server (advertising `CONTROL_API_VERSION`) accepts it.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    result = _runner().invoke(ctl_command, ["config", "--max-subprocesses", "2"])
+    assert result.exit_code == 1
+    assert "--max-subprocesses not supported" in result.stderr
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(
+        ctl_command, ["config", "--max-subprocesses", "2", "--json"]
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
@@ -1767,6 +1803,7 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     limits_view = {
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
+        "max_subprocesses": {"limit": 8, "in_use": 1},
         "adaptive": [],
         "buffer": {"log_buffer": 10, "pending": 2, "log_shared": None},
         "requested": {"max_samples": 3, "log_buffer": 5},
@@ -1783,6 +1820,11 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     assert config["target"] == {"scope": "task", "task_id": "t1", "task": "tn"}
     assert config["knobs"]["max_samples"]["scope"] == "task"
     assert config["knobs"]["max_sandboxes"]["scope"] == "process"
+    assert config["knobs"]["max_subprocesses"] == {
+        "scope": "process",
+        "limit": 8,
+        "in_use": 1,
+    }
     assert config["knobs"]["max_connections"]["scope"] == "process"
     assert config["knobs"]["log_buffer"]["scope"] == "task"
     assert config["knobs"]["log_shared"]["scope"] == "task"
@@ -1911,8 +1953,8 @@ def test_print_config_process_scope_shows_buffer_placeholder(
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "log buffer [task]:       per task (pass a task to view/set)" in out
-    assert "shared sync [task]:      per task (pass a task to view/set)" in out
+    assert "log buffer [task]:          per task (pass a task to view/set)" in out
+    assert "shared sync [task]:         per task (pass a task to view/set)" in out
 
 
 def test_resolve_scope_siblings_counts_active_only() -> None:
