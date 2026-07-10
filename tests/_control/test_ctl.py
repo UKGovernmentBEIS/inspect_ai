@@ -7,6 +7,7 @@ cursor validation), and rendering helpers.
 """
 
 import json
+from pathlib import Path
 from typing import Any
 
 import click
@@ -14,6 +15,7 @@ import pytest
 from click.testing import CliRunner
 
 from inspect_ai._cli.ctl import (
+    _KNOB_SINCE,
     _SHORT_ID_LEN,
     _ConfigResult,
     _FetchedSummaries,
@@ -831,12 +833,13 @@ def test_fetch_summaries_unresponsive_server_exits(
 
 
 class _DiscServer:
-    """Discovery entry double (pid / socket_path / started_at)."""
+    """Discovery entry double (pid / socket_path / started_at / api_version)."""
 
-    def __init__(self, pid: int) -> None:
+    def __init__(self, pid: int, api_version: int = 0) -> None:
         self.pid = pid
         self.socket_path = f"/tmp/{pid}.sock"
         self.started_at = 100.0
+        self.api_version = api_version
 
 
 def _full_summary(
@@ -1350,6 +1353,144 @@ def test_config_help_scope_tags_derive_from_knob_table() -> None:
         flag = "--" + knob.replace("_", "-")
         start = options.index(flag)
         assert f"[{scope}]" in options[start : start + 120], knob
+
+
+def test_knob_since_table_is_consistent() -> None:
+    """Every knob has a min-version entry, and no entry outruns the constant.
+
+    Key parity (also asserted at runtime in `_exec_limits`) forces a new knob
+    to declare its since-version explicitly rather than silently defaulting
+    to "understood by every server". The second assertion catches
+    forgot-to-bump variant A (a `_KNOB_SINCE` entry of N+1 while
+    `CONTROL_API_VERSION` is still N), which would make the CLI block its own
+    new knob against every server — including current ones. (Variant B —
+    reusing the current N without a bump — is convention only; see the
+    comment on `CONTROL_API_VERSION`.)
+    """
+    from inspect_ai._cli.ctl import _KNOB_SCOPE
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
+    assert max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION
+
+
+def test_config_gates_newer_knob_on_older_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A knob the target server predates hard-errors before the PATCH.
+
+    An older server's PATCH handler silently ignores unknown query params
+    (applying whatever it does recognize), so the gate must fail the whole
+    request pre-flight — `_exec_limits` must never run.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
+
+    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
+        raise AssertionError("the mutation must not be sent")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
+
+    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 1
+    assert "--max-samples not supported" in result.stderr
+    assert "pid 7 is running an older inspect" in result.stderr
+    assert "restart the eval" in result.stderr
+
+    # the gate covers dry runs too: a dry-run PATCH on an older server would
+    # report a success-shaped view that omits the unknown knobs
+    dry = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--dry-run"])
+    assert dry.exit_code == 1
+    assert "--max-samples not supported" in dry.stderr
+
+
+def test_config_gate_names_only_unsupported_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pre-flight error lists the offending flags, not every set knob."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    monkeypatch.setitem(_KNOB_SINCE, "log_buffer", 1)
+    result = _runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "5"]
+    )
+    assert result.exit_code == 1
+    assert "--log-buffer not supported" in result.stderr
+    assert "--max-samples" not in result.stderr
+
+
+def test_config_gate_passes_on_current_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A server whose advertised version covers the knob is not gated."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=1)],
+    )
+    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_config_gate_ignores_since_zero_knobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Since-0 knobs pass against any server, version-reporting or not."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_discovery_api_version_parsed_with_bootstrap_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`api_version` rides the discovery file; a file predating it is version 0.
+
+    The missing-field default is the one-time bootstrap for processes
+    launched before version reporting existed — the CLI gate treats them as
+    understanding only since-0 knobs.
+    """
+    import inspect_ai._control.discovery as discovery
+    import inspect_ai._util.process as process
+
+    monkeypatch.setattr(discovery, "inspect_data_dir", lambda subdir=None: tmp_path)
+    monkeypatch.setattr(process, "pid_alive", lambda pid: True)
+    (tmp_path / "1.json").write_text(
+        json.dumps(
+            {
+                "pid": 1,
+                "socket_path": "/tmp/1.sock",
+                "started_at": 1.0,
+                "api_version": 3,
+            }
+        )
+    )
+    (tmp_path / "2.json").write_text(
+        json.dumps({"pid": 2, "socket_path": "/tmp/2.sock", "started_at": 2.0})
+    )
+    servers = {s.pid: s for s in discovery.list_discovered_servers()}
+    assert servers[1].api_version == 3
+    assert servers[2].api_version == 0
 
 
 def test_config_log_shared_rejects_below_one() -> None:

@@ -1,10 +1,14 @@
 ## Unreleased
 
+- OpenAI: Support for GPT-5.6 (Sol, Terra, and Luna) — model info database entries and codename frontier aliasing now target `gpt-5.6`.
+- OpenAI: `reasoning_effort="max"` is now passed through natively for GPT-5.6+ models rather than being clamped to `xhigh`.
+- Model API: New `reasoning_mode` generation option (`--reasoning-mode`) for GPT-5.6 pro mode; requesting "pro" defaults to background processing like the gpt-5-pro model line.
 - Checkpointing: `Task(checkpoint=False)` now vetoes checkpointing for that task, overriding an eval-set/CLI enable (previously a no-op).
 - Control Channel: Reorganized the `inspect ctl` CLI into resource-noun groups (`ctl task`, `ctl sample`, `ctl config`, `ctl process`); the old flat spellings remain as hidden deprecated aliases, except `ctl sample` which is now the group (use `ctl sample show`).
 - Control Channel: `inspect ctl` sample commands now warn and skip an eval that stays busy through the retries instead of failing outright, with stderr caveats (and an honest non-zero exit when no tasks remain visible) wherever the skip could mislead.
 - Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
-- Control Channel: `GET /evals/{id}/sample` now returns the sample's summary fields (timing / tokens / messages) alongside its error detail, so `inspect ctl sample show` is a single atomic read instead of also fetching the eval's entire sample listing.
+- Control Channel: `inspect ctl config` now errors when the target process runs an inspect version too old to support a requested knob, instead of silently ignoring it.
+- Control Channel: `inspect ctl sample show` now reads the sample's summary and error detail in one atomic request, so its output can no longer mix data from different attempts.
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
 
 ## 0.3.245 (08 July 2026)
