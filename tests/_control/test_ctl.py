@@ -1240,6 +1240,9 @@ def _stub_limits(
             "max_connections",
             "log_buffer",
             "log_shared",
+            "timeout",
+            "attempt_timeout",
+            "max_retries",
         )
         return _ConfigResult(
             view={
@@ -1494,6 +1497,41 @@ def test_config_gate_ignores_since_zero_knobs(
         monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
     )
     result = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_config_gates_retry_overrides_by_real_since_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The retry overrides gate on their real `_KNOB_SINCE` entries (since-1).
+
+    Unlike the gate tests above, no table entry is monkeypatched: a version-0
+    process rejects a retry-override set pre-flight, and a process at the
+    current version applies it.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    result = _runner().invoke(
+        ctl_command, ["config", "--timeout", "300", "--attempt-timeout", "60"]
+    )
+    assert result.exit_code == 1
+    assert "--timeout, --attempt-timeout not supported" in result.stderr
+
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(ctl_command, ["config", "--timeout", "300", "--json"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
 

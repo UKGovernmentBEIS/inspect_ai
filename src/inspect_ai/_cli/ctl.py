@@ -85,6 +85,9 @@ _KNOB_SINCE: dict[str, int] = {
     "max_connections": 0,
     "log_buffer": 0,
     "log_shared": 0,
+    "timeout": 1,
+    "attempt_timeout": 1,
+    "max_retries": 1,
 }
 
 # Rendered for a task-scoped knob that a process-level view can't show.
@@ -1511,6 +1514,9 @@ def _run_config(
         "max_connections": max_connections,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
+        "timeout": timeout,
+        "attempt_timeout": attempt_timeout,
+        "max_retries": max_retries,
     }
     # a knob missing here would be silently exempt from the version gate —
     # the exact silent-skew failure `_gate_knob_support` exists to close
@@ -1532,25 +1538,6 @@ def _run_config(
         max_retries=max_retries,
         dry_run=dry_run,
     )
-
-    # An older server ignores the retry-override query params entirely (its
-    # view carries no `retry` key), so a requested set would otherwise
-    # silently no-op — surface that instead of claiming it applied.
-    retry_requested = [
-        name
-        for name, value in (
-            ("--timeout", timeout),
-            ("--attempt-timeout", attempt_timeout),
-            ("--max-retries", max_retries),
-        )
-        if value is not None
-    ]
-    version_warnings: list[str] = []
-    if retry_requested and "retry" not in limits_view:
-        version_warnings.append(
-            f"{', '.join(retry_requested)} not applied — this process is "
-            "running an older inspect without the retry-override knobs."
-        )
 
     # The buffer knobs ride the task config view (`buffer` key); a task with
     # no live sample buffer (e.g. a reused log, or a superseded retry attempt)
@@ -1582,9 +1569,12 @@ def _run_config(
                         max_connections,
                         bool(limits_view.get("adaptive")),
                     ),
-                    ("--timeout", timeout, "retry" in limits_view),
-                    ("--attempt-timeout", attempt_timeout, "retry" in limits_view),
-                    ("--max-retries", max_retries, "retry" in limits_view),
+                    # the retry overrides are always adjustable (the override
+                    # layer exists regardless of any task's launch config, and
+                    # `_gate_knob_support` has already excluded older servers)
+                    ("--timeout", timeout, True),
+                    ("--attempt-timeout", attempt_timeout, True),
+                    ("--max-retries", max_retries, True),
                 )
                 if value is not None and adjustable
             ]
@@ -1605,8 +1595,6 @@ def _run_config(
                 # the buffer warning restates the headline error; skip it
                 if not warning.startswith("log_buffer"):
                     click.echo(f"! {warning}", err=True)
-            for warning in version_warnings:
-                click.echo(f"! {warning}", err=True)
             raise click.exceptions.Exit(code=1)
         buffer_warnings.append(
             "log_buffer/log_shared are not adjustable for this task "
@@ -1637,7 +1625,7 @@ def _run_config(
         dry_run=dry_run,
         set_values=mutated,
         notes=notes,
-        extra_warnings=buffer_warnings + version_warnings,
+        extra_warnings=buffer_warnings,
     )
 
     if as_json:
