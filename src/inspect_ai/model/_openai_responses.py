@@ -745,7 +745,8 @@ def responses_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
         return ResponseUsage(
             input_tokens=usage.input_tokens,
             input_tokens_details=InputTokensDetails(
-                cached_tokens=usage.input_tokens_cache_read or 0
+                cached_tokens=usage.input_tokens_cache_read or 0,
+                cache_write_tokens=usage.input_tokens_cache_write or 0,
             ),
             output_tokens=usage.output_tokens,
             output_tokens_details=OutputTokensDetails(
