@@ -34,6 +34,7 @@ from typing import Any, AsyncIterator, NamedTuple
 
 import anyio
 
+from inspect_ai._control import CONTROL_API_VERSION
 from inspect_ai._control.buffer import flush_task_samples
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
@@ -268,6 +269,11 @@ class ControlServer:
             keep_alive = keep_alive_intent()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
+                # Advertise the control-API version so HTTP consumers can
+                # gate version-dependent requests (the CLI reads it from the
+                # discovery file, which also covers the pre-registration
+                # window when this listing is still empty).
+                summary["api_version"] = CONTROL_API_VERSION
             return summaries
 
         @app.get("/evals/{eval_id}/samples")
@@ -550,6 +556,7 @@ class ControlServer:
                 "run_id": self._run_id,
                 "socket_path": str(socket_path),
                 "started_at": self._started_at,
+                "api_version": CONTROL_API_VERSION,
             },
         )
 
