@@ -995,9 +995,11 @@ def _json_prerequisite_errors_to_stderr(json_output: bool) -> Iterator[None]:
     ...) and is reconfigured to quiet once ``display="none"`` takes
     effect inside ``eval()`` — silently dropping the diagnostic for
     every common launch failure (bad task path, missing API key, ...).
-    So under ``--json`` render the message to stderr on a fresh console
-    and exit non-zero via ``SilentException``. This wraps the whole
-    command so pre-flight failures on either side of ``eval()`` behave
+    So under ``--json`` print the message to stderr (builtin ``print``,
+    matching the excepthook — a rich ``Console`` would interpret
+    bracketed text in messages as markup and hard-wrap long paths) and
+    exit non-zero via ``SilentException``. This wraps the whole command
+    so pre-flight failures on either side of ``eval()`` behave
     identically. A no-op (errors propagate unchanged) without ``--json``.
     """
     try:
@@ -1005,9 +1007,9 @@ def _json_prerequisite_errors_to_stderr(json_output: bool) -> Iterator[None]:
     except PrerequisiteError as ex:
         if not json_output:
             raise
-        from rich.console import Console
-
-        Console(file=sys.stderr).print(f"\n{ex.message}\n")
+        # flush: nothing else will — the process exits via the exception,
+        # and captured/piped stderr is block-buffered
+        print(f"\n{ex.message}\n", file=sys.stderr, flush=True)
         raise SilentException() from ex
 
 

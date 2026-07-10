@@ -29,13 +29,18 @@ import pytest
 import inspect_ai
 from _control.conftest import cli_runner
 from inspect_ai import Task, task
-from inspect_ai._cli.eval import eval_command, eval_set_command
+from inspect_ai._cli.eval import (
+    _json_prerequisite_errors_to_stderr,
+    eval_command,
+    eval_set_command,
+)
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.handoff import (
     LaunchHandoff,
     emit_launch_handoff,
     set_launch_handoff_listener,
 )
+from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate
 
@@ -484,6 +489,29 @@ def test_eval_json_pre_eval_failure_reports_to_stderr(
     assert result.exit_code != 0
     assert result.stdout.strip() == ""
     assert "Invalid run config" in result.stderr
+
+
+def test_eval_json_prerequisite_message_survives_brackets(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Bracketed text in a ``PrerequisiteError`` reaches stderr verbatim.
+
+    Many of these messages embed user-controlled paths (e.g.
+    ``pretty_solver_file``), and rendering through a rich ``Console``
+    would interpret ``[dev]`` as markup and silently swallow it.
+    """
+    message = (
+        "The source file solvers/[dev]/solver.py "
+        "does not contain any @solver functions."
+    )
+
+    with pytest.raises(SilentException):
+        with _json_prerequisite_errors_to_stderr(True):
+            raise PrerequisiteError(message)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert message in captured.err
 
 
 # --- inspect eval-set --json --------------------------------------------------
