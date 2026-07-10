@@ -1920,6 +1920,17 @@ def test_ctl_eval_finishes_when_final_attempt_cancels_sibling(
     assert samples["queued"] == 0
     assert samples["in_flight"] == 0
 
+    # The per-sample detail (`ctl sample show`) agrees with the listing on
+    # the cancellation: no retry is coming, so sample 2 reads `cancelled`
+    # (not `error`) with the cancellation repr suppressed, in both views.
+    row = next(r for r in cap.eval_samples("failing") if r["sample_id"] == 2)
+    assert row["status"] == "cancelled"
+    assert row["error"] is None
+    detail = cap.error_detail("failing", 2)
+    assert detail is not None
+    assert detail["status"] == "cancelled"
+    assert detail["error"] is None
+
 
 def test_ctl_eval_finishes_when_queued_samples_are_cancelled(
     short_data_dir: Path,

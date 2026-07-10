@@ -436,6 +436,9 @@ async def sample_error_detail(
     have to fetch the eval's *entire* listing (O(dataset) transfer) just to
     pick one row, and a sample retrying between the two reads would tear the
     view (fresh timing merged with a prior attempt's error history).
+    ``status``/``error`` follow the listing's classification: a cancellation
+    is never ``error`` — it reads as ``pending``/``cancelled`` with the
+    cancellation repr suppressed (:func:`_cancellation_status`).
 
     Returns ``None`` when the eval isn't in this process, or the sample isn't
     running and isn't readable yet — the endpoint turns that into a 404.
@@ -458,7 +461,7 @@ async def sample_error_detail(
     # The sample's summary row supplies the summary fields (timing / tokens /
     # messages) the heavy-field-excluded EvalSample can't fully provide
     # (message_count needs the excluded messages). Same source as the listing,
-    # so the two views can't disagree; the detail fields below override on
+    # so the two views agree on them; the detail fields below override on
     # overlap. A missing row (unexpected — the full sample was just readable)
     # degrades to the detail fields alone.
     row = next(
@@ -470,13 +473,26 @@ async def sample_error_detail(
         None,
     )
 
+    # status/error apply the listing's classification
+    # (_summary_from_eval_sample_summary reads the same error message), so the
+    # detail's override of the row can't contradict it: a cancellation is
+    # never an error — it reads as pending/cancelled with the repr suppressed.
+    status: str
+    error: dict[str, Any] | None
+    if sample.error is None:
+        status, error = "completed", None
+    elif is_cancellation_message(sample.error.message):
+        status, error = _cancellation_status(_eval_will_retry(eval_id)), None
+    else:
+        status, error = "error", _error_dict(sample.error)
+
     return {
         **(row or {}),
         "sample_id": sample.id,
         "epoch": sample.epoch,
-        "status": "error" if sample.error is not None else "completed",
+        "status": status,
         "retries": len(sample.error_retries) if sample.error_retries else 0,
-        "error": _error_dict(sample.error) if sample.error is not None else None,
+        "error": error,
         "error_retries": [_error_dict(e) for e in (sample.error_retries or [])],
         "scores": {name: score.value for name, score in (sample.scores or {}).items()},
     }
@@ -542,16 +558,33 @@ async def _sample_summaries_from_log(
     return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
 
 
+def _cancellation_status(will_retry: bool) -> str:
+    """How a cancelled sample's status reads — never ``error``.
+
+    A cancellation isn't a genuine error: the sample was torn down because a
+    sibling failed (or the eval was cancelled). It reads as ``pending`` when a
+    retry will re-run it, else ``cancelled``. Shared by the listing
+    (:func:`_summary_from_eval_sample_summary`) and the per-sample detail
+    (:func:`sample_error_detail`) so the two views can't drift.
+    """
+    return "pending" if will_retry else "cancelled"
+
+
+def _eval_will_retry(eval_id: str) -> bool:
+    """Whether a failure of the eval's current attempt will be retried."""
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    return state is not None and state.will_retry
+
+
 def _summary_from_eval_sample_summary(
     summary: Any, will_retry: bool = False
 ) -> dict[str, Any]:
     error = summary.error
     if error is not None and is_cancellation_message(error):
-        # A cancellation isn't a genuine error — the sample was torn down
-        # because a sibling failed (or the eval was cancelled). It reads as
-        # `pending` when a retry will re-run it, else `cancelled`. Either way
-        # the cancellation message itself isn't surfaced as an error.
-        status = "pending" if will_retry else "cancelled"
+        # the cancellation message itself isn't surfaced as an error
+        status = _cancellation_status(will_retry)
         error = None
     elif error is not None:
         status = "error"

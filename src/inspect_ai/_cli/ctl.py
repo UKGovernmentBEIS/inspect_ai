@@ -1131,14 +1131,17 @@ def _fetch_sample_row_from_listing(
 ) -> dict[str, Any] | None:
     """The sample's listing row — `sample show`'s old-server fallback.
 
-    A current control server's detail response always carries the summary
-    fields (timing / tokens / messages), so their *absence* — keyed on
+    A current control server's detail response carries the summary fields
+    (timing / tokens / messages), so their *absence* — keyed on
     ``message_count``, present even when null — marks a server from before
     they were added (``ctl`` attaches to already-running processes, so the
     CLI can be newer than the server). Only then is the eval's listing
     fetched to fold in the sample's row, restoring the fields the old
     two-read flow reported; a failed fallback read degrades to the detail
     alone with a stderr caveat rather than discarding the answer in hand.
+    Not a strict version test: a current server also omits the keys on its
+    terminal path's degrade case (its own summary-row lookup missed), where
+    this fallback fires harmlessly as a second chance at the row.
     """
     try:
         samples = _fetch_samples(
