@@ -1483,9 +1483,11 @@ def _run_task_cancel(task: str, *, dry_run: bool, as_json: bool) -> None:
         params=params,
         what=f"cancel of task {scope.task_id}",
         not_found=(
-            f"Task '{scope.task_id}' not found in this process (it may have "
-            "finished, or the process may be running an older inspect "
-            "without the cancel endpoint)."
+            f"Task '{scope.task_id}' not found in this process (it may have finished)."
+        ),
+        not_found_missing_route=(
+            "This process is running an older inspect without the cancel "
+            "endpoint; restart the eval to pick up the current version."
         ),
         mutate="post",
         retry_mutation=True,
@@ -1567,8 +1569,11 @@ def _run_sample_cancel(
         what=f"cancel of sample {sample_id}",
         not_found=(
             f"Sample '{sample_id}' (epoch {epoch}) not found in task "
-            f"'{target.get('task') or '?'}' (or the process is running an "
-            "older inspect without the cancel endpoint)."
+            f"'{target.get('task') or '?'}'."
+        ),
+        not_found_missing_route=(
+            "This process is running an older inspect without the cancel "
+            "endpoint; restart the eval to pick up the current version."
         ),
         mutate="post",
         retry_mutation=True,
@@ -2596,6 +2601,7 @@ def _request_json(
     *,
     what: str,
     not_found: str,
+    not_found_missing_route: str | None = None,
     params: dict[str, Any] | None = None,
     mutate: Literal["post", "patch"] | None = None,
     retry_mutation: bool = False,
@@ -2612,6 +2618,13 @@ def _request_json(
     silent long wait. A 404 prints ``not_found`` and exits non-zero; a 400
     surfaces the server's ``{"error": ...}`` body; transport errors exit
     with ``what`` as context.
+
+    ``not_found_missing_route`` splits the 404 by origin (see
+    :func:`_handler_404`): a router 404 — the endpoint doesn't exist, so the
+    process is running an older inspect — prints it instead of ``not_found``,
+    which then only ever means the endpoint answered "entity not found".
+    Without it every 404 prints ``not_found``, which must therefore hedge
+    both meanings; new endpoints should pass it rather than hedge.
     """
     verb = "update" if mutate else "read"
     try:
@@ -2639,7 +2652,10 @@ def _request_json(
                 socket_path, path, params=params, what=f"Reading {what}"
             )
         if response.status_code == 404:
-            click.echo(not_found, err=True)
+            if not_found_missing_route is not None and not _handler_404(response):
+                click.echo(not_found_missing_route, err=True)
+            else:
+                click.echo(not_found, err=True)
             raise click.exceptions.Exit(code=1)
         if response.status_code == 400:
             click.echo(
@@ -2655,6 +2671,27 @@ def _request_json(
         click.echo(f"Failed to {verb} {what}: {_error_detail(exc)}", err=True)
         raise click.exceptions.Exit(code=1) from exc
     return result if isinstance(result, dict) else {}
+
+
+def _handler_404(response: httpx.Response) -> bool:
+    """Whether a 404 came from an endpoint handler rather than the router.
+
+    Handler 404s ("entity not found") always carry an ``{"error": ...}`` JSON
+    body — a control-server convention pinned by a test — while the router's
+    404 for a path with no route (a process running an older inspect without
+    the endpoint) is FastAPI's stock ``{"detail": "Not Found"}``. Reading the
+    distinction off the response beats gating on a version table: it needs no
+    per-endpoint bookkeeping and is accurate against servers that predate
+    version reporting entirely. Unparseable bodies count as router 404s —
+    misreporting a weird handler 404 as version skew still names a true
+    remedy (restart on current inspect), whereas the opposite error would
+    tell the user their task finished when it didn't.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    return isinstance(body, dict) and "error" in body
 
 
 def _post_flush(socket_path: str, task_id: str) -> dict[str, Any]:

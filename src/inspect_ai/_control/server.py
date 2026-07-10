@@ -245,6 +245,14 @@ class ControlServer:
                 status_code=500, content={"error": f"{type(exc).__name__}: {exc}"}
             )
 
+        # 404 convention: a handler 404 ("entity not found") MUST carry an
+        # {"error": ...} JSON body. The CLI reads the body shape to tell
+        # handler 404s apart from the router's stock {"detail": "Not Found"}
+        # (no such route — the server predates the endpoint) and reports
+        # version skew definitively (see `_handler_404` in
+        # `inspect_ai._cli.ctl`); a handler 404 without the key would
+        # misreport as skew. Pinned by a test in tests/_control/test_server.py.
+
         def _limits_below_one(*knobs: tuple[str, int | None]) -> JSONResponse | None:
             """400 for the first requested limit below 1, else None.
 

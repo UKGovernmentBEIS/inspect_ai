@@ -1958,6 +1958,30 @@ def test_task_cancel_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "3 in-flight samples" in result.stdout
 
 
+def test_task_cancel_missing_route_names_version_skew(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A router 404 (no `error` body) means the server predates the endpoint."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {"detail": "Not Found"})])
+    result = _runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    assert result.exit_code == 1
+    assert "older inspect without the cancel endpoint" in result.stderr
+    assert "may have finished" not in result.stderr
+
+
+def test_task_cancel_handler_404_means_task_gone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A handler 404 (`{"error": ...}` body) is definitive: the task is gone."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {"error": "task aaa111 not found"})])
+    result = _runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    assert result.exit_code == 1
+    assert "may have finished" in result.stderr
+    assert "older inspect" not in result.stderr
+
+
 def test_sample_cancel_defaults_epoch_for_single_epoch_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
