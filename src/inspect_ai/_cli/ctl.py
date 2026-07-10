@@ -65,6 +65,25 @@ _KNOB_SCOPE: dict[str, str] = {
     "log_shared": "task",
 }
 
+# Minimum control-API version each knob requires of the *server* process (the
+# `CONTROL_API_VERSION` from `inspect_ai._control` that its inspect embedded
+# at launch). Parallel to `_KNOB_SCOPE`: every knob needs an entry (key-set
+# parity is asserted in `_exec_limits` and pinned by a test), so a new knob
+# can't silently default to "understood by every server". Since-0 knobs
+# predate version reporting and are never gated. A PR that adds a knob older
+# servers' PATCH handlers would silently ignore must bump
+# `CONTROL_API_VERSION` and record the new value here; `_gate_knob_support`
+# then hard-errors the request against an older process *before* the
+# mutation, instead of letting it partially apply behind a success-shaped
+# response.
+_KNOB_SINCE: dict[str, int] = {
+    "max_samples": 0,
+    "max_sandboxes": 0,
+    "max_connections": 0,
+    "log_buffer": 0,
+    "log_shared": 0,
+}
+
 # Rendered for a task-scoped knob that a process-level view can't show.
 _PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
 
@@ -1441,6 +1460,19 @@ def _run_config(
         _echo_no_running_evals()
         return
 
+    knob_values: dict[str, int | None] = {
+        "max_samples": max_samples,
+        "max_sandboxes": max_sandboxes,
+        "max_connections": max_connections,
+        "log_buffer": log_buffer,
+        "log_shared": log_shared,
+    }
+    # a knob missing here would be silently exempt from the version gate —
+    # the exact silent-skew failure `_gate_knob_support` exists to close
+    assert knob_values.keys() == _KNOB_SCOPE.keys()
+    requested_knobs = [knob for knob, value in knob_values.items() if value is not None]
+    _gate_knob_support(servers, scope.socket_path, requested_knobs)
+
     limits_view, mutated = _exec_limits(
         scope.socket_path,
         scope.task_id,
@@ -2391,6 +2423,43 @@ def _post_flush(socket_path: str, task_id: str) -> dict[str, Any]:
     )
 
 
+def _gate_knob_support(
+    servers: list[DiscoveredControlServer],
+    socket_path: str,
+    requested_knobs: list[str],
+) -> None:
+    """Hard-error before a config mutation the server is too old to apply.
+
+    ``requested_knobs`` are the knob names set on this invocation. Any knob
+    whose :data:`_KNOB_SINCE` entry exceeds the target process's advertised
+    control-API version fails the command here, *before* the PATCH is sent:
+    an older server's handler silently ignores unknown query params while
+    applying the knobs it does recognize, so a post-hoc warning would arrive
+    after a partial apply. A process with no advertised version (a discovery
+    file that predates the field) is version 0. The version integer is
+    meaningless to users, so the error names the flags and the remedy, not
+    the number. Applies to dry runs too — a dry-run PATCH on an older server
+    would report a success-shaped view that omits the unknown knobs.
+    """
+    gated = [knob for knob in requested_knobs if _KNOB_SINCE[knob] > 0]
+    if not gated:
+        return
+    server = next((s for s in servers if str(s.socket_path) == socket_path), None)
+    api_version = server.api_version if server is not None else 0
+    unsupported = [knob for knob in gated if _KNOB_SINCE[knob] > api_version]
+    if not unsupported:
+        return
+    flags = ", ".join("--" + knob.replace("_", "-") for knob in unsupported)
+    target = f"pid {server.pid}" if server is not None else "the target process"
+    click.echo(
+        f"{flags} not supported — {target} is running an older inspect; "
+        "restart the eval to pick up the current version. No changes were "
+        "applied.",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1)
+
+
 def _exec_limits(
     socket_path: str,
     task_id: str | None,
@@ -2424,9 +2493,10 @@ def _exec_limits(
         "log_buffer": log_buffer,
         "log_shared": log_shared,
     }
-    # the settable knobs are exactly the scope table's — a knob added to one
-    # without the other fails loudly here rather than silently no-opping
-    assert knob_values.keys() == _KNOB_SCOPE.keys()
+    # the settable knobs are exactly the scope and since tables' — a knob
+    # added to one without the others fails loudly here rather than silently
+    # no-opping (or riding past the version gate ungated)
+    assert knob_values.keys() == _KNOB_SCOPE.keys() == _KNOB_SINCE.keys()
     set_values = any(value is not None for value in knob_values.values())
     params: dict[str, Any] = {
         knob: value for knob, value in knob_values.items() if value is not None
