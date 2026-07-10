@@ -10,6 +10,7 @@
 - Control Channel: `inspect ctl config` now errors when the target process runs an inspect version too old to support a requested knob, instead of silently ignoring it.
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
 - Model Roles: `--model-role` roles that share the same model and config now report their token usage separately in `role_usage` instead of collapsing onto one role. (#4450)
+- Model Roles: `resolve_model_roles` now copies a `Model` passed by object (e.g. via `eval(model_roles=...)`) before stamping its role, so roles supplied through the Python API — not just `--model-role` — get a distinct instance and are not misattributed. (#4464)
 
 ## 0.3.245 (08 July 2026)
 

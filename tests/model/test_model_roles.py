@@ -210,6 +210,30 @@ def test_role_models_share_connection_concurrency_key() -> None:
     )
 
 
+def test_resolve_model_roles_copies_model_objects() -> None:
+    """A Model passed by object gets a distinct, role-stamped copy per role (#4450).
+
+    The CLI parser guards --model-role with memoize=False, but eval()/eval_set()
+    hand model_roles values straight to resolve_model_roles, bypassing that guard.
+    resolve_model_roles must copy a Model passed by object before stamping its
+    role, otherwise reusing one Model across roles (or as the main eval model)
+    collapses per-role usage or misattributes the original's usage to a role.
+    """
+    # a Model the caller holds; unique config so it is not the same memoized
+    # instance other tests use
+    m = get_model("none/none", config=GenerateConfig(temperature=0.202))
+
+    # the same object handed to two roles must not collapse onto the last role
+    resolved = resolve_model_roles({"auditor": m, "judge": m})
+    assert resolved is not None
+    assert resolved["auditor"] is not resolved["judge"]
+    assert resolved["auditor"].role == "auditor"
+    assert resolved["judge"].role == "judge"
+
+    # and the caller's original object is left untouched (role not stamped in place)
+    assert m.role is None
+
+
 @solver
 def check_memoize_solver():
     def validate(condition: bool, description: str):
