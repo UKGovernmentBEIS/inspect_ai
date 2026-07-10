@@ -19,6 +19,7 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.trace import trace_action
 
 from ._concurrency import concurrency as concurrency_manager
+from ._concurrency import get_or_create_semaphore, register_subprocess_limiter
 
 logger = getLogger(__name__)
 
@@ -210,12 +211,26 @@ async def subprocess(
         else:
             return await run_command()
 
-    # run command
-    concurrency_ctx = (
-        concurrency_manager("subprocesses", max_subprocesses_context_var.get())
-        if concurrency
-        else contextlib.nullcontext()
-    )
+    # run command. `resizable=True` backs the limit with a ResizableLimiter so
+    # the control channel's modify-limits directive can retune max_subprocesses
+    # mid-eval (see design/control-channel.md phase 3); registered before
+    # acquiring so a retune lands even while every slot is held.
+    concurrency_ctx: contextlib.AbstractAsyncContextManager[object]
+    if concurrency:
+        register_subprocess_limiter(
+            await get_or_create_semaphore(
+                "subprocesses",
+                max_subprocesses_context_var.get(),
+                key=None,
+                visible=True,
+                resizable=True,
+            )
+        )
+        concurrency_ctx = concurrency_manager(
+            "subprocesses", max_subprocesses_context_var.get(), resizable=True
+        )
+    else:
+        concurrency_ctx = contextlib.nullcontext()
     async with concurrency_ctx:
         message = args if isinstance(args, str) else shlex.join(args)
         with trace_action(logger, "Subprocess", message):

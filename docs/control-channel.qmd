@@ -135,12 +135,13 @@ $ inspect ctl config gpqa
 inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40
 
 config:
-  max samples [task]:      tracks adaptive connections (see below)
-  max sandboxes [process]: docker 40 (12 in use)
+  max samples [task]:         tracks adaptive connections (see below)
+  max sandboxes [process]:    docker 40 (12 in use)
+  max subprocesses [process]: 16 (9 in use)
   adaptive connections [process]:
     openai/gpt-5: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
-  log buffer [task]:       10 samples (2 pending)
-  shared sync [task]:      off
+  log buffer [task]:          10 samples (2 pending)
+  shared sync [task]:         off
 
 $ inspect ctl config gpqa --max-connections 20
 ```
@@ -151,6 +152,7 @@ Scope is a property of each knob, not of the command: task-scoped knobs apply to
 |----|----|----|
 | `--max-samples N` | task | Sample concurrency (not applicable under [adaptive connections](models-concurrency.qmd), where sample concurrency tracks the controller). |
 | `--max-sandboxes N` | process | Per-provider sandbox concurrency. |
+| `--max-subprocesses N` | process | Subprocess concurrency (inactive until the run's first subprocess). |
 | `--max-connections N` | process | Adaptive connections scaling ceiling. |
 | `--log-buffer N` | task | Completed samples buffered before a log write (lower it to write to S3 more often). |
 | `--log-shared S` | task | Shared-log event sync interval in seconds. |
@@ -162,7 +164,7 @@ Scope is a property of each knob, not of the command: task-scoped knobs apply to
 
 : {tbl-colwidths=[25,12,63]}
 
-Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. `--log-buffer` affects future writes only — run `inspect ctl task log-flush` to write what is already pending.
+Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/subprocesses/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. `--log-buffer` affects future writes only — run `inspect ctl task log-flush` to write what is already pending.
 
 `--timeout` / `--attempt-timeout` / `--max-retries` set live overrides of the corresponding generation config fields — the "stop retrying and fail fast" (or "raise retries to ride it out") lever during a provider incident. The model retry loop reads the overrides at each point of use, so a change reaches even generate calls already inside a retry loop; an in-flight API request always drains first (its attempt timeout is not retroactively shortened), and timeouts a provider SDK bakes into its client at initialization are unaffected. Batch admin operations (creating a provider batch, polling its results) also keep their launch config — failing one of those would fail every request riding the batch — while batched generate requests themselves still honor the `--timeout` / `--max-retries` overrides through their own retry loops (`--attempt-timeout` does not apply to batched calls: an attempt there waits on an entire provider batch, and cancelling that wait would resubmit duplicate requests into a new batch). The overrides are consulted after each attempt completes, so a retune that lands while a call is sitting in an exponential-backoff sleep (which grows to as much as 30 minutes between attempts) takes effect only after that sleep finishes and one more attempt runs — when failing fast, lower `--attempt-timeout` in the same retune to bound that final attempt. An override applies process-wide until cleared (pass `clear`) or the run ends; the config view reports each field's active override, with `launch config` meaning no override is in effect.
 
