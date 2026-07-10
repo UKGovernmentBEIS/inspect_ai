@@ -28,8 +28,13 @@ def test_discriminated_event_validates_by_tag() -> None:
     ]
     events = adapter.validate_python(dumped)
 
-    assert [type(event) for event in events] == [InfoEvent, InfoEvent]
-    assert [event.data for event in events] == ["one", "two"]
+    # `isinstance` both asserts the discriminator routed to InfoEvent and
+    # narrows the union so mypy accepts the `.data` access below.
+    assert all(isinstance(event, InfoEvent) for event in events)
+    assert [event.data for event in events if isinstance(event, InfoEvent)] == [
+        "one",
+        "two",
+    ]
     # The discriminator only changes how validation routes; serialization is
     # unchanged (every member already emits its `event` tag).
     assert [event.model_dump() for event in events] == dumped
