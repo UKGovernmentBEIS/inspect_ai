@@ -1381,9 +1381,7 @@ def test_config_gates_key_on_pre_version_server(
 
     # the gate covers dry runs too: a dry-run PATCH on an older server would
     # report a success-shaped view that omits the key retune
-    dry = _runner().invoke(
-        ctl_command, ["config", "--key", "my_api", "2", "--dry-run"]
-    )
+    dry = _runner().invoke(ctl_command, ["config", "--key", "my_api", "2", "--dry-run"])
     assert dry.exit_code == 1
     assert "--key not supported" in dry.stderr
 
