@@ -1107,9 +1107,15 @@ def _run_sample_show(
     detail = _fetch_sample_detail(
         target["socket_path"], target["eval_id"], sample_id, epoch
     )
+    row = (
+        _fetch_sample_row_from_listing(target, detail)
+        if "message_count" not in detail
+        else None
+    )
     merged: dict[str, Any] = {
         "task_id": target.get("task_id"),
         "task": target.get("task"),
+        **(row or {}),
         **detail,
     }
 
@@ -1118,6 +1124,45 @@ def _run_sample_show(
         return
 
     _print_sample_detail(merged, show_traceback)
+
+
+def _fetch_sample_row_from_listing(
+    target: dict[str, Any], detail: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The sample's listing row — `sample show`'s old-server fallback.
+
+    A current control server's detail response always carries the summary
+    fields (timing / tokens / messages), so their *absence* — keyed on
+    ``message_count``, present even when null — marks a server from before
+    they were added (``ctl`` attaches to already-running processes, so the
+    CLI can be newer than the server). Only then is the eval's listing
+    fetched to fold in the sample's row, restoring the fields the old
+    two-read flow reported; a failed fallback read degrades to the detail
+    alone with a stderr caveat rather than discarding the answer in hand.
+    """
+    try:
+        samples = _fetch_samples(
+            target["socket_path"],
+            target["eval_id"],
+        ).samples
+    except _ServerUnreachable as exc:
+        hint = " — try again shortly" if isinstance(exc, _ServerBusy) else ""
+        click.echo(
+            f"Could not read the samples listing for eval {target['eval_id']} "
+            f"({_unreachable_detail(exc)}); showing the sample without its "
+            f"summary fields (timing / tokens / messages){hint}.",
+            err=True,
+        )
+        return None
+    return next(
+        (
+            s
+            for s in samples
+            if str(s.get("sample_id")) == str(detail.get("sample_id"))
+            and s.get("epoch") == detail.get("epoch")
+        ),
+        None,
+    )
 
 
 def _run_sample_events(
@@ -2220,8 +2265,8 @@ def _fetch_samples(
     :func:`_get_response_with_retry`); the caller owns the outcome:
     warn-and-skip (an unscoped fan-out over many evals), fail the command
     (a single targeted read, which passes the full budget), or degrade in
-    place (``sample show``'s supplemental listing read, which keeps the
-    default budget and drops only the summary fields).
+    place (``sample show``'s old-server fallback listing read, which keeps
+    the default budget and drops only the summary fields).
     """
     fallback_as_of = time.time()
     params = {} if active_since is None else {"active_since": active_since}

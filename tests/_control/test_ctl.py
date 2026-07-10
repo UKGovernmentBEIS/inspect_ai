@@ -1134,9 +1134,9 @@ def test_sample_show_reports_detail_summary_fields(
 def test_sample_show_is_a_single_read(monkeypatch: pytest.MonkeyPatch) -> None:
     """`show` never fetches the eval's sample listing.
 
-    The detail response carries the summary fields itself, so the former
-    O(dataset) supplemental listing read (and the torn view a retry between
-    the two reads produced) is gone.
+    A current server's detail response carries the summary fields itself
+    (message_count marks it), so the former O(dataset) supplemental listing
+    read (and the torn view a retry between the two reads produced) is gone.
     """
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
 
@@ -1149,6 +1149,7 @@ def test_sample_show_is_a_single_read(monkeypatch: pytest.MonkeyPatch) -> None:
         "epoch": 1,
         "status": "completed",
         "total_tokens": 7,
+        "message_count": 2,
         "retries": 0,
         "error": None,
         "error_retries": [],
@@ -1160,6 +1161,81 @@ def test_sample_show_is_a_single_read(monkeypatch: pytest.MonkeyPatch) -> None:
     result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["total_tokens"] == 7
+
+
+def _old_server_detail() -> dict[str, Any]:
+    """A detail response from a server that predates the summary fields.
+
+    No ``message_count`` (or other summary) keys — the marker `show` uses
+    to decide the listing fallback is needed.
+    """
+    return {
+        "sample_id": "s1",
+        "epoch": 1,
+        "status": "error",
+        "retries": 1,
+        "error": {"message": "boom"},
+        "error_retries": [],
+        "scores": {},
+    }
+
+
+def test_sample_show_old_server_falls_back_to_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Against an old server, `show` folds in the sample's listing row.
+
+    An old server's detail response has no summary fields at all; the CLI
+    detects their absence and restores the two-read flow so timing / tokens
+    / messages aren't silently dropped — with the detail's own fields still
+    winning on overlap.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="completed", retries=0, total_tokens=42)
+            ]
+        },
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail",
+        lambda *a, **k: _old_server_detail(),
+    )
+    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    # summary fields come from the listing row...
+    assert payload["total_tokens"] == 42
+    assert payload["message_count"] == 1
+    # ...while the detail stays authoritative on overlap
+    assert payload["status"] == "error"
+    assert payload["retries"] == 1
+    assert payload["error"] == {"message": "boom"}
+
+
+def test_sample_show_old_server_fallback_unreachable_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed fallback listing read degrades with a caveat, not an error.
+
+    The detail already in hand answers the question; the old server exiting
+    between the two reads costs only the summary fields — surfaced on
+    stderr, with stdout still valid JSON.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail",
+        lambda *a, **k: _old_server_detail(),
+    )
+    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    assert "Could not read the samples listing" in result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["error"] == {"message": "boom"}
+    assert "message_count" not in payload
 
 
 def test_old_flat_spellings_hidden_from_help() -> None:
