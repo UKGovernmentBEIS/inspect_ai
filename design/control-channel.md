@@ -595,6 +595,17 @@ The control endpoint is bound by default whenever `inspect eval` runs. Every run
 
 This also covers *partial* startup failures. `start()` binds the socket and launches the server task *before* writing the discovery file, so a later-stage failure (eg. the discovery write) would otherwise leave a running server task and a live socket node behind. The startup path tears that partial state down (the same teardown used on normal shutdown) before degrading to "no surface", so a failed start never leaks a server or socket.
 
+### Version skew: a control-API version integer, gated pre-flight
+
+`inspect ctl` talks to live eval processes that embed whatever inspect version they were launched with, so a newer CLI can be pointed at an older process — rare, but possible whenever the CLI is upgraded while an eval is running (e.g. to get a new knob for an already-running eval). An older server's PATCH handlers silently ignore unknown query params, so without skew handling a new knob would no-op while the CLI prints a success-shaped config view (and a partial apply: the old server applies the knobs it recognizes and drops the rest).
+
+The mechanism is a single channel-wide integer plus a per-knob min-version table, instead of per-feature response-shape sniffing (which accumulates bespoke compat code that never expires) or gating on the package version (not known at PR time; dev installs report unparsable `.dev` versions) or a capability list (a server-side string per feature that never expires):
+
+- **Server**: `CONTROL_API_VERSION: int` in `inspect_ai._control`, advertised in the discovery file (`<pid>.json`) and stamped on each `GET /tasks` row (like `keep_alive`). A missing field means version 0 — the one-time bootstrap for servers deployed before reporting existed, which expires on its own as those processes finish. (`/tasks` returns a bare list, so the version rides each row rather than an envelope; the discovery file is what the CLI gates on, since it's already read before any request and covers the pre-registration window where `/tasks` is empty.)
+- **CLI**: `_KNOB_SINCE: dict[str, int]` parallel to `_KNOB_SCOPE`, with key-set parity enforced (a runtime assert in `_exec_limits` plus a test) so every knob declares its since-version explicitly rather than silently defaulting to "understood by every server"; knobs that predate versioning are since-0. Pre-flight — before sending the PATCH — any requested knob with `since > server_api_version` hard-errors, naming the offending flags. The integer is meaningless to users, so the error cites the remedy ("pid N is running an older inspect; restart the eval"), not the number.
+
+**Conventions**: bump `CONTROL_API_VERSION` in the same PR that adds anything the CLI must gate on (new knobs/endpoints), recording the new value as the feature's `_KNOB_SINCE` entry; purely additive response fields the CLI already null-guards don't need a bump. A `_KNOB_SINCE` entry that outruns the constant (forgot-to-bump variant A) is caught mechanically by a test (`max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION`) — and self-catching anyway, since the author's own dev server would block their own knob. Reusing the current value without a bump (variant B) is convention-only. Two in-flight PRs bumping N→N+1 conflict on the constant — arguably a feature (the second PR notices the first).
+
 ### Flags
 
 One flag, `--ctl-server`, mirroring `--acp-server`'s overloaded-value shape (`ctl_server: bool | str | None` on `eval()` / `eval_set()` / `eval_retry()`):
