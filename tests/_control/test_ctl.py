@@ -1215,17 +1215,27 @@ def test_sample_show_old_server_falls_back_to_listing(
     assert payload["error"] == {"message": "boom"}
 
 
+@pytest.mark.parametrize("busy", [False, True], ids=["unreachable", "busy"])
 def test_sample_show_old_server_fallback_unreachable_degrades(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, busy: bool
 ) -> None:
     """A failed fallback listing read degrades with a caveat, not an error.
 
     The detail already in hand answers the question; the old server exiting
-    between the two reads costs only the summary fields — surfaced on
-    stderr, with stdout still valid JSON.
+    — or staying busy through the listing read's retries (_ServerBusy, which
+    adds a "try again shortly" hint) — costs only the summary fields,
+    surfaced on stderr, with stdout still valid JSON.
     """
+    from inspect_ai._cli.ctl import _ServerBusy
+
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    _patch_samples_unreachable_for(
+        monkeypatch,
+        "eval_aaa111",
+        exc=_ServerBusy("no response after 2 attempts — the eval's event loop is busy")
+        if busy
+        else None,
+    )
     monkeypatch.setattr(
         "inspect_ai._cli.ctl._fetch_sample_detail",
         lambda *a, **k: _old_server_detail(),
@@ -1233,6 +1243,7 @@ def test_sample_show_old_server_fallback_unreachable_degrades(
     result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
     assert result.exit_code == 0, result.output
     assert "Could not read the samples listing" in result.stderr
+    assert ("try again shortly" in result.stderr) == busy
     payload = json.loads(result.stdout)
     assert payload["error"] == {"message": "boom"}
     assert "message_count" not in payload

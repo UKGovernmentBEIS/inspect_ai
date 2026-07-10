@@ -492,7 +492,9 @@ def _running_sample_error_detail(
     still in ``active_samples`` is left to the on-disk log (which carries the
     final ``error_retries``). The summary fields come from the same
     ``ActiveSample`` row the listing reports (:func:`_active_sample_summary`),
-    read in the same pass as the error history — one atomic view.
+    read in the same pass as the error history — one atomic view. That
+    includes ``status``: a matched sample that hasn't started yet reads
+    ``queued``, as in the listing, rather than a hardcoded ``running``.
     """
     from inspect_ai.log._samples import active_samples
 
