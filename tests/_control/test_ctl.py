@@ -7,6 +7,7 @@ cursor validation), and rendering helpers.
 """
 
 import json
+from pathlib import Path
 from typing import Any
 
 import click
@@ -14,6 +15,7 @@ import pytest
 from click.testing import CliRunner
 
 from inspect_ai._cli.ctl import (
+    _KNOB_SINCE,
     _SHORT_ID_LEN,
     _ConfigResult,
     _FetchedSummaries,
@@ -831,12 +833,13 @@ def test_fetch_summaries_unresponsive_server_exits(
 
 
 class _DiscServer:
-    """Discovery entry double (pid / socket_path / started_at)."""
+    """Discovery entry double (pid / socket_path / started_at / api_version)."""
 
-    def __init__(self, pid: int) -> None:
+    def __init__(self, pid: int, api_version: int = 0) -> None:
         self.pid = pid
         self.socket_path = f"/tmp/{pid}.sock"
         self.started_at = 100.0
+        self.api_version = api_version
 
 
 def _full_summary(
@@ -1234,7 +1237,9 @@ def _stub_limits(
         knobs = (
             "max_samples",
             "max_sandboxes",
+            "max_subprocesses",
             "max_connections",
+            "key",
             "log_buffer",
             "log_shared",
         )
@@ -1346,76 +1351,74 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     assert "! log_buffer" not in result.stderr
 
 
-def test_config_key_on_old_server_gates_applied_claim(
+def test_config_gates_key_on_pre_version_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A --key sent to a server with no concurrency view exits 1.
+    """`--key` gates on the shipped `_KNOB_SINCE` entry (since-2).
 
-    The 'other knobs were still applied' tail appears only when another knob
-    was actually requested, and never under --dry-run (where the old server
-    applied nothing).
+    An older server's PATCH handler silently ignores the unknown key/key_limit
+    params (returning a success-shaped view with the retune unapplied), so the
+    gate must refuse the whole request pre-flight — a server that predates the
+    knob refuses it, and a current server (advertising `CONTROL_API_VERSION`)
+    accepts it.
     """
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _stub_limits(  # view has no `concurrency` list — an old server
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    bare = _runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
-    assert bare.exit_code == 1
-    assert "does not support --key" in bare.stderr
-    assert "still applied" not in bare.stderr  # --key was the only knob
+    from inspect_ai._control import CONTROL_API_VERSION
 
-    both = _runner().invoke(
-        ctl_command, ["config", "--key", "my_api", "2", "--max-samples", "5"]
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=1)],
     )
-    assert both.exit_code == 1
-    assert "does not support --key" in both.stderr
-    assert "still applied" in both.stderr
 
+    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
+        raise AssertionError("the mutation must not be sent")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
+    result = _runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
+    assert result.exit_code == 1
+    assert "--key not supported" in result.stderr
+    assert "pid 7 is running an older inspect" in result.stderr
+
+    # the gate covers dry runs too: a dry-run PATCH on an older server would
+    # report a success-shaped view that omits the key retune
     dry = _runner().invoke(
-        ctl_command,
-        ["config", "--key", "my_api", "2", "--max-samples", "5", "--dry-run"],
+        ctl_command, ["config", "--key", "my_api", "2", "--dry-run"]
     )
     assert dry.exit_code == 1
-    assert "does not support --key" in dry.stderr
-    assert "still applied" not in dry.stderr
+    assert "--key not supported" in dry.stderr
 
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
 
-def test_config_key_on_old_server_does_not_claim_unapplied_knobs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The --key skew error's 'still applied' tail is adjustability-aware.
-
-    A knob the old server reported as not adjustable is not claimed as
-    applied, and the server's warnings are surfaced rather than swallowed by
-    the exit (mirroring the no-live-buffer error path).
-    """
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl._exec_limits",
-        lambda *a, **k: _ConfigResult(
-            view={  # no `concurrency` list — an old server
-                "max_samples": {"adjustable": False, "tracks_adaptive": True},
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
-                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
-                "requested": {"max_samples": 5},
-                "warnings": [
-                    "max_samples is not adjustable for this task (it uses "
-                    "adaptive connection concurrency, or ran no samples in "
-                    "this process)."
+                "concurrency": [
+                    {"name": "my_api", "limit": 2, "in_use": 0, "adjustable": True}
                 ],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"concurrency:my_api": 2},
+                "warnings": [],
                 "dry_run": False,
             },
             mutated=True,
-        ),
-    )
-    result = _runner().invoke(
-        ctl_command, ["config", "--key", "my_api", "2", "--max-samples", "5"]
-    )
-    assert result.exit_code == 1
-    assert "does not support --key" in result.stderr
-    assert "still applied" not in result.stderr
-    assert "! max_samples is not adjustable" in result.stderr
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+    result = _runner().invoke(ctl_command, ["config", "--key", "my_api", "2", "--json"])
+    assert result.exit_code == 0, result.output
+    assert sent["key"] == ("my_api", 2)
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["knobs"]["concurrency"]["keys"][0]["name"] == "my_api"
 
 
 def test_config_task_knob_with_only_orphan_task_says_retry(
@@ -1459,6 +1462,179 @@ def test_config_help_scope_tags_derive_from_knob_table() -> None:
         flag = "--" + knob.replace("_", "-")
         start = options.index(flag)
         assert f"[{scope}]" in options[start : start + 120], knob
+
+
+def test_knob_since_table_is_consistent() -> None:
+    """Every knob has a min-version entry, and no entry outruns the constant.
+
+    Key parity (also asserted at runtime in `_exec_limits`) forces a new knob
+    to declare its since-version explicitly rather than silently defaulting
+    to "understood by every server". The second assertion catches
+    forgot-to-bump variant A (a `_KNOB_SINCE` entry of N+1 while
+    `CONTROL_API_VERSION` is still N), which would make the CLI block its own
+    new knob against every server — including current ones. (Variant B —
+    reusing the current N without a bump — is convention only; see the
+    comment on `CONTROL_API_VERSION`.)
+    """
+    from inspect_ai._cli.ctl import _KNOB_SCOPE
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
+    assert max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION
+
+
+def test_config_gates_newer_knob_on_older_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A knob the target server predates hard-errors before the PATCH.
+
+    An older server's PATCH handler silently ignores unknown query params
+    (applying whatever it does recognize), so the gate must fail the whole
+    request pre-flight — `_exec_limits` must never run.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
+
+    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
+        raise AssertionError("the mutation must not be sent")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
+
+    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 1
+    assert "--max-samples not supported" in result.stderr
+    assert "pid 7 is running an older inspect" in result.stderr
+    assert "restart the eval" in result.stderr
+
+    # the gate covers dry runs too: a dry-run PATCH on an older server would
+    # report a success-shaped view that omits the unknown knobs
+    dry = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--dry-run"])
+    assert dry.exit_code == 1
+    assert "--max-samples not supported" in dry.stderr
+
+
+def test_config_gate_names_only_unsupported_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pre-flight error lists the offending flags, not every set knob."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    monkeypatch.setitem(_KNOB_SINCE, "log_buffer", 1)
+    result = _runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "5"]
+    )
+    assert result.exit_code == 1
+    assert "--log-buffer not supported" in result.stderr
+    assert "--max-samples" not in result.stderr
+
+
+def test_config_gate_passes_on_current_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A server whose advertised version covers the knob is not gated."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=1)],
+    )
+    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_config_gate_ignores_since_zero_knobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Since-0 knobs pass against any server, version-reporting or not."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_config_gates_max_subprocesses_on_pre_version_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--max-subprocesses` gates on the shipped `_KNOB_SINCE` entry (since-1).
+
+    The gate-mechanism tests above monkeypatch `_KNOB_SINCE`; this pins the
+    real table: a server that predates version reporting refuses the knob,
+    and a current server (advertising `CONTROL_API_VERSION`) accepts it.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    result = _runner().invoke(ctl_command, ["config", "--max-subprocesses", "2"])
+    assert result.exit_code == 1
+    assert "--max-subprocesses not supported" in result.stderr
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(
+        ctl_command, ["config", "--max-subprocesses", "2", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_discovery_api_version_parsed_with_bootstrap_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`api_version` rides the discovery file; a file predating it is version 0.
+
+    The missing-field default is the one-time bootstrap for processes
+    launched before version reporting existed — the CLI gate treats them as
+    understanding only since-0 knobs.
+    """
+    import inspect_ai._control.discovery as discovery
+    import inspect_ai._util.process as process
+
+    monkeypatch.setattr(discovery, "inspect_data_dir", lambda subdir=None: tmp_path)
+    monkeypatch.setattr(process, "pid_alive", lambda pid: True)
+    (tmp_path / "1.json").write_text(
+        json.dumps(
+            {
+                "pid": 1,
+                "socket_path": "/tmp/1.sock",
+                "started_at": 1.0,
+                "api_version": 3,
+            }
+        )
+    )
+    (tmp_path / "2.json").write_text(
+        json.dumps({"pid": 2, "socket_path": "/tmp/2.sock", "started_at": 2.0})
+    )
+    servers = {s.pid: s for s in discovery.list_discovered_servers()}
+    assert servers[1].api_version == 3
+    assert servers[2].api_version == 0
 
 
 def test_config_log_shared_rejects_below_one() -> None:
@@ -1698,6 +1874,7 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     limits_view = {
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
+        "max_subprocesses": {"limit": 8, "in_use": 1},
         "adaptive": [],
         "buffer": {"log_buffer": 10, "pending": 2, "log_shared": None},
         "requested": {"max_samples": 3, "log_buffer": 5},
@@ -1714,6 +1891,11 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     assert config["target"] == {"scope": "task", "task_id": "t1", "task": "tn"}
     assert config["knobs"]["max_samples"]["scope"] == "task"
     assert config["knobs"]["max_sandboxes"]["scope"] == "process"
+    assert config["knobs"]["max_subprocesses"] == {
+        "scope": "process",
+        "limit": 8,
+        "in_use": 1,
+    }
     assert config["knobs"]["max_connections"]["scope"] == "process"
     assert config["knobs"]["log_buffer"]["scope"] == "task"
     assert config["knobs"]["log_shared"]["scope"] == "task"
@@ -1842,8 +2024,8 @@ def test_print_config_process_scope_shows_buffer_placeholder(
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "log buffer [task]:       per task (pass a task to view/set)" in out
-    assert "shared sync [task]:      per task (pass a task to view/set)" in out
+    assert "log buffer [task]:          per task (pass a task to view/set)" in out
+    assert "shared sync [task]:         per task (pass a task to view/set)" in out
 
 
 def test_resolve_scope_siblings_counts_active_only() -> None:
@@ -2034,6 +2216,250 @@ def test_keep_alive_retries_busy_timeout(
     assert body == {"ok": True, "keep_alive": True}
     assert counter["posts"] == 2  # retried once, then succeeded
     assert "retrying" in capsys.readouterr().err
+
+
+# --- --json error envelope ---------------------------------------------------
+
+
+def _error_envelope(result: Any) -> dict[str, Any]:
+    """Parse the `{"error": {...}}` stdout envelope of a failed --json run."""
+    payload = json.loads(result.stdout)
+    assert set(payload) == {"error"}
+    error = payload["error"]
+    # uniform shape: all four fields present on every failure
+    assert set(error) == {"kind", "exception", "message", "status"}
+    return dict(error)
+
+
+def test_json_busy_failure_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A read that exhausts its busy retries fails with a `busy` envelope.
+
+    The starvation diagnosis (event loop busy — retry, don't declare the
+    eval gone) must be a field an agent branches on, not a stderr regex.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
+    result = _runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "busy"
+    assert error["exception"] == "httpx.ReadTimeout"
+    assert error["status"] is None
+    assert "gave up" in error["message"]
+    # the stderr narration is unchanged (it remains the human channel)
+    assert "gave up" in result.stderr
+
+
+def test_json_all_busy_emits_busy_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The all-processes-busy exit carries the `busy` envelope on --json.
+
+    Distinguishable from the empty success envelope (nothing running) by
+    shape, and from 'gone' transport kinds by `kind` — a polling agent
+    should retry shortly, not stop.
+    """
+    _patch_surface(monkeypatch, [], busy_pids=[7])
+    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "busy"
+    assert "pid 7 busy" in error["message"]
+
+
+def test_json_not_found_selector_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")], samples_by_eval={})
+    result = _runner().invoke(ctl_command, ["sample", "list", "nope", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "not_found"
+    assert "nope" in error["message"]
+    assert error["exception"] is None
+    assert error["status"] is None
+
+
+def test_json_ambiguous_selector_envelope_carries_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ambiguity envelope message is self-contained (the table is stderr-only)."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "gpqa"), _full_summary("bbb222", "gpqa")],
+        samples_by_eval={},
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list", "gpqa", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "ambiguous"
+    assert "aaa111" in error["message"] and "bbb222" in error["message"]
+
+
+def test_json_http_404_envelope_carries_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {})])
+    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "not_found"
+    assert error["status"] == 404
+    assert "not found" in error["message"]
+
+
+def test_json_scoped_unreachable_envelope_kind_connect_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scoped read against a vanished process reports the transport cause."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+    )
+    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    result = _runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "connect_error"
+    assert error["exception"] == "httpx.ConnectError"
+    assert "Failed to read samples for eval eval_aaa111" in error["message"]
+
+
+def test_json_mutation_failure_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mutations get the same envelope shape as reads."""
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    result = _runner().invoke(ctl_command, ["process", "keep", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "not_found"
+    assert "No running inspect processes found" in error["message"]
+
+
+@pytest.mark.parametrize(
+    ("kind", "exception", "status"),
+    [
+        ("connect_timeout", "httpx.ConnectTimeout", None),
+        ("read_timeout", "httpx.ReadTimeout", None),
+        ("http_error", "httpx.HTTPStatusError", 500),
+        ("invalid_response", "json.JSONDecodeError", None),
+    ],
+)
+def test_json_single_shot_mutation_envelope_kinds(
+    kind: str,
+    exception: str,
+    status: int | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The rest of the `kind` vocabulary, pinned through the single-shot path.
+
+    `task log-flush` is a non-idempotent mutation (`_request_json` without
+    `retry_mutation`), so a transport failure skips the retry loop and
+    classifies directly via `_CtlFailure.from_exception` — the only path that
+    can produce `connect_timeout`/`read_timeout`. Since `kind` is the closed
+    vocabulary agents branch on, this pins the `_classify` isinstance
+    ordering (`ConnectTimeout` before its `TimeoutException` base) plus the
+    non-404 `http_error` and undecodable-body kinds.
+    """
+    import httpx
+
+    failure_by_kind: dict[str, object] = {
+        "connect_timeout": httpx.ConnectTimeout("connect timed out"),
+        "read_timeout": httpx.ReadTimeout("slow"),
+        "http_error": (500, {}),
+        "invalid_response": json.JSONDecodeError("Expecting value", "<html>", 0),
+    }
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [failure_by_kind[kind]])
+    result = _runner().invoke(ctl_command, ["task", "log-flush", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == kind
+    assert error["exception"] == exception
+    assert error["status"] == status
+    assert "Failed to update log-flush of task aaa111" in error["message"]
+
+
+def test_json_invalid_cursor_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    result = _runner().invoke(
+        ctl_command,
+        ["sample", "events", "aaa111", "s1", "--cursor", "12345", "--json"],
+    )
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "invalid_request"
+    assert "--since-time" in error["message"]
+
+
+def test_json_unexpected_exception_envelope_with_traceback_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unhandled exception still yields an envelope; the traceback stays on stderr."""
+
+    def boom() -> list[Any]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", boom)
+    result = _runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "internal"
+    assert error["exception"] == "RuntimeError"
+    assert error["message"] == "boom"
+    assert "Traceback" in result.stderr
+
+
+def test_human_failure_output_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without --json, failures keep stderr prose and an empty stdout."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")], samples_by_eval={})
+    result = _runner().invoke(ctl_command, ["sample", "list", "nope"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "No running task matching 'nope'" in result.stderr
+
+
+def test_human_unexpected_exception_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without --json, an unhandled exception propagates as before."""
+
+    def boom() -> list[Any]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", boom)
+    result = _runner().invoke(ctl_command, ["task", "list"])
+    assert result.exit_code != 0
+    assert isinstance(result.exception, RuntimeError)
+
+
+def test_envelope_failures_rejects_runner_without_as_json() -> None:
+    """Decorating a runner lacking `as_json` fails at import, not silently.
+
+    Without the guard, such a runner would bind `as_json=False` for every
+    call and quietly revert its command to unstructured failures.
+    """
+    from inspect_ai._cli.ctl import _envelope_failures
+
+    with pytest.raises(TypeError, match="as_json"):
+
+        @_envelope_failures
+        def _runner_without_flag(task: str) -> None:  # pragma: no cover
+            pass
 
 
 def test_resolve_scope_completed_target_counts_toward_siblings() -> None:

@@ -135,12 +135,13 @@ $ inspect ctl config gpqa
 inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40
 
 config:
-  max samples [task]:      tracks adaptive connections (see below)
-  max sandboxes [process]: docker 40 (12 in use)
+  max samples [task]:         tracks adaptive connections (see below)
+  max sandboxes [process]:    docker 40 (12 in use)
+  max subprocesses [process]: 16 (9 in use)
   adaptive connections [process]:
     openai/gpt-5: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
-  log buffer [task]:       10 samples (2 pending)
-  shared sync [task]:      off
+  log buffer [task]:          10 samples (2 pending)
+  shared sync [task]:         off
 
 $ inspect ctl config gpqa --max-connections 20
 ```
@@ -151,6 +152,7 @@ Scope is a property of each knob, not of the command: task-scoped knobs apply to
 |----|----|----|
 | `--max-samples N` | task | Sample concurrency (not applicable under [adaptive connections](models-concurrency.qmd), where sample concurrency tracks the controller). |
 | `--max-sandboxes N` | process | Per-provider sandbox concurrency. |
+| `--max-subprocesses N` | process | Subprocess concurrency (inactive until the run's first subprocess). |
 | `--max-connections N` | process | Adaptive connections scaling ceiling. |
 | `--key NAME LIMIT` | process | Set a named [`concurrency()`](parallelism.qmd#sec-parallel-solvers-and-scorers) registry limit — any limit tools or task code register by name. |
 | `--log-buffer N` | task | Completed samples buffered before a log write (lower it to write to S3 more often). |
@@ -160,7 +162,7 @@ Scope is a property of each knob, not of the command: task-scoped knobs apply to
 
 : {tbl-colwidths=[25,12,63]}
 
-Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. `--log-buffer` affects future writes only — run `inspect ctl task log-flush` to write what is already pending.
+Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/subprocesses/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. `--log-buffer` affects future writes only — run `inspect ctl task log-flush` to write what is already pending.
 
 Beyond the named flags, any limit registered through the `concurrency()` API — by built-in tools (for example the web search providers), model compaction, or your own solver and tool code — is settable with `--key NAME LIMIT`. The config output lists the registered keys under `concurrency keys`, exactly as addressable here; named limits are created lazily on first use, so a key that names no registered limit errors and lists the keys that do exist.
 

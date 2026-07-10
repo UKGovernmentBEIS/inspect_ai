@@ -1,19 +1,22 @@
 """Modify-limits directive for the control channel.
 
 Reads (and optionally retunes) a running task's concurrency limits mid-flight —
-``max_samples`` (per-task sample concurrency) and ``max_sandboxes`` (per-provider
-sandbox concurrency, process-global). The first of the phase-3 modify directives
+``max_samples`` (per-task sample concurrency), ``max_sandboxes`` (per-provider
+sandbox concurrency, process-global) and ``max_subprocesses`` (subprocess
+concurrency, process-global). The first of the phase-3 modify directives
 (see ``design/control-channel.md``). Keyed by task_id — the identity that is
 stable across retry attempts — via ``GET``/``PATCH /tasks/<task-id>/config``.
 
-Both knobs are backed by a :class:`~inspect_ai.util._concurrency.ResizableLimiter`
+These knobs are backed by a :class:`~inspect_ai.util._concurrency.ResizableLimiter`
 whose limit is settable at runtime: lowering it below the current in-use count
 blocks new acquires until in-flight holders drain — it never preempts. Raising it
 lets more work start immediately. ``max_samples`` is reached through
 the task_id-keyed sample-semaphore registry (populated by the runner, shared
 across a task's retry attempts); ``max_sandboxes`` through
 the process-global sandbox-limiter registry, since sandbox concurrency is shared
-across the process's evals rather than owned by one.
+across the process's evals rather than owned by one; ``max_subprocesses`` through
+the process-global subprocess limiter (created lazily by the first
+concurrency-managed ``subprocess()`` call).
 
 On the adaptive-connections path ``max_samples`` isn't a user setpoint (sample
 concurrency tracks the model-API controller), so it's reported as not adjustable;
@@ -31,10 +34,11 @@ effect), the value is applied to nothing and a warning is included rather than
 failing the whole request — so a caller adjusting several knobs still gets the
 ones that apply.
 
-Since ``max_sandboxes`` and ``max_connections`` are process-global (shared across
-the process's tasks), :func:`process_limits` exposes them without a task — the
-process-level ``GET``/``PATCH /config`` endpoint — for the common case of viewing
-or throttling a whole process without naming one of its tasks.
+Since ``max_sandboxes``, ``max_subprocesses`` and ``max_connections`` are
+process-global (shared across the process's tasks), :func:`process_limits`
+exposes them without a task — the process-level ``GET``/``PATCH /config``
+endpoint — for the common case of viewing or throttling a whole process without
+naming one of its tasks.
 
 Beyond the named knobs, any ``concurrency()`` registry entry — the public API
 tools and user code register named limits through (web-search providers, model
@@ -107,6 +111,7 @@ def check_concurrency_key(key: str | None) -> None:
 async def process_limits(
     *,
     max_sandboxes: int | None = None,
+    max_subprocesses: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
     key: str | None = None,
@@ -116,14 +121,15 @@ async def process_limits(
     """Read (and optionally retune) the process-global concurrency limits.
 
     Covers the knobs that are shared across every task in the process:
-    ``max_sandboxes`` (per-provider sandbox concurrency), ``max_connections``
-    (the adaptive controllers' scaling ceiling), and ``key`` / ``key_limit``
-    (a named ``concurrency()`` registry entry — the registry is process-global).
-    It carries no ``max_samples`` — that is per-task; use :func:`task_limits`
-    when a specific task is in view.
+    ``max_sandboxes`` (per-provider sandbox concurrency), ``max_subprocesses``
+    (subprocess concurrency), ``max_connections`` (the adaptive controllers'
+    scaling ceiling), and ``key`` / ``key_limit`` (a named ``concurrency()``
+    registry entry — the registry is process-global). It carries no
+    ``max_samples`` — that is per-task; use :func:`task_limits` when a
+    specific task is in view.
 
     A process always exists, so unlike :func:`task_limits` this never returns
-    ``None``. With all knobs ``None`` it's a pure read. ``model`` restricts the
+    ``None``. With every knob ``None`` it's a pure read. ``model`` restricts the
     adaptive controllers considered (matched at name start or after a ``/``).
 
     Raises:
@@ -133,6 +139,7 @@ async def process_limits(
     check_concurrency_key(key)
     views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
+        max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
         key=key,
@@ -142,6 +149,7 @@ async def process_limits(
     return {
         "dry_run": dry_run,
         "max_sandboxes": views.max_sandboxes,
+        "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
         "concurrency": views.concurrency,
         "requested": views.requested or None,
@@ -154,6 +162,7 @@ async def task_limits(
     *,
     max_samples: int | None = None,
     max_sandboxes: int | None = None,
+    max_subprocesses: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
     key: str | None = None,
@@ -167,7 +176,7 @@ async def task_limits(
     A superset of :func:`process_limits`: it adds the per-task knobs — the
     ``max_samples`` sample concurrency plus the ``log_buffer`` / ``log_shared``
     sample-buffer params — to the process-global ``max_sandboxes`` /
-    ``max_connections`` view. Task-scoped state lives in task_id-keyed
+    ``max_subprocesses`` / ``max_connections`` view. Task-scoped state lives in task_id-keyed
     registries: the sample limiter is read straight from the task-semaphore
     registry (shared across the task's retry attempts — see
     ``_task_sample_semaphores``), the buffer params through the latest
@@ -191,6 +200,7 @@ async def task_limits(
         task_id: The target task (stable across retry attempts).
         max_samples: New sample-concurrency limit, or ``None`` to leave it.
         max_sandboxes: New per-provider sandbox-concurrency limit, or ``None``.
+        max_subprocesses: New subprocess-concurrency limit, or ``None``.
         max_connections: New adaptive-controller scaling ceiling (applied to
             every adaptive controller in the process), or ``None`` to leave it.
         model: Restrict the adaptive controllers ``max_connections`` targets (and
@@ -289,6 +299,7 @@ async def task_limits(
 
     views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
+        max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
         key=key,
@@ -320,6 +331,7 @@ async def task_limits(
         "dry_run": dry_run,
         "max_samples": max_samples_view,
         "max_sandboxes": views.max_sandboxes,
+        "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
         "concurrency": views.concurrency,
         "buffer": buffer_view,
@@ -345,6 +357,7 @@ class _ProcessKnobViews(NamedTuple):
     """The process-global limit views built by :func:`_apply_process_knobs`."""
 
     max_sandboxes: list[dict[str, Any]]
+    max_subprocesses: dict[str, Any] | None
     adaptive: list[dict[str, Any]]
     concurrency: list[dict[str, Any]]
     requested: dict[str, int]
@@ -373,6 +386,7 @@ def _static_semaphores() -> "list[ConcurrencySemaphore]":
 def _apply_process_knobs(
     *,
     max_sandboxes: int | None,
+    max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
     key: str | None = None,
@@ -393,6 +407,7 @@ def _apply_process_knobs(
         ResizableSemaphore,
         adaptive_controllers,
         sandbox_limiters,
+        subprocess_limiter,
     )
 
     requested: dict[str, int] = {}
@@ -411,6 +426,21 @@ def _apply_process_knobs(
         elif not dry_run:
             for sem in sandboxes.values():
                 sem.concurrency = max_sandboxes
+
+    # max_subprocesses — the process-global subprocess limiter (registry key
+    # "subprocesses", created lazily by the first concurrency-managed
+    # subprocess() call).
+    subprocesses = subprocess_limiter()
+    if max_subprocesses is not None:
+        requested["max_subprocesses"] = max_subprocesses
+        if subprocesses is None:
+            warnings.append(
+                "max_subprocesses is not adjustable (no adjustable subprocess "
+                "limiter is active — most likely no concurrency-managed "
+                "subprocess has run yet; the limiter is created on first use)."
+            )
+        elif not dry_run:
+            subprocesses.concurrency = max_subprocesses
 
     # max_connections — the adaptive controllers' scaling ceiling (process-global,
     # one per model). Lowering clamps live concurrency down immediately; raising
@@ -476,6 +506,14 @@ def _apply_process_knobs(
         for sandbox_type, sem in sorted(sandbox_limiters().items())
     ]
 
+    # `None` distinguishes "no limiter yet" (no subprocess has run) from a
+    # live limiter view — the CLI renders the former as inactive.
+    max_subprocesses_view = (
+        {"limit": subprocesses.concurrency, "in_use": subprocesses.in_use}
+        if subprocesses is not None
+        else None
+    )
+
     # The adaptive-connections view: each controller's live limit, in-flight
     # count, scaling bounds (max reflects any max_connections change applied
     # above), and recent scale changes. Controllers are process-global (one per
@@ -512,6 +550,7 @@ def _apply_process_knobs(
 
     return _ProcessKnobViews(
         max_sandboxes=max_sandboxes_view,
+        max_subprocesses=max_subprocesses_view,
         adaptive=adaptive_view,
         concurrency=concurrency_view,
         requested=requested,
