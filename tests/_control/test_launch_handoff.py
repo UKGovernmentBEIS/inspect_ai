@@ -384,6 +384,46 @@ def test_eval_json_redirects_subprocess_stdout_to_stderr(
     assert "FD1-LEAK" in result.stderr
 
 
+def test_debug_diagnostics_go_to_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fresh_display: None,
+) -> None:
+    """``--debug`` attach messages must not land on ``--json``'s stdout.
+
+    ``process_common_options`` runs before the fd redirect in
+    ``_eval_exec_json`` engages, so anything it printed to stdout would
+    lead the NDJSON stream under ``--json --debug``.
+    """
+    from types import SimpleNamespace
+
+    from inspect_ai._cli.common import CommonOptions, process_common_options
+
+    monkeypatch.setitem(
+        sys.modules,
+        "debugpy",
+        SimpleNamespace(listen=lambda port: None, wait_for_client=lambda: None),
+    )
+    options = CommonOptions(
+        log_level="warning",
+        log_dir="./logs",
+        display="none",
+        no_ansi=None,
+        traceback_locals=False,
+        env=None,
+        debug=True,
+        debug_port=5678,
+        debug_errors=False,
+    )
+
+    process_common_options(options)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Waiting for debugger attach" in captured.err
+    assert "Debugger attached" in captured.err
+
+
 def test_eval_json_preflight_failure_reports_to_stderr(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
 ) -> None:

@@ -9,6 +9,7 @@
 - Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
 - Control Channel: New `inspect eval --json` flag emits a synchronous launch-handoff JSON line (run_id / pid / log_dir / control socket, printed only once the control server is bound) plus a `done` line with per-task log locations, so agents can trust `inspect ctl` immediately after launch instead of sleep-and-retrying; stdout carries only these records (stray prints and failure diagnostics go to stderr).
 - Control Channel: `inspect eval-set --json` emits the same launch-handoff and `done` JSON lines as `inspect eval --json`, with `eval_set_id` on the records and overall `success` on the `done` record.
+- CLI: `--debug` attach diagnostics ("Waiting for debugger attach") now print to stderr, keeping stdout clean for machine-readable output such as `--json`.
 - Control Channel: `inspect ctl config` now errors when the target process runs an inspect version too old to support a requested knob, instead of silently ignoring it.
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
 
