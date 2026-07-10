@@ -231,16 +231,14 @@ class ControlServer:
             reject_unknown_query_params,
         )
 
-        app = FastAPI()
+        # Attached app-wide so every mutation route — including any added
+        # later — fails closed and atomically on unknown query params instead
+        # of partially applying, with no per-route annotation to remember.
+        # The dependency short-circuits on safe methods (see the strict
+        # module docstring for the rationale, including why GETs stay
+        # tolerant).
+        app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
         started_at = self._started_at
-
-        # Attached to every mutation route (the config PATCHes and the POST
-        # verbs) so knob skew fails closed and atomically instead of partially
-        # applying — the POSTs declare no query params today, so any param
-        # they grow later is born strict rather than depending on its author
-        # remembering this dependency (see the strict module docstring for
-        # the rationale, including why GETs stay tolerant).
-        strict_params = [Depends(reject_unknown_query_params)]
 
         @app.exception_handler(UnknownQueryParamsError)
         async def on_unknown_params(
@@ -373,7 +371,7 @@ class ControlServer:
         # buffer to fill. Keyed by task_id (resolved to the latest attempt),
         # matching the CLI's `ctl task log-flush`. Idempotent — a flush with
         # nothing pending writes nothing and reports `flushed: 0`.
-        @app.post("/tasks/{task_id}/log-flush", dependencies=strict_params)
+        @app.post("/tasks/{task_id}/log-flush")
         async def log_flush(task_id: str) -> Any:
             result = await flush_task_samples(task_id)
             if result is None:
@@ -396,7 +394,7 @@ class ControlServer:
         # after a `/`). `dry_run=true` reports the intended change without
         # applying it. Never 404s — a process always exists. Unknown query
         # params 400 (fail closed) rather than partially applying.
-        @app.patch("/config", dependencies=strict_params)
+        @app.patch("/config")
         async def patch_process_limits(
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
@@ -439,7 +437,7 @@ class ControlServer:
         # no-op. Returns the resulting config view (with any warnings for a
         # knob that isn't adjustable for this task). Unknown query params 400
         # (fail closed) rather than partially applying.
-        @app.patch("/tasks/{task_id}/config", dependencies=strict_params)
+        @app.patch("/tasks/{task_id}/config")
         async def patch_limits(
             task_id: str,
             max_samples: int | None = None,
@@ -481,7 +479,7 @@ class ControlServer:
         # a later /keep overrides it. Named "release" rather than "shutdown"
         # because it does NOT cancel a running eval — that's a later-phase
         # directive.
-        @app.post("/release", dependencies=strict_params)
+        @app.post("/release")
         async def release() -> dict[str, bool]:
             # `changed` lets the client report applied vs the idempotent
             # already-in-that-state no-op (the agent output contract).
@@ -497,7 +495,7 @@ class ControlServer:
         # transition to OFF, so setting the intent ON is all a keep must do
         # (a keep that follows a release just leaves the intent ON for the
         # park to honour).
-        @app.post("/keep", dependencies=strict_params)
+        @app.post("/keep")
         async def keep() -> dict[str, bool]:
             changed = not keep_alive_intent()
             request_keep_alive()

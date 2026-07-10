@@ -408,7 +408,7 @@ async def test_limits_route_rejects_unknown_param_atomically() -> None:
             "/tasks/t1/config", params={"max_samples": 40, "max_gizmos": 3}
         )
         assert bad.status_code == 400
-        assert "unknown config parameter(s): max_gizmos" in bad.json()["error"]
+        assert "unknown query parameter(s): max_gizmos" in bad.json()["error"]
         assert "does not support" in bad.json()["error"]
         # atomic: the recognized knob in the same request was NOT applied
         assert limiter.limit == 20
@@ -416,7 +416,7 @@ async def test_limits_route_rejects_unknown_param_atomically() -> None:
         # multiple unknown params are all named (sorted)
         bad = await client.patch("/tasks/t1/config", params={"zeta": 1, "alpha": 2})
         assert bad.status_code == 400
-        assert "unknown config parameter(s): alpha, zeta" in bad.json()["error"]
+        assert "unknown query parameter(s): alpha, zeta" in bad.json()["error"]
 
 
 async def test_process_limits_route_rejects_unknown_param() -> None:
@@ -430,7 +430,7 @@ async def test_process_limits_route_rejects_unknown_param() -> None:
             "/config", params={"max_connections": 30, "max_gizmos": 3}
         )
         assert bad.status_code == 400
-        assert "unknown config parameter(s): max_gizmos" in bad.json()["error"]
+        assert "unknown query parameter(s): max_gizmos" in bad.json()["error"]
         assert ctrl.max == 100  # nothing applied
 
 
@@ -447,7 +447,7 @@ async def test_post_mutation_routes_reject_unknown_param() -> None:
             for path in ("/keep", "/release", "/tasks/t1/log-flush"):
                 bad = await client.post(path, params={"bogus": 1})
                 assert bad.status_code == 400, bad.text
-                assert "unknown config parameter(s): bogus" in bad.json()["error"]
+                assert "unknown query parameter(s): bogus" in bad.json()["error"]
             # the rejected /keep and /release never reached their handlers
             assert keep_alive_intent() is False
     finally:
@@ -482,7 +482,8 @@ async def test_strict_params_allow_sub_dependency_query_params() -> None:
     def sub_dep(extra: int = 0) -> int:
         return extra
 
-    app = FastAPI()
+    # attached app-wide, mirroring how the control server wires it
+    app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
 
     @app.exception_handler(UnknownQueryParamsError)
     async def _unknown_params(
@@ -490,7 +491,7 @@ async def test_strict_params_allow_sub_dependency_query_params() -> None:
     ) -> JSONResponse:
         return JSONResponse(status_code=400, content={"error": str(exc)})
 
-    @app.patch("/thing", dependencies=[Depends(reject_unknown_query_params)])
+    @app.patch("/thing")
     async def patch_thing(base: int = 1, extra: int = Depends(sub_dep)) -> dict:
         return {"base": base, "extra": extra}
 
@@ -504,7 +505,7 @@ async def test_strict_params_allow_sub_dependency_query_params() -> None:
 
         bad = await client.patch("/thing", params={"base": 2, "bogus": 1})
         assert bad.status_code == 400
-        assert "unknown config parameter(s): bogus" in bad.json()["error"]
+        assert "unknown query parameter(s): bogus" in bad.json()["error"]
 
 
 async def test_limits_route_patch_max_connections() -> None:
