@@ -434,6 +434,26 @@ async def test_process_limits_route_rejects_unknown_param() -> None:
         assert ctrl.max == 100  # nothing applied
 
 
+async def test_post_mutation_routes_reject_unknown_param() -> None:
+    """POST mutation routes are strict too, so any future param is born strict."""
+    from inspect_ai._control.server import keep_alive_intent, reset_keep_alive
+
+    reset_keep_alive()
+    transport = httpx.ASGITransport(app=_app())
+    try:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            for path in ("/keep", "/release", "/tasks/t1/log-flush"):
+                bad = await client.post(path, params={"bogus": 1})
+                assert bad.status_code == 400, bad.text
+                assert "unknown config parameter(s): bogus" in bad.json()["error"]
+            # the rejected /keep and /release never reached their handlers
+            assert keep_alive_intent() is False
+    finally:
+        reset_keep_alive()
+
+
 async def test_limits_route_get_tolerates_unknown_param() -> None:
     """GET config routes stay tolerant — an ignored read param can't corrupt."""
     register_eval("e1", 5, task_id="t1")

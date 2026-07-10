@@ -16,6 +16,13 @@ evaluates the endpoint signature. This module is itself imported lazily from
 GET routes stay tolerant: an ignored read param can't corrupt anything, and
 rejecting reads would break older clients against newer servers if a read
 param were ever removed.
+
+``route.dependant`` and ``get_flat_dependant`` are FastAPI internals (no
+public API exposes a route's declared query params), and the fastapi pin is
+unbounded. If a future FastAPI moves them, the error surfaces when
+``_build_app`` imports this module, and ``control_server()`` degrades to
+running the eval without the control surface (warning logged) — the tests
+exercising this dependency keep that breakage visible in CI on version bumps.
 """
 
 from fastapi import Request
