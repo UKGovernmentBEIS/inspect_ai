@@ -2050,10 +2050,15 @@ def _fetch_summaries(
     seeing every server to detect ambiguity, and never equals a full id, so
     it never trips the check. This is what keeps a steady-state polling loop
     (``sample events --cursor`` against the echoed ``task_id``) from paying
-    an unrelated busy sibling's retry budget on every poll. Discovery lists
-    servers most-recently-started first, so in the one duplicate-id corner
-    (a kept-alive process still holding an attempt that a newer process is
-    retrying) the short-circuit lands on the newest attempt.
+    the retry budget of busy siblings started before the target. The skip is
+    only partial by construction: discovery lists servers
+    most-recently-started first and there is no way to know which one holds
+    the id without asking, so siblings started *after* the target are still
+    contacted (and a busy one still costs its degraded retry budget) before
+    the match is reached. That same newest-first order means that in the one
+    duplicate-id corner (a kept-alive process still holding an attempt that
+    a newer process is retrying) the short-circuit lands on the newest
+    attempt.
     """
     summaries: list[dict[str, Any]] = []
     busy_pids: list[int] = []
