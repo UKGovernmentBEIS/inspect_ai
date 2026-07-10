@@ -24,8 +24,9 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 # Version history:
 #   0 — initial channel (tolerant servers: mutation handlers silently ignore
 #       unknown query params).
-#   1 — strict mutations: the server 400s on unknown query params to any
-#       non-GET route (`_control/strict.py`), so `api_version >= 1` means a
+#   1 — max_subprocesses knob.
+#   2 — strict mutations: the server 400s on unknown query params to any
+#       non-GET route (`_control/strict.py`), so `api_version >= 2` means a
 #       client can rely on the server to reject rather than partially apply
 #       an unsupported knob.
-CONTROL_API_VERSION: int = 1
+CONTROL_API_VERSION: int = 2
