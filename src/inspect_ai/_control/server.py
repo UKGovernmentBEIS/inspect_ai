@@ -365,38 +365,42 @@ class ControlServer:
             return result
 
         # Read the process-global concurrency limits (max_sandboxes /
-        # max_connections) without naming an eval — the common case for viewing
-        # or throttling a whole process. No max_samples (that's per-task; use
-        # the /tasks/<task-id>/config routes for it).
+        # max_subprocesses / max_connections) without naming an eval — the
+        # common case for viewing or throttling a whole process. No max_samples
+        # (that's per-task; use the /tasks/<task-id>/config routes for it).
         @app.get("/config")
         async def get_process_limits(model: str | None = None) -> Any:
             return await process_limits(model=model)
 
-        # Retune the process-global limits. Omitting both set values makes this a
+        # Retune the process-global limits. Omitting every set value makes this a
         # read, like GET. `model` filters the adaptive controllers (name start or
         # after a `/`). `dry_run=true` reports the intended change without
         # applying it. Never 404s — a process always exists.
         @app.patch("/config")
         async def patch_process_limits(
             max_sandboxes: int | None = None,
+            max_subprocesses: int | None = None,
             max_connections: int | None = None,
             model: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
                 ("max_sandboxes", max_sandboxes),
+                ("max_subprocesses", max_subprocesses),
                 ("max_connections", max_connections),
             ):
                 return error
             return await process_limits(
                 max_sandboxes=max_sandboxes,
+                max_subprocesses=max_subprocesses,
                 max_connections=max_connections,
                 model=model,
                 dry_run=dry_run,
             )
 
         # Read the task's retunable config (max_samples / max_sandboxes /
-        # max_connections plus the log_buffer / log_shared buffer params).
+        # max_subprocesses / max_connections plus the log_buffer / log_shared
+        # buffer params).
         # Keyed by task_id — stable across retry attempts, matching the knobs'
         # own scope (max_samples and the buffer params are task-scoped; the
         # other knobs process-wide) — where a per-attempt eval id would go
@@ -423,6 +427,7 @@ class ControlServer:
             task_id: str,
             max_samples: int | None = None,
             max_sandboxes: int | None = None,
+            max_subprocesses: int | None = None,
             max_connections: int | None = None,
             model: str | None = None,
             log_buffer: int | None = None,
@@ -432,6 +437,7 @@ class ControlServer:
             if error := _limits_below_one(
                 ("max_samples", max_samples),
                 ("max_sandboxes", max_sandboxes),
+                ("max_subprocesses", max_subprocesses),
                 ("max_connections", max_connections),
                 ("log_buffer", log_buffer),
                 ("log_shared", log_shared),
@@ -441,6 +447,7 @@ class ControlServer:
                 task_id,
                 max_samples=max_samples,
                 max_sandboxes=max_sandboxes,
+                max_subprocesses=max_subprocesses,
                 max_connections=max_connections,
                 model=model,
                 log_buffer=log_buffer,

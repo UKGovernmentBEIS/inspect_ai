@@ -20,4 +20,4 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 # on (a new knob or endpoint an older server would silently ignore), and
 # record the new value as that feature's `_KNOB_SINCE` entry. Purely additive
 # response fields the CLI already null-guards don't need a bump.
-CONTROL_API_VERSION: int = 0
+CONTROL_API_VERSION: int = 1  # 1: max_subprocesses knob
