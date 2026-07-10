@@ -605,6 +605,12 @@ The mechanism is a single channel-wide integer plus a per-knob min-version table
 
 **Conventions**: bump `CONTROL_API_VERSION` in the same PR that adds anything the CLI must gate on (new knobs/endpoints), recording the new value as the feature's `_KNOB_SINCE` entry; purely additive response fields the CLI already null-guards don't need a bump. A `_KNOB_SINCE` entry that outruns the constant (forgot-to-bump variant A) is caught mechanically by a test (`max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION`) — and self-catching anyway, since the author's own dev server would block their own knob. Reusing the current value without a bump (variant B) is convention-only. Two in-flight PRs bumping N→N+1 conflict on the constant — arguably a feature (the second PR notices the first).
 
+### Wire envelopes: TypedDicts, adopted lazily
+
+The endpoints' JSON envelopes are historically built and consumed as `dict[str, Any]`. The boundary itself is HTTP, so Python typing can't span it — the cost of `Any` is server-side: a typo'd key or wrongly shaped value at a construction site surfaces only as a CLI misrender, and test doubles drift silently from the real shapes (the config stub's `mutated` logic missed the retry knobs when they landed).
+
+**Convention**: an envelope gets a `TypedDict` in `_control/views.py` when roadmap work next creates or modifies it — not as a big-bang sweep (churn for zero behavior change; if an envelope never changes again, typing it wasn't worth it). TypedDicts are plain dicts at runtime: zero wire change, zero cost, and mypy checks every server-side construction site plus the retyped test doubles. The CLI imports the same types and `cast()`s once at its JSON-parse boundary — documentation plus downstream field-access checking, **not** validation: pydantic-style strict validation client-side would fight the version-skew tolerance above (an older server's envelope must stay acceptable, not just parseable). Keys legitimately absent on older servers are `NotRequired`, so the skew surface is legible in the types. Scoped first step (the `ProcessConfigView` / `TaskConfigView` config envelopes): issue #62.
+
 ### Flags
 
 One flag, `--ctl-server`, mirroring `--acp-server`'s overloaded-value shape (`ctl_server: bool | str | None` on `eval()` / `eval_set()` / `eval_retry()`):
