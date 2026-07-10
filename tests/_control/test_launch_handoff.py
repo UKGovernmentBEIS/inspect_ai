@@ -572,6 +572,67 @@ def test_eval_set_json_reports_failure(
     assert done["logs"][0]["status"] == "error"
 
 
+FLAKY_TASK_FILE = """
+from pathlib import Path
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import generate, solver
+
+
+@solver
+def flaky_solver():
+    async def solve(state, generate):
+        flag = Path("flaky_attempted.txt")
+        if not flag.exists():
+            flag.write_text("attempted")
+            raise RuntimeError("first attempt fails")
+        return state
+
+    return solve
+
+
+@task
+def handoff_cli_task():
+    return Task(
+        dataset=[Sample(input="x", target="y")], solver=[flaky_solver(), generate()]
+    )
+"""
+
+
+def test_eval_set_json_batch_retry_done_reports_last_launch(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """Legacy ``--no-retry-immediate``: ``done`` correlates with the last launch.
+
+    Each batch retry is a fresh ``eval()`` call with a fresh ``run_id``,
+    and each bind emits a fresh ``launch`` record — so the ``done``
+    record must carry the *last* launch's ``run_id`` (the run that
+    produced the final state, and the most recent ``launch`` an agent
+    read), while ``eval_set_id`` stays stable across batches.
+    """
+    records = _run_eval_set_json(
+        short_data_dir,
+        monkeypatch,
+        # retry_attempts counts total attempts (2 = one retry); retry_wait
+        # treats 0 as unset (`retry_wait or 30`), so 1 is the fastest wait
+        ["--no-retry-immediate", "--retry-attempts", "2", "--retry-wait", "1"],
+        task_file=FLAKY_TASK_FILE,
+    ).records
+
+    launches = [record for record in records if record["event"] == "launch"]
+    assert len(launches) == 2
+    assert launches[0]["run_id"] != launches[1]["run_id"]
+    assert launches[0]["eval_set_id"] == launches[1]["eval_set_id"]
+
+    done = records[-1]
+    assert done["event"] == "done"
+    assert done["success"] is True
+    assert done["run_id"] == launches[-1]["run_id"]
+    assert done["eval_set_id"] == launches[0]["eval_set_id"]
+    assert done["logs"][0]["status"] == "success"
+
+
 def test_eval_set_json_preflight_failure_reports_to_stderr(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
 ) -> None:

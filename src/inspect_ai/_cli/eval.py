@@ -1225,7 +1225,7 @@ def _eval_command_impl(
     is_flag=True,
     default=False,
     envvar="INSPECT_EVAL_JSON",
-    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, eval_set_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with overall success and each task's log location and status when the eval set finishes (the exit code still reports success as usual). When every task is already complete no eval runs, so stdout carries only the 'done' record; with --no-retry-immediate each batch retry binds afresh and emits a fresh 'launch' record.",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, eval_set_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with overall success and each task's log location and status when the eval set finishes (the exit code still reports success as usual). When every task is already complete no eval runs, so stdout carries only the 'done' record; with --no-retry-immediate each batch retry binds afresh and emits a fresh 'launch' record, and the 'done' record carries the last launch's run_id.",
 )
 @click.option(
     "--retry-attempts",
@@ -1986,7 +1986,10 @@ def _eval_exec_json(params: dict[str, Any], is_eval_set: bool = False) -> bool:
     tasks are all already complete runs no eval at all, so stdout may
     carry only the ``done`` record. In the legacy ``--no-retry-immediate``
     mode each batch retry makes a fresh ``eval()`` call, and each bind
-    emits a fresh ``launch`` record.
+    emits a fresh ``launch`` record; the ``done`` record then carries the
+    *last* launch's ``run_id`` — the run that produced the final state,
+    matching the most recent ``launch`` record an agent read
+    (``eval_set_id`` is stable across batches).
 
     Stdout belongs exclusively to these records: ``eval()`` runs with
     stdout redirected to stderr (see ``_stdout_owned_for_json``) — an
@@ -2039,15 +2042,17 @@ def _eval_exec_json(params: dict[str, Any], is_eval_set: bool = False) -> bool:
             # (e.g. under CliRunner); surface them before the command returns
             sys.stderr.flush()
 
+        # with multiple launches (legacy --no-retry-immediate batch retries)
+        # report the last one — the run that produced the final state
         done: dict[str, Any] = {
             "event": "done",
-            "run_id": handoffs[0].run_id if handoffs else None,
+            "run_id": handoffs[-1].run_id if handoffs else None,
         }
         if is_eval_set:
             # resolved id (may be generated / read from the log dir); fall
             # back to the log headers when no eval ran (all tasks reused)
             done["eval_set_id"] = (
-                handoffs[0].eval_set_id
+                handoffs[-1].eval_set_id
                 if handoffs
                 else (logs[0].eval.eval_set_id if logs else None)
             )
