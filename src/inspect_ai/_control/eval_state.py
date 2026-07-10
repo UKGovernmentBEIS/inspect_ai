@@ -270,6 +270,18 @@ class EvalState:
     endpoint render a cancelled sample as ``pending`` (a retry will re-run
     it) rather than ``cancelled`` (terminal — no retry coming)."""
 
+    retry_pending: bool = False
+    """Whether this attempt finished with an error and a retry has been queued.
+
+    Stamped by :func:`mark_eval_retry_pending` at the eval-set's retry
+    decision point, so directives that would otherwise read a stamped
+    :attr:`completed_at` as "task finished" (eg. task cancel) can answer
+    honestly during the window between attempts — the retry registers its
+    own :class:`EvalState` only when it actually starts, and until then
+    this errored attempt is the task's latest. Never cleared: once the
+    retry starts, :func:`latest_eval_for_task` resolves to its fresh
+    state and this one is no longer consulted."""
+
     total_tokens: int = 0
     """Cumulative model tokens used by this eval's terminal samples.
 
@@ -556,6 +568,22 @@ def latest_eval_for_task(task_id: str) -> "EvalState | None":
             if state.task_id == task_id:
                 latest = state
         return latest
+
+
+def mark_eval_retry_pending(eval_id: str) -> None:
+    """Record that a retry of this (errored, finished) attempt has been queued.
+
+    Called by the eval-set runner at the point it decides to re-queue a
+    failed task — after the attempt's ``finalize_eval`` (which stamped
+    ``completed_at``) and before the retry attempt starts (which registers
+    a fresh :class:`EvalState`). See :attr:`EvalState.retry_pending` for
+    why the window between those two events needs the flag. No-ops if the
+    eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.retry_pending = True
 
 
 def detach_eval_live(eval_id: str) -> None:

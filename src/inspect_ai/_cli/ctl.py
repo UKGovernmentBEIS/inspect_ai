@@ -327,9 +327,12 @@ def task_cancel_command(task: str, dry_run: bool, as_json: bool) -> None:
     preserved in the log as cancelled samples), completed samples are kept,
     and the task's log is finalized with an error status noting the cancel;
     an eval-set will not retry a cancelled task. Idempotent — cancelling a
-    finished (or already-cancelling) task is a clean no-op. To cancel a
-    single sample instead, use `inspect ctl sample cancel`. TASK (a task-id
-    prefix or name) is always required.
+    finished (or already-cancelling) task is a clean no-op. A task between
+    attempts (its last attempt errored and the eval-set has a retry queued)
+    is rejected rather than no-opped: nothing is running to cancel yet, so
+    re-issue the cancel once the retry starts. To cancel a single sample
+    instead, use `inspect ctl sample cancel`. TASK (a task-id prefix or
+    name) is always required.
     """
     _run_task_cancel(task, dry_run=dry_run, as_json=as_json)
 

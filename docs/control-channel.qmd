@@ -148,7 +148,7 @@ $ inspect ctl sample cancel gpqa 17 3
 $ inspect ctl task cancel gpqa
 ```
 
-Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail — and both accept `--dry-run` to report what would be cancelled without doing it.
+Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail — and both accept `--dry-run` to report what would be cancelled without doing it. One case is rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts.
 
 ## Configuration
 

@@ -16,6 +16,8 @@ from inspect_ai._control.cancel import cancel_sample, cancel_task
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     get_eval_state,
+    mark_eval_retry_pending,
+    record_sample_errored,
     register_completed_eval,
     register_eval,
 )
@@ -124,6 +126,38 @@ def test_cancel_task_finished_is_idempotent_noop() -> None:
     result = cancel_task("t1")
     assert result is not None
     assert result["changed"] is False and "finished" in result["reason"]
+
+
+def test_cancel_task_between_attempts_rejected() -> None:
+    """An errored attempt with a retry queued must not report "finished"."""
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 1, task_id="t1", will_retry=True, task_cancel=handle)
+    record_sample_errored("e1")  # attempt finishes (completed_at stamped) ...
+    mark_eval_retry_pending("e1")  # ... and the eval-set queues a retry
+
+    result = cancel_task("t1")
+    assert result is not None
+    assert result["ok"] is False and "between attempts" in result["error"]
+    assert handle.fired == []
+
+
+def test_cancel_task_after_pending_retry_starts() -> None:
+    """Once the retry registers, the task-keyed cancel targets it normally."""
+    old = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 1, task_id="t1", will_retry=True, task_cancel=old)
+    record_sample_errored("e1")
+    mark_eval_retry_pending("e1")
+    new = _FakeTaskCancel()
+    register_eval("e2", 1, task_id="t1", task_cancel=new)
+
+    result = cancel_task("t1")
+    assert result is not None
+    assert result["changed"] is True and result["eval_id"] == "e2"
+    assert old.fired == [] and new.fired == ["abort"]
+
+
+def test_mark_eval_retry_pending_unregistered_is_noop() -> None:
+    mark_eval_retry_pending("nope")  # must not raise
 
 
 def test_cancel_task_running_without_handle_rejected() -> None:
@@ -307,6 +341,20 @@ async def test_task_cancel_route_ok_404_and_409() -> None:
         rejected = await client.post("/tasks/t2/cancel")
         assert rejected.status_code == 409
         assert "not cancellable" in rejected.json()["error"]
+
+
+async def test_task_cancel_route_between_attempts_409() -> None:
+    register_eval("e1", 1, task_id="t1", will_retry=True)
+    record_sample_errored("e1")
+    mark_eval_retry_pending("e1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        rejected = await client.post("/tasks/t1/cancel")
+        assert rejected.status_code == 409
+        assert "between attempts" in rejected.json()["error"]
 
 
 async def test_task_cancel_route_dry_run() -> None:

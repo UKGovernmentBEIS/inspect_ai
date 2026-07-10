@@ -30,10 +30,7 @@ an error.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
-
-if TYPE_CHECKING:
-    from inspect_ai.log._samples import ActiveSample
+from typing import Any, Literal
 
 
 def cancel_task(task_id: str, *, dry_run: bool = False) -> dict[str, Any] | None:
@@ -44,7 +41,11 @@ def cancel_task(task_id: str, *, dry_run: bool = False) -> dict[str, Any] | None
     this process; a ``changed: False`` no-op when it has already finished or
     a cancel is already in flight; ``{"ok": False, "error": ...}`` when the
     attempt has no cancel handle (a reused/synthetic eval that never ran
-    here).
+    here) or the task is *between attempts* — the latest attempt errored and
+    a retry is queued but hasn't started (``EvalState.retry_pending``), so
+    there is nothing to fire yet but "already finished" would be a lie the
+    retry then contradicts; the rejection tells the caller to re-issue once
+    the retry starts.
     """
     from inspect_ai._control.eval_state import latest_eval_for_task
 
@@ -61,6 +62,15 @@ def cancel_task(task_id: str, *, dry_run: bool = False) -> dict[str, Any] | None
         "in_flight": _in_flight_count(state.eval_id),
     }
     if state.completed_at is not None:
+        if state.retry_pending:
+            return {
+                "ok": False,
+                "error": (
+                    f"task {task_id} is between attempts — the last attempt "
+                    "errored and a retry is queued but has not started; "
+                    "re-issue the cancel once the retry is running"
+                ),
+            }
         return {**result, "changed": False, "reason": "task already finished"}
     if state.task_cancel is None:
         return {
@@ -96,7 +106,9 @@ async def cancel_sample(
     group to cancel yet), or ``action="error"`` on a sample configured to
     fail on errors.
     """
-    sample = _find_active_sample(eval_id, sample_id, epoch)
+    from inspect_ai._control.state import find_active_sample
+
+    sample = find_active_sample(eval_id, sample_id, epoch)
     if sample is not None and sample.completed is None:
         if sample.started is None:
             return {
@@ -143,27 +155,6 @@ async def cancel_sample(
         "status": detail.get("status"),
         "reason": "sample already finished",
     }
-
-
-def _find_active_sample(
-    eval_id: str, sample_id: str, epoch: int
-) -> "ActiveSample | None":
-    """The eval's live sample matching ``(sample_id, epoch)``, or ``None``.
-
-    ``sample_id`` arrives as a query-param string; matching on
-    ``str(sample.id)`` covers integer ids (the same rule the running-sample
-    error detail uses).
-    """
-    from inspect_ai.log._samples import active_samples
-
-    for sample in active_samples():
-        if (
-            sample.eval_id == eval_id
-            and str(sample.sample.id) == sample_id
-            and sample.epoch == epoch
-        ):
-            return sample
-    return None
 
 
 def _in_flight_count(eval_id: str) -> int:
