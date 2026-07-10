@@ -19,6 +19,7 @@ param were ever removed.
 """
 
 from fastapi import Request
+from fastapi.dependencies.utils import get_flat_dependant
 
 
 class UnknownQueryParamsError(Exception):
@@ -49,9 +50,11 @@ async def reject_unknown_query_params(request: Request) -> None:
         UnknownQueryParamsError: For any query param the route doesn't
             declare, naming every unknown param (sorted).
     """
+    # get_flat_dependant includes query params declared by sub-dependencies,
+    # which route.dependant.query_params alone would miss (falsely 400ing).
     allowed = {
         param.alias or param.name
-        for param in request.scope["route"].dependant.query_params
+        for param in get_flat_dependant(request.scope["route"].dependant).query_params
     }
     unknown = sorted(set(request.query_params.keys()) - allowed)
     if unknown:

@@ -449,6 +449,44 @@ async def test_limits_route_get_tolerates_unknown_param() -> None:
         assert got.status_code == 200, got.text
 
 
+async def test_strict_params_allow_sub_dependency_query_params() -> None:
+    """A query param declared by a sub-dependency is allowed, not falsely 400'd."""
+    from fastapi import Depends, FastAPI, Request
+    from fastapi.responses import JSONResponse
+
+    from inspect_ai._control.strict import (
+        UnknownQueryParamsError,
+        reject_unknown_query_params,
+    )
+
+    def sub_dep(extra: int = 0) -> int:
+        return extra
+
+    app = FastAPI()
+
+    @app.exception_handler(UnknownQueryParamsError)
+    async def _unknown_params(
+        request: Request, exc: UnknownQueryParamsError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+    @app.patch("/thing", dependencies=[Depends(reject_unknown_query_params)])
+    async def patch_thing(base: int = 1, extra: int = Depends(sub_dep)) -> dict:
+        return {"base": base, "extra": extra}
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.patch("/thing", params={"base": 2, "extra": 3})
+        assert ok.status_code == 200, ok.text
+        assert ok.json() == {"base": 2, "extra": 3}
+
+        bad = await client.patch("/thing", params={"base": 2, "bogus": 1})
+        assert bad.status_code == 400
+        assert "unknown config parameter(s): bogus" in bad.json()["error"]
+
+
 async def test_limits_route_patch_max_connections() -> None:
     register_eval("e1", 5, task_id="t1")
     ctrl = await _register_controller(max=100, start=50)
