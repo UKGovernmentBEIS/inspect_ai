@@ -90,6 +90,40 @@ _KNOB_SINCE: dict[str, int] = {
     "max_retries": 1,
 }
 
+
+class _IntOrClearType(click.ParamType):
+    """Non-negative integer, or the keyword ``clear`` (restore launch config).
+
+    The retry-override knobs' value domain: every integer >= 0 is a real
+    value (``--max-retries 0`` means fail after the first attempt), so
+    clearing an override needs an out-of-band spelling — the literal
+    ``clear``, passed through to the server verbatim.
+    """
+
+    name = "integer or 'clear'"
+
+    def convert(
+        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
+    ) -> int | Literal["clear"]:
+        if isinstance(value, int):
+            return value
+        if value.strip().lower() == "clear":
+            return "clear"
+        try:
+            parsed = int(value)
+        except ValueError:
+            self.fail(f"{value!r} is not an integer or 'clear'.", param, ctx)
+        if parsed < 0:
+            self.fail(
+                f"{parsed} is negative (pass 'clear' to restore launch config).",
+                param,
+                ctx,
+            )
+        return parsed
+
+
+_INT_OR_CLEAR = _IntOrClearType()
+
 # Rendered for a task-scoped knob that a process-level view can't show.
 _PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
 
@@ -600,32 +634,33 @@ def sample_events_command(
 )
 @click.option(
     "--timeout",
-    type=click.IntRange(min=0),
+    type=_INT_OR_CLEAR,
     metavar="SECONDS",
     default=None,
     help=(
         f"[{_KNOB_SCOPE['timeout']}] Override the total retry budget per "
-        "generate call, in seconds (0 restores launch config)."
+        "generate call, in seconds ('clear' restores launch config)."
     ),
 )
 @click.option(
     "--attempt-timeout",
-    type=click.IntRange(min=0),
+    type=_INT_OR_CLEAR,
     metavar="SECONDS",
     default=None,
     help=(
         f"[{_KNOB_SCOPE['attempt_timeout']}] Override the per-attempt API "
-        "timeout, in seconds (0 restores launch config)."
+        "timeout, in seconds ('clear' restores launch config)."
     ),
 )
 @click.option(
     "--max-retries",
-    type=click.IntRange(min=0),
+    type=_INT_OR_CLEAR,
     metavar="INTEGER",
     default=None,
     help=(
         f"[{_KNOB_SCOPE['max_retries']}] Override the max retries per "
-        "generate call (0 restores launch config)."
+        "generate call (0 fails after the first attempt; 'clear' restores "
+        "launch config)."
     ),
 )
 @click.option(
@@ -649,9 +684,9 @@ def config_command(
     model: str | None,
     log_buffer: int | None,
     log_shared: int | None,
-    timeout: int | None,
-    attempt_timeout: int | None,
-    max_retries: int | None,
+    timeout: int | Literal["clear"] | None,
+    attempt_timeout: int | Literal["clear"] | None,
+    max_retries: int | Literal["clear"] | None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -671,8 +706,8 @@ def config_command(
     already buffered now. `--timeout` / `--attempt-timeout` /
     `--max-retries` set live overrides read by the model retry loop, so a
     change reaches even generate calls already retrying (in-flight API
-    requests still drain first); pass 0 to clear an override. TASK is
-    required only for setting a task-scoped knob when several tasks run.
+    requests still drain first); pass `clear` to remove an override. TASK
+    is required only for setting a task-scoped knob when several tasks run.
     """
     _run_config(
         task,
@@ -1465,9 +1500,9 @@ def _run_config(
     model: str | None,
     log_buffer: int | None,
     log_shared: int | None,
-    timeout: int | None = None,
-    attempt_timeout: int | None = None,
-    max_retries: int | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -1508,7 +1543,7 @@ def _run_config(
         _echo_no_running_evals()
         return
 
-    knob_values: dict[str, int | None] = {
+    knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
         "max_sandboxes": max_sandboxes,
         "max_connections": max_connections,
@@ -2546,9 +2581,9 @@ def _exec_limits(
     model: str | None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
-    timeout: int | None = None,
-    attempt_timeout: int | None = None,
-    max_retries: int | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     dry_run: bool,
 ) -> "_ConfigResult":
     """Read (no set knobs) or retune (any set knob) a scope's config.
@@ -2560,14 +2595,15 @@ def _exec_limits(
     (``max_sandboxes`` / ``max_connections`` / the retry overrides).
     ``model`` filters the adaptive controllers (a read param, applies to
     both). The retry overrides (``timeout`` / ``attempt_timeout`` /
-    ``max_retries``) accept ``0`` to clear. Any settable knob
+    ``max_retries``) accept the keyword ``clear`` to remove an override
+    (``0`` is a real value for them). Any settable knob
     that is not ``None`` makes this a mutation: a single-shot PATCH given the
     full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
     caller-supplied, so a knob can never ride a GET as an ignored query
     param. A pure read is a GET that retries a busy process on timeout.
     ``dry_run`` only applies to a set.
     """
-    knob_values: dict[str, int | None] = {
+    knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
         "max_sandboxes": max_sandboxes,
         "max_connections": max_connections,
@@ -2738,15 +2774,15 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     # (which has no override layer) — skipped then rather than shown as a
     # value claim. A knob's current value is the live override or "launch
     # config" (no override — each generate call's own config applies); on a
-    # dry-run the requested value renders as an arrow, with 0 shown as its
-    # meaning (clearing back to launch config).
+    # dry-run the requested value renders as an arrow, with `clear` shown as
+    # its meaning (back to launch config).
     def _render_retry_knob(knob: str, display: str, unit: str) -> None:
         view = knobs.get(knob)
         if view is None:
             return
 
         def fmt(value: Any) -> str:
-            return "launch config" if value in (None, 0) else f"{value}{unit}"
+            return "launch config" if value in (None, "clear") else f"{value}{unit}"
 
         current = view.get("override")
         rendered = fmt(current) if current is None else f"{fmt(current)} (override)"

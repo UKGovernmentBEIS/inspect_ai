@@ -40,13 +40,13 @@ Both directives also carry the retry-loop overrides — ``timeout`` /
 ``attempt_timeout`` / ``max_retries``, likewise process-global — backed by the
 live override layer in :mod:`inspect_ai.model._generate_overrides` rather than
 a limiter: the generate retry loop reads the overrides at each point of use,
-so a retune reaches calls already inside their retry loop (``0`` clears an
-override, restoring launch config).
+so a retune reaches calls already inside their retry loop (the keyword
+``clear`` removes an override, restoring launch config).
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from inspect_ai._util.name_match import match_name_prefix
 
@@ -64,9 +64,9 @@ async def process_limits(
     max_sandboxes: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
-    timeout: int | None = None,
-    attempt_timeout: int | None = None,
-    max_retries: int | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """Read (and optionally retune) the process-global concurrency limits.
@@ -75,10 +75,10 @@ async def process_limits(
     ``max_sandboxes`` (per-provider sandbox concurrency), ``max_connections``
     (the adaptive controllers' scaling ceiling), and the retry-loop overrides
     (``timeout`` / ``attempt_timeout`` / ``max_retries`` — see the ``retry``
-    view and :mod:`inspect_ai.model._generate_overrides`; ``0`` clears an
-    override, restoring the launch configuration). It carries no
-    ``max_samples`` — that is per-task; use :func:`task_limits` when a
-    specific task is in view.
+    view and :mod:`inspect_ai.model._generate_overrides`; the keyword
+    ``clear`` removes an override, restoring the launch configuration). It
+    carries no ``max_samples`` — that is per-task; use :func:`task_limits`
+    when a specific task is in view.
 
     A process always exists, so unlike :func:`task_limits` this never returns
     ``None``. With all knobs ``None`` it's a pure read. ``model`` restricts the
@@ -112,9 +112,9 @@ async def task_limits(
     model: str | None = None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
-    timeout: int | None = None,
-    attempt_timeout: int | None = None,
-    max_retries: int | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
     """Read (and optionally retune) a task's retunable config.
@@ -154,12 +154,12 @@ async def task_limits(
             ``None`` to leave it.
         log_shared: New shared-log event sync interval (seconds), or ``None``.
         timeout: New total retry budget per generate call (seconds) — a live
-            process-wide override (``0`` clears it, restoring launch config),
-            or ``None`` to leave it.
+            process-wide override (the keyword ``clear`` removes it,
+            restoring launch config), or ``None`` to leave it.
         attempt_timeout: New per-attempt timeout (seconds) — same override
             semantics as ``timeout``.
-        max_retries: New max retries per generate call — same override
-            semantics as ``timeout``.
+        max_retries: New max retries per generate call (``0`` = fail after
+            the first attempt) — same override semantics as ``timeout``.
         dry_run: When set, validate and report the intended change without
             applying it.
     """
@@ -301,7 +301,7 @@ class _ProcessKnobViews(NamedTuple):
     max_sandboxes: list[dict[str, Any]]
     adaptive: list[dict[str, Any]]
     retry: dict[str, int | None]
-    requested: dict[str, int]
+    requested: dict[str, int | str]
     warnings: list[str]
 
 
@@ -310,9 +310,9 @@ def _apply_process_knobs(
     max_sandboxes: int | None,
     max_connections: int | None,
     model: str | None,
-    timeout: int | None = None,
-    attempt_timeout: int | None = None,
-    max_retries: int | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     dry_run: bool,
 ) -> _ProcessKnobViews:
     """Apply the process-global knobs and build their views.
@@ -323,15 +323,16 @@ def _apply_process_knobs(
     ``model`` restricts the adaptive controllers considered (for both
     ``max_connections`` and the reported view) to those matching it.
 
-    ``timeout`` / ``attempt_timeout`` / ``max_retries`` set (or with ``0``,
-    clear) the process-wide retry-loop overrides — always adjustable, since
-    the override layer exists regardless of what any task's launch config
-    specifies. The ``retry`` view reports the active overrides (``None`` =
-    no override; each generate call's own config applies).
+    ``timeout`` / ``attempt_timeout`` / ``max_retries`` set (or with the
+    keyword ``clear``, remove) the process-wide retry-loop overrides —
+    always adjustable, since the override layer exists regardless of what
+    any task's launch config specifies. The ``retry`` view reports the
+    active overrides (``None`` = no override; each generate call's own
+    config applies).
     """
     from inspect_ai.util._concurrency import adaptive_controllers, sandbox_limiters
 
-    requested: dict[str, int] = {}
+    requested: dict[str, int | str] = {}
     warnings: list[str] = []
 
     # max_sandboxes — the process-global sandbox limiters, one per sandbox type.
@@ -375,7 +376,7 @@ def _apply_process_knobs(
                 ctrl.set_max(max_connections)
 
     # timeout / attempt_timeout / max_retries — the retry-loop override layer
-    # (process-wide, read live by the generate retry loop). 0 clears an
+    # (process-wide, read live by the generate retry loop). "clear" removes an
     # override; the store always exists, so these never warn as unadjustable.
     from inspect_ai.model._generate_overrides import (
         GenerateConfigOverrideField,
@@ -383,7 +384,7 @@ def _apply_process_knobs(
         set_generate_config_override,
     )
 
-    retry_values: dict[GenerateConfigOverrideField, int | None] = {
+    retry_values: dict[GenerateConfigOverrideField, int | Literal["clear"] | None] = {
         "timeout": timeout,
         "attempt_timeout": attempt_timeout,
         "max_retries": max_retries,
@@ -392,7 +393,7 @@ def _apply_process_knobs(
         if value is not None:
             requested[field] = value
             if not dry_run:
-                set_generate_config_override(field, value if value > 0 else None)
+                set_generate_config_override(field, None if value == "clear" else value)
 
     # Read `in_use` from the limiter directly (exact borrowed count) rather than
     # deriving it as `concurrency - value`: once a limit is lowered below the

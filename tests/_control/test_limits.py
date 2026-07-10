@@ -386,11 +386,17 @@ async def test_retry_overrides_set_and_clear() -> None:
     assert result["warnings"] == []
     assert generate_config_override("timeout") == 120
 
-    # 0 clears an override (restoring launch config); the others stand
-    result = await process_limits(timeout=0)
-    assert result["requested"] == {"timeout": 0}
+    # "clear" removes an override (restoring launch config); the others stand
+    result = await process_limits(timeout="clear")
+    assert result["requested"] == {"timeout": "clear"}
     assert result["retry"] == {"timeout": None, "attempt_timeout": 30, "max_retries": 5}
     assert generate_config_override("timeout") is None
+
+    # 0 is a real value, not a clear — max_retries 0 = no retries (fail fast)
+    result = await process_limits(max_retries=0)
+    assert result["requested"] == {"max_retries": 0}
+    assert result["retry"]["max_retries"] == 0
+    assert generate_config_override("max_retries") == 0
 
 
 async def test_retry_overrides_dry_run_does_not_apply() -> None:
@@ -439,12 +445,21 @@ def test_retry_override_reaches_live_retry_stop() -> None:
     state.attempt_number = 5
     assert stop(state) is False  # no override → retry forever
 
-    set_generate_config_override("max_retries", 5)
+    # max_retries counts retries: N allows N+1 attempts, so after attempt 5
+    # an override of 4 (4 retries = 5 attempts) stops and 5 keeps going
+    set_generate_config_override("max_retries", 4)
     assert stop(state) is True  # the same stop now fails fast
-    set_generate_config_override("max_retries", 6)
+    set_generate_config_override("max_retries", 5)
     assert stop(state) is False
     set_generate_config_override("max_retries", None)
     assert stop(state) is False
+
+    # 0 = no retries: stop right after the first attempt
+    set_generate_config_override("max_retries", 0)
+    state.attempt_number = 1
+    assert stop(state) is True
+    set_generate_config_override("max_retries", None)
+    state.attempt_number = 5
 
     # total-budget override (timeout) keys on seconds_since_start
     state.outcome_timestamp = state.start_time + 100
@@ -473,7 +488,9 @@ def test_retry_override_defers_to_base_config_when_unset() -> None:
 
     state = RetryCallState(cast(Any, None), None, (), {})
     state.attempt_number = 2
-    assert stop(state) is True  # base max_retries reached
+    assert stop(state) is False  # 2 retries = 3 attempts; attempt 2 continues
+    state.attempt_number = 3
+    assert stop(state) is True  # base max_retries exhausted after attempt 3
 
     # raising the override rides out what the base config would stop
     set_generate_config_override("max_retries", 10)
@@ -608,14 +625,23 @@ async def test_retry_overrides_route_patch_and_clear() -> None:
             "max_retries": 4,
         }
 
-        # 0 clears; negative is rejected on both routes
-        cleared = await client.patch("/config", params={"timeout": 0})
+        # "clear" removes an override; 0 is a real value (no retries)
+        cleared = await client.patch("/config", params={"timeout": "clear"})
         assert cleared.status_code == 200, cleared.text
         assert cleared.json()["retry"]["timeout"] is None
+        zeroed = await client.patch("/config", params={"max_retries": 0})
+        assert zeroed.status_code == 200, zeroed.text
+        assert zeroed.json()["retry"]["max_retries"] == 0
+        assert generate_config_override("max_retries") == 0
+        restored = await client.patch("/config", params={"max_retries": 4})
+        assert restored.status_code == 200, restored.text
+
+        # negative and non-integer garbage are rejected on both routes
         for path in ("/config", "/tasks/t1/config"):
-            bad = await client.patch(path, params={"attempt_timeout": -1})
-            assert bad.status_code == 400
-            assert "attempt_timeout" in bad.json()["error"]
+            for bad_value in ("-1", "unset"):
+                bad = await client.patch(path, params={"attempt_timeout": bad_value})
+                assert bad.status_code == 400
+                assert "attempt_timeout" in bad.json()["error"]
 
         # GET reports the active overrides too
         got = await client.get("/config")
@@ -951,7 +977,7 @@ def test_print_config_retry_overrides(capsys: pytest.CaptureFixture[str]) -> Non
 def test_print_config_retry_overrides_dry_run_arrows(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A dry-run renders `current → requested`, with 0 shown as its meaning."""
+    """A dry-run renders `current → requested`, with `clear` shown as its meaning."""
     from inspect_ai._cli.ctl import _print_config
 
     _print_config(
@@ -964,7 +990,7 @@ def test_print_config_retry_overrides_dry_run_arrows(
                 "attempt_timeout": {"scope": "process", "override": 30},
                 "max_retries": {"scope": "process", "override": None},
             },
-            "requested": {"timeout": 300, "attempt_timeout": 0},
+            "requested": {"timeout": 300, "attempt_timeout": "clear", "max_retries": 0},
             "warnings": [],
             "notes": [],
         },
@@ -973,8 +999,8 @@ def test_print_config_retry_overrides_dry_run_arrows(
     out = capsys.readouterr().out
     assert "launch config → 300s" in out
     assert "30s (override) → launch config" in out
-    # max_retries not requested → no arrow
-    assert "  max retries [process]:   launch config\n" in out
+    # 0 is a real requested value (no retries), not a clear
+    assert "  max retries [process]:   launch config → 0\n" in out
 
 
 def test_print_config_omits_retry_knobs_for_older_server(

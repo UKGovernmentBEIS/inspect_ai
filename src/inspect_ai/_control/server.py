@@ -30,7 +30,7 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, NamedTuple
+from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, NamedTuple
 
 import anyio
 
@@ -51,7 +51,17 @@ from inspect_ai._util.discovery import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.sockets import lock_socket_file, prepare_socket_path
 
+if TYPE_CHECKING:
+    from fastapi.responses import JSONResponse
+
 logger = getLogger(__name__)
+
+
+class _ParsedRetryKnobs(NamedTuple):
+    """Parsed retry-override knob values, or the 400 that rejects them."""
+
+    values: dict[str, "int | Literal['clear'] | None"]
+    error: "JSONResponse | None"
 
 
 # ---------------------------------------------------------------------------
@@ -256,24 +266,40 @@ class ControlServer:
                     )
             return None
 
-        def _retry_knobs_negative(
-            *knobs: tuple[str, int | None],
-        ) -> JSONResponse | None:
-            """400 for the first negative retry-override knob, else None.
+        def _parse_retry_knobs(*knobs: tuple[str, str | None]) -> _ParsedRetryKnobs:
+            """Parse the retry-override knobs' raw query values.
 
-            The retry knobs allow 0 (clear the override) where the limits
-            knobs require >= 1, hence the separate validator.
+            Unlike the limits knobs these are declared ``str`` on the route:
+            every integer >= 0 is a real value (0 = fail after the first
+            attempt / a zero budget), so clearing an override is spelled with
+            the keyword ``clear`` rather than a sentinel integer. Returns the
+            parsed values plus a 400 for the first invalid one (a ``None``
+            passes through as "not requested").
             """
-            for label, value in knobs:
-                if value is not None and value < 0:
-                    return JSONResponse(
-                        status_code=400,
-                        content={
-                            "error": f"{label} must be >= 0 (got {value}; "
-                            "0 clears the override)"
-                        },
-                    )
-            return None
+            parsed: dict[str, int | Literal["clear"] | None] = {}
+            for label, raw in knobs:
+                if raw is None:
+                    parsed[label] = None
+                elif raw == "clear":
+                    parsed[label] = "clear"
+                else:
+                    try:
+                        value = int(raw)
+                    except ValueError:
+                        value = -1
+                    if value < 0:
+                        return _ParsedRetryKnobs(
+                            values=parsed,
+                            error=JSONResponse(
+                                status_code=400,
+                                content={
+                                    "error": f"{label} must be a non-negative "
+                                    f"integer or 'clear' (got {raw!r})"
+                                },
+                            ),
+                        )
+                    parsed[label] = value
+            return _ParsedRetryKnobs(values=parsed, error=None)
 
         # Folded per-task summaries (retry attempts of a task collapse into
         # one row keyed by task_id) — the wire behind `inspect ctl task list`
@@ -394,16 +420,17 @@ class ControlServer:
         # Retune the process-global limits. Omitting every set value makes this a
         # read, like GET. `model` filters the adaptive controllers (name start or
         # after a `/`). The retry knobs (timeout / attempt_timeout / max_retries)
-        # set live overrides; 0 clears one. `dry_run=true` reports the intended
-        # change without applying it. Never 404s — a process always exists.
+        # set live overrides; the keyword `clear` removes one. `dry_run=true`
+        # reports the intended change without applying it. Never 404s — a
+        # process always exists.
         @app.patch("/config")
         async def patch_process_limits(
             max_sandboxes: int | None = None,
             max_connections: int | None = None,
             model: str | None = None,
-            timeout: int | None = None,
-            attempt_timeout: int | None = None,
-            max_retries: int | None = None,
+            timeout: str | None = None,
+            attempt_timeout: str | None = None,
+            max_retries: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -411,19 +438,20 @@ class ControlServer:
                 ("max_connections", max_connections),
             ):
                 return error
-            if error := _retry_knobs_negative(
+            retry_knobs, retry_error = _parse_retry_knobs(
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
                 ("max_retries", max_retries),
-            ):
-                return error
+            )
+            if retry_error is not None:
+                return retry_error
             return await process_limits(
                 max_sandboxes=max_sandboxes,
                 max_connections=max_connections,
                 model=model,
-                timeout=timeout,
-                attempt_timeout=attempt_timeout,
-                max_retries=max_retries,
+                timeout=retry_knobs["timeout"],
+                attempt_timeout=retry_knobs["attempt_timeout"],
+                max_retries=retry_knobs["max_retries"],
                 dry_run=dry_run,
             )
 
@@ -459,9 +487,9 @@ class ControlServer:
             model: str | None = None,
             log_buffer: int | None = None,
             log_shared: int | None = None,
-            timeout: int | None = None,
-            attempt_timeout: int | None = None,
-            max_retries: int | None = None,
+            timeout: str | None = None,
+            attempt_timeout: str | None = None,
+            max_retries: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -472,12 +500,13 @@ class ControlServer:
                 ("log_shared", log_shared),
             ):
                 return error
-            if error := _retry_knobs_negative(
+            retry_knobs, retry_error = _parse_retry_knobs(
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
                 ("max_retries", max_retries),
-            ):
-                return error
+            )
+            if retry_error is not None:
+                return retry_error
             result = await task_limits(
                 task_id,
                 max_samples=max_samples,
@@ -486,9 +515,9 @@ class ControlServer:
                 model=model,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
-                timeout=timeout,
-                attempt_timeout=attempt_timeout,
-                max_retries=max_retries,
+                timeout=retry_knobs["timeout"],
+                attempt_timeout=retry_knobs["attempt_timeout"],
+                max_retries=retry_knobs["max_retries"],
                 dry_run=dry_run,
             )
             if result is None:

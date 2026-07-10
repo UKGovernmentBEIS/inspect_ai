@@ -1536,6 +1536,36 @@ def test_config_gates_retry_overrides_by_real_since_table(
     assert json.loads(result.stdout)["applied"] is True
 
 
+def test_config_retry_overrides_accept_clear_keyword(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`clear` parses as a knob value (a mutation) and bad spellings fail early."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(
+        ctl_command, ["config", "--max-retries", "clear", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+    # neither an integer nor 'clear' → click usage error, no request made
+    result = _runner().invoke(ctl_command, ["config", "--max-retries", "unset"])
+    assert result.exit_code == 2
+    assert "is not an integer or 'clear'" in result.stderr
+
+    result = _runner().invoke(ctl_command, ["config", "--timeout=-5"])
+    assert result.exit_code == 2
+    assert "negative" in result.stderr
+
+
 def test_discovery_api_version_parsed_with_bootstrap_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

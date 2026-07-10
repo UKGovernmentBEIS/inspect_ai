@@ -93,14 +93,15 @@ def model_retry_config(
     # every post-attempt check (not just at decoration time) so a mid-flight
     # retune of max_retries/timeout reaches generate calls already inside
     # their retry loop — the provider-incident case — while an in-flight
-    # attempt always drains first. Semantics match tenacity's
-    # stop_after_attempt / stop_after_delay / stop_never composition.
+    # attempt always drains first. max_retries counts retries, as documented:
+    # N retries allow N+1 total attempts (0 = fail after the first attempt).
+    # Timeout semantics match tenacity's stop_after_delay.
     def stop(retry_state: RetryCallState) -> bool:
         effective_max_retries = generate_config_override("max_retries", max_retries)
         effective_timeout = generate_config_override("timeout", timeout)
         if (
             effective_max_retries is not None
-            and retry_state.attempt_number >= effective_max_retries
+            and retry_state.attempt_number > effective_max_retries
         ):
             return True
         if (

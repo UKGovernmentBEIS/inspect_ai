@@ -33,6 +33,8 @@ async def test_generate_attempt_timeout() -> None:
 class SlowAPI(ModelAPI):
     """A provider whose generate outlasts any reasonable attempt timeout."""
 
+    attempts: int = 0
+
     def __init__(
         self,
         model_name: str,
@@ -56,6 +58,7 @@ class SlowAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
+        SlowAPI.attempts += 1
         await anyio.sleep(60)
         return ModelOutput.from_content(model=self.model_name, content="too late")
 
@@ -65,7 +68,8 @@ async def test_generate_attempt_timeout_live_override() -> None:
 
     The launch config sets neither attempt_timeout nor max_retries (retry
     forever, no per-attempt limit); the live overrides alone must time the
-    attempt out and stop the retry loop.
+    attempt out and stop the retry loop. max_retries counts retries, so the
+    0 override means exactly one attempt (the fail-fast incident value).
     """
 
     @modelapi(name="mockslow")
@@ -74,10 +78,12 @@ async def test_generate_attempt_timeout_live_override() -> None:
 
     try:
         model = get_model("mockslow/test")
+        SlowAPI.attempts = 0
         set_generate_config_override("attempt_timeout", 1)
-        set_generate_config_override("max_retries", 1)
+        set_generate_config_override("max_retries", 0)
         with pytest.raises(tenacity.RetryError):
             await model.generate("hello")
+        assert SlowAPI.attempts == 1
     finally:
         reset_generate_config_overrides()
         del _registry["modelapi:mockslow"]
