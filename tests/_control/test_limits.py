@@ -499,6 +499,43 @@ def test_retry_override_defers_to_base_config_when_unset() -> None:
     assert stop(state) is True  # base timeout still stands (not overridden)
 
 
+def test_retry_override_opted_out_for_batch_admin_ops() -> None:
+    """`live_overrides=False` (batcher admin ops) pins the launch config.
+
+    A fail-fast retune must not reach batch create/poll retry loops — an
+    exhausted admin-op retry fails every request riding the batch.
+    """
+    from tenacity import RetryCallState
+
+    from inspect_ai.model._retry import model_retry_config
+
+    retry_config = model_retry_config(
+        "m",
+        None,  # launch config: retry forever
+        None,
+        lambda ex: True,
+        lambda ex: None,
+        lambda name, rs: None,
+        live_overrides=False,
+    )
+    stop = retry_config["stop"]
+    assert callable(stop)
+
+    state = RetryCallState(cast(Any, None), None, (), {})
+    state.attempt_number = 5
+    set_generate_config_override("max_retries", 0)
+    set_generate_config_override("timeout", 1)
+    state.outcome_timestamp = state.start_time + 100
+    assert stop(state) is False  # the fail-fast retune is ignored
+
+
+def test_set_generate_config_override_rejects_negative() -> None:
+    """A programmatic sign bug errors loudly instead of becoming an override."""
+    with pytest.raises(ValueError, match="max_retries"):
+        set_generate_config_override("max_retries", -1)
+    assert generate_config_override("max_retries") is None
+
+
 # ---------------------------------------------------------------------------
 # Server routes
 # ---------------------------------------------------------------------------

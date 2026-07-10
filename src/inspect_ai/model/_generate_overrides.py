@@ -19,7 +19,10 @@ opening each attempt's cancel scope. That makes a change effective for
 generate calls already stuck in a retry loop — the incident case — while
 never preempting an in-flight HTTP request (drain-don't-preempt, matching
 the concurrency knobs). Values a provider bakes into its SDK client at
-initialization are not affected.
+initialization are not affected, and batcher admin-operation retry loops
+(batch create/poll) deliberately opt out via ``live_overrides=False`` —
+an exhausted admin-op retry fails every request riding the batch, a blast
+radius no fail-fast retune should trigger.
 
 The store is process-scoped (like ``max_sandboxes`` / ``max_connections``)
 and reset at the outermost run boundary alongside the other control-channel
@@ -35,17 +38,15 @@ them.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, get_args
 
 GenerateConfigOverrideField = Literal["timeout", "attempt_timeout", "max_retries"]
 """The ``GenerateConfig`` fields that support live mid-flight overrides."""
 
-GENERATE_CONFIG_OVERRIDE_FIELDS: tuple[GenerateConfigOverrideField, ...] = (
-    "timeout",
-    "attempt_timeout",
-    "max_retries",
+GENERATE_CONFIG_OVERRIDE_FIELDS: tuple[GenerateConfigOverrideField, ...] = get_args(
+    GenerateConfigOverrideField
 )
-"""All override fields, in the order views report them."""
+"""All override fields, in the order views report them (the Literal's order)."""
 
 _overrides: dict[str, int] = {}
 
@@ -57,10 +58,14 @@ def set_generate_config_override(
 
     An override applies process-wide from the next point of use (the next
     retry-stop check or attempt); clearing it restores whatever each
-    generate call's own config specifies.
+    generate call's own config specifies. A negative value raises — the
+    control-server routes reject one before reaching here, so this guards
+    programmatic callers (a sign bug must not become a live override).
     """
     if value is None:
         _overrides.pop(field, None)
+    elif value < 0:
+        raise ValueError(f"{field} override must be >= 0 (got {value})")
     else:
         _overrides[field] = value
 

@@ -775,6 +775,9 @@ class AnthropicAPI(ModelAPI):
                         self.should_retry,
                         lambda ex: None,
                         log_model_retry,
+                        # admin ops only (batch create/poll): a fail-fast
+                        # `inspect ctl config` retune must not fail the batch
+                        live_overrides=False,
                     ),
                 )
             head_message = await self._batcher.generate_for_request(request)

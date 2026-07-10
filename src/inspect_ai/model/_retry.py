@@ -32,12 +32,23 @@ def model_retry_config(
     log_model_retry: Callable[[str, RetryCallState], Awaitable[None] | None],
     report_waiting_time: Callable[[float], None] | None = None,
     wait: WaitBaseT | None = None,
+    live_overrides: bool = True,
 ) -> ModelRetryConfig:
     # retry for transient http errors:
     # - use config.max_retries and config.timeout if specified, otherwise retry forever
     # - exponential backoff starting at 3 seconds (will wait 25 minutes
     #   on the 10th retry,then will wait no longer than 30 minutes on
     #   subsequent retries)
+    #
+    # `live_overrides` controls whether the stop condition reads the live
+    # `inspect ctl config` max_retries/timeout overrides (see the stop
+    # comment below). Batchers pass False for their admin-operation retry
+    # loops (batch create/poll): those run with the launch config only,
+    # because an exhausted admin-op retry fails every request riding the
+    # batch — a fail-fast retune aimed at stuck generate calls shouldn't
+    # convert one transient poll error into a whole-batch failure. The
+    # incident lever still reaches batch-mode generates: each request's
+    # retries run in `Model._generate`'s own (live) retry loop.
 
     async def on_before_sleep(rs: RetryCallState) -> None:
         # report the upcoming sleep as waiting time (that way the working time can't
@@ -97,8 +108,11 @@ def model_retry_config(
     # N retries allow N+1 total attempts (0 = fail after the first attempt).
     # Timeout semantics match tenacity's stop_after_delay.
     def stop(retry_state: RetryCallState) -> bool:
-        effective_max_retries = generate_config_override("max_retries", max_retries)
-        effective_timeout = generate_config_override("timeout", timeout)
+        if live_overrides:
+            effective_max_retries = generate_config_override("max_retries", max_retries)
+            effective_timeout = generate_config_override("timeout", timeout)
+        else:
+            effective_max_retries, effective_timeout = max_retries, timeout
         if (
             effective_max_retries is not None
             and retry_state.attempt_number > effective_max_retries

@@ -1018,6 +1018,9 @@ class GoogleGenAIAPI(ModelAPI):
                 self.should_retry,
                 lambda ex: None,
                 log_model_retry,
+                # admin ops only (batch create/poll): a fail-fast
+                # `inspect ctl config` retune must not fail the batch
+                live_overrides=False,
             ),
             self.service_model_name(),
         )

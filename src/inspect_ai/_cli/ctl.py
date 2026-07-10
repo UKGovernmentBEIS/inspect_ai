@@ -1637,17 +1637,13 @@ def _run_config(
         )
 
     # The process-scoped knobs reach every task in the process — surface that
-    # blast radius structurally when a set (or dry-run) used one.
+    # blast radius structurally when a set (or dry-run) used one. Derived from
+    # `_KNOB_SCOPE` (via the assert-tied `knob_values`) so a future
+    # process-scoped knob can't silently miss the note.
     global_knobs = [
-        name
-        for name, value in (
-            ("--max-connections", max_connections),
-            ("--max-sandboxes", max_sandboxes),
-            ("--timeout", timeout),
-            ("--attempt-timeout", attempt_timeout),
-            ("--max-retries", max_retries),
-        )
-        if value is not None
+        f"--{knob.replace('_', '-')}"
+        for knob, value in knob_values.items()
+        if value is not None and _KNOB_SCOPE[knob] == "process"
     ]
     notes = []
     note = _process_scope_note(global_knobs, scope.siblings)
