@@ -1463,6 +1463,12 @@ def _mutation_envelope(
     }
 
 
+_CANCEL_ROUTE_MISSING = (
+    "This process is running an older inspect without the cancel "
+    "endpoint; restart the eval to pick up the current version."
+)
+
+
 def _run_task_cancel(task: str, *, dry_run: bool, as_json: bool) -> None:
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers).summaries
@@ -1488,10 +1494,7 @@ def _run_task_cancel(task: str, *, dry_run: bool, as_json: bool) -> None:
         not_found=(
             f"Task '{scope.task_id}' not found in this process (it may have finished)."
         ),
-        not_found_missing_route=(
-            "This process is running an older inspect without the cancel "
-            "endpoint; restart the eval to pick up the current version."
-        ),
+        not_found_missing_route=_CANCEL_ROUTE_MISSING,
         mutate="post",
         retry_mutation=True,
     )
@@ -1574,10 +1577,7 @@ def _run_sample_cancel(
             f"Sample '{sample_id}' (epoch {epoch}) not found in task "
             f"'{target.get('task') or '?'}'."
         ),
-        not_found_missing_route=(
-            "This process is running an older inspect without the cancel "
-            "endpoint; restart the eval to pick up the current version."
-        ),
+        not_found_missing_route=_CANCEL_ROUTE_MISSING,
         mutate="post",
         retry_mutation=True,
     )
