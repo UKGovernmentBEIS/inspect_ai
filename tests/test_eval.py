@@ -349,13 +349,10 @@ def test_failed_log_start_is_retried(
     async def flaky_log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
         calls["n"] += 1
         if calls["n"] == 1:
-            # sleep past the next second boundary so the retry's log location
-            # (derived from `eval.created`, second granularity) differs from
-            # attempt 1's — attempt 1 never wrote its file, so the retry must
-            # tolerate reading from a nonexistent prior log. Without the sleep
-            # the retry usually lands on the same second and silently reuses
-            # attempt 1's location, masking that path.
-            await anyio.sleep(1.2)
+            # push the retry's `created` (second resolution) past the failed
+            # attempt's so the retry gets a different log location and must
+            # cope with the failed attempt's log never having been written
+            await anyio.sleep(1.1)
             raise _skew_error()
         return await original_log_start(self, *args, **kwargs)
 

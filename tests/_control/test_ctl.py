@@ -1579,6 +1579,7 @@ def _stub_limits(
         knobs = (
             "max_samples",
             "max_sandboxes",
+            "max_subprocesses",
             "max_connections",
             "log_buffer",
             "log_shared",
@@ -1836,6 +1837,41 @@ def test_config_gate_ignores_since_zero_knobs(
         monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
     )
     result = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_config_gates_max_subprocesses_on_pre_version_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--max-subprocesses` gates on the shipped `_KNOB_SINCE` entry (since-1).
+
+    The gate-mechanism tests above monkeypatch `_KNOB_SINCE`; this pins the
+    real table: a server that predates version reporting refuses the knob,
+    and a current server (advertising `CONTROL_API_VERSION`) accepts it.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    result = _runner().invoke(ctl_command, ["config", "--max-subprocesses", "2"])
+    assert result.exit_code == 1
+    assert "--max-subprocesses not supported" in result.stderr
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = _runner().invoke(
+        ctl_command, ["config", "--max-subprocesses", "2", "--json"]
+    )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
 
@@ -2109,6 +2145,7 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     limits_view = {
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
+        "max_subprocesses": {"limit": 8, "in_use": 1},
         "adaptive": [],
         "buffer": {"log_buffer": 10, "pending": 2, "log_shared": None},
         "requested": {"max_samples": 3, "log_buffer": 5},
@@ -2125,6 +2162,11 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     assert config["target"] == {"scope": "task", "task_id": "t1", "task": "tn"}
     assert config["knobs"]["max_samples"]["scope"] == "task"
     assert config["knobs"]["max_sandboxes"]["scope"] == "process"
+    assert config["knobs"]["max_subprocesses"] == {
+        "scope": "process",
+        "limit": 8,
+        "in_use": 1,
+    }
     assert config["knobs"]["max_connections"]["scope"] == "process"
     assert config["knobs"]["log_buffer"]["scope"] == "task"
     assert config["knobs"]["log_shared"]["scope"] == "task"
@@ -2253,8 +2295,8 @@ def test_print_config_process_scope_shows_buffer_placeholder(
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "log buffer [task]:       per task (pass a task to view/set)" in out
-    assert "shared sync [task]:      per task (pass a task to view/set)" in out
+    assert "log buffer [task]:          per task (pass a task to view/set)" in out
+    assert "shared sync [task]:         per task (pass a task to view/set)" in out
 
 
 def test_resolve_scope_siblings_counts_active_only() -> None:
@@ -2445,6 +2487,250 @@ def test_keep_alive_retries_busy_timeout(
     assert body == {"ok": True, "keep_alive": True}
     assert counter["posts"] == 2  # retried once, then succeeded
     assert "retrying" in capsys.readouterr().err
+
+
+# --- --json error envelope ---------------------------------------------------
+
+
+def _error_envelope(result: Any) -> dict[str, Any]:
+    """Parse the `{"error": {...}}` stdout envelope of a failed --json run."""
+    payload = json.loads(result.stdout)
+    assert set(payload) == {"error"}
+    error = payload["error"]
+    # uniform shape: all four fields present on every failure
+    assert set(error) == {"kind", "exception", "message", "status"}
+    return dict(error)
+
+
+def test_json_busy_failure_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A read that exhausts its busy retries fails with a `busy` envelope.
+
+    The starvation diagnosis (event loop busy — retry, don't declare the
+    eval gone) must be a field an agent branches on, not a stderr regex.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
+    result = _runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "busy"
+    assert error["exception"] == "httpx.ReadTimeout"
+    assert error["status"] is None
+    assert "gave up" in error["message"]
+    # the stderr narration is unchanged (it remains the human channel)
+    assert "gave up" in result.stderr
+
+
+def test_json_all_busy_emits_busy_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The all-processes-busy exit carries the `busy` envelope on --json.
+
+    Distinguishable from the empty success envelope (nothing running) by
+    shape, and from 'gone' transport kinds by `kind` — a polling agent
+    should retry shortly, not stop.
+    """
+    _patch_surface(monkeypatch, [], busy_pids=[7])
+    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "busy"
+    assert "pid 7 busy" in error["message"]
+
+
+def test_json_not_found_selector_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")], samples_by_eval={})
+    result = _runner().invoke(ctl_command, ["sample", "list", "nope", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "not_found"
+    assert "nope" in error["message"]
+    assert error["exception"] is None
+    assert error["status"] is None
+
+
+def test_json_ambiguous_selector_envelope_carries_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ambiguity envelope message is self-contained (the table is stderr-only)."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "gpqa"), _full_summary("bbb222", "gpqa")],
+        samples_by_eval={},
+    )
+    result = _runner().invoke(ctl_command, ["sample", "list", "gpqa", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "ambiguous"
+    assert "aaa111" in error["message"] and "bbb222" in error["message"]
+
+
+def test_json_http_404_envelope_carries_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {})])
+    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "not_found"
+    assert error["status"] == 404
+    assert "not found" in error["message"]
+
+
+def test_json_scoped_unreachable_envelope_kind_connect_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scoped read against a vanished process reports the transport cause."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+    )
+    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+    result = _runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "connect_error"
+    assert error["exception"] == "httpx.ConnectError"
+    assert "Failed to read samples for eval eval_aaa111" in error["message"]
+
+
+def test_json_mutation_failure_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mutations get the same envelope shape as reads."""
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    result = _runner().invoke(ctl_command, ["process", "keep", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "not_found"
+    assert "No running inspect processes found" in error["message"]
+
+
+@pytest.mark.parametrize(
+    ("kind", "exception", "status"),
+    [
+        ("connect_timeout", "httpx.ConnectTimeout", None),
+        ("read_timeout", "httpx.ReadTimeout", None),
+        ("http_error", "httpx.HTTPStatusError", 500),
+        ("invalid_response", "json.JSONDecodeError", None),
+    ],
+)
+def test_json_single_shot_mutation_envelope_kinds(
+    kind: str,
+    exception: str,
+    status: int | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The rest of the `kind` vocabulary, pinned through the single-shot path.
+
+    `task log-flush` is a non-idempotent mutation (`_request_json` without
+    `retry_mutation`), so a transport failure skips the retry loop and
+    classifies directly via `_CtlFailure.from_exception` — the only path that
+    can produce `connect_timeout`/`read_timeout`. Since `kind` is the closed
+    vocabulary agents branch on, this pins the `_classify` isinstance
+    ordering (`ConnectTimeout` before its `TimeoutException` base) plus the
+    non-404 `http_error` and undecodable-body kinds.
+    """
+    import httpx
+
+    failure_by_kind: dict[str, object] = {
+        "connect_timeout": httpx.ConnectTimeout("connect timed out"),
+        "read_timeout": httpx.ReadTimeout("slow"),
+        "http_error": (500, {}),
+        "invalid_response": json.JSONDecodeError("Expecting value", "<html>", 0),
+    }
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [failure_by_kind[kind]])
+    result = _runner().invoke(ctl_command, ["task", "log-flush", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == kind
+    assert error["exception"] == exception
+    assert error["status"] == status
+    assert "Failed to update log-flush of task aaa111" in error["message"]
+
+
+def test_json_invalid_cursor_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    result = _runner().invoke(
+        ctl_command,
+        ["sample", "events", "aaa111", "s1", "--cursor", "12345", "--json"],
+    )
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "invalid_request"
+    assert "--since-time" in error["message"]
+
+
+def test_json_unexpected_exception_envelope_with_traceback_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unhandled exception still yields an envelope; the traceback stays on stderr."""
+
+    def boom() -> list[Any]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", boom)
+    result = _runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "internal"
+    assert error["exception"] == "RuntimeError"
+    assert error["message"] == "boom"
+    assert "Traceback" in result.stderr
+
+
+def test_human_failure_output_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without --json, failures keep stderr prose and an empty stdout."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")], samples_by_eval={})
+    result = _runner().invoke(ctl_command, ["sample", "list", "nope"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "No running task matching 'nope'" in result.stderr
+
+
+def test_human_unexpected_exception_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without --json, an unhandled exception propagates as before."""
+
+    def boom() -> list[Any]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", boom)
+    result = _runner().invoke(ctl_command, ["task", "list"])
+    assert result.exit_code != 0
+    assert isinstance(result.exception, RuntimeError)
+
+
+def test_envelope_failures_rejects_runner_without_as_json() -> None:
+    """Decorating a runner lacking `as_json` fails at import, not silently.
+
+    Without the guard, such a runner would bind `as_json=False` for every
+    call and quietly revert its command to unstructured failures.
+    """
+    from inspect_ai._cli.ctl import _envelope_failures
+
+    with pytest.raises(TypeError, match="as_json"):
+
+        @_envelope_failures
+        def _runner_without_flag(task: str) -> None:  # pragma: no cover
+            pass
 
 
 def test_resolve_scope_completed_target_counts_toward_siblings() -> None:

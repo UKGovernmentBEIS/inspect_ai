@@ -2038,10 +2038,8 @@ def eval_log_sample_source(
                     eval_log_info, id, epoch, reader=reader
                 )
             except (IndexError, FileNotFoundError):
-                # IndexError: the sample isn't in the prior log.
-                # FileNotFoundError: the prior log file was never written (its
-                # attempt failed before the first flush, e.g. in log_start()) —
-                # `location` still points at the never-created destination.
+                # FileNotFoundError: the prior attempt may never have written
+                # its log at all (e.g. its log_start() header flush failed)
                 return await _resume_if_checkpointed(id, epoch)
             if sample.error is None and sample.invalidation is None:
                 return sample

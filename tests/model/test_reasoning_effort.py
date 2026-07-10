@@ -463,6 +463,25 @@ def test_grok_effort_mapping(effort, expected) -> None:
     assert gconfig.get("reasoning_effort") == expected
 
 
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "high"),
+        ("max", "high"),
+    ],
+)
+def test_grok_4_5_effort_mapping(effort, expected) -> None:
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.5", api_key="test-key")
+    gconfig = api._grok_params(GenerateConfig(reasoning_effort=effort))
+    assert gconfig.get("reasoning_effort") == expected
+
+
 def test_grok_4_original_excluded_from_reasoning_effort():
     """The deprecated grok-4 reasons but does not accept reasoning_effort."""
     from inspect_ai.model._providers.grok import GrokAPI
@@ -470,7 +489,7 @@ def test_grok_4_original_excluded_from_reasoning_effort():
     for name in ("grok-4", "grok-4-latest", "grok-4-0709"):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert api.is_grok_4_original(), f"{name} should be detected as original"
-    # grok-4.3 / 4-fast / 4.20 are NOT the original
-    for name in ("grok-4.3", "grok-4-fast-reasoning", "grok-4.20"):
+    # grok-4.3 / 4-fast / 4.20 / 4.5 are NOT the original
+    for name in ("grok-4.3", "grok-4-fast-reasoning", "grok-4.20", "grok-4.5"):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert not api.is_grok_4_original(), f"{name} must not be original"
