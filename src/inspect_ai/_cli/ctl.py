@@ -29,6 +29,7 @@ its error message points at ``sample show``.
 
 from __future__ import annotations
 
+import copy
 import json as json_lib
 import time
 from collections.abc import Callable, Sequence
@@ -171,6 +172,34 @@ def _forward_group_options(ctx: click.Context) -> None:
     }
 
 
+def _mirror_list_options(group: click.Group, list_command: click.Command) -> None:
+    """Mirror ``list``'s options onto its group for the bare-noun default.
+
+    Deriving the mirror from the verb's own params keeps the two surfaces
+    from drifting: an option added to ``list`` is mirrored automatically,
+    where a hand-maintained copy would let bare ``ctl sample --new-opt``
+    break while ``ctl sample list --new-opt`` works. Only options are
+    mirrored — ``list``'s positional TASK would land in the verb slot
+    (see ``_NounGroup``).
+    """
+    for param in list_command.params:
+        if isinstance(param, click.Option):
+            mirrored = copy.copy(param)
+            mirrored.help = "Mirrored from `list` for the bare-noun default."
+            group.params.append(mirrored)
+
+
+def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """The ``--json`` flag every command carries, with per-command envelope help."""
+    return click.option(
+        "--json",
+        "as_json",
+        is_flag=True,
+        default=False,
+        help=f"Output as JSON ({what}).",
+    )
+
+
 @click.group("ctl")
 def ctl_command() -> None:
     """Read the state of running evals and manage kept-alive processes.
@@ -243,15 +272,8 @@ def _deprecation_note(old: str, new: str) -> None:
     cls=_NounGroup,
     invoke_without_command=True,
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (mirrored from `list` for the bare-noun default).",
-)
 @click.pass_context
-def task_group(ctx: click.Context, as_json: bool) -> None:
+def task_group(ctx: click.Context, /, **mirrored: Any) -> None:
     """Operate on the tasks of running evals (bare `task` lists them).
 
     Task ids are stable across retries and are the TASK selector other
@@ -259,7 +281,7 @@ def task_group(ctx: click.Context, as_json: bool) -> None:
     available.
     """
     if ctx.invoked_subcommand is None:
-        _run_task_list(as_json)
+        ctx.invoke(task_list_command, **mirrored)
     else:
         _forward_group_options(ctx)
 
@@ -272,13 +294,7 @@ task_group.hint = lambda token: (
 
 
 @task_group.command("list")
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (an `{as_of, tasks}` envelope).",
-)
+@_json_option("an `{as_of, tasks}` envelope")
 def task_list_command(as_json: bool) -> None:
     """List running tasks across all live Inspect processes.
 
@@ -291,15 +307,12 @@ def task_list_command(as_json: bool) -> None:
     _run_task_list(as_json)
 
 
+_mirror_list_options(task_group, task_list_command)
+
+
 @task_group.command("log-flush")
 @click.argument("task", required=False)
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option("the mutation result envelope")
 def task_log_flush_command(task: str | None, as_json: bool) -> None:
     """Flush a running task's buffered samples to its log now.
 
@@ -322,60 +335,15 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     cls=_NounGroup,
     invoke_without_command=True,
 )
-@click.option(
-    "--active-since",
-    type=float,
-    default=None,
-    help="Mirrored from `list` for the bare-noun default.",
-)
-@click.option(
-    "--limit",
-    type=click.IntRange(min=1),
-    default=None,
-    help="Mirrored from `list` for the bare-noun default.",
-)
-@click.option(
-    "--all",
-    "all_samples",
-    is_flag=True,
-    default=False,
-    help="Mirrored from `list` for the bare-noun default.",
-)
-@click.option(
-    "--status",
-    default=None,
-    help="Mirrored from `list` for the bare-noun default.",
-)
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (mirrored from `list` for the bare-noun default).",
-)
 @click.pass_context
-def sample_group(
-    ctx: click.Context,
-    active_since: float | None,
-    limit: int | None,
-    all_samples: bool,
-    status: str | None,
-    as_json: bool,
-) -> None:
+def sample_group(ctx: click.Context, /, **mirrored: Any) -> None:
     """Operate on samples of running evals (bare `sample` lists them).
 
     An omitted TASK on `list` / `errors` reads across all running tasks.
     `cancel` / `requeue` are planned but not yet available.
     """
     if ctx.invoked_subcommand is None:
-        _run_sample_list(
-            None,
-            active_since,
-            as_json,
-            status=status,
-            limit=limit,
-            all_samples=all_samples,
-        )
+        ctx.invoke(sample_list_command, **mirrored)
     else:
         _forward_group_options(ctx)
 
@@ -431,13 +399,7 @@ sample_group.hint = lambda token: (
         f"{', '.join(SAMPLE_STATUSES)})."
     ),
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (an `{as_of, counts, samples, truncated}` envelope).",
-)
+@_json_option("an `{as_of, counts, samples, truncated}` envelope")
 def sample_list_command(
     task: str | None,
     active_since: float | None,
@@ -468,15 +430,12 @@ def sample_list_command(
     )
 
 
+_mirror_list_options(sample_group, sample_list_command)
+
+
 @sample_group.command("errors")
 @click.argument("task", required=False)
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (an `{as_of, counts, samples, truncated}` envelope).",
-)
+@_json_option("an `{as_of, counts, samples, truncated}` envelope")
 def sample_errors_command(task: str | None, as_json: bool) -> None:
     """List the samples of running evals that errored or were retried.
 
@@ -498,13 +457,7 @@ def sample_errors_command(task: str | None, as_json: bool) -> None:
     default=False,
     help="Show the full traceback for each error (default: message only).",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the sample's summary + error detail).",
-)
+@_json_option("the sample's summary + error detail")
 def sample_show_command(
     task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
 ) -> None:
@@ -574,13 +527,7 @@ def sample_show_command(
     default=None,
     help="Only events at/before this unix timestamp.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the `{events, next, done}` envelope).",
-)
+@_json_option("the `{events, next, done}` envelope")
 def sample_events_command(
     task: str,
     sample_id: str,
@@ -683,13 +630,7 @@ def sample_events_command(
     default=False,
     help="Report what would change without applying it (with a set option).",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the config view, every knob labeled with its scope).",
-)
+@_json_option("the config view, every knob labeled with its scope")
 def config_command(
     task: str | None,
     max_samples: int | None,
@@ -740,22 +681,15 @@ def config_command(
     cls=_NounGroup,
     invoke_without_command=True,
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (mirrored from `list` for the bare-noun default).",
-)
 @click.pass_context
-def process_group(ctx: click.Context, as_json: bool) -> None:
+def process_group(ctx: click.Context, /, **mirrored: Any) -> None:
     """Operate on running Inspect processes (bare `process` lists them).
 
     The selector is a positional PID, optional when a single process is
     running.
     """
     if ctx.invoked_subcommand is None:
-        _run_process_list(as_json)
+        ctx.invoke(process_list_command, **mirrored)
     else:
         _forward_group_options(ctx)
 
@@ -770,13 +704,7 @@ process_group.hint = lambda token: (
 
 
 @process_group.command("list")
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (an `{as_of, processes}` envelope).",
-)
+@_json_option("an `{as_of, processes}` envelope")
 def process_list_command(as_json: bool) -> None:
     """List running Inspect processes (pids, keep-alive, hosted tasks).
 
@@ -785,15 +713,12 @@ def process_list_command(as_json: bool) -> None:
     _run_process_list(as_json)
 
 
+_mirror_list_options(process_group, process_list_command)
+
+
 @process_group.command("keep")
 @click.argument("pid", required=False, type=int)
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option("the mutation result envelope")
 def process_keep_command(pid: int | None, as_json: bool) -> None:
     """Keep a running inspect process alive after its eval finishes.
 
@@ -807,13 +732,7 @@ def process_keep_command(pid: int | None, as_json: bool) -> None:
 
 @process_group.command("release")
 @click.argument("pid", required=False, type=int)
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option("the mutation result envelope")
 def process_release_command(pid: int | None, as_json: bool) -> None:
     """Release a lingering --ctl-server=keep process so it can exit.
 
