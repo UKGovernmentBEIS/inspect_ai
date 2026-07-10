@@ -1515,7 +1515,7 @@ def test_config_gates_max_subprocesses_on_pre_version_server(
         [_full_summary("aaa111", "t1")],
         servers=[_DiscServer(7, api_version=0)],
     )
-    result = _runner().invoke(ctl_command, ["config", "--max-subprocesses", "2"])
+    result = cli_runner().invoke(ctl_command, ["config", "--max-subprocesses", "2"])
     assert result.exit_code == 1
     assert "--max-subprocesses not supported" in result.stderr
 
@@ -1527,7 +1527,7 @@ def test_config_gates_max_subprocesses_on_pre_version_server(
     _stub_limits(
         monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
     )
-    result = _runner().invoke(
+    result = cli_runner().invoke(
         ctl_command, ["config", "--max-subprocesses", "2", "--json"]
     )
     assert result.exit_code == 0, result.output
