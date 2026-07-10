@@ -5,6 +5,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
 
+import anyio
 import pytest
 from botocore.exceptions import ClientError
 from test_helpers.utils import skip_if_no_docker
@@ -350,6 +351,10 @@ def test_failed_log_start_is_retried(
     async def flaky_log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
         calls["n"] += 1
         if calls["n"] == 1:
+            # push the retry's `created` (second resolution) past the failed
+            # attempt's so the retry gets a different log location and must
+            # cope with the failed attempt's log never having been written
+            await anyio.sleep(1.1)
             raise _skew_error()
         return await original_log_start(self, *args, **kwargs)
 
