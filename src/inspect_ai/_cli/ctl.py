@@ -1934,9 +1934,11 @@ def _compose_config(
         "scope": _KNOB_SCOPE["max_connections"],
         "adaptive": limits_view.get("adaptive") or [],
     }
+    # `keys: None` (vs an empty list) means the server predates the
+    # concurrency view — rendered as unreported rather than empty
     knobs["concurrency"] = {
         "scope": _KNOB_SCOPE["key"],
-        "keys": limits_view.get("concurrency") or [],
+        "keys": limits_view.get("concurrency"),
     }
     buffer_view = limits_view.get("buffer")
     if buffer_view is not None:
@@ -3024,8 +3026,11 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             click.echo(line)
 
     # The named concurrency() registry entries, addressable via `--key` by the
-    # exact name shown. An older server's view omits the section entirely.
-    keys = (knobs.get("concurrency") or {}).get("keys") or []
+    # exact name shown. Entries appear lazily on first use, so an empty
+    # registry gets a placeholder (like the sibling knobs) that keeps the
+    # knob discoverable and distinguishes it from an older server whose view
+    # omits the section (`keys` is None).
+    keys = (knobs.get("concurrency") or {}).get("keys")
     if keys:
         click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]:")
         for row in keys:
@@ -3036,6 +3041,13 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             if not row.get("adjustable"):
                 line += " — not adjustable"
             click.echo(line)
+    else:
+        empty = (
+            "none registered yet (named limits appear on first use)"
+            if keys is not None
+            else "not reported (older server)"
+        )
+        click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]: {empty}")
 
     # The process-level view carries no buffer knobs (they're per-task, read
     # off one task's live logger): mirror the max_samples placeholder so the

@@ -6,6 +6,7 @@ sandbox-limiter registry), the server routes that wrap it, and the CLI rendering
 """
 
 import asyncio
+from typing import Any
 
 import httpx
 import pytest
@@ -1151,6 +1152,44 @@ def test_print_config_concurrency_keys_section(
     assert "concurrency keys [process]:" in out
     assert "google_web_search: 10 (3 in use)" in out
     assert "fixed: 4 (0 in use) — not adjustable" in out
+
+
+def test_print_config_concurrency_keys_empty_states(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty registry renders a placeholder, distinct from an old server.
+
+    Named limits are created lazily on first use, so an eval can genuinely
+    have zero entries early on — the placeholder keeps the `--key` knob
+    discoverable and tells that state apart from a server whose view predates
+    the section (`keys` is None).
+    """
+    from inspect_ai._cli.ctl import _print_config
+
+    def view(keys: list[dict[str, Any]] | None) -> dict[str, Any]:
+        return {
+            "dry_run": False,
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "concurrency": {"scope": "process", "keys": keys},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        }
+
+    _print_config(view([]), changed=False)
+    out = capsys.readouterr().out
+    assert (
+        "concurrency keys [process]: none registered yet "
+        "(named limits appear on first use)" in out
+    )
+
+    _print_config(view(None), changed=False)
+    out = capsys.readouterr().out
+    assert "concurrency keys [process]: not reported (older server)" in out
 
 
 def test_print_config_concurrency_keys_dry_run_arrow(
