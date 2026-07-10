@@ -400,8 +400,9 @@ sample_group.hint = lambda token: (
         "timestamp — the 'what changed since I last looked' delta. Feed it "
         "the `as_of` from the prior response's envelope. If the delta comes "
         "back truncated, re-poll with the same value plus `--all` before "
-        "advancing to the new `as_of` — the dropped rows are terminal ones "
-        "that will never match a later delta."
+        "advancing to the new `as_of` — the dropped rows are typically "
+        "terminal ones (running rows sort first and survive the cap) that "
+        "will never match a later delta."
     ),
 )
 @click.option(
