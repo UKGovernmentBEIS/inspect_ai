@@ -6,6 +6,7 @@
 
 ## 0.3.246 (10 July 2026)
 
+- Monitoring: New public schema types represent oracle-isolated monitor context, signal derivation and availability, and append-only attempt/sample records.
 - Grok: Support for Grok 4.5 (model info database entry; accepts `reasoning_effort` with a documented default of `high`).
 - OpenAI: Support for GPT-5.6 (Sol, Terra, and Luna) — model info database entries and codename frontier aliasing now target `gpt-5.6`.
 - OpenAI: `reasoning_effort="max"` is now passed through natively for GPT-5.6+ models rather than being clamped to `xhigh`.
