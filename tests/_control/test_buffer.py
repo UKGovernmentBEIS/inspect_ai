@@ -261,7 +261,7 @@ def test_print_config_renders_buffer_knobs(
     )
     out = capsys.readouterr().out
     assert "updated config:" in out
-    assert "shared sync [task]:      off" in out
+    assert "shared sync [task]:         off" in out
 
 
 def test_log_flush_route_error_becomes_500(monkeypatch: pytest.MonkeyPatch) -> None:
