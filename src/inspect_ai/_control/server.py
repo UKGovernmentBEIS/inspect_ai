@@ -396,19 +396,34 @@ class ControlServer:
 
         # Cancel one running sample (phase 3). `sample_id` is a query param
         # like the other per-sample routes (ids may contain URL-reserved
-        # characters). `action` selects the outcome: "score" completes the
-        # sample and scores the work done so far; "error" marks it errored
-        # (rejected for fail-on-error samples). Idempotent — an already-
-        # terminal sample reports `changed: false`; `dry_run=true` reports
-        # without acting.
+        # characters). `epoch` is required — this is a mutation, and a
+        # defaulted epoch would silently target the epoch-1 attempt on a
+        # multi-epoch task (the read routes keep their harmless `= 1`
+        # default; see the selector conventions in
+        # design/control-channel.md). `action` selects the outcome: "score"
+        # completes the sample and scores the work done so far; "error"
+        # marks it errored (rejected for fail-on-error samples). Idempotent
+        # — an already-terminal sample reports `changed: false`;
+        # `dry_run=true` reports without acting.
         @app.post("/evals/{eval_id}/sample/cancel")
         async def sample_cancel(
             eval_id: str,
             sample_id: str,
-            epoch: int = 1,
+            epoch: int | None = None,
             action: str = "score",
             dry_run: bool = False,
         ) -> Any:
+            if epoch is None:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "epoch is required — a defaulted epoch would "
+                            "silently cancel the epoch-1 attempt on a "
+                            "multi-epoch task"
+                        )
+                    },
+                )
             if action not in ("score", "error"):
                 return JSONResponse(
                     status_code=400,

@@ -117,8 +117,28 @@ def test_cancel_task_repeat_is_idempotent_noop() -> None:
     assert (cancel_task("t1") or {})["changed"] is True
     repeat = cancel_task("t1")
     assert repeat is not None
-    assert repeat["changed"] is False and "already requested" in repeat["reason"]
+    assert repeat["changed"] is False
+    assert repeat["reason"] == "cancel already requested (abort)"
     assert handle.fired == ["abort"]  # fired exactly once
+
+
+def test_cancel_task_pending_retry_cancel_named_in_noop() -> None:
+    """A no-op against a pending *retry* cancel must say so.
+
+    The TUI's cancel dialog can fire a retry-cancel on the same handle; an
+    abort issued while that tears down no-ops, but the task will be
+    re-queued — the reason names the pending type so the caller knows the
+    task is not going away.
+    """
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    handle.cancel_task("retry")
+
+    result = cancel_task("t1")
+    assert result is not None
+    assert result["changed"] is False
+    assert result["reason"] == "cancel already requested (retry)"
+    assert handle.fired == ["retry"]  # the abort was not fired
 
 
 def test_cancel_task_finished_is_idempotent_noop() -> None:
@@ -399,6 +419,15 @@ async def test_sample_cancel_route(monkeypatch: pytest.MonkeyPatch) -> None:
         )
         assert bad_action.status_code == 400
         assert "score" in bad_action.json()["error"]
+
+        # epoch is required on this mutation — a defaulted epoch would
+        # silently target the epoch-1 attempt on a multi-epoch task
+        no_epoch = await client.post(
+            "/evals/e1/sample/cancel", params={"sample_id": "s1"}
+        )
+        assert no_epoch.status_code == 400
+        assert "epoch is required" in no_epoch.json()["error"]
+        assert sample.interrupts == ["score"]  # only the first call fired
 
 
 async def test_sample_cancel_route_gates_error_action(

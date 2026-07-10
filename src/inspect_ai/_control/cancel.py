@@ -39,9 +39,14 @@ def cancel_task(task_id: str, *, dry_run: bool = False) -> dict[str, Any] | None
     Resolves the task's latest attempt and fires its ``TaskCancel`` with
     ``"abort"`` (unless ``dry_run``). Returns ``None`` when the task isn't in
     this process; a ``changed: False`` no-op when it has already finished or
-    a cancel is already in flight; ``{"ok": False, "error": ...}`` when the
-    attempt has no cancel handle (a reused/synthetic eval that never ran
-    here) or the task is *between attempts* — the latest attempt errored and
+    a cancel is already in flight (the reason names the pending cancel's
+    type — a pending ``retry`` cancel means the task will be re-queued, so
+    an abort-intending caller knows to re-issue once the retry starts);
+    ``{"ok": False, "error": ...}`` when the attempt has no cancel handle
+    (defensive — a running attempt registered without one, which no
+    production registration produces; reused/synthetic evals register
+    finished and take the no-op branch instead) or the task is *between
+    attempts* — the latest attempt errored and
     a retry is queued but hasn't started (``EvalState.retry_pending``), so
     there is nothing to fire yet but "already finished" would be a lie the
     retry then contradicts; the rejection tells the caller to re-issue once
@@ -81,7 +86,11 @@ def cancel_task(task_id: str, *, dry_run: bool = False) -> dict[str, Any] | None
             ),
         }
     if state.task_cancel.cancel_type is not None:
-        return {**result, "changed": False, "reason": "cancel already requested"}
+        return {
+            **result,
+            "changed": False,
+            "reason": f"cancel already requested ({state.task_cancel.cancel_type})",
+        }
 
     if not dry_run:
         state.task_cancel.cancel_task("abort")
