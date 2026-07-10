@@ -11,8 +11,10 @@
 - Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
 - Control Channel: `inspect ctl config` now errors when the target process runs an inspect version too old to support a requested knob, instead of silently ignoring it.
 - Control Channel: The control server's mutation endpoints (config PATCH, keep/release, log-flush) now reject unknown query parameters with a 400 error before applying anything, instead of silently ignoring them.
+- Control Channel: Failed `inspect ctl` `--json` invocations now emit a structured `{"error": {kind, exception, message, status}}` envelope on stdout (exit code still non-zero) instead of only stderr prose or a raw traceback; human output is unchanged.
 - Control Channel: `max_subprocesses` is now retunable mid-flight via `inspect ctl config --max-subprocesses` and the `PATCH /config` endpoints, alongside the other concurrency knobs.
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
+- Eval: Task retries no longer fail when the prior attempt errored before writing its log file (e.g. a failed log start on unreachable storage).
 - Model Roles: `--model-role` roles that share the same model and config now report their token usage separately in `role_usage` instead of collapsing onto one role. (#4450)
 
 ## 0.3.245 (08 July 2026)
