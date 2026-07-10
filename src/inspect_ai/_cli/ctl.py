@@ -64,6 +64,7 @@ _DEFAULT_EVENTS_TAIL = 20
 _KNOB_SCOPE: dict[str, str] = {
     "max_samples": "task",
     "max_sandboxes": "process",
+    "max_subprocesses": "process",
     "max_connections": "process",
     "log_buffer": "task",
     "log_shared": "task",
@@ -83,6 +84,7 @@ _KNOB_SCOPE: dict[str, str] = {
 _KNOB_SINCE: dict[str, int] = {
     "max_samples": 0,
     "max_sandboxes": 0,
+    "max_subprocesses": 1,
     "max_connections": 0,
     "log_buffer": 0,
     "log_shared": 0,
@@ -563,6 +565,13 @@ def sample_events_command(
     help=f"[{_KNOB_SCOPE['max_sandboxes']}] Max sandboxes per provider.",
 )
 @click.option(
+    "--max-subprocesses",
+    type=click.IntRange(min=1),
+    metavar="INTEGER",
+    default=None,
+    help=f"[{_KNOB_SCOPE['max_subprocesses']}] Max concurrent subprocesses.",
+)
+@click.option(
     "--max-connections",
     type=click.IntRange(min=1),
     metavar="INTEGER",
@@ -616,6 +625,7 @@ def config_command(
     task: str | None,
     max_samples: int | None,
     max_sandboxes: int | None,
+    max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
     log_buffer: int | None,
@@ -643,6 +653,7 @@ def config_command(
         task,
         max_samples=max_samples,
         max_sandboxes=max_sandboxes,
+        max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
         log_buffer=log_buffer,
@@ -874,6 +885,7 @@ def buffer_alias(
         task,
         max_samples=None,
         max_sandboxes=None,
+        max_subprocesses=None,
         max_connections=None,
         model=None,
         log_buffer=log_buffer,
@@ -906,6 +918,7 @@ def limits_alias(
         task,
         max_samples=max_samples,
         max_sandboxes=max_sandboxes,
+        max_subprocesses=None,
         max_connections=max_connections,
         model=model,
         log_buffer=None,
@@ -1655,6 +1668,7 @@ def _run_config(
     *,
     max_samples: int | None,
     max_sandboxes: int | None,
+    max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
     log_buffer: int | None,
@@ -1702,6 +1716,7 @@ def _run_config(
     knob_values: dict[str, int | None] = {
         "max_samples": max_samples,
         "max_sandboxes": max_sandboxes,
+        "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
@@ -1717,6 +1732,7 @@ def _run_config(
         scope.task_id,
         max_samples=max_samples,
         max_sandboxes=max_sandboxes,
+        max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
         log_buffer=log_buffer,
@@ -1748,6 +1764,11 @@ def _run_config(
                         "--max-sandboxes",
                         max_sandboxes,
                         bool(limits_view.get("max_sandboxes")),
+                    ),
+                    (
+                        "--max-subprocesses",
+                        max_subprocesses,
+                        bool(limits_view.get("max_subprocesses")),
                     ),
                     (
                         "--max-connections",
@@ -1787,6 +1808,7 @@ def _run_config(
         for name, value in (
             ("--max-connections", max_connections),
             ("--max-sandboxes", max_sandboxes),
+            ("--max-subprocesses", max_subprocesses),
         )
         if value is not None
     ]
@@ -1837,6 +1859,12 @@ def _compose_config(
     knobs["max_sandboxes"] = {
         "scope": _KNOB_SCOPE["max_sandboxes"],
         "providers": limits_view.get("max_sandboxes") or [],
+    }
+    # `limit` absent means the limiter doesn't exist yet (no subprocess has
+    # run in the process) — rendered as inactive rather than claiming a value
+    knobs["max_subprocesses"] = {
+        "scope": _KNOB_SCOPE["max_subprocesses"],
+        **(limits_view.get("max_subprocesses") or {}),
     }
     knobs["max_connections"] = {
         "scope": _KNOB_SCOPE["max_connections"],
@@ -2041,8 +2069,8 @@ def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
 def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
     """Note that process-scoped config knobs reach every task in the process.
 
-    ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes``)
-    supplied on this invocation; ``siblings`` counts the tasks the retune can
+    ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes`` /
+    ``--max-subprocesses``) supplied on this invocation; ``siblings`` counts the tasks the retune can
     reach (the process's active tasks, plus the named target when it is
     completed). Returns ``None`` when there's nothing to flag — no such knob
     was set, or the target task is the only one the change can reach, so
@@ -2721,6 +2749,7 @@ def _exec_limits(
     *,
     max_samples: int | None,
     max_sandboxes: int | None,
+    max_subprocesses: int | None = None,
     max_connections: int | None,
     model: str | None,
     log_buffer: int | None = None,
@@ -2733,8 +2762,9 @@ def _exec_limits(
     per-task view, including ``max_samples`` and the ``log_buffer`` /
     ``log_shared`` buffer params; task ids are stable across retry attempts);
     with ``task_id=None`` it targets the process-level ``/config``
-    (``max_sandboxes`` / ``max_connections`` only). ``model`` filters the
-    adaptive controllers (a read param, applies to both). Any settable knob
+    (``max_sandboxes`` / ``max_subprocesses`` / ``max_connections`` only).
+    ``model`` filters the adaptive controllers (a read param, applies to
+    both). Any settable knob
     that is not ``None`` makes this a mutation: a single-shot PATCH given the
     full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
     caller-supplied, so a knob can never ride a GET as an ignored query
@@ -2744,6 +2774,7 @@ def _exec_limits(
     knob_values: dict[str, int | None] = {
         "max_samples": max_samples,
         "max_sandboxes": max_sandboxes,
+        "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
@@ -2816,7 +2847,8 @@ def _error_detail_from_response(response: httpx.Response) -> str:
 
 def _knob_label(display: str, knob: str) -> str:
     """Aligned human config label carrying the knob's scope from ``_KNOB_SCOPE``."""
-    return f"  {display} [{_KNOB_SCOPE[knob]}]:".ljust(27)
+    # width fits the longest label ("max subprocesses [process]:") plus a space
+    return f"  {display} [{_KNOB_SCOPE[knob]}]:".ljust(30)
 
 
 def _print_config(config: dict[str, Any], *, changed: bool) -> None:
@@ -2881,6 +2913,19 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         click.echo(f"{_knob_label('max sandboxes', 'max_sandboxes')}{rendered}")
     else:
         click.echo(_knob_label("max sandboxes", "max_sandboxes") + "none in effect")
+
+    subprocesses = knobs.get("max_subprocesses") or {}
+    if subprocesses.get("limit") is not None:
+        limit = _target(subprocesses.get("limit"), "max_subprocesses")
+        click.echo(
+            f"{_knob_label('max subprocesses', 'max_subprocesses')}{limit} "
+            f"({subprocesses.get('in_use')} in use)"
+        )
+    else:
+        click.echo(
+            _knob_label("max subprocesses", "max_subprocesses")
+            + "inactive (no adjustable subprocess limiter yet)"
+        )
 
     adaptive = (knobs.get("max_connections") or {}).get("adaptive") or []
     if adaptive:
