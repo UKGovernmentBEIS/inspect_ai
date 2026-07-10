@@ -834,6 +834,7 @@ _GENERATE_CONFIG_IDENTITY_FIELDS = {
     "verbosity",
     "effort",
     "reasoning_effort",
+    "reasoning_mode",
     "reasoning_tokens",
     "reasoning_summary",
     "reasoning_history",

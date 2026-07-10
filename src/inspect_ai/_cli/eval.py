@@ -845,6 +845,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_REASONING_EFFORT",
     )
     @click.option(
+        "--reasoning-mode",
+        type=click.Choice(["standard", "pro"]),
+        help='Reasoning mode. "pro" performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only ("standard" is the default).',
+        envvar="INSPECT_EVAL_REASONING_MODE",
+    )
+    @click.option(
         "--reasoning-tokens",
         type=int,
         help="Maximum number of tokens to use for reasoning. Anthropic Claude models only.",
@@ -1032,6 +1038,7 @@ def _eval_command_impl(
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
+    reasoning_mode: Literal["standard", "pro"] | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
@@ -1300,6 +1307,7 @@ def eval_set_command(
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
+    reasoning_mode: Literal["standard", "pro"] | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,

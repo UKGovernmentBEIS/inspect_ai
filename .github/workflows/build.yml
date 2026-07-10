@@ -248,7 +248,7 @@ jobs:
       pull-requests: read
     outputs:
       tools_changed: ${{ steps.tools.outputs.tools }}
-      injectable_src_changed: ${{ steps.tools.outputs.injectable_src }}
+      injectable_src_changed: ${{ steps.injectable.outputs.injectable_src }}
       areas: ${{ steps.areas.outputs.changes }}
     steps:
       - uses: actions/checkout@v7
@@ -263,6 +263,13 @@ jobs:
               - "src/inspect_ai/tool/**"
               - "src/inspect_sandbox_tools/**"
               - "tests/tools/**"
+      # Separate step because the negation requires `every` semantics (a file
+      # must match ALL patterns), which would break the OR-style filters above.
+      - uses: dorny/paths-filter@v4
+        id: injectable
+        with:
+          predicate-quantifier: every
+          filters: |
             injectable_src:
               - "src/inspect_sandbox_tools/**"
               - "!src/inspect_sandbox_tools/tests/**"

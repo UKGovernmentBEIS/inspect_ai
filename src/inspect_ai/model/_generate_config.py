@@ -164,6 +164,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     )
     """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
 
+    reasoning_mode: Literal["standard", "pro"] | None
+    """Reasoning mode. "pro" performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only ("standard" is the default)."""
+
     reasoning_tokens: int | None
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
 
@@ -289,6 +292,9 @@ class GenerateConfig(BaseModel):
         Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None
     ) = Field(default=None)
     """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
+
+    reasoning_mode: Literal["standard", "pro"] | None = Field(default=None)
+    """Reasoning mode. "pro" performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only ("standard" is the default)."""
 
     reasoning_tokens: int | None = Field(default=None)
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
