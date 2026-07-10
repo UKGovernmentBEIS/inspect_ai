@@ -94,7 +94,7 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Grok
 
-Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Inspect maps `reasoning_effort` as follows:
+Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 defaults to `high` effort and its reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
 
 | Inspect input            | API value         |
 |--------------------------|-------------------|
@@ -102,6 +102,8 @@ Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reaso
 | `minimal` / `low`        | `low`             |
 | `medium`                 | `medium`          |
 | `high` / `xhigh` / `max` | `high`            |
+
+xAI documents an `xhigh` effort for `grok-4.20-multi-agent` (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above `high`, so `xhigh` and `max` clamp to `high` for that model as well.
 
 #### OpenRouter
 
