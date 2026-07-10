@@ -2178,7 +2178,7 @@ def test_json_busy_failure_emits_error_envelope(
         "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
-    result = _runner().invoke(ctl_command, ["task", "list", "--json"])
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
     assert error["kind"] == "busy"
@@ -2199,7 +2199,7 @@ def test_json_all_busy_emits_busy_envelope(
     should retry shortly, not stop.
     """
     _patch_surface(monkeypatch, [], busy_pids=[7])
-    result = _runner().invoke(ctl_command, ["sample", "list", "--json"])
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
     assert error["kind"] == "busy"
@@ -2210,7 +2210,7 @@ def test_json_not_found_selector_emits_error_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")], samples_by_eval={})
-    result = _runner().invoke(ctl_command, ["sample", "list", "nope", "--json"])
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "nope", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
     assert error["kind"] == "not_found"
@@ -2228,7 +2228,7 @@ def test_json_ambiguous_selector_envelope_carries_candidates(
         [_full_summary("aaa111", "gpqa"), _full_summary("bbb222", "gpqa")],
         samples_by_eval={},
     )
-    result = _runner().invoke(ctl_command, ["sample", "list", "gpqa", "--json"])
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "gpqa", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
     assert error["kind"] == "ambiguous"
@@ -2240,7 +2240,9 @@ def test_json_http_404_envelope_carries_status(
 ) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     _stub_httpx(monkeypatch, [(404, {})])
-    result = _runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1", "--json"])
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
+    )
     assert result.exit_code == 1
     error = _error_envelope(result)
     assert error["kind"] == "not_found"
@@ -2257,7 +2259,7 @@ def test_json_scoped_unreachable_envelope_kind_connect_error(
         [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
     )
     _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
-    result = _runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
     assert error["kind"] == "connect_error"
@@ -2270,7 +2272,7 @@ def test_json_mutation_failure_emits_error_envelope(
 ) -> None:
     """Mutations get the same envelope shape as reads."""
     monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
-    result = _runner().invoke(ctl_command, ["process", "keep", "--json"])
+    result = cli_runner().invoke(ctl_command, ["process", "keep", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
     assert error["kind"] == "not_found"
@@ -2312,7 +2314,7 @@ def test_json_single_shot_mutation_envelope_kinds(
     }
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     _stub_httpx(monkeypatch, [failure_by_kind[kind]])
-    result = _runner().invoke(ctl_command, ["task", "log-flush", "--json"])
+    result = cli_runner().invoke(ctl_command, ["task", "log-flush", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
     assert error["kind"] == kind
@@ -2325,7 +2327,7 @@ def test_json_invalid_cursor_emits_error_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    result = _runner().invoke(
+    result = cli_runner().invoke(
         ctl_command,
         ["sample", "events", "aaa111", "s1", "--cursor", "12345", "--json"],
     )
@@ -2344,7 +2346,7 @@ def test_json_unexpected_exception_envelope_with_traceback_on_stderr(
         raise RuntimeError("boom")
 
     monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", boom)
-    result = _runner().invoke(ctl_command, ["task", "list", "--json"])
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
     assert error["kind"] == "internal"
@@ -2358,7 +2360,7 @@ def test_human_failure_output_unchanged(
 ) -> None:
     """Without --json, failures keep stderr prose and an empty stdout."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")], samples_by_eval={})
-    result = _runner().invoke(ctl_command, ["sample", "list", "nope"])
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "nope"])
     assert result.exit_code == 1
     assert result.stdout == ""
     assert "No running task matching 'nope'" in result.stderr
@@ -2373,7 +2375,7 @@ def test_human_unexpected_exception_not_swallowed(
         raise RuntimeError("boom")
 
     monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", boom)
-    result = _runner().invoke(ctl_command, ["task", "list"])
+    result = cli_runner().invoke(ctl_command, ["task", "list"])
     assert result.exit_code != 0
     assert isinstance(result.exception, RuntimeError)
 
