@@ -5,11 +5,15 @@ from .._metric import (
     metric,
     value_to_float,
 )
+from .._reducer.reducer import _is_unscored
 
 
 @metric
 def mean(to_float: ValueToFloat = value_to_float()) -> Metric:
-    """Compute mean of all scores.
+    """Compute mean of all scored samples.
+
+    Unscored samples, represented by a NaN root value such as
+    ``Score.unscored()``, are excluded from the mean calculation.
 
     Args:
        to_float: Function for mapping `Value` to float for computing
@@ -25,11 +29,13 @@ def mean(to_float: ValueToFloat = value_to_float()) -> Metric:
     def metric(scores: list[SampleScore]) -> float:
         import numpy as np
 
-        if not scores:
-            # No scores to average; return 0 rather than nan (and avoid the
-            # numpy empty-slice warning), mirroring the empty-input guards in
-            # accuracy()/std()/var().
+        values = []
+        for item in scores:
+            if _is_unscored(item.score.value):
+                continue
+            values.append(to_float(item.score.value))
+        if not values:
             return 0.0
-        return np.mean([to_float(score.score.value) for score in scores]).item()
+        return np.mean(values).item()
 
     return metric

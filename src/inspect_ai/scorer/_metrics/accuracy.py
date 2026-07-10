@@ -7,13 +7,17 @@ from .._metric import (
     metric,
     value_to_float,
 )
+from .._reducer.reducer import _is_unscored
 
 logger = getLogger(__name__)
 
 
 @metric
 def accuracy(to_float: ValueToFloat = value_to_float()) -> Metric:
-    r"""Compute proportion of total answers which are correct.
+    r"""Compute proportion of scored answers which are correct.
+
+    Unscored samples, represented by a NaN root value such as
+    ``Score.unscored()``, are excluded from both numerator and denominator.
 
     Args:
        to_float: Function for mapping `Value` to float for computing
@@ -28,12 +32,16 @@ def accuracy(to_float: ValueToFloat = value_to_float()) -> Metric:
 
     def metric(scores: list[SampleScore]) -> float:
         if not scores:
-            # No scores to average; return 0 rather than dividing by zero,
-            # mirroring the insufficient-data guards in std()/var().
             return 0.0
         total = 0.0
+        scored = 0
         for item in scores:
+            if _is_unscored(item.score.value):
+                continue
             total += to_float(item.score.value)
-        return total / float(len(scores))
+            scored += 1
+        if scored == 0:
+            return 0.0
+        return total / float(scored)
 
     return metric

@@ -419,6 +419,32 @@ def test_mean_custom_to_float():
     assert result == 1.0
 
 
+@pytest.mark.parametrize(
+    "unscored",
+    [Score.unscored(), Score(value=float("nan"))],
+    ids=["score-unscored", "root-nan"],
+)
+def test_accuracy_and_mean_exclude_unscored_samples(unscored: Score) -> None:
+    scores = [
+        SampleScore(score=Score(value="C")),
+        SampleScore(score=unscored),
+        SampleScore(score=Score(value="I")),
+    ]
+
+    assert accuracy()(scores) == 0.5
+    assert mean()(scores) == 0.5
+
+
+def test_accuracy_and_mean_return_zero_when_all_samples_are_unscored() -> None:
+    scores = [
+        SampleScore(score=Score.unscored()),
+        SampleScore(score=Score(value=float("nan"))),
+    ]
+
+    assert accuracy()(scores) == 0.0
+    assert mean()(scores) == 0.0
+
+
 def test_clustered_stderr():
     metric = stderr(cluster="my_cluster")
     se = metric(
