@@ -13,13 +13,15 @@ without the surface — eval correctness never depends on the control
 channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
-Current scope is the phase 1-2 read surface: ``GET /tasks`` (per-task
+Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (sample listing, with an
 ``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
 detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
-pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control.
-State-mutating directives (cancel / drain / requeue) and SSE push land
-in phases 3-4.
+pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
+and the first phase-3 directives: the config/log-flush mutations and
+``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
+The remaining directives (drain / requeue / add-task) and SSE push land
+with the rest of phases 3-4.
 """
 
 from __future__ import annotations
@@ -30,12 +32,13 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, NamedTuple
+from typing import Any, AsyncIterator, Literal, NamedTuple, cast
 
 import anyio
 
 from inspect_ai._control import CONTROL_API_VERSION
 from inspect_ai._control.buffer import flush_task_samples
+from inspect_ai._control.cancel import cancel_sample, cancel_task
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
 from inspect_ai._control.limits import process_limits, task_limits
@@ -362,6 +365,63 @@ class ControlServer:
                     status_code=404,
                     content={"error": f"task {task_id} not found or not flushable"},
                 )
+            return result
+
+        # Cancel a running task (phase 3). Task-keyed like `config` and
+        # `log-flush` — the handle never dangles across a retry. Fires the
+        # latest attempt's TaskCancel with "abort" (the in-process display's
+        # user-cancel path): in-flight samples are interrupted, completed
+        # work is preserved, and the log finishes with an error status.
+        # Idempotent (a repeat — or a cancel of a finished task — reports
+        # `changed: false`); `dry_run=true` reports without acting.
+        @app.post("/tasks/{task_id}/cancel")
+        async def task_cancel(task_id: str, dry_run: bool = False) -> Any:
+            result = cancel_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # Cancel one running sample (phase 3). `sample_id` is a query param
+        # like the other per-sample routes (ids may contain URL-reserved
+        # characters). `action` selects the outcome: "score" completes the
+        # sample and scores the work done so far; "error" marks it errored
+        # (rejected for fail-on-error samples). Idempotent — an already-
+        # terminal sample reports `changed: false`; `dry_run=true` reports
+        # without acting.
+        @app.post("/evals/{eval_id}/sample/cancel")
+        async def sample_cancel(
+            eval_id: str,
+            sample_id: str,
+            epoch: int = 1,
+            action: str = "score",
+            dry_run: bool = False,
+        ) -> Any:
+            if action not in ("score", "error"):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": f"action must be 'score' or 'error' (got '{action}')"
+                    },
+                )
+            result = await cancel_sample(
+                eval_id,
+                sample_id,
+                epoch,
+                action=cast(Literal["score", "error"], action),
+                dry_run=dry_run,
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 
         # Read the process-global concurrency limits (max_sandboxes /

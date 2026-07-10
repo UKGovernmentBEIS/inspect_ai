@@ -683,6 +683,11 @@ def _build_summary(
         "started_at": eval_started_at,
         "completed_at": completed_at,
         "attempts": attempts,
+        # Planned epoch count. `ctl sample cancel` uses it to require an
+        # explicit EPOCH when the task runs more than one (a defaulted epoch
+        # would silently target a different sample — see the selector
+        # conventions in design/control-channel.md).
+        "epochs": latest.epochs,
         "samples": {
             "total": total,
             "completed": completed,

@@ -8,7 +8,7 @@ This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though 
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
-> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /tasks` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl` CLI (organized into resource-noun groups — `ctl task` / `ctl sample` / `ctl config` / `ctl process`; see "CLI command hierarchy" below), and the `--ctl-server` flag (on by default; `false` disables, `keep` parks the process after the eval). **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** (in progress) adds the state-mutating directives — the log-flush directive (`ctl task log-flush`) and the dynamic-config directive (`ctl config` — the `max_samples` / `max_sandboxes` / `max_connections` concurrency knobs plus the `log_buffer` / `log_shared` buffer params) are shipped; adding a task to a running eval, then cancel / drain / requeue and the per-sample time/token/message limits follow; **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
+> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /tasks` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl` CLI (organized into resource-noun groups — `ctl task` / `ctl sample` / `ctl config` / `ctl process`; see "CLI command hierarchy" below), and the `--ctl-server` flag (on by default; `false` disables, `keep` parks the process after the eval). **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** (in progress) adds the state-mutating directives — the log-flush directive (`ctl task log-flush`), the dynamic-config directive (`ctl config` — the `max_samples` / `max_sandboxes` / `max_connections` concurrency knobs plus the `log_buffer` / `log_shared` buffer params), and the cancel directives (`ctl task cancel` / `ctl sample cancel`) are shipped; adding a task to a running eval, then drain / requeue and the per-sample time/token/message limits follow; **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
 
 ## Goals
 
@@ -88,10 +88,10 @@ inspect ctl config [TASK] [--max-samples N] [--max-connections N] [--max-sandbox
                    [--log-buffer N] [--log-shared S] [--model M] [--dry-run]
                                             # view / retune launch config mid-flight (shipped)
 inspect ctl task log-flush [TASK]           # write a running eval's buffered samples to the log now (shipped)
+inspect ctl task cancel TASK [--dry-run]    # cancel an eval — in-flight samples interrupted, log finalized (shipped)
+inspect ctl sample cancel TASK SID [EPOCH] [--error] [--dry-run]  # cancel one sample (shipped)
 inspect ctl task add SPEC [--model M] [-T k=v] [--dry-run]  # add a task to a running --ctl-server=keep eval
-inspect ctl task cancel TASK [--force]      # cancel an eval (current sample drains; scoring runs)
 inspect ctl task drain TASK                 # stop accepting new samples; let in-flight finish
-inspect ctl sample cancel TASK SID EPOCH    # cancel one sample
 inspect ctl sample requeue TASK SID EPOCH   # re-add a failed sample to the queue
 inspect ctl config TASK --time-limit N     # modify per-sample time/token/message limits (planned)
 ```
@@ -128,15 +128,15 @@ inspect ctl
 ├── task                        # a logical task in a running process (stable across retries)
 │   ├── list                        # was: tasks (implied: bare `ctl task` ≡ `ctl task list`)
 │   ├── log-flush [TASK]            # was: flush (renamed: the object is the task's *log*)
+│   ├── cancel TASK                 # shipped (abort semantics; a graceful-drain variant is future work)
 │   ├── add SPEC [...]              # planned: add
-│   ├── cancel TASK [--force]       # planned: cancel
 │   └── drain TASK                  # planned: drain
 ├── sample                      # one sample (TASK SAMPLE_ID [EPOCH]) or a task's samples
 │   ├── list [TASK]                 # was: samples (implied by bare `ctl sample`; no TASK = all tasks)
 │   ├── show TASK SID [EPOCH]       # was: sample
 │   ├── errors [TASK]               # was: errors (no TASK = across all tasks)
 │   ├── events TASK SID [EPOCH]     # was: events (phase-4 --follow lands here unchanged)
-│   ├── cancel TASK SID [EPOCH]     # planned: cancel-sample
+│   ├── cancel TASK SID [EPOCH]     # shipped (EPOCH required when the task runs >1 epoch)
 │   └── requeue TASK SID [EPOCH]    # planned: requeue
 ├── config [TASK] [...]         # was: limits + buffer; view/retune launch config, scope per knob
 ├── process                     # the running Inspect process itself (PID selector)
@@ -200,9 +200,9 @@ Known accepted edge in the busy handling: the sole-server rule counts *discovere
 | `ctl keep [--pid]` | shipped | `ctl process keep [PID]` | pid becomes an optional positional; defaults to the sole running process |
 | `ctl release [--pid]` | shipped | `ctl process release [PID]` | same |
 | `ctl add SPEC [...]` | planned | `ctl task add SPEC [...]` | |
-| `ctl cancel <id> [--force]` | planned | `ctl task cancel TASK [--force]` | selector settles on task, per the limits precedent |
+| `ctl cancel <id> [--force]` | **shipped** (as noun form only) | `ctl task cancel TASK` | selector settles on task, per the limits precedent; shipped with abort semantics — see "Cancel a task / a sample" |
 | `ctl drain <id>` | planned | `ctl task drain TASK` | |
-| `ctl cancel-sample <id> <sid>` | planned | `ctl sample cancel TASK SID [EPOCH]` | compound verb dissolves; `EPOCH` required when the task runs >1 epoch |
+| `ctl cancel-sample <id> <sid>` | **shipped** (as noun form only) | `ctl sample cancel TASK SID [EPOCH]` | compound verb dissolves; `EPOCH` required when the task runs >1 epoch |
 | `ctl requeue <id> <sid>` | planned | `ctl sample requeue TASK SID [EPOCH]` | `EPOCH` required when the task runs >1 epoch |
 | `ctl set-limit <id> --time N` | planned | fold into `ctl config TASK --time-limit/--token-limit/--message-limit` | all retunable launch flags in one surface, same spellings as `inspect eval`; task-scoped knobs, so `TASK` follows the mutation selector rule |
 | — | new | `ctl process list` | pids, keep-alive status, hosted task_ids; shipped with the reorg — the group's other verbs take a `PID` selector, so pids must be enumerable in-group |
@@ -352,7 +352,8 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Flush buffered samples to the log | `POST /tasks/<task-id>/log-flush` | 3 ✅ |
 | Read / modify retunable config (concurrency limits, buffer params) | `GET`+`PATCH /config` (process) and `/tasks/<task-id>/config` (task) | 3 ✅ (max-samples / max-sandboxes / max-connections / log-buffer / log-shared) |
 | Add a task to a running eval | `POST /tasks` (task spec → new sibling eval under this run) | 3 |
-| Cancel task | `POST /tasks/<task-id>/cancel` | 3 |
+| Cancel task | `POST /tasks/<task-id>/cancel` | 3 ✅ |
+| Cancel sample | `POST /evals/<id>/sample/cancel?sample_id=<sid>&epoch=<n>&action=score\|error` | 3 ✅ |
 | Drain | `POST /tasks/<task-id>/drain` | 3 |
 | Requeue sample | `POST /evals/<id>/sample/requeue?sample_id=<sid>&epoch=<n>` | 3 |
 | Modify per-sample limits (time / token / message) | `PATCH /tasks/<task-id>/config` (as further config knobs) | 3 |
@@ -727,7 +728,7 @@ Unlocks watchdog agents (cursored polling). Live-render TUIs follow once phase-4
 
 ### Phase 3 — modification (direct) methods
 
-The first endpoints that **mutate the run**, each idempotent and supporting `?dry_run=true` / `--dry-run` from day one. Shipped so far: the log-flush and buffer-params directives and the concurrency-config directive (`max_samples` / `max_sandboxes` / `max_connections`) — all surfaced through `ctl task log-flush` and `ctl config`; adding a task to a running eval, then cancel / drain / requeue and the per-sample time/token/message limits follow. The Security model's "future hardening" (SO_PEERCRED UID check, self-targeting guard) lands with this phase, since it introduces the first state-mutating writes.
+The first endpoints that **mutate the run**, each idempotent and supporting `?dry_run=true` / `--dry-run` from day one. Shipped so far: the log-flush and buffer-params directives, the concurrency-config directive (`max_samples` / `max_sandboxes` / `max_connections`) — surfaced through `ctl task log-flush` and `ctl config` — and the cancel directives (`ctl task cancel` / `ctl sample cancel`); adding a task to a running eval, then drain / requeue and the per-sample time/token/message limits follow. The Security model's "future hardening" (SO_PEERCRED UID check, self-targeting guard) lands with this phase, since it introduces the first state-mutating writes.
 
 #### Flush buffered samples + tune buffer params (shipped)
 
@@ -808,9 +809,17 @@ The queue-closed check *is* the running→parked test, so the two paths can't bo
 
 **Scope.** Standalone `inspect eval --ctl-server=keep` first; eval-set — which owns its own retry loop and task resolution — is a later increment.
 
+#### Cancel a task / a sample (shipped)
+
+Both cancel directives ride machinery the eval runner already had, so neither required runner changes:
+
+- **`POST /tasks/<task-id>/cancel`** (CLI: `inspect ctl task cancel TASK [--dry-run]`) fires the latest attempt's registered `TaskCancel` with `"abort"` — the exact path the in-process task display's cancel dialog drives. The runner attaches the handle to the process-global `EvalState` at registration (like `EvalState.live`), so the control layer never reaches into the runner; `latest_eval_for_task` resolves the current attempt, and the handle is task-keyed like `config` / `log-flush` so it never dangles across a retry. Effect: the task group's cancel scope cancels — in-flight samples are torn down (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, partial results are computed, and the log finishes with an error status ("Task cancelled by user (abort)"); an eval-set does not retry an aborted task, and sibling tasks are unaffected (each task runs in its own cancel scope). Idempotent: a cancel of a finished task, or a repeat while a cancel is already in flight (`TaskCancel.cancel_type` set), reports `changed: false`. `TASK` is always required on the CLI — destructive verbs get no sole-task default.
+- **`POST /evals/<id>/sample/cancel?sample_id=<sid>&epoch=<n>&action=score|error`** (CLI: `inspect ctl sample cancel TASK SID [EPOCH] [--error] [--dry-run]`) interrupts one *running* sample via `ActiveSample.interrupt` — the same primitive the in-process TUI and ACP's `inspect/cancel_sample` use. `action=score` (the default) completes the sample and runs the scorer on the work done so far (recorded with an `operator` limit); `action=error` marks it errored, rejected (409) when the sample is configured to fail on errors (mirroring the TUI/ACP gate — the auto-fail would race it). A still-queued sample (parked at the sample semaphore, no task group yet) is rejected rather than half-cancelled; an already-terminal sample is the idempotent `changed: false` no-op. Sample addressing is by query param (ids may contain URL-reserved characters), and per the selector conventions the CLI requires `EPOCH` whenever the task runs more than one epoch (the task summaries carry an `epochs` field for this) — a defaulted epoch resolves to a *different sample*, which must not happen silently on a mutation.
+
+Both accept `?dry_run=true` / `--dry-run` and return `changed` so the CLI's uniform mutation envelope (`{target, applied, dry_run, detail}`) reports applied vs the idempotent no-op. **Deliberately deferred:** the graceful-drain cancel variant (in-flight samples *finish naturally* before the task ends) and a `--force` split between the two — graceful drain needs the same stop-dispatching machinery as `task drain` (queued samples are all started up-front and parked at the sample semaphore, so "don't start new samples" is a real runner change); the shipped semantics are the abort path, stated as such in the CLI help.
+
 #### Other directives
 
-- `POST /tasks/<task-id>/cancel` + `inspect ctl task cancel` — graceful drain vs `--force`. Task-keyed like `config` and `log-flush`: "cancel the task" is what the CLI verb means, and the handle never dangles across a retry.
 - `POST /tasks/<task-id>/drain` (`ctl task drain`), `POST /evals/<id>/sample/requeue?sample_id=<sid>&epoch=<n>` (`ctl sample requeue` — query-param sample addressing, like `sample` / `sample/events`, since sample ids may contain URL-reserved characters), and the per-sample time / token / message limits as further knobs on `PATCH /tasks/<task-id>/config` (CLI: `ctl config TASK --time-limit/--token-limit/--message-limit`). (Modify *concurrency* — `max_samples` / `max_sandboxes` / adaptive `max_connections` — shipped ahead of these via `PATCH /tasks/<task-id>/config`; the static `max_connections` path and `max_tasks` are the remaining concurrency slices.)
 
 These are the bigger eval-runner changes (live config mutation, requeue).

@@ -47,6 +47,7 @@ logger = getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from inspect_ai._display.core.display import TaskCancel
     from inspect_ai.log._log import EvalSample, EvalSampleSummary
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
@@ -208,6 +209,15 @@ class EvalState:
     attempt the logger was bound to (after which reads fall back to
     :attr:`log_location` until the retry sweep removes that log)."""
 
+    task_cancel: "TaskCancel | None" = None
+    """The running attempt's cancel handle — the same ``TaskCancel`` the
+    in-process task display's cancel dialog drives. The control channel's
+    task-cancel directive fires it with ``"abort"`` (see
+    :mod:`inspect_ai._control.cancel`). ``None`` for reused/synthetic evals
+    (nothing is running, so there is nothing to cancel); each retry attempt
+    registers its own handle, and :func:`latest_eval_for_task` resolves the
+    current one."""
+
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
     (:class:`DeferredSampleStats`). Resolved once — on the first
@@ -328,6 +338,7 @@ def register_eval(
     epochs: int = 1,
     run_id: str | None = None,
     will_retry: bool = False,
+    task_cancel: "TaskCancel | None" = None,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
@@ -352,6 +363,7 @@ def register_eval(
             epochs=epochs,
             run_id=run_id,
             will_retry=will_retry,
+            task_cancel=task_cancel,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
