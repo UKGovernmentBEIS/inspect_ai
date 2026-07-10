@@ -62,8 +62,11 @@ async def reject_unknown_query_params(request: Request) -> None:
     Pydantic query model (``Annotated[Model, Query()]``). The flattened
     dependant records the function parameter's name rather than the model's
     field names, so a route using that idiom would falsely 400 every real
-    param. The failure is loud (the route's own tests would catch it
-    immediately), but the idiom is unsupported here.
+    param. The same applies to a handler that reads ``request.query_params``
+    off a raw ``Request`` without declaring them — the dependant declares no
+    query params, so every param is rejected. In both cases the failure is
+    loud (the route's own tests would catch it immediately), but the idioms
+    are unsupported here.
 
     Raises:
         UnknownQueryParamsError: For any query param a mutation route
