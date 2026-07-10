@@ -58,6 +58,13 @@ async def reject_unknown_query_params(request: Request) -> None:
     a new knob on the handler signature is allowed automatically, with no
     companion list to maintain.
 
+    One caveat: declare knobs as individual scalar parameters, not a
+    Pydantic query model (``Annotated[Model, Query()]``). The flattened
+    dependant records the function parameter's name rather than the model's
+    field names, so a route using that idiom would falsely 400 every real
+    param. The failure is loud (the route's own tests would catch it
+    immediately), but the idiom is unsupported here.
+
     Raises:
         UnknownQueryParamsError: For any query param a mutation route
             doesn't declare, naming every unknown param (sorted).
