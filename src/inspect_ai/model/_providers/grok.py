@@ -466,6 +466,10 @@ class GrokAPI(ModelAPI):
                 case "medium":
                     gconfig["reasoning_effort"] = "medium"
                 case "high" | "xhigh" | "max":
+                    # xAI documents `xhigh` for grok-4.20-multi-agent (there it
+                    # sets agent count), but the xai_sdk gRPC ReasoningEffort
+                    # enum tops out at HIGH (as of 1.17), so `high` is the
+                    # strongest expressible request on this transport.
                     gconfig["reasoning_effort"] = "high"
 
         # return encrypted reasoning blocks
