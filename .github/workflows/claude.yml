@@ -45,6 +45,9 @@ jobs:
       actions: read
     with:
       base_branch: main
+      # Fork has no PR-open auto-review; post @review from the reusable
+      # post-step AFTER it applies the `auto` label (avoids the label/@review race).
+      request_review_after_open: "true"
       # Fork-specific guidance. Goes through the reusable workflow's
       # append_system_prompt input (a single composed --append-system-prompt),
       # NOT claude_args — a second --append-system-prompt would collide with the
@@ -72,12 +75,7 @@ jobs:
         a human promotes this work by opening an upstream PR from the same
         branch the reference silently rebinds to UKGovernmentBEIS/inspect_ai's
         issue #N — a different, unrelated issue; the fully-qualified form keeps
-        it pointing at this fork's issue wherever the body is reused. Immediately
-        after opening the PR, post a top-level comment of exactly `@review` on it
-        (e.g.
-        `gh pr comment <number> --body '@review'`) to request an automated
-        review: auto-review-on-open does not fire on this fork, so this comment
-        is what starts the reviewer. PRs within this fork are a
+        it pointing at this fork's issue wherever the body is reused. PRs within this fork are a
         review surface only and are never merged here; finished work is promoted
         by a human opening an upstream PR from the same branch (gh pr create
         --repo UKGovernmentBEIS/inspect_ai --head meridianlabs-ai:BRANCH). When
@@ -126,6 +124,9 @@ jobs:
       trigger_phrase: "@auto"
       label_trigger: "auto"
       base_branch: main
+      # Fork has no PR-open auto-review; post @review from the reusable
+      # post-step AFTER it applies the `auto` label (avoids the label/@review race).
+      request_review_after_open: "true"
       # Same fork guidance as the `claude` job (reused via the YAML anchor).
       append_system_prompt: *fork_prompt
       branch_sync_append: *fork_branch_sync
