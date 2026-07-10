@@ -49,7 +49,7 @@ This implies `--display none` and makes stdout machine-readable — the process 
 
 The `launch` record is printed only once the control endpoint is bound (and before any task work begins), so reading it is a hard guarantee: from then on an empty `inspect ctl task list` means "no tasks registered yet", never "no server". `control` is `null` exactly when the control surface is definitively absent (disabled via `--ctl-server=false`, or the bind failed and the eval degraded to running without it). A process that exits without emitting a `launch` record failed before the control server came up — the reason is on stderr.
 
-The `done` record arrives when the eval finishes, with each task's log location and status — the handoff from live observation to reading logs. A run that fails emits no `done` record and exits non-zero.
+The `done` record arrives when the eval finishes, with each task's log location and status — the handoff from live observation to reading logs. A run that crashes (raises out of the eval) emits no `done` record and exits non-zero. Note that a task *error* is not a crash: like plain `inspect eval`, the process still emits `done` and exits 0 with that task's `status` set to `"error"` — branch on the `status` fields in `logs`, not the exit code (or use `eval-set`, whose `success` field and exit code do reflect per-task outcomes).
 
 Stdout carries these records exclusively: the eval itself runs with stdout redirected to stderr (at the file-descriptor level, so even output from subprocesses spawned by task or solver code lands on stderr rather than corrupting the stream).
 
