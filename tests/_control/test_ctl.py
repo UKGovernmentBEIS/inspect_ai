@@ -762,6 +762,50 @@ def test_fetch_summaries_prefix_query_still_fans_out(
     assert counter["gets"] == 2
 
 
+def test_fetch_summaries_duplicate_id_resolves_to_newest_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two processes holding the same full task id resolve to the newest.
+
+    The one duplicate-id corner: a kept-alive process still holds an attempt
+    that a newer process is retrying. Discovery lists servers newest-first,
+    so the short-circuit stops at the newest holder and resolution succeeds —
+    where the full fan-out used to collect both rows and exit with an
+    ambiguity table, a dead end (sample commands have no pid selector to
+    disambiguate identical ids). Only the newest server's payload is stubbed:
+    contacting the older sibling would exhaust the sequence and fail loudly.
+    """
+    from inspect_ai._cli.ctl import _fetch_summaries
+
+    counter = _stub_httpx(monkeypatch, [[{"task_id": "aaa111", "task": "t1"}]])
+    fetched = _fetch_summaries(
+        [_disc(8), _disc(7)], raise_on_busy=True, stop_on_task_id="aaa111"
+    )
+    assert counter["gets"] == 1
+    resolved = _resolve_target_eval(fetched.summaries, "aaa111")
+    assert resolved["pid"] == 8
+
+
+def test_list_discovered_servers_sorts_newest_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Discovery lists servers most-recently-started first.
+
+    The exact-id short-circuit leans on this: it determines which busy
+    siblings a poll can skip (those started before the target) and makes
+    the duplicate-id corner land on the newest attempt.
+    """
+    from inspect_ai._control import discovery
+
+    entries = [
+        {"pid": 1, "socket_path": "/tmp/1.sock", "started_at": 100.0},
+        {"pid": 3, "socket_path": "/tmp/3.sock", "started_at": 300.0},
+        {"pid": 2, "socket_path": "/tmp/2.sock", "started_at": 200.0},
+    ]
+    monkeypatch.setattr(discovery, "list_alive_discovery_entries", lambda d: entries)
+    assert [s.pid for s in discovery.list_discovered_servers()] == [3, 2, 1]
+
+
 def test_events_poll_with_full_task_id_skips_sibling_servers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
