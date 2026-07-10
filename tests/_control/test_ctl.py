@@ -1426,7 +1426,7 @@ def test_config_gates_newer_knob_on_older_server(
 
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
 
-    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
     assert result.exit_code == 1
     assert "--max-samples not supported" in result.stderr
     assert "pid 7 is running an older inspect" in result.stderr
@@ -1434,7 +1434,9 @@ def test_config_gates_newer_knob_on_older_server(
 
     # the gate covers dry runs too: a dry-run PATCH on an older server would
     # report a success-shaped view that omits the unknown knobs
-    dry = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--dry-run"])
+    dry = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--dry-run"]
+    )
     assert dry.exit_code == 1
     assert "--max-samples not supported" in dry.stderr
 
@@ -1449,7 +1451,7 @@ def test_config_gate_names_only_unsupported_flags(
         servers=[_DiscServer(7, api_version=0)],
     )
     monkeypatch.setitem(_KNOB_SINCE, "log_buffer", 1)
-    result = _runner().invoke(
+    result = cli_runner().invoke(
         ctl_command, ["config", "--log-buffer", "2", "--max-samples", "5"]
     )
     assert result.exit_code == 1
@@ -1470,7 +1472,9 @@ def test_config_gate_passes_on_current_server(
     _stub_limits(
         monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
     )
-    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--json"])
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--json"]
+    )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
 
@@ -1487,7 +1491,9 @@ def test_config_gate_ignores_since_zero_knobs(
     _stub_limits(
         monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
     )
-    result = _runner().invoke(ctl_command, ["config", "--max-samples", "3", "--json"])
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--json"]
+    )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
 

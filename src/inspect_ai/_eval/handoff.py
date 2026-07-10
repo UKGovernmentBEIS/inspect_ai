@@ -12,12 +12,13 @@ a hard guarantee: if ``control_socket`` is set the control surface
 exists, so an empty ``ctl task list`` means "no tasks registered yet",
 never "no server".
 
-The one current listener is ``inspect eval --json``, which prints the
-record as a JSON line on stdout. The listener is a process-wide
-module-level slot (not a parameter threaded through ``eval()``) because
-the handoff is a launch concern of the CLI process, not part of the
-public ``eval()`` surface. See ``design/control-channel.md`` → "Agent
-output contract" → "The launch handoff is load-bearing".
+The current listeners are ``inspect eval --json`` and ``inspect
+eval-set --json``, which print the record as a JSON line on stdout. The
+listener is a process-wide module-level slot (not a parameter threaded
+through ``eval()``) because the handoff is a launch concern of the CLI
+process, not part of the public ``eval()`` surface. See
+``design/control-channel.md`` → "Agent output contract" → "The launch
+handoff is load-bearing".
 """
 
 from typing import Callable, NamedTuple
@@ -43,6 +44,9 @@ class LaunchHandoff(NamedTuple):
     the eval degraded to running without one) — never that the socket
     isn't bound *yet*.
     """
+
+    eval_set_id: str | None = None
+    """Id of the enclosing eval set, when the run belongs to one."""
 
 
 LaunchHandoffListener = Callable[[LaunchHandoff], None]

@@ -1,4 +1,4 @@
-"""Tests for the synchronous launch handoff (``inspect eval --json``).
+"""Tests for the synchronous launch handoff (``inspect eval[-set] --json``).
 
 The launch-and-babysit workflow needs ``inspect eval`` to say where the
 control surface is the moment it exists: right after launch, ``inspect
@@ -29,7 +29,7 @@ import pytest
 import inspect_ai
 from _control.conftest import cli_runner
 from inspect_ai import Task, task
-from inspect_ai._cli.eval import eval_command
+from inspect_ai._cli.eval import eval_command, eval_set_command
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.handoff import (
     LaunchHandoff,
@@ -220,6 +220,7 @@ def test_eval_json_emits_launch_then_done(
     launch = records[0]
     assert launch["event"] == "launch"
     assert launch["run_id"]
+    assert launch["eval_set_id"] is None
     assert launch["pid"] == os.getpid()
     assert launch["log_dir"] == str(short_data_dir / "logs")
     assert launch["control"]["socket_path"]
@@ -443,3 +444,153 @@ def test_eval_json_pre_eval_failure_reports_to_stderr(
     assert result.exit_code != 0
     assert result.stdout.strip() == ""
     assert "Invalid run config" in result.stderr
+
+
+# --- inspect eval-set --json --------------------------------------------------
+
+
+FAILING_TASK_FILE = """
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import solver
+
+
+@solver
+def failing_solver():
+    async def solve(state, generate):
+        raise RuntimeError("boom")
+
+    return solve
+
+
+@task
+def handoff_cli_task():
+    return Task(dataset=[Sample(input="x", target="y")], solver=[failing_solver()])
+"""
+
+
+def _run_eval_set_json(
+    short_data_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    extra_args: list[str],
+    task_file: str = TASK_FILE,
+    expected_exit_code: int = 0,
+) -> EvalJsonResult:
+    """Run ``inspect eval-set --json`` on a trivial task; return parsed stdout lines."""
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(task_file)
+    log_dir = str(short_data_dir / "logs")
+
+    monkeypatch.chdir(short_data_dir)
+
+    runner = cli_runner()
+    result = runner.invoke(
+        eval_set_command,
+        [
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            log_dir,
+            "--json",
+            *extra_args,
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == expected_exit_code, result.output
+    records = [json.loads(line) for line in result.stdout.splitlines()]
+    return EvalJsonResult(records=records, stderr=result.stderr)
+
+
+def test_eval_set_json_emits_launch_then_done(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    records = _run_eval_set_json(short_data_dir, monkeypatch, []).records
+
+    launch = records[0]
+    assert launch["event"] == "launch"
+    assert launch["run_id"]
+    assert launch["eval_set_id"]
+    assert launch["pid"] == os.getpid()
+    assert launch["control"]["socket_path"]
+
+    done = records[-1]
+    assert done["event"] == "done"
+    assert done["run_id"] == launch["run_id"]
+    assert done["eval_set_id"] == launch["eval_set_id"]
+    assert done["success"] is True
+    assert len(done["logs"]) == 1
+    log = done["logs"][0]
+    assert log["task"] == "handoff_cli_task"
+    assert log["status"] == "success"
+    assert log["location"]
+
+
+def test_eval_set_json_all_reused_emits_done_only(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """A set whose tasks are all complete runs no eval: ``done`` record only.
+
+    The second invocation over the same log dir reuses every log without
+    an ``eval()`` call, so no control server binds and no ``launch``
+    record is emitted — the documented eval-set deviation from the
+    "exactly one launch then one done" shape (agents must not read a
+    missing ``launch`` line as a failed launch once ``done`` arrived).
+    """
+    first = _run_eval_set_json(short_data_dir, monkeypatch, []).records
+    assert first[0]["event"] == "launch"
+
+    second = _run_eval_set_json(short_data_dir, monkeypatch, []).records
+    assert [record["event"] for record in second] == ["done"]
+    done = second[0]
+    assert done["success"] is True
+    assert done["eval_set_id"] == first[0]["eval_set_id"]
+    assert len(done["logs"]) == 1
+    assert done["logs"][0]["status"] == "success"
+
+
+def test_eval_set_json_reports_failure(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """A failed set still emits the ``done`` record, with ``success: false``.
+
+    The exit code carries the same verdict (non-zero), so an agent can
+    branch on either; per-task statuses in ``logs`` say what failed.
+    """
+    records = _run_eval_set_json(
+        short_data_dir,
+        monkeypatch,
+        ["--retry-attempts", "0"],
+        task_file=FAILING_TASK_FILE,
+        expected_exit_code=1,
+    ).records
+
+    assert records[0]["event"] == "launch"
+    done = records[-1]
+    assert done["event"] == "done"
+    assert done["success"] is False
+    assert done["logs"][0]["status"] == "error"
+
+
+def test_eval_set_json_preflight_failure_reports_to_stderr(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """Eval-set launch failures under ``--json`` report on stderr like eval's."""
+    monkeypatch.chdir(short_data_dir)
+
+    runner = cli_runner()
+    result = runner.invoke(
+        eval_set_command,
+        [
+            "definitely_not_here.py",
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            str(short_data_dir / "logs"),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert result.stdout.strip() == ""
+    assert "No inspect tasks were found" in result.stderr

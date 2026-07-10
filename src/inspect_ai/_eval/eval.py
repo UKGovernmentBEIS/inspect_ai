@@ -1005,6 +1005,7 @@ async def _eval_async_inner(
                     control_socket=str(_ctl_server.socket_path)
                     if _ctl_server is not None and _ctl_server.socket_path is not None
                     else None,
+                    eval_set_id=eval_set_id,
                 )
             )
             with scan_cm:

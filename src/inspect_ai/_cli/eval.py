@@ -1219,6 +1219,15 @@ def _eval_command_impl(
 @click.command("eval-set", cls=EvalCommand)
 @click.argument("tasks", nargs=-1)
 @click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_JSON",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, eval_set_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with overall success and each task's log location and status when the eval set finishes (the exit code still reports success as usual). When every task is already complete no eval runs, so stdout carries only the 'done' record; with --no-retry-immediate each batch retry binds afresh and emits a fresh 'launch' record.",
+)
+@click.option(
     "--retry-attempts",
     type=int,
     help="Maximum number of retry attempts before giving up (defaults to 10).",
@@ -1403,105 +1412,117 @@ def eval_set_command(
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
     eval_set_id: str | None,
+    json_output: bool,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks with retries.
 
     Learn more about eval sets at https://inspect.aisi.org.uk/eval-sets.html.
     """
-    # read config
-    config = config_from_locals(dict(locals()))
+    with _json_prerequisite_errors_to_stderr(json_output):
+        # read config
+        config = config_from_locals(dict(locals()))
 
-    # resolve common options
-    process_common_options(common)
+        # --json owns stdout (JSON lines only), so route the display to the
+        # quiet "none" renderer — including when --no-ansi would otherwise
+        # promote it back to "rich" or --trace (/INSPECT_EVAL_TRACE) would
+        # promote it to "conversation", which writes panels to stdout
+        if json_output:
+            common["display"] = "none"
+            common["no_ansi"] = None
+            trace = None
 
-    # exec eval
-    success = eval_exec(
-        tasks=tasks,
-        solver=solver,
-        log_level=common["log_level"],
-        log_level_transcript=log_level_transcript,
-        log_dir=common["log_dir"],
-        log_format=log_format,
-        model=model,
-        model_base_url=model_base_url,
-        m=m,
-        model_config=model_config,
-        run_config=run_config,
-        model_role=model_role,
-        t=t,
-        task_config=task_config,
-        s=s,
-        solver_config=solver_config,
-        scanner=scanner,
-        scanner_arg=scanner_arg,
-        scans=scans,
-        scan_name=scan_name,
-        scan_tags=scan_tags,
-        scan_metadata=scan_metadata,
-        scan_filter=scan_filter,
-        scan_model=scan_model,
-        scan_model_base_url=scan_model_base_url,
-        scan_model_arg=scan_model_arg,
-        scan_model_config=scan_model_config,
-        scan_model_role=scan_model_role,
-        scan_generate_config=scan_generate_config,
-        tags=tags,
-        metadata=metadata,
-        trace=trace,
-        approval=approval,
-        notification=notification,
-        sandbox=sandbox,
-        no_sandbox_cleanup=no_sandbox_cleanup,
-        checkpoint=checkpoint,
-        epochs=epochs,
-        epochs_reducer=epochs_reducer,
-        no_epochs_reducer=no_epochs_reducer,
-        limit=limit,
-        sample_id=sample_id,
-        sample_shuffle=sample_shuffle,
-        message_limit=message_limit,
-        token_limit=token_limit,
-        turn_limit=turn_limit,
-        cost_limit=cost_limit,
-        model_cost_config=model_cost_config,
-        time_limit=time_limit,
-        working_limit=working_limit,
-        max_samples=max_samples,
-        max_dataset_memory=max_dataset_memory,
-        max_tasks=max_tasks,
-        max_subprocesses=max_subprocesses,
-        max_sandboxes=max_sandboxes,
-        fail_on_error=fail_on_error,
-        no_fail_on_error=no_fail_on_error,
-        continue_on_fail=continue_on_fail,
-        retry_on_error=retry_on_error,
-        score_on_error=score_on_error,
-        debug_errors=common["debug_errors"],
-        no_log_samples=no_log_samples,
-        no_log_realtime=no_log_realtime,
-        log_images=log_images,
-        log_model_api=log_model_api,
-        log_refusals=log_refusals,
-        log_buffer=log_buffer,
-        log_shared=log_shared,
-        no_score=no_score,
-        no_score_display=no_score_display,
-        acp_server=acp_server,
-        ctl_server=ctl_server,
-        is_eval_set=True,
-        retry_attempts=retry_attempts,
-        retry_immediate=retry_immediate,
-        retry_wait=retry_wait,
-        retry_connections=retry_connections,
-        retry_cleanup=not no_retry_cleanup,
-        bundle_dir=bundle_dir,
-        bundle_overwrite=True if bundle_overwrite else False,
-        embed_viewer=True if embed_viewer else False,
-        log_dir_allow_dirty=log_dir_allow_dirty,
-        eval_set_id=eval_set_id,
-        **config,
-    )
+        # resolve common options
+        process_common_options(common)
+
+        # exec eval
+        success = eval_exec(
+            tasks=tasks,
+            solver=solver,
+            log_level=common["log_level"],
+            log_level_transcript=log_level_transcript,
+            log_dir=common["log_dir"],
+            log_format=log_format,
+            model=model,
+            model_base_url=model_base_url,
+            m=m,
+            model_config=model_config,
+            run_config=run_config,
+            model_role=model_role,
+            t=t,
+            task_config=task_config,
+            s=s,
+            solver_config=solver_config,
+            scanner=scanner,
+            scanner_arg=scanner_arg,
+            scans=scans,
+            scan_name=scan_name,
+            scan_tags=scan_tags,
+            scan_metadata=scan_metadata,
+            scan_filter=scan_filter,
+            scan_model=scan_model,
+            scan_model_base_url=scan_model_base_url,
+            scan_model_arg=scan_model_arg,
+            scan_model_config=scan_model_config,
+            scan_model_role=scan_model_role,
+            scan_generate_config=scan_generate_config,
+            tags=tags,
+            metadata=metadata,
+            trace=trace,
+            approval=approval,
+            notification=notification,
+            sandbox=sandbox,
+            no_sandbox_cleanup=no_sandbox_cleanup,
+            checkpoint=checkpoint,
+            epochs=epochs,
+            epochs_reducer=epochs_reducer,
+            no_epochs_reducer=no_epochs_reducer,
+            limit=limit,
+            sample_id=sample_id,
+            sample_shuffle=sample_shuffle,
+            message_limit=message_limit,
+            token_limit=token_limit,
+            turn_limit=turn_limit,
+            cost_limit=cost_limit,
+            model_cost_config=model_cost_config,
+            time_limit=time_limit,
+            working_limit=working_limit,
+            max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
+            max_tasks=max_tasks,
+            max_subprocesses=max_subprocesses,
+            max_sandboxes=max_sandboxes,
+            fail_on_error=fail_on_error,
+            no_fail_on_error=no_fail_on_error,
+            continue_on_fail=continue_on_fail,
+            retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
+            debug_errors=common["debug_errors"],
+            no_log_samples=no_log_samples,
+            no_log_realtime=no_log_realtime,
+            log_images=log_images,
+            log_model_api=log_model_api,
+            log_refusals=log_refusals,
+            log_buffer=log_buffer,
+            log_shared=log_shared,
+            no_score=no_score,
+            no_score_display=no_score_display,
+            acp_server=acp_server,
+            ctl_server=ctl_server,
+            is_eval_set=True,
+            retry_attempts=retry_attempts,
+            retry_immediate=retry_immediate,
+            retry_wait=retry_wait,
+            retry_connections=retry_connections,
+            retry_cleanup=not no_retry_cleanup,
+            bundle_dir=bundle_dir,
+            bundle_overwrite=True if bundle_overwrite else False,
+            embed_viewer=True if embed_viewer else False,
+            log_dir_allow_dirty=log_dir_allow_dirty,
+            eval_set_id=eval_set_id,
+            json_output=json_output,
+            **config,
+        )
 
     # exit code indicating whether the evals are all complete
     ctx.exit(0 if success else 1)
@@ -1931,6 +1952,8 @@ def eval_exec(
         params["embed_viewer"] = embed_viewer
         params["log_dir_allow_dirty"] = log_dir_allow_dirty
         params["eval_set_id"] = eval_set_id
+        if json_output:
+            return _eval_exec_json(params, is_eval_set=True)
         success, _ = eval_set(**params)
         return success
     else:
@@ -1942,8 +1965,8 @@ def eval_exec(
         return True
 
 
-def _eval_exec_json(params: dict[str, Any]) -> None:
-    """Run the eval emitting the agent-facing JSON lines on stdout.
+def _eval_exec_json(params: dict[str, Any], is_eval_set: bool = False) -> bool:
+    """Run the eval (or eval set) emitting the agent-facing JSON lines on stdout.
 
     Two records, one per line (documented in the ``--json`` option help):
 
@@ -1955,6 +1978,15 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
     - ``done`` — printed after ``eval()`` returns, with each task's log
       location and status (the live → ``inspect log`` handoff). A run
       that raises emits no ``done`` record and exits non-zero.
+
+    For an eval set the same records apply, with a few wrinkles the
+    option help documents: the ``done`` record additionally reports the resolved
+    ``eval_set_id`` and overall ``success`` (all tasks completed
+    successfully — what the exit code also reports), and a set whose
+    tasks are all already complete runs no eval at all, so stdout may
+    carry only the ``done`` record. In the legacy ``--no-retry-immediate``
+    mode each batch retry makes a fresh ``eval()`` call, and each bind
+    emits a fresh ``launch`` record.
 
     Stdout belongs exclusively to these records: ``eval()`` runs with
     stdout redirected to stderr (see ``_stdout_owned_for_json``) — an
@@ -1980,6 +2012,7 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
                     {
                         "event": "launch",
                         "run_id": handoff.run_id,
+                        "eval_set_id": handoff.eval_set_id,
                         "pid": handoff.pid,
                         "log_dir": handoff.log_dir,
                         "control": (
@@ -1995,33 +2028,43 @@ def _eval_exec_json(params: dict[str, Any]) -> None:
 
         set_launch_handoff_listener(on_launch)
         try:
-            logs = eval(**params)
+            if is_eval_set:
+                success, logs = eval_set(**params)
+            else:
+                logs = eval(**params)
+                success = True
         finally:
             set_launch_handoff_listener(None)
             # stray prints redirected to stderr may sit in a buffered wrapper
             # (e.g. under CliRunner); surface them before the command returns
             sys.stderr.flush()
 
-        print(
-            json.dumps(
-                {
-                    "event": "done",
-                    "run_id": handoffs[0].run_id if handoffs else None,
-                    "logs": [
-                        {
-                            "task": log.eval.task,
-                            "task_id": log.eval.task_id,
-                            "eval_id": log.eval.eval_id,
-                            "status": log.status,
-                            "location": log.location,
-                        }
-                        for log in logs
-                    ],
-                }
-            ),
-            file=stdout,
-            flush=True,
-        )
+        done: dict[str, Any] = {
+            "event": "done",
+            "run_id": handoffs[0].run_id if handoffs else None,
+        }
+        if is_eval_set:
+            # resolved id (may be generated / read from the log dir); fall
+            # back to the log headers when no eval ran (all tasks reused)
+            done["eval_set_id"] = (
+                handoffs[0].eval_set_id
+                if handoffs
+                else (logs[0].eval.eval_set_id if logs else None)
+            )
+            done["success"] = success
+        done["logs"] = [
+            {
+                "task": log.eval.task,
+                "task_id": log.eval.task_id,
+                "eval_id": log.eval.eval_id,
+                "status": log.status,
+                "location": log.location,
+            }
+            for log in logs
+        ]
+        print(json.dumps(done), file=stdout, flush=True)
+
+    return success
 
 
 @contextlib.contextmanager
