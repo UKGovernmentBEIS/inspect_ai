@@ -447,14 +447,18 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
 
 
 def _sorted_samples(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    # Running first (the live ones a monitor cares about), then terminal
-    # (by start time, longest-running leading), then pending last.
+    # Running first (the live ones a monitor cares about), then queued,
+    # then terminal (by start time, longest-running leading), then pending
+    # last. The listing cap keeps the head of this order, so each status's
+    # position is an explicit, documented rank — not a tiebreak accident.
     def _rank(status: str) -> int:
         if status == "running":
             return 0
+        if status == "queued":
+            return 1
         if status == "pending":
-            return 2
-        return 1  # completed / error
+            return 3
+        return 2  # completed / error / cancelled
 
     summaries.sort(key=lambda r: (_rank(r["status"]), r["started_at"] or 0.0))
     return summaries

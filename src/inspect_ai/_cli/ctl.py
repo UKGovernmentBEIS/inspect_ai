@@ -1238,8 +1238,10 @@ def _run_sample_listing(
     no silent truncation), and the honesty rule that ``empty_read`` (a
     positive "(none)" claim) is made only for targets whose samples were
     actually read — a target warn-and-skipped as unreachable gets "(samples
-    unavailable)" instead. ``statuses`` is the already-parsed ``--status``
-    member set (``None`` = no filter).
+    unavailable)" instead, and an empty ``--status``-filtered or
+    ``--active-since`` delta listing gets a filter-scoped message (samples
+    may exist that simply didn't match). ``statuses`` is the already-parsed
+    ``--status`` member set (``None`` = no filter).
     """
     listing = _list_sample_rows(
         task, active_since, statuses=statuses, limit=limit, all_samples=all_samples
@@ -1264,7 +1266,14 @@ def _run_sample_listing(
         _echo_no_running_evals()
         return
 
-    empty = empty_read if listing.read else "(samples unavailable)"
+    if not listing.read:
+        empty = "(samples unavailable)"
+    elif statuses is not None:
+        empty = f"(no matching samples: 0 of {sum(listing.counts.values())})"
+    elif active_since is not None:
+        empty = "(no samples active since the given timestamp)"
+    else:
+        empty = empty_read
     if len(listing.targets) == 1:
         click.echo(_task_header(listing.targets[0]))
         if not rows:

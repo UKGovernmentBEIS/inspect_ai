@@ -208,18 +208,32 @@ def test_idle_column_hidden_when_nothing_running(
     assert "idle" not in capsys.readouterr().out.splitlines()[0]
 
 
-def test_sorted_samples_orders_running_then_terminal_then_pending() -> None:
+def test_sorted_samples_orders_running_queued_terminal_pending() -> None:
+    """The cap keeps the head of this order, so every status's rank matters.
+
+    Queued rows must sort between running and terminal by explicit rank —
+    not by a started_at tiebreak a terminal row without a start time
+    could tie with.
+    """
     from inspect_ai._control.state import _sorted_samples
 
     rows: list[dict[str, Any]] = [
         {"status": "pending", "started_at": None},
         {"status": "completed", "started_at": 100.0},
+        {"status": "cancelled", "started_at": None},
         {"status": "running", "started_at": 200.0},
+        {"status": "queued", "started_at": None},
         {"status": "error", "started_at": 50.0},
     ]
     ordered = [r["status"] for r in _sorted_samples(rows)]
-    # running first; terminal (completed/error) by start time; pending last.
-    assert ordered == ["running", "error", "completed", "pending"]
+    assert ordered == [
+        "running",
+        "queued",
+        "cancelled",  # terminal without a start time still sorts after queued
+        "error",
+        "completed",
+        "pending",
+    ]
 
 
 def test_retries_column_shown_when_a_sample_retried(
@@ -1259,6 +1273,38 @@ def test_sample_list_truncation_footer_with_filters(
     assert result.exit_code == 0, result.output
     assert "showing first 1 matching sample (251 total" in result.output
     assert "--status to filter" in result.output
+
+
+def test_sample_list_empty_filtered_listing_says_no_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty filtered listing must not claim nothing started.
+
+    `--status error` on a healthy eval returns zero rows while samples are
+    running — "(no samples started yet)" would be a false claim, so the
+    empty message reports the miss against the whole-task histogram. An
+    empty `--active-since` delta likewise scopes its claim to the window.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _capture_fetch_kwargs(
+        monkeypatch,
+        page=_SamplesPage(
+            as_of=123.0,
+            samples=[],
+            counts={"running": 3, "completed": 248, "error": 0},
+            truncated=False,
+        ),
+    )
+
+    result = _runner().invoke(ctl_command, ["sample", "list", "--status", "error"])
+    assert result.exit_code == 0, result.output
+    assert "(no matching samples: 0 of 251)" in result.output
+    assert "no samples started yet" not in result.output
+
+    result = _runner().invoke(ctl_command, ["sample", "list", "--active-since", "99"])
+    assert result.exit_code == 0, result.output
+    assert "(no samples active since the given timestamp)" in result.output
+    assert "no samples started yet" not in result.output
 
 
 def test_sample_errors_requests_full_listing(
