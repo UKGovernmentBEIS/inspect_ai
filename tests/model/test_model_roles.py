@@ -10,6 +10,8 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model._model import model_concurrency_key
+from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.solver import solver
 
 RED_TEAM = "red_team"
@@ -186,6 +188,26 @@ def test_role_usage_tracking() -> None:
     assert sample.role_usage is not None
     assert RED_TEAM in sample.role_usage
     assert sample.role_usage[RED_TEAM].total_tokens > 0
+
+
+def test_role_models_share_connection_concurrency_key() -> None:
+    """Distinct role Model instances for one model share a connection semaphore.
+
+    resolve_model_roles() creates a distinct Model per role (memoize=False) so
+    per-role usage is attributed correctly. max_connections must nonetheless be
+    enforced per endpoint/account (the concurrency key), not per Model
+    instance — otherwise N roles on one model would get N * max_connections
+    and blow through provider rate limits.
+    """
+    resolved = resolve_model_roles({"auditor": "none/none", "judge": "none/none"})
+    assert resolved is not None
+    auditor, judge = resolved["auditor"], resolved["judge"]
+
+    assert auditor is not judge
+    assert model_concurrency_key(auditor.api) == model_concurrency_key(judge.api)
+    assert model_concurrency_key(auditor.api) == model_concurrency_key(
+        get_model("none/none").api
+    )
 
 
 @solver

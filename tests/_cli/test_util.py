@@ -5,7 +5,8 @@ import pytest
 from inspect_ai._cli.util import (
     parse_model_role_cli_args,
 )
-from inspect_ai.model import Model
+from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model._util import resolve_model_roles
 
 
 @dataclass
@@ -149,3 +150,44 @@ def test_parse_model_role_cli_args_without_model_args():
 
 def test_parse_no_model_role_cli_args():
     assert parse_model_role_cli_args(None) == {}
+
+
+def test_parse_model_role_cli_args_distinct_instance_per_role() -> None:
+    """Dict-form roles sharing model/config must get distinct Model instances (#4450).
+
+    get_model() memoizes by default, so without memoize=False every role with
+    identical model/config/args received the same cached Model object;
+    resolve_model_roles() then stamped the role in place and the last role won,
+    collapsing per-role usage onto it. Uses none/none because mockllm is exempt
+    from memoization and can't exercise this path.
+    """
+    roles = ("auditor", "target", "judge")
+    raw = parse_model_role_cli_args(tuple(f"{r}={{model: none/none}}" for r in roles))
+
+    assert raw["auditor"] is not raw["target"]
+    assert raw["target"] is not raw["judge"]
+    assert raw["auditor"] is not raw["judge"]
+
+    resolved = resolve_model_roles(raw)
+    assert resolved is not None
+    assert {name: model.role for name, model in resolved.items()} == {
+        r: r for r in roles
+    }
+
+
+def test_parse_model_role_cli_args_does_not_alias_memoized_model() -> None:
+    """A dict-form role must not return (and role-stamp) a memoized Model instance.
+
+    Without memoize=False, a role whose model/config matched an existing
+    get_model() call returned that cached instance, so resolve_model_roles()
+    stamped a role onto the model other callers (including the main eval
+    model) were using — misattributing their usage to the role.
+    """
+    config = GenerateConfig(temperature=0.101)
+    memoized = get_model("none/none", config=config)
+
+    raw = parse_model_role_cli_args(("judge={model: none/none, temperature: 0.101}",))
+    resolve_model_roles(raw)
+
+    assert raw["judge"] is not memoized
+    assert memoized.role is None
