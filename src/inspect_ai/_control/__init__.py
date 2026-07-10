@@ -20,4 +20,12 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 # on (a new knob or endpoint an older server would silently ignore), and
 # record the new value as that feature's `_KNOB_SINCE` entry. Purely additive
 # response fields the CLI already null-guards don't need a bump.
-CONTROL_API_VERSION: int = 0
+#
+# Version history:
+#   0 — initial channel (tolerant servers: mutation handlers silently ignore
+#       unknown query params).
+#   1 — strict mutations: the server 400s on unknown query params to any
+#       non-GET route (`_control/strict.py`), so `api_version >= 1` means a
+#       client can rely on the server to reject rather than partially apply
+#       an unsupported knob.
+CONTROL_API_VERSION: int = 1
