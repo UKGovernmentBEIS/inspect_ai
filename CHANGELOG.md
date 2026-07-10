@@ -9,7 +9,6 @@
 - Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
 - Control Channel: `inspect ctl config` now errors when the target process runs an inspect version too old to support a requested knob, instead of silently ignoring it.
 - Control Channel: Added `inspect ctl task cancel` and `inspect ctl sample cancel` to cancel a running task or one running sample (idempotent, with `--dry-run`).
-- Control Channel: The cancel commands now tell a process running an older inspect without the cancel endpoint apart from a finished task/sample, instead of hedging between the two in one message.
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
 
 ## 0.3.245 (08 July 2026)
