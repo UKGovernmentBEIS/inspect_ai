@@ -1,5 +1,7 @@
-"""Regression tests for the Bedrock provider preserving assistant text and
-reasoning content when the same assistant turn also contains tool calls.
+"""Regression tests for Bedrock keeping assistant text/reasoning with tool calls.
+
+The Bedrock provider must preserve assistant text and reasoning content when the
+same assistant turn also contains tool calls.
 
 Previously `converse_chat_message` emitted one assistant message per tool call
 containing only a `toolUse` block, dropping any `ContentText`/`ContentReasoning`
