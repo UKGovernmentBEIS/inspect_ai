@@ -51,7 +51,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request (“auto”, “default”, or “flex”). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |

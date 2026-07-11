@@ -799,11 +799,11 @@ Note
 </section>
 <section id="observing-and-retuning" class="level3">
 <h3 class="anchored" data-anchor-id="observing-and-retuning">Observing and Retuning</h3>
-<p>While an eval runs, <code>inspect ctl limits</code> shows each model’s live controller state — current limit, in-flight count, scaling range, and recent scale changes — and <code>--max-connections</code> retunes the ceiling mid-run (lowering clamps concurrency down immediately; raising lets the controller climb again). In mixed-model runs, <code>--model</code> scopes the change to matching models:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl limits                              <span class="co"># view live controller state</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl limits <span class="at">--max-connections</span> 20         <span class="co"># throttle mid-run</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl limits <span class="at">--max-connections</span> 200 <span class="at">--model</span> gpt-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>See <a href="./control-channel.html#concurrency-limits">Control Channel</a> for details.</p>
+<p>While an eval runs, <code>inspect ctl config</code> shows each model’s live controller state — current limit, in-flight count, scaling range, and recent scale changes — and <code>--max-connections</code> retunes the ceiling mid-run (lowering clamps concurrency down immediately; raising lets the controller climb again). In mixed-model runs, <code>--model</code> scopes the change to matching models:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl config                              <span class="co"># view live controller state</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl config <span class="at">--max-connections</span> 20         <span class="co"># throttle mid-run</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl config <span class="at">--max-connections</span> 200 <span class="at">--model</span> gpt-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>See <a href="./control-channel.html#configuration">Control Channel</a> for details.</p>
 </section>
 <section id="retry-types" class="level3">
 <h3 class="anchored" data-anchor-id="retry-types">Retry Types</h3>

@@ -194,8 +194,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.245 (08 July 2026)</a></li>
-  <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.244 (01 July 2026)</a></li>
+  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.246 (10 July 2026)</a></li>
+  <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.245 (08 July 2026)</a></li>
+  <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.244 (01 July 2026)</a></li>
   <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.243 (30 June 2026)</a></li>
   <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.242 (29 June 2026)</a></li>
   <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.241 (22 June 2026)</a></li>
@@ -446,7 +447,27 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="july-2026" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026">0.3.245 (08 July 2026)</h2>
+<h2 class="anchored" data-anchor-id="july-2026">0.3.246 (10 July 2026)</h2>
+<ul>
+<li>Grok: Support for Grok 4.5 (model info database entry; accepts <code>reasoning_effort</code> with a documented default of <code>high</code>).</li>
+<li>OpenAI: Support for GPT-5.6 (Sol, Terra, and Luna) — model info database entries and codename frontier aliasing now target <code>gpt-5.6</code>.</li>
+<li>OpenAI: <code>reasoning_effort="max"</code> is now passed through natively for GPT-5.6+ models rather than being clamped to <code>xhigh</code>.</li>
+<li>OpenAI: Compatibility with openai &gt;= 2.45.0, which is now the minimum required version (usage conversion now populates the new required <code>cache_write_tokens</code> field).</li>
+<li>Model API: New <code>reasoning_mode</code> generation option (<code>--reasoning-mode</code>) for GPT-5.6 pro mode; requesting “pro” defaults to background processing like the gpt-5-pro model line.</li>
+<li>Checkpointing: <code>Task(checkpoint=False)</code> now vetoes checkpointing for that task, overriding an eval-set/CLI enable (previously a no-op).</li>
+<li>Control Channel: Reorganized the <code>inspect ctl</code> CLI into resource-noun groups (<code>ctl task</code>, <code>ctl sample</code>, <code>ctl config</code>, <code>ctl process</code>); the old flat spellings remain as hidden deprecated aliases, except <code>ctl sample</code> which is now the group (use <code>ctl sample show</code>).</li>
+<li>Control Channel: <code>inspect ctl</code> sample commands now warn and skip an eval that stays busy through the retries instead of failing outright, with stderr caveats (and an honest non-zero exit when no tasks remain visible) wherever the skip could mislead.</li>
+<li>Control Channel: <code>inspect ctl sample show</code>/<code>sample events</code> payload reads and <code>process keep</code>/<code>release</code> now retry a busy eval with narrated attempts instead of failing after a single short attempt.</li>
+<li>Control Channel: <code>inspect ctl config</code> now errors when the target process runs an inspect version too old to support a requested knob, instead of silently ignoring it.</li>
+<li>Control Channel: Failed <code>inspect ctl</code> <code>--json</code> invocations now emit a structured <code>{"error": {kind, exception, message, status}}</code> envelope on stdout (exit code still non-zero) instead of only stderr prose or a raw traceback; human output is unchanged.</li>
+<li>Control Channel: <code>max_subprocesses</code> is now retunable mid-flight via <code>inspect ctl config --max-subprocesses</code> and the <code>PATCH /config</code> endpoints, alongside the other concurrency knobs.</li>
+<li>Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in <code>type</code>.</li>
+<li>Eval: Task retries no longer fail when the prior attempt errored before writing its log file (e.g.&nbsp;a failed log start on unreachable storage).</li>
+<li>Model Roles: <code>--model-role</code> roles that share the same model and config now report their token usage separately in <code>role_usage</code> instead of collapsing onto one role. (#4450)</li>
+</ul>
+</section>
+<section id="july-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-1">0.3.245 (08 July 2026)</h2>
 <ul>
 <li>Model API: New <code>openai-api-completions</code> provider for the legacy <code>/v1/completions</code> endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with <code>vllm-completions</code>.</li>
 <li>Model API: <code>openai-api-completions</code> and <code>vllm-completions</code> accept pre-tokenized prompts via <code>ChatMessage.metadata["prompt_token_ids"]</code>.</li>
@@ -468,11 +489,12 @@ ul.task-list li input[type="checkbox"] {
 <li>Limits: Token limits can now meter only output tokens via <code>token_limit(n, type="output")</code>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> <code>token_limit=TokenLimit(...)</code> values, or string forms like <code>--token-limit output:1m</code> (with <code>k</code>/<code>m</code>/<code>b</code> magnitude suffixes).</li>
 <li>Performance: make <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#stable_message_ids">stable_message_ids()</a></span> linear per turn.</li>
 <li>Performance: Reading <code>.eval</code> logs now looks up zip members via a cached O(1) name index instead of an O(members) scan per member, removing quadratic (O(members²)) overhead when loading logs with many samples (e.g.&nbsp;<code>read_eval_log</code>, <code>eval-retry</code>, <code>samples_df(full=True)</code>).</li>
-<li>Sandbox: Validate sandbox-service names and request IDs, bind response paths to request filenames, and prevent queue filenames from being interpreted as shell commands.- Scoring: Fix edge case where <code>pattern</code> <code>match_all=True</code> could incorrectly return the target value when no matches were present.</li>
+<li>Sandbox: Validate sandbox-service names and request IDs, bind response paths to request filenames, and prevent queue filenames from being interpreted as shell commands.</li>
 <li>Scoring: Fix edge case where <code>pattern</code> <code>match_all=True</code> could incorrectly return the target value when no matches were present.</li>
 <li>Scoring: <code>model_graded_qa</code> / <code>model_graded_fact</code> now mark a sample unscored (instead of <code>INCORRECT</code>) when the judge’s output does not match the grade regex, tagging <code>unscored_reason="grade_parse_failure"</code> so judge-parse failures leave the rate and stay visible rather than inflating the <code>INCORRECT</code> count.</li>
 <li>Security: Constrain Docker sandbox <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span> staging to a generated regular file so container paths cannot copy outside the private host temporary directory.</li>
 <li>vLLM: Keep the connection-pool/adaptive-concurrency scope stable across lazy server startup instead of splitting it on the first generate.</li>
+<li>Bugfix: A failed log write escaping a task (e.g.&nbsp;the <code>log_start()</code> header flush when log storage is unreachable) now yields an errored <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> — re-queued by task retries and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> — instead of tearing down the entire run and cancelling sibling tasks.</li>
 <li>Bugfix <code>--score-on-error</code> and <code>--continue-on-fail</code> (when absent on the command line) silently overwriting a value set in a <code>@task</code>, a <code>--run-config</code> file, or a prior eval log being retried.</li>
 <li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#mean">mean()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#bootstrap_stderr">bootstrap_stderr()</a></span> now return <code>0.0</code> for an empty score list instead of <code>nan</code> (with numpy empty-slice warnings), matching the empty-input handling of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#accuracy">accuracy()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#std">std()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#stderr">stderr()</a></span>/<code>var()</code>.</li>
 <li>Bugfix: Sample concurrency now honors model-level <code>max_connections</code> / <code>adaptive_connections</code> settings instead of classifying the adaptive-vs-static path from task-level config alone.</li>
@@ -482,8 +504,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Link plain HTTP sandbox ports (e.g.&nbsp;80, 8080) as <code>http://</code> instead of <code>https://</code> in the running-samples port-mappings panel.</li>
 </ul>
 </section>
-<section id="july-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-1">0.3.244 (01 July 2026)</h2>
+<section id="july-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-2">0.3.244 (01 July 2026)</h2>
 <ul>
 <li>Anthropic: Various changes related to <a href="https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5">Sonnet 5</a>.</li>
 <li>Bugfix: Elapsed-time displays (e.g.&nbsp;the running-sample clock and timers) no longer render an impossible <code>:60</code> seconds when the elapsed time has a fractional second.</li>

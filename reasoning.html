@@ -713,6 +713,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#provider-mapping" id="toc-provider-mapping" class="nav-link" data-scroll-target="#provider-mapping">Provider Mapping</a></li>
   <li><a href="#model-defaults" id="toc-model-defaults" class="nav-link" data-scroll-target="#model-defaults">Model Defaults</a></li>
   </ul></li>
+  <li><a href="#reasoning-mode" id="toc-reasoning-mode" class="nav-link" data-scroll-target="#reasoning-mode">Reasoning Mode</a></li>
   <li><a href="#reasoning-content" id="toc-reasoning-content" class="nav-link" data-scroll-target="#reasoning-content">Reasoning Content</a></li>
   <li><a href="#reasoning-options" id="toc-reasoning-options" class="nav-link" data-scroll-target="#reasoning-options">Reasoning Options</a></li>
   <li><a href="#vllm-sglang" id="toc-vllm-sglang" class="nav-link" data-scroll-target="#vllm-sglang">vLLM / SGLang</a></li>
@@ -757,6 +758,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="openai" class="level4">
 <h4 class="anchored" data-anchor-id="openai">OpenAI</h4>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 51%">
+<col style="width: 48%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Inspect input</th>
@@ -774,10 +779,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>max</code></td>
-<td><code>xhigh</code></td>
+<td><code>max</code> on GPT-5.6+; <code>xhigh</code> on earlier models</td>
 </tr>
 </tbody>
 </table>
+<p>Note that GPT-5.6 models treat <code>reasoning_effort</code> as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.</p>
 </section>
 <section id="anthropic-claude-4.6-and-claude-5" class="level4">
 <h4 class="anchored" data-anchor-id="anthropic-claude-4.6-and-claude-5">Anthropic Claude 4.6+ and Claude 5</h4>
@@ -934,7 +940,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="grok" class="level4">
 <h4 class="anchored" data-anchor-id="grok">Grok</h4>
-<p>Grok 3 Mini and Grok 4.X variants (<code>grok-4-fast-reasoning</code>, <code>grok-4.1-fast-reasoning</code>, <code>grok-4.20</code>, <code>grok-4.3</code>) accept <code>reasoning_effort</code>. The original <code>grok-4</code> reasons but <a href="https://docs.x.ai/developers/model-capabilities/text/reasoning">does not accept the parameter</a> — Inspect omits effort for that model. Inspect maps <code>reasoning_effort</code> as follows:</p>
+<p>Grok 3 Mini and Grok 4.X variants (<code>grok-4-fast-reasoning</code>, <code>grok-4.1-fast-reasoning</code>, <code>grok-4.20</code>, <code>grok-4.3</code>, <code>grok-4.5</code>) accept <code>reasoning_effort</code>. The original <code>grok-4</code> reasons but <a href="https://docs.x.ai/developers/model-capabilities/text/reasoning">does not accept the parameter</a> — Inspect omits effort for that model. Note that Grok 4.5 defaults to <code>high</code> effort and its reasoning cannot be disabled. Inspect maps <code>reasoning_effort</code> as follows:</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -961,6 +967,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
+<p>xAI documents an <code>xhigh</code> effort for <code>grok-4.20-multi-agent</code> (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above <code>high</code>, so <code>xhigh</code> and <code>max</code> clamp to <code>high</code> for that model as well.</p>
 </section>
 <section id="openrouter" class="level4">
 <h4 class="anchored" data-anchor-id="openrouter">OpenRouter</h4>
@@ -1078,40 +1085,48 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>adaptive</td>
 </tr>
 <tr class="odd">
+<td>anthropic/claude-sonnet-5</td>
+<td>high</td>
+</tr>
+<tr class="even">
 <td>deepseek/deepseek-reasoner</td>
 <td>no effort scale</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3-flash-preview</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3-pro</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3.1-flash-lite-preview</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3.1-pro</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3.5-flash</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>grok/grok-3-mini</td>
 <td>low</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>grok/grok-4</td>
 <td>no effort scale</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>grok/grok-4.3</td>
 <td>low</td>
+</tr>
+<tr class="odd">
+<td>grok/grok-4.5</td>
+<td>high</td>
 </tr>
 <tr class="even">
 <td>mistral/magistral-medium-2506</td>
@@ -1185,6 +1200,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 </section>
 </section>
+<section id="reasoning-mode" class="level2">
+<h2 class="anchored" data-anchor-id="reasoning-mode">Reasoning Mode</h2>
+<p>OpenAI GPT-5.6+ models support <a href="https://developers.openai.com/api/docs/guides/reasoning">pro mode</a>, which performs more model work for greater reliability on difficult tasks, at higher latency and token usage (billed at standard token rates). Enable it with the <code>reasoning_mode</code> option:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/gpt-5.6 <span class="at">--reasoning-mode</span> pro</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Or from Python:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"math.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-5.6"</span>, reasoning_mode<span class="op">=</span><span class="st">"pro"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Reasoning mode is independent of <code>reasoning_effort</code> — effort controls how much reasoning occurs within the selected mode.</p>
+<p>Since pro mode requests can run for several minutes, Inspect enables <a href="./providers.html#openai">background processing</a> by default when <code>reasoning_mode="pro"</code> (as it does for the <code>gpt-5-pro</code> model line); pass <code>-M background=false</code> to override.</p>
+<p>Inspect passes <code>reasoning_mode</code> through to the API for any OpenAI model: models that can’t honor it (those prior to GPT-5.6, other than the <code>-pro</code> model line which accepts the redundant <code>"pro"</code>) reject the request with an error naming the parameter.</p>
+</section>
 <section id="reasoning-content" class="level2">
 <h2 class="anchored" data-anchor-id="reasoning-content">Reasoning Content</h2>
 <p>Many reasoning models surface their underlying chain of thought in a special “thinking” or reasoning block. Inspect normalises these into <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentreasoning">ContentReasoning</a></span> blocks alongside <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contenttext">ContentText</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentimage">ContentImage</a></span>, etc., and displays them in their own region in Inspect View and the terminal conversation view.</p>
@@ -1207,14 +1232,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Constrains effort on reasoning. Accepts <code>none</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, <code>max</code>. See <a href="#reasoning-effort">Reasoning Effort</a> for per-provider mapping. Supported by all reasoning models — Inspect automatically bridges effort to a token budget for legacy Claude (3.7–4.5) and Gemini 2.5. Default is provider-defined.</td>
 </tr>
 <tr class="even">
+<td><code>reasoning_mode</code></td>
+<td><strong>OpenAI GPT-5.6+ only.</strong> Accepts <code>standard</code>, <code>pro</code>. Pro mode performs more model work for greater reliability at higher latency and token usage, and enables background processing by default. See <a href="#reasoning-mode">Reasoning Mode</a>.</td>
+</tr>
+<tr class="odd">
 <td><code>reasoning_tokens</code></td>
 <td><strong>Deprecated.</strong> Prefer <code>reasoning_effort</code>. Explicit token budget for reasoning. Both Anthropic (<code>budget_tokens</code>) and Google (<code>thinking_budget</code>) have deprecated this control in favour of effort-based reasoning. On Anthropic Claude 4.7+ and Claude 5 it is unsupported (those models removed the token-budget control) and raises an error — use <code>reasoning_effort</code> instead, which works across all Claude versions.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>reasoning_summary</code></td>
 <td><strong>OpenAI only.</strong> Provide a summary of reasoning steps. Accepts <code>none</code>, <code>concise</code>, <code>detailed</code>, <code>auto</code>. Use <code>auto</code> to access the most detailed summarizer available. Some OpenAI accounts require <a href="https://help.openai.com/en/articles/10910291-api-organization-verification">organization verification</a>.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>reasoning_history</code></td>
 <td>How much prior reasoning to replay in conversation history. Accepts <code>none</code>, <code>all</code>, <code>last</code>, <code>auto</code>. Use <code>last</code> to keep reasoning from dominating the context window. Defaults to <code>auto</code>.</td>
 </tr>
@@ -1225,15 +1254,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="vllm-sglang">vLLM / SGLang</h2>
 <p>vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the <a href="https://docs.vllm.ai/en/stable/features/reasoning_outputs.html">vLLM</a> and <a href="https://docs.sglang.ai/backend/separate_reasoning.html">SGLang</a> docs for details.</p>
 <p>For vLLM, configure the model’s reasoning parser using <code>-M</code> model arguments. For example, Qwen3:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> vllm/Qwen/Qwen3-8B <span class="at">-M</span> reasoning_parser=qwen3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> vllm/Qwen/Qwen3-8B <span class="at">-M</span> reasoning_parser=qwen3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Thinking mode is model-specific and controlled separately from <code>--reasoning-effort</code>. For models where vLLM exposes template switches such as <code>enable_thinking</code> or <code>thinking</code>, pass them as chat-template kwargs:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> vllm/Qwen/Qwen3-8B <span class="dt">\</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> reasoning_parser=qwen3 <span class="dt">\</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> default_chat_template_kwargs=<span class="st">'{"enable_thinking": true}'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> vllm/Qwen/Qwen3-8B <span class="dt">\</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> reasoning_parser=qwen3 <span class="dt">\</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> default_chat_template_kwargs=<span class="st">'{"enable_thinking": true}'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>To override per-request:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> vllm/Qwen/Qwen3-8B <span class="dt">\</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> reasoning_parser=qwen3 <span class="dt">\</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> extra_body=<span class="st">'{"chat_template_kwargs": {"enable_thinking": true}}'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> vllm/Qwen/Qwen3-8B <span class="dt">\</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> reasoning_parser=qwen3 <span class="dt">\</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> extra_body=<span class="st">'{"chat_template_kwargs": {"enable_thinking": true}}'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Open-weights reasoning models do not all support adjustable effort levels — in those cases <code>--reasoning-effort</code> is a no-op even though a reasoning parser is required for vLLM to separate reasoning from the final answer.</p>
 <p>If the model already emits reasoning between <code>&lt;think&gt;&lt;/think&gt;</code> tags (as with R1 or via prompt engineering), Inspect captures it automatically without any vLLM or SGLang configuration.</p>
 

@@ -24,11 +24,13 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 
 #### OpenAI
 
-| Inspect input                                   | API value         |
-|-------------------------------------------------|-------------------|
-| `none`                                          | reasoning omitted |
-| `minimal` / `low` / `medium` / `high` / `xhigh` | identical         |
-| `max`                                           | `xhigh`           |
+| Inspect input | API value |
+|----|----|
+| `none` | reasoning omitted |
+| `minimal` / `low` / `medium` / `high` / `xhigh` | identical |
+| `max` | `max` on GPT-5.6+; `xhigh` on earlier models |
+
+Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
 #### Anthropic Claude 4.6+ and Claude 5
 
@@ -87,7 +89,7 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Grok
 
-Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Inspect maps `reasoning_effort` as follows:
+Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 defaults to `high` effort and its reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
 
 | Inspect input            | API value         |
 |--------------------------|-------------------|
@@ -95,6 +97,8 @@ Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reaso
 | `minimal` / `low`        | `low`             |
 | `medium`                 | `medium`          |
 | `high` / `xhigh` / `max` | `high`            |
+
+xAI documents an `xhigh` effort for `grok-4.20-multi-agent` (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above `high`, so `xhigh` and `max` clamp to `high` for that model as well.
 
 #### OpenRouter
 
@@ -136,6 +140,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | anthropic/claude-opus-4-7            | adaptive        |
 | anthropic/claude-opus-4-8            | high            |
 | anthropic/claude-sonnet-4-6          | adaptive        |
+| anthropic/claude-sonnet-5            | high            |
 | deepseek/deepseek-reasoner           | no effort scale |
 | google/gemini-3-flash-preview        | medium          |
 | google/gemini-3-pro                  | high            |
@@ -145,6 +150,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | grok/grok-3-mini                     | low             |
 | grok/grok-4                          | no effort scale |
 | grok/grok-4.3                        | low             |
+| grok/grok-4.5                        | high            |
 | mistral/magistral-medium-2506        | no effort scale |
 | mistral/magistral-small-2506         | no effort scale |
 | openai/gpt-5                         | medium          |
@@ -163,6 +169,26 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | openai/gpt-5.5                       | medium          |
 | openai/gpt-5.5-pro                   | high            |
 
+## Reasoning Mode
+
+OpenAI GPT-5.6+ models support [pro mode](https://developers.openai.com/api/docs/guides/reasoning), which performs more model work for greater reliability on difficult tasks, at higher latency and token usage (billed at standard token rates). Enable it with the `reasoning_mode` option:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.6 --reasoning-mode pro
+```
+
+Or from Python:
+
+``` python
+eval("math.py", model="openai/gpt-5.6", reasoning_mode="pro")
+```
+
+Reasoning mode is independent of `reasoning_effort` — effort controls how much reasoning occurs within the selected mode.
+
+Since pro mode requests can run for several minutes, Inspect enables [background processing](./providers.html.md#openai) by default when `reasoning_mode="pro"` (as it does for the `gpt-5-pro` model line); pass `-M background=false` to override.
+
+Inspect passes `reasoning_mode` through to the API for any OpenAI model: models that can’t honor it (those prior to GPT-5.6, other than the `-pro` model line which accepts the redundant `"pro"`) reject the request with an error naming the parameter.
+
 ## Reasoning Content
 
 Many reasoning models surface their underlying chain of thought in a special “thinking” or reasoning block. Inspect normalises these into [ContentReasoning](./reference/inspect_ai.model.html.md#contentreasoning) blocks alongside [ContentText](./reference/inspect_ai.model.html.md#contenttext), [ContentImage](./reference/inspect_ai.model.html.md#contentimage), etc., and displays them in their own region in Inspect View and the terminal conversation view.
@@ -178,6 +204,7 @@ The following reasoning options are available from the CLI and within [GenerateC
 | Option | Description |
 |----|----|
 | `reasoning_effort` | Constrains effort on reasoning. Accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. See [Reasoning Effort](#reasoning-effort) for per-provider mapping. Supported by all reasoning models — Inspect automatically bridges effort to a token budget for legacy Claude (3.7–4.5) and Gemini 2.5. Default is provider-defined. |
+| `reasoning_mode` | **OpenAI GPT-5.6+ only.** Accepts `standard`, `pro`. Pro mode performs more model work for greater reliability at higher latency and token usage, and enables background processing by default. See [Reasoning Mode](#reasoning-mode). |
 | `reasoning_tokens` | **Deprecated.** Prefer `reasoning_effort`. Explicit token budget for reasoning. Both Anthropic (`budget_tokens`) and Google (`thinking_budget`) have deprecated this control in favour of effort-based reasoning. On Anthropic Claude 4.7+ and Claude 5 it is unsupported (those models removed the token-budget control) and raises an error — use `reasoning_effort` instead, which works across all Claude versions. |
 | `reasoning_summary` | **OpenAI only.** Provide a summary of reasoning steps. Accepts `none`, `concise`, `detailed`, `auto`. Use `auto` to access the most detailed summarizer available. Some OpenAI accounts require [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification). |
 | `reasoning_history` | How much prior reasoning to replay in conversation history. Accepts `none`, `all`, `last`, `auto`. Use `last` to keep reasoning from dominating the context window. Defaults to `auto`. |

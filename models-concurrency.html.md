@@ -70,15 +70,15 @@ eval(
 
 ### Observing and Retuning
 
-While an eval runs, `inspect ctl limits` shows each model’s live controller state — current limit, in-flight count, scaling range, and recent scale changes — and `--max-connections` retunes the ceiling mid-run (lowering clamps concurrency down immediately; raising lets the controller climb again). In mixed-model runs, `--model` scopes the change to matching models:
+While an eval runs, `inspect ctl config` shows each model’s live controller state — current limit, in-flight count, scaling range, and recent scale changes — and `--max-connections` retunes the ceiling mid-run (lowering clamps concurrency down immediately; raising lets the controller climb again). In mixed-model runs, `--model` scopes the change to matching models:
 
 ``` bash
-inspect ctl limits                              # view live controller state
-inspect ctl limits --max-connections 20         # throttle mid-run
-inspect ctl limits --max-connections 200 --model gpt-5
+inspect ctl config                              # view live controller state
+inspect ctl config --max-connections 20         # throttle mid-run
+inspect ctl config --max-connections 200 --model gpt-5
 ```
 
-See [Control Channel](./control-channel.html.md#concurrency-limits) for details.
+See [Control Channel](./control-channel.html.md#configuration) for details.
 
 ### Retry Types
 

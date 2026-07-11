@@ -6,7 +6,7 @@
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/eval.py#L110)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/eval.py#L110)
 
 ``` python
 def eval(
@@ -97,6 +97,7 @@ def eval(
     verbosity: Literal['low', 'medium', 'high'] | None = ...,
     effort: Literal['low', 'medium', 'high', 'xhigh', 'max'] | None = ...,
     reasoning_effort: Literal['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] | None = ...,
+    reasoning_mode: Literal['standard', 'pro'] | None = ...,
     reasoning_tokens: int | None = ...,
     reasoning_summary: Literal['none', 'concise', 'detailed', 'auto'] | None = ...,
     reasoning_history: Literal['none', 'all', 'last', 'auto'] | None = ...,
@@ -134,13 +135,13 @@ Sandbox environment type (or optionally a str or tuple with a shorthand spec)
 Cleanup sandbox environments after task completes (defaults to True)
 
 `checkpoint` [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig) \| bool \| None  
-Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens) — equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` when set.
+Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens) — equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` that enables checkpointing when set. A task can opt out with `Task(checkpoint=False)`, which overrides this enable for that task only.
 
 `acp_server` bool \| int \| str \| None  
 Expose this eval over an Agent Client Protocol server. `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`; an integer binds a TCP loopback port; a string is taken as a custom UNIX socket path; `None` (default) does not start an ACP server.
 
 `ctl_server` bool \| str \| None  
-Control-channel server for this eval process. `True` or `None` (default) binds the default AF_UNIX socket; `False` disables the control endpoint; `"keep"` additionally keeps the process running after the eval finishes so external clients can still query its state — exit via `inspect ctl release` (or `POST /release`).
+Control-channel server for this eval process. `True` or `None` (default) binds the default AF_UNIX socket; `False` disables the control endpoint; `"keep"` additionally keeps the process running after the eval finishes so external clients can still query its state — exit via `inspect ctl process release` (or `POST /release`).
 
 `solver` [Solver](../reference/inspect_ai.solver.html.md#solver) \| [SolverSpec](../reference/inspect_ai.solver.html.md#solverspec) \| [Agent](../reference/inspect_ai.agent.html.md#agent) \| list\[[Solver](../reference/inspect_ai.solver.html.md#solver)\] \| None  
 Alternative solver for task(s). Optional (uses task solver by default).
@@ -209,7 +210,7 @@ Raise task errors (rather than logging them) so they can be debugged (defaults t
 Limit on total messages used for each sample.
 
 `token_limit` int \| str \| [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) \| None  
-Limit on tokens used for each sample. An `int` (or a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “all”) limits total tokens; a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “output” limits only output tokens. Also accepts strings like “500k”, “1m”, or “output:1m”.
+Limit on tokens used for each sample. An `int` (or a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “all”) limits total tokens; a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with a `type` limits by output tokens or an arithmetic formula over `input`/`output`. Also accepts strings like “500k”, “1m”, “output:1m”, or “(input\*0.1)+output:1m”.
 
 `turn_limit` int \| None  
 Limit on total turns (model generations) used for each sample.
@@ -367,6 +368,9 @@ Control how many tokens are used for a response, trading off between response th
 `reasoning_effort` Literal\['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'\] \| None  
 Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).
 
+`reasoning_mode` Literal\['standard', 'pro'\] \| None  
+Reasoning mode. “pro” performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only (“standard” is the default).
+
 `reasoning_tokens` int \| None  
 Maximum number of tokens to use for reasoning. Anthropic Claude models only.
 
@@ -398,7 +402,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/eval.py#L1195)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/eval.py#L1200)
 
 ``` python
 def eval_retry(
@@ -522,7 +526,7 @@ Show scoring metrics in realtime (defaults to True)
 Override the original eval’s ACP server transport on retry. `True` enables a default AF_UNIX socket; an integer binds a TCP loopback port; a string is taken as a custom UNIX socket path; `None` (default) replays whatever transport (or no transport) was persisted in the original log’s `EvalConfig.acp_server`.
 
 `ctl_server` bool \| str \| None  
-Control-channel server for this eval process. `True` or `None` (default) binds the default AF_UNIX socket; `False` disables the control endpoint; `"keep"` additionally keeps the process running after the eval finishes so external clients can still query its state — exit via `inspect ctl release` (or `POST /release`).
+Control-channel server for this eval process. `True` or `None` (default) binds the default AF_UNIX socket; `False` disables the control endpoint; `"keep"` additionally keeps the process running after the eval finishes so external clients can still query its state — exit via `inspect ctl process release` (or `POST /release`).
 
 `scanner` [Scanners](../reference/inspect_ai.html.md#scanners) \| None  
 Scanner(s) to apply to each sample’s transcript after the sample completes. When provided, the existing scan dir from the original eval (keyed by its `eval_set_id` or `run_id`) is reused — same resume contract as `eval_set`: matching scanner config attaches, divergent config raises `PrerequisiteError`.
@@ -549,7 +553,7 @@ Checkpoint configuration for this retry, or `True` to enable checkpointing with 
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/evalset.py#L125)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/evalset.py#L125)
 
 ``` python
 def eval_set(
@@ -645,6 +649,7 @@ def eval_set(
     verbosity: Literal['low', 'medium', 'high'] | None = ...,
     effort: Literal['low', 'medium', 'high', 'xhigh', 'max'] | None = ...,
     reasoning_effort: Literal['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] | None = ...,
+    reasoning_mode: Literal['standard', 'pro'] | None = ...,
     reasoning_tokens: int | None = ...,
     reasoning_summary: Literal['none', 'concise', 'detailed', 'auto'] | None = ...,
     reasoning_history: Literal['none', 'all', 'last', 'auto'] | None = ...,
@@ -700,13 +705,13 @@ Sandbox environment type (or optionally a str or tuple with a shorthand spec)
 Cleanup sandbox environments after task completes (defaults to True)
 
 `checkpoint` [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig) \| bool \| None  
-Checkpoint configuration for this eval set, or `True` to enable checkpointing with the default trigger (every 500k tokens). Overrides any task- or sample-level `checkpoint` when set.
+Checkpoint configuration for this eval set, or `True` to enable checkpointing with the default trigger (every 500k tokens). Overrides any task- or sample-level `checkpoint` when set. A task can opt out with `Task(checkpoint=False)`, which overrides this enable for that task only.
 
 `acp_server` bool \| int \| str \| None  
 Override the original eval’s ACP server transport on retry. `True` enables a default AF_UNIX socket; an integer binds a TCP loopback port; a string is taken as a custom UNIX socket path; `None` (default) replays whatever transport (or no transport) was persisted in the original log’s `EvalConfig.acp_server`.
 
 `ctl_server` bool \| str \| None  
-Control-channel server for this eval-set process. `True` or `None` (default) binds the default AF_UNIX socket; `False` disables the control endpoint; `"keep"` additionally keeps the process running after the eval-set finishes so external clients (the `inspect ctl` CLI, scripted agents, TUIs) can still query state and read results — exit via `inspect ctl release` (or `POST /release`). Requires `retry_immediate=True` (the default) for the `"keep"` value.
+Control-channel server for this eval-set process. `True` or `None` (default) binds the default AF_UNIX socket; `False` disables the control endpoint; `"keep"` additionally keeps the process running after the eval-set finishes so external clients (the `inspect ctl` CLI, scripted agents, TUIs) can still query state and read results — exit via `inspect ctl process release` (or `POST /release`). Requires `retry_immediate=True` (the default) for the `"keep"` value.
 
 `solver` [Solver](../reference/inspect_ai.solver.html.md#solver) \| [SolverSpec](../reference/inspect_ai.solver.html.md#solverspec) \| [Agent](../reference/inspect_ai.agent.html.md#agent) \| list\[[Solver](../reference/inspect_ai.solver.html.md#solver)\] \| None  
 Alternative solver(s) for evaluating task(s). Optional (uses task solver by default).
@@ -778,7 +783,7 @@ Raise task errors (rather than logging them) so they can be debugged (defaults t
 Limit on total messages used for each sample.
 
 `token_limit` int \| str \| [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) \| None  
-Limit on tokens used for each sample. An `int` (or a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “all”) limits total tokens; a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “output” limits only output tokens. Also accepts strings like “500k”, “1m”, or “output:1m”.
+Limit on tokens used for each sample. An `int` (or a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “all”) limits total tokens; a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with a `type` limits by output tokens or an arithmetic formula over `input`/`output`. Also accepts strings like “500k”, “1m”, “output:1m”, or “(input\*0.1)+output:1m”.
 
 `turn_limit` int \| None  
 Limit on total turns (model generations) used for each sample.
@@ -930,6 +935,9 @@ Control how many tokens are used for a response, trading off between response th
 `reasoning_effort` Literal\['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'\] \| None  
 Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).
 
+`reasoning_mode` Literal\['standard', 'pro'\] \| None  
+Reasoning mode. “pro” performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only (“standard” is the default).
+
 `reasoning_tokens` int \| None  
 Maximum number of tokens to use for reasoning. Anthropic Claude models only.
 
@@ -961,7 +969,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/score.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/score.py#L80)
 
 ``` python
 def score(
@@ -1014,7 +1022,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task.py#L66)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task.py#L66)
 
 ``` python
 class Task
@@ -1025,7 +1033,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task.py#L72)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task.py#L72)
 
 ``` python
 def __init__(
@@ -1100,7 +1108,7 @@ Named roles for use in [get_model()](../reference/inspect_ai.model.html.md#get_m
 Sandbox environment type (or optionally a str or tuple with a shorthand spec)
 
 `checkpoint` [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig) \| bool \| None  
-Checkpoint configuration for this task, or `True` to enable checkpointing with the default trigger (every 500k tokens). Overridden by eval-level `checkpoint` when set; overrides any sample-level `checkpoint`.
+Checkpoint configuration for this task. `True` (or a [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig)) enables checkpointing with the default trigger (every 500k tokens) unless overridden; `None` (default) inherits from the eval/CLI level; `False` vetoes checkpointing for this task, overriding an eval-set/CLI `--checkpoint` enable. When enabled, an eval-level `checkpoint` overrides this task’s config, which overrides any sample-level `checkpoint`.
 
 `on_checkpoint` OnCheckpointCallback \| None  
 Callback invoked before each checkpoint snapshot is taken, so state it flushes to the sandbox/store is captured by that checkpoint. May fire many times (including the final checkpoint on clean completion); must be idempotent.
@@ -1127,7 +1135,7 @@ Epochs to repeat samples for and optional score reducer function(s) used to comb
 Limit on total messages used for each sample.
 
 `token_limit` int \| str \| [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) \| None  
-Limit on tokens used for each sample. An `int` (or a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “all”) limits total tokens; a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “output” limits only output tokens. Also accepts strings like “500k”, “1m”, or “output:1m”.
+Limit on tokens used for each sample. An `int` (or a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “all”) limits total tokens; a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with a `type` limits by output tokens or an arithmetic formula over `input`/`output`. Also accepts strings like “500k”, “1m”, “output:1m”, or “(input\*0.1)+output:1m”.
 
 `turn_limit` int \| None  
 Limit on total turns (model generations) used for each sample.
@@ -1176,7 +1184,7 @@ Task adapted with alternate values for one or more options.
 
 This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using [task_with()](../reference/inspect_ai.html.md#task_with) you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task.py#L271)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task.py#L273)
 
 ``` python
 def task_with(
@@ -1256,7 +1264,7 @@ Named roles for use in [get_model()](../reference/inspect_ai.model.html.md#get_m
 Sandbox environment type (or optionally a str or tuple with a shorthand spec)
 
 `checkpoint` [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig) \| bool \| None \| NotGiven  
-Checkpoint configuration for this task, or `True` to enable checkpointing with the default trigger (every 500k tokens). Overridden by eval-level `checkpoint` when set; overrides any sample-level `checkpoint`.
+Checkpoint configuration for this task. `True` (or a [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig)) enables checkpointing with the default trigger (every 500k tokens) unless overridden; `None` (default) inherits from the eval/CLI level; `False` vetoes checkpointing for this task, overriding an eval-set/CLI `--checkpoint` enable. When enabled, an eval-level `checkpoint` overrides this task’s config, which overrides any sample-level `checkpoint`.
 
 `on_checkpoint` OnCheckpointCallback \| None \| NotGiven  
 Callback invoked before each checkpoint snapshot is taken, so state it flushes to the sandbox/store is captured by that checkpoint. May fire many times (including the final checkpoint on clean completion); must be idempotent.
@@ -1283,7 +1291,7 @@ Epochs to repeat samples for and optional score reducer function(s) used to comb
 Limit on total messages used for each sample.
 
 `token_limit` int \| str \| [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) \| None \| NotGiven  
-Limit on tokens used for each sample. An `int` (or a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “all”) limits total tokens; a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “output” limits only output tokens. Also accepts strings like “500k”, “1m”, or “output:1m”.
+Limit on tokens used for each sample. An `int` (or a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with type “all”) limits total tokens; a [TokenLimit](../reference/inspect_ai.util.html.md#tokenlimit) with a `type` limits by output tokens or an arithmetic formula over `input`/`output`. Also accepts strings like “500k”, “1m”, “output:1m”, or “(input\*0.1)+output:1m”.
 
 `turn_limit` int \| None \| NotGiven  
 Limit on total turns (model generations) used for each sample.
@@ -1321,7 +1329,7 @@ Task epochs.
 
 Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -1337,7 +1345,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -1353,7 +1361,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task.py#L456)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task.py#L462)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -1376,7 +1384,7 @@ One or more tasks.
 
 Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/tasks.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/tasks.py#L7)
 
 ``` python
 Tasks: TypeAlias = (
@@ -1407,7 +1415,7 @@ Drives a running eval from code: a seed plus result-driven follow-ups.
 
 Subclass and override the methods you need. The default implementations are no-ops / empty, so a bare [TaskSource](../reference/inspect_ai.html.md#tasksource) runs nothing — override at least `initial_tasks` and `next_tasks`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L38)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task_source.py#L38)
 
 ``` python
 class TaskSource
@@ -1420,7 +1428,7 @@ Tasks to run first (the seed).
 
 Called once, synchronously, before the run starts — so it must return immediately (no awaiting / blocking). The returned tasks drive the run’s up-front setup (concurrency, validation) and are the first batch.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L46)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task_source.py#L46)
 
 ``` python
 def initial_tasks(self) -> list["Task"]
@@ -1431,7 +1439,7 @@ The next batch of tasks to run, or `None` when the run is complete.
 
 Called after each batch finishes (after that batch’s `sample_complete` / `task_complete` notifications). May `await` — for more results or external input — and may block indefinitely; return `None` to end the run.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L55)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task_source.py#L55)
 
 ``` python
 async def next_tasks(self) -> list["Task"] | None
@@ -1442,7 +1450,7 @@ A sample finished — observe it and optionally return follow-up tasks.
 
 `sample` is the completed sample and `task` is the task it ran under (the sample alone doesn’t identify its task). Return a list of tasks to add to the run (equivalent to calling `enqueue_task` with them): they run after the current batch, before the next `next_tasks()`. Return `None` (the default) to add nothing.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L65)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task_source.py#L65)
 
 ``` python
 async def sample_complete(
@@ -1459,7 +1467,7 @@ A task finished — observe its log and optionally return follow-up tasks.
 
 Return a list of tasks to add to the run (like `enqueue_task`): they run after the current batch. Return `None` (the default) to add nothing.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L78)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task_source.py#L78)
 
 ``` python
 async def task_complete(self, log: "EvalLog") -> list["Task"] | None
@@ -1472,7 +1480,7 @@ Create a :class:[TaskSource](../reference/inspect_ai.html.md#tasksource) from a 
 
 A convenience for when subclassing is more than you need: provide the initial tasks directly and, optionally, callbacks that react to results. The `sample_complete` / `task_complete` callbacks may **return** a list of follow-up tasks to add to the run (see those methods); `next_tasks` is the blocking / explicit-pull alternative. Callbacks typically close over shared state (e.g. accumulated scores) to decide what to run next.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/task_source.py#L86)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/task_source.py#L86)
 
 ``` python
 @classmethod
@@ -1510,7 +1518,7 @@ The tasks run in this process under the current run’s `run_id` (a fresh `eval_
 
 When the run is driven by a :class:`~inspect_ai.TaskSource`, added tasks are *live*: they start as soon as there is free capacity. Otherwise they run as a follow-up batch, after the in-flight batch of tasks completes.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/enqueue.py#L91)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/enqueue.py#L91)
 
 ``` python
 def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None
@@ -1528,7 +1536,7 @@ Optionally, the `run_id` the caller believes is running; if given it must match 
 
 Argument shape accepted by `eval_set(scanner=...)`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/scan.py#L178)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/scan.py#L178)
 
 ``` python
     Scanners: TypeAlias = (
@@ -1544,7 +1552,7 @@ Configure scanners attached to an `eval_set` run.
 
 A subset of scout’s `ScanJob` / `ScanJobConfig` schema, narrowed to the fields that make sense when `eval_set` is generating the transcripts.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/scan.py#L53)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/scan.py#L53)
 
 ``` python
 class ScannerConfig(BaseModel)
@@ -1594,7 +1602,7 @@ Load a [ScannerConfig](../reference/inspect_ai.html.md#scannerconfig) from a YAM
 
 Scanner entries in the file are written as `ScannerSpec` references (a registry `name` plus optional `params` and `file`). They are resolved to live `Scanner` objects via scout’s registry, loading any referenced `file` modules. `model_args` may also be a path to a separate YAML/JSON file, which is read and inlined.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/task/scan.py#L115)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/task/scan.py#L115)
 
 ``` python
 @classmethod
@@ -1610,7 +1618,7 @@ Path or URL (e.g. `s3://...`) to a YAML or JSON file.
 
 Run the Inspect View server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_view/view.py#L24)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_view/view.py#L24)
 
 ``` python
 def view(
@@ -1663,7 +1671,7 @@ Allow a non-loopback bind without request authorization.
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/registry.py#L98)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/registry.py#L98)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any
@@ -1684,7 +1692,7 @@ Decorator for registering task sources.
 
 Mirrors `@task`: registers a function that returns a [TaskSource](../reference/inspect_ai.html.md#tasksource) so it can be referenced and loaded by name (e.g. `eval("file.py@my_source")` or `inspect eval file.py@my_source -T arg=value`) and parameterized.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1dc850d88589d81473e1ccce3ca904a1c7980c4f/src/inspect_ai/_eval/registry.py#L234)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/05322696a0f784ec399ef6abbafd3d2a250ea9cc/src/inspect_ai/_eval/registry.py#L234)
 
 ``` python
 def task_source(*args: Any, name: str | None = None, **attribs: Any) -> Any

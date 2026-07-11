@@ -67,7 +67,7 @@
 - [Parallelism](https://inspect.aisi.org.uk/parallelism.html.md): Running multiple tasks and models in parallel, sandbox concurrency, and writing parallel custom code.
 - [Handling Errors](https://inspect.aisi.org.uk/handling-errors.html.md): Techniques for dealing with runtime errors and recovering from crashes during evaluation.
 - [Setting Limits](https://inspect.aisi.org.uk/setting-limits.html.md): Setting time, message, token, and cost limits on evaluation tasks, samples, and agent execution.
-- [Control Channel](https://inspect.aisi.org.uk/control-channel.html.md): Observe and direct running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, concurrency limit retuning, log buffer control, and keep-alive.
+- [Control Channel](https://inspect.aisi.org.uk/control-channel.html.md): Observe and direct running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, launch-config retuning, log flushing, and keep-alive.
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md): The early stopping API for ending tasks early based on previously scored samples.
 - [Task Sources](https://inspect.aisi.org.uk/task-source.html.md): Generate an eval's tasks dynamically from code — a seed plus result-driven follow-ups — while the eval runs.
 - [Tracing](https://inspect.aisi.org.uk/tracing.html.md): Advanced execution tracing tools for diagnosing runtime issues.
