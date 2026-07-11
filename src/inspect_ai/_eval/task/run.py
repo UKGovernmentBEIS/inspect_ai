@@ -152,6 +152,7 @@ from inspect_ai.util._limit import (
     LimitExceededError,
     monitor_working_limit,
     record_sample_limit_data,
+    reset_sample_limit_data,
     token_limit_usage,
     turn_count,
 )
@@ -1113,6 +1114,11 @@ async def task_run_sample(
         # materialize sample+state lazily (deferred until semaphore acquired)
         sample, state = await create_sample_state(sample_uuid)
 
+        # reset at the top of the attempt (not just before the limit scopes
+        # open) so that an attempt failing during init doesn't log the prior
+        # attempt's snapshot
+        reset_sample_limit_data()
+
         # validate that we have sample_id (mostly for the typechecker)
         sample_id = sample.id
         if sample_id is None:
@@ -1220,7 +1226,10 @@ async def task_run_sample(
             epoch=state.epoch,
             message_limit=state.message_limit,
             token_limit=state.token_limit,
-            token_limit_type=state.token_limit_type,
+            # the metering type is only meaningful when a ceiling is configured
+            token_limit_type=state.token_limit_type
+            if state.token_limit is not None
+            else None,
             cost_limit=state.cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
@@ -1874,6 +1883,10 @@ def create_eval_sample(
         role_usage=sample_role_usage(),
         model_fallbacks=sample_model_fallbacks() or None,
         turn_count=turn_count(),
+        token_limit=state.token_limit,
+        token_limit_type=state.token_limit_type
+        if state.token_limit is not None
+        else None,
         token_limit_usage=token_limit_usage(),
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),

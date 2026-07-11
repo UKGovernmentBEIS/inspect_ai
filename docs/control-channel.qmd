@@ -64,16 +64,18 @@ On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting i
 $ inspect ctl sample list gpqa
 inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40 (3 running)
 
-sample  epoch  status     time   idle  tokens  messages
-------  -----  ---------  -----  ----  ------  --------
-14      1      running    12:40  0:03  48210   22
-17      1      running    8:12   6:51  31055   14
-21      1      running    0:45   0:01  2150    3
-1       1      completed  4:02         18021   9
+sample  epoch  status     time   idle  tokens  messages  turns
+------  -----  ---------  -----  ----  ------  --------  -----
+14      1      running    12:40  0:03  48210   22        11
+17      1      running    8:12   6:51  31055   14        7
+21      1      running    0:45   0:01  2150    3         1
+1       1      completed  4:02         18021   9         4
 ...
 ```
 
 The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. (Note that a single in-flight model request produces no events until it returns, so idle time also accumulates during one long model call.)
+
+The `turns` column counts top-level model generations (blank when unknown, e.g. for samples logged by older versions of Inspect). When any listed sample has a token limit configured, `limit usage` and `limit total` columns are also shown: the metered value for that limit — respecting its type (`all`, `output`, or a formula) — against the configured ceiling. The `--json` rows carry these as `turn_count`, `token_limit_usage`, `token_limit_total`, and `token_limit_type`.
 
 With `--json` the response is an `{as_of, samples}` envelope. Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — feed it the `as_of` from the prior response (rather than a locally minted timestamp) so nothing that changed mid-read is missed.
 

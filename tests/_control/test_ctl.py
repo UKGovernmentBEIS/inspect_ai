@@ -219,6 +219,24 @@ def test_turns_column_always_shown(
     assert "7" in row  # turn count rendered alongside messages
 
 
+def test_turns_column_blank_when_unknown(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # pending rows and samples logged before turn counting existed carry
+    # turn_count=None: render blank, not a misleading 0
+    samples = [
+        {**_sample(1, "completed", {}), "turn_count": 4},
+        _sample(2, "completed", {}),  # no turn_count key -> unknown
+    ]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    row1 = next(ln for ln in lines if ln.startswith("1 "))
+    row2 = next(ln for ln in lines if ln.startswith("2 "))
+    assert row1.split()[-1] == "4"
+    # the unknown row has an empty trailing turns cell (one fewer field)
+    assert len(row2.split()) == len(row1.split()) - 1
+
+
 def test_token_limit_columns_shown_when_configured(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

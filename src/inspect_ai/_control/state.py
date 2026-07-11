@@ -549,10 +549,8 @@ def _summary_from_eval_sample_summary(
         "message_count": summary.message_count,
         "turn_count": summary.turn_count,
         "token_limit_usage": summary.token_limit_usage,
-        # The on-disk summary carries metered usage but not the configured
-        # ceiling or metering type, so those are unavailable for terminal rows.
-        "token_limit_total": None,
-        "token_limit_type": None,
+        "token_limit_total": summary.token_limit,
+        "token_limit_type": summary.token_limit_type,
         # A terminal sample's last activity is its completion; `events` is a
         # live-only progress counter (the on-disk summary doesn't carry it).
         "last_activity_at": _iso_to_timestamp(summary.completed_at),

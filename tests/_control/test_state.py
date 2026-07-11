@@ -120,13 +120,24 @@ def test_terminal_summary_copies_turn_and_usage() -> None:
         target="t",
         completed=True,
         turn_count=4,
+        token_limit=5000,
+        token_limit_type="output",
         token_limit_usage=1234,
     )
     row = _summary_from_eval_sample_summary(summary)
     assert _TOKEN_TURN_KEYS <= row.keys()
     assert row["turn_count"] == 4
     assert row["token_limit_usage"] == 1234
-    # the on-disk summary carries metered usage but not the ceiling or type
+    assert row["token_limit_total"] == 5000
+    assert row["token_limit_type"] == "output"
+
+
+def test_terminal_summary_token_limit_none_when_unlimited() -> None:
+    # samples without a configured token limit (and pre-upgrade logs) carry
+    # None for the whole limit group
+    summary = EvalSampleSummary(id="s1", epoch=1, input="i", target="t", completed=True)
+    row = _summary_from_eval_sample_summary(summary)
+    assert row["token_limit_usage"] is None
     assert row["token_limit_total"] is None
     assert row["token_limit_type"] is None
 

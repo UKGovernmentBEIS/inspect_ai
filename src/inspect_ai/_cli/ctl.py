@@ -3241,11 +3241,14 @@ def _print_samples_table(
             row.append(str(s["retries"]) if s.get("retries") else "")
         if score_col is not None:
             row.append(_format_score((s.get("scores") or {}).get(score_col)))
+        # blank (not 0) when the turn count is unknown: pending rows and
+        # samples logged before turn counting existed carry None
+        turn_count = s.get("turn_count")
         cells = [
             _format_duration(s.get("total_time")),
             str(s.get("total_tokens", 0)),
             str(s.get("message_count") or 0),
-            str(s.get("turn_count") or 0),
+            str(turn_count) if turn_count is not None else "",
         ]
         if any_running:
             last = s.get("last_activity_at")

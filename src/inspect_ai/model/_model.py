@@ -1342,13 +1342,15 @@ class Model:
         # double-counting nested generations: model.compact() does not flow
         # through this path, and sub-agent/scorer generations are scoped by
         # their own turn_limit() contexts (or none).
-        record_turn()
-
-        # surface the running turn count on the active sample so the control
-        # channel can report it alongside message_count
         from inspect_ai.log._samples import set_active_sample_total_turns
 
-        set_active_sample_total_turns(turn_count() or 0)
+        # record_turn() raises when a turn limit is exceeded, but it records
+        # the tripping turn first -- push in a finally so the control channel
+        # sees the final count for a sample halted by its turn limit
+        try:
+            record_turn()
+        finally:
+            set_active_sample_total_turns(turn_count() or 0)
 
         # notify the adaptive controller of a clean success (no retries during
         # this logical request, AND not a cache hit since cache hits don't
@@ -2489,15 +2491,12 @@ def record_and_check_model_usage(
 
     record_model_usage(usage)
 
-    # compute total tokens and update active sample
+    # compute total tokens and update active sample (before check_token_limit()
+    # so the control channel sees the usage that tripped the limit)
     total_tokens = sample_total_tokens()
     set_active_sample_total_tokens(total_tokens)
-    check_token_limit()
-
-    # surface the sample-level token limit's metered usage (respects the
-    # limit's type -- all/output/formula) on the active sample so the control
-    # channel can report usage against the configured ceiling
     set_active_sample_token_limit_usage(token_limit_usage())
+    check_token_limit()
 
     # record cost to limit tree and check
     if total_cost is not None:

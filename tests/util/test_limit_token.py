@@ -234,6 +234,14 @@ def test_token_limit_usage_none_when_no_active_limit() -> None:
     assert token_limit_usage() is None
 
 
+def test_token_limit_usage_none_when_no_ceiling() -> None:
+    # an unlimited scope reports no usage: the value is only meaningful
+    # against a configured ceiling
+    with token_limit(None):
+        _consume_tokens(5)
+        assert token_limit_usage() is None
+
+
 def test_token_limit_usage_reports_all_metered_value() -> None:
     with token_limit(1000):
         _consume_tokens(42)
