@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import re
 from typing import TYPE_CHECKING, Any
 
 from rich.align import AlignMethod
@@ -37,38 +36,26 @@ def transcript_markdown(content: str, *, escape: bool = False) -> Markdown:
 
 
 def html_escape_markdown(content: str) -> str:
-    """Escape markdown lines that aren't in a code block."""
-    codeblock_pattern = re.compile("`{3,}")
-    current_codeblock = ""
-    escaped: list[str] = []
-    lines = content.splitlines()
-    for line in lines:
-        # A fence only counts at the start of the line (after indentation);
-        # backticks appearing mid-line — e.g. a "```" string literal inside a
-        # code block — must not be mistaken for a fence, otherwise content after
-        # the real fence is treated as code and left un-escaped (an HTML/XSS hole).
-        stripped = line.lstrip()
-        # look for matching end of codeblock
-        if current_codeblock:
-            if stripped.startswith(current_codeblock):
-                current_codeblock = ""
-                escaped.append(line)
-                continue
+    """Escape markdown lines that aren't in a code block.
 
-        # look for beginning of codeblock
-        match = codeblock_pattern.match(stripped)
-        if match:
-            current_codeblock = match[0]
-            escaped.append(line)
-            continue
+    Which lines count as "in a code block" is decided by the same CommonMark
+    tokenizer that rich uses to render the markdown, not by tracking fences
+    by hand. Hand-rolled fence tracking kept missing edge cases (fences
+    nested in list items, "closing" fences carrying an info string, fences
+    indented four or more spaces), and every miss re-opens the unescaped-HTML
+    hole this function exists to close.
+    """
+    from markdown_it import MarkdownIt
 
-        # escape if we are not in a codeblock
-        if current_codeblock:
-            escaped.append(line)
-        else:
-            escaped.append(html.escape(line, quote=False))
+    code_lines: set[int] = set()
+    for token in MarkdownIt("commonmark").parse(content):
+        if token.type in ("fence", "code_block") and token.map:
+            code_lines.update(range(token.map[0], token.map[1]))
 
-    return "\n".join(escaped)
+    return "\n".join(
+        line if i in code_lines else html.escape(line, quote=False)
+        for i, line in enumerate(content.splitlines())
+    )
 
 
 def set_transcript_markdown_options(markdown: Markdown) -> None:

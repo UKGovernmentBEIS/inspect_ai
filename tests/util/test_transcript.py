@@ -97,3 +97,32 @@ def test_html_escape_markdown_backticks_in_string_do_not_break_fence():
     result = html_escape_markdown(content)
     assert "&lt;b&gt;dangerous&lt;/b&gt;" in result
     assert "<b>dangerous</b>" not in result
+
+
+def test_html_escape_markdown_list_nested_fence():
+    # A fence opened inside a list item used to invert the fence state:
+    # the opener went undetected but the closing line re-opened a phantom
+    # block, leaving everything after the list unescaped.
+    content = "- ```python\n  x < 1\n  ```\nAfter the list: <script>alert(1)</script>"
+    result = html_escape_markdown(content)
+    assert "<script>" not in result
+    assert "&lt;script&gt;" in result
+
+
+def test_html_escape_markdown_info_string_is_not_a_closer():
+    # CommonMark closing fences may carry only trailing spaces, so ```python
+    # does not close an open block; the block stays open through the last
+    # line and nothing after it leaks out unescaped.
+    content = "```\n```python\ncode\n```\n<b>after</b>"
+    result = html_escape_markdown(content)
+    assert "<b>after</b>" not in result
+    assert "&lt;b&gt;after&lt;/b&gt;" in result
+
+
+def test_html_escape_markdown_indented_backticks_are_not_a_fence():
+    # Backticks indented four or more spaces are an indented code block, not
+    # a fence opener; the lines after it are ordinary text and must be escaped.
+    content = "    ```\nsome text\n<b>hidden</b>"
+    result = html_escape_markdown(content)
+    assert "<b>hidden</b>" not in result
+    assert "&lt;b&gt;hidden&lt;/b&gt;" in result
