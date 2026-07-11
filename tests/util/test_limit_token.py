@@ -21,6 +21,7 @@ from inspect_ai.util._limit import (
     suspend_token_limit,
     token_limit,
     token_limit_fields,
+    token_limit_usage,
 )
 
 
@@ -227,6 +228,39 @@ def test_can_get_usage_after_limit_error() -> None:
             _consume_tokens(15)
 
     assert limit.usage == 15
+
+
+def test_token_limit_usage_none_when_no_active_limit() -> None:
+    assert token_limit_usage() is None
+
+
+def test_token_limit_usage_reports_all_metered_value() -> None:
+    with token_limit(1000):
+        _consume_tokens(42)
+        assert token_limit_usage() == 42
+
+
+def test_token_limit_usage_reports_output_metered_value() -> None:
+    with token_limit(1000, type="output"):
+        _consume_usage(input_tokens=100, output_tokens=7)
+        # an "output" limit meters output tokens only
+        assert token_limit_usage() == 7
+
+
+def test_token_limit_usage_reports_formula_metered_value() -> None:
+    with token_limit(1000, type="input * 0.5 + output"):
+        _consume_usage(input_tokens=10, output_tokens=2)
+        # floor(10 * 0.5 + 2) == 7
+        assert token_limit_usage() == 7
+
+
+def test_token_limit_usage_reports_root_when_nested() -> None:
+    # usage reflects the outermost (sample-level) limit, not the inner scope
+    with token_limit(1000):
+        _consume_tokens(5)
+        with token_limit(1000):
+            _consume_tokens(3)
+            assert token_limit_usage() == 8
 
 
 async def test_can_get_remaining() -> None:

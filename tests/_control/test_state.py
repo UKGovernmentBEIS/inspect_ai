@@ -86,3 +86,80 @@ async def test_full_sample_from_missing_log_degrades_to_none(tmp_path) -> None:
         assert await _full_sample("e1", "1", 1) is None
     finally:
         clear_all_eval_states()
+
+
+# --- token-limit usage + turn count fields -----------------------------------
+#
+# The per-sample summary carries a metered token-limit usage/ceiling pair and a
+# turn count. Every builder (pending / terminal / running) must emit the same
+# keys so a `jq` consumer sees a stable shape across statuses; values are `None`
+# only where genuinely unavailable.
+
+_TOKEN_TURN_KEYS = {
+    "turn_count",
+    "token_limit_usage",
+    "token_limit_total",
+    "token_limit_type",
+}
+
+
+def test_pending_summary_carries_token_turn_keys() -> None:
+    from inspect_ai._control.state import _pending_summary
+
+    row = _pending_summary("s1", 1)
+    assert _TOKEN_TURN_KEYS <= row.keys()
+    # nothing is known for a not-yet-started sample
+    assert all(row[k] is None for k in _TOKEN_TURN_KEYS)
+
+
+def test_terminal_summary_copies_turn_and_usage() -> None:
+    summary = EvalSampleSummary(
+        id="s1",
+        epoch=1,
+        input="i",
+        target="t",
+        completed=True,
+        turn_count=4,
+        token_limit_usage=1234,
+    )
+    row = _summary_from_eval_sample_summary(summary)
+    assert _TOKEN_TURN_KEYS <= row.keys()
+    assert row["turn_count"] == 4
+    assert row["token_limit_usage"] == 1234
+    # the on-disk summary carries metered usage but not the ceiling or type
+    assert row["token_limit_total"] is None
+    assert row["token_limit_type"] is None
+
+
+def test_running_summary_reports_token_limit_and_turns(monkeypatch) -> None:
+    from unittest.mock import MagicMock
+
+    from inspect_ai._control.state import _sample_summaries_from_active
+
+    s = MagicMock()
+    s.eval_id = "e1"
+    s.completed = None
+    s.started = 100.0
+    s.sample.id = "s1"
+    s.epoch = 1
+    s.running_time = 5.0
+    s.total_tokens = 900
+    s.total_messages = 3
+    s.total_turns = 2
+    s.token_limit_usage = 42
+    s.token_limit = 5000
+    s.token_limit_type = "output"
+    s.transcript.history.last_event = None
+    s.transcript.history.event_count = 7
+    s.retries = 0
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [s])
+    rows = _sample_summaries_from_active("e1")
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["status"] == "running"
+    assert _TOKEN_TURN_KEYS <= row.keys()
+    assert row["turn_count"] == 2
+    assert row["token_limit_usage"] == 42
+    assert row["token_limit_total"] == 5000
+    assert row["token_limit_type"] == "output"

@@ -152,6 +152,8 @@ from inspect_ai.util._limit import (
     LimitExceededError,
     monitor_working_limit,
     record_sample_limit_data,
+    token_limit_usage,
+    turn_count,
 )
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import turn_limit as create_turn_limit
@@ -1218,6 +1220,7 @@ async def task_run_sample(
             epoch=state.epoch,
             message_limit=state.message_limit,
             token_limit=state.token_limit,
+            token_limit_type=state.token_limit_type,
             cost_limit=state.cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
@@ -1870,6 +1873,8 @@ def create_eval_sample(
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
         model_fallbacks=sample_model_fallbacks() or None,
+        turn_count=turn_count(),
+        token_limit_usage=token_limit_usage(),
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,

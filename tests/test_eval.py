@@ -35,6 +35,54 @@ def test_eval_epochs_sample_count():
     assert len(log.samples) == 6  # 2 samples * 3 epochs
 
 
+def test_eval_sample_records_turn_count_and_token_limit_usage():
+    from typing import Generator
+
+    from inspect_ai.model import get_model
+    from inspect_ai.model._model_output import ModelOutput, ModelUsage
+    from inspect_ai.solver import Generate, TaskState, solver
+    from inspect_ai.util._limit import TokenLimit
+
+    def repeat_forever(
+        output: ModelOutput,
+    ) -> Generator[ModelOutput, None, None]:
+        while True:
+            yield output
+
+    @solver
+    def generate_three_times():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            output = ModelOutput.from_content("mockllm/model", "hello")
+            output.usage = ModelUsage(input_tokens=10, output_tokens=5, total_tokens=15)
+            model = get_model("mockllm/model", custom_outputs=repeat_forever(output))
+            for _ in range(3):
+                state.output = await model.generate("hi")
+            return state
+
+        return solve
+
+    # an "output"-metered limit so token_limit_usage (metered output tokens)
+    # is distinguishable from total tokens
+    task = Task(
+        dataset=[Sample(input="s1")],
+        solver=generate_three_times(),
+        token_limit=TokenLimit(tokens=1000, type="output"),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+
+    # three top-level generate() calls -> three turns
+    assert sample.turn_count == 3
+    # output-metered usage is 3 turns * 5 output tokens (not the 45 total)
+    assert sample.token_limit_usage == 15
+    # the summary carries the same values
+    summary = sample.summary()
+    assert summary.turn_count == 3
+    assert summary.token_limit_usage == 15
+
+
 def _peak_model_concurrency(max_tasks: int | None) -> int:
     """Run one task against two models and return the peak concurrent models.
 

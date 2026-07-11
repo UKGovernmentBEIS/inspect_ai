@@ -3206,7 +3206,7 @@ def _print_samples_table(
 
     ``show_task`` adds a leading task column — the rendering for a listing
     that spans tasks (the ``--json`` rows carry ``task_id`` regardless).
-    Three more columns are conditional, shown only when relevant (keeping the
+    Several columns are conditional, shown only when relevant (keeping the
     common case uncluttered):
     - ``retries`` — when some sample was retried on error. Per-sample
       (sample-level ``retry_on_error``); blank for samples with none.
@@ -3216,11 +3216,16 @@ def _print_samples_table(
     - ``idle`` — when some sample is running: time since its last transcript
       event (``now - last_activity_at``). A high idle time on a long-running
       sample is the cheap "is it stalled?" cue. Blank for non-running rows.
+    - ``limit usage`` / ``limit total`` — when some sample has a token limit
+      configured. ``limit usage`` is the metered value for that limit
+      (respecting its type — ``all``/``output``/formula) and ``limit total``
+      the configured ceiling. Blank for rows without either.
     """
     any_retries = any((s.get("retries") or 0) > 0 for s in samples)
     scorers = sorted({name for s in samples for name in (s.get("scores") or {})})
     score_col = scorers[0] if len(scorers) == 1 else None
     any_running = any(s.get("status") == "running" for s in samples)
+    any_token_limit = any(s.get("token_limit_total") is not None for s in samples)
     now = datetime.now(timezone.utc).timestamp()
 
     rows: list[tuple[str, ...]] = []
@@ -3240,6 +3245,7 @@ def _print_samples_table(
             _format_duration(s.get("total_time")),
             str(s.get("total_tokens", 0)),
             str(s.get("message_count") or 0),
+            str(s.get("turn_count") or 0),
         ]
         if any_running:
             last = s.get("last_activity_at")
@@ -3249,6 +3255,11 @@ def _print_samples_table(
                 else ""
             )
             cells.insert(1, idle)  # after time, before tokens
+        if any_token_limit:
+            usage = s.get("token_limit_usage")
+            total = s.get("token_limit_total")
+            cells.append(str(usage) if usage is not None else "")
+            cells.append(str(total) if total is not None else "")
         row.extend(cells)
         rows.append(tuple(row))
 
@@ -3262,7 +3273,9 @@ def _print_samples_table(
     headers.append("time")
     if any_running:
         headers.append("idle")
-    headers.extend(["tokens", "messages"])
+    headers.extend(["tokens", "messages", "turns"])
+    if any_token_limit:
+        headers.extend(["limit usage", "limit total"])
     _render_table(tuple(headers), rows)
 
 

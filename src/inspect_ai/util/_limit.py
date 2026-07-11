@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generic,
     Iterator,
@@ -258,6 +259,54 @@ def record_sample_limit_data(message_usage: float) -> None:
 _sample_limit_data: ContextVar[SampleLimits | None] = ContextVar(
     "SampleLimitData", default=None
 )
+
+
+def _root_usage(tree: _Tree[Any]) -> int | None:
+    """Metered usage of the outermost (root) node of a limit tree.
+
+    Walks the live tree to its root. Returns `None` when the tree is empty.
+    Callers prefer the sample-limit snapshot (set once the sample's limit scopes
+    have closed) over this so the value survives after the `with` blocks pop.
+    """
+    node: Any = tree.get()
+    if node is None:
+        return None
+    while node.parent is not None:
+        node = node.parent
+    return int(node.usage)
+
+
+def token_limit_usage() -> int | None:
+    """Metered token usage for the current sample's token limit.
+
+    Returns the computed metered value for the sample-level token limit,
+    respecting the limit's `type` (`all` meters total tokens, `output` meters
+    output tokens, and a formula meters its floored result). Returns `None` when
+    there is no active token limit.
+
+    This is snapshot-aware: it reflects the live value while the sample is
+    running and the final value after the sample's limit scopes have closed.
+    """
+    data = _sample_limit_data.get()
+    if data is not None:
+        return int(data.token.usage)
+    return _root_usage(token_limit_tree)
+
+
+def turn_count() -> int | None:
+    """Turn count for the current sample.
+
+    Returns the number of turns recorded against the sample-level turn limit
+    (a turn being one top-level `generate()` call), or `None` when there is no
+    active turn limit.
+
+    This is snapshot-aware: it reflects the live value while the sample is
+    running and the final value after the sample's limit scopes have closed.
+    """
+    data = _sample_limit_data.get()
+    if data is not None:
+        return int(data.turn.usage)
+    return _root_usage(turn_limit_tree)
 
 
 _TOKEN_FORMULA_VARS = ("input", "output")

@@ -50,6 +50,7 @@ class ActiveSample:
         epoch: int,
         message_limit: int | None,
         token_limit: int | None,
+        token_limit_type: str = "all",
         cost_limit: float | None,
         time_limit: int | None,
         working_limit: int | None,
@@ -81,12 +82,15 @@ class ActiveSample:
         self.epoch = epoch
         self.message_limit = message_limit
         self.token_limit = token_limit
+        self.token_limit_type = token_limit_type
         self.cost_limit = cost_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
         self.fails_on_error = fails_on_error
         self.total_messages = 0
         self.total_tokens = 0
+        self.total_turns = 0
+        self.token_limit_usage: int | None = None
         self.total_cost: float | None = None
         self.fallback_models: list[str] = []
         self.transcript = transcript
@@ -260,6 +264,7 @@ async def active_sample(
     epoch: int,
     message_limit: int | None,
     token_limit: int | None,
+    token_limit_type: str = "all",
     cost_limit: float | None,
     time_limit: int | None,
     working_limit: int | None,
@@ -285,6 +290,7 @@ async def active_sample(
         epoch=epoch,
         message_limit=message_limit,
         token_limit=token_limit,
+        token_limit_type=token_limit_type,
         cost_limit=cost_limit,
         time_limit=time_limit,
         working_limit=working_limit,
@@ -354,6 +360,18 @@ def set_active_sample_total_tokens(total_tokens: int) -> None:
     active = sample_active()
     if active:
         active.total_tokens = total_tokens
+
+
+def set_active_sample_token_limit_usage(token_limit_usage: int | None) -> None:
+    active = sample_active()
+    if active:
+        active.token_limit_usage = token_limit_usage
+
+
+def set_active_sample_total_turns(total_turns: int) -> None:
+    active = sample_active()
+    if active:
+        active.total_turns = total_turns
 
 
 def set_active_sample_cost_limit(cost_limit: float | None) -> None:

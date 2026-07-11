@@ -3634,6 +3634,17 @@
             ],
             "title": "Timelines"
           },
+          "token_limit_usage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Usage"
+          },
           "total_time": {
             "anyOf": [
               {
@@ -3644,6 +3655,17 @@
               }
             ],
             "title": "Total Time"
+          },
+          "turn_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Count"
           },
           "uuid": {
             "anyOf": [
@@ -4063,6 +4085,17 @@
             ],
             "title": "Target"
           },
+          "token_limit_usage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Usage"
+          },
           "total_time": {
             "anyOf": [
               {
@@ -4073,6 +4106,17 @@
               }
             ],
             "title": "Total Time"
+          },
+          "turn_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Count"
           },
           "uuid": {
             "anyOf": [
