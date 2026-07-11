@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bedrock: Assistant text and reasoning are now preserved alongside tool calls in the same turn instead of being dropped. (#4457)
+
 ## 0.3.246 (10 July 2026)
 
 - Grok: Support for Grok 4.5 (model info database entry; accepts `reasoning_effort` with a documented default of `high`).

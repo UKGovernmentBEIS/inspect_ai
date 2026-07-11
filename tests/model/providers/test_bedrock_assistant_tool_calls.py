@@ -9,10 +9,6 @@ the model produced in the same turn. In multi-turn tool-calling evals this
 removed the model's interleaved reasoning from later-turn context. See #4457.
 """
 
-from __future__ import annotations
-
-import asyncio
-
 import pytest
 
 pytest.importorskip("aiobotocore")
@@ -28,13 +24,13 @@ def _tool_call(id: str, function: str) -> ToolCall:
     return ToolCall(id=id, function=function, arguments={})
 
 
-def test_assistant_text_preserved_alongside_tool_calls():
+async def test_assistant_text_preserved_alongside_tool_calls():
     message = ChatMessageAssistant(
         content="Let me check the directory, then create the temp dir.",
         tool_calls=[_tool_call("t1", "pwd"), _tool_call("t2", "ls")],
     )
 
-    result = asyncio.run(converse_chat_message(message))
+    result = await converse_chat_message(message)
 
     # A single assistant message carrying text + both toolUse blocks.
     assert result is not None
@@ -48,7 +44,7 @@ def test_assistant_text_preserved_alongside_tool_calls():
     assert blocks[0].text is not None
 
 
-def test_assistant_reasoning_preserved_alongside_tool_calls():
+async def test_assistant_reasoning_preserved_alongside_tool_calls():
     message = ChatMessageAssistant(
         content=[
             ContentReasoning(reasoning="I should list files first."),
@@ -58,7 +54,7 @@ def test_assistant_reasoning_preserved_alongside_tool_calls():
     )
 
     # emulate_reasoning=True mirrors the Claude-on-Bedrock path.
-    result = asyncio.run(converse_chat_message(message, emulate_reasoning=True))
+    result = await converse_chat_message(message, emulate_reasoning=True)
 
     assert result is not None and len(result) == 1
     blocks = result[0].content
@@ -67,13 +63,13 @@ def test_assistant_reasoning_preserved_alongside_tool_calls():
     assert [b.toolUse.name for b in blocks if b.toolUse is not None] == ["ls"]
 
 
-def test_assistant_tool_calls_without_content_unchanged():
+async def test_assistant_tool_calls_without_content_unchanged():
     message = ChatMessageAssistant(
         content="",
         tool_calls=[_tool_call("t1", "pwd")],
     )
 
-    result = asyncio.run(converse_chat_message(message))
+    result = await converse_chat_message(message)
 
     assert result is not None and len(result) == 1
     blocks = result[0].content
