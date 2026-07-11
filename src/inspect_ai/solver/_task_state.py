@@ -27,6 +27,7 @@ from inspect_ai.util._limit import (
     check_cost_limit,
     check_message_limit,
     check_token_limit,
+    token_limit_usage,
 )
 from inspect_ai.util._limit import cost_limit as create_cost_limit
 from inspect_ai.util._limit import message_limit as create_message_limit
@@ -346,12 +347,24 @@ class TaskState:
 
         Also checks whether the current token usage exceeds the new limit.
         """
+        from inspect_ai.log._samples import (
+            set_active_sample_token_limit,
+            set_active_sample_token_limit_type,
+            set_active_sample_token_limit_usage,
+        )
+
         self._token_limit.limit = tokens
-        check_token_limit()
 
-        from inspect_ai.log._samples import set_active_sample_token_limit
-
+        # push the full limit group (ceiling, type, metered usage) before the
+        # check so the control channel reflects the new ceiling even when the
+        # check trips; type and usage are reported only alongside a ceiling
         set_active_sample_token_limit(tokens)
+        set_active_sample_token_limit_type(
+            self._token_limit.type if tokens is not None else None
+        )
+        set_active_sample_token_limit_usage(token_limit_usage())
+
+        check_token_limit()
 
     @property
     def token_limit_type(self) -> str:

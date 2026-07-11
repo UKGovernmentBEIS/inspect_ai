@@ -292,6 +292,10 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "total_time": None,
         "total_tokens": 0,
         "message_count": None,
+        "turn_count": None,
+        "token_limit_usage": None,
+        "token_limit_total": None,
+        "token_limit_type": None,
         "last_activity_at": None,
         "events": None,
         "scores": {},
@@ -543,6 +547,10 @@ def _summary_from_eval_sample_summary(
         "total_time": summary.total_time,
         "total_tokens": sum(u.total_tokens for u in summary.model_usage.values()),
         "message_count": summary.message_count,
+        "turn_count": summary.turn_count,
+        "token_limit_usage": summary.token_limit_usage,
+        "token_limit_total": summary.token_limit,
+        "token_limit_type": summary.token_limit_type,
         # A terminal sample's last activity is its completion; `events` is a
         # live-only progress counter (the on-disk summary doesn't carry it).
         "last_activity_at": _iso_to_timestamp(summary.completed_at),
@@ -588,6 +596,10 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
                 "total_time": s.running_time,
                 "total_tokens": s.total_tokens,
                 "message_count": s.total_messages,
+                "turn_count": s.total_turns,
+                "token_limit_usage": s.token_limit_usage,
+                "token_limit_total": s.token_limit,
+                "token_limit_type": s.token_limit_type,
                 "last_activity_at": last_activity_at,
                 "events": s.transcript.history.event_count,
                 "scores": {},  # running samples aren't scored yet

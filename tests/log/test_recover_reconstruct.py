@@ -74,6 +74,10 @@ def _make_completed_summary() -> EvalSampleSummary:
                 model="claude-fable-5", fallback_model="claude-opus-4-8", count=2
             )
         ],
+        turn_count=3,
+        token_limit=1000,
+        token_limit_type="output",
+        token_limit_usage=15,
         started_at=datetime.now(timezone.utc).isoformat(),
         completed_at=datetime.now(timezone.utc).isoformat(),
     )
@@ -112,6 +116,10 @@ def test_reconstruct_completed_sample() -> None:
     assert "accuracy" in sample.scores
     assert sample.error is None
     assert sample.model_fallbacks == summary.model_fallbacks
+    assert sample.turn_count == 3
+    assert sample.token_limit == 1000
+    assert sample.token_limit_type == "output"
+    assert sample.token_limit_usage == 15
 
     # Messages extracted from ModelEvent
     assert len(sample.messages) == 2  # user + assistant
@@ -260,6 +268,11 @@ def test_reconstruct_summary_can_be_generated() -> None:
     assert new_summary.epoch == 1
     assert new_summary.scores is not None
     assert new_summary.message_count == 2
+    # limit fields survive the summary -> sample -> summary round trip
+    assert new_summary.turn_count == 3
+    assert new_summary.token_limit == 1000
+    assert new_summary.token_limit_type == "output"
+    assert new_summary.token_limit_usage == 15
 
 
 def test_reconstruct_with_summary_compaction() -> None:

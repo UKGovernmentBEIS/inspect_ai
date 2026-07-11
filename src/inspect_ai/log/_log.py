@@ -329,6 +329,18 @@ class EvalSampleSummary(BaseModel):
     message_count: int | None = Field(default=None)
     """Number of messages in the sample conversation."""
 
+    turn_count: int | None = Field(default=None)
+    """Number of turns (top-level model generations) in the sample."""
+
+    token_limit: int | None = Field(default=None)
+    """Configured token limit ceiling for the sample (None when no limit)."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
+
+    token_limit_usage: int | None = Field(default=None)
+    """Metered usage for the sample's token limit (respects the limit's type)."""
+
     @model_validator(mode="after")
     def thin_data(self) -> "EvalSampleSummary":
         # thin input
@@ -514,6 +526,18 @@ class EvalSample(BaseModel):
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
 
+    turn_count: int | None = Field(default=None)
+    """Number of turns (top-level model generations) in the sample."""
+
+    token_limit: int | None = Field(default=None)
+    """Configured token limit ceiling for the sample (None when no limit)."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
+
+    token_limit_usage: int | None = Field(default=None)
+    """Metered usage for the sample's token limit (respects the limit's type)."""
+
     def summary(self) -> EvalSampleSummary:
         """Summary of sample.
 
@@ -547,6 +571,10 @@ class EvalSample(BaseModel):
             retries=len(self.error_retries) if self.error_retries is not None else None,
             completed=True,
             message_count=len(self.messages),
+            turn_count=self.turn_count,
+            token_limit=self.token_limit,
+            token_limit_type=self.token_limit_type,
+            token_limit_usage=self.token_limit_usage,
         )
 
     # deprecated properties

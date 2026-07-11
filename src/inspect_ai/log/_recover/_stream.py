@@ -317,6 +317,14 @@ def _write_sample_streaming(
             _write_json_field(
                 stream, "model_fallbacks", summary.model_fallbacks, comma=True
             )
+            _write_json_field(stream, "turn_count", summary.turn_count, comma=True)
+            _write_json_field(stream, "token_limit", summary.token_limit, comma=True)
+            _write_json_field(
+                stream, "token_limit_type", summary.token_limit_type, comma=True
+            )
+            _write_json_field(
+                stream, "token_limit_usage", summary.token_limit_usage, comma=True
+            )
             _write_json_field(stream, "started_at", summary.started_at, comma=True)
             _write_json_field(stream, "completed_at", summary.completed_at, comma=True)
             _write_json_field(stream, "total_time", summary.total_time, comma=True)

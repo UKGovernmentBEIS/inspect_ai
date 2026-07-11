@@ -1,3 +1,9 @@
+## Unreleased
+
+- Eval: `EvalSample` and `EvalSampleSummary` now record `turn_count` and the sample's token limit (`token_limit`, `token_limit_type`, and metered `token_limit_usage`).
+- Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
+- Control Channel: `inspect ctl sample list` now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.
+
 ## 0.3.246 (10 July 2026)
 
 - Grok: Support for Grok 4.5 (model info database entry; accepts `reasoning_effort` with a documented default of `high`).

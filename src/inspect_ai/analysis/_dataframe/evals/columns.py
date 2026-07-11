@@ -111,6 +111,7 @@ EvalConfiguration: list[Column] = [
     EvalColumn("approval", path="eval.config.approval"),
     EvalColumn("message_limit", path="eval.config.message_limit"),
     EvalColumn("token_limit", path="eval.config.token_limit"),
+    EvalColumn("token_limit_type", path="eval.config.token_limit_type"),
     EvalColumn("turn_limit", path="eval.config.turn_limit"),
     EvalColumn("time_limit", path="eval.config.time_limit"),
     EvalColumn("working_limit", path="eval.config.working_limit"),
