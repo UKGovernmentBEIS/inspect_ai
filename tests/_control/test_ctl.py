@@ -208,6 +208,87 @@ def test_idle_column_hidden_when_nothing_running(
     assert "idle" not in capsys.readouterr().out.splitlines()[0]
 
 
+def test_turns_column_always_shown(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [{**_sample(1, "running", {}), "turn_count": 7}]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    assert "turns" in lines[0]
+    row = next(ln for ln in lines if ln.startswith("1 "))
+    assert "7" in row  # turn count rendered alongside messages
+
+
+def test_turns_column_blank_when_unknown(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # pending rows and samples logged before turn counting existed carry
+    # turn_count=None: render blank, not a misleading 0
+    samples = [
+        {**_sample(1, "completed", {}), "turn_count": 4},
+        _sample(2, "completed", {}),  # no turn_count key -> unknown
+    ]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    row1 = next(ln for ln in lines if ln.startswith("1 "))
+    row2 = next(ln for ln in lines if ln.startswith("2 "))
+    assert row1.split()[-1] == "4"
+    # the unknown row has an empty trailing turns cell (one fewer field)
+    assert len(row2.split()) == len(row1.split()) - 1
+
+
+def test_token_limit_columns_shown_when_configured(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [
+        {
+            **_sample(1, "running", {}),
+            "token_limit_usage": 1234,
+            "token_limit_total": 5678,
+            "token_limit_type": "output",
+        },
+        _sample(2, "running", {}),  # no configured limit → blank cells
+    ]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    assert "limit usage" in lines[0]
+    assert "limit total" in lines[0]
+    row1 = next(ln for ln in lines if ln.startswith("1 "))
+    assert "1234" in row1 and "5678" in row1
+    # the sample without a configured limit leaves both cells blank
+    row2 = next(ln for ln in lines if ln.startswith("2 "))
+    assert "5678" not in row2
+
+
+def test_token_limit_columns_shown_for_all_type(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # For an "all" limit we still report the pair (usage tracks total tokens),
+    # for consistency with computed limits.
+    samples = [
+        {
+            **_sample(1, "running", {}),
+            "token_limit_usage": 900,
+            "token_limit_total": 9999,
+            "token_limit_type": "all",
+        }
+    ]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    assert "limit usage" in lines[0] and "limit total" in lines[0]
+    row = next(ln for ln in lines if ln.startswith("1 "))
+    assert "9999" in row
+
+
+def test_token_limit_columns_hidden_when_no_limit(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [_sample(1, "running", {})]  # no token_limit_total anywhere
+    _print_samples_table(samples)
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "limit usage" not in header and "limit total" not in header
+
+
 def test_sorted_samples_orders_running_then_terminal_then_pending() -> None:
     from inspect_ai._control.state import _sorted_samples
 
