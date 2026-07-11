@@ -136,6 +136,33 @@ def test_signal_value_distinguishes_observed_and_unavailable_values() -> None:
         SignalValue(value=0.42, state="error", reason="extractor failed")
 
 
+def test_rolling_signal_marks_insufficient_history_as_unavailable() -> None:
+    cold_start = SignalValue(
+        value=None,
+        state="unavailable",
+        reason="insufficient_history",
+        derivation=SignalDerivation(method="rolling", window_size=20),
+    )
+
+    assert cold_start.model_dump(exclude_none=True) == {
+        "state": "unavailable",
+        "reason": "insufficient_history",
+        "derivation": {
+            "method": "rolling",
+            "window_size": 20,
+            "parameters": {},
+        },
+    }
+
+    with pytest.raises(ValidationError, match="must be None"):
+        SignalValue(
+            value=0.0,
+            state="unavailable",
+            reason="insufficient_history",
+            derivation=SignalDerivation(method="rolling", window_size=20),
+        )
+
+
 @pytest.mark.parametrize(
     "value",
     [float("nan"), float("inf"), float("-inf"), {"nested": [float("nan")]}],
