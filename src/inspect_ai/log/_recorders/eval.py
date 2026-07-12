@@ -991,7 +991,9 @@ async def _read_log(
                         reader, entry.filename, exclude_fields
                     )
                 else:
-                    data = await _read_member_json(reader, entry.filename)
+                    # pass the ZipEntry we already hold so read_member_fully
+                    # doesn't have to look it up again by name
+                    data = await _read_member_json(reader, entry)
                 samples.append(
                     EvalSample.model_validate(
                         data, context=get_deserializing_context()
@@ -1038,7 +1040,7 @@ def _read_log_from_bytes(
         return eval_log
 
 
-async def _read_member_json(reader: AsyncZipReader, member: str) -> Any:
+async def _read_member_json(reader: AsyncZipReader, member: str | ZipEntry) -> Any:
     return json.loads(await reader.read_member_fully(member))
 
 

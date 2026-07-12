@@ -33,12 +33,21 @@ def match_first(
 def match_all_groups(
     matches: tuple[str | Any, ...], target: Target, ignore_case: bool
 ) -> str | None:
+    matched_any = False
     for match in matches:
         if not isinstance(match, str):
             continue
 
+        matched_any = True
         if not match_target(match, target, ignore_case):
             return None
+
+    # If no capture group actually produced a string (e.g. every group is an
+    # unmatched optional group and is therefore `None`), then nothing was
+    # extracted from the output and we must not report a match. Returning
+    # `target.text` here would spuriously score the sample as correct.
+    if not matched_any:
+        return None
 
     return target.text
 

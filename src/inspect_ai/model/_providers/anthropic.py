@@ -628,15 +628,12 @@ class AnthropicAPI(ModelAPI):
         # Pad with fake paired items to satisfy API validation.
         messages = pad_tool_messages_for_token_counting(messages)
 
-        # Enable thinking mode only when messages contain thinking blocks.
-        # The API requires thinking mode to be enabled when messages contain
-        # thinking or redacted_thinking blocks, even for token counting.
-        thinking_config: dict[str, Any] = {}
-        if self.is_thinking_model() and _messages_contain_thinking(messages):
-            if self.is_claude_frontier():
-                thinking_config["thinking"] = {"type": "adaptive"}
-            else:
-                thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
+        # count_tokens applies the same thinking-block validation as generate
+        # (non-empty thinking; signatures on the latest assistant message must be
+        # unmodified). Compaction counts message subsets, so an older assistant
+        # turn can become the "latest" one and trip those checks — neutralize
+        # thinking to plain text before counting (see the helper's docstring).
+        messages = neutralize_thinking_for_token_counting(messages)
 
         # Beta opt-ins required for special content in the history. The API
         # validates content block types for token counting too, so replayed
@@ -657,7 +654,6 @@ class AnthropicAPI(ModelAPI):
             model=self.service_model_name(),
             messages=messages,
             **request_extra,
-            **thinking_config,
         )
         return response.input_tokens
 
@@ -951,6 +947,12 @@ class AnthropicAPI(ModelAPI):
             if max_tokens > 8192:
                 betas.append("output-128k-2025-02-19")
 
+        elif config.reasoning_effort == "none" and self._supports_disabling_thinking():
+            # Claude 4.7+ (incl. Sonnet 5) run adaptive thinking by default, so
+            # `reasoning_effort="none"` must explicitly disable it. Pre-4.7 models
+            # default to no thinking, so omitting the field already suffices.
+            params["thinking"] = {"type": "disabled"}
+
         # config that applies to all models
         if config.stop_seqs is not None:
             params["stop_sequences"] = config.stop_seqs
@@ -1067,6 +1069,19 @@ class AnthropicAPI(ModelAPI):
             or (self.effort_from_reasoning_effort(config) is not None)
         )
 
+    def _supports_disabling_thinking(self) -> bool:
+        """Whether `reasoning_effort="none"` should send `thinking:{type:"disabled"}`.
+
+        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5) run adaptive thinking by default and
+        accept `disabled` to turn it off. Fable/Mythos 5 also always think but
+        reject `disabled` (400), so they're excluded — their thinking can't be
+        turned off. Pre-4.7 models default to no thinking, so `"none"` is honored
+        by simply omitting the `thinking` field.
+        """
+        return self.is_claude_4_7_or_later() and not (
+            self.is_claude_5() and not self.is_claude_sonnet_5()
+        )
+
     def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
         """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
 
@@ -1134,6 +1149,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_4_opus(self) -> bool:
         return self.is_claude_4() and "opus" in self.model_family()
+
+    def is_claude_sonnet_5(self) -> bool:
+        return self.is_claude_5() and "sonnet" in self.model_family()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -1551,15 +1569,16 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
-            # Claude 5 (Fable/Mythos) does not support native computer use: the
-            # computer-use tool versions target Claude 4.x only (per Anthropic's
-            # computer-use docs and the Claude 5 launch feature list). Error
+            # Among Claude 5 models only Sonnet 5 is documented to support native
+            # computer use (the computer-use-2025-11-24 tool). Fable/Mythos 5 are
+            # not listed in Anthropic's computer-use docs, so error for those
             # rather than degrade to a non-native fallback tool.
-            if self.is_claude_5():
+            if self.is_claude_5() and not self.is_claude_sonnet_5():
                 raise PrerequisiteError(
                     f"Computer use is not supported by the model '{self.service_model_name()}'. "
-                    "Anthropic's native computer use requires a Claude 4.x model "
-                    "(e.g. claude-opus-4-8 or claude-sonnet-4-6)."
+                    "Anthropic's native computer use requires a Claude 4.x model or "
+                    "Claude Sonnet 5 (e.g. claude-opus-4-8, claude-sonnet-4-6, or "
+                    "claude-sonnet-5)."
                 )
             # Note: The dimensions passed here for display_width_px and display_height_px
             # should match the dimensions of screenshots returned by the tool. Those
@@ -1571,7 +1590,8 @@ class AnthropicAPI(ModelAPI):
             #
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
-            # computer_20251124 is supported by Claude 4.6 and Claude Opus 4.5
+            # computer_20251124 is supported by Claude Sonnet 5, Opus 4.6/4.7/4.8,
+            # Sonnet 4.6, and Opus 4.5
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -1791,6 +1811,7 @@ def _supports_code_interpreter(model_name: str) -> bool:
         (
             "claude-opus-4",
             "claude-sonnet-4",
+            "claude-sonnet-5",
             "claude-haiku-4",
             "claude-3-7-sonnet",
             "claude-3-5-haiku-latest",
@@ -4199,6 +4220,72 @@ def pad_tool_messages_for_token_counting(
                         result.append(
                             MessageParam(role="user", content=fake_tool_results)
                         )
+
+    return result
+
+
+def neutralize_thinking_for_token_counting(
+    messages: list[MessageParam],
+) -> list[MessageParam]:
+    """Replace thinking/redacted_thinking blocks with text for token counting.
+
+    Anthropic's count_tokens API validates thinking blocks the same way generate
+    does, and a block whose signature is empty or altered is rejected several
+    ways depending on its text: empty text + empty signature -> "each thinking
+    block must contain thinking"; non-empty text + empty signature -> "Invalid
+    signature in thinking block"; and any thinking/redacted_thinking block in the
+    *latest* assistant message must match the original response's signature or it
+    "cannot be modified". An empty signature is the common thread across the
+    reported failures.
+
+    None of these invariants hold here. Compaction counts message *subsets*, so
+    an older assistant turn becomes the "latest" one and gets the strict signature
+    check it escaped in generate; and those blocks may carry empty summary text
+    (Claude 4.7+ default `display: "omitted"`) or be reconstructed on a fresh
+    process where the verbatim-replay cache is empty (leaving an empty signature).
+    For a token estimate we don't need valid signatures — replacing every thinking
+    block with equivalent text keeps the approximate token weight while sidestepping
+    all of these validations. Redacted blocks carry no readable text to substitute,
+    so they're dropped.
+
+    This can slightly undercount reasoning tokens (a summary is shorter than the
+    reasoning it stands in for; a dropped redacted block counts as zero), which is
+    acceptable: compaction calibrates against generate's real `usage.input_tokens`
+    baseline and this priced count typically covers only the delta since that
+    baseline, and the compaction threshold has iteration headroom.
+
+    Mirrors `pad_tool_messages_for_token_counting`: a count-time-only fixup for
+    Anthropic's message-structure validation.
+    """
+    result: list[MessageParam] = []
+    for msg in messages:
+        content = msg.get("content")
+        if msg["role"] != "assistant" or not isinstance(content, list):
+            result.append(msg)
+            continue
+
+        neutralized: list[Any] = []
+        changed = False
+        for block in content:
+            block_type = block.get("type") if isinstance(block, dict) else None
+            if block_type == "thinking":
+                changed = True
+                thinking = block.get("thinking") or ""
+                if thinking:
+                    neutralized.append(TextBlockParam(type="text", text=thinking))
+            elif block_type == "redacted_thinking":
+                changed = True
+            else:
+                neutralized.append(block)
+
+        if not changed:
+            result.append(msg)
+            continue
+
+        # never emit an empty assistant message (the API rejects it)
+        if not neutralized:
+            neutralized = [TextBlockParam(type="text", text=NO_CONTENT)]
+        result.append(MessageParam(role="assistant", content=neutralized))
 
     return result
 

@@ -31,9 +31,10 @@ from inspect_ai._util.path import chdir
 from inspect_ai.dataset._dataset import Dataset
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
+from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
-from inspect_ai.model._model import Model, ModelName
+from inspect_ai.model._model import Model, ModelName, ensure_model_controller
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -62,7 +63,11 @@ from .task.run import (
     resolve_plan,
     task_run,
 )
-from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task_and_sample
+from .task.sandbox import (
+    TaskSandboxEnvironment,
+    ensure_sandbox_limiter,
+    resolve_sandbox_for_task_and_sample,
+)
 from .task.task_source import TaskSource
 from .task.util import slice_dataset, task_run_dir
 
@@ -161,6 +166,17 @@ async def eval_run(
             # Ensure sample ids are unique
             ensure_unique_ids(task.dataset)
 
+        # eagerly create each task model's adaptive-connections controller
+        # (normally created lazily on the first generate) so `ctl config` can
+        # observe and retune max_connections during run startup — the sandbox
+        # image pulls below can take minutes before any generate happens
+        if run_samples:
+            for resolved_task in resolved_tasks:
+                await ensure_model_controller(
+                    resolved_task.model,
+                    resolved_task.task.config.merge(GenerateConfigArgs(**kwargs)),
+                )
+
         # run startup pass for the sandbox environments these tasks need
         if run_samples and any(t.has_sandbox for t in resolved_tasks):
             await sandbox_manager.start(resolved_tasks)
@@ -220,11 +236,13 @@ async def eval_run(
                 else:
                     task.message_limit = task_eval_config.message_limit
 
-                # sample token limit
+                # sample token limit (limit and metering type travel as a unit)
                 if task_eval_config.token_limit is None:
                     task_eval_config.token_limit = task.token_limit
+                    task_eval_config.token_limit_type = task.token_limit_type
                 else:
                     task.token_limit = task_eval_config.token_limit
+                    task.token_limit_type = task_eval_config.token_limit_type
 
                 # sample turn limit
                 if task_eval_config.turn_limit is None:
@@ -450,9 +468,11 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     producing one) together with the ``CancelType`` it was cancelled with, so a
     caller managing retries can distinguish a retry/abort request from an
     ordinary error. ``can_retry`` is surfaced to the task (via ``TaskCancel``) so
-    it knows whether requesting a retry will be honoured. Re-raises (after
-    logging) the rare error that escapes a task — e.g. a failure during the final
-    log write.
+    it knows whether requesting a retry will be honoured. The rare error that
+    escapes a task — a failure to write the log itself (e.g. the ``log_start()``
+    header flush) — is converted into an errored :class:`EvalLog` so dispatchers
+    can retry the task rather than tearing down the run; it is re-raised only
+    when ``debug_errors`` is set.
     """
     result: EvalLog | None = None
     cancel_type: CancelType = None
@@ -485,12 +505,28 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
 
                 task_tg.start_soon(run)
     except Exception as ex:
-        # errors generally don't escape from tasks (the exception being if an
-        # error occurs during the final write of the log)
+        # errors generally don't escape from tasks -- the exception is a
+        # failure to write the log itself (e.g. the log_start() header flush,
+        # or the log_finish() of an already-errored task, when log storage is
+        # unreachable). propagating would tear down the entire run (and all
+        # sibling tasks) for one task's failed write, so record an errored
+        # EvalLog instead: dispatchers already re-queue errored tasks and
+        # eval_set() retries them once storage recovers.
+        if options.debug_errors:
+            raise
+        inner = inner_exception(ex)
         log.error(
-            f"Task '{options.task.name}' encountered an error during finalisation: {inner_exception(ex)}"
+            f"Task '{options.task.name}' encountered an error while writing its log: {inner}"
         )
-        raise
+        # location points at the log file the write was destined for — it may
+        # not exist (a failed log_start() header flush) or may hold a partial
+        # log (a failed error-status log_finish())
+        result = EvalLog(
+            status="error",
+            eval=options.logger.eval,
+            error=eval_error(inner, type(inner), inner, inner.__traceback__),
+            location=options.logger.location,
+        )
     return TaskRunResult(result, cancel_type)
 
 
@@ -932,6 +968,13 @@ class SandboxManager:
             for sandboxenv in sandboxenvs:
                 # find type
                 sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+
+                # pre-register the type's resizable concurrency limiter before
+                # task_init (image pulls/builds can take minutes) so a `ctl
+                # limits --max-sandboxes` issued during startup isn't dropped
+                await ensure_sandbox_limiter(
+                    sandboxenv_type, sandboxenv.sandbox.type, self._config.max_sandboxes
+                )
 
                 # run startup
                 task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
