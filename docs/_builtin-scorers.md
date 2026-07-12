@@ -20,6 +20,9 @@ Inspect includes both text matching scorers as well as model graded scorers. Bel
 `model_graded_fact()`
 :   Like `model_graded_qa()` but narrower: have another model assess whether the output contains the fact set out in `target`. Use it when the output is too complex to assess with `match()` or `pattern()`. See [Model Grading](model-graded.qmd).
 
+`claim_support()`
+:   Judge whether a claim is supported by the full transcript and tool trace. Use `decompose_claims=True` to split compound claims into atomic subclaims before verification.
+
 `exact()`
 :   Normalize the answer and target(s) and require the whole output to match one or more targets exactly, returning `CORRECT` on a match. Reports `mean` and `stderr` metrics.
 

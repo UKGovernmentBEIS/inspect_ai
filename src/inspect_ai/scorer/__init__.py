@@ -27,7 +27,7 @@ from ._metrics.grouped import grouped
 from ._metrics.mean import mean
 from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
 from ._metrics.std import bootstrap_stderr, std, stderr, var
-from ._model import model_graded_fact, model_graded_qa
+from ._model import claim_support, model_graded_fact, model_graded_qa
 from ._multi import multi_scorer
 from ._pattern import pattern
 from ._perplexity import perplexity
@@ -85,6 +85,7 @@ __all__ = [
     "median_score",
     "metric",
     "mode_score",
+    "claim_support",
     "model_graded_fact",
     "model_graded_qa",
     "multi_scorer",

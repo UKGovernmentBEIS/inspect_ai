@@ -18,7 +18,7 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
-from ._metric import Score
+from ._metric import CORRECT, INCORRECT, PARTIAL, Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._scorer import Scorer, scorer
@@ -81,6 +81,40 @@ def model_graded_fact(
         model=model,
         model_role=model_role,
     )
+
+
+@scorer(metrics=[accuracy(), stderr()])
+def claim_support(
+    template: str | None = None,
+    instructions: str | None = None,
+    grade_pattern: str | None = None,
+    include_history: bool | Callable[[TaskState], str] = True,
+    partial_credit: bool = False,
+    decompose_claims: bool = False,
+    model: list[str | Model] | str | Model | None = None,
+    model_role: str | None = "grader",
+) -> Scorer:
+    """Score whether an assistant claim is supported by the transcript.
+
+    Set ``decompose_claims=True`` to split compound claims into atomic
+    subclaims before verification, which is often a better fit for
+    evidence-grounded or security-trace style evaluations.
+    """
+    get_scorer = partial(
+        _claim_support_single,
+        template,
+        instructions,
+        grade_pattern,
+        include_history,
+        partial_credit,
+        decompose_claims,
+        model_role=model_role,
+    )
+    if model is None or not isinstance(model, list):
+        return get_scorer(model)
+
+    scorers = [get_scorer(model) for model in model]
+    return multi_scorer(scorers, "mode")
 
 
 @scorer(metrics=[accuracy(), stderr()])
@@ -242,6 +276,141 @@ def _model_graded_qa_single(
     return score
 
 
+@scorer(metrics=[accuracy(), stderr()])
+def _claim_support_single(
+    template: str | None = None,
+    instructions: str | None = None,
+    grade_pattern: str | None = None,
+    include_history: bool | Callable[[TaskState], str] = True,
+    partial_credit: bool = False,
+    decompose_claims: bool = False,
+    model: str | Model | None = None,
+    model_role: str | None = "grader",
+) -> Scorer:
+    # returns a scorer that judges whether the claim is supported by the transcript
+
+    template = template if template else DEFAULT_CLAIM_SUPPORT_TEMPLATE
+    grading_template = resource(template)
+    instructions = (
+        instructions if instructions else default_instructions(partial_credit)
+    )
+
+    async def score(state: TaskState, target: Target) -> Score:
+        nonlocal model
+        if model is not None:
+            model = model if isinstance(model, Model) else get_model(model)
+        elif model_role is not None:
+            model = get_model(role=model_role)
+        else:
+            model = get_model()
+
+        metadata = omit(
+            state.metadata, ["question", "answer", "criterion", "instructions"]
+        )
+
+        if include_history is True:
+            question = chat_history(state)
+        elif callable(include_history):
+            question = include_history(state)
+        else:
+            question = state.input_text
+
+        criterion = target.text if target.text else DEFAULT_CLAIM_SUPPORT_CRITERION
+
+        if decompose_claims:
+            criterion = (
+                target.text
+                if target.text
+                else DEFAULT_CLAIM_ATOMIC_CLAIM_CRITERION
+            )
+            atomic_claims = await decompose_claims_for_verification(
+                model=model,
+                claim=state.output.completion,
+            )
+            verdicts: list[str] = []
+            explanation_parts: list[str] = []
+            grading: list[ChatMessage] = []
+
+            for atomic_claim in atomic_claims:
+                scoring_prompt = model_scoring_prompt(
+                    template=grading_template,
+                    question=question,
+                    output=ModelOutput.from_content(
+                        model=model.model_name, content=atomic_claim
+                    ),
+                    criterion=criterion,
+                    instructions=instructions,
+                    metadata=metadata,
+                )
+                result = await model.generate([scoring_prompt])
+                grading.extend([scoring_prompt, result.message])
+                match = re.search(
+                    grade_pattern or DEFAULT_GRADE_PATTERN, result.completion
+                )
+                if match:
+                    value = match.group(1)
+                    if grade_pattern is None:
+                        value = value.upper()
+                else:
+                    value = INCORRECT
+                verdicts.append(value)
+                explanation_parts.append(f"{atomic_claim} => {value}")
+
+            value = aggregate_atomic_verdicts(verdicts)
+            return Score(
+                value=value,
+                answer=state.output.completion,
+                explanation="\n".join(explanation_parts),
+                metadata=dict(
+                    grading=grading,
+                    atomic_claims=atomic_claims,
+                    atomic_verdicts=verdicts,
+                ),
+            )
+
+        scoring_prompt = model_scoring_prompt(
+            template=grading_template,
+            question=question,
+            output=state.output,
+            criterion=criterion,
+            instructions=instructions,
+            metadata=metadata,
+        )
+
+        result = await model.generate([scoring_prompt])
+        match = re.search(grade_pattern or DEFAULT_GRADE_PATTERN, result.completion)
+        if match:
+            value = match.group(1)
+            if grade_pattern is None:
+                value = value.upper()
+            return Score(
+                value=value,
+                answer=state.output.completion,
+                explanation=result.completion,
+                metadata=dict(
+                    grading=[
+                        scoring_prompt,
+                        result.message,
+                    ]
+                ),
+            )
+        else:
+            return Score(
+                value=INCORRECT,
+                answer=state.output.completion,
+                explanation="Grade not found in model output: "
+                + f"{result.completion}",
+                metadata=dict(
+                    grading=[
+                        scoring_prompt,
+                        result.message,
+                    ]
+                ),
+            )
+
+    return score
+
+
 # these templates are based on the openai closedqa templates here:
 # https://github.com/openai/evals/blob/main/evals/registry/modelgraded/closedqa.yaml
 DEFAULT_MODEL_GRADED_QA_TEMPLATE = """
@@ -283,6 +452,62 @@ Does the submission contain the content in the expert answer?
 """
 
 
+DEFAULT_CLAIM_SUPPORT_TEMPLATE = """
+You are assessing whether a submitted claim is supported by a transcript of a
+task. Here is the data:
+
+[BEGIN DATA]
+************
+[Transcript]: {question}
+************
+[Claim]: {answer}
+************
+[Support criterion]: {criterion}
+************
+[END DATA]
+
+Does the transcript and the recorded tool activity support the claim?
+
+{instructions}
+"""
+
+
+DEFAULT_CLAIM_DECOMPOSITION_TEMPLATE = """
+You are decomposing a claim into atomic subclaims for verification against a
+transcript. Here is the data:
+
+[BEGIN DATA]
+************
+[Claim]: {question}
+************
+[END DATA]
+
+Split the claim into the smallest self-contained claims that can each be
+verified independently. Return one claim per line. Do not add bullets, numbers,
+or any extra commentary.
+
+{instructions}
+"""
+
+
+DEFAULT_CLAIM_SUPPORT_CRITERION = """
+Use only evidence that appears in the transcript and tool events.
+If the transcript clearly supports the claim, grade C.
+If the transcript partially supports the claim or leaves some parts unproven,
+grade P.
+If the transcript contradicts or does not support the claim, grade I.
+"""
+
+
+DEFAULT_CLAIM_ATOMIC_CLAIM_CRITERION = """
+Use only evidence that appears in the transcript and tool events.
+Judge this atomic claim independently.
+If the transcript clearly supports the atomic claim, grade C.
+If the transcript leaves the atomic claim unproven, grade P.
+If the transcript contradicts the atomic claim, grade I.
+"""
+
+
 def default_instructions(partial_credit: bool) -> str:
     partial_letter = "P" if partial_credit else ""
     partial_prompt = '"P" for partially correct answers,' if partial_credit else ""
@@ -293,6 +518,46 @@ For example, after reviewing a correct answer you might write 'GRADE: C' or afte
 
 First, write out in a step by step manner your reasoning about the criterion to be sure that your conclusion is correct. Avoid simply stating the correct answers at the outset. Then, end with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER is one of C{partial_letter}I.
 """
+
+
+def aggregate_atomic_verdicts(verdicts: list[str]) -> str:
+    if not verdicts:
+        return INCORRECT
+    if all(verdict == CORRECT for verdict in verdicts):
+        return CORRECT
+    if any(verdict == PARTIAL for verdict in verdicts):
+        return PARTIAL
+    if any(verdict == CORRECT for verdict in verdicts):
+        return PARTIAL
+    return INCORRECT
+
+
+async def decompose_claims_for_verification(
+    *,
+    model: Model,
+    claim: str,
+) -> list[str]:
+    prompt = ChatMessageUser(
+        content=DEFAULT_CLAIM_DECOMPOSITION_TEMPLATE.format(
+            question=neutralize_structural_delimiters(claim),
+            instructions="",
+        )
+    )
+    result = await model.generate([prompt])
+    claims = parse_atomic_claims(result.completion)
+    return claims or [claim]
+
+
+def parse_atomic_claims(text: str) -> list[str]:
+    claims: list[str] = []
+    for line in text.splitlines():
+        claim = line.strip()
+        if not claim:
+            continue
+        claim = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", claim)
+        if claim:
+            claims.append(claim)
+    return claims
 
 
 # Whitespace plus zero-width / formatting marks that can appear around a
