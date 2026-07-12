@@ -15,10 +15,12 @@ description: Miscellaneous utility functions.
 ## Limits
 
 ### message_limit
-### token_limit
+### turn_limit
 ### cost_limit
 ### time_limit
 ### working_limit
+### token_limit
+### TokenLimit
 ### apply_limits
 ### sample_limits
 ### SampleLimits
@@ -63,6 +65,7 @@ description: Miscellaneous utility functions.
 ### SandboxConnection
 ### sandboxenv
 ### sandbox_service
+### override_sandbox_output_limit
 ### ExecRemoteProcess
 ### ExecRemoteStreamingOptions
 ### ExecRemoteAwaitableOptions

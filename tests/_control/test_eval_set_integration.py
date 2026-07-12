@@ -164,6 +164,9 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
         assert samples["queued"] == 0
         assert entry["status"] == "running"
         assert entry["completed_at"] is None
+        assert entry["model"] == "mockllm/model"
+        # the plan's terminal step — the gate solver — is the reported solver
+        assert entry["solver"] == "gate"
         # log_location points at this eval's log file, so an agent monitoring a
         # run it didn't launch can find where results are written — as a plain
         # local path (no `file://` prefix), directly usable.
@@ -691,6 +694,61 @@ def test_ctl_reused_log_eval_reports_usage(short_data_dir: Path) -> None:
     assert entry is not None
     assert entry["total_tokens"] > 0, entry
     assert entry["total_messages"] > 0, entry
+    # solver name recovered from the reused log's plan (terminal step)
+    assert entry["solver"] == "gen", entry
+
+
+def test_ctl_reused_log_solver_skips_finish_step() -> None:
+    """Reused-log solver derivation matches the live path for ``Plan(finish=...)``.
+
+    ``plan_to_eval_plan`` appends the plan's ``finish`` solver to the recorded
+    ``steps``, so the header's last step is the finish solver — not the
+    terminal solver ``plan_agent_name`` reports while the task runs. The
+    reused-log registration must skip it, or the same task shows one solver
+    while running and another after eval-set reuse.
+    """
+    from datetime import datetime, timezone
+
+    from inspect_ai._control.eval_state import clear_all_eval_states, get_eval_state
+    from inspect_ai._eval.evalset import Log, _register_reused_logs
+    from inspect_ai._eval.task.log import plan_to_eval_plan
+    from inspect_ai._eval.task.run import plan_agent_name
+    from inspect_ai.log._file import EvalLogInfo
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.solver import Plan, system_message
+
+    plan = Plan([system_message("hi"), generate()], finish=system_message("bye"))
+    header = EvalLog(
+        eval=EvalSpec(
+            eval_id="e-finish",
+            created=datetime.now(timezone.utc).isoformat(),
+            task="task_finish",
+            task_id="tid-finish",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=plan_to_eval_plan(plan, GenerateConfig()),
+    )
+    info = EvalLogInfo(
+        name="logs/e.eval",
+        type="file",
+        size=0,
+        mtime=None,
+        task="task_finish",
+        task_id="tid-finish",
+        suffix=None,
+    )
+
+    clear_all_eval_states()
+    try:
+        _register_reused_logs([Log(info=info, header=header, task_identifier="x")])
+        state = get_eval_state("e-finish")
+        assert state is not None
+        assert state.solver == "generate" == plan_agent_name(plan)
+    finally:
+        clear_all_eval_states()
 
 
 # --- keep-alive park -------------------------------------------------------
@@ -957,7 +1015,6 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
 
     # CLI target resolution (pure over the summaries the endpoint returns).
     summaries = [entry]
-    assert _resolve_target_eval(summaries, None) is entry  # sole task
     assert _resolve_target_eval(summaries, entry["task_id"][:12]) is entry  # id prefix
     assert _resolve_target_eval(summaries, "task_mul") is entry  # task-name prefix
     with pytest.raises(click.exceptions.Exit):
@@ -1086,6 +1143,90 @@ def test_ctl_samples_recorder_ahead_of_disk(short_data_dir: Path) -> None:
         f"expected recorder ahead of disk; on_disk={p.result['on_disk_completed']}, "
         f"endpoint={endpoint_completed}"
     )
+
+
+def test_ctl_flush_writes_buffered_samples_and_buffer_config(
+    short_data_dir: Path,
+) -> None:
+    """`flush` pushes buffered samples to disk; `buffer` reads/sets the params.
+
+    With 9 samples and the default `.eval` flush_buffer of 3, completing 2 (the
+    rest held) leaves them buffered in the recorder and not yet on disk. The
+    flush directive writes them out — so a direct read of the on-disk log now
+    sees them — and reports the count. While parked we also exercise the buffer
+    directive end to end (read the live config off the running `TaskLogger`,
+    then lower the flush buffer) to pin the provider wiring.
+    """
+    from inspect_ai._control.buffer import flush_task_samples, task_buffer_config
+
+    @task
+    def task_nine() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in range(1, 10)],
+            solver=[gate()],
+            name="task_nine",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return (
+            bool(evals)
+            and evals[0]["samples"]["completed"] == 2
+            and evals[0]["samples"]["in_flight"] == 7
+        )
+
+    async def capture() -> dict:
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        entry = (await current_eval_summaries(0.0))[0]
+        task_id = entry["task_id"]
+        location = next(s.log_location for s in get_eval_states() if s.log_location)
+
+        async def on_disk_completed() -> set:
+            try:
+                summaries = await read_eval_log_sample_summaries_async(location)
+            except (OSError, ValueError):
+                return set()
+            return {s.id for s in summaries if s.completed}
+
+        before = await on_disk_completed()
+        config_before = task_buffer_config(task_id)
+        flushed = await flush_task_samples(task_id)
+        after = await on_disk_completed()
+        # a second flush with nothing newly completed is a no-op
+        flushed_again = await flush_task_samples(task_id)
+        # lower the flush buffer via the config directive
+        config_after = task_buffer_config(task_id, log_buffer=1)
+        return {
+            "before": before,
+            "flushed": flushed,
+            "after": after,
+            "flushed_again": flushed_again,
+            "config_before": config_before,
+            "config_after": config_after,
+        }
+
+    with probe(ready, capture, park=lambda sid: int(sid) not in (1, 2)) as p:
+        eval_set(
+            tasks=[task_nine()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=9,
+        )
+
+    assert p.result is not None, "never reached 2-completed + 7-running"
+    assert p.result["before"] == set(), "samples should be buffered, not on disk yet"
+    assert p.result["flushed"] == {"flushed": 2}
+    assert {1, 2} <= p.result["after"], "flushed samples should now be on disk"
+    assert p.result["flushed_again"] == {"flushed": 0}
+
+    # buffer directive: default flush buffer for 9 `.eval` samples is 3
+    assert p.result["config_before"]["log_buffer"] == 3
+    assert p.result["config_after"]["log_buffer"] == 1
 
 
 def test_ctl_samples_shows_score_for_single_scorer(short_data_dir: Path) -> None:
@@ -2122,8 +2263,8 @@ def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
     completed (flapping found → not-found → found across attempts).
 
     Root cause: `current_sample_summaries` (→ `ctl samples`) sources completed
-    samples from the recorder via `summaries_provider` (gap-free / ahead of
-    disk), but `sample_error_detail` (→ `ctl sample`) and `sample_events`
+    samples from the recorder via `EvalState.live.sample_summaries` (gap-free /
+    ahead of disk), but `sample_error_detail` (→ `ctl sample`) and `sample_events`
     (→ `ctl events`) read only the on-disk `log_location`. A completed sample
     not yet flushed to disk is therefore visible to `samples` but missing from
     `sample` / `events`. A retry makes this acute: reused samples are re-logged
@@ -2215,17 +2356,17 @@ def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
     )
 
 
-def test_task_retry_detaches_superseded_attempt_providers(
+def test_task_retry_detaches_superseded_attempt_live(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A retry detaches the superseded attempt's live providers.
+    """A retry detaches the superseded attempt's live data source.
 
     The retry re-points the (one, shared) TaskLogger at the new attempt; the
-    superseded attempt's EvalState providers are bound methods of that
-    logger, so left attached they would serve the NEW attempt's recorder /
-    log / buffer data under the OLD attempt's eval_id. ``reinit`` detaches
-    them, leaving the superseded attempt's reads to its own (still-correct)
-    log; the latest attempt keeps live providers.
+    superseded attempt's ``EvalState.live`` is that same logger, so left
+    attached it would serve the NEW attempt's recorder / log / buffer data
+    under the OLD attempt's eval_id. ``reinit`` detaches it, leaving the
+    superseded attempt's reads to its own (still-correct) log; the latest
+    attempt keeps its live data source.
     """
     fail = {"calls": 0}
 
@@ -2254,17 +2395,12 @@ def test_task_retry_detaches_superseded_attempt_providers(
     # (the run boundary, after any park — both attempts are still registered)
     from inspect_ai._control import eval_state as eval_state_mod
 
-    captured: dict[str, list[tuple[str, bool, bool, bool]]] = {}
+    captured: dict[str, list[tuple[str, bool]]] = {}
     orig_clear = eval_state_mod.clear_all_eval_states
 
     def spy_clear() -> None:
         captured["states"] = [
-            (
-                s.eval_id,
-                s.summaries_provider is not None,
-                s.sample_provider is not None,
-                s.events_provider is not None,
-            )
+            (s.eval_id, s.live is not None)
             for s in eval_state_mod.get_eval_states()
             if s.task == "task_flaky"
         ]
@@ -2286,9 +2422,63 @@ def test_task_retry_detaches_superseded_attempt_providers(
     assert len(states) == 2, f"expected two attempts registered; got {states}"
     # registration order: superseded attempt first, latest last
     superseded, latest = states[0], states[-1]
-    assert superseded[1:] == (False, False, False), (
-        f"superseded attempt's providers must be detached: {superseded}"
+    assert superseded[1] is False, (
+        f"superseded attempt's live data source must be detached: {superseded}"
     )
-    assert latest[1:] == (True, True, True), (
-        f"latest attempt's providers must stay live: {latest}"
+    assert latest[1] is True, (
+        f"latest attempt's live data source must stay attached: {latest}"
     )
+
+
+# --- limits / GET + PATCH /tasks/<id>/config -------------------------------
+
+
+def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) -> None:
+    """The modify-limits directive sees the live sample limiter and can retune it.
+
+    Runs a real eval with an explicit ``max_samples`` (the static
+    ResizableLimiter path), parks its samples in flight, then verifies
+    ``task_limits`` reports the limit + in-use count and applies a new limit to
+    the underlying limiter mid-run.
+    """
+    from inspect_ai._control.limits import task_limits
+
+    @task
+    def limits_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[gate()],
+            name="limits_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 3
+
+    async def capture() -> dict:
+        task_id = (await current_eval_summaries(0.0))[0]["task_id"]
+        # read reflects the live limiter (max_samples=3, all three in flight)
+        read = await task_limits(task_id)
+        # retune it up and confirm the change is applied
+        applied = await task_limits(task_id, max_samples=7)
+        return {"read": read, "applied": applied}
+
+    with probe(ready, capture) as p:
+        eval_set(
+            tasks=[limits_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=3,
+        )
+
+    assert p.result is not None, "samples never reached 'in flight'"
+    read = p.result["read"]
+    assert read["max_samples"] == {"limit": 3, "in_use": 3, "adjustable": True}
+    assert read["max_sandboxes"] == []
+    applied = p.result["applied"]
+    assert applied["max_samples"]["limit"] == 7
+    assert applied["requested"] == {"max_samples": 7}

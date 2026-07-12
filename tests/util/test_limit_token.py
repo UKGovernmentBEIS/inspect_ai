@@ -13,10 +13,15 @@ from inspect_ai.solver._solver import Generate, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._limit import (
     LimitExceededError,
+    TokenLimit,
     check_token_limit,
+    parse_token_limit,
     record_model_usage,
+    resolve_token_limit,
     suspend_token_limit,
     token_limit,
+    token_limit_fields,
+    token_limit_usage,
 )
 
 
@@ -223,6 +228,47 @@ def test_can_get_usage_after_limit_error() -> None:
             _consume_tokens(15)
 
     assert limit.usage == 15
+
+
+def test_token_limit_usage_none_when_no_active_limit() -> None:
+    assert token_limit_usage() is None
+
+
+def test_token_limit_usage_none_when_no_ceiling() -> None:
+    # an unlimited scope reports no usage: the value is only meaningful
+    # against a configured ceiling
+    with token_limit(None):
+        _consume_tokens(5)
+        assert token_limit_usage() is None
+
+
+def test_token_limit_usage_reports_all_metered_value() -> None:
+    with token_limit(1000):
+        _consume_tokens(42)
+        assert token_limit_usage() == 42
+
+
+def test_token_limit_usage_reports_output_metered_value() -> None:
+    with token_limit(1000, type="output"):
+        _consume_usage(input_tokens=100, output_tokens=7)
+        # an "output" limit meters output tokens only
+        assert token_limit_usage() == 7
+
+
+def test_token_limit_usage_reports_formula_metered_value() -> None:
+    with token_limit(1000, type="input * 0.5 + output"):
+        _consume_usage(input_tokens=10, output_tokens=2)
+        # floor(10 * 0.5 + 2) == 7
+        assert token_limit_usage() == 7
+
+
+def test_token_limit_usage_reports_root_when_nested() -> None:
+    # usage reflects the outermost (sample-level) limit, not the inner scope
+    with token_limit(1000):
+        _consume_tokens(5)
+        with token_limit(1000):
+            _consume_tokens(3)
+            assert token_limit_usage() == 8
 
 
 async def test_can_get_remaining() -> None:
@@ -432,6 +478,233 @@ async def test_suspend_token_limit_is_per_task() -> None:
     assert outer.usage == 5
 
 
+def test_output_type_meters_only_output_tokens() -> None:
+    with token_limit(10, type="output"):
+        # input tokens do not count against an output-type limit
+        _consume_usage(input_tokens=100, output_tokens=5)
+
+        with pytest.raises(LimitExceededError) as exc_info:
+            _consume_usage(input_tokens=0, output_tokens=6)
+
+    assert exc_info.value.type == "token"
+    assert exc_info.value.value == 11
+    assert exc_info.value.limit == 10
+    assert exc_info.value.message.startswith("Output token limit exceeded")
+
+
+def test_output_type_usage_and_remaining() -> None:
+    with token_limit(10, type="output") as limit:
+        _consume_usage(input_tokens=100, output_tokens=4)
+
+        assert limit.usage == 4
+        assert limit.remaining == 6
+
+
+def test_mixed_type_stacking() -> None:
+    with token_limit(100) as outer:
+        with token_limit(10, type="output") as inner:
+            # 55 total tokens, 5 output tokens
+            _consume_usage(input_tokens=50, output_tokens=5)
+
+            assert outer.usage == 55
+            assert inner.usage == 5
+
+            with pytest.raises(LimitExceededError) as exc_info:
+                # inner output limit (10) trips before outer total limit (100)
+                _consume_usage(input_tokens=0, output_tokens=6)
+
+    assert exc_info.value.source is inner
+
+
+def test_mixed_type_stacking_outer_output_limit() -> None:
+    with token_limit(10, type="output") as outer:
+        with token_limit(100) as inner:
+            with pytest.raises(LimitExceededError) as exc_info:
+                # 111 total tokens exceeds inner (100); 11 output tokens exceeds
+                # outer (10); the outermost limit raises.
+                _consume_usage(input_tokens=100, output_tokens=11)
+
+    assert exc_info.value.source is outer
+    assert inner.usage == 111
+
+
+def test_token_limit_accepts_token_limit_spec() -> None:
+    with token_limit(TokenLimit(tokens=10, type="output")) as limit:
+        assert limit.limit == 10
+        assert limit.type == "output"
+
+        with pytest.raises(LimitExceededError):
+            _consume_usage(input_tokens=0, output_tokens=11)
+
+
+def test_token_limit_rejects_spec_and_type() -> None:
+    with pytest.raises(ValueError):
+        token_limit(TokenLimit(tokens=10, type="output"), type="output")
+
+
+def test_token_limit_rejects_invalid_type() -> None:
+    with pytest.raises(ValueError):
+        token_limit(10, type="outputs")
+
+
+def test_formula_meters_input_and_output() -> None:
+    with token_limit(10, type="input + output") as limit:
+        _consume_usage(input_tokens=4, output_tokens=3)
+
+        assert limit.usage == 7
+
+        with pytest.raises(LimitExceededError) as exc_info:
+            _consume_usage(input_tokens=0, output_tokens=4)
+
+    assert exc_info.value.type == "token"
+    assert exc_info.value.value == 11
+    assert "input + output" in exc_info.value.message
+
+
+def test_formula_floors_result() -> None:
+    with token_limit(100, type="input * 0.1") as limit:
+        # 25 * 0.1 = 2.5 -> floored to 2
+        _consume_usage(input_tokens=25, output_tokens=0)
+        assert limit.usage == 2
+
+
+def test_formula_input_includes_cache_tokens() -> None:
+    with token_limit(1000, type="input") as limit:
+        record_model_usage(
+            ModelUsage(
+                input_tokens=50,
+                output_tokens=5,
+                total_tokens=55,
+                input_tokens_cache_read=20,
+                input_tokens_cache_write=10,
+            )
+        )
+        check_token_limit()
+        # input = 50 + 20 + 10 = 80 (true prompt size, output excluded)
+        assert limit.usage == 80
+
+
+def test_formula_stacks_with_keyword_limits() -> None:
+    with token_limit(1000) as outer:
+        with token_limit(10, type="input * 0.5 + output") as inner:
+            _consume_usage(input_tokens=10, output_tokens=2)
+
+            # outer meters total (12); inner meters 10*0.5 + 2 = 7
+            assert outer.usage == 12
+            assert inner.usage == 7
+
+            with pytest.raises(LimitExceededError) as exc_info:
+                _consume_usage(input_tokens=0, output_tokens=4)
+
+    assert exc_info.value.source is inner
+
+
+@pytest.mark.parametrize(
+    "formula",
+    [
+        "foo",
+        "input +",
+        "input ** 2",
+        "min(input, output)",
+        "__import__('os')",
+        "1e309",  # non-finite constant (float overflow to inf)
+    ],
+)
+def test_token_limit_rejects_invalid_formula(formula: str) -> None:
+    with pytest.raises(ValueError):
+        token_limit(10, type=formula)
+
+
+def test_token_limit_formula_non_finite_result() -> None:
+    # a formula that evaluates to NaN/inf raises a controlled ValueError rather
+    # than a raw OverflowError from math.floor()
+    with pytest.raises(ValueError):
+        with token_limit(10, type="1e308 * input"):
+            _consume_usage(input_tokens=10, output_tokens=0)
+
+
+def test_token_limit_formula_division_by_zero() -> None:
+    with pytest.raises(ValueError):
+        with token_limit(10, type="output / (input - input)"):
+            _consume_usage(input_tokens=5, output_tokens=5)
+
+
+def test_token_limit_type_defaults_to_all() -> None:
+    with token_limit(10) as limit:
+        assert limit.type == "all"
+
+        with pytest.raises(LimitExceededError) as exc_info:
+            _consume_usage(input_tokens=6, output_tokens=5)
+
+    assert exc_info.value.message.startswith("Token limit exceeded")
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("500000", 500000),
+        ("500k", 500_000),
+        ("1m", 1_000_000),
+        ("1.5m", 1_500_000),
+        ("1b", 1_000_000_000),
+        ("0", 0),
+        ("all:500k", 500_000),
+        ("output:1m", TokenLimit(tokens=1_000_000, type="output")),
+        ("OUTPUT:1M", TokenLimit(tokens=1_000_000, type="output")),
+        ("output: 500 k", TokenLimit(tokens=500_000, type="output")),
+        (
+            "(input*0.1)+output:1m",
+            TokenLimit(tokens=1_000_000, type="(input*0.1)+output"),
+        ),
+        (
+            "input + output : 500k",
+            TokenLimit(tokens=500_000, type="input + output"),
+        ),
+    ],
+)
+def test_parse_token_limit(value: str, expected: int | TokenLimit) -> None:
+    assert parse_token_limit(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "abc", "-5", "output:", "1.5", "1.0001k", "output", "5t", "k", "foo:1m"],
+)
+def test_parse_token_limit_invalid(value: str) -> None:
+    with pytest.raises(ValueError):
+        parse_token_limit(value)
+
+
+def test_resolve_token_limit() -> None:
+    assert resolve_token_limit(None) is None
+    assert resolve_token_limit(500) == 500
+    assert resolve_token_limit("output:1m") == TokenLimit(
+        tokens=1_000_000, type="output"
+    )
+    # a TokenLimit metering all tokens collapses to a plain int
+    assert resolve_token_limit(TokenLimit(tokens=500, type="all")) == 500
+
+
+def test_token_limit_fields() -> None:
+    assert token_limit_fields(None) == (None, None)
+    assert token_limit_fields(500) == (500, None)
+    assert token_limit_fields("all:1m") == (1_000_000, None)
+    assert token_limit_fields("output:1m") == (1_000_000, "output")
+    assert token_limit_fields(TokenLimit(tokens=5, type="output")) == (5, "output")
+    assert token_limit_fields(TokenLimit(tokens=5, type="all")) == (5, None)
+
+
 def _consume_tokens(total_tokens: int) -> None:
     record_model_usage(ModelUsage(total_tokens=total_tokens))
+    check_token_limit()
+
+
+def _consume_usage(input_tokens: int, output_tokens: int) -> None:
+    record_model_usage(
+        ModelUsage(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+        )
+    )
     check_token_limit()
