@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from inspect_ai._util.config import resolve_args
 from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.util._limit import TokenLimit, parse_token_limit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
@@ -52,6 +53,18 @@ def int_or_bool_flag_callback(
                 )
 
     return callback
+
+
+def token_limit_flag_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> int | TokenLimit | None:
+    """Parse the ``--token-limit`` option (e.g. ``500000``, ``1m``, ``output:1m``)."""
+    if value is None:
+        return None
+    try:
+        return parse_token_limit(str(value))
+    except ValueError as ex:
+        raise click.BadParameter(str(ex)) from ex
 
 
 def ctl_server_flag_callback(
@@ -249,7 +262,13 @@ def parse_model_role_cli_args(
                 raise ValueError(
                     f"Invalid config for model role '{role_name}': {e}"
                 ) from e
-            parsed_args[role_name] = get_model(model_name, config=config, **model_args)
+            # memoize=False so that each role gets a distinct Model instance;
+            # otherwise roles sharing the same model/config/args collapse onto one
+            # cached object and per-role usage is misattributed (see #4450). This
+            # mirrors the string-role path in resolve_model_roles().
+            parsed_args[role_name] = get_model(
+                model_name, config=config, memoize=False, **model_args
+            )
         # else assume it is just a model name and leave it as a string
     return parsed_args
 
