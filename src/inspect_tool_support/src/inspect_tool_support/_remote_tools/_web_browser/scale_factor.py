@@ -21,10 +21,15 @@ import sys
 
 def get_screen_scale_factor() -> float:
     if sys.platform == "darwin":
-        # `pip install pyobjc-framework-AppKit` is required to run headfully on macOS
-        from AppKit import NSScreen  # type: ignore  # noqa: PLC0415
+        try:
+            # `pip install pyobjc-framework-AppKit` is required to run headfully on macOS
+            from AppKit import NSScreen  # type: ignore  # noqa: PLC0415
 
-        return NSScreen.mainScreen().backingScaleFactor()
+            screen = NSScreen.mainScreen()
+        except Exception:
+            return 1.0
+        # mainScreen() is None when no display is attached (headless / over SSH)
+        return float(screen.backingScaleFactor()) if screen is not None else 1.0
     elif sys.platform == "win32":
         try:
             # Using GetDpiForSystem from Windows API
