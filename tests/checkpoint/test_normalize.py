@@ -9,8 +9,6 @@ checkpointing without pinning a trigger, and the concrete default
 
 from __future__ import annotations
 
-import pytest
-
 from inspect_ai import Task
 from inspect_ai._eval.task.task import task_with
 from inspect_ai.util._checkpoint import TokenInterval, TurnInterval
@@ -26,9 +24,14 @@ def test_normalize_true_enables_without_trigger() -> None:
     assert normalize_checkpoint(True) == CheckpointConfig(trigger=None)
 
 
-@pytest.mark.parametrize("value", [False, None])
-def test_normalize_falsey_disables(value: bool | None) -> None:
-    assert normalize_checkpoint(value) is None
+def test_normalize_none_inherits() -> None:
+    assert normalize_checkpoint(None) is None
+
+
+def test_normalize_false_vetoes() -> None:
+    from inspect_ai.util._checkpoint.config import CheckpointDisabled
+
+    assert isinstance(normalize_checkpoint(False), CheckpointDisabled)
 
 
 def test_normalize_passes_config_through_unchanged() -> None:
@@ -67,9 +70,14 @@ def test_task_checkpoint_true_enables() -> None:
     assert out.trigger == TokenInterval(every=500_000)
 
 
-@pytest.mark.parametrize("value", [False, None])
-def test_task_checkpoint_falsey_disables(value: bool | None) -> None:
-    assert Task(checkpoint=value).checkpoint is None
+def test_task_checkpoint_none_inherits() -> None:
+    assert Task(checkpoint=None).checkpoint is None
+
+
+def test_task_checkpoint_false_vetoes() -> None:
+    from inspect_ai.util._checkpoint.config import CheckpointDisabled
+
+    assert isinstance(Task(checkpoint=False).checkpoint, CheckpointDisabled)
 
 
 def test_task_with_checkpoint_true_enables() -> None:
@@ -81,3 +89,19 @@ def test_task_with_checkpoint_omitted_leaves_unchanged() -> None:
     original = CheckpointConfig(trigger=TurnInterval(every=4))
     task = task_with(Task(checkpoint=original))
     assert task.checkpoint == original
+
+
+def test_checkpoint_vetoed_predicate() -> None:
+    from inspect_ai.util._checkpoint.config import (
+        CheckpointConfig,
+        CheckpointDisabled,
+        checkpoint_vetoed,
+    )
+
+    disabled = CheckpointDisabled()
+    enabled = CheckpointConfig()
+    assert checkpoint_vetoed(disabled, None) is True
+    assert checkpoint_vetoed(None, disabled) is True
+    assert checkpoint_vetoed(disabled, enabled) is True
+    assert checkpoint_vetoed(enabled, enabled) is False
+    assert checkpoint_vetoed(None, None) is False

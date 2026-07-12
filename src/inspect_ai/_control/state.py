@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 
 
 async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
-    """Build per-eval summaries for the ``GET /evals`` endpoint.
+    """Build per-task summaries for the ``GET /tasks`` endpoint.
 
     No ``run_id`` filter — the discovery layer already scopes
     visibility per process (each running inspect process has its own
@@ -162,6 +162,9 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 "task": first.task,
                 "task_id": "",
                 "model": first.model,
+                # ActiveSample doesn't carry the solver name; it arrives with
+                # the eval's registration (which hasn't happened yet here)
+                "solver": "",
                 "log_location": local_path(first.log_location),
                 "status": "running",
                 "started_at": min(
@@ -289,6 +292,10 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "total_time": None,
         "total_tokens": 0,
         "message_count": None,
+        "turn_count": None,
+        "token_limit_usage": None,
+        "token_limit_total": None,
+        "token_limit_type": None,
         "last_activity_at": None,
         "events": None,
         "scores": {},
@@ -410,7 +417,7 @@ async def _read_full_sample(
 async def sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
-    """Full error detail for one sample (``GET /evals/<id>/samples/<sid>/<epoch>``).
+    """Full error detail for one sample (``GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>``).
 
     Two sources, mirroring :func:`current_sample_summaries`:
 
@@ -540,6 +547,10 @@ def _summary_from_eval_sample_summary(
         "total_time": summary.total_time,
         "total_tokens": sum(u.total_tokens for u in summary.model_usage.values()),
         "message_count": summary.message_count,
+        "turn_count": summary.turn_count,
+        "token_limit_usage": summary.token_limit_usage,
+        "token_limit_total": summary.token_limit,
+        "token_limit_type": summary.token_limit_type,
         # A terminal sample's last activity is its completion; `events` is a
         # live-only progress counter (the on-disk summary doesn't carry it).
         "last_activity_at": _iso_to_timestamp(summary.completed_at),
@@ -585,6 +596,10 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
                 "total_time": s.running_time,
                 "total_tokens": s.total_tokens,
                 "message_count": s.total_messages,
+                "turn_count": s.total_turns,
+                "token_limit_usage": s.token_limit_usage,
+                "token_limit_total": s.token_limit,
+                "token_limit_type": s.token_limit_type,
                 "last_activity_at": last_activity_at,
                 "events": s.transcript.history.event_count,
                 "scores": {},  # running samples aren't scored yet
@@ -670,6 +685,7 @@ def _build_summary(
         "task": task_name,
         "task_id": latest.task_id,
         "model": model,
+        "solver": latest.solver,
         # Where this attempt's results are written — lets an agent monitoring a
         # run it didn't launch find the log without knowing the launch args.
         # `local_path` drops the `file://` prefix for local logs (leaving

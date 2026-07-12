@@ -39,7 +39,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
@@ -94,6 +94,17 @@ By default, Inspect's implementation of the Responses API does not store message
 ``` bash
 inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
+
+### Responses Metadata
+
+You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 \
+    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+```
+
+The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
 
 ### Flex Processing
 
@@ -906,6 +917,26 @@ eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remo
 
 The flag is applied to both the model and tokenizer `from_pretrained()` calls.
 
+### Model Class
+
+By default the Hugging Face provider loads models with `AutoModelForCausalLM`. Some architectures are not registered with that auto-class and must be loaded with a different one — for example the Mistral 3 series and other image-text-to-text models require `AutoModelForImageTextToText`. Use the `auto_model_class` model arg to name the `transformers` auto-class to use:
+
+``` bash
+inspect eval arc.py --model hf/mistralai/Ministral-3-8B-Instruct-2512 -M auto_model_class=AutoModelForImageTextToText
+```
+
+Or from Python:
+
+``` python
+eval(
+    "arc.py",
+    model="hf/mistralai/Ministral-3-8B-Instruct-2512",
+    model_args=dict(auto_model_class="AutoModelForImageTextToText"),
+)
+```
+
+The value must be the name of a class exported by `transformers`.
+
 ### Local Models
 
 In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use `hf/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
@@ -1092,7 +1123,7 @@ inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=fal
 `use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
 :::
 
-### Raw Text Completions
+### Raw Text Completions {#sec-vllm-completions}
 
 Use the `vllm-completions` provider when you want vLLM to receive a raw text prompt rather than chat messages rendered through a chat template:
 
@@ -1100,7 +1131,32 @@ Use the `vllm-completions` provider when you want vLLM to receive a raw text pro
 inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m
 ```
 
-This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations.
+This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations. It additionally manages the vLLM server lifecycle for you — to target an already-running OpenAI-compatible server, the [`openai-api-completions`](#openai-api-completions) provider offers the same behavior for any provider/server.
+
+#### Pre-Tokenized Prompts
+
+If you already have token IDs (custom tokenizer, pre-tokenized dataset, anything where you need exact control over the input sequence), pass them through `ChatMessage.metadata["prompt_token_ids"]` instead of a string. vLLM uses the IDs verbatim and skips re-tokenization, so you avoid an `ids → str → ids` round-trip that can change the sequence for non-bijective tokenizers.
+
+``` python
+from inspect_ai.model import ChatMessageUser, get_model
+
+token_ids = my_custom_tokenizer.encode("Hello")
+model = get_model("vllm-completions/EleutherAI/pythia-70m")
+response = await model.generate(
+    input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+)
+```
+
+When `prompt_token_ids` is present, only the IDs are sent to vLLM — the message's `content` is not used as the prompt. The `content` field is still part of the `ChatMessage` though, so it shows up in transcripts and is readable by scorers/judges. A common pattern is to put the decoded (or any human-readable) version of the prompt in `content` so downstream tooling has something useful to display:
+
+``` python
+ChatMessageUser(
+    content="Hello",  # what judges/transcripts see
+    metadata={"prompt_token_ids": token_ids},  # what the model actually receives
+)
+```
+
+vLLM only applies `add_special_tokens` when tokenizing a string prompt, so for `list[int]` prompts the IDs go through as-is regardless of that flag.
 
 ### Tool Use and Reasoning
 
@@ -1389,6 +1445,34 @@ You can enable the use of the streaming with the `openai-api` provider by passin
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
 ```
+
+### Completions API {#openai-api-completions}
+
+Use the `openai-api-completions` provider when you want the model to receive a raw prompt through the legacy `/v1/completions` endpoint rather than chat messages rendered through a chat template:
+
+``` bash
+inspect eval task.py --model openai-api-completions/<provider>/<model>
+```
+
+It follows the same naming and environment variable conventions as `openai-api`, accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations (echo mode, fill-in-the-middle, perplexity benchmarks).
+
+#### Pre-Tokenized Prompts
+
+If you already have token IDs (custom tokenizer, pre-tokenized dataset, anything where you need exact control over the input sequence), pass them through `ChatMessage.metadata["prompt_token_ids"]` instead of a string:
+
+``` python
+from inspect_ai.model import ChatMessageUser, get_model
+
+token_ids = my_custom_tokenizer.encode("Hello")
+model = get_model("openai-api-completions/<provider>/<model>")
+response = await model.generate(
+    input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+)
+```
+
+When `prompt_token_ids` is present, only the IDs are sent to the server — the message's `content` is not used as the prompt. The `content` field is still part of the `ChatMessage` though, so it shows up in transcripts and is readable by scorers/judges. A common pattern is to put the decoded (or any human-readable) version of the prompt in `content` so downstream tooling has something useful to display.
+
+Token IDs are passed through verbatim; whether the server adds special tokens to pre-tokenized prompts is server-dependent (vLLM does not — see [vLLM Completions API](#sec-vllm-completions)).
 
 ## OpenRouter
 
