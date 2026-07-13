@@ -1407,6 +1407,7 @@ def _stub_limits(
             "max_sandboxes",
             "max_subprocesses",
             "max_connections",
+            "key",
             "log_buffer",
             "log_shared",
         )
@@ -1516,6 +1517,78 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     assert "! max_samples is not adjustable" in result.stderr
     # the buffer warning restates the headline error and is not repeated
     assert "! log_buffer" not in result.stderr
+
+
+def test_config_gates_key_on_pre_version_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--key` gates on the shipped `_KNOB_SINCE` entry (since-2).
+
+    An older server's PATCH handler silently ignores the unknown key/key_limit
+    params (returning a success-shaped view with the retune unapplied), so the
+    gate must refuse the whole request pre-flight — a server that predates the
+    knob refuses it, and a current server (advertising `CONTROL_API_VERSION`)
+    accepts it.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=1)],
+    )
+
+    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
+        raise AssertionError("the mutation must not be sent")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
+    result = cli_runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
+    assert result.exit_code == 1
+    assert "--key not supported" in result.stderr
+    assert "pid 7 is running an older inspect" in result.stderr
+
+    # the gate covers dry runs too: a dry-run PATCH on an older server would
+    # report a success-shaped view that omits the key retune
+    dry = cli_runner().invoke(
+        ctl_command, ["config", "--key", "my_api", "2", "--dry-run"]
+    )
+    assert dry.exit_code == 1
+    assert "--key not supported" in dry.stderr
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "concurrency": [
+                    {"name": "my_api", "limit": 2, "in_use": 0, "adjustable": True}
+                ],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"concurrency:my_api": 2},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--key", "my_api", "2", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["key"] == ("my_api", 2)
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["knobs"]["concurrency"]["keys"][0]["name"] == "my_api"
 
 
 def test_config_task_knob_with_only_orphan_task_says_retry(

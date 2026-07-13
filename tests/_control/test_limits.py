@@ -6,6 +6,7 @@ sandbox-limiter registry), the server routes that wrap it, and the CLI rendering
 """
 
 import asyncio
+from typing import Any
 
 import httpx
 import pytest
@@ -408,6 +409,148 @@ async def test_process_limits_model_no_match_warns() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Named concurrency keys (--key)
+# ---------------------------------------------------------------------------
+
+
+async def test_process_limits_key_retune() -> None:
+    """A named concurrency() registry entry is retunable by exact name."""
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    sem = await get_or_create_semaphore("google_web_search", 10, None, True)
+    result = await process_limits(key="google_web_search", key_limit=3)
+    assert sem.concurrency == 3
+    row = next(r for r in result["concurrency"] if r["name"] == "google_web_search")
+    assert row == {
+        "name": "google_web_search",
+        "limit": 3,
+        "in_use": 0,
+        "adjustable": True,
+    }
+    assert result["requested"] == {"concurrency:google_web_search": 3}
+    assert result["warnings"] == []
+
+
+async def test_process_limits_key_retune_reaches_all_entries_sharing_a_name() -> None:
+    """A name backing several entries (distinct storage keys) retunes them all.
+
+    E.g. one model on two accounts — matching by exact name fans out like
+    max_connections' name matching does.
+    """
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    account1 = await get_or_create_semaphore("model", 10, "model#account1", True)
+    account2 = await get_or_create_semaphore("model", 10, "model#account2", True)
+    result = await process_limits(key="model", key_limit=3)
+    assert account1.concurrency == 3
+    assert account2.concurrency == 3
+    # both entries appear in the view, under the shared display name
+    rows = [r for r in result["concurrency"] if r["name"] == "model"]
+    assert [r["limit"] for r in rows] == [3, 3]
+    assert result["warnings"] == []
+
+
+async def test_task_limits_key_retune() -> None:
+    """The key knob rides the per-task route too (the registry is process-global)."""
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    register_eval("e1", 5, task_id="t1")
+    sem = await get_or_create_semaphore("hidden-injection", 1, None, False)
+    result = await task_limits("t1", key="hidden-injection", key_limit=2)
+    assert result is not None
+    assert sem.concurrency == 2
+    # visible=False entries are still listed and retunable — visibility
+    # governs the status bar, not the control channel
+    assert any(r["name"] == "hidden-injection" for r in result["concurrency"])
+
+
+async def test_limits_key_dry_run_does_not_apply() -> None:
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    sem = await get_or_create_semaphore("google_web_search", 10, None, True)
+    result = await process_limits(key="google_web_search", key_limit=3, dry_run=True)
+    assert sem.concurrency == 10
+    assert result["dry_run"] is True
+    assert result["requested"] == {"concurrency:google_web_search": 3}
+    row = next(r for r in result["concurrency"] if r["name"] == "google_web_search")
+    assert row["limit"] == 10  # view reflects the current (unchanged) value
+
+
+async def test_limits_unknown_key_errors_before_other_knobs_apply() -> None:
+    """An unknown key fails the whole request — nothing else is applied."""
+    from inspect_ai._control.limits import UnknownConcurrencyKeyError
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    register_eval("e1", 5, task_id="t1")
+    limiter = ResizableLimiter(20)
+    register_task_sample_semaphore("t1", limiter)
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    with pytest.raises(UnknownConcurrencyKeyError) as exc_info:
+        await task_limits("t1", max_samples=5, key="nope", key_limit=3)
+    # the error lists the keys that do exist and explains the lazy creation
+    assert "google_web_search" in str(exc_info.value)
+    assert "lazily" in str(exc_info.value)
+    # the co-requested max_samples did NOT land
+    assert limiter.limit == 20
+
+
+async def test_limits_unknown_key_with_empty_registry() -> None:
+    from inspect_ai._control.limits import UnknownConcurrencyKeyError, process_limits
+
+    with pytest.raises(UnknownConcurrencyKeyError, match="no concurrency keys"):
+        await process_limits(key="nope", key_limit=3)
+
+
+async def test_limits_key_adaptive_controller_warns() -> None:
+    """A key naming an adaptive controller warns and points at max_connections."""
+    from inspect_ai._control.limits import process_limits
+
+    ctrl = await _register_controller(name="openai/gpt-4", max=100, start=50)
+    result = await process_limits(key="openai/gpt-4", key_limit=3)
+    assert (ctrl.max, ctrl.concurrency) == (100, 50)  # untouched
+    assert any(
+        "managed by adaptive connections" in w and "max_connections" in w
+        for w in result["warnings"]
+    )
+    # adaptive controllers are not listed among the static keys
+    assert result["concurrency"] == []
+
+
+async def test_limits_key_non_resizable_warns() -> None:
+    """A key whose semaphore can't resize warns instead of erroring."""
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import (
+        _concurrency_registry,
+        _create_anyio_semaphore,
+    )
+
+    # a fixed semaphore, the shape a custom registry could still hand out
+    # (the default registry no longer creates these for limits >= 1)
+    _concurrency_registry._semaphores["fixed#static"] = _create_anyio_semaphore(  # type: ignore[attr-defined]
+        "fixed", 4, True
+    )
+    result = await process_limits(key="fixed", key_limit=2)
+    assert any("'fixed' is not adjustable" in w for w in result["warnings"])
+    row = next(r for r in result["concurrency"] if r["name"] == "fixed")
+    assert row == {"name": "fixed", "limit": 4, "in_use": 0, "adjustable": False}
+
+
+async def test_limits_key_view_on_pure_read() -> None:
+    """The concurrency view is part of every read, not just a key set."""
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    register_eval("e1", 5, task_id="t1")
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+    result = await task_limits("t1")
+    assert result is not None
+    assert [r["name"] for r in result["concurrency"]] == ["google_web_search"]
+
+
+# ---------------------------------------------------------------------------
 # Server routes
 # ---------------------------------------------------------------------------
 
@@ -567,6 +710,75 @@ async def test_limits_route_dry_run() -> None:
         assert resp.json()["dry_run"] is True
         assert resp.json()["max_samples"]["limit"] == 20  # unchanged
         assert limiter.limit == 20
+
+
+async def test_limits_route_key_patch() -> None:
+    """PATCH with key/key_limit retunes the named registry entry."""
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    sem = await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch(
+            "/config", params={"key": "google_web_search", "key_limit": 3}
+        )
+        assert patched.status_code == 200, patched.text
+        assert sem.concurrency == 3
+        row = next(
+            r for r in patched.json()["concurrency"] if r["name"] == "google_web_search"
+        )
+        assert (row["limit"], row["adjustable"]) == (3, True)
+
+        # GET carries the concurrency view too
+        got = await client.get("/config")
+        assert got.status_code == 200, got.text
+        assert [r["name"] for r in got.json()["concurrency"]] == ["google_web_search"]
+
+
+async def test_limits_route_key_unknown_is_400() -> None:
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    register_eval("e1", 5, task_id="t1")
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        for path in ("/config", "/tasks/t1/config"):
+            bad = await client.patch(path, params={"key": "nope", "key_limit": 3})
+            assert bad.status_code == 400, bad.text
+            error = bad.json()["error"]
+            assert "no concurrency key named 'nope'" in error
+            assert "google_web_search" in error  # lists the available keys
+
+
+async def test_limits_route_key_requires_pair() -> None:
+    """A bare key (or bare key_limit) is a malformed request, not a read."""
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        for path in ("/config", "/tasks/t1/config"):
+            bad = await client.patch(path, params={"key": "google_web_search"})
+            assert bad.status_code == 400
+            assert "provided together" in bad.json()["error"]
+
+            bad = await client.patch(path, params={"key_limit": 3})
+            assert bad.status_code == 400
+            assert "provided together" in bad.json()["error"]
+
+        # key_limit rides the shared below-one validation
+        bad = await client.patch(
+            "/config", params={"key": "google_web_search", "key_limit": 0}
+        )
+        assert bad.status_code == 400
+        assert "key_limit" in bad.json()["error"]
 
 
 # ---------------------------------------------------------------------------
@@ -897,6 +1109,122 @@ def test_print_config_buffer_knobs_and_notes(
     assert "log buffer [task]:          10 samples (2 pending)" in out
     assert "shared sync [task]:         off" in out
     assert "note: --max-connections applies process-wide." in out
+
+
+def test_print_config_concurrency_keys_section(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The named-key section lists registry entries with their scope label."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "concurrency": {
+                    "scope": "process",
+                    "keys": [
+                        {
+                            "name": "fixed",
+                            "limit": 4,
+                            "in_use": 0,
+                            "adjustable": False,
+                        },
+                        {
+                            "name": "google_web_search",
+                            "limit": 10,
+                            "in_use": 3,
+                            "adjustable": True,
+                        },
+                    ],
+                },
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "concurrency keys [process]:" in out
+    assert "google_web_search: 10 (3 in use)" in out
+    assert "fixed: 4 (0 in use) — not adjustable" in out
+
+
+def test_print_config_concurrency_keys_empty_states(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty registry renders a placeholder, distinct from an old server.
+
+    Named limits are created lazily on first use, so an eval can genuinely
+    have zero entries early on — the placeholder keeps the `--key` knob
+    discoverable and tells that state apart from a server whose view predates
+    the section (`keys` is None).
+    """
+    from inspect_ai._cli.ctl import _print_config
+
+    def view(keys: list[dict[str, Any]] | None) -> dict[str, Any]:
+        return {
+            "dry_run": False,
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "concurrency": {"scope": "process", "keys": keys},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        }
+
+    _print_config(view([]), changed=False)
+    out = capsys.readouterr().out
+    assert (
+        "concurrency keys [process]: none registered yet "
+        "(named limits appear on first use)" in out
+    )
+
+    _print_config(view(None), changed=False)
+    out = capsys.readouterr().out
+    assert "concurrency keys [process]: not reported (older server)" in out
+
+
+def test_print_config_concurrency_keys_dry_run_arrow(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dry-run key set renders the targeted key as `current → requested`."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": True,
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "concurrency": {
+                    "scope": "process",
+                    "keys": [
+                        {
+                            "name": "google_web_search",
+                            "limit": 10,
+                            "in_use": 3,
+                            "adjustable": True,
+                        },
+                    ],
+                },
+            },
+            "requested": {"concurrency:google_web_search": 4},
+            "warnings": [],
+            "notes": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "google_web_search: 10 → 4 (3 in use)" in out
 
 
 def test_process_scope_note() -> None:
