@@ -4,6 +4,7 @@
 - Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
 - Control Channel: `inspect ctl sample list` now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.
 - Performance: Transcript events are now validated through a pydantic discriminator when reading logs (`read_eval_log`, `eval-retry`, `events_df`/`messages_df`), a single keyed lookup instead of trying all 23 `Event` union members in turn; ~6.4x faster per-event validation on large logs, with no change to the log format. (#4445)
+- Bedrock: Assistant text and reasoning are now preserved alongside tool calls in the same turn instead of being dropped. (#4457)
 - Bugfix: Crash recovery now reconstructs `sample.messages` from the first model role's conversation when a solver runs multiple agents concurrently, instead of returning whichever agent's model call happened to fire last. (#4414)
 
 ## 0.3.246 (10 July 2026)
