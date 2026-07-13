@@ -360,3 +360,42 @@ async def test_bedrock_adaptive_thinking_tool_round_trip():
         GenerateConfig(reasoning_effort="high", max_tokens=4096),
     )
     assert completion
+
+
+# --- review findings 1 & 2: live confirmation -------------------------------
+
+from pydantic import ValidationError  # noqa: E402
+
+from inspect_ai.model import ResponseSchema as _ResponseSchema  # noqa: E402
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_bedrock_response_schema_honoured_with_reasoning_effort():
+    """Bug 1: reasoning output_config must not clobber structured output.
+
+    With reasoning_effort set alongside response_schema, the shallow
+    additionalModelRequestFields merge drops output_config.format, so the
+    model returns prose instead of schema-conforming JSON.
+    """
+    model = get_model(
+        "bedrock/us.anthropic.claude-sonnet-4-6",
+        config=GenerateConfig(
+            reasoning_effort="high",
+            max_tokens=4096,
+            response_schema=_ResponseSchema(
+                name="person", json_schema=json_schema(_Person)
+            ),
+        ),
+    )
+    output = await model.generate(
+        input=[ChatMessageUser(content="Invent a person and give their name and age.")]
+    )
+    try:
+        _Person.model_validate_json(output.completion)
+    except ValidationError as ex:
+        pytest.fail(
+            f"completion did not conform to response_schema "
+            f"(structured output clobbered by reasoning output_config): "
+            f"{output.completion!r} ({ex})"
+        )
