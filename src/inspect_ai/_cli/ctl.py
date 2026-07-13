@@ -75,14 +75,15 @@ _KNOB_SCOPE: dict[str, str] = {
 # Minimum control-API version each knob requires of the *server* process (the
 # `CONTROL_API_VERSION` from `inspect_ai._control` that its inspect embedded
 # at launch). Parallel to `_KNOB_SCOPE`: every knob needs an entry (key-set
-# parity is asserted in `_exec_limits` and pinned by a test), so a new knob
-# can't silently default to "understood by every server". Since-0 knobs
-# predate version reporting and are never gated. A PR that adds a knob older
-# servers' PATCH handlers would silently ignore must bump
-# `CONTROL_API_VERSION` and record the new value here; `_gate_knob_support`
-# then hard-errors the request against an older process *before* the
-# mutation, instead of letting it partially apply behind a success-shaped
-# response.
+# parity is asserted in `_exec_limits` and pinned by a test). Since-0 knobs
+# are never gated — and every *new* knob is since-0: strict servers
+# (version >= 3, the only ones left in the field) reject unknown mutation
+# params with a 400, so no pre-send gate is needed (see the skew-policy
+# comment in `inspect_ai._control`). The nonzero entries predate strict
+# mutations, when an older server's PATCH handler would silently ignore an
+# unknown knob while applying the rest; `_gate_knob_support` hard-errors
+# those against a pre-strict process before sending, and retires with
+# issue #67.
 _KNOB_SINCE: dict[str, int] = {
     "max_samples": 0,
     "max_sandboxes": 0,
@@ -3144,47 +3145,17 @@ def _gate_knob_support(
     gated = [knob for knob in requested_knobs if _KNOB_SINCE[knob] > 0]
     if not gated:
         return
-    api_version, server = _server_api_version(servers, socket_path)
+    server = next((s for s in servers if str(s.socket_path) == socket_path), None)
+    api_version = server.api_version if server is not None else 0
     unsupported = [knob for knob in gated if _KNOB_SINCE[knob] > api_version]
     if not unsupported:
         return
     flags = ", ".join("--" + knob.replace("_", "-") for knob in unsupported)
-    _version_gate_error(server, flags, "No changes were applied.")
-
-
-class _ServerVersion(NamedTuple):
-    """A target process's advertised control-API version + discovery entry."""
-
-    api_version: int
-    server: DiscoveredControlServer | None
-
-
-def _server_api_version(
-    servers: list[DiscoveredControlServer], socket_path: str
-) -> _ServerVersion:
-    """The advertised control-API version of the process at ``socket_path``.
-
-    A process with no advertised version (a discovery file predating the
-    field, or a socket with no discovery entry at all) is version 0 — the
-    fail-closed default the version gates rely on.
-    """
-    server = next((s for s in servers if str(s.socket_path) == str(socket_path)), None)
-    return _ServerVersion(server.api_version if server is not None else 0, server)
-
-
-def _version_gate_error(
-    server: DiscoveredControlServer | None, flags: str, not_sent: str
-) -> NoReturn:
-    """Fail a command whose flags the target process is too old to honor.
-
-    The version integer is meaningless to users, so the message names the
-    offending ``flags`` and the remedy (restart the eval); ``not_sent``
-    states that nothing was mutated, in the command's own vocabulary.
-    """
     target = f"pid {server.pid}" if server is not None else "the target process"
     click.echo(
         f"{flags} not supported — {target} is running an older inspect; "
-        f"restart the eval to pick up the current version. {not_sent}",
+        "restart the eval to pick up the current version. No changes were "
+        "applied.",
         err=True,
     )
     raise click.exceptions.Exit(code=1)
