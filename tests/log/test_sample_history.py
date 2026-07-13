@@ -538,6 +538,15 @@ def test_read_only_is_incompatible_with_create(tmp_path):
         SampleBufferDatabase(str(tmp_path / "test.eval"), read_only=True)
 
 
+def test_missing_database_error_includes_location(tmp_path):
+    """Opening a non-existent buffer (create=False) names the missing location."""
+    location = str(tmp_path / "missing.eval")
+    with pytest.raises(FileNotFoundError) as exc_info:
+        SampleBufferDatabase(location, create=False, db_dir=tmp_path)
+    assert "missing.eval" in str(exc_info.value)
+    assert "{location}" not in str(exc_info.value)
+
+
 def test_provider_translates_store_failures_to_domain_error(tmp_path):
     """BufferTranscriptHistoryProvider raises the protocol's domain error.
 
