@@ -401,11 +401,11 @@ def test_sample_cancelled_interrupt_action() -> None:
 
 
 def test_score_resolution_sweep_preserves_cancelled_sample() -> None:
-    """A score resolution never overwrites a sample's prior 'cancelled' interrupt.
+    """A score resolution never overwrites a sample's prior 'cancel' interrupt.
 
     The in-flight sweep skips samples already interrupted (first interrupt
     wins): a sample the operator just cancelled per-sample keeps its
-    'cancelled' disposition — no scoring, its cancellation recorded — even
+    'cancel' disposition — no scoring, its cancellation recorded — even
     when a task-level `--score` cancel lands before it finishes resolving.
     """
     from inspect_ai._control.cancel import cancel_task as ctl_cancel_task

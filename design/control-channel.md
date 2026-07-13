@@ -354,7 +354,7 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Read / modify retunable config (concurrency limits, buffer params) | `GET`+`PATCH /config` (process) and `/tasks/<task-id>/config` (task) | 3 ✅ (max-samples / max-sandboxes / max-subprocesses / max-connections / named `concurrency()` keys via `--key` / log-buffer / log-shared) |
 | Add a task to a running eval | `POST /tasks` (task spec → new sibling eval under this run) | 3 |
 | Cancel task | `POST /tasks/<task-id>/cancel?action=cancel\|score\|error` | 3 ✅ |
-| Cancel sample | `POST /evals/<id>/sample/cancel?sample_id=<sid>&epoch=<n>&action=score\|error\|cancelled` | 3 ✅ |
+| Cancel sample | `POST /evals/<id>/sample/cancel?sample_id=<sid>&epoch=<n>&action=score\|error\|cancel` | 3 ✅ |
 | Drain | `POST /tasks/<task-id>/drain` | 3 |
 | Requeue sample | `POST /evals/<id>/sample/requeue?sample_id=<sid>&epoch=<n>` | 3 |
 | Modify per-sample limits (time / token / message) | `PATCH /tasks/<task-id>/config` (as further config knobs) | 3 |

@@ -492,7 +492,7 @@ class ControlServer:
                     status_code=400,
                     content={
                         "error": (
-                            "action must be 'score', 'error' or 'cancelled' "
+                            "action must be 'score', 'error' or 'cancel' "
                             f"(got '{action}')"
                         )
                     },

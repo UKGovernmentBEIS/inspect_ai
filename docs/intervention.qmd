@@ -307,7 +307,7 @@ Inspect-aware clients can opt into richer behavior by declaring capabilities at 
 | `inspect/list_sessions` | Enumerate attachable sessions before connecting. |
 | `inspect/list_samples` | Enumerate all running samples, including observe-only ones without ACP support. |
 | `inspect/attach` | Direct-bind by `(task, sample_id, epoch)` instead of going through the picker. |
-| `inspect/cancel_sample` | Terminal sample cancel (with `score`, `error`, or `cancelled` disposition). |
+| `inspect/cancel_sample` | Terminal sample cancel (with `score`, `error`, or `cancel` disposition). |
 | `inspect/cancel_tool_call` | Cancel one in-flight tool call without unwinding the turn. |
 | `inspect/event` | Raw transcript event stream (opt-in via `clientCapabilities._meta["inspect.raw_events"]`). |
 | `inspect/session_ended` | Notification when a sample has completed, so the client can flip its UI to a terminal state without waiting for socket EOF. |

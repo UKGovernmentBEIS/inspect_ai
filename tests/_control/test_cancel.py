@@ -315,7 +315,7 @@ def test_cancel_task_resolution_sweep_skips_already_interrupted(
 
     A sample that was per-sample cancelled is still "in flight" until its
     (post-scoring/logging) context exit stamps `completed`; re-interrupting
-    it would flip its 'cancelled' disposition to score/error, defeating the
+    it would flip its 'cancel' disposition to score/error, defeating the
     runner guard that keeps its sample-scoped CancelledError from tearing
     down the whole task.
     """
@@ -392,7 +392,7 @@ async def test_cancel_sample_error_action(monkeypatch: pytest.MonkeyPatch) -> No
     assert sample.interrupts == ["error"]
 
 
-async def test_cancel_sample_cancelled_action(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_cancel_sample_cancel_action(monkeypatch: pytest.MonkeyPatch) -> None:
     sample = _FakeActiveSample()
     _patch_active_samples(monkeypatch, [sample])
 
@@ -402,12 +402,12 @@ async def test_cancel_sample_cancelled_action(monkeypatch: pytest.MonkeyPatch) -
     assert sample.interrupts == ["cancel"]
 
 
-async def test_cancel_sample_cancelled_action_not_gated_by_fails_on_error(
+async def test_cancel_sample_cancel_action_not_gated_by_fails_on_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The fail-on-error gate does not apply to the 'cancelled' action.
+    """The fail-on-error gate does not apply to the 'cancel' action.
 
-    'cancelled' bypasses error handling entirely, and the gate exists only
+    'cancel' bypasses error handling entirely, and the gate exists only
     because the auto-fail would race a manual 'error'.
     """
     sample = _FakeActiveSample(fails_on_error=True)
@@ -613,7 +613,7 @@ async def test_sample_cancel_route(monkeypatch: pytest.MonkeyPatch) -> None:
         assert sample.interrupts == ["score"]  # only the first call fired
 
 
-async def test_sample_cancel_route_cancelled_action(
+async def test_sample_cancel_route_cancel_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sample = _FakeActiveSample()
