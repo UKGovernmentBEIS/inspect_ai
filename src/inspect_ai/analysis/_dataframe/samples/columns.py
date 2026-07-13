@@ -73,6 +73,8 @@ SampleSummary: list[Column] = [
     SampleColumn("total_time", path="total_time"),
     SampleColumn("working_time", path="working_time"),
     SampleColumn("message_count", path="message_count", default=None),
+    SampleColumn("turn_count", path="turn_count", default=None),
+    SampleColumn("token_limit_usage", path="token_limit_usage", default=None),
     SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
     SampleColumn("retries", path="retries"),
