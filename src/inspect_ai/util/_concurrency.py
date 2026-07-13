@@ -174,9 +174,16 @@ class ResizableLimiter:
     mid-flight: lowering it below the current in-use count blocks new acquires
     until enough holders release — it never preempts an in-flight holder. This
     is the resizable counterpart to the static ``anyio.Semaphore`` path, used
-    where a limit must be adjustable through the control channel
-    (``max_samples``, ``max_sandboxes`` and ``max_subprocesses`` today — see
+    where a limit must be adjustable through the control channel (the sample,
+    sandbox and subprocess limits, and — since the registry backs every static
+    entry with one — any named ``concurrency()`` limit; see
     ``design/control-channel.md`` phase 3).
+
+    Each entry acquires on behalf of a fresh borrower token rather than the
+    current task, so one task may hold several slots at once — preserving the
+    counting semantics of the ``anyio.Semaphore`` this replaces (nested
+    ``concurrency()`` contexts for the same key take one slot each), where raw
+    ``CapacityLimiter`` acquisition raises on a second same-task acquire.
 
     Used directly as an async context manager (``async with limiter:``), exactly
     as the static sample semaphore was, so it drops into the existing acquire
@@ -185,6 +192,13 @@ class ResizableLimiter:
 
     def __init__(self, limit: int) -> None:
         self._limiter = anyio.CapacityLimiter(limit)
+        # Task-local LIFO of the borrower tokens this task currently holds. A
+        # ContextVar of immutable tuples: child tasks inherit a snapshot they
+        # can't mutate underneath the parent, and enter/exit pair within one
+        # task, so an exit always pops the token its own enter pushed.
+        self._borrowers: ContextVar[tuple[object, ...]] = ContextVar(
+            "resizable_limiter_borrowers", default=()
+        )
 
     @property
     def limit(self) -> int:
@@ -215,10 +229,22 @@ class ResizableLimiter:
         return max(0, self.limit - self.in_use)
 
     async def __aenter__(self) -> None:
-        await self._limiter.__aenter__()
+        borrower = object()
+        await self._limiter.acquire_on_behalf_of(borrower)
+        self._borrowers.set(self._borrowers.get() + (borrower,))
 
     async def __aexit__(self, *args: Any) -> Any:
-        return await self._limiter.__aexit__(*args)
+        stack = self._borrowers.get()
+        if not stack:
+            # a ContextVar snapshot never sees pushes from other contexts, so
+            # an empty stack means enter and exit didn't pair in one task
+            raise RuntimeError(
+                "ResizableLimiter exited from a context that never entered it "
+                "(__aenter__ and __aexit__ must pair within one task)"
+            )
+        self._borrowers.set(stack[:-1])
+        self._limiter.release_on_behalf_of(stack[-1])
+        return None
 
 
 class ConcurrencySemaphore(Protocol):
@@ -282,10 +308,12 @@ class ConcurrencySemaphoreRegistry(Protocol):
             visible: Whether visible in status display
             adaptive: Adaptive bounds (when set, creates an
                 AdaptiveConcurrencyController instead of a fixed Semaphore)
-            resizable: When set (and ``adaptive`` is not), back the semaphore
-                with a :class:`ResizableLimiter` whose limit can be changed
-                mid-flight (via the control channel) instead of a fixed
-                ``anyio.Semaphore``.
+            resizable: When set (and ``adaptive`` is not), require the
+                semaphore to be backed by a :class:`ResizableLimiter` whose
+                limit can be changed mid-flight (via the control channel).
+                The default registry creates resizable semaphores for every
+                static entry regardless, so this only constrains custom
+                registries.
 
         Returns:
             The semaphore instance
@@ -362,9 +390,10 @@ async def concurrency(
       adaptive: When set, creates an adaptive controller managing a
          CapacityLimiter that scales between `adaptive.min` and
          `adaptive.max` based on retry feedback.
-      resizable: When set (and `adaptive` is not), back the context with a
-         `ResizableLimiter` whose limit can be changed mid-flight (via the
-         control channel) rather than a fixed `anyio.Semaphore`.
+      resizable: When set (and `adaptive` is not), require the context to be
+         backed by a semaphore whose limit can be changed mid-flight (via the
+         control channel). The default registry already backs every static
+         context with one, so this is only meaningful for custom registries.
     """
     # sort out key
     key = key if key else name
@@ -563,9 +592,15 @@ class _AnyIOSemaphoreRegistry:
             self._semaphores[k] = ctrl
             _fire_controller_created(ctrl)
             return ctrl
+        # Static entries are resizable by default (not just under an explicit
+        # `resizable=True`) so the control channel can retune any named
+        # concurrency() limit — including ones registered by tools and user
+        # code that never opted in (`ctl config --key`). The fixed semaphore
+        # remains only for degenerate limits below 1, which the backing
+        # CapacityLimiter cannot represent.
         sem = (
             ResizableSemaphore(name, concurrency, visible)
-            if resizable
+            if concurrency >= 1
             else _create_anyio_semaphore(name, concurrency, visible)
         )
         self._semaphores[k] = sem
@@ -607,7 +642,7 @@ def _create_anyio_semaphore(
 class ResizableSemaphore:
     """A ``ConcurrencySemaphore`` whose limit can be changed live.
 
-    Backs a registry entry (``max_sandboxes`` and ``max_subprocesses`` today) with a
+    Backs a registry entry (every static entry in the default registry) with a
     :class:`ResizableLimiter` instead of a fixed ``anyio.Semaphore``, so the
     control channel can retune it mid-eval. ``concurrency`` delegates straight
     to the limiter's live limit — the protocol's mutable attribute is a
@@ -1040,6 +1075,18 @@ def adaptive_controllers() -> list[AdaptiveConcurrencyController]:
         for c in _concurrency_registry.values()
         if isinstance(c, AdaptiveConcurrencyController)
     ]
+
+
+def concurrency_semaphores() -> list[ConcurrencySemaphore]:
+    """All currently-registered concurrency semaphores (for the control channel).
+
+    Unlike :func:`concurrency_status_display` this is the raw registry view —
+    names are not prefix-shortened and ``visible=False`` entries are included —
+    because the control channel's key directive addresses entries by their
+    exact registered name (visibility governs the status bar, not
+    retunability).
+    """
+    return list(_concurrency_registry.values())
 
 
 class DynamicSampleLimiter:
