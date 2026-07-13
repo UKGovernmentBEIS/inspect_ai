@@ -205,7 +205,7 @@ async def test_terminal_errored_sample_reports_error_status(
 ) -> None:
     import inspect_ai.log._samples as samples_mod
     from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
-    from inspect_ai.log._log import EvalError, EvalSample
+    from inspect_ai.log import EvalError, EvalSample
 
     monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
 
