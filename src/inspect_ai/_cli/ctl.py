@@ -1308,7 +1308,7 @@ class _SampleRows(NamedTuple):
 def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks."""
     fallback_as_of = time.time()
-    fetched = _fetch_sample_summaries()
+    fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         return _SampleRows(as_of=fallback_as_of, targets=[], read=[], rows=[])
@@ -1449,7 +1449,7 @@ def _run_sample_listing(
 def _run_sample_show(
     task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
 ) -> None:
-    fetched = _fetch_sample_summaries()
+    fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         if as_json:
@@ -1529,7 +1529,7 @@ def _run_sample_events(
     # the all-busy exit inside the fetch matters doubly here: the done:true
     # empty page below would falsely end a polling loop for an eval whose
     # events may live on the busy pid
-    fetched = _fetch_sample_summaries()
+    fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         if as_json:
@@ -2625,6 +2625,7 @@ def _fetch_summaries(
     servers: list[DiscoveredControlServer],
     *,
     raise_on_busy: bool = False,
+    stop_on_task_id: str | None = None,
 ) -> _FetchedSummaries:
     """Query each discovered control server for its eval summary.
 
@@ -2644,6 +2645,16 @@ def _fetch_summaries(
     common cause is a process that just exited between discovery and connect,
     but the same path also catches a server-side ``500`` or a malformed
     response, which the user should see.
+
+    ``stop_on_task_id`` short-circuits the fan-out: once a server's rows
+    contain that exact task id, the remaining servers are not contacted.
+    Safe only for an exact *full* id — it wins resolution outright (see
+    :func:`_resolve_target_eval`), so the skipped servers could neither add
+    candidates nor create ambiguity; a prefix or name query never equals a
+    full id, so it still sees every server. Discovery is newest-first, so
+    only siblings started before the target are skipped, and the
+    duplicate-id corner (an old kept-alive attempt a newer process is
+    retrying) resolves to the newest attempt.
     """
     summaries: list[dict[str, Any]] = []
     busy_pids: list[int] = []
@@ -2686,10 +2697,14 @@ def _fetch_summaries(
                 row["pid"] = server.pid
                 row["socket_path"] = str(server.socket_path)
             summaries.extend(rows)
+            if stop_on_task_id is not None and any(
+                row.get("task_id") == stop_on_task_id for row in rows
+            ):
+                break
     return _FetchedSummaries(summaries=summaries, busy_pids=busy_pids)
 
 
-def _fetch_sample_summaries() -> _FetchedSummaries:
+def _fetch_sample_summaries(task_query: str | None = None) -> _FetchedSummaries:
     """Fetch the discovered summaries for a sample command.
 
     Busy processes are warned-and-skipped (``raise_on_busy``) so one wedged
@@ -2697,8 +2712,16 @@ def _fetch_sample_summaries() -> _FetchedSummaries:
     process alive yet busy), exit non-zero via :func:`_exit_all_busy`: an
     alive-but-busy eval must never be indistinguishable from no eval at all.
     ``busy_pids`` rides the return for scoped resolution's caveats.
+
+    ``task_query`` is the command's TASK selector; an exact full task id
+    stops the fan-out at the server holding it (see ``stop_on_task_id`` on
+    :func:`_fetch_summaries`).
     """
-    fetched = _fetch_summaries(list_discovered_servers(), raise_on_busy=True)
+    fetched = _fetch_summaries(
+        list_discovered_servers(),
+        raise_on_busy=True,
+        stop_on_task_id=task_query,
+    )
     if not fetched.summaries and fetched.busy_pids:
         _exit_all_busy(fetched.busy_pids)
     return fetched
