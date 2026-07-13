@@ -20,6 +20,7 @@ from inspect_ai._control.server import (
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
+from inspect_ai._eval.handoff import LaunchHandoff, emit_launch_handoff
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
@@ -993,6 +994,20 @@ async def _eval_async_inner(
             control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
         ):
+            # emitted here — after the control-server bind, before any task
+            # work — so a listener that has seen the handoff can rely on the
+            # control surface existing (or being definitively absent)
+            emit_launch_handoff(
+                LaunchHandoff(
+                    run_id=run_id,
+                    pid=os.getpid(),
+                    log_dir=log_dir,
+                    control_socket=str(_ctl_server.socket_path)
+                    if _ctl_server is not None and _ctl_server.socket_path is not None
+                    else None,
+                    eval_set_id=eval_set_id,
+                )
+            )
             with scan_cm:
                 # The one place eval_run is invoked for a batch of tasks. The
                 # initial tasks run as the first loop iteration below; tasks

@@ -32,6 +32,31 @@ The endpoint is a Unix domain socket under the current user's Inspect data direc
 Earlier releases exposed these operations as flat verbs (`inspect ctl tasks`, `samples`, `sample`, `errors`, `events`, `limits`, `flush`, `buffer`, `keep`, `release`). Those spellings still work as hidden, deprecated aliases (each prints a pointer to the new spelling on stderr) and will be removed in a future release — except `sample`, whose name now belongs to the command group: use `inspect ctl sample show` for what `inspect ctl sample` did.
 :::
 
+## Launch Handoff
+
+Right after launching an eval, an empty `inspect ctl task list` is ambiguous: the control endpoint may simply not be bound yet. A script or agent that launches an eval and then drives it with `inspect ctl` should launch with `--json`:
+
+```bash
+inspect eval ctf.py --json
+```
+
+This implies `--display none` and makes stdout machine-readable — the process emits JSON lines (and nothing else) on stdout:
+
+```json
+{"event": "launch", "run_id": "Ngkz4viFYq…", "eval_set_id": null, "pid": 17146, "log_dir": "/…/logs", "control": {"socket_path": "/…/control/17146.sock"}}
+{"event": "done", "run_id": "Ngkz4viFYq…", "logs": [{"task": "ctf", "task_id": "…", "eval_id": "…", "status": "success", "location": "/…/logs/…_ctf_….eval"}]}
+```
+
+The `launch` record is printed only once the control endpoint is bound (and before any task work begins), so reading it is a hard guarantee: from then on an empty `inspect ctl task list` means "no tasks registered yet", never "no server". `control` is `null` exactly when the control surface is definitively absent (disabled via `--ctl-server=false`, or the bind failed and the eval degraded to running without it). A process that exits without emitting a `launch` record failed before the control server came up — the reason is on stderr.
+
+The `done` record arrives when the eval finishes, with each task's log location and status — the handoff from live observation to reading logs. A run that crashes (raises out of the eval) emits no `done` record and exits non-zero. Note that a task *error* is not a crash: like plain `inspect eval`, the process still emits `done` and exits 0 with that task's `status` set to `"error"` — branch on the `status` fields in `logs`, not the exit code (or use `eval-set`, whose `success` field and exit code do reflect per-task outcomes).
+
+Stdout carries these records exclusively: the eval itself runs with stdout redirected to stderr (at the file-descriptor level, so even output from subprocesses spawned by task or solver code lands on stderr rather than corrupting the stream).
+
+`inspect eval-set --json` follows the same contract, with eval-set specifics: the records also carry `eval_set_id`, and the `done` record adds an overall `success` field mirroring the exit code. Two deviations from "exactly one `launch`, then one `done`": a set whose tasks are all already complete runs no eval, so stdout carries only the `done` record (don't read the missing `launch` line as a failed launch once `done` arrived); and legacy batch-mode retries (`--no-retry-immediate`) emit a fresh `launch` record per retry batch, with the `done` record carrying the last launch's `run_id` — the run that produced the final state.
+
+`inspect eval-retry --json` follows the contract too, with one wrinkle: each retried log file runs as its own eval with its own `run_id`, so retrying multiple log files emits one `launch` record per file (sequentially — each supersedes the previous), and the single `done` record carries the last launch's `run_id` with one `logs` entry per retried task.
+
 ## Listing Tasks
 
 `inspect ctl task` lists the tasks of every running eval on the machine:
