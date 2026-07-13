@@ -354,7 +354,7 @@ def test_error_resolution_downgraded_for_materializing_fail_on_error_sample() ->
 
 
 def test_sample_cancelled_interrupt_action() -> None:
-    """`ActiveSample.interrupt("cancelled")` records the sample as cancelled.
+    """`ActiveSample.interrupt("cancel")` records the sample as cancelled.
 
     Transcript preserved, no scoring, not an error — and the rest of the
     task (including its terminal status) is unaffected.
@@ -367,7 +367,7 @@ def test_sample_cancelled_interrupt_action() -> None:
             if state.sample_id == 1:
                 active = sample_active()
                 assert active is not None
-                active.interrupt("cancelled")
+                active.interrupt("cancel")
                 await anyio.sleep(10)
             return state
 
@@ -417,7 +417,7 @@ def test_score_resolution_sweep_preserves_cancelled_sample() -> None:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             active = sample_active()
             assert active is not None
-            active.interrupt("cancelled")
+            active.interrupt("cancel")
             # the score resolution lands before this sample's cancellation
             # is even delivered (no checkpoint since the interrupt) — it is
             # still in flight, so the sweep sees it

@@ -597,14 +597,14 @@ class ConnectionHandler:
     async def cancel_sample(
         self,
         session_id: str,
-        action: Literal["score", "error", "cancelled"],
+        action: Literal["score", "error", "cancel"],
     ) -> dict[str, Any]:
         """Terminate the bound sample via :meth:`ActiveSample.interrupt`.
 
         ``action`` selects the post-cancel outcome:
 
         - ``"score"`` — run the scorer on whatever work landed.
-        - ``"cancelled"`` — record the sample as cancelled (transcript
+        - ``"cancel"`` — record the sample as cancelled (transcript
           preserved, no scoring, not counted as an error).
         - ``"error"`` — mark the sample errored. Gated to mirror the
           in-proc ``--display full`` TUI's

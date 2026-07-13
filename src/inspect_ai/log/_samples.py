@@ -107,7 +107,7 @@ class ActiveSample:
         # sample source. Empty on the first attempt. The control channel
         # surfaces these as the running sample's error history.
         self.error_retries: list[EvalRetryError] = error_retries or []
-        self._interrupt_action: Literal["score", "error", "cancelled"] | None = None
+        self._interrupt_action: Literal["score", "error", "cancel"] | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
@@ -201,12 +201,12 @@ class ActiveSample:
         else:
             return 0
 
-    def interrupt(self, action: Literal["score", "error", "cancelled"]) -> None:
+    def interrupt(self, action: Literal["score", "error", "cancel"]) -> None:
         """Terminate this running sample.
 
         ``action`` selects the outcome: ``"score"`` completes the sample and
         runs the scorer on the work done so far; ``"error"`` marks it errored;
-        ``"cancelled"`` records it as cancelled (transcript preserved, no
+        ``"cancel"`` records it as cancelled (transcript preserved, no
         scoring, not counted as an error).
         """
         self._interrupt_action = action
@@ -251,7 +251,7 @@ class ActiveSample:
             )
 
     @property
-    def interrupt_action(self) -> Literal["score", "error", "cancelled"] | None:
+    def interrupt_action(self) -> Literal["score", "error", "cancel"] | None:
         return self._interrupt_action
 
     @property

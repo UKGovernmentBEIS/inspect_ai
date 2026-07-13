@@ -6,7 +6,7 @@ dry-runnable per the phase-3 agent-shape constraints:
 - :func:`cancel_task` — task-keyed (stable across retries, like ``config`` /
   ``log-flush``). ``action`` selects how the task's samples are resolved:
 
-  - ``"cancelled"`` (the default) fires the latest attempt's registered
+  - ``"cancel"`` (the default) fires the latest attempt's registered
     ``TaskCancel`` with ``"abort"``, the same user-cancel path the in-process
     task display's cancel dialog drives. In-flight samples are interrupted
     (their transcripts so far are preserved in the log as cancelled samples),
@@ -29,7 +29,7 @@ dry-runnable per the phase-3 agent-shape constraints:
   ``action`` selects the outcome — ``"score"`` completes the sample and runs
   the scorer on the work done so far; ``"error"`` marks it errored (rejected
   when the sample is configured to fail on errors, mirroring the TUI/ACP
-  gate, since the auto-fail would race it); ``"cancelled"`` records it as
+  gate, since the auto-fail would race it); ``"cancel"`` records it as
   cancelled — transcript preserved, no scoring, not counted as an error.
 
 Both run on the eval's own loop (the control server is embedded), so firing
@@ -49,20 +49,20 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from inspect_ai.log._samples import ActiveSample
 
-TaskCancelAction = Literal["cancelled", "score", "error"]
+TaskCancelAction = Literal["cancel", "score", "error"]
 """How a task cancel resolves its samples (see :func:`cancel_task`)."""
 
 
 def cancel_task(
     task_id: str,
     *,
-    action: TaskCancelAction = "cancelled",
+    action: TaskCancelAction = "cancel",
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
     """Cancel a running task (``POST /tasks/<task-id>/cancel``).
 
     Resolves the task's latest attempt and cancels it per ``action``
-    (unless ``dry_run``): ``"cancelled"`` fires its ``TaskCancel`` with
+    (unless ``dry_run``): ``"cancel"`` fires its ``TaskCancel`` with
     ``"abort"``; ``"score"`` / ``"error"`` stamp the resolution on the handle,
     interrupt each in-flight sample with the matching action (first interrupt
     wins — a sample already interrupted keeps its resolution), abandon queued
@@ -72,7 +72,7 @@ def cancel_task(
     no-op when it has already finished or a cancel is already in flight (the
     reason names the pending cancel's type — a pending ``retry`` cancel means
     the task will be re-queued, so an abort-intending caller knows to re-issue
-    once the retry starts; the one exception is a ``"cancelled"`` request
+    once the retry starts; the one exception is a ``"cancel"`` request
     against a pending score/error resolution, which *escalates* to an abort —
     the graceful path can stall on a hung scorer, and the operator must keep a
     way to tear the task down); ``{"ok": False, "error": ...}`` when
@@ -126,10 +126,10 @@ def cancel_task(
         }
     pending = state.task_cancel.cancel_type
     if pending is not None:
-        # a "cancelled" (abort) request may escalate over a pending
+        # a "cancel" (abort) request may escalate over a pending
         # score/error resolution; any other combination is the idempotent
         # repeat no-op
-        if not (action == "cancelled" and pending in ("score", "error")):
+        if not (action == "cancel" and pending in ("score", "error")):
             return {
                 **result,
                 "changed": False,
@@ -151,16 +151,16 @@ def cancel_task(
         }
 
     if not dry_run:
-        if action == "cancelled":
+        if action == "cancel":
             state.task_cancel.cancel_task("abort")
         else:
             # stamp the resolution first (queued samples check it as they
             # leave the queue, initializing samples as they start), then
             # interrupt the samples already running. First interrupt wins:
-            # a sample already interrupted — e.g. per-sample 'cancelled',
+            # a sample already interrupted — e.g. a per-sample 'cancel',
             # now inside its logging window (`completed` is stamped only at
             # context exit) — keeps its resolution; overwriting a
-            # 'cancelled' would re-raise its sample-scoped CancelledError
+            # 'cancel' would re-raise its sample-scoped CancelledError
             # into the task group and tear the whole task down.
             state.task_cancel.cancel_task(action)
             for sample in in_flight:
@@ -174,14 +174,14 @@ async def cancel_sample(
     sample_id: str,
     epoch: int,
     *,
-    action: Literal["score", "error", "cancelled"] = "score",
+    action: Literal["score", "error", "cancel"] = "score",
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
     """Cancel one running sample (``POST /evals/<id>/sample/cancel``).
 
     Interrupts the sample via ``ActiveSample.interrupt(action)`` (unless
     ``dry_run``): ``"score"`` completes it and runs the scorer on the work
-    done so far, ``"error"`` marks it errored, ``"cancelled"`` records it as
+    done so far, ``"error"`` marks it errored, ``"cancel"`` records it as
     cancelled (transcript preserved, no scoring, not counted as an error).
     Returns ``None`` when the sample is in neither the live set
     nor the eval's readable samples (the route 404s); a ``changed: False``

@@ -1435,7 +1435,7 @@ async def task_run_sample(
                                             case "error":
                                                 # default error handling
                                                 error, raise_error = handle_error(ex)
-                                            case "cancelled":
+                                            case "cancel":
                                                 # resolve as an external cancel
                                                 # would: transcript preserved,
                                                 # no scoring, and not counted
@@ -1872,7 +1872,7 @@ async def task_run_sample(
         record_sample_cancelled(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
-        # an operator 'cancelled' interrupt is sample-scoped: the cancellation
+        # an operator 'cancel' interrupt is sample-scoped: the cancellation
         # came from this sample's own task group (already absorbed at its
         # exit), so there is nothing to re-raise — re-raising here would tear
         # down the whole task. Keyed on the disposition captured when the

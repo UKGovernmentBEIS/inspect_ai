@@ -325,11 +325,11 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
 @click.argument("task")
 @click.option(
     "--action",
-    type=click.Choice(["cancelled", "score", "error"]),
-    default="cancelled",
+    type=click.Choice(["cancel", "score", "error"]),
+    default="cancel",
     show_default=True,
     help=(
-        "How in-flight samples are resolved: 'cancelled' interrupts them "
+        "How in-flight samples are resolved: 'cancel' interrupts them "
         "(transcripts preserved as cancelled samples) and finalizes the log "
         "with an error status; 'score' scores them on the work done so far; "
         "'error' marks them errored (not permitted for tasks whose samples "
@@ -610,13 +610,13 @@ def sample_events_command(
 @click.argument("epoch", required=False, type=int, default=None)
 @click.option(
     "--action",
-    type=click.Choice(["score", "error", "cancelled"]),
+    type=click.Choice(["score", "error", "cancel"]),
     default="score",
     show_default=True,
     help=(
         "Outcome for the sample: 'score' completes it and runs the scorer "
         "on the work done so far; 'error' marks it errored (not permitted "
-        "for samples configured to fail on errors); 'cancelled' records it "
+        "for samples configured to fail on errors); 'cancel' records it "
         "as cancelled (transcript preserved, no scoring, not counted as an "
         "error)."
     ),
@@ -646,7 +646,7 @@ def sample_cancel_command(
 
     By default the sample completes and the scorer runs on the work done so
     far; pass `--action error` to mark it errored instead, or `--action
-    cancelled` to record it as cancelled (transcript preserved, no scoring,
+    cancel` to record it as cancelled (transcript preserved, no scoring,
     not counted as an error). The rest of the task is unaffected.
     Idempotent — cancelling a sample that has already finished is a clean
     no-op. EPOCH defaults to 1 but is required whenever the task runs more
@@ -657,7 +657,7 @@ def sample_cancel_command(
         task,
         sample_id,
         epoch,
-        action=cast(Literal["score", "error", "cancelled"], action),
+        action=cast(Literal["score", "error", "cancel"], action),
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -1761,7 +1761,7 @@ _CANCEL_ROUTE_MISSING = (
 def _run_task_cancel(
     task: str,
     *,
-    action: TaskCancelAction = "cancelled",
+    action: TaskCancelAction = "cancel",
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -1777,7 +1777,7 @@ def _run_task_cancel(
     assert scope.task_id is not None
 
     params: dict[str, Any] = {}
-    if action != "cancelled":
+    if action != "cancel":
         # a server that predates the action param would silently ignore
         # it and abort the task — hard-error before sending (same rationale
         # as `_gate_knob_support`)
@@ -1816,7 +1816,7 @@ def _run_task_cancel(
     if result.get("changed"):
         in_flight = int(result.get("in_flight", 0) or 0)
         outcome = {
-            "cancelled": "interrupted",
+            "cancel": "interrupted",
             "score": "scored on the work done so far",
             "error": "marked as errored",
         }[action]
@@ -1826,7 +1826,7 @@ def _run_task_cancel(
         )
         suffix = (
             "completed samples are kept"
-            if action == "cancelled"
+            if action == "cancel"
             else "queued samples are abandoned and the task will complete"
         )
         if dry_run:
@@ -1844,7 +1844,7 @@ def _run_sample_cancel(
     sample_id: str,
     epoch: int | None,
     *,
-    action: Literal["score", "error", "cancelled"],
+    action: Literal["score", "error", "cancel"],
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -1918,7 +1918,7 @@ def _run_sample_cancel(
         outcome = {
             "score": "scored on the work done so far",
             "error": "marked as errored",
-            "cancelled": "recorded as cancelled",
+            "cancel": "recorded as cancelled",
         }[action]
         if dry_run:
             click.echo(f"Would cancel {label} — it would be {outcome}.")

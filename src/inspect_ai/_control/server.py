@@ -381,7 +381,7 @@ class ControlServer:
 
         # Cancel a running task (phase 3). Task-keyed like `config` and
         # `log-flush` — the handle never dangles across a retry. `action`
-        # selects how the task's samples resolve: "cancelled" (the default)
+        # selects how the task's samples resolve: "cancel" (the default)
         # fires the latest attempt's TaskCancel with "abort" (the in-process
         # display's user-cancel path — in-flight samples are interrupted,
         # completed work is preserved, and the log finishes with an error
@@ -392,14 +392,14 @@ class ControlServer:
         # `changed: false`); `dry_run=true` reports without acting.
         @app.post("/tasks/{task_id}/cancel")
         async def task_cancel(
-            task_id: str, action: str = "cancelled", dry_run: bool = False
+            task_id: str, action: str = "cancel", dry_run: bool = False
         ) -> Any:
             if action not in get_args(TaskCancelAction):
                 return JSONResponse(
                     status_code=400,
                     content={
                         "error": (
-                            "action must be 'cancelled', 'score' or "
+                            "action must be 'cancel', 'score' or "
                             f"'error' (got '{action}')"
                         )
                     },
@@ -426,7 +426,7 @@ class ControlServer:
         # default; see the selector conventions in
         # design/control-channel.md). `action` selects the outcome: "score"
         # completes the sample and scores the work done so far; "error"
-        # marks it errored (rejected for fail-on-error samples); "cancelled"
+        # marks it errored (rejected for fail-on-error samples); "cancel"
         # records it as cancelled (transcript preserved, no scoring, not
         # counted as an error). Idempotent
         # — an already-terminal sample reports `changed: false`;
@@ -450,7 +450,7 @@ class ControlServer:
                         )
                     },
                 )
-            if action not in ("score", "error", "cancelled"):
+            if action not in ("score", "error", "cancel"):
                 return JSONResponse(
                     status_code=400,
                     content={
@@ -464,7 +464,7 @@ class ControlServer:
                 eval_id,
                 sample_id,
                 epoch,
-                action=cast(Literal["score", "error", "cancelled"], action),
+                action=cast(Literal["score", "error", "cancel"], action),
                 dry_run=dry_run,
             )
             if result is None:

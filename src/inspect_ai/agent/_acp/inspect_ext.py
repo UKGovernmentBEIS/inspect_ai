@@ -200,7 +200,7 @@ class CancelSampleParams(BaseModel):
     """Pydantic param model for :data:`INSPECT_CANCEL_SAMPLE_METHOD`."""
 
     session_id: str = Field(alias="sessionId")
-    action: Literal["score", "error", "cancelled"]
+    action: Literal["score", "error", "cancel"]
 
     model_config = {"populate_by_name": True}
 

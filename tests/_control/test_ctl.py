@@ -2276,10 +2276,10 @@ def test_sample_cancel_cancelled_action_sent(
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(
         ctl_command,
-        ["sample", "cancel", "aaa111", "s1", "--action", "cancelled", "--json"],
+        ["sample", "cancel", "aaa111", "s1", "--action", "cancel", "--json"],
     )
     assert result.exit_code == 0, result.output
-    assert spy.params == [{"sample_id": "s1", "epoch": 1, "action": "cancelled"}]
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "action": "cancel"}]
     assert json.loads(result.stdout)["applied"] is True
 
 

@@ -68,9 +68,9 @@ class _FakeActiveSample:
         self.completed = completed
         self.fails_on_error = fails_on_error
         self.interrupts: list[str] = []
-        self.interrupt_action: Literal["score", "error", "cancelled"] | None = None
+        self.interrupt_action: Literal["score", "error", "cancel"] | None = None
 
-    def interrupt(self, action: Literal["score", "error", "cancelled"]) -> None:
+    def interrupt(self, action: Literal["score", "error", "cancel"]) -> None:
         self.interrupts.append(action)
         self.interrupt_action = action
 
@@ -322,13 +322,13 @@ def test_cancel_task_resolution_sweep_skips_already_interrupted(
     handle = _FakeTaskCancel()
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
     already_cancelled = _FakeActiveSample(sample_id="s1")
-    already_cancelled.interrupt("cancelled")
+    already_cancelled.interrupt("cancel")
     running = _FakeActiveSample(sample_id="s2")
     _patch_active_samples(monkeypatch, [already_cancelled, running])
 
     result = cancel_task("t1", action="score")
     assert result is not None and result["changed"] is True
-    assert already_cancelled.interrupts == ["cancelled"]  # not re-interrupted
+    assert already_cancelled.interrupts == ["cancel"]  # not re-interrupted
     assert running.interrupts == ["score"]
 
 
@@ -396,10 +396,10 @@ async def test_cancel_sample_cancelled_action(monkeypatch: pytest.MonkeyPatch) -
     sample = _FakeActiveSample()
     _patch_active_samples(monkeypatch, [sample])
 
-    result = await cancel_sample("e1", "s1", 1, action="cancelled")
+    result = await cancel_sample("e1", "s1", 1, action="cancel")
     assert result is not None and result["changed"] is True
-    assert result["action"] == "cancelled"
-    assert sample.interrupts == ["cancelled"]
+    assert result["action"] == "cancel"
+    assert sample.interrupts == ["cancel"]
 
 
 async def test_cancel_sample_cancelled_action_not_gated_by_fails_on_error(
@@ -413,9 +413,9 @@ async def test_cancel_sample_cancelled_action_not_gated_by_fails_on_error(
     sample = _FakeActiveSample(fails_on_error=True)
     _patch_active_samples(monkeypatch, [sample])
 
-    result = await cancel_sample("e1", "s1", 1, action="cancelled")
+    result = await cancel_sample("e1", "s1", 1, action="cancel")
     assert result is not None and result["changed"] is True
-    assert sample.interrupts == ["cancelled"]
+    assert sample.interrupts == ["cancel"]
 
 
 async def test_cancel_sample_error_action_gated_by_fails_on_error(
@@ -626,11 +626,11 @@ async def test_sample_cancel_route_cancelled_action(
     ) as client:
         ok = await client.post(
             "/evals/e1/sample/cancel",
-            params={"sample_id": "s1", "epoch": 1, "action": "cancelled"},
+            params={"sample_id": "s1", "epoch": 1, "action": "cancel"},
         )
         assert ok.status_code == 200, ok.text
         assert ok.json()["changed"] is True
-        assert sample.interrupts == ["cancelled"]
+        assert sample.interrupts == ["cancel"]
 
 
 async def test_sample_cancel_route_gates_error_action(
