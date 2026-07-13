@@ -1,8 +1,11 @@
+import re
+from pathlib import Path
 from typing import get_args
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
+import inspect_ai
 from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
@@ -44,3 +47,25 @@ def test_discriminated_event_rejects_unknown_tag() -> None:
     adapter = TypeAdapter(list[DiscriminatedEvent])
     with pytest.raises(ValidationError):
         adapter.validate_python([{"event": "not_a_real_event"}])
+
+
+def test_no_bare_event_list_typeadapter_in_src() -> None:
+    # Tripwire for the Event vs DiscriminatedEvent convention: any site that
+    # validates events from JSON/dicts must route through the discriminated
+    # alias (directly or via validate_events), never a bare
+    # `TypeAdapter(list[Event])`, or the #2714 slow-path regression returns.
+    # Full enforcement isn't possible (the invariant is about call paths, not
+    # annotations), but a bare adapter is the most likely regression to guard.
+    src_root = Path(inspect_ai.__file__).parent
+    pattern = re.compile(r"TypeAdapter\(\s*list\[Event\]\s*\)")
+    allowlist: set[str] = set()
+    offenders = sorted(
+        rel
+        for path in src_root.rglob("*.py")
+        if (rel := str(path.relative_to(src_root))) not in allowlist
+        and pattern.search(path.read_text(encoding="utf-8"))
+    )
+    assert not offenders, (
+        "Validate events through DiscriminatedEvent (see event/_validate.py) "
+        f"rather than a bare TypeAdapter(list[Event]): {offenders}"
+    )

@@ -51,7 +51,14 @@ Event: TypeAlias = Union[
     StepEvent,
     SubtaskEvent,
 ]
-"""Event in a transcript."""
+"""Event in a transcript.
+
+When validating events from JSON or dicts (i.e. reading logs), validate against
+:data:`DiscriminatedEvent` below rather than this bare alias — it carries the
+pydantic discriminator that turns validation into a single keyed lookup. This
+plain alias is deliberately left un-annotated so ``get_args(Event)`` and other
+type introspection keep working (wrapping the public alias is what forced the
+revert of #2714)."""
 
 
 DiscriminatedEvent: TypeAlias = Annotated[Event, Field(discriminator="event")]
