@@ -2025,7 +2025,7 @@ class _RequestSpy:
 
 def test_task_cancel_requires_task_argument() -> None:
     """The destructive verb requires its selector outright — no sole-task default."""
-    result = _runner().invoke(ctl_command, ["task", "cancel"])
+    result = cli_runner().invoke(ctl_command, ["task", "cancel"])
     assert result.exit_code == 2
     assert "TASK" in result.stderr
 
@@ -2036,7 +2036,7 @@ def test_task_cancel_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> 
         {"ok": True, "task_id": "aaa111", "changed": True, "in_flight": 2}
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = _runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--json"])
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--json"])
     assert result.exit_code == 0, result.output
     assert spy.paths == ["/tasks/aaa111/cancel"]
     assert spy.params == [{}]
@@ -2050,7 +2050,7 @@ def test_task_cancel_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> Non
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True, "in_flight": 1})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = _runner().invoke(
+    result = cli_runner().invoke(
         ctl_command, ["task", "cancel", "aaa111", "--dry-run", "--json"]
     )
     assert result.exit_code == 0, result.output
@@ -2064,7 +2064,7 @@ def test_task_cancel_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1", status="completed")])
     spy = _RequestSpy({"ok": True, "changed": False, "reason": "task already finished"})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = _runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--json"])
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert payload["applied"] is False
@@ -2075,7 +2075,7 @@ def test_task_cancel_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 3})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = _runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
     assert result.exit_code == 0, result.output
     assert "Cancel requested" in result.stdout
     assert "3 in-flight samples" in result.stdout
@@ -2087,7 +2087,7 @@ def test_task_cancel_missing_route_names_version_skew(
     """A router 404 (no `error` body) means the server predates the endpoint."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     _stub_httpx(monkeypatch, [(404, {"detail": "Not Found"})])
-    result = _runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
     assert result.exit_code == 1
     assert "older inspect without the cancel endpoint" in result.stderr
     assert "may have finished" not in result.stderr
@@ -2099,7 +2099,7 @@ def test_task_cancel_handler_404_means_task_gone(
     """A handler 404 (`{"error": ...}` body) is definitive: the task is gone."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     _stub_httpx(monkeypatch, [(404, {"error": "task aaa111 not found"})])
-    result = _runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
     assert result.exit_code == 1
     assert "may have finished" in result.stderr
     assert "older inspect" not in result.stderr
@@ -2113,7 +2113,7 @@ def test_sample_cancel_defaults_epoch_for_single_epoch_task(
     _patch_surface(monkeypatch, [summary])
     spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = _runner().invoke(
+    result = cli_runner().invoke(
         ctl_command, ["sample", "cancel", "aaa111", "s1", "--json"]
     )
     assert result.exit_code == 0, result.output
@@ -2134,13 +2134,13 @@ def test_sample_cancel_requires_epoch_when_multi_epoch(
     _patch_surface(monkeypatch, [summary])
     spy = _RequestSpy({"ok": True, "changed": True})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = _runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1"])
+    result = cli_runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1"])
     assert result.exit_code == 1
     assert "pass EPOCH explicitly" in result.stderr
     assert spy.paths == []  # nothing was sent
 
     # ...and an explicit epoch goes through
-    ok = _runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1", "2"])
+    ok = cli_runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1", "2"])
     assert ok.exit_code == 0, ok.output
     assert spy.params == [{"sample_id": "s1", "epoch": 2, "action": "score"}]
 
@@ -2155,7 +2155,7 @@ def test_sample_cancel_error_flag_and_dry_run(
         {"ok": True, "sample_id": "s1", "epoch": 1, "changed": True, "dry_run": True}
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = _runner().invoke(
+    result = cli_runner().invoke(
         ctl_command,
         ["sample", "cancel", "aaa111", "s1", "--error", "--dry-run", "--json"],
     )
@@ -2182,7 +2182,7 @@ def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> Non
         }
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = _runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1"])
+    result = cli_runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1"])
     assert result.exit_code == 0, result.output
     assert "already finished" in result.stdout
     assert "status: completed" in result.stdout
