@@ -148,6 +148,9 @@ class ContentDocument(ContentBase):
     mime_type: str = Field(default_factory=str)
     """Document mime type (automatically determined from 'document' if not specified)."""
 
+    citations: bool = Field(default=False)
+    """Enable model-generated citations that reference spans of this document. Currently supported by Anthropic models; ignored by providers without document-citation support."""
+
     @model_validator(mode="before")
     @classmethod
     def set_name_and_mime_type(cls, data: Any) -> Any:
