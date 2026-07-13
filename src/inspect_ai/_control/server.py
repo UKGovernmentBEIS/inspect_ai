@@ -376,15 +376,35 @@ class ControlServer:
             return result
 
         # Cancel a running task (phase 3). Task-keyed like `config` and
-        # `log-flush` — the handle never dangles across a retry. Fires the
-        # latest attempt's TaskCancel with "abort" (the in-process display's
-        # user-cancel path): in-flight samples are interrupted, completed
-        # work is preserved, and the log finishes with an error status.
+        # `log-flush` — the handle never dangles across a retry. `resolution`
+        # selects how the task's samples resolve: "cancelled" (the default)
+        # fires the latest attempt's TaskCancel with "abort" (the in-process
+        # display's user-cancel path — in-flight samples are interrupted,
+        # completed work is preserved, and the log finishes with an error
+        # status); "score"/"error" resolve gracefully — in-flight samples are
+        # interrupted with the matching action, queued samples are abandoned,
+        # and the task completes with its ordinary terminal status.
         # Idempotent (a repeat — or a cancel of a finished task — reports
         # `changed: false`); `dry_run=true` reports without acting.
         @app.post("/tasks/{task_id}/cancel")
-        async def task_cancel(task_id: str, dry_run: bool = False) -> Any:
-            result = cancel_task(task_id, dry_run=dry_run)
+        async def task_cancel(
+            task_id: str, resolution: str = "cancelled", dry_run: bool = False
+        ) -> Any:
+            if resolution not in ("cancelled", "score", "error"):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "resolution must be 'cancelled', 'score' or "
+                            f"'error' (got '{resolution}')"
+                        )
+                    },
+                )
+            result = cancel_task(
+                task_id,
+                resolution=cast(Literal["cancelled", "score", "error"], resolution),
+                dry_run=dry_run,
+            )
             if result is None:
                 return JSONResponse(
                     status_code=404,
@@ -402,7 +422,9 @@ class ControlServer:
         # default; see the selector conventions in
         # design/control-channel.md). `action` selects the outcome: "score"
         # completes the sample and scores the work done so far; "error"
-        # marks it errored (rejected for fail-on-error samples). Idempotent
+        # marks it errored (rejected for fail-on-error samples); "cancelled"
+        # records it as cancelled (transcript preserved, no scoring, not
+        # counted as an error). Idempotent
         # — an already-terminal sample reports `changed: false`;
         # `dry_run=true` reports without acting.
         @app.post("/evals/{eval_id}/sample/cancel")
@@ -424,18 +446,21 @@ class ControlServer:
                         )
                     },
                 )
-            if action not in ("score", "error"):
+            if action not in ("score", "error", "cancelled"):
                 return JSONResponse(
                     status_code=400,
                     content={
-                        "error": f"action must be 'score' or 'error' (got '{action}')"
+                        "error": (
+                            "action must be 'score', 'error' or 'cancelled' "
+                            f"(got '{action}')"
+                        )
                     },
                 )
             result = await cancel_sample(
                 eval_id,
                 sample_id,
                 epoch,
-                action=cast(Literal["score", "error"], action),
+                action=cast(Literal["score", "error", "cancelled"], action),
                 dry_run=dry_run,
             )
             if result is None:

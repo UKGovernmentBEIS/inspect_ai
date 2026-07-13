@@ -32,4 +32,4 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #   `{"error": ...}` body for this to hold — see the convention comment in
 #   `server.py`.
 # - Purely additive response fields the CLI already null-guards: no bump.
-CONTROL_API_VERSION: int = 1  # 1: max_subprocesses knob
+CONTROL_API_VERSION: int = 2  # 1: max_subprocesses knob; 2: task cancel resolution
