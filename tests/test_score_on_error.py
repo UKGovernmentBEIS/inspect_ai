@@ -8,8 +8,18 @@ from inspect_ai import Task, eval
 from inspect_ai._eval.task.run import PreviousError, eval_log_sample_source
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
-from inspect_ai.solver import TaskState
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    mean,
+    scorer,
+    stderr,
+)
+from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 
 
@@ -59,6 +69,57 @@ def _checkpoint_json(checkpoint_id: int, trigger: str) -> str:
             "sandboxes": {},
         }
     )
+
+
+@solver
+def solver_that_raises_on_sample_2():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == 2:
+            raise RuntimeError("boom")
+        state.metadata["ran"] = True
+        return state
+
+    return solve
+
+
+@scorer(metrics=[accuracy()])
+def score_by_solver_completion() -> Scorer:
+    """CORRECT only if the solver ran to completion (partial state → INCORRECT)."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=CORRECT if state.metadata.get("ran") else INCORRECT)
+
+    return score
+
+
+def test_score_on_error_contributes_to_metrics():
+    # 2 samples; sample 2's solver raises and is scored INCORRECT on its
+    # partial state. With score_on_error=True that errored-but-scored sample
+    # must contribute to metrics: accuracy 0.5 (1 correct / 2), not 1.0, and
+    # scored_samples == 2 (not 1). See docs/handling-errors.qmd.
+    log = eval(
+        Task(
+            dataset=MemoryDataset(
+                [Sample(id=1, input="hi"), Sample(id=2, input="hi")]
+            ),
+            solver=solver_that_raises_on_sample_2(),
+            scorer=score_by_solver_completion(),
+        ),
+        score_on_error=True,
+        fail_on_error=False,
+        display="none",
+    )[0]
+
+    assert log.results is not None
+    score = log.results.scores[0]
+    assert score.metrics["accuracy"].value == 0.5
+    assert score.scored_samples == 2
+
+    # sample 2 is still recorded as an error and scored INCORRECT
+    assert log.samples is not None
+    sample_2 = next(s for s in log.samples if s.id == 2)
+    assert sample_2.error is not None
+    assert sample_2.scores["score_by_solver_completion"].value == INCORRECT
 
 
 def test_score_on_error_basic():

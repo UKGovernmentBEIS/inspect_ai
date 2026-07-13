@@ -818,9 +818,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
             # use the SampleErrorHandler's authoritative count (incremented in
             # handle_error() exactly once per sample after retries are
-            # exhausted). With score_on_error, errored samples now return a
-            # populated score dict instead of None, so counting via
-            # `result is None` would miss them.
+            # exhausted). With score_on_error, an errored sample that was still
+            # scored returns a populated score dict rather than None, so counting
+            # errors via `result is None` would miss them.
             sample_error_count = sample_error_handler.error_count
             mark_log_as_error = _should_eval_fail(
                 sample_error_count, profile.samples, config.fail_on_error
@@ -1838,6 +1838,12 @@ async def task_run_sample(
         record_sample_errored(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
+        # with score_on_error the sample may have been scored on its partial
+        # state; surface those results so they contribute to metrics (mirrors
+        # the `error is None` branch above and matches docs/handling-errors.qmd)
+        if results:
+            await sample_complete(state.sample_id, state.epoch, results)
+            return results
         return None
 
 
