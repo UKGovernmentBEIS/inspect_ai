@@ -79,6 +79,8 @@ inspect ctl sample errors [TASK]            # triage: samples that errored or we
 inspect ctl sample events TASK SID [EPOCH]  # one sample's transcript events (cursored pull)
                                             #   --cursor CURSOR / --tail N / --type / --full / --since-time / --until
                                             #   (-f / --follow push is phase 4)
+inspect ctl sample messages TASK SID [EPOCH]  # one sample's current conversation, snapshot
+                                            #   (planned — see "Sample messages read")
 inspect ctl process list                    # running Inspect processes (pid / keep-alive / tasks)
 inspect ctl process keep [PID]              # keep a running process alive after its eval finishes
 inspect ctl process release [PID]           # release a lingering keep-alive process
@@ -136,6 +138,7 @@ inspect ctl
 │   ├── show TASK SID [EPOCH]       # was: sample
 │   ├── errors [TASK]               # was: errors (no TASK = across all tasks)
 │   ├── events TASK SID [EPOCH]     # was: events (phase-4 --follow lands here unchanged)
+│   ├── messages TASK SID [EPOCH]   # planned: current-conversation snapshot (see "Sample messages read")
 │   ├── cancel TASK SID [EPOCH]     # planned: cancel-sample
 │   └── requeue TASK SID [EPOCH]    # planned: requeue
 ├── config [TASK] [...]         # was: limits + buffer; view/retune launch config, scope per knob
@@ -206,6 +209,7 @@ Known accepted edge in the busy handling: the sole-server rule counts *discovere
 | `ctl cancel-sample <id> <sid>` | planned | `ctl sample cancel TASK SID [EPOCH]` | compound verb dissolves; `EPOCH` required when the task runs >1 epoch |
 | `ctl requeue <id> <sid>` | planned | `ctl sample requeue TASK SID [EPOCH]` | `EPOCH` required when the task runs >1 epoch |
 | `ctl set-limit <id> --time N` | planned | fold into `ctl config TASK --time-limit/--token-limit/--message-limit` | all retunable launch flags in one surface, same spellings as `inspect eval`; task-scoped knobs, so `TASK` follows the mutation selector rule |
+| — | planned | `ctl sample messages TASK SID [EPOCH]` | new read: the sample's current conversation, summary-projected — see "Sample messages read" |
 | — | new | `ctl process list` | pids, keep-alive status, hosted task_ids; shipped with the reorg — the group's other verbs take a `PID` selector, so pids must be enumerable in-group |
 | — | later | `ctl eval-set list / show / cancel` | group slot ready-made |
 
@@ -272,6 +276,7 @@ The conceptual surface, independent of wire protocol. Each operation becomes eit
 - List running evals (id, task, status, started_at, sample counts).
 - Eval status detail (config, current limits, sample queue depth, in-flight samples, completed counts, model usage so far).
 - List samples within an eval (status, started_at, current model/tool, token usage).
+- Read one sample's current conversation — the live `TaskState.messages`, summary-projected (planned; see "Sample messages read").
 
 **Read (eval-set-level)**
 - List eval-sets.
@@ -349,6 +354,7 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Samples changed since (recency delta) | `GET /evals/<id>/samples?active_since=<ts>` | 2 ✅ |
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | the pull URL with `Accept: text/event-stream` (SSE) | 4 |
+| Sample conversation messages (snapshot) | `GET /evals/<id>/sample/messages?sample_id=<sid>&epoch=<n>` | planned |
 | Eval-wide transcript fan-in (push only) | `GET /evals/<id>/samples/events` (SSE) | 4 |
 | Flush buffered samples to the log | `POST /tasks/<task-id>/log-flush` | 3 ✅ |
 | Read / modify retunable config (concurrency limits, buffer params) | `GET`+`PATCH /config` (process) and `/tasks/<task-id>/config` (task) | 3 ✅ (max-samples / max-sandboxes / max-subprocesses / max-connections / log-buffer / log-shared) |
@@ -725,6 +731,34 @@ A multi-sample *cursored pull* of transcript events is intentionally **not** bui
 A wall-clock window is a snapshot query (no exactly-once requirement), which is genuinely useful and cheap: on the event stream, `--since-time T1 [--until T2]` filters the page after the cursor slice; the `samples` recency delta (`?active_since=<ts>`) is the same family — "current state of whatever changed since T," not a resume position. Both are timestamp-as-*filter*, which is fine precisely because they don't promise exactly-once. The right home for "by time" without ever being load-bearing for resumption.
 
 Unlocks watchdog agents (cursored polling). Live-render TUIs follow once phase-4 push lands.
+
+### Sample messages read (planned)
+
+> **Status: planned** (design only — nothing in this section is implemented). Motivated by issue #70: agents live-watching a sample want the *conversation* (`.messages`), not just the transcript firehose — in particular for samples that exist only in the process buffer, not yet written to the `.eval` log.
+
+**The gap.** A human watching a live sample opens `inspect view` and reads the conversation. An agent has no equivalent: the closest surface is `sample events`, and reconstructing "what does the conversation look like right now" from the transcript is genuinely hard — the messages ride inside `ModelEvent.input` / `output` (truncated in the default projection, enormous under `--full`), solver / agent code can assign `state.messages` without emitting any model event, and compaction rewrites the conversation while the event stream records only a `compaction` marker. Meanwhile the thing the agent wants already exists, materialized, in the running sample's `TaskState.messages` — serve it directly. The buffered case is what makes this control-channel work rather than `inspect log` work: for a running sample — or a completed one still sitting in the log buffer awaiting a flush — the conversation exists only inside the eval process, and the control channel is the only surface that can see it.
+
+**Surface.**
+
+- **HTTP:** `GET /evals/<id>/sample/messages?sample_id=<sid>&epoch=<n>` — attempt-scoped beside `sample` and `sample/events`, with `sample_id` a query param per the reserved-characters rule.
+- **CLI:** `inspect ctl sample messages TASK SID [EPOCH]` — a new verb in the `sample` noun group. Standard selector conventions apply: `TASK` is required (a `SAMPLE_ID` follows it), and `EPOCH` defaults to 1 on reads with the resolved `{sample_id, epoch}` echoed in the envelope.
+
+**Snapshot, not stream — deliberately no cursor.** Transcript events earned a cursor because they're append-only; messages are not. Compaction replaces a prefix of the list with a summary, and solver / agent code can reorder, edit, or wholesale reassign `state.messages` between reads. An index cursor over a rewritable sequence would promise the exactly-once resume it can't deliver (the phase-2 cursor design's whole job is "monotonic, gap-free" — this sequence is neither). So `messages` is a **snapshot read**: each call returns the current conversation (or a tail of it), enveloped with `as_of`, the resolved `{sample_id, epoch}`, the sample's `status`, and the total message `count`. The watch loop composes with the existing reads: poll `sample list --active-since` for "what changed", then drill into `messages` on the sample of interest; the `count` moving (or not) between polls is the cheap staleness signal. Incremental *event*-grain watching stays `sample events`' job. If a delta shape is ever wanted here, the right token is a state version invalidated by any rewrite — never an index — but that's deferred until a consumer actually needs it; for the same reason there is no phase-4 SSE `--follow` on messages (follow the events stream, or poll).
+
+**Summary-shaped by default.** A conversation is typically the largest object in a sample — a full multi-turn agentic `ChatMessage` list with tool outputs can exceed a watching agent's entire context. Mirroring the events projection:
+
+- **Default: compact projection per message** — index, message id, role, truncated text (non-text content items summarized as `[image]` / `[audio]` / ...), tool-call function names + truncated arguments on assistant messages, truncated output on tool messages.
+- **`--tail N`** — the last N messages; the unseeded default is a recent tail (e.g. the last 20), per the "never an empty or overwhelming first page" rule from the events read. `--all` for the whole list.
+- **`--full`** — raw `ChatMessage` JSON instead of the projection (combines with `--tail` to keep it bounded).
+- **`--json`** throughout, per the agent output contract.
+
+**Data source: the same running-vs-terminal split as the sibling reads.** Running samples serve straight from `active_samples` → the live `TaskState.messages` — in-memory, no log involved, which is exactly why buffered-only samples work. Terminal samples serve the completed sample's messages from the recorder's buffer via `EvalState.live`, falling back to the on-disk log — the `samples` / `sample` / `events` pattern, unchanged. In the drill-down family each verb then answers one question: `sample show` — "how is it doing", `sample events` — "what happened, in order", `sample messages` — "what does the model see".
+
+**Scope: the sample's main conversation.** `TaskState.messages` is the sample's top-level thread. Nested agents whose conversations don't share that thread (e.g. an agent invoked as a tool, whose inner exchange never lands in `state.messages`) remain visible through `sample events` (span-tagged); a span / agent selector on `messages` is a plausible follow-on if live subagent-watching becomes a real ask — not part of the first slice.
+
+**Why not fold into `sample show`?** `show` is the summary; the conversation is the detail. Folding it in would break the summary-then-detail shape constraint the whole read surface is built on (and make `show` unusable as the cheap poll target). Separate verb, same relationship as `show` vs `events`.
+
+**Sequencing.** Read-only — no new directive machinery, no security-hardening dependency — so it extends the phase-2 read surface and can land independently of the remaining phase-3 directives. One shared-infrastructure note: the compact message projection should share its truncation helpers with the events projection (which already truncates `ModelEvent` message content) so the two renderings of the same objects don't drift.
 
 ### Phase 3 — modification (direct) methods
 
