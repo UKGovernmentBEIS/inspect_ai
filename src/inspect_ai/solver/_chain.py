@@ -82,13 +82,16 @@ class Chain(Sequence[Solver], Solver):
         from ._transcript import solver_transcript
 
         for slv in self._solvers:
+            prev_state = state
             async with solver_transcript(slv, state) as st:
                 state = await slv(state, generate)
                 st.complete(state)
             # a solver may return a *new* TaskState (e.g. a fork() result or a
             # deepcopy) — refresh the context handle so `sample_state()` and
             # the control channel's live view track the threaded state
-            set_sample_state(state)
+            # (`replacing` keeps a chain running inside a fork() branch from
+            # capturing the shared live view — see `set_sample_state`)
+            set_sample_state(state, replacing=prev_state)
             if state.completed:
                 break
 

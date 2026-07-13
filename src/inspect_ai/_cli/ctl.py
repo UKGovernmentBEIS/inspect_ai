@@ -1638,12 +1638,11 @@ def _run_sample_messages(
     # an explicit --tail with --all is contradictory, so reject it rather
     # than silently letting one win.
     if show_all and tail is not None:
-        with _structured_failures(as_json):
-            _fail(
-                "invalid_request",
-                "--all and --tail are mutually exclusive (--all shows every "
-                "message; --tail sizes a recent window).",
-            )
+        _fail(
+            "invalid_request",
+            "--all and --tail are mutually exclusive (--all shows every "
+            "message; --tail sizes a recent window).",
+        )
     # The unseeded default is a recent tail — never an overwhelming first
     # page. --all disables it; an explicit --tail overrides it.
     if not show_all and tail is None:
@@ -3023,6 +3022,12 @@ def _fetch_sample_events(
     )
 
 
+_MESSAGES_ROUTE_MISSING = (
+    "This process is running an older inspect without the sample "
+    "messages endpoint; restart the eval to pick up the current version."
+)
+
+
 def _fetch_sample_messages(
     socket_path: str,
     eval_id: str,
@@ -3052,6 +3057,7 @@ def _fetch_sample_messages(
             f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
             "not have started or not yet been written to the log."
         ),
+        not_found_missing_route=_MESSAGES_ROUTE_MISSING,
     )
 
 

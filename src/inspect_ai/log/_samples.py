@@ -101,6 +101,9 @@ class ActiveSample:
         # called at sample start, after each `Chain` / `Plan` solver step, and
         # pre-scoring — so it survives a solver replacing the `TaskState`
         # object outright (e.g. returning a `fork()` result or a deepcopy).
+        # Step-boundary refreshes are compare-and-swap guarded so a `Chain` /
+        # `Plan` running inside a `fork()` subtask can't capture the handle
+        # for its branch conversation (see `set_active_sample_state`).
         # `None` only in the brief window before the first state is set.
         self.live_state: "TaskState | None" = None
         self.token_limit_usage: int | None = None
@@ -450,7 +453,9 @@ def set_active_sample_total_messages(total_messages: int) -> None:
         active.total_messages = total_messages
 
 
-def set_active_sample_state(state: "TaskState") -> None:
+def set_active_sample_state(
+    state: "TaskState", *, replacing: "TaskState | None" = None
+) -> None:
     """Refresh the active sample's live `TaskState` handle.
 
     Called from `set_sample_state` so the control channel's view of the
@@ -459,9 +464,17 @@ def set_active_sample_state(state: "TaskState") -> None:
     exactly this reason). In-place mutation between replacements needs no
     hook — the handle already points at the object whose `messages` list is
     being appended to.
+
+    When ``replacing`` is given, the refresh is a compare-and-swap: it lands
+    only if the handle currently points at ``replacing``. The handle lives on
+    the shared `ActiveSample`, which a `fork()` subtask's copied context still
+    reaches through `sample_active()` (the ContextVar isolation protecting
+    `sample_state()` doesn't extend to it) — the guard keeps a branch
+    `Chain` / `Plan`, threading a deepcopy lineage the handle never pointed
+    at, from serving its branch conversation as the sample's main thread.
     """
     active = sample_active()
-    if active:
+    if active and (replacing is None or active.live_state is replacing):
         active.live_state = state
 
 

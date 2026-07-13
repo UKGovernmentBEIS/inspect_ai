@@ -92,3 +92,36 @@ async def test_plan_refreshes_sample_state_on_replacement(
     assert sample_state() is result
     assert active.live_state is result
     assert any(m.text == "appended" for m in active.live_state.messages)
+
+
+@pytest.mark.parametrize(
+    "make_branch",
+    [
+        lambda: chain(replacer(), appender()),
+        lambda: Plan([replacer(), appender()], internal=True),
+    ],
+    ids=["chain", "plan"],
+)
+async def test_fork_branch_does_not_capture_live_state(
+    monkeypatch: pytest.MonkeyPatch, make_branch
+) -> None:
+    """A Chain/Plan threading a fork branch's deepcopy lineage must not move the shared live_state handle."""
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._util._async import tg_collect
+
+    state = simple_task_state()
+    set_sample_state(state)
+    active = SimpleNamespace(live_state=state)
+    monkeypatch.setattr(samples_mod, "sample_active", lambda: active)
+
+    # what fork()'s subtask does: run the branch on a deepcopy in its own
+    # task, whose copied context still reaches the shared ActiveSample
+    branch_state = deepcopy(state)
+    branch = make_branch()
+    (branch_result,) = await tg_collect(
+        [lambda: branch(branch_state, cast(Generate, None))]
+    )
+    assert branch_result is not state
+    # the ContextVar is context-isolated; the shared handle must hold too
+    assert sample_state() is state
+    assert active.live_state is state

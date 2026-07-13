@@ -471,13 +471,25 @@ def sample_state() -> TaskState | None:
     return _sample_state.get(None)
 
 
-def set_sample_state(state: TaskState) -> None:
+def set_sample_state(state: TaskState, *, replacing: TaskState | None = None) -> None:
+    """Set the context's current `TaskState`.
+
+    Also keeps the control channel's live-conversation handle
+    (`ActiveSample.live_state`) current when a solver replaces the
+    `TaskState` object. The ContextVar is context-isolated, but the handle
+    is a plain attribute on the shared `ActiveSample` — reachable from
+    `fork()` subtasks, whose branch conversations must not be served as the
+    sample's main thread. Step-threading callers (the `Chain` / `Plan` step
+    loops) therefore pass ``replacing`` (the state the step superseded) to
+    make the handle refresh a compare-and-swap: it only lands if the handle
+    currently points at ``replacing``, so a lineage that never owned the
+    handle (a fork branch threads a deepcopy) can't capture it. Without
+    ``replacing`` the refresh is unconditional (sample start, pre-scoring).
+    """
     _sample_state.set(state)
-    # Keep the control channel's live-conversation handle current when a solver
-    # replaces the TaskState object (see `ActiveSample.live_state`).
     from inspect_ai.log._samples import set_active_sample_state
 
-    set_active_sample_state(state)
+    set_active_sample_state(state, replacing=replacing)
 
 
 _sample_state: ContextVar[TaskState] = ContextVar("sample_state")

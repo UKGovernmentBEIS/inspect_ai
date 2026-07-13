@@ -101,6 +101,7 @@ class Plan(Solver):
             # execute steps
             for index, solver in enumerate(self.steps):
                 # run solver
+                prev_state = state
                 async with solver_transcript(solver, state) as st:
                     state = await solver(state, generate)
                     st.complete(state)
@@ -108,8 +109,10 @@ class Plan(Solver):
                 # a solver may return a *new* TaskState (e.g. a fork() result
                 # or a deepcopy) — refresh the context handle so
                 # `sample_state()` and the control channel's live view track
-                # the threaded state
-                set_sample_state(state)
+                # the threaded state (`replacing` keeps a plan running inside
+                # a fork() branch from capturing the shared live view — see
+                # `set_sample_state`)
+                set_sample_state(state, replacing=prev_state)
 
                 # check for completed
                 if state.completed:
@@ -118,10 +121,11 @@ class Plan(Solver):
 
             # execute finish
             if self.finish:
+                prev_state = state
                 async with solver_transcript(self.finish, state) as st:
                     state = await self.finish(state, generate)
                     st.complete(state)
-                set_sample_state(state)
+                set_sample_state(state, replacing=prev_state)
 
         finally:
             # always do cleanup if we have one

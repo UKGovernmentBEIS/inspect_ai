@@ -1898,6 +1898,18 @@ def test_messages_rejects_non_positive_tail() -> None:
         assert "--tail" in result.stderr
 
 
+def test_messages_missing_route_names_version_skew(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A router 404 (no `error` body) means the server predates the endpoint."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {"detail": "Not Found"})])
+    result = cli_runner().invoke(ctl_command, ["sample", "messages", "aaa111", "s1"])
+    assert result.exit_code == 1
+    assert "older inspect without the sample messages endpoint" in result.stderr
+    assert "not yet been written" not in result.stderr
+
+
 def test_group_option_before_verb_forwards(monkeypatch: pytest.MonkeyPatch) -> None:
     """A mirrored option given at the group level reaches the explicit verb."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
