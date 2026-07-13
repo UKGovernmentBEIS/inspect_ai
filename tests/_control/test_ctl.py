@@ -730,12 +730,7 @@ def test_fetch_summaries_sole_server_rides_full_budget(
 def test_fetch_summaries_exact_id_match_short_circuits_fan_out(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An exact full-task_id match stops the fan-out at the server holding it.
-
-    Ids are unique and an exact match wins resolution outright, so the
-    remaining servers (busy or not) are never contacted — the steady-state
-    `sample events --cursor` poll costs one /tasks read, not one per process.
-    """
+    """An exact full-task_id match stops the fan-out at the server holding it."""
     from inspect_ai._cli.ctl import _fetch_summaries
 
     counter = _stub_httpx(monkeypatch, [[{"task_id": "aaa111"}]])
@@ -765,15 +760,10 @@ def test_fetch_summaries_prefix_query_still_fans_out(
 def test_fetch_summaries_duplicate_id_resolves_to_newest_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Two processes holding the same full task id resolve to the newest.
+    """The duplicate-id corner (old kept-alive attempt, newer retry) resolves newest.
 
-    The one duplicate-id corner: a kept-alive process still holds an attempt
-    that a newer process is retrying. Discovery lists servers newest-first,
-    so the short-circuit stops at the newest holder and resolution succeeds —
-    where the full fan-out used to collect both rows and exit with an
-    ambiguity table, a dead end (sample commands have no pid selector to
-    disambiguate identical ids). Only the newest server's payload is stubbed:
-    contacting the older sibling would exhaust the sequence and fail loudly.
+    Only the newest server's payload is stubbed: contacting the older
+    sibling would exhaust the sequence and fail loudly.
     """
     from inspect_ai._cli.ctl import _fetch_summaries
 
@@ -789,12 +779,7 @@ def test_fetch_summaries_duplicate_id_resolves_to_newest_attempt(
 def test_list_discovered_servers_sorts_newest_first(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Discovery lists servers most-recently-started first.
-
-    The exact-id short-circuit leans on this: it determines which busy
-    siblings a poll can skip (those started before the target) and makes
-    the duplicate-id corner land on the newest attempt.
-    """
+    """Discovery lists servers newest-first — the exact-id short-circuit relies on it."""
     from inspect_ai._control import discovery
 
     entries = [
@@ -811,11 +796,9 @@ def test_events_poll_with_full_task_id_skips_sibling_servers(
 ) -> None:
     """`sample events` with a full task_id never contacts sibling processes.
 
-    The documented monitoring loop repeats `sample events --cursor` against
-    the page's echoed task_id; a busy unrelated sibling must not tax (or
-    kill) every poll. Two servers discovered, the match on the first: the
-    whole invocation is exactly two requests (its /tasks + the events read) —
-    a third would exhaust the stub sequence and fail loudly.
+    Two servers discovered, match on the first: the whole invocation is
+    exactly two requests (its /tasks + the events read) — a third would
+    exhaust the stub sequence and fail loudly.
     """
     monkeypatch.setattr(
         "inspect_ai._cli.ctl.list_discovered_servers",

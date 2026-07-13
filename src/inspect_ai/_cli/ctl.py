@@ -2042,23 +2042,14 @@ def _fetch_summaries(
     response, which the user should see.
 
     ``stop_on_task_id`` short-circuits the fan-out: once a server's rows
-    contain a task whose id equals it exactly, the remaining servers are not
-    contacted. Only an exact *full* task id may stop early — ids are unique
-    and an exact match wins resolution outright (see
-    :func:`_resolve_target_eval`), so the uncontacted servers could neither
-    add candidates nor create ambiguity; a prefix or name query must keep
-    seeing every server to detect ambiguity, and never equals a full id, so
-    it never trips the check. This is what keeps a steady-state polling loop
-    (``sample events --cursor`` against the echoed ``task_id``) from paying
-    the retry budget of busy siblings started before the target. The skip is
-    only partial by construction: discovery lists servers
-    most-recently-started first and there is no way to know which one holds
-    the id without asking, so siblings started *after* the target are still
-    contacted (and a busy one still costs its degraded retry budget) before
-    the match is reached. That same newest-first order means that in the one
-    duplicate-id corner (a kept-alive process still holding an attempt that
-    a newer process is retrying) the short-circuit lands on the newest
-    attempt.
+    contain that exact task id, the remaining servers are not contacted.
+    Safe only for an exact *full* id — it wins resolution outright (see
+    :func:`_resolve_target_eval`), so the skipped servers could neither add
+    candidates nor create ambiguity; a prefix or name query never equals a
+    full id, so it still sees every server. Discovery is newest-first, so
+    only siblings started before the target are skipped, and the
+    duplicate-id corner (an old kept-alive attempt a newer process is
+    retrying) resolves to the newest attempt.
     """
     summaries: list[dict[str, Any]] = []
     busy_pids: list[int] = []
@@ -2117,9 +2108,8 @@ def _fetch_sample_summaries(task_query: str | None = None) -> _FetchedSummaries:
     alive-but-busy eval must never be indistinguishable from no eval at all.
     ``busy_pids`` rides the return for scoped resolution's caveats.
 
-    ``task_query`` is the command's TASK selector, threaded through so a
-    query that turns out to be an exact full task id stops the fan-out at
-    the server that holds it (see ``stop_on_task_id`` on
+    ``task_query`` is the command's TASK selector; an exact full task id
+    stops the fan-out at the server holding it (see ``stop_on_task_id`` on
     :func:`_fetch_summaries`).
     """
     fetched = _fetch_summaries(
