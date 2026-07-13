@@ -596,6 +596,120 @@ async def test_limits_route_rejects_below_one() -> None:
         assert "max_samples" in bad.json()["error"]
 
 
+async def test_limits_route_rejects_unknown_param_atomically() -> None:
+    """PATCH with an unknown knob 400s before applying anything (fail closed)."""
+    limiter = ResizableLimiter(20)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        bad = await client.patch(
+            "/tasks/t1/config", params={"max_samples": 40, "max_gizmos": 3}
+        )
+        assert bad.status_code == 400
+        assert "unknown query parameter(s): max_gizmos" in bad.json()["error"]
+        assert "does not support" in bad.json()["error"]
+        # atomic: the recognized knob in the same request was NOT applied
+        assert limiter.limit == 20
+
+        # multiple unknown params are all named (sorted)
+        bad = await client.patch("/tasks/t1/config", params={"zeta": 1, "alpha": 2})
+        assert bad.status_code == 400
+        assert "unknown query parameter(s): alpha, zeta" in bad.json()["error"]
+
+
+async def test_process_limits_route_rejects_unknown_param() -> None:
+    ctrl = await _register_controller(max=100, start=50)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        bad = await client.patch(
+            "/config", params={"max_connections": 30, "max_gizmos": 3}
+        )
+        assert bad.status_code == 400
+        assert "unknown query parameter(s): max_gizmos" in bad.json()["error"]
+        assert ctrl.max == 100  # nothing applied
+
+
+async def test_post_mutation_routes_reject_unknown_param() -> None:
+    """POST mutation routes are strict too, so any future param is born strict."""
+    from inspect_ai._control.server import keep_alive_intent, reset_keep_alive
+
+    reset_keep_alive()
+    transport = httpx.ASGITransport(app=_app())
+    try:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            for path in ("/keep", "/release", "/tasks/t1/log-flush"):
+                bad = await client.post(path, params={"bogus": 1})
+                assert bad.status_code == 400, bad.text
+                assert "unknown query parameter(s): bogus" in bad.json()["error"]
+            # the rejected /keep and /release never reached their handlers
+            assert keep_alive_intent() is False
+    finally:
+        reset_keep_alive()
+
+
+async def test_limits_route_get_tolerates_unknown_param() -> None:
+    """GET config routes stay tolerant — an ignored read param can't corrupt."""
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        got = await client.get("/config", params={"max_gizmos": 3})
+        assert got.status_code == 200, got.text
+        got = await client.get("/tasks/t1/config", params={"max_gizmos": 3})
+        assert got.status_code == 200, got.text
+
+
+async def test_strict_params_allow_sub_dependency_query_params() -> None:
+    """A query param declared by a sub-dependency is allowed, not falsely 400'd."""
+    from fastapi import Depends, FastAPI, Request
+    from fastapi.responses import JSONResponse
+
+    from inspect_ai._control.strict import (
+        UnknownQueryParamsError,
+        reject_unknown_query_params,
+    )
+
+    def sub_dep(extra: int = 0) -> int:
+        return extra
+
+    # attached app-wide, mirroring how the control server wires it
+    app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
+
+    @app.exception_handler(UnknownQueryParamsError)
+    async def _unknown_params(
+        request: Request, exc: UnknownQueryParamsError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+    @app.patch("/thing")
+    async def patch_thing(base: int = 1, extra: int = Depends(sub_dep)) -> dict:
+        return {"base": base, "extra": extra}
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.patch("/thing", params={"base": 2, "extra": 3})
+        assert ok.status_code == 200, ok.text
+        assert ok.json() == {"base": 2, "extra": 3}
+
+        bad = await client.patch("/thing", params={"base": 2, "bogus": 1})
+        assert bad.status_code == 400
+        assert "unknown query parameter(s): bogus" in bad.json()["error"]
+
+
 async def test_limits_route_patch_max_connections() -> None:
     register_eval("e1", 5, task_id="t1")
     ctrl = await _register_controller(max=100, start=50)

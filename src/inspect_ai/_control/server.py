@@ -230,11 +230,28 @@ class ControlServer:
         Imported lazily so module import doesn't pay the FastAPI cost
         when control is disabled.
         """
-        from fastapi import FastAPI, Request
+        from fastapi import Depends, FastAPI, Request
         from fastapi.responses import JSONResponse
 
-        app = FastAPI()
+        from inspect_ai._control.strict import (
+            UnknownQueryParamsError,
+            reject_unknown_query_params,
+        )
+
+        # Attached app-wide so every mutation route — including any added
+        # later — fails closed and atomically on unknown query params instead
+        # of partially applying, with no per-route annotation to remember.
+        # The dependency short-circuits on safe methods (see the strict
+        # module docstring for the rationale, including why GETs stay
+        # tolerant).
+        app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
         started_at = self._started_at
+
+        @app.exception_handler(UnknownQueryParamsError)
+        async def on_unknown_params(
+            request: Request, exc: UnknownQueryParamsError
+        ) -> JSONResponse:
+            return JSONResponse(status_code=400, content={"error": str(exc)})
 
         @app.exception_handler(Exception)
         async def on_error(request: Request, exc: Exception) -> JSONResponse:
@@ -481,6 +498,7 @@ class ControlServer:
         # entry by exact name (400 for a name with no entry — named limits are
         # created lazily on first use). `dry_run=true` reports the intended
         # change without applying it. Never 404s — a process always exists.
+        # Unknown query params 400 (fail closed) rather than partially applying.
         @app.patch("/config")
         async def patch_process_limits(
             max_sandboxes: int | None = None,
@@ -536,7 +554,8 @@ class ControlServer:
         # and reports the intended change without applying it (the phase-3
         # agent-shape constraint). Idempotent: re-applying the same value is a
         # no-op. Returns the resulting config view (with any warnings for a
-        # knob that isn't adjustable for this task).
+        # knob that isn't adjustable for this task). Unknown query params 400
+        # (fail closed) rather than partially applying.
         @app.patch("/tasks/{task_id}/config")
         async def patch_limits(
             task_id: str,
