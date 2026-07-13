@@ -129,21 +129,26 @@ async def _logged_source(
 ) -> MessagesSource | None:
     """The terminal source for a sample (recorder buffer, then on-disk log).
 
-    ``None`` when the eval/sample isn't available here. Reads the full
+    ``None`` when the eval/sample isn't available here. Reads the
     ``EvalSample`` via :func:`inspect_ai._control.state._full_sample` — the
     same gap-free recorder-then-log source the error-detail and events reads
-    use — and resolves its content attachments so image/large-text refs render
-    as real content rather than ``attachment://`` placeholders.
+    use — excluding the heavy fields the response never consumes (``events``
+    dwarfs the rest for a long agentic sample), and resolves its content
+    attachments in ``core`` mode (which covers ``messages``; ``full`` would
+    additionally walk the excluded events/model-calls) so image/large-text
+    refs render as real content rather than ``attachment://`` placeholders.
     """
     from inspect_ai._control.state import _full_sample
 
-    sample = await _full_sample(eval_id, sample_id, epoch)
+    sample = await _full_sample(
+        eval_id, sample_id, epoch, exclude_fields={"events", "store", "output"}
+    )
     if sample is None:
         return None
 
     from inspect_ai.log._condense import resolve_sample_attachments
 
-    sample = resolve_sample_attachments(sample, "full")
+    sample = resolve_sample_attachments(sample, "core")
     return MessagesSource(
         messages=list(sample.messages or []),
         status="error" if sample.error is not None else "completed",

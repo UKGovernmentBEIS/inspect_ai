@@ -204,7 +204,10 @@ async def test_terminal_sample_serves_logged_messages(
         ],
     )
 
+    excluded: list[Any] = []
+
     async def read_sample(id: Any, epoch: int, *, exclude_fields: Any = None) -> Any:
+        excluded.append(exclude_fields)
         return sample if str(id) == "s1" and epoch == 1 else None
 
     try:
@@ -214,6 +217,39 @@ async def test_terminal_sample_serves_logged_messages(
         assert page["status"] == "completed"
         assert page["count"] == 2
         assert [m["role"] for m in page["messages"]] == ["user", "assistant"]
+        # heavy unconsumed fields are excluded from the read; the fields the
+        # response is built from are not
+        assert excluded == [{"events", "store", "output"}]
+    finally:
+        clear_all_eval_states()
+
+
+async def test_terminal_sample_resolves_message_attachments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai.log._log import EvalSample
+
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
+
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="question",
+        target="answer",
+        messages=[ChatMessageUser(content="attachment://abc123")],
+        attachments={"abc123": "the real content"},
+    )
+
+    async def read_sample(id: Any, epoch: int, *, exclude_fields: Any = None) -> Any:
+        return sample
+
+    try:
+        register_eval("e1", 1, live=FakeLiveEvalData(sample=read_sample))
+        page = await sample_messages("e1", "s1", 1)
+        assert page is not None
+        assert page["messages"][0]["content"] == "the real content"
     finally:
         clear_all_eval_states()
 
