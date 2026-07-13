@@ -2105,6 +2105,90 @@ def test_task_cancel_handler_404_means_task_gone(
     assert "older inspect" not in result.stderr
 
 
+def test_cancel_resolution_since_within_api_version() -> None:
+    """The shipped gate constant can't outrun `CONTROL_API_VERSION`.
+
+    The analogue of `test_knob_since_table_is_consistent`'s second assertion:
+    a `_CANCEL_RESOLUTION_SINCE` of N+1 while the constant is still N would
+    make the CLI block `--score`/`--error` against every server, including
+    current ones.
+    """
+    from inspect_ai._cli.ctl import _CANCEL_RESOLUTION_SINCE
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    assert _CANCEL_RESOLUTION_SINCE <= CONTROL_API_VERSION
+
+
+def test_task_cancel_gates_resolution_on_older_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--score`/`--error` hard-error against an older server, pre-send.
+
+    An older server's cancel handler silently ignores the `resolution` param
+    and aborts the task — the opposite of the graceful completion requested —
+    so nothing may be sent. A plain cancel is not gated (abort is what an
+    older server does anyway).
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=1)],
+    )
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 1})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--score"])
+    assert result.exit_code == 1
+    assert "--score not supported" in result.stderr
+    assert "pid 7 is running an older inspect" in result.stderr
+    assert "No cancel was sent" in result.stderr
+    assert spy.paths == []  # nothing was sent
+
+    error = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--error"])
+    assert error.exit_code == 1
+    assert "--error not supported" in error.stderr
+    assert spy.paths == []
+
+    plain = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    assert plain.exit_code == 0, plain.output
+    assert spy.params == [{}]
+
+
+def test_task_cancel_resolution_sent_on_current_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--score`/`--error` ride the request as the `resolution` query param."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 1})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+
+    runner = cli_runner()
+    score = runner.invoke(ctl_command, ["task", "cancel", "aaa111", "--score"])
+    assert score.exit_code == 0, score.output
+    error = runner.invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--error", "--dry-run"]
+    )
+    assert error.exit_code == 0, error.output
+    assert spy.params == [
+        {"resolution": "score"},
+        {"resolution": "error", "dry_run": True},
+    ]
+
+
+def test_task_cancel_score_error_mutually_exclusive() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--score", "--error"]
+    )
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.stderr
+
+
 def test_sample_cancel_defaults_epoch_for_single_epoch_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2165,6 +2249,30 @@ def test_sample_cancel_error_flag_and_dry_run(
     ]
     payload = json.loads(result.stdout)
     assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_sample_cancel_cancelled_flag_sends_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel", "aaa111", "s1", "--cancelled", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "action": "cancelled"}]
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_sample_cancel_error_cancelled_mutually_exclusive() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel", "aaa111", "s1", "--error", "--cancelled"]
+    )
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.stderr
 
 
 def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:

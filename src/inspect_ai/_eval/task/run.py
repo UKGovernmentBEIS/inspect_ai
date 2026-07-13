@@ -862,9 +862,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         scorer_names=scorer_names,
                     )
 
-                if task_cancel and task_cancel.cancel_type is not None:
+                if task_cancel and task_cancel.cancel_type in ("abort", "retry"):
                     # User-initiated cancel (abort/retry) — log as error so
-                    # eval_set doesn't interpret it as external cancellation
+                    # eval_set doesn't interpret it as external cancellation.
+                    # A stamped score/error resolution never fires the task's
+                    # cancel scope, so a cancellation arriving with one
+                    # pending is external (ctrl+c) and takes the cancelled
+                    # path below, preserving its usual semantics.
                     cancel_ex = TerminateTaskError(
                         f"Task cancelled by user ({task_cancel.cancel_type})"
                     )
@@ -1276,6 +1280,7 @@ async def task_run_sample(
             error: EvalError | None = None
             raise_error: BaseException | None = None
             cancelled_error: BaseException | None = None
+            operator_cancelled = False
             results: dict[str, SampleScore] = {}
             limit: EvalSampleLimit | None = None
             sample_summary: EvalSampleSummary | None = None
@@ -1362,7 +1367,7 @@ async def task_run_sample(
                             async def run(tg: TaskGroup) -> None:
                                 # access to state, limit, and errors
                                 nonlocal state, limit, error, raise_error
-                                nonlocal cancelled_error
+                                nonlocal cancelled_error, operator_cancelled
 
                                 try:
                                     # start the sample
@@ -1436,6 +1441,7 @@ async def task_run_sample(
                                                 # no scoring, and not counted
                                                 # as a genuine error (bypasses
                                                 # handle_error / fail_on_error)
+                                                operator_cancelled = True
                                                 cancelled_error = ex
                                                 error = eval_error(
                                                     ex, type(ex), ex, ex.__traceback__
@@ -1869,8 +1875,11 @@ async def task_run_sample(
         # an operator 'cancelled' interrupt is sample-scoped: the cancellation
         # came from this sample's own task group (already absorbed at its
         # exit), so there is nothing to re-raise — re-raising here would tear
-        # down the whole task
-        if active.interrupt_action == "cancelled":
+        # down the whole task. Keyed on the disposition captured when the
+        # interrupt was handled, not the live `active.interrupt_action`, which
+        # a later cancel directive could overwrite while this sample is still
+        # inside its (shielded) logging window.
+        if operator_cancelled:
             return None
         raise cancelled_error
 

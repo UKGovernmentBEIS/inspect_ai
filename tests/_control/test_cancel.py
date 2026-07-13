@@ -68,9 +68,11 @@ class _FakeActiveSample:
         self.completed = completed
         self.fails_on_error = fails_on_error
         self.interrupts: list[str] = []
+        self.interrupt_action: Literal["score", "error", "cancelled"] | None = None
 
     def interrupt(self, action: Literal["score", "error", "cancelled"]) -> None:
         self.interrupts.append(action)
+        self.interrupt_action = action
 
 
 def _patch_active_samples(
@@ -304,6 +306,30 @@ def test_cancel_task_score_resolution_repeat_is_noop(
     assert repeat is not None and repeat["changed"] is False
     assert repeat["reason"] == "cancel already requested (score)"
     assert handle.fired == ["score"] and running.interrupts == ["score"]
+
+
+def test_cancel_task_resolution_sweep_skips_already_interrupted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The in-flight sweep never overwrites a sample's existing interrupt.
+
+    A sample that was per-sample cancelled is still "in flight" until its
+    (post-scoring/logging) context exit stamps `completed`; re-interrupting
+    it would flip its 'cancelled' disposition to score/error, defeating the
+    runner guard that keeps its sample-scoped CancelledError from tearing
+    down the whole task.
+    """
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    already_cancelled = _FakeActiveSample(sample_id="s1")
+    already_cancelled.interrupt("cancelled")
+    running = _FakeActiveSample(sample_id="s2")
+    _patch_active_samples(monkeypatch, [already_cancelled, running])
+
+    result = cancel_task("t1", resolution="score")
+    assert result is not None and result["changed"] is True
+    assert already_cancelled.interrupts == ["cancelled"]  # not re-interrupted
+    assert running.interrupts == ["score"]
 
 
 def test_cancel_task_abort_escalates_over_pending_resolution(

@@ -1,6 +1,11 @@
 """Tests for task cancellation via the cancel button during eval_set runs."""
 
+import os
+import signal
 import tempfile
+import threading
+import time
+from pathlib import Path
 from unittest.mock import patch
 
 import anyio
@@ -393,6 +398,112 @@ def test_sample_cancelled_interrupt_action() -> None:
         assert cancelled.error is not None  # cancellation recorded, transcript kept
         assert not cancelled.scores  # no scoring on a cancelled sample
         assert untouched.error is None and untouched.scores
+
+
+def test_score_resolution_sweep_preserves_cancelled_sample() -> None:
+    """A score resolution never overwrites a sample's prior 'cancelled' interrupt.
+
+    The in-flight sweep skips samples already interrupted (first interrupt
+    wins): a sample the operator just cancelled per-sample keeps its
+    'cancelled' disposition — no scoring, its cancellation recorded — even
+    when a task-level `--score` cancel lands before it finishes resolving.
+    """
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai.log._samples import sample_active
+
+    @solver(name="cancelled_then_score_solver")
+    def cancelled_then_score_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            active = sample_active()
+            assert active is not None
+            active.interrupt("cancelled")
+            # the score resolution lands before this sample's cancellation
+            # is even delivered (no checkpoint since the interrupt) — it is
+            # still in flight, so the sweep sees it
+            result = ctl_cancel_task(get_eval_states()[0].task_id, resolution="score")
+            assert result is not None and result["ok"] is True
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        logs = inspect_eval(
+            Task(
+                dataset=[Sample(id=1, input="x", target="y")],
+                solver=[cancelled_then_score_solver()],
+                scorer=includes(),
+                name="task_sweep_preserves_cancelled",
+            ),
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+
+        assert len(logs) == 1
+        log = logs[0]
+        assert log.status == "success"
+        assert log.samples is not None and len(log.samples) == 1
+        sample = log.samples[0]
+        # cancelled semantics, not the sweep's score resolution
+        assert sample.error is not None
+        assert not sample.scores
+
+
+def test_external_interrupt_with_pending_resolution_logs_cancelled(
+    tmp_path: Path,
+) -> None:
+    """Ctrl+c during a pending graceful resolution keeps ctrl+c semantics.
+
+    A stamped score/error resolution never fires the task's cancel scope, so
+    a cancellation reaching task_run with one pending is external — the log
+    must finalize as status "cancelled" (not a user-cancel error status),
+    preserving eval/eval_set's usual interrupt and resume semantics.
+    """
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai.log import list_eval_logs, read_eval_log
+
+    @solver(name="stamp_resolution_solver")
+    def stamp_resolution_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            eval_state = get_eval_states()[0]
+            assert eval_state.task_cancel is not None
+            # stamp the resolution on the raw handle without interrupting
+            # this sample — the pending-graceful-resolution state (e.g. a
+            # `--score` cancel stalled on a hung sample/scorer)
+            eval_state.task_cancel.cancel_task("score")
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    def send_sigint() -> None:
+        time.sleep(1)
+        os.kill(os.getpid(), signal.SIGINT)
+
+    sigint_thread = threading.Thread(target=send_sigint, daemon=True)
+    sigint_thread.start()
+
+    try:
+        inspect_eval(
+            Task(
+                dataset=[Sample(id=1, input="x", target="y")],
+                solver=[stamp_resolution_solver()],
+                scorer=includes(),
+                name="task_interrupt_pending_resolution",
+            ),
+            log_dir=str(tmp_path),
+            model="mockllm/model",
+        )
+    except KeyboardInterrupt:
+        pass
+    sigint_thread.join(timeout=5)
+
+    log_files = list_eval_logs(str(tmp_path))
+    assert len(log_files) == 1
+    log = read_eval_log(log_files[0].name)
+    assert log.status == "cancelled"
+    assert log.error is None
 
 
 def test_errored_attempt_marked_retry_pending() -> None:

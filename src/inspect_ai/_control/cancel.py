@@ -64,7 +64,8 @@ def cancel_task(
     Resolves the task's latest attempt and cancels it per ``resolution``
     (unless ``dry_run``): ``"cancelled"`` fires its ``TaskCancel`` with
     ``"abort"``; ``"score"`` / ``"error"`` stamp the resolution on the handle,
-    interrupt each in-flight sample with the matching action, abandon queued
+    interrupt each in-flight sample with the matching action (first interrupt
+    wins — a sample already interrupted keeps its resolution), abandon queued
     samples, and let the task complete naturally (see the module docstring).
 
     Returns ``None`` when the task isn't in this process; a ``changed: False``
@@ -155,10 +156,16 @@ def cancel_task(
         else:
             # stamp the resolution first (queued samples check it as they
             # leave the queue, initializing samples as they start), then
-            # interrupt the samples already running
+            # interrupt the samples already running. First interrupt wins:
+            # a sample already interrupted — e.g. per-sample 'cancelled',
+            # now inside its logging window (`completed` is stamped only at
+            # context exit) — keeps its resolution; overwriting a
+            # 'cancelled' would re-raise its sample-scoped CancelledError
+            # into the task group and tear the whole task down.
             state.task_cancel.cancel_task(resolution)
             for sample in in_flight:
-                sample.interrupt(resolution)
+                if sample.interrupt_action is None:
+                    sample.interrupt(resolution)
     return {**result, "changed": True}
 
 
