@@ -1449,14 +1449,16 @@ def test_config_gates_key_on_pre_version_server(
         raise AssertionError("the mutation must not be sent")
 
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
-    result = _runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
+    result = cli_runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
     assert result.exit_code == 1
     assert "--key not supported" in result.stderr
     assert "pid 7 is running an older inspect" in result.stderr
 
     # the gate covers dry runs too: a dry-run PATCH on an older server would
     # report a success-shaped view that omits the key retune
-    dry = _runner().invoke(ctl_command, ["config", "--key", "my_api", "2", "--dry-run"])
+    dry = cli_runner().invoke(
+        ctl_command, ["config", "--key", "my_api", "2", "--dry-run"]
+    )
     assert dry.exit_code == 1
     assert "--key not supported" in dry.stderr
 
@@ -1486,7 +1488,9 @@ def test_config_gates_key_on_pre_version_server(
         )
 
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
-    result = _runner().invoke(ctl_command, ["config", "--key", "my_api", "2", "--json"])
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--key", "my_api", "2", "--json"]
+    )
     assert result.exit_code == 0, result.output
     assert sent["key"] == ("my_api", 2)
     payload = json.loads(result.stdout)
