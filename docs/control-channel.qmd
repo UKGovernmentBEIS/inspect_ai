@@ -1,11 +1,11 @@
 ---
 title: Control Channel
-llms-description: Observe and direct running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, launch-config retuning, log flushing, and keep-alive.
+llms-description: Observe and direct running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, task and sample cancellation, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
 
-Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and adjust it — concurrency limits, log buffering — without interrupting it or parsing log files.
+Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and direct it — cancel a stalled sample or a whole task, retune concurrency limits and log buffering — without parsing log files.
 
 Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-level `config` command:
 
@@ -13,10 +13,12 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 |----|----|
 | `inspect ctl task list` | List running tasks across all live Inspect processes. |
 | `inspect ctl task log-flush` | Write buffered completed samples to the log now. |
+| `inspect ctl task cancel` | Cancel a running task. |
 | `inspect ctl sample list` | List samples (running, completed, and pending). |
 | `inspect ctl sample errors` | List samples that errored or were retried. |
 | `inspect ctl sample show` | Show one sample's summary and error history. |
 | `inspect ctl sample events` | Read one sample's transcript events. |
+| `inspect ctl sample cancel` | Cancel one running sample. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
 | `inspect ctl process list` | List running Inspect processes. |
 | `inspect ctl process keep` | Make a process stay alive after its eval finishes. |
@@ -24,7 +26,7 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 
 : {tbl-colwidths=[35,65]}
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `task list` / `sample *` / `process list` commands are read-only. The others adjust the run deliberately and conservatively: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, and `process keep`/`release` only affect what happens after the eval finishes. Nothing on the control channel can cancel or modify samples.
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -79,7 +81,7 @@ Commands that operate on one task take a `TASK` argument that selects a task fro
 
 Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don't use them).
 
-On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes "what's erroring anywhere in this eval set?" the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out.
+On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes "what's erroring anywhere in this eval set?" the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`) require the selector outright.
 
 ## Sample Status
 
@@ -152,6 +154,28 @@ Other options:
 : {tbl-colwidths=[35,65]}
 
 Note that `--cursor` takes the opaque `next` token, never a timestamp — for a wall-clock window use `--since-time`. Events for samples that have already completed are also readable — they are served from the eval's log.
+
+## Cancellation
+
+`inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--error` to mark it errored instead (not permitted for samples configured to fail on errors). The rest of the task is unaffected.
+
+```bash
+$ inspect ctl sample cancel gpqa 17
+```
+
+`EPOCH` defaults to 1 but is *required* whenever the task runs more than one epoch — a defaulted epoch would silently cancel the epoch-1 attempt rather than erroring:
+
+```bash
+$ inspect ctl sample cancel gpqa 17 3
+```
+
+`inspect ctl task cancel` cancels a whole running task. In-flight samples are interrupted (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, and the task's log is finalized with an error status noting the cancel. An eval set does not retry a cancelled task, and its other tasks are unaffected. `TASK` is always required — there is no sole-task default for destructive commands.
+
+```bash
+$ inspect ctl task cancel gpqa
+```
+
+Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.
 
 ## Configuration
 
