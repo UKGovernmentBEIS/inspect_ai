@@ -13,7 +13,7 @@ without the surface — eval correctness never depends on the control
 channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
-Current scope is the phase 1-2 read surface: ``GET /evals`` (per-task
+Current scope is the phase 1-2 read surface: ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (sample listing, with an
 ``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
 detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
@@ -34,9 +34,11 @@ from typing import Any, AsyncIterator, NamedTuple
 
 import anyio
 
-from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
+from inspect_ai._control import CONTROL_API_VERSION
+from inspect_ai._control.buffer import flush_task_samples
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
+from inspect_ai._control.limits import process_limits, task_limits
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
@@ -77,7 +79,7 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
     - ``None`` / ``True`` — control server on (the default).
     - ``False`` — control server off.
     - ``"keep"`` — control server on, and the process parks after the eval
-      finishes (until ``inspect ctl release`` / ``POST /release``).
+      finishes (until ``inspect ctl process release`` / ``POST /release``).
 
     The CLI spellings (``"true"`` / ``"yes"`` / ``"1"``, ``"false"`` /
     ``"no"`` / ``"0"``, case-insensitive) are accepted too, so programmatic
@@ -115,14 +117,14 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
 
 # Whether this process intends to park after the eval finishes. A single
 # last-write-wins flag: set at launch (``--ctl-server=keep``) and toggled at
-# runtime by ``POST /keep`` (``inspect ctl keep`` -> on) and ``POST /release``
-# (``inspect ctl release`` -> off). Last-write-wins rather than "release is
+# runtime by ``POST /keep`` (``inspect ctl process keep`` -> on) and ``POST /release``
+# (``inspect ctl process release`` -> off). Last-write-wins rather than "release is
 # sticky" so that, while the eval is still running, keep -> release -> keep
 # leaves the process in the keep state — each call simply overwrites the
 # intent. Module-level (not per-ControlServer) because the eval-set park binds
 # a FRESH server after the run's server has torn down — a per-server flag
 # couldn't carry the intent across that boundary — and it's the single source
-# of truth the ``/evals`` endpoint reports as each task's keep-alive status.
+# of truth the ``/tasks`` endpoint reports as each task's keep-alive status.
 # Reset at the outermost run boundary (``eval_async`` for standalone evals,
 # ``eval_set`` for eval-sets).
 _keep_alive = False
@@ -149,7 +151,7 @@ def request_release() -> None:
 def keep_alive_intent() -> bool:
     """Whether this process will park after the eval finishes.
 
-    The live value the ``/evals`` endpoint reports per task and that the parks
+    The live value the ``/tasks`` endpoint reports per task and that the parks
     gate on — the latest of the launch flag, ``POST /keep``, and ``POST
     /release`` (last-write-wins).
     """
@@ -240,25 +242,54 @@ class ControlServer:
                 status_code=500, content={"error": f"{type(exc).__name__}: {exc}"}
             )
 
-        @app.get("/evals")
-        async def list_evals() -> list[dict[str, Any]]:
+        def _limits_below_one(*knobs: tuple[str, int | None]) -> JSONResponse | None:
+            """400 for the first requested limit below 1, else None.
+
+            Shared by both PATCH limits routes so the knob validation can't
+            drift between them.
+            """
+            for label, value in knobs:
+                if value is not None and value < 1:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": f"{label} must be >= 1 (got {value})"},
+                    )
+            return None
+
+        # Folded per-task summaries (retry attempts of a task collapse into
+        # one row keyed by task_id) — the wire behind `inspect ctl task list`
+        # and the selector-resolution step of every other command.
+        @app.get("/tasks")
+        async def list_tasks() -> list[dict[str, Any]]:
             summaries = await current_eval_summaries(started_at)
             # Keep-alive is a process-level property, so every task this
             # process hosts shares it. Stamp each row with the live value
             # (which reflects a runtime `POST /keep` or `/release`, not just
-            # the launch flag) so `inspect ctl tasks` can report it.
+            # the launch flag) so `inspect ctl task list` can report it.
             keep_alive = keep_alive_intent()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
+                # Advertise the control-API version so HTTP consumers can
+                # gate version-dependent requests (the CLI reads it from the
+                # discovery file, which also covers the pre-registration
+                # window when this listing is still empty).
+                summary["api_version"] = CONTROL_API_VERSION
             return summaries
 
         @app.get("/evals/{eval_id}/samples")
         async def list_eval_samples(
             eval_id: str, active_since: float | None = None
-        ) -> list[dict[str, Any]]:
+        ) -> dict[str, Any]:
             # `active_since` (unix ts) is the recency delta: only samples that
-            # started or updated since then. A filter, not a cursor.
-            return await current_sample_summaries(eval_id, active_since)
+            # started or updated since then. A filter, not a cursor. The
+            # response is an `{as_of, samples}` envelope — `as_of` is stamped
+            # BEFORE the listing is built, so a client feeding it back as the
+            # next `active_since` can't miss changes that land mid-read.
+            as_of = time.time()
+            return {
+                "as_of": as_of,
+                "samples": await current_sample_summaries(eval_id, active_since),
+            }
 
         # `sample_id` is a query parameter (not a path segment) here and on
         # `/sample/events`: sample ids are arbitrary strings and may contain
@@ -318,49 +349,115 @@ class ControlServer:
                 )
             return page
 
-        # Flush the eval's buffered completed samples to the (possibly remote,
+        # Flush the task's buffered completed samples to the (possibly remote,
         # eg. S3) log now, so they're readable without waiting for the flush
-        # buffer to fill. Idempotent — a flush with nothing pending writes
-        # nothing and reports `flushed: 0`.
-        @app.post("/evals/{eval_id}/flush")
-        async def flush_samples(eval_id: str) -> Any:
-            result = await flush_eval_samples(eval_id)
+        # buffer to fill. Keyed by task_id (resolved to the latest attempt),
+        # matching the CLI's `ctl task log-flush`. Idempotent — a flush with
+        # nothing pending writes nothing and reports `flushed: 0`.
+        @app.post("/tasks/{task_id}/log-flush")
+        async def log_flush(task_id: str) -> Any:
+            result = await flush_task_samples(task_id)
             if result is None:
                 return JSONResponse(
                     status_code=404,
-                    content={"error": f"eval {eval_id} not found or not flushable"},
+                    content={"error": f"task {task_id} not found or not flushable"},
                 )
             return result
 
-        # Read the eval's sample-buffer parameters. The companion POST applies
-        # changes; GET is a pure read (no side effects).
-        @app.get("/evals/{eval_id}/buffer")
-        async def get_buffer(eval_id: str) -> Any:
-            result = await eval_buffer_config(eval_id)
+        # Read the process-global concurrency limits (max_sandboxes /
+        # max_subprocesses / max_connections) without naming an eval — the
+        # common case for viewing or throttling a whole process. No max_samples
+        # (that's per-task; use the /tasks/<task-id>/config routes for it).
+        @app.get("/config")
+        async def get_process_limits(model: str | None = None) -> Any:
+            return await process_limits(model=model)
+
+        # Retune the process-global limits. Omitting every set value makes this a
+        # read, like GET. `model` filters the adaptive controllers (name start or
+        # after a `/`). `dry_run=true` reports the intended change without
+        # applying it. Never 404s — a process always exists.
+        @app.patch("/config")
+        async def patch_process_limits(
+            max_sandboxes: int | None = None,
+            max_subprocesses: int | None = None,
+            max_connections: int | None = None,
+            model: str | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            if error := _limits_below_one(
+                ("max_sandboxes", max_sandboxes),
+                ("max_subprocesses", max_subprocesses),
+                ("max_connections", max_connections),
+            ):
+                return error
+            return await process_limits(
+                max_sandboxes=max_sandboxes,
+                max_subprocesses=max_subprocesses,
+                max_connections=max_connections,
+                model=model,
+                dry_run=dry_run,
+            )
+
+        # Read the task's retunable config (max_samples / max_sandboxes /
+        # max_subprocesses / max_connections plus the log_buffer / log_shared
+        # buffer params).
+        # Keyed by task_id — stable across retry attempts, matching the knobs'
+        # own scope (max_samples and the buffer params are task-scoped; the
+        # other knobs process-wide) — where a per-attempt eval id would go
+        # stale on every retry. A pure read — the companion PATCH applies
+        # changes. `model` filters the adaptive controllers shown.
+        @app.get("/tasks/{task_id}/config")
+        async def get_limits(task_id: str, model: str | None = None) -> Any:
+            result = await task_limits(task_id, model=model)
             if result is None:
                 return JSONResponse(
                     status_code=404,
-                    content={"error": f"eval {eval_id} not found"},
+                    content={"error": f"task {task_id} not found"},
                 )
             return result
 
-        # Update the eval's sample-buffer parameters. `log_buffer` (completed
-        # samples buffered before a log write) and `log_shared` (shared-log
-        # sync interval, seconds) are optional query params — omitting both
-        # makes this a read, like GET. Returns the resulting config.
-        @app.post("/evals/{eval_id}/buffer")
-        async def set_buffer(
-            eval_id: str,
+        # Retune the task's config. All knobs are optional query params —
+        # omitting all makes this a read, like GET. `dry_run=true` validates
+        # and reports the intended change without applying it (the phase-3
+        # agent-shape constraint). Idempotent: re-applying the same value is a
+        # no-op. Returns the resulting config view (with any warnings for a
+        # knob that isn't adjustable for this task).
+        @app.patch("/tasks/{task_id}/config")
+        async def patch_limits(
+            task_id: str,
+            max_samples: int | None = None,
+            max_sandboxes: int | None = None,
+            max_subprocesses: int | None = None,
+            max_connections: int | None = None,
+            model: str | None = None,
             log_buffer: int | None = None,
             log_shared: int | None = None,
+            dry_run: bool = False,
         ) -> Any:
-            result = await eval_buffer_config(
-                eval_id, log_buffer=log_buffer, log_shared=log_shared
+            if error := _limits_below_one(
+                ("max_samples", max_samples),
+                ("max_sandboxes", max_sandboxes),
+                ("max_subprocesses", max_subprocesses),
+                ("max_connections", max_connections),
+                ("log_buffer", log_buffer),
+                ("log_shared", log_shared),
+            ):
+                return error
+            result = await task_limits(
+                task_id,
+                max_samples=max_samples,
+                max_sandboxes=max_sandboxes,
+                max_subprocesses=max_subprocesses,
+                max_connections=max_connections,
+                model=model,
+                log_buffer=log_buffer,
+                log_shared=log_shared,
+                dry_run=dry_run,
             )
             if result is None:
                 return JSONResponse(
                     status_code=404,
-                    content={"error": f"eval {eval_id} not found"},
+                    content={"error": f"task {task_id} not found"},
                 )
             return result
 
@@ -372,9 +469,12 @@ class ControlServer:
         # directive.
         @app.post("/release")
         async def release() -> dict[str, bool]:
+            # `changed` lets the client report applied vs the idempotent
+            # already-in-that-state no-op (the agent output contract).
+            changed = keep_alive_intent()
             request_release()
             await self.notify_park_change()
-            return {"ok": True}
+            return {"ok": True, "keep_alive": False, "changed": changed}
 
         # Latches keep-alive ON for the process (the inverse of /release): it
         # parks after the eval finishes instead of exiting, even if launched
@@ -385,8 +485,9 @@ class ControlServer:
         # park to honour).
         @app.post("/keep")
         async def keep() -> dict[str, bool]:
+            changed = not keep_alive_intent()
             request_keep_alive()
-            return {"ok": True}
+            return {"ok": True, "keep_alive": True, "changed": changed}
 
         return app
 
@@ -455,6 +556,7 @@ class ControlServer:
                 "run_id": self._run_id,
                 "socket_path": str(socket_path),
                 "started_at": self._started_at,
+                "api_version": CONTROL_API_VERSION,
             },
         )
 

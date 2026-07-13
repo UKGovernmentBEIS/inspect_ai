@@ -51,6 +51,7 @@ from .._openai import (
     openai_completion_params,
     openai_handle_bad_request,
     openai_media_filter,
+    supports_native_max_reasoning_effort,
 )
 from .util import environment_prerequisite_error, model_base_url
 
@@ -462,6 +463,9 @@ class ModelInfo(ResponsesModelInfo):
 
     def is_gpt_5_pro(self) -> bool:
         return self.is_gpt_5() and "-pro" in self.model_family
+
+    def supports_max_reasoning_effort(self) -> bool:
+        return supports_native_max_reasoning_effort(self.model_family)
 
     def is_gpt_5_chat(self) -> bool:
         return self.is_gpt_5() and "-chat" in self.model_family

@@ -1,4 +1,5 @@
 import asyncio
+import math
 import os
 import re
 from typing import Any, Callable
@@ -13,7 +14,14 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelName
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.scorer import INCORRECT, Target, model_graded_fact, model_graded_qa
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    PARTIAL,
+    Target,
+    model_graded_fact,
+    model_graded_qa,
+)
 from inspect_ai.scorer._model import (
     DEFAULT_GRADE_PATTERN,
     neutralize_structural_delimiters,
@@ -150,10 +158,7 @@ def test_model_role_precedence_for_model_graded_scorer(
 
 
 def test_model_graded_answer_set_on_grade_parse_failure():
-    # issue #4025: when the grader output has no parseable GRADE: token the scorer
-    # falls into the parse-failure branch. value is INCORRECT, but the answer field
-    # must still carry the model's completion (matching the grade-found branch) so
-    # the log viewer doesn't show an empty answer.
+    # #4025: parse failure is unscored, but answer must still carry the completion.
     subject_answer = "The capital of France is Paris."
     grader_model = get_model(
         "mockllm/model",
@@ -177,7 +182,7 @@ def test_model_graded_answer_set_on_grade_parse_failure():
 
     assert log.samples
     score = log.samples[0].scores["model_graded_fact"]
-    assert score.value == INCORRECT
+    assert isinstance(score.value, float) and math.isnan(score.value)
     assert score.answer == subject_answer
 
 
@@ -288,6 +293,68 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
     match = re.search(DEFAULT_GRADE_PATTERN, grader_output)
     assert match is not None, f"no grade found in {grader_output!r}"
     assert match.group(1) == expected
+
+
+@pytest.mark.parametrize(
+    "grader_output",
+    [
+        pytest.param("GRID: C", id="typo_grid"),
+        pytest.param("ANSWER: C", id="wrong_word_answer"),
+        pytest.param("**Answer: C**", id="markdown_decorated"),
+        pytest.param("The submission is correct.", id="no_grade_marker_at_all"),
+    ],
+)
+def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=grader_output)])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(model=grader),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    score = scores["model_graded_fact"]
+    assert isinstance(score.value, float) and math.isnan(score.value), (
+        f"expected unscored (NaN) for {grader_output!r}, got {score.value!r}"
+    )
+    assert score.metadata is not None
+    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+
+
+@pytest.mark.parametrize(
+    "grader_output, expected",
+    [
+        pytest.param("GRADE: C", CORRECT, id="correct"),
+        pytest.param("GRADE: I", INCORRECT, id="incorrect"),
+        pytest.param("GRADE: P", PARTIAL, id="partial"),
+    ],
+)
+def test_matched_grade_resolves_to_value(grader_output: str, expected: str) -> None:
+    # A parseable grade must resolve to its own value, not get swept into unscored.
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=grader_output)])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(model=grader),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    score = scores["model_graded_fact"]
+    assert score.value == expected, (
+        f"expected {expected!r} for grade {grader_output!r}, got {score.value!r}"
+    )
 
 
 @pytest.mark.parametrize(

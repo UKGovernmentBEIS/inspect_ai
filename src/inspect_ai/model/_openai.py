@@ -128,6 +128,17 @@ def is_o_series_model(model_name: str) -> bool:
     return "gpt" not in name and bool(re.search(r"o\d+", name))
 
 
+_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
+
+
+def supports_native_max_reasoning_effort(model_name: str) -> bool:
+    """`max` reasoning effort shipped with gpt-5.6; earlier gpt-5.x top out at `xhigh`."""
+    match = _GPT_VERSION_RE.match(model_name.lower())
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
+
+
 def needs_max_completion_tokens(model_name: str) -> bool:
     return is_gpt_5_model(model_name) or is_o_series_model(model_name)
 

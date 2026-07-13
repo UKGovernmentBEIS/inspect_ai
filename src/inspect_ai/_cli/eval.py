@@ -46,6 +46,7 @@ from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
+from inspect_ai.util._limit import TokenLimit
 from inspect_ai.util._resource import resource
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -64,6 +65,7 @@ from .util import (
     parse_cli_config,
     parse_model_role_cli_args,
     parse_sandbox,
+    token_limit_flag_callback,
 )
 
 _SCANNER_OPTION_NAMES = {
@@ -440,7 +442,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "scripted agents, and TUIs query). Pass `false` to disable it. "
             "Pass `keep` to also keep the process running "
             "after the eval finishes so its state and results stay readable; "
-            "the process exits when `inspect ctl release` is run (or POST "
+            "the process exits when `inspect ctl process release` is run (or POST "
             "/release is sent to the control endpoint). Without `keep` "
             "the process exits as soon as the eval body returns, taking the "
             "control surface with it."
@@ -552,8 +554,11 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--token-limit",
-        type=int,
-        help="Limit on total tokens used for each sample.",
+        type=str,
+        callback=token_limit_flag_callback,
+        help="Limit on tokens used for each sample (e.g. 500000, '500k', or '1m'; "
+        "prefix with 'output:' to limit only output tokens, e.g. 'output:1m', or "
+        "with a formula over 'input'/'output', e.g. '(input*0.1)+output:1m').",
         envvar="INSPECT_EVAL_TOKEN_LIMIT",
     )
     @click.option(
@@ -606,7 +611,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--continue-on-fail",
         type=bool,
         is_flag=True,
-        default=False,
+        default=None,
         help=CONTINUE_ON_FAIL_HELP,
         envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
     )
@@ -623,7 +628,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--score-on-error",
         type=bool,
         is_flag=True,
-        default=False,
+        default=None,
         help=SCORE_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_SCORE_ON_ERROR",
     )
@@ -840,6 +845,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_REASONING_EFFORT",
     )
     @click.option(
+        "--reasoning-mode",
+        type=click.Choice(["standard", "pro"]),
+        help='Reasoning mode. "pro" performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only ("standard" is the default).',
+        envvar="INSPECT_EVAL_REASONING_MODE",
+    )
+    @click.option(
         "--reasoning-tokens",
         type=int,
         help="Maximum number of tokens to use for reasoning. Anthropic Claude models only.",
@@ -1027,6 +1038,7 @@ def _eval_command_impl(
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
+    reasoning_mode: Literal["standard", "pro"] | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
@@ -1035,7 +1047,7 @@ def _eval_command_impl(
     batch: int | str | None,
     modalities: str | None,
     message_limit: int | None,
-    token_limit: int | None,
+    token_limit: int | TokenLimit | None,
     turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
@@ -1295,6 +1307,7 @@ def eval_set_command(
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
+    reasoning_mode: Literal["standard", "pro"] | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
@@ -1303,7 +1316,7 @@ def eval_set_command(
     batch: int | str | None,
     modalities: str | None,
     message_limit: int | None,
-    token_limit: int | None,
+    token_limit: int | TokenLimit | None,
     turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
@@ -1641,7 +1654,7 @@ def eval_exec(
     sample_id: str | None,
     sample_shuffle: int | None,
     message_limit: int | None,
-    token_limit: int | None,
+    token_limit: int | TokenLimit | None,
     turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
@@ -2083,7 +2096,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--continue-on-fail",
     type=bool,
     is_flag=True,
-    default=False,
+    default=None,
     help=CONTINUE_ON_FAIL_HELP,
     envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
 )
@@ -2100,7 +2113,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--score-on-error",
     type=bool,
     is_flag=True,
-    default=False,
+    default=None,
     help=SCORE_ON_ERROR_HELP,
     envvar="INSPECT_EVAL_SCORE_ON_ERROR",
 )
@@ -2199,7 +2212,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
         "enabled). Pass `false` to disable it; pass `keep` "
         "to keep the process running after the retried eval finishes so "
         "external clients (the `inspect ctl` CLI, scripted agents) can still "
-        "query its state. Run `inspect ctl release` to release."
+        "query its state. Run `inspect ctl process release` to release."
     ),
     envvar="INSPECT_EVAL_CTL_SERVER",
 )
