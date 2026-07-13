@@ -8,12 +8,13 @@ from anthropic.types import (
     Usage,
 )
 
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.content import ContentDocument, ContentReasoning, ContentText
 from inspect_ai.model import (
     model_output_from_anthropic,
 )
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._providers.anthropic import message_block_params
 
 
 async def test_model_output_from_anthropic_basic() -> None:
@@ -50,6 +51,27 @@ async def test_model_output_from_anthropic_basic() -> None:
     assert len(message_obj.content) == 1
     assert isinstance(message_obj.content[0], ContentText)
     assert message_obj.content[0].text == "Hello! How can I help you today?"
+
+
+async def test_message_block_params_enables_document_citations() -> None:
+    document = ContentDocument(
+        document="data:text/plain;base64,SGVsbG8=",
+        citations=True,
+    )
+
+    document_block = (await message_block_params(document))[0]
+
+    assert document_block["type"] == "document"
+    assert document_block.get("citations") == {"enabled": True}
+
+
+async def test_message_block_params_omits_document_citations_by_default() -> None:
+    document = ContentDocument(document="data:text/plain;base64,SGVsbG8=")
+
+    document_block = (await message_block_params(document))[0]
+
+    assert document_block["type"] == "document"
+    assert "citations" not in document_block
 
 
 async def test_model_output_from_anthropic_with_tool_use() -> None:
