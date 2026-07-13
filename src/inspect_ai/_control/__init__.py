@@ -20,9 +20,9 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #
 # - New KNOB (query param an older PATCH handler would silently ignore):
 #   bump this in the SAME PR and record the new value as the knob's
-#   `_KNOB_SINCE` entry. Servers at version >= 2 reject unknown params
+#   `_KNOB_SINCE` entry. Servers at version >= 3 reject unknown params
 #   server-side (`_control/strict.py`), but the gate is the only defense
-#   against a silent partial apply by pre-strict (version < 2) servers
+#   against a silent partial apply by pre-strict (version < 3) servers
 #   until they age out and the gate retires (issue #67).
 # - New ENDPOINT: no bump. An older server answers a missing route with
 #   FastAPI's stock `{"detail": "Not Found"}` 404, which the CLI tells apart
@@ -38,8 +38,9 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #   0 — initial channel (tolerant servers: mutation handlers silently ignore
 #       unknown query params).
 #   1 — max_subprocesses knob.
-#   2 — strict mutations: the server 400s on unknown query params to any
-#       non-GET route (`_control/strict.py`), so `api_version >= 2` means a
+#   2 — key/key_limit knob.
+#   3 — strict mutations: the server 400s on unknown query params to any
+#       non-GET route (`_control/strict.py`), so `api_version >= 3` means a
 #       client can rely on the server to reject rather than partially apply
 #       an unsupported knob.
-CONTROL_API_VERSION: int = 2
+CONTROL_API_VERSION: int = 3
