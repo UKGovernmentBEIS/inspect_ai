@@ -47,10 +47,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from inspect_ai.log._samples import ActiveSample
+    from inspect_ai.log._samples import ActiveSample, SampleCancelAction
 
 TaskCancelAction = Literal["cancel", "score", "error"]
-"""How a task cancel resolves its samples (see :func:`cancel_task`)."""
+"""How a task cancel resolves its samples (see :func:`cancel_task`).
+
+The sample-level counterpart, ``SampleCancelAction``, lives in
+``inspect_ai.log._samples`` beside the ``ActiveSample.interrupt``
+primitive it types.
+"""
 
 
 def cancel_task(
@@ -174,7 +179,7 @@ async def cancel_sample(
     sample_id: str,
     epoch: int,
     *,
-    action: Literal["score", "error", "cancel"] = "score",
+    action: SampleCancelAction = "score",
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
     """Cancel one running sample (``POST /evals/<id>/sample/cancel``).

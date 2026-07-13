@@ -39,6 +39,10 @@ from ._transcript import Transcript
 logger = getLogger(__name__)
 
 
+SampleCancelAction = Literal["score", "error", "cancel"]
+"""How a cancelled sample resolves (see :meth:`ActiveSample.interrupt`)."""
+
+
 class ActiveSample:
     def __init__(
         self,
@@ -107,7 +111,7 @@ class ActiveSample:
         # sample source. Empty on the first attempt. The control channel
         # surfaces these as the running sample's error history.
         self.error_retries: list[EvalRetryError] = error_retries or []
-        self._interrupt_action: Literal["score", "error", "cancel"] | None = None
+        self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
@@ -201,7 +205,7 @@ class ActiveSample:
         else:
             return 0
 
-    def interrupt(self, action: Literal["score", "error", "cancel"]) -> None:
+    def interrupt(self, action: SampleCancelAction) -> None:
         """Terminate this running sample.
 
         ``action`` selects the outcome: ``"score"`` completes the sample and
@@ -251,7 +255,7 @@ class ActiveSample:
             )
 
     @property
-    def interrupt_action(self) -> Literal["score", "error", "cancel"] | None:
+    def interrupt_action(self) -> SampleCancelAction | None:
         return self._interrupt_action
 
     @property

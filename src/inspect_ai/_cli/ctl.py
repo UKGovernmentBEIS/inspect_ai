@@ -38,7 +38,16 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, NoReturn, ParamSpec, Protocol, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    NamedTuple,
+    NoReturn,
+    ParamSpec,
+    Protocol,
+    cast,
+)
 
 import click
 import httpx
@@ -51,6 +60,11 @@ from inspect_ai._control.discovery import (
     list_discovered_servers,
 )
 from inspect_ai._util.name_match import match_name_prefix
+
+if TYPE_CHECKING:
+    # TYPE_CHECKING to keep the CLI import-light: `inspect_ai.log._samples`
+    # pulls in a chunk of the core package this thin HTTP client never needs.
+    from inspect_ai.log._samples import SampleCancelAction
 
 # Events shown on an unseeded `sample events` read (no --cursor / --tail /
 # --since-time / --until): a recent tail rather than the full backlog — the
@@ -639,7 +653,7 @@ def sample_cancel_command(
         task,
         sample_id,
         epoch,
-        action=cast(Literal["score", "error", "cancel"], action),
+        action=cast("SampleCancelAction", action),
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -1825,7 +1839,11 @@ def _run_task_cancel(
         suffix = (
             "completed samples are kept"
             if action == "cancel"
-            else "queued samples are abandoned and the task will complete"
+            else (
+                "queued samples would be abandoned and the task would complete"
+                if dry_run
+                else "queued samples are abandoned and the task will complete"
+            )
         )
         if dry_run:
             click.echo(f"Would cancel — {interrupted}; {suffix}.")
@@ -1842,7 +1860,7 @@ def _run_sample_cancel(
     sample_id: str,
     epoch: int | None,
     *,
-    action: Literal["score", "error", "cancel"],
+    action: SampleCancelAction,
     dry_run: bool,
     as_json: bool,
 ) -> None:

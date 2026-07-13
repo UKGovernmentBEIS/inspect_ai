@@ -32,7 +32,7 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, Literal, NamedTuple, cast, get_args
+from typing import Any, AsyncIterator, NamedTuple, cast, get_args
 
 import anyio
 
@@ -476,6 +476,11 @@ class ControlServer:
             action: str = "score",
             dry_run: bool = False,
         ) -> Any:
+            # Function-local: a module-level `inspect_ai.log` import from
+            # this module is circular (`inspect_ai` -> `_eval.eval` ->
+            # `_control.server`).
+            from inspect_ai.log._samples import SampleCancelAction
+
             if epoch is None:
                 return JSONResponse(
                     status_code=400,
@@ -487,7 +492,7 @@ class ControlServer:
                         )
                     },
                 )
-            if action not in ("score", "error", "cancel"):
+            if action not in get_args(SampleCancelAction):
                 return JSONResponse(
                     status_code=400,
                     content={
@@ -501,7 +506,7 @@ class ControlServer:
                 eval_id,
                 sample_id,
                 epoch,
-                action=cast(Literal["score", "error", "cancel"], action),
+                action=cast(SampleCancelAction, action),
                 dry_run=dry_run,
             )
             if result is None:
