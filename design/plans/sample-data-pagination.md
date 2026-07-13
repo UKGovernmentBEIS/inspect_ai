@@ -1,10 +1,21 @@
 # Framing: Pagination of Messages/Events Within a Sample
 
-Status: framing/explanation — not yet a plan. Captures problem, current design, proposed direction, access-pattern inventory, confounders, and open questions.
+Status: framing/explanation — not yet a plan. Captures problem, principles, current design, proposed direction, access-pattern inventory, confounders, open questions, and next steps.
 
 ## Problem
 
-A single sample must support an essentially arbitrary number of messages and events. Today all data for a sample lives in one JSON entry inside the `.eval` zip. JSON parses sequentially from the top, which is at odds with the near-term requirement to serve windows/pages of messages and events. We remain committed to a single portable `.zip` file containing everything.
+A single sample must support an essentially arbitrary number of messages and events. Today all data for a sample lives in one JSON entry inside the `.eval` zip. JSON parses sequentially from the top, which is at odds with the near-term requirement to serve windows/pages of messages and events.
+
+## Principles & working assumptions
+
+Principles:
+
+- **Scale target**: samples with 10M+ messages must be tractable.
+- **Single portable `.zip`** containing everything remains the format.
+- **Viewer access model**: paginated, filtered, index-based queries only — there is no "get all events" access pattern in the new design (sorting is unused). Full-fidelity reads (export, Python `read_eval_log`) remain as explicit bulk operations.
+- **Data comes straight from the eval file** even when a server is present — the server just serves bytes.
+
+Working assumptions (revisitable, not decided): flat chunked sequences for messages/events (likely + calls) as zip entries with client-driven random access; chunk names encode `{start}-{end_exclusive}`; fixed X as writer policy; JSON-array chunk encoding; per-sample TOC (likely = the precomputed timeline); stable per-sample ids with range-encoded references; rehydration external to the format.
 
 ## Current design (verified)
 
@@ -27,12 +38,13 @@ Inspired by parquet row groups.
 Terminology: a **sequence** is an ordered, homogeneous, index-addressed set of items (messages, events, calls), append-only during the run, physically stored as N chunk entries. (Deliberately not "stream" — that term is reserved for the live streaming/cursor path.)
 
 - **Per-sample TOC** plus, for each high-scale sequence (messages and events, for now), a set of **chunk files** as sibling zip entries. Up to X items per chunk (X TBD).
+- **The TOC is (likely) the timeline.** The timeline — today computed in-memory by the client on every sample load — is precomputed and embedded per sample, becoming the persisted data source for the tree view/outline. Two timeline implementations exist (Python `src/inspect_ai/event/_timeline.py`, TS `inspect-components/src/transcript/timeline/`) kept in sync via a shared JSON test suite. Computation is cheap (type comparisons, no content introspection); the event sequence is append-only, so it's rewritten (or incrementally updated) at sample boundaries. Index→chunk mapping stays in chunk filenames — the TOC is not needed for that.
 - **Chunk names encode their index range** (`{start}-{end_exclusive}.json`, zero-padded). Every reader must fetch the zip central directory anyway (byte offsets), so index→chunk is a binary search over sorted entry names — no TOC lookup, and no round trip that arithmetic naming would have saved. This makes the format **agnostic to chunking policy**: fixed X (the working assumption), size-based, or adaptive chunking all read identically; size-based becomes a writer-side tuning knob rather than a format change. The TOC therefore earns its keep only for per-chunk metadata (type counts, span/time ranges) — not for index mapping.
 - **Chunks as zip entries preserves the architecture**: clients keep doing byte-range + central-directory reads; no new server endpoints required for completed logs.
 - **Events reference messages by stable per-sample ids, range-encoded** (`[0..9873],[9875]`), never flat id lists — model-event inputs are prefixes-plus-delta, and flat lists are O(N²) across a transcript. (Precedent: `ModelEvent.input_refs` already uses `(start, end_exclusive)` ranges into the pool.)
 - **Rehydration is a consumer concern**: the format guarantees stable ids and range-named chunks; consumers resolve which message chunks a window of events needs (via central-directory names) and fetch them independently. (See confounder: the last page.)
 - **The message sequence likely subsumes the `events_data.messages` pool**: pooled messages and top-level `messages` are the same currency (`ChatMessage`) — they differ only in membership (pool = superset across all ModelEvent inputs; top-level = the final main thread). If messages are a first-class id-addressed sequence, ModelEvents reference message ids and the sequence *is* the pool. (Precedent: the buffer SQLite DB already has `message_pool` with autoincrement ids.) The `calls` pool is a different currency (raw provider payloads) and a likely **third sequence** — often the largest per-sample data. Whether `attachments` survives is open — its original motivation (cross-turn duplication) dies with the normalized pool; what remains is chunk-size hygiene for large inline blobs (deferred, coupled to size-based chunking).
-- **Chunk encoding: JSON (or JSONL) first; protobuf deferred.** Ship with JSON chunks and revisit encoding only if measurement demands it. The tradeoff to carry in mind: zip compresses entries independently; dedup pools remove *content* duplication but not JSON *structural* redundancy (key names, enum strings), which per-entry zstd currently recovers and which small chunks forfeit — so JSON pressures X upward, and protobuf (which eliminates structural redundancy by construction) is what would make small X cheap. Protobuf's cost is a shared schema with TS + Python codegen (pydantic is currently the source of truth). Range-named chunks make encoding a per-entry concern (the extension says what's inside), so a later protobuf phase is additive, not a format break.
+- **Chunk encoding: JSON first; protobuf deferred.** Ship with JSON-array chunks and revisit encoding only if measurement demands it. The tradeoff to carry in mind: zip compresses entries independently; dedup pools remove *content* duplication but not JSON *structural* redundancy (key names, enum strings), which per-entry zstd currently recovers and which small chunks forfeit — so JSON pressures X upward, and protobuf (which eliminates structural redundancy by construction) is what would make small X cheap. Protobuf's cost is a shared schema with TS + Python codegen (pydantic is currently the source of truth). Range-named chunks make encoding a per-entry concern (the extension says what's inside), so a later protobuf phase is additive, not a format break.
 
 ### Illustrative zip layout (per sample)
 
@@ -47,8 +59,8 @@ samples/
     │                                  #   + sequence descriptors: {chunk_size: 1000,
     │                                  #       messages: {count: 48210}, events: {count: 103552},
     │                                  #       calls: {count: 9012}}
-    │                                  #   + TOC (if colocated): per-chunk stats — event type
-    │                                  #       counts, time ranges, span boundaries, id ranges
+    │                                  #   + TOC = precomputed timeline/outline (if colocated;
+    │                                  #       may instead be a sibling entry, e.g. timeline.json)
     │                                  #   NO messages / events / attachments / events_data
     ├── messages/
     │   ├── 0000000000-0000001000.json # messages 0..999 (name = {start}-{end_exclusive})
@@ -94,7 +106,7 @@ From the view server and TS client (completed-log path):
 
 ## Confounders
 
-Two access patterns fight the chunked design; each needs an explicit stance.
+Three access patterns fight the chunked design; each needs an explicit stance.
 
 ### Confounder 1: the last page (hydration pulls in everything)
 
@@ -114,25 +126,27 @@ Why can't first render get by with just the event count? Count + estimated row h
 
 Structure metadata is also the elision index: per-chunk span coverage lets a collapsed 10k-event span skip fetching its chunks entirely.
 
-Options:
+**Resolution (direction): the precomputed timeline is the structure.** Rather than choosing among a TOC skeleton, a sparse span sequence, or a skeleton column, the existing timeline-building code (which already derives the semantic tree from events) is enhanced to also produce the outline, and both are persisted per sample — eliminating the fetch-all-events pattern for the tree view. The outline persisted is *maximal*: event filtering (e.g. hiding checkpoints) can only reduce it, and compaction-region selection is head/tail slicing, so every runtime view is a subset of the stored one. Remaining details: granularity (per-event leaves vs span-level + counts — decides persisted timeline size) and location (in the shell vs a sibling entry).
 
-- **(a)** TOC carries per-event skeleton — honest but O(N); TOC itself needs chunking at ~1M events.
-- **(b)** Sparse structure sequence: span begin/end + per-chunk type counts only; outline/timeline build from spans; main list renders flat (count-only) and acquires tree structure as chunks hydrate. Zero per-event data, but a UX change.
-- **(c)** Column split, parquet-style: each event chunk gets a skinny sibling "skeleton" entry (type/span_id/timestamp — tens of bytes/event as JSON, ~10-20 as protobuf) fetched eagerly and in parallel; fat bodies fetched lazily. Preserves today's tree UX exactly.
+### Confounder 3: jump-to-end with variable-height rows
 
-Which option wins depends on whether the fully-correct tree/collapse behavior on first render is a UX requirement or progressive structure is acceptable.
+Ctrl+End / follow-output must position a scrollbar in a virtualized list whose row heights are unknowable without rendering. Today's approach — estimated heights cached and refined as rows render, error shrinking with row count — carries over; heuristics are unavoidable. Pagination doesn't make this worse (the shell's counts give the estimator its denominator with zero chunk fetches), but research is needed on how best-in-class virtualizers handle it.
 
 ## Open questions
 
-Working assumptions throughout (revisitable, not decided): flat chunked sequences for messages/events (likely + calls) as zip entries with client-driven random access; chunk names encode `{start}-{end_exclusive}`; fixed X as writer policy; per-sample TOC for per-chunk metadata; stable per-sample ids with range-encoded references; rehydration external to the format.
+(Working assumptions listed up top in Principles.)
 
 - Value of X. (Size-based chunking is a writer-side policy choice — range-named chunks keep readers agnostic.)
 - "Which messages" — `sample.messages` (final main thread) vs the full message pool (superset incl. every ModelEvent input). Buffer DB precedent favors the pool; deciding this also decides blob/attachment handling.
 - Whether `attachments` survives (blob extraction / chunk-size hygiene).
 - Mid-sequence state reconstruction (`StateEvent`/`StoreEvent` JSON Patch deltas are hostile to random access; keyframe snapshots are the classic fix).
-- TOC location: inside the sample shell entry vs a separate entry.
-- Confounder 2: is today's tree-ified main list (correct collapse/elision on first render) a UX requirement, or is flat-then-progressive acceptable? (Outline/timeline are span-driven and cheap either way.) → decides between options b and c.
+- Timeline-as-TOC details: persisted granularity (per-event leaves vs span-level + counts) and location (inside the sample shell entry vs a sibling entry).
 - In-sample search: allowed to become progressive or server-side (scout)?
-- Chunk encoding details: JSON vs JSONL per chunk (working assumption: JSON first, protobuf deferred until measurement demands it — its absence pressures X upward).
+- Chunk encoding (working assumption: JSON array per chunk; protobuf deferred until measurement demands it — its absence pressures X upward). JSONL was considered and set aside: its append-only strength doesn't apply (chunks are sealed write-once zip entries), and it trades away the single-call parse/validate fast path on the common whole-chunk case to buy partial parsing of overreads. Reconsider JSONL's complexity only if parsing of overread chunks proves material.
 - Write path: append chunks as the sample runs (converging recorder with the buffer/filestore segment mechanism) vs assemble at sample completion? Is full-reupload-per-flush in scope?
 - Phasing/compat: dual-format period? migration tooling for v2 logs? reader fallback story.
+
+## Next steps
+
+1. **Converter + render** (first goal): write a converter from existing log files to the new format and prove the browser client can consume paginated eval files — get real logs rendering — before investing in the live-write path.
+2. Add a CLAUDE.md rule: any timeline code change must update both the Python and TypeScript implementations and their shared JSON test suite (sync has slipped before).
