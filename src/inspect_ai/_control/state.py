@@ -292,6 +292,10 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "total_time": None,
         "total_tokens": 0,
         "message_count": None,
+        "turn_count": None,
+        "token_limit_usage": None,
+        "token_limit_total": None,
+        "token_limit_type": None,
         "last_activity_at": None,
         "events": None,
         "scores": {},
@@ -456,6 +460,28 @@ async def sample_error_detail(
     }
 
 
+def find_active_sample(
+    eval_id: str, sample_id: str, epoch: int
+) -> "ActiveSample | None":
+    """The process's live sample matching ``(eval_id, sample_id, epoch)``, or ``None``.
+
+    The single definition of the control channel's active-sample identity
+    rule, shared by the error-detail, transcript-events, and cancel surfaces:
+    ``sample_id`` arrives as a query-param string, so integer ids match on
+    ``str(sample.id)``.
+    """
+    from inspect_ai.log._samples import active_samples
+
+    for sample in active_samples():
+        if (
+            sample.eval_id == eval_id
+            and str(sample.sample.id) == sample_id
+            and sample.epoch == epoch
+        ):
+            return sample
+    return None
+
+
 def _running_sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
@@ -466,22 +492,18 @@ def _running_sample_error_detail(
     still in ``active_samples`` is left to the on-disk log (which carries the
     final ``error_retries``).
     """
-    from inspect_ai.log._samples import active_samples
-
-    for s in active_samples():
-        if s.eval_id == eval_id and str(s.sample.id) == sample_id and s.epoch == epoch:
-            if s.completed is not None:
-                return None
-            return {
-                "sample_id": s.sample.id,
-                "epoch": s.epoch,
-                "status": "running",
-                "retries": s.retries,
-                "error": None,
-                "error_retries": [_error_dict(e) for e in s.error_retries],
-                "scores": {},
-            }
-    return None
+    s = find_active_sample(eval_id, sample_id, epoch)
+    if s is None or s.completed is not None:
+        return None
+    return {
+        "sample_id": s.sample.id,
+        "epoch": s.epoch,
+        "status": "running",
+        "retries": s.retries,
+        "error": None,
+        "error_retries": [_error_dict(e) for e in s.error_retries],
+        "scores": {},
+    }
 
 
 def _error_dict(error: Any) -> dict[str, Any]:
@@ -543,6 +565,10 @@ def _summary_from_eval_sample_summary(
         "total_time": summary.total_time,
         "total_tokens": sum(u.total_tokens for u in summary.model_usage.values()),
         "message_count": summary.message_count,
+        "turn_count": summary.turn_count,
+        "token_limit_usage": summary.token_limit_usage,
+        "token_limit_total": summary.token_limit,
+        "token_limit_type": summary.token_limit_type,
         # A terminal sample's last activity is its completion; `events` is a
         # live-only progress counter (the on-disk summary doesn't carry it).
         "last_activity_at": _iso_to_timestamp(summary.completed_at),
@@ -588,6 +614,10 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
                 "total_time": s.running_time,
                 "total_tokens": s.total_tokens,
                 "message_count": s.total_messages,
+                "turn_count": s.total_turns,
+                "token_limit_usage": s.token_limit_usage,
+                "token_limit_total": s.token_limit,
+                "token_limit_type": s.token_limit_type,
                 "last_activity_at": last_activity_at,
                 "events": s.transcript.history.event_count,
                 "scores": {},  # running samples aren't scored yet
@@ -683,6 +713,11 @@ def _build_summary(
         "started_at": eval_started_at,
         "completed_at": completed_at,
         "attempts": attempts,
+        # Planned epoch count. `ctl sample cancel` uses it to require an
+        # explicit EPOCH when the task runs more than one (a defaulted epoch
+        # would silently target a different sample — see the selector
+        # conventions in design/control-channel.md).
+        "epochs": latest.epochs,
         "samples": {
             "total": total,
             "completed": completed,
