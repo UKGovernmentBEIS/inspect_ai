@@ -415,6 +415,35 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert missing.status_code == 404
 
 
+async def test_404_body_shape_distinguishes_missing_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Handler 404s carry ``{"error": ...}``; the router's 404 does not.
+
+    The CLI reads this distinction (`_handler_404`) to report version skew
+    definitively when a route doesn't exist on an older server — see the
+    convention comment in ``_build_app``. A handler 404 that dropped the
+    ``error`` key would misreport an entity-not-found as version skew.
+    """
+    from inspect_ai._cli.ctl import _handler_404
+    from inspect_ai._control import server as server_mod
+
+    monkeypatch.setattr(server_mod, "cancel_task", lambda task_id, dry_run=False: None)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        handler = await client.post("/tasks/nope/cancel")
+        assert handler.status_code == 404
+        assert _handler_404(handler)
+
+        router = await client.post("/tasks/nope/endpoint-from-the-future")
+        assert router.status_code == 404
+        assert not _handler_404(router)
+
+
 def test_resolve_ctl_server_values() -> None:
     """The ``ctl_server`` param resolves to ``(enabled, keep_alive)``.
 
@@ -703,3 +732,77 @@ def test_keep_alive_intent_resets() -> None:
         assert not keep_alive_intent()
     finally:
         reset_keep_alive()
+
+
+async def test_tasks_rows_advertise_api_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every `/tasks` row is stamped with the server's control-API version.
+
+    The version rides the row (like `keep_alive`) so HTTP consumers can gate
+    version-dependent requests without an extra round trip; the discovery
+    file carries the same value for the window before any task registers.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.server import ControlServer
+
+    async def _two_rows(started_at: float) -> list[dict]:
+        return [{"task_id": "a"}, {"task_id": "b"}]
+
+    monkeypatch.setattr(server_mod, "current_eval_summaries", _two_rows)
+
+    app = ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        rows = (await client.get("/tasks")).json()
+    assert [r["api_version"] for r in rows] == [CONTROL_API_VERSION] * 2
+
+
+def test_start_advertises_api_version_in_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The discovery file published by `start()` carries CONTROL_API_VERSION.
+
+    The CLI gates version-dependent config knobs on the discovery file's
+    `api_version` before sending a mutation, so it must be published at bind
+    time — including the window before any task registers, when `/tasks` is
+    still empty.
+    """
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    import inspect_ai._control.discovery as discovery
+    from inspect_ai._control import CONTROL_API_VERSION
+    from inspect_ai._control.discovery import list_discovered_servers
+    from inspect_ai._control.server import ControlServer
+
+    # short dir under /tmp: macOS pytest tmp_path blows past the AF_UNIX
+    # 104-char socket-path limit (cf. the short_data_dir fixture in
+    # test_eval_set_integration.py)
+    dirpath = Path(tempfile.mkdtemp(prefix="ctl_ver_", dir="/tmp"))
+
+    def _stub_data_dir(subdir: str | None = None) -> Path:
+        path = (dirpath / (subdir or "")).resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    monkeypatch.setattr(discovery, "inspect_data_dir", _stub_data_dir)
+
+    async def run() -> None:
+        server = ControlServer(run_id="run-1")
+        await server.start()
+        try:
+            assert [s.api_version for s in list_discovered_servers()] == [
+                CONTROL_API_VERSION
+            ]
+        finally:
+            await server.stop()
+
+    try:
+        asyncio.run(run())
+    finally:
+        shutil.rmtree(dirpath, ignore_errors=True)
