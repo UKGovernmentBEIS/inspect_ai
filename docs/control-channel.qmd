@@ -157,7 +157,7 @@ Note that `--cursor` takes the opaque `next` token, never a timestamp — for a 
 
 ## Cancellation
 
-`inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--cancelled` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
+`inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--action error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--action cancelled` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
 
 ```bash
 $ inspect ctl sample cancel gpqa 17
@@ -175,10 +175,10 @@ $ inspect ctl sample cancel gpqa 17 3
 $ inspect ctl task cancel gpqa
 ```
 
-Pass `--score` or `--error` to resolve the task *gracefully* instead of aborting it: each in-flight sample is scored on the work done so far (or marked errored), still-queued samples are abandoned, and the task runs to natural completion — so the eval finishes with a completed status rather than an error. This is how to abandon a task's last few stragglers while still bringing the eval to a completed state. `--error` is not permitted when the task's samples are configured to fail on errors, and both flags require the eval process to be running a current inspect (against an older process the command errors without sending anything). If a graceful cancel stalls — say on a hung scorer — issuing a plain `inspect ctl task cancel` escalates it to an abort.
+Pass `--action score` or `--action error` to resolve the task *gracefully* instead of aborting it: each in-flight sample is scored on the work done so far (or marked errored), still-queued samples are abandoned, and the task runs to natural completion — so the eval finishes with a completed status rather than an error. This is how to abandon a task's last few stragglers while still bringing the eval to a completed state. `--action error` is not permitted when the task's samples are configured to fail on errors, and both actions require the eval process to be running a current inspect (against an older process the command errors without sending anything). If a graceful cancel stalls — say on a hung scorer — issuing a plain `inspect ctl task cancel` escalates it to an abort.
 
 ```bash
-$ inspect ctl task cancel gpqa --score
+$ inspect ctl task cancel gpqa --action score
 ```
 
 Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail, the abort escalation above being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.

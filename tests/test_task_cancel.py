@@ -155,7 +155,7 @@ def test_abort_cancel_not_retried_in_run_multiple() -> None:
 
 
 def test_score_resolution_cancel_completes_eval() -> None:
-    """`ctl task cancel --score` brings the eval to a completed state.
+    """`ctl task cancel --action score` brings the eval to a completed state.
 
     The in-flight sample is interrupted and scored on the work done so far;
     the still-queued sample is abandoned (absent from the log); and the task
@@ -169,9 +169,9 @@ def test_score_resolution_cancel_completes_eval() -> None:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # the control directive runs on the eval's own loop (the control
             # server is embedded), so calling it from here is the same shape
-            # as `POST /tasks/<id>/cancel?resolution=score`
+            # as `POST /tasks/<id>/cancel?action=score`
             eval_state = get_eval_states()[0]
-            result = ctl_cancel_task(eval_state.task_id, resolution="score")
+            result = ctl_cancel_task(eval_state.task_id, action="score")
             assert result is not None and result["ok"] is True
             # the interrupt cancels this sample's task group; this sleep is
             # only an upper bound on the propagation window
@@ -211,7 +211,7 @@ def test_score_resolution_cancel_completes_eval() -> None:
 
 
 def test_error_resolution_cancel_completes_eval() -> None:
-    """`ctl task cancel --error` completes the eval with errored samples.
+    """`ctl task cancel --action error` completes the eval with errored samples.
 
     In-flight samples are resolved as errors while the eval still reaches a
     completed state.
@@ -223,7 +223,7 @@ def test_error_resolution_cancel_completes_eval() -> None:
     def error_resolution_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             eval_state = get_eval_states()[0]
-            result = ctl_cancel_task(eval_state.task_id, resolution="error")
+            result = ctl_cancel_task(eval_state.task_id, action="error")
             assert result is not None and result["ok"] is True
             await anyio.sleep(10)
             return state
@@ -232,7 +232,7 @@ def test_error_resolution_cancel_completes_eval() -> None:
 
     with tempfile.TemporaryDirectory() as log_dir:
         # the error resolution is gated on samples that fail on errors, so
-        # this mirrors the sample-level `--error` requirement
+        # this mirrors the sample-level `--action error` requirement
         logs = inspect_eval(
             Task(
                 dataset=[Sample(id=1, input="x", target="y")],
@@ -264,7 +264,7 @@ def test_error_resolution_rejected_when_samples_fail_on_error() -> None:
     def error_resolution_rejected_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             eval_state = get_eval_states()[0]
-            result = ctl_cancel_task(eval_state.task_id, resolution="error")
+            result = ctl_cancel_task(eval_state.task_id, action="error")
             assert result is not None and result["ok"] is False
             assert "fail on errors" in result["error"]
             return state
@@ -421,7 +421,7 @@ def test_score_resolution_sweep_preserves_cancelled_sample() -> None:
             # the score resolution lands before this sample's cancellation
             # is even delivered (no checkpoint since the interrupt) — it is
             # still in flight, so the sweep sees it
-            result = ctl_cancel_task(get_eval_states()[0].task_id, resolution="score")
+            result = ctl_cancel_task(get_eval_states()[0].task_id, action="score")
             assert result is not None and result["ok"] is True
             await anyio.sleep(10)
             return state

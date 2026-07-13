@@ -38,13 +38,13 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, NoReturn, ParamSpec, Protocol
+from typing import Any, Literal, NamedTuple, NoReturn, ParamSpec, Protocol, cast
 
 import click
 import httpx
 from click.core import ParameterSource
 
-from inspect_ai._control.cancel import TaskCancelResolution
+from inspect_ai._control.cancel import TaskCancelAction
 from inspect_ai._control.discovery import (
     DiscoveredControlServer,
     discovery_dir,
@@ -91,11 +91,12 @@ _KNOB_SINCE: dict[str, int] = {
     "log_shared": 0,
 }
 
-# Minimum control-API version for the task-cancel `resolution` param (same
+# Minimum control-API version for the task-cancel `action` param (same
 # bookkeeping as `_KNOB_SINCE`: an older server's cancel handler silently
 # ignores the param and aborts the task, so `_run_task_cancel` hard-errors
-# a `--score`/`--error` request against an older process before sending).
-_CANCEL_RESOLUTION_SINCE = 2
+# an `--action score`/`--action error` request against an older process
+# before sending).
+_CANCEL_ACTION_SINCE = 2
 
 # Rendered for a task-scoped knob that a process-level view can't show.
 _PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
@@ -323,25 +324,18 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
 @task_group.command("cancel")
 @click.argument("task")
 @click.option(
-    "--score",
-    "as_score",
-    is_flag=True,
-    default=False,
+    "--action",
+    type=click.Choice(["cancelled", "score", "error"]),
+    default="cancelled",
+    show_default=True,
     help=(
-        "Resolve in-flight samples by scoring the work done so far (instead "
-        "of recording them as cancelled); queued samples are abandoned and "
-        "the task completes with its ordinary terminal status."
-    ),
-)
-@click.option(
-    "--error",
-    "as_error",
-    is_flag=True,
-    default=False,
-    help=(
-        "Resolve in-flight samples as errors (not permitted for tasks whose "
-        "samples are configured to fail on errors); queued samples are "
-        "abandoned and the task completes with its ordinary terminal status."
+        "How in-flight samples are resolved: 'cancelled' interrupts them "
+        "(transcripts preserved as cancelled samples) and finalizes the log "
+        "with an error status; 'score' scores them on the work done so far; "
+        "'error' marks them errored (not permitted for tasks whose samples "
+        "are configured to fail on errors). With 'score'/'error', queued "
+        "samples are abandoned and the task completes with its ordinary "
+        "terminal status."
     ),
 )
 @click.option(
@@ -357,33 +351,31 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     default=False,
     help="Output as JSON (the mutation result envelope).",
 )
-def task_cancel_command(
-    task: str, as_score: bool, as_error: bool, dry_run: bool, as_json: bool
-) -> None:
+def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) -> None:
     """Cancel a running task.
 
     By default in-flight samples are interrupted (their transcripts so far
     are preserved in the log as cancelled samples), completed samples are
     kept, and the task's log is finalized with an error status noting the
-    cancel. Pass `--score` or `--error` to resolve in-flight samples
-    instead — they are scored on the work done so far (or marked errored),
-    queued samples are abandoned, and the task completes normally so the
-    eval reaches a finished state. An eval-set will not retry a cancelled
-    task. Idempotent — cancelling a finished (or already-cancelling) task
-    is a clean no-op (a plain cancel does escalate over a pending
-    `--score`/`--error` resolution, so a stalled graceful cancel can still
-    be torn down). A task between attempts (its last attempt errored and
-    the eval-set has a retry queued) is rejected rather than no-opped:
+    cancel. Pass `--action score` or `--action error` to resolve in-flight
+    samples instead — they are scored on the work done so far (or marked
+    errored), queued samples are abandoned, and the task completes normally
+    so the eval reaches a finished state. An eval-set will not retry a
+    cancelled task. Idempotent — cancelling a finished (or
+    already-cancelling) task is a clean no-op (a plain cancel does escalate
+    over a pending score/error resolution, so a stalled graceful cancel can
+    still be torn down). A task between attempts (its last attempt errored
+    and the eval-set has a retry queued) is rejected rather than no-opped:
     nothing is running to cancel yet, so re-issue the cancel once the retry
     starts. To cancel a single sample instead, use `inspect ctl sample
     cancel`. TASK (a task-id prefix or name) is always required.
     """
-    if as_score and as_error:
-        raise click.UsageError("--score and --error are mutually exclusive.")
-    resolution: TaskCancelResolution = (
-        "score" if as_score else "error" if as_error else "cancelled"
+    _run_task_cancel(
+        task,
+        action=cast(TaskCancelAction, action),
+        dry_run=dry_run,
+        as_json=as_json,
     )
-    _run_task_cancel(task, resolution=resolution, dry_run=dry_run, as_json=as_json)
 
 
 # ---------------------------------------------------------------------------
@@ -617,23 +609,16 @@ def sample_events_command(
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=None)
 @click.option(
-    "--error",
-    "as_error",
-    is_flag=True,
-    default=False,
+    "--action",
+    type=click.Choice(["score", "error", "cancelled"]),
+    default="score",
+    show_default=True,
     help=(
-        "Mark the sample errored instead of scoring the work done so far "
-        "(not permitted for samples configured to fail on errors)."
-    ),
-)
-@click.option(
-    "--cancelled",
-    "as_cancelled",
-    is_flag=True,
-    default=False,
-    help=(
-        "Record the sample as cancelled instead of scoring the work done so "
-        "far (transcript preserved, no scoring, not counted as an error)."
+        "Outcome for the sample: 'score' completes it and runs the scorer "
+        "on the work done so far; 'error' marks it errored (not permitted "
+        "for samples configured to fail on errors); 'cancelled' records it "
+        "as cancelled (transcript preserved, no scoring, not counted as an "
+        "error)."
     ),
 )
 @click.option(
@@ -653,29 +638,26 @@ def sample_cancel_command(
     task: str,
     sample_id: str,
     epoch: int | None,
-    as_error: bool,
-    as_cancelled: bool,
+    action: str,
     dry_run: bool,
     as_json: bool,
 ) -> None:
     """Cancel one running sample.
 
     By default the sample completes and the scorer runs on the work done so
-    far; pass `--error` to mark it errored instead, or `--cancelled` to
-    record it as cancelled (transcript preserved, no scoring, not counted
-    as an error). The rest of the task is
-    unaffected. Idempotent — cancelling a sample that has already finished
-    is a clean no-op. EPOCH defaults to 1 but is required whenever the task
-    runs more than one epoch (a defaulted epoch would silently cancel a
-    different attempt).
+    far; pass `--action error` to mark it errored instead, or `--action
+    cancelled` to record it as cancelled (transcript preserved, no scoring,
+    not counted as an error). The rest of the task is unaffected.
+    Idempotent — cancelling a sample that has already finished is a clean
+    no-op. EPOCH defaults to 1 but is required whenever the task runs more
+    than one epoch (a defaulted epoch would silently cancel a different
+    attempt).
     """
-    if as_error and as_cancelled:
-        raise click.UsageError("--error and --cancelled are mutually exclusive.")
     _run_sample_cancel(
         task,
         sample_id,
         epoch,
-        action="error" if as_error else "cancelled" if as_cancelled else "score",
+        action=cast(Literal["score", "error", "cancelled"], action),
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -1779,7 +1761,7 @@ _CANCEL_ROUTE_MISSING = (
 def _run_task_cancel(
     task: str,
     *,
-    resolution: TaskCancelResolution = "cancelled",
+    action: TaskCancelAction = "cancelled",
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -1795,14 +1777,14 @@ def _run_task_cancel(
     assert scope.task_id is not None
 
     params: dict[str, Any] = {}
-    if resolution != "cancelled":
-        # a server that predates the resolution param would silently ignore
+    if action != "cancelled":
+        # a server that predates the action param would silently ignore
         # it and abort the task — hard-error before sending (same rationale
         # as `_gate_knob_support`)
         api_version, server = _server_api_version(servers, str(scope.socket_path))
-        if api_version < _CANCEL_RESOLUTION_SINCE:
-            _version_gate_error(server, f"--{resolution}", "No cancel was sent.")
-        params["resolution"] = resolution
+        if api_version < _CANCEL_ACTION_SINCE:
+            _version_gate_error(server, f"--action {action}", "No cancel was sent.")
+        params["action"] = action
     if dry_run:
         params["dry_run"] = True
     # idempotent (a repeat cancel is a clean no-op), so it may ride the
@@ -1837,14 +1819,14 @@ def _run_task_cancel(
             "cancelled": "interrupted",
             "score": "scored on the work done so far",
             "error": "marked as errored",
-        }[resolution]
+        }[action]
         interrupted = (
             f"{in_flight} in-flight sample{'' if in_flight == 1 else 's'} "
             f"{'would be' if dry_run else 'will be'} {outcome}"
         )
         suffix = (
             "completed samples are kept"
-            if resolution == "cancelled"
+            if action == "cancelled"
             else "queued samples are abandoned and the task will complete"
         )
         if dry_run:

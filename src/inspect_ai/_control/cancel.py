@@ -4,7 +4,7 @@ The first destructive state-mutating directives — both idempotent and
 dry-runnable per the phase-3 agent-shape constraints:
 
 - :func:`cancel_task` — task-keyed (stable across retries, like ``config`` /
-  ``log-flush``). ``resolution`` selects how the task's samples are resolved:
+  ``log-flush``). ``action`` selects how the task's samples are resolved:
 
   - ``"cancelled"`` (the default) fires the latest attempt's registered
     ``TaskCancel`` with ``"abort"``, the same user-cancel path the in-process
@@ -49,19 +49,19 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from inspect_ai.log._samples import ActiveSample
 
-TaskCancelResolution = Literal["cancelled", "score", "error"]
+TaskCancelAction = Literal["cancelled", "score", "error"]
 """How a task cancel resolves its samples (see :func:`cancel_task`)."""
 
 
 def cancel_task(
     task_id: str,
     *,
-    resolution: TaskCancelResolution = "cancelled",
+    action: TaskCancelAction = "cancelled",
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
     """Cancel a running task (``POST /tasks/<task-id>/cancel``).
 
-    Resolves the task's latest attempt and cancels it per ``resolution``
+    Resolves the task's latest attempt and cancels it per ``action``
     (unless ``dry_run``): ``"cancelled"`` fires its ``TaskCancel`` with
     ``"abort"``; ``"score"`` / ``"error"`` stamp the resolution on the handle,
     interrupt each in-flight sample with the matching action (first interrupt
@@ -76,7 +76,7 @@ def cancel_task(
     against a pending score/error resolution, which *escalates* to an abort —
     the graceful path can stall on a hung scorer, and the operator must keep a
     way to tear the task down); ``{"ok": False, "error": ...}`` when
-    ``resolution="error"`` targets samples configured to fail on errors
+    ``action="error"`` targets samples configured to fail on errors
     (mirroring the sample-level gate — the auto-fail would race it; a sample
     mid-materialization is invisible to this gate, so its self-interrupt
     downgrades an ``error`` resolution to ``score`` instead), when the
@@ -101,7 +101,7 @@ def cancel_task(
         "task_id": state.task_id,
         "task": state.task,
         "eval_id": state.eval_id,
-        "resolution": resolution,
+        "action": action,
         "dry_run": dry_run,
         "in_flight": len(in_flight),
     }
@@ -129,7 +129,7 @@ def cancel_task(
         # a "cancelled" (abort) request may escalate over a pending
         # score/error resolution; any other combination is the idempotent
         # repeat no-op
-        if not (resolution == "cancelled" and pending in ("score", "error")):
+        if not (action == "cancelled" and pending in ("score", "error")):
             return {
                 **result,
                 "changed": False,
@@ -139,19 +139,19 @@ def cancel_task(
     # registered in active_samples() — is invisible to this gate; its
     # self-interrupt (task/run.py) downgrades an "error" resolution to
     # "score" when it fails on error, so the auto-fail can't fire there
-    if resolution == "error" and any(sample.fails_on_error for sample in active):
+    if action == "error" and any(sample.fails_on_error for sample in active):
         return {
             "ok": False,
             "error": (
-                "resolution 'error' is not permitted when the task's samples "
+                "action 'error' is not permitted when the task's samples "
                 "are configured to fail on errors (they will surface errors "
-                "of their own accord) — use the 'score' resolution or a "
+                "of their own accord) — use the 'score' action or a "
                 "plain cancel instead"
             ),
         }
 
     if not dry_run:
-        if resolution == "cancelled":
+        if action == "cancelled":
             state.task_cancel.cancel_task("abort")
         else:
             # stamp the resolution first (queued samples check it as they
@@ -162,10 +162,10 @@ def cancel_task(
             # context exit) — keeps its resolution; overwriting a
             # 'cancelled' would re-raise its sample-scoped CancelledError
             # into the task group and tear the whole task down.
-            state.task_cancel.cancel_task(resolution)
+            state.task_cancel.cancel_task(action)
             for sample in in_flight:
                 if sample.interrupt_action is None:
-                    sample.interrupt(resolution)
+                    sample.interrupt(action)
     return {**result, "changed": True}
 
 

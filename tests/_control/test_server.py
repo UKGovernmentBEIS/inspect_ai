@@ -431,7 +431,7 @@ async def test_404_body_shape_distinguishes_missing_route(
     monkeypatch.setattr(
         server_mod,
         "cancel_task",
-        lambda task_id, resolution="cancelled", dry_run=False: None,
+        lambda task_id, action="cancelled", dry_run=False: None,
     )
 
     app = server_mod.ControlServer(run_id="test")._build_app()

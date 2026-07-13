@@ -39,7 +39,7 @@ import anyio
 from inspect_ai._control import CONTROL_API_VERSION
 from inspect_ai._control.buffer import flush_task_samples
 from inspect_ai._control.cancel import (
-    TaskCancelResolution,
+    TaskCancelAction,
     cancel_sample,
     cancel_task,
 )
@@ -380,7 +380,7 @@ class ControlServer:
             return result
 
         # Cancel a running task (phase 3). Task-keyed like `config` and
-        # `log-flush` — the handle never dangles across a retry. `resolution`
+        # `log-flush` — the handle never dangles across a retry. `action`
         # selects how the task's samples resolve: "cancelled" (the default)
         # fires the latest attempt's TaskCancel with "abort" (the in-process
         # display's user-cancel path — in-flight samples are interrupted,
@@ -392,21 +392,21 @@ class ControlServer:
         # `changed: false`); `dry_run=true` reports without acting.
         @app.post("/tasks/{task_id}/cancel")
         async def task_cancel(
-            task_id: str, resolution: str = "cancelled", dry_run: bool = False
+            task_id: str, action: str = "cancelled", dry_run: bool = False
         ) -> Any:
-            if resolution not in get_args(TaskCancelResolution):
+            if action not in get_args(TaskCancelAction):
                 return JSONResponse(
                     status_code=400,
                     content={
                         "error": (
-                            "resolution must be 'cancelled', 'score' or "
-                            f"'error' (got '{resolution}')"
+                            "action must be 'cancelled', 'score' or "
+                            f"'error' (got '{action}')"
                         )
                     },
                 )
             result = cancel_task(
                 task_id,
-                resolution=cast(TaskCancelResolution, resolution),
+                action=cast(TaskCancelAction, action),
                 dry_run=dry_run,
             )
             if result is None:

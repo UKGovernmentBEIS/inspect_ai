@@ -236,9 +236,9 @@ def test_cancel_task_score_resolution_interrupts_in_flight(
     other = _FakeActiveSample(sample_id="s4", eval_id="other")
     _patch_active_samples(monkeypatch, [running, initializing, finished, other])
 
-    result = cancel_task("t1", resolution="score")
+    result = cancel_task("t1", action="score")
     assert result is not None
-    assert result["changed"] is True and result["resolution"] == "score"
+    assert result["changed"] is True and result["action"] == "score"
     assert result["in_flight"] == 1
     assert handle.fired == ["score"]  # stamped, not an abort
     assert running.interrupts == ["score"]
@@ -254,7 +254,7 @@ def test_cancel_task_error_resolution_interrupts_in_flight(
     running = _FakeActiveSample(sample_id="s1")
     _patch_active_samples(monkeypatch, [running])
 
-    result = cancel_task("t1", resolution="error")
+    result = cancel_task("t1", action="error")
     assert result is not None and result["changed"] is True
     assert handle.fired == ["error"]
     assert running.interrupts == ["error"]
@@ -273,7 +273,7 @@ def test_cancel_task_error_resolution_gated_by_fails_on_error(
     initializing = _FakeActiveSample(sample_id="s2", started=None, fails_on_error=True)
     _patch_active_samples(monkeypatch, [initializing])
 
-    result = cancel_task("t1", resolution="error")
+    result = cancel_task("t1", action="error")
     assert result is not None
     assert result["ok"] is False and "fail on errors" in result["error"]
     assert handle.fired == [] and initializing.interrupts == []
@@ -287,7 +287,7 @@ def test_cancel_task_score_resolution_dry_run(
     running = _FakeActiveSample(sample_id="s1")
     _patch_active_samples(monkeypatch, [running])
 
-    result = cancel_task("t1", resolution="score", dry_run=True)
+    result = cancel_task("t1", action="score", dry_run=True)
     assert result is not None
     assert result["changed"] is True and result["dry_run"] is True
     assert handle.fired == [] and running.interrupts == []
@@ -301,8 +301,8 @@ def test_cancel_task_score_resolution_repeat_is_noop(
     running = _FakeActiveSample(sample_id="s1")
     _patch_active_samples(monkeypatch, [running])
 
-    assert (cancel_task("t1", resolution="score") or {})["changed"] is True
-    repeat = cancel_task("t1", resolution="score")
+    assert (cancel_task("t1", action="score") or {})["changed"] is True
+    repeat = cancel_task("t1", action="score")
     assert repeat is not None and repeat["changed"] is False
     assert repeat["reason"] == "cancel already requested (score)"
     assert handle.fired == ["score"] and running.interrupts == ["score"]
@@ -326,7 +326,7 @@ def test_cancel_task_resolution_sweep_skips_already_interrupted(
     running = _FakeActiveSample(sample_id="s2")
     _patch_active_samples(monkeypatch, [already_cancelled, running])
 
-    result = cancel_task("t1", resolution="score")
+    result = cancel_task("t1", action="score")
     assert result is not None and result["changed"] is True
     assert already_cancelled.interrupts == ["cancelled"]  # not re-interrupted
     assert running.interrupts == ["score"]
@@ -341,13 +341,13 @@ def test_cancel_task_abort_escalates_over_pending_resolution(
     running = _FakeActiveSample(sample_id="s1")
     _patch_active_samples(monkeypatch, [running])
 
-    assert (cancel_task("t1", resolution="score") or {})["changed"] is True
+    assert (cancel_task("t1", action="score") or {})["changed"] is True
     escalated = cancel_task("t1")
     assert escalated is not None and escalated["changed"] is True
     assert handle.fired == ["score", "abort"]
 
     # ... but a score/error request never overrides a pending abort
-    repeat = cancel_task("t1", resolution="error")
+    repeat = cancel_task("t1", action="error")
     assert repeat is not None and repeat["changed"] is False
     assert repeat["reason"] == "cancel already requested (abort)"
 
@@ -523,7 +523,7 @@ async def test_task_cancel_route_ok_404_and_409() -> None:
         assert "not cancellable" in rejected.json()["error"]
 
 
-async def test_task_cancel_route_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_task_cancel_route_action(monkeypatch: pytest.MonkeyPatch) -> None:
     handle = _FakeTaskCancel()
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
     running = _FakeActiveSample(sample_id="s1")
@@ -533,15 +533,15 @@ async def test_task_cancel_route_resolution(monkeypatch: pytest.MonkeyPatch) -> 
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        bad = await client.post("/tasks/t1/cancel", params={"resolution": "explode"})
+        bad = await client.post("/tasks/t1/cancel", params={"action": "explode"})
         assert bad.status_code == 400
-        assert "resolution" in bad.json()["error"]
+        assert "action" in bad.json()["error"]
         assert handle.fired == []
 
-        ok = await client.post("/tasks/t1/cancel", params={"resolution": "score"})
+        ok = await client.post("/tasks/t1/cancel", params={"action": "score"})
         assert ok.status_code == 200, ok.text
         body = ok.json()
-        assert body["changed"] is True and body["resolution"] == "score"
+        assert body["changed"] is True and body["action"] == "score"
         assert handle.fired == ["score"]
         assert running.interrupts == ["score"]
 
