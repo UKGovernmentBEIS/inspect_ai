@@ -206,3 +206,89 @@ def test_is_claude_4_6_or_later():
     assert _make_api(CLAUDE_45).is_claude_4_6_or_later() is False
     assert _make_api(CLAUDE_3_SONNET).is_claude_4_6_or_later() is False
     assert _make_api(NOVA_LITE).is_claude_4_6_or_later() is False
+
+
+# --- review findings: currently-failing regression tests -------------------
+#
+# Bug 1: generate() merges `_additional_model_request_fields()` (which carries
+# `output_config.format` for response_schema) with `reasoning_config()` via a
+# shallow dict union, so a reasoning-produced `output_config` silently drops
+# the structured-output format.
+#
+# Bug 2: Claude 4.0 Bedrock ids have no minor version (e.g.
+# `anthropic.claude-opus-4-20250514-v1:0`), so the "unrecognised future minor"
+# fallback in `is_claude_4_6_or_later` / `is_claude_4_7_or_later` misclassifies
+# them as 4.6+/4.7+. Adaptive thinking on these models returns a 400 from
+# Bedrock (they are budget_tokens-only per the AWS extended-thinking docs).
+
+from pydantic import BaseModel  # noqa: E402
+
+from inspect_ai.model import ResponseSchema  # noqa: E402
+from inspect_ai.util import json_schema  # noqa: E402
+
+CLAUDE_40_OPUS = "anthropic.claude-opus-4-20250514-v1:0"
+CLAUDE_40_SONNET = "anthropic.claude-sonnet-4-20250514-v1:0"
+
+
+class _Person(BaseModel):
+    name: str
+    age: int
+
+
+def _merged_request_fields(api: BedrockAPI, config: GenerateConfig) -> dict:
+    """Reproduce the additionalModelRequestFields merge in BedrockAPI.generate()."""
+    return api._additional_model_request_fields(config, False) | api.reasoning_config(
+        config
+    )
+
+
+def test_response_schema_preserved_with_reasoning_effort():
+    api = _make_api(CLAUDE_46)
+    config = GenerateConfig(
+        reasoning_effort="high",
+        response_schema=ResponseSchema(name="person", json_schema=json_schema(_Person)),
+    )
+    fields = _merged_request_fields(api, config)
+    assert fields["output_config"]["effort"] == "high"
+    assert "format" in fields["output_config"], (
+        "structured-output format clobbered by reasoning output_config"
+    )
+
+
+def test_response_schema_preserved_with_effort():
+    api = _make_api(CLAUDE_47)
+    config = GenerateConfig(
+        effort="medium",
+        response_schema=ResponseSchema(name="person", json_schema=json_schema(_Person)),
+    )
+    fields = _merged_request_fields(api, config)
+    assert fields["output_config"]["effort"] == "medium"
+    assert "format" in fields["output_config"], (
+        "structured-output format clobbered by reasoning output_config"
+    )
+
+
+def test_claude_40_dated_ids_not_classified_as_4_6_or_later():
+    assert _make_api(CLAUDE_40_OPUS).is_claude_4_6_or_later() is False
+    assert _make_api(CLAUDE_40_SONNET).is_claude_4_6_or_later() is False
+
+
+def test_claude_40_dated_ids_not_classified_as_4_7_or_later():
+    assert _make_api(CLAUDE_40_OPUS).is_claude_4_7_or_later() is False
+    assert _make_api(CLAUDE_40_SONNET).is_claude_4_7_or_later() is False
+
+
+def test_claude_40_reasoning_effort_does_not_emit_adaptive():
+    """Claude 4.0 is budget_tokens-only; adaptive thinking 400s on Bedrock."""
+    fields = _make_api(CLAUDE_40_OPUS).reasoning_config(
+        GenerateConfig(reasoning_effort="high")
+    )
+    assert fields.get("thinking", {}).get("type") != "adaptive"
+
+
+def test_claude_40_reasoning_tokens_not_promoted_to_adaptive():
+    """Claude 4.0 is budget_tokens-only; must not be auto-promoted like 4.7+."""
+    fields = _make_api(CLAUDE_40_OPUS).reasoning_config(
+        GenerateConfig(reasoning_tokens=4096)
+    )
+    assert fields == {"thinking": {"type": "enabled", "budget_tokens": 4096}}
