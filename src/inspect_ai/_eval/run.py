@@ -44,6 +44,7 @@ from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._checkpoint._layout import (
     eval_checkpoints_dir_from_config,
 )
+from inspect_ai.util._display import display_type
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
     TaskCleanup,
@@ -998,8 +999,10 @@ class SandboxManager:
                     (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
                 )
 
-            # provide some space above task display
-            print("")
+            # provide some space above task display ("none" has no task
+            # display and must keep stdout machine-readable, e.g. --json)
+            if display_type() != "none":
+                print("")
 
     async def shutdown(self) -> None:
         with anyio.CancelScope(shield=True):
