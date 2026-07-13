@@ -21,7 +21,7 @@ The goal, in JJ's words: if the process is completely hung we SIGKILL it, run re
 | Mechanism | Where | What it does | Gap |
 |---|---|---|---|
 | `time_limit` / `working_limit` | `EvalConfig`, enforced in `task/run.py` | Absolute per-sample budgets; graceful end (sample gets `limit`, is scored) | Absolute — can't distinguish "slow but progressing" from "hung" |
-| `ctl sample cancel TASK SID EPOCH [--error]` | control channel, shipped ([control-channel.md](control-channel.md) phase 3) | Interrupts a live sample; `action="score"` ends it with `limit = EvalSampleLimit(type="operator", limit=1)` and scores current state (`task/run.py:1385`); `action="error"` marks it errored | Requires a live process and an external actor polling for stalls |
+| `ctl sample cancel TASK SID EPOCH [--action error\|cancelled]` and `ctl task cancel TASK [--action score\|error]` | control channel, shipped ([control-channel.md](control-channel.md) phase 3) | Interrupts a live sample (or a task's whole in-flight tail); `action="score"` ends it with `limit = EvalSampleLimit(type="operator", limit=1)` and scores current state (`task/run.py:1385`); `action="error"` marks it errored | Requires a live process and an external actor polling for stalls |
 | `inspect log recover` | `log/_recover/` ([recover.md](recover.md)) | Reconstructs crashed logs from the sample buffer DB; in-progress samples become cancelled errors; header written with `status="error"` | No way to say "these samples are final"; recovered log always re-enters the retry loop |
 | Automatic recovery in `eval_retry` / `eval_set` | `_eval/eval.py:1526`, `_eval/evalset.py:992` | Opportunistically recovers crashed logs before retry so completed-but-unflushed samples are reused | Same — hung in-progress samples are re-run every attempt |
 | `fail_on_error` | `EvalConfig` | `False` / count / proportion thresholds let an eval finish `"success"` despite sample errors | Only helps samples that *end*; a hung sample never ends |
@@ -177,9 +177,11 @@ Mostly shipped; recorded here so the three pieces read as one surface.
 ```
 inspect ctl sample list <task> --json          # idle column identifies stragglers
 inspect ctl sample cancel <task> <sid> <epoch> --dry-run
-inspect ctl sample cancel <task> <sid> <epoch>            # disposition: score
-inspect ctl sample cancel <task> <sid> <epoch> --error    # disposition: error
+inspect ctl sample cancel <task> <sid> <epoch>                   # disposition: score
+inspect ctl sample cancel <task> <sid> <epoch> --action error    # disposition: error
 ```
+
+For a whole stalled tail at once, task-level cancel takes the same disposition vocabulary: `inspect ctl task cancel <task> --action score` (or `--action error`) resolves every in-flight sample, abandons queued ones, and lets the task run to natural completion — one command instead of N per-sample cancels.
 
 When the tail is resolved, the eval finishes normally — log status `"success"`, no recovery involved.
 
