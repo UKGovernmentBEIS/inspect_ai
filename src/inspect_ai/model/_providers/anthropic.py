@@ -32,6 +32,7 @@ from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
     CacheControlEphemeralParam,
+    CitationsConfigParam,
     CodeExecutionToolResultBlock,
     CodeExecutionToolResultBlockParam,
     ContentBlock,
@@ -4073,9 +4074,12 @@ async def message_block_params(
             source = PlainTextSourceParam(
                 type="text", media_type="text/plain", data=file_bytes.decode()
             )
-        return [
-            DocumentBlockParam(type="document", source=source, title=content.filename)
-        ]
+        document_block = DocumentBlockParam(
+            type="document", source=source, title=content.filename
+        )
+        if content.citations:
+            document_block["citations"] = CitationsConfigParam(enabled=True)
+        return [document_block]
 
     elif isinstance(content, ContentData):
         compaction_param = _compaction_from_content_data(content)
