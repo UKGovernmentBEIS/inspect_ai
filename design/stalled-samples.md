@@ -41,7 +41,7 @@ The same vocabulary is delivered at three points, matching who is acting:
 
 | Piece | Actor | Situation |
 |---|---|---|
-| **A. Recovery dispositions** | human / agent / eval-set retry loop | process was killed; post-mortem finalization |
+| **A. Recovery dispositions** | human / agent / eval-set startup recovery | process was killed; post-mortem finalization |
 | **B. In-process stall policy** | the eval itself, configured up front | live process, cancellable hangs; zero-touch |
 | **C. External operator workflow** | human or LLM agent via `inspect ctl` | live process, judgment-call intervention (mostly shipped) |
 
@@ -66,23 +66,25 @@ def recover_eval_log(
     overwrite: bool = False,
     cleanup: bool = True,
     no_events: bool = False,
-    incomplete: Literal["retry", "error", "score"] = "retry",
-    max_incomplete: int | float | None = None,
+    incomplete_action: Literal["retry", "error", "score"] = "retry",
+    incomplete_max: int | float | None = None,
 ) -> EvalLog:
 ```
 
-- `incomplete="retry"` — today's behavior, unchanged default.
-- `incomplete="error"` — in-progress samples get `error = EvalError("Sample terminated by operator during recovery: ...")` plus a `SampleLimitEvent(type="operator")` appended to their reconstructed transcript. Header finalized per the rule above. `fail_on_error` from the original `EvalConfig` is deliberately **not** applied — the operator explicitly chose to complete the eval; recording the samples as errors is for analysis honesty, not for status computation.
-- `incomplete="score"` — like `error`, but additionally attempt post-hoc scoring of the reconstructed sample state (messages/output recovered from the buffer DB) via the existing `inspect score` machinery (`_eval/score.py`), setting `limit = operator` and `error = None`. Requires the task's scorer to be resolvable from the registry — the same constraint `eval-retry` already imposes.
-- `max_incomplete` — safety threshold (count, or proportion if < 1): refuse to resolve (error out, leaving the log recoverable-as-today) when more than this many samples are incomplete. This is the "pre-agreed threshold" guard: 7 hung samples out of 500 is a tail; 300 is a systemic failure that should not be silently completed. `None` = no guard (explicit manual invocation).
+- `incomplete_action="retry"` — today's behavior, unchanged default.
+- `incomplete_action="error"` — in-progress samples get `error = EvalError("Sample terminated by operator during recovery: ...")` plus a `SampleLimitEvent(type="recovery")` appended to their reconstructed transcript. Header finalized per the rule above. `fail_on_error` from the original `EvalConfig` is deliberately **not** applied — the operator explicitly chose to complete the eval; recording the samples as errors is for analysis honesty, not for status computation.
+- `incomplete_action="score"` — like `error`, but additionally attempt post-hoc scoring of the reconstructed sample state (messages/output recovered from the buffer DB) via the existing `inspect score` machinery (`_eval/score.py`), setting `limit = recovery` and `error = None`. Requires the task's scorer to be resolvable from the registry — the same constraint `eval-retry` already imposes.
+- `incomplete_max` — safety threshold (count, or proportion if < 1): refuse to resolve (error out, leaving the log recoverable-as-today) when more than this many samples are incomplete. This is the "pre-agreed threshold" guard: 7 hung samples out of 500 is a tail; 300 is a systemic failure that should not be silently completed. `None` = no guard (explicit manual invocation).
 
 **Scoring caveat (important):** many agentic scorers inspect sandbox state. After a SIGKILL the sandboxes are gone, so post-hoc `score` disposition can only work for scorers that operate on the transcript/completion. When scoring a resolved sample raises, recovery falls back to the `error` disposition for that sample and reports it — it does not fail the whole recovery. The doc for the CLI should be explicit that `score` is best-effort post-mortem and fully reliable only in the live path (Piece B/C), where the sandbox is still up.
+
+**Checkpointing changes this picture.** For tasks running with checkpointing enabled (`util/_checkpoint/`), on-disk checkpoints include sandbox snapshots (the restic layer, rehydrated on resume), and the retry sample source already prefers checkpoint resume for non-clean samples — including `attempt="resume_for_scoring"` (`eval_log_sample_source` → `_resume_if_checkpointed`, `task/run.py`). So a hung sample killed mid-run needn't choose between transcript-only scoring and re-running from scratch: the `score` disposition on the `eval-retry`/`eval-set` integrations could resume the sample from its latest checkpoint — sandbox state restored — and run only the scoring phase. That makes checkpointed tasks the one post-mortem case where sandbox-inspecting scorers work properly. It also fits the recovery flow: `incomplete_action="score"` resolves via checkpoint-resume-for-scoring where a checkpoint exists, transcript-only scoring where one doesn't, and `error` fallback where neither works. Detail to work through at implementation time (checkpoint freshness vs the buffer DB's event stream; only `eval-retry`/`eval-set` have the task context to resume — reinforcing open question 2).
 
 ### CLI
 
 ```
-inspect log recover <file> --incomplete error [--max-incomplete 10]
-inspect log recover <file> --incomplete score
+inspect log recover <file> --incomplete-action error [--incomplete-max 10]
+inspect log recover <file> --incomplete-action score
 ```
 
 Output states the resolution explicitly, e.g.:
@@ -96,27 +98,36 @@ Recovered 493 samples to mylog-recovered.eval (status: success)
 
 ### eval / eval-set / eval-retry integration
 
-`eval_retry()` and `eval_set()` (and their CLI commands) gain the same pair of parameters, threaded to the opportunistic recovery they already perform:
+`eval_retry()` and `eval_set()` (and their CLI commands) gain the same pair of parameters, passed straight through to the opportunistic recovery they already perform:
 
 ```python
-eval_set(..., incomplete_samples="retry" | "error" | "score" = "retry",
-              max_incomplete: int | float | None = None)
+eval_set(..., incomplete_action="retry" | "error" | "score" = "retry",
+              incomplete_max: int | float | None = None)
 ```
 
-Semantics differ from the manual command in *when* the disposition applies. Applying it on the first attempt would defeat retry — the whole point of the retry loop is that a re-run might succeed. The disposition is an **exhaustion policy**:
+The semantics are identical to the manual command — the disposition applies wherever recovery runs. For `eval_set` that is startup: when it encounters a crashed `"started"` log from a previous execution, the recovery it already performs resolves the in-progress samples per the disposition (within `incomplete_max`). If that leaves every expected sample final, the log finalizes as `"success"`, the task classifies as complete, and nothing re-runs; if the log also has never-started samples, it stays `"error"` and those re-run as today (see "Missing samples vs in-progress samples" — resolution only sticks when it finalizes). Likewise for `eval_retry`: recovery happens before re-running, resolution happens there, and if the log finalizes there is nothing left to retry.
 
-- `eval_retry` (single-shot): applies immediately — the user invoking retry with a disposition is saying "recover, resolve, and if that completes the log, don't re-run".
-  - Open question: should it apply pre-run (resolve then skip the eval entirely if finalized) or post-run (retry once more, then resolve whatever still didn't finish)? Leaning pre-run for `eval_retry` — it composes: run retry without the flag first, then with it.
-- `eval_set` (retry loop): applies on the **final** retry attempt. Attempts 1..N-1 behave exactly as today (recover → re-run incomplete). If attempt N still leaves a log incomplete and the incomplete count is within `max_incomplete`, resolve and finalize instead of returning failure. This is the "guaranteed terminal state" knob: an eval-set configured with `incomplete_samples="error", max_incomplete=0.05` *always* ends with all-success logs unless something is systemically wrong.
+The disposition is per-invocation intent, exactly like the CLI. The expected workflow:
 
-One wrinkle: eval-set's final attempt may end with a log whose status is `"error"` (process alive, samples errored) rather than a crashed `"started"` log. Sample-level errors already have a completion story (`fail_on_error`); this design does not change that. The resolution path only concerns samples that *never ended* — which, in a live process that reached log-finish, don't exist. So eval-set resolution triggers only for `"started"` (crashed/killed) logs, via recovery. A wedged-but-alive process (samples hung, loop healthy) is Piece B/C territory; if those pieces end the stragglers, the log finishes normally and eval-set never needs A.
+1. `eval_set` runs with the default (`retry`) — a crashed log's in-progress samples are re-run, as today.
+2. Samples stall; the operator (or agent) kills the wedged process. Killing it kills `eval_set` too — they are the same process. This is why the *recovery* disposition has no mid-loop application: without Piece B/C a stalled attempt never *returns*, and when Piece B/C ends the stragglers the attempt returns an ordinary finalized log with no never-ended samples for recovery to resolve. Stall-`score`d samples are complete; stall-`error`ed samples follow the existing completion story — the retry loop re-runs them mid-loop (a genuine one-off stall gets another chance), and `fail_on_error` decides whether tolerated errors still finalize as `"success"`. Unchanged by this design.
+3. Re-run `eval_set` with `incomplete_action="error"` (or `"score"`) — startup recovery resolves the stalled tail instead of marking it for retry, and the run completes.
+
+A pipeline may also bake the disposition in from the start (fully push-button: a supervisor kills hung processes and re-runs `eval_set`). Then the *first* crash encounter resolves — a sample that hung once but would have succeeded on a re-run gets no second chance. That is the configured trade-off, and `incomplete_max` is the guard that keeps it honest: a hung tail is precisely a *small* in-progress set at kill time (7 stragglers out of 500), while a transient infra failure typically dies with a *large* in-flight set — exceeding the guard and falling back to today's recover-and-retry behavior. A graduated policy ("re-run once; resolve on the second crash") needs cross-execution memory the log dir already contains — parked in open question 6.
+
+**Why not one flag?** `eval_set` ends up carrying both families — `stall_{limit,action,max}` (live policy, via `EvalConfig`) and `incomplete_{action,max}` (startup recovery) — and merging them is tempting. They stay separate because the two situations differ in what is known and what is safe:
+
+- **Incomplete-at-crash is not the same set as stalled.** A kill truncates healthy in-flight samples along with the hung ones, and recovery cannot tell them apart — it sees only "in progress at crash". So `retry` must exist (and be the default) post-mortem, while it has no live meaning.
+- **Scoring reliability differs.** Live, the sandbox is up and `score` is dependable (hence Piece B's default); post-mortem it is best-effort (checkpoints aside). `stall_action="score"` with `incomplete_action="error"` is a sensible configuration, not a contradiction.
+
+The names are kept parallel (`*_action`, `*_max`) so the two read as one vocabulary applied in two situations. A refinement that would narrow the asymmetry — post-hoc stall detection during recovery — is open question 5.
 
 ### Missing samples vs in-progress samples
 
 Recovery distinguishes:
 
 - **In-progress at crash** — present in the buffer DB with events. Resolvable: we have a transcript to mark and (maybe) score.
-- **Never started / lost** — expected by the dataset but absent from both the `.eval` file and the buffer DB. *Not* resolvable — there is nothing to mark. If any exist, the recovered log stays `status="error"` and they re-run on retry. In the eval-set exhaustion flow this is fine: earlier attempts run them; by the final attempt the only stragglers are the perennially-hung in-progress ones.
+- **Never started / lost** — expected by the dataset but absent from both the `.eval` file and the buffer DB. *Not* resolvable — there is nothing to mark. If any exist, the recovered log stays `status="error"` and they re-run on retry. Note that on a non-finalized log, samples resolved as `error` are re-run too (error set → re-run, per the retry classification) — resolution only "sticks" when it finalizes. That is coherent: since the log couldn't complete anyway, the hung samples get another chance alongside the missing ones, and the next kill-and-recover — now with no missing samples — finalizes.
 
 Synthesizing empty errored placeholder samples for never-started ones (to force finalization no matter what) was considered and rejected: a placeholder with no transcript is analysis-hostile, and "samples that never even started" genuinely is retryable work, not a stall.
 
@@ -151,7 +162,7 @@ stall_max: int | float | None    # guard: max samples auto-resolved (count, or
 
 Implemented as a monitor alongside `monitor_working_limit()` in `task/run.py` — a per-sample coroutine that watches last-activity timestamps and, on expiry, ends the sample through the **same path as `ctl sample cancel`** (`ActiveSample.interrupt(action)` for `score`/`error`). Reusing the interrupt path means the transcript, limit field, scoring flow, and `fails_on_error` interlock all behave identically whether the resolver was a human, an agent, or the policy.
 
-Sample limit type: the shipped interrupt path stamps `EvalSampleLimit(type="operator", limit=1)`. A policy-resolved sample isn't operator-ended, and analysis will want to distinguish them; propose adding `"stall"` to `EvalSampleLimitType` (used by Piece B, and arguably by recovery-resolved samples in Piece A too — open question below). The `SampleLimitEvent` message carries the specifics (idle seconds, threshold).
+Sample limit type: the shipped interrupt path stamps `EvalSampleLimit(type="operator", limit=1)`. A policy-resolved sample isn't operator-ended, and analysis will want to distinguish them; propose adding `"stall"` to `EvalSampleLimitType` (used by Piece B; recovery-resolved samples in Piece A get their own `"recovery"` value — see "Resolved questions"). The `SampleLimitEvent` message carries the specifics (idle seconds, threshold).
 
 Scope note: this handles **cancellable** hangs — the stuck await responds to task-group cancellation. A hang that wedges the event loop itself takes the whole process with it; that's Piece A's SIGKILL-and-recover territory. The two pieces are complementary, not redundant: B prevents most stalls from ever reaching the kill, A guarantees termination when one does.
 
@@ -176,20 +187,20 @@ When the tail is resolved, the eval finishes normally — log status `"success"`
 
 ```
 kill -9 <pid>                                             # process unresponsive
-inspect log recover <log> --incomplete error --max-incomplete 10 --json
+inspect log recover <log> --incomplete-action error --incomplete-max 10 --json
 inspect eval-retry ... / eval-set re-run                  # no-op: log is complete
 ```
 
-An agent operating under a "pre-agreed threshold with the operator" (JJ's framing) encodes that agreement as `--max-incomplete`: the command itself refuses to overreach, so the agent doesn't have to be trusted with the judgment. Everything the agent needs to report back — which samples were resolved, with what disposition — is in the `--json` envelope.
+An agent operating under a "pre-agreed threshold with the operator" (JJ's framing) encodes that agreement as `--incomplete-max`: the command itself refuses to overreach, so the agent doesn't have to be trusted with the judgment. Everything the agent needs to report back — which samples were resolved, with what disposition — is in the `--json` envelope.
 
-The symmetric design intent: **anything the policy (B) can do automatically, an agent (C) can do explicitly with the same vocabulary, and anything an agent can do live, recovery (A) can do post-mortem.** Threshold semantics (`stall_max` / `max_incomplete`), dispositions, and log markings are shared across all three.
+The symmetric design intent: **anything the policy (B) can do automatically, an agent (C) can do explicitly with the same vocabulary, and anything an agent can do live, recovery (A) can do post-mortem.** Threshold semantics (`stall_max` / `incomplete_max`), dispositions, and log markings are shared across all three.
 
 ## How resolved samples appear in logs
 
 | | `error` field | `limit` field | scores | transcript |
 |---|---|---|---|---|
 | resolved: `score` (live) | `None` | `operator` (agent/human) or `stall` (policy) | scored on current state | `SampleLimitEvent` |
-| resolved: `score` (recovery) | `None` | `operator` | post-hoc scored, or falls back to `error` | `SampleLimitEvent` appended |
+| resolved: `score` (recovery) | `None` | `recovery` | post-hoc scored, or falls back to `error` | `SampleLimitEvent` appended |
 | resolved: `error` | `EvalError` (stall/termination message) | `None` | `None` | `SampleLimitEvent` + `ErrorEvent` |
 | unresolved (`retry`) | `EvalError` (cancelled) | `None` | `None` | as recovered today |
 
@@ -208,9 +219,14 @@ Provenance: resolution is an administrative edit to the record, similar in spiri
 
 ## Open questions
 
-1. **Limit type for resolved samples** — reuse `"operator"` everywhere vs add `"stall"` for policy-resolved (proposed above) vs also a distinct type for recovery-resolved. Adding literals to `EvalSampleLimitType` is a log-schema change; the viewer and analysis dataframes need to render them.
-2. **`eval_retry` disposition timing** — resolve pre-run (skip re-running entirely) vs post-run (one more attempt, then resolve). Proposed pre-run; needs a decision.
-3. **Naming** — `stall_limit` vs `inactivity_limit`; `incomplete` vs `resolve_incomplete`; bikeshed before the CLI ships since flags are forever.
-4. **Post-hoc scoring dependencies** — is scorer-from-registry resolution enough, or does the recovery-score path need the full task context (`-T` args, model roles) that `eval-retry` reconstructs? If the latter, `incomplete="score"` may only be offered on the `eval-retry`/`eval-set` integrations (which have that context), with `log recover` limited to `error`.
-5. **Structured resolution provenance** on the sample record (vs transcript-event-only).
-6. **Should Piece B's stall clock also watch sandbox activity?** A sample whose transcript is quiet but whose sandbox is burning CPU may be doing legitimate work an event-based clock can't see (e.g. a long compile). Possible refinement: consult `SandboxConnection` activity where available; punt initially and let `stall_limit` be set generously.
+1. **Naming** — partially settled: two parallel families, `stall_{limit,action,max}` (live policy) and `incomplete_{action,max}` (recovery), deliberately *not* merged into one flag (see "Why not one flag?" in Piece A). Remaining naming choice: `stall` vs `inactivity` for the live family; settle before the CLI ships since flags are forever.
+2. **Post-hoc scoring dependencies** — is scorer-from-registry resolution enough, or does the recovery-score path need the full task context (`-T` args, model roles) that `eval-retry` reconstructs? If the latter, `incomplete_action="score"` may only be offered on the `eval-retry`/`eval-set` integrations (which have that context), with `log recover` limited to `error`.
+3. **Structured resolution provenance** on the sample record (vs transcript-event-only). The design commits to the cheap level: a `SampleLimitEvent` whose message carries the story in prose ("resolved by stall policy after 900s idle"), with the limit type (`operator`/`stall`/`recovery`) as the machine-readable classifier. The open question is whether to also add a structured field on `EvalSample` — the precedent is invalidation, which stores `EvalSample.invalidation: ProvenanceData` (`timestamp` / `author` / `reason` / `metadata`, `log/_edit.py`), and resolution is the same kind of administrative edit to the record. In favor: queryability ("which samples across this eval-set were given up on, by whom, when?" surfaces in the viewer and analysis dataframes next to `error`/`limit`, instead of requiring transcript loads and message-string parsing) and attribution — in the agent-driven pipeline the resolver may be an LLM agent acting under a pre-agreed threshold, exactly the sort of action an org wants durably attributed (`author` distinguishes human / named agent / stall policy / recovery). Against: a log-schema change plus TS type generation and viewer rendering, and redundancy with what the limit type and event already say. Proposed: start event-only, add the field when analysis needs it — but if the audit requirement is real from day one (likely for the orgs this targets), it is cheaper to add the field now than to backfill provenance later, since events written without structured authorship can't be retroactively attributed.
+4. **Should Piece B's stall clock also watch sandbox activity?** A sample whose transcript is quiet but whose sandbox is burning CPU may be doing legitimate work an event-based clock can't see (e.g. a long compile). Possible refinement: consult `SandboxConnection` activity where available; punt initially and let `stall_limit` be set generously.
+5. **Post-hoc stall detection in recovery.** The buffer DB records event timestamps, so recovery could apply the stall test after the fact: samples idle past `stall_limit` at crash time were genuinely stalled — resolve them per `incomplete_action`; samples actively progressing were merely truncated by the kill — retry them regardless of the disposition. That would make the disposition apply to exactly the samples an operator means by "the stalled ones" and soften the eager-resolution trade-off in the baked-in pipeline case. Consider after the basic dispositions ship.
+6. **Future item: cross-execution stall tracking ("stalled twice = give up").** `stall_max` and `incomplete_max` are per-operation — checking the latest log suffices for the incomplete count (sample reuse means a sample completed in any attempt stays completed), but a sample resolved as `error` and then re-run starts the next attempt with no memory that it stalled before. Retries already seed per-sample error history across executions (`error_retries` via `_seed_error_retries`, `task/run.py`), so a refinement like "resolve permanently after a sample has stalled in N attempts" is buildable on existing plumbing. Deferred until the basic dispositions prove out.
+
+## Resolved questions
+
+1. **Limit type for resolved samples** — add `"stall"` (policy-resolved) and `"recovery"` (recovery-resolved) to `EvalSampleLimitType`, alongside the existing `"operator"` (live directive) — the three share the who-ended-it shape `"operator"` already established. Remaining work is mechanical: adding literals is a log-schema change, and the viewer and analysis dataframes need to render the new values.
+2. **`eval_retry` disposition timing** — the pass-through semantics settle this as pre-run: the disposition applies in the recovery `eval_retry` performs before re-running, and if resolution finalizes the log there is nothing left to retry. It composes: run retry without the flag first, then with it.
