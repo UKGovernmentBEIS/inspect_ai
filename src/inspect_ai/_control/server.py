@@ -16,8 +16,9 @@ notes" for the lifecycle / flag policy.
 Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (sample listing, with an
 ``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
-detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
-pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
+detail), ``GET /evals/{id}/sample/events`` (cursored transcript
+pull), and ``GET /evals/{id}/sample/messages`` (conversation snapshot) —
+plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations and
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
 The remaining directives (drain / requeue / add-task) and SSE push land
@@ -42,6 +43,7 @@ from inspect_ai._control.cancel import cancel_sample, cancel_task
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
 from inspect_ai._control.limits import process_limits, task_limits
+from inspect_ai._control.messages import sample_messages
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
@@ -352,6 +354,30 @@ class ControlServer:
                 full=full,
                 since_time=since_time,
                 until=until,
+            )
+            if page is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return page
+
+        # Per-sample conversation snapshot (`TaskState.messages`). Like the
+        # other per-sample routes, `sample_id` is a query param (ids may carry
+        # URL-reserved characters). Deliberately not cursored — the message
+        # list is rewritable (compaction / solver edits), so each call returns
+        # the current conversation (or a `tail`), enveloped with `as_of` /
+        # `status` / `count`. `full` returns raw ChatMessage JSON.
+        @app.get("/evals/{eval_id}/sample/messages")
+        async def get_sample_messages(
+            eval_id: str,
+            sample_id: str,
+            epoch: int = 1,
+            tail: int | None = None,
+            full: bool = False,
+        ) -> Any:
+            page = await sample_messages(
+                eval_id, sample_id, epoch, tail=tail, full=full
             )
             if page is None:
                 return JSONResponse(

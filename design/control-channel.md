@@ -81,7 +81,7 @@ inspect ctl sample events TASK SID [EPOCH]  # one sample's transcript events (cu
                                             #   (-f / --follow push is phase 4)
 
 inspect ctl sample messages TASK SID [EPOCH]  # one sample's current conversation, snapshot
-                                              #   (planned — see "Sample messages read")
+                                              #   --tail N / --all / --full (see "Sample messages read")
 inspect ctl process list                    # running Inspect processes (pid / keep-alive / tasks)
 inspect ctl process keep [PID]              # keep a running process alive after its eval finishes
 inspect ctl process release [PID]           # release a lingering keep-alive process
@@ -139,7 +139,7 @@ inspect ctl
 │   ├── show TASK SID [EPOCH]       # was: sample
 │   ├── errors [TASK]               # was: errors (no TASK = across all tasks)
 │   ├── events TASK SID [EPOCH]     # was: events (phase-4 --follow lands here unchanged)
-│   ├── messages TASK SID [EPOCH]   # planned: current-conversation snapshot (see "Sample messages read")
+│   ├── messages TASK SID [EPOCH]   # shipped: current-conversation snapshot (see "Sample messages read")
 │   ├── cancel TASK SID [EPOCH]     # shipped (EPOCH required when the task runs >1 epoch)
 │   └── requeue TASK SID [EPOCH]    # planned: requeue
 ├── config [TASK] [...]         # was: limits + buffer; view/retune launch config, scope per knob
@@ -210,7 +210,7 @@ Known accepted edge in the busy handling: the sole-server rule counts *discovere
 | `ctl cancel-sample <id> <sid>` | **shipped** (as noun form only) | `ctl sample cancel TASK SID [EPOCH]` | compound verb dissolves; `EPOCH` required when the task runs >1 epoch |
 | `ctl requeue <id> <sid>` | planned | `ctl sample requeue TASK SID [EPOCH]` | `EPOCH` required when the task runs >1 epoch |
 | `ctl set-limit <id> --time N` | planned | fold into `ctl config TASK --time-limit/--token-limit/--message-limit` | all retunable launch flags in one surface, same spellings as `inspect eval`; task-scoped knobs, so `TASK` follows the mutation selector rule |
-| — | planned | `ctl sample messages TASK SID [EPOCH]` | new read: the sample's current conversation, summary-projected — see "Sample messages read" |
+| — | **shipped** | `ctl sample messages TASK SID [EPOCH]` | new read: the sample's current conversation, summary-projected — see "Sample messages read" |
 | — | new | `ctl process list` | pids, keep-alive status, hosted task_ids; shipped with the reorg — the group's other verbs take a `PID` selector, so pids must be enumerable in-group |
 | — | later | `ctl eval-set list / show / cancel` | group slot ready-made |
 
@@ -277,7 +277,7 @@ The conceptual surface, independent of wire protocol. Each operation becomes eit
 - List running evals (id, task, status, started_at, sample counts).
 - Eval status detail (config, current limits, sample queue depth, in-flight samples, completed counts, model usage so far).
 - List samples within an eval (status, started_at, current model/tool, token usage).
-- Read one sample's current conversation — the live `TaskState.messages`, summary-projected (planned; see "Sample messages read").
+- Read one sample's current conversation — the live `TaskState.messages`, summary-projected (see "Sample messages read").
 
 **Read (eval-set-level)**
 - List eval-sets.
@@ -355,7 +355,7 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Samples changed since (recency delta) | `GET /evals/<id>/samples?active_since=<ts>` | 2 ✅ |
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | the pull URL with `Accept: text/event-stream` (SSE) | 4 |
-| Sample conversation messages (snapshot) | `GET /evals/<id>/sample/messages?sample_id=<sid>&epoch=<n>` | planned |
+| Sample conversation messages (snapshot) | `GET /evals/<id>/sample/messages?sample_id=<sid>&epoch=<n>` | 2 ✅ |
 | Eval-wide transcript fan-in (push only) | `GET /evals/<id>/samples/events` (SSE) | 4 |
 | Flush buffered samples to the log | `POST /tasks/<task-id>/log-flush` | 3 ✅ |
 | Read / modify retunable config (concurrency limits, buffer params) | `GET`+`PATCH /config` (process) and `/tasks/<task-id>/config` (task) | 3 ✅ (max-samples / max-sandboxes / max-subprocesses / max-connections / log-buffer / log-shared) |
@@ -738,9 +738,9 @@ A wall-clock window is a snapshot query (no exactly-once requirement), which is 
 
 Unlocks watchdog agents (cursored polling). Live-render TUIs follow once phase-4 push lands.
 
-### Sample messages read (planned)
+### Sample messages read (shipped)
 
-> **Status: planned** (design only — nothing in this section is implemented). Motivated by issue #70: agents live-watching a sample want the *conversation* (`.messages`), not just the transcript firehose — in particular for samples that exist only in the process buffer, not yet written to the `.eval` log.
+> **Status: shipped** (extends the phase-2 read surface). Motivated by issue #70: agents live-watching a sample want the *conversation* (`.messages`), not just the transcript firehose — in particular for samples that exist only in the process buffer, not yet written to the `.eval` log.
 
 **The gap.** A human watching a live sample opens `inspect view` and reads the conversation. An agent has no equivalent: the closest surface is `sample events`, and reconstructing "what does the conversation look like right now" from the transcript is genuinely hard — the messages ride inside `ModelEvent.input` / `output` (the default projection omits the `input` messages entirely — only a truncated completion survives — and `--full` is enormous), solver / agent code can assign `state.messages` without emitting any model event, and compaction rewrites the conversation while the event stream records only a `compaction` marker. Meanwhile the thing the agent wants already exists, materialized, in the running sample's `TaskState.messages` — serve it directly. The buffered case is what makes this control-channel work rather than `inspect log` work: for a running sample — or a completed one still sitting in the log buffer awaiting a flush — the conversation exists only inside the eval process, and the control channel is the only surface that can see it.
 

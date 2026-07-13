@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.log._log import EvalRetryError
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
+    from inspect_ai.solver._task_state import TaskState
 
 import anyio
 from anyio.abc import TaskGroup
@@ -92,6 +93,15 @@ class ActiveSample:
         self.total_messages = 0
         self.total_tokens = 0
         self.total_turns = 0
+        # The sample's live `TaskState`, so the control channel can serve the
+        # current conversation (`TaskState.messages`) without reaching into the
+        # context-bound `_sample_state` ContextVar (unreachable from the control
+        # server's request-handler task). Captured when the sample starts and
+        # refreshed by `set_sample_state` (via `set_active_sample_state`) so it
+        # survives a solver replacing the `TaskState` object outright — mirrors
+        # the `sample_state() or state` re-read the task runner does. `None`
+        # only in the brief window before the first state is set.
+        self.live_state: "TaskState | None" = None
         self.token_limit_usage: int | None = None
         self.total_cost: float | None = None
         self.fallback_models: list[str] = []
@@ -316,6 +326,12 @@ async def active_sample(
 
     _active_samples.append(active)
     _sample_active.set(active)
+    # Capture the state the runner set before entering this context (via
+    # `set_sample_state`, which precedes `active_sample`); subsequent solver
+    # reassignments refresh it through `set_active_sample_state`.
+    from inspect_ai.solver._task_state import sample_state
+
+    active.live_state = sample_state()
     # Open the ACP session for this sample's lifetime. The session is the
     # ACP-specific transport layer (pub/sub, approver registry, transcript
     # snapshot, etc.); it produces into whatever agent_channel() is bound to
@@ -430,6 +446,20 @@ def set_active_sample_total_messages(total_messages: int) -> None:
     active = sample_active()
     if active:
         active.total_messages = total_messages
+
+
+def set_active_sample_state(state: "TaskState") -> None:
+    """Refresh the active sample's live `TaskState` handle.
+
+    Called from `set_sample_state` so the control channel's view of the
+    conversation survives a solver replacing the `TaskState` object outright
+    (the `sample_state() or state` re-read in the task runner). In-place
+    mutation between replacements needs no hook — the handle already points at
+    the object whose `messages` list is being appended to.
+    """
+    active = sample_active()
+    if active:
+        active.live_state = state
 
 
 def set_active_sample_fallback_models(fallback_models: list[str]) -> None:

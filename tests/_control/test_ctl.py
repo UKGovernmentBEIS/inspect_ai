@@ -1784,6 +1784,107 @@ def test_events_json_no_servers_echoes_identifiers(
     assert payload["events"] == [] and payload["next"] is None and payload["done"]
 
 
+def test_print_messages_table_and_footer(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from inspect_ai._cli.ctl import _print_messages
+
+    page = {
+        "status": "running",
+        "count": 5,
+        "messages": [
+            {"index": 3, "role": "user", "content": "what is the weather?"},
+            {
+                "index": 4,
+                "role": "assistant",
+                "content": "let me check",
+                "tool_calls": [{"function": "search", "arguments": "weather"}],
+            },
+        ],
+    }
+    _print_messages(page, full=False)
+    out = capsys.readouterr().out
+    assert "role" in out.splitlines()[0]  # table header
+    assert "what is the weather?" in out and "search" in out
+    # footer: shown-of-total, the --all hint (a tail was shown), and status
+    assert "2 of 5 messages" in out
+    assert "--all" in out
+    assert "running" in out
+
+
+def test_print_messages_empty(capsys: pytest.CaptureFixture[str]) -> None:
+    from inspect_ai._cli.ctl import _print_messages
+
+    _print_messages({"status": "completed", "count": 0, "messages": []}, full=False)
+    out = capsys.readouterr().out
+    assert "(no messages)" in out
+    # nothing withheld, so no --all hint
+    assert "--all" not in out
+
+
+def test_messages_unseeded_defaults_to_recent_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The first messages page is a recent tail, not the whole conversation."""
+    captured: dict[str, Any] = {}
+
+    def fake_messages(
+        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        captured.clear()
+        captured.update(kwargs)
+        return {"as_of": 1.0, "status": "running", "count": 0, "messages": []}
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_messages", fake_messages)
+    runner = cli_runner()
+
+    result = runner.invoke(
+        ctl_command, ["sample", "messages", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["tail"] == 20
+
+    # --all disables the default tail (whole conversation)
+    runner.invoke(ctl_command, ["sample", "messages", "aaa111", "s1", "--all"])
+    assert captured["tail"] is None
+
+    # an explicit --tail overrides the default
+    runner.invoke(ctl_command, ["sample", "messages", "aaa111", "s1", "--tail", "3"])
+    assert captured["tail"] == 3
+
+    # the resolved identifiers are echoed on the page
+    result = runner.invoke(
+        ctl_command, ["sample", "messages", "aaa111", "s1", "--json"]
+    )
+    payload = json.loads(result.stdout)
+    assert payload["task_id"] == "aaa111"
+    assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
+
+
+def test_messages_all_and_tail_are_mutually_exclusive() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "messages", "t", "s1", "--all", "--tail", "5"]
+    )
+    assert result.exit_code != 0
+    assert "mutually exclusive" in result.stderr
+
+
+def test_messages_json_no_servers_echoes_identifiers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The no-running-evals empty page keeps the identifier echo shape."""
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "messages", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["task_id"] is None
+    assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
+    assert payload["messages"] == [] and payload["count"] == 0
+
+
 def test_group_option_before_verb_forwards(monkeypatch: pytest.MonkeyPatch) -> None:
     """A mirrored option given at the group level reaches the explicit verb."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])

@@ -473,6 +473,11 @@ def sample_state() -> TaskState | None:
 
 def set_sample_state(state: TaskState) -> None:
     _sample_state.set(state)
+    # Keep the control channel's live-conversation handle current when a solver
+    # replaces the TaskState object (see `ActiveSample.live_state`).
+    from inspect_ai.log._samples import set_active_sample_state
+
+    set_active_sample_state(state)
 
 
 _sample_state: ContextVar[TaskState] = ContextVar("sample_state")
