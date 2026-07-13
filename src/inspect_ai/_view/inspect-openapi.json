@@ -1392,6 +1392,17 @@
             ],
             "title": "Pending"
           },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
           "source": {
             "anyOf": [
               {
