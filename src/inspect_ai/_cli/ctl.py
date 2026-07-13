@@ -1281,7 +1281,9 @@ class _SampleRows(NamedTuple):
     rows: list[dict[str, Any]]
 
 
-def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRows:
+def _list_sample_rows(
+    task: str | None, active_since: float | None, errors_only: bool = False
+) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks."""
     fallback_as_of = time.time()
     fetched = _fetch_sample_summaries()
@@ -1305,6 +1307,7 @@ def _list_sample_rows(task: str | None, active_since: float | None) -> _SampleRo
                 target["socket_path"],
                 target["eval_id"],
                 active_since,
+                errors_only=errors_only,
                 # a scoped read fails the command on busy, so it keeps the
                 # full budget; the unscoped fan-out skips on the default
                 attempts=_REQUEST_ATTEMPTS if task is not None else None,
@@ -1367,10 +1370,14 @@ def _run_sample_list(
 
 
 def _run_sample_errors(task: str | None, as_json: bool) -> None:
+    # `errors_only` filters server-side and skips pending-row synthesis; the
+    # `select` filter stays as the fallback for older servers, which ignore
+    # the unknown query param and return the full listing.
     _run_sample_listing(
         task,
         None,
         as_json,
+        errors_only=True,
         select=lambda s: bool(s.get("error") or (s.get("retries") or 0) > 0),
         empty_read="(no errors or retries)",
         printer=_print_errors_table,
@@ -1383,6 +1390,7 @@ def _run_sample_listing(
     active_since: float | None,
     as_json: bool,
     *,
+    errors_only: bool = False,
     select: Callable[[dict[str, Any]], bool],
     empty_read: str,
     printer: "_RowsPrinter",
@@ -1395,7 +1403,7 @@ def _run_sample_listing(
     made only for targets whose samples were actually read — a target
     warn-and-skipped as unreachable gets "(samples unavailable)" instead.
     """
-    listing = _list_sample_rows(task, active_since)
+    listing = _list_sample_rows(task, active_since, errors_only)
     rows = [s for s in listing.rows if select(s)]
 
     if as_json:
@@ -2769,6 +2777,7 @@ def _fetch_samples(
     eval_id: str,
     active_since: float | None = None,
     *,
+    errors_only: bool = False,
     attempts: int | None = None,
 ) -> _SamplesPage:
     """Query one control server for an eval's samples.
@@ -2780,6 +2789,12 @@ def _fetch_samples(
     then — the recency delta. Tolerates an older server's bare array
     (stamping ``as_of`` client-side, pre-request).
 
+    ``errors_only`` asks the server to filter to errored/retried samples
+    (skipping its pending-row synthesis — the whole dataset × epochs grid
+    on a large eval). An older server ignores the param and returns the
+    full listing, so callers must keep their client-side filter as the
+    fallback.
+
     Raises :class:`_ServerUnreachable` on a non-retryable read failure and
     :class:`_ServerBusy` when the eval stays busy through ``attempts``
     retries (defaulting to the degraded budget — see
@@ -2790,7 +2805,11 @@ def _fetch_samples(
     default budget and drops only the summary fields).
     """
     fallback_as_of = time.time()
-    params = {} if active_since is None else {"active_since": active_since}
+    params: dict[str, Any] = {}
+    if active_since is not None:
+        params["active_since"] = active_since
+    if errors_only:
+        params["errors_only"] = True
     page = _get_with_retry(
         socket_path,
         f"/evals/{eval_id}/samples",

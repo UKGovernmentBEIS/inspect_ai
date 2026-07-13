@@ -347,6 +347,7 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Release a `--ctl-server=keep` park | `POST /release` | 1 ✅ |
 | Set keep-alive on a running process | `POST /keep` | 1 ✅ |
 | Samples changed since (recency delta) | `GET /evals/<id>/samples?active_since=<ts>` | 2 ✅ |
+| Errored/retried samples only (skips pending-row synthesis) | `GET /evals/<id>/samples?errors_only=true` | 2 ✅ |
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | the pull URL with `Accept: text/event-stream` (SSE) | 4 |
 | Eval-wide transcript fan-in (push only) | `GET /evals/<id>/samples/events` (SSE) | 4 |

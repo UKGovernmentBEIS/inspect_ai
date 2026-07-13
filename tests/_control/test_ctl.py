@@ -1060,6 +1060,85 @@ def test_sample_errors_unscoped_filters_across_tasks(
     ]
 
 
+def test_sample_errors_requests_server_side_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`sample errors` asks the server to filter, keeping the client fallback.
+
+    The request carries `errors_only=True`, but the client-side filter still
+    applies for older servers, which ignore the unknown query param and
+    return the full listing.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    seen: dict[str, Any] = {}
+
+    def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        *,
+        errors_only: bool = False,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        seen["errors_only"] = errors_only
+        # an older server ignores the param — return the full listing
+        return _SamplesPage(
+            as_of=123.0,
+            samples=[_sample_row("ok"), _sample_row("bad", error="boom")],
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    result = cli_runner().invoke(ctl_command, ["sample", "errors", "--json"])
+    assert result.exit_code == 0, result.output
+    assert seen["errors_only"] is True
+    payload = json.loads(result.stdout)
+    assert [r["sample_id"] for r in payload["samples"]] == ["bad"]
+
+
+def test_sample_list_does_not_request_errors_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    seen: dict[str, Any] = {}
+
+    def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        *,
+        errors_only: bool = False,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        seen["errors_only"] = errors_only
+        return _SamplesPage(as_of=123.0, samples=[_sample_row("s1")])
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    assert seen["errors_only"] is False
+
+
+def test_fetch_samples_sends_errors_only_param(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The wire param is `errors_only=true`, and only when requested."""
+    from inspect_ai._cli.ctl import _fetch_samples
+
+    seen: dict[str, Any] = {}
+
+    def fake_get(
+        socket_path: Any, path: str, *, params: Any = None, **kwargs: Any
+    ) -> Any:
+        seen["params"] = params
+        return {"as_of": 1.0, "samples": []}
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry", fake_get)
+    _fetch_samples("/tmp/x.sock", "e1", errors_only=True)
+    assert seen["params"] == {"errors_only": True}
+    _fetch_samples("/tmp/x.sock", "e1")
+    assert seen["params"] == {}
+
+
 def _patch_samples_unreachable_for(
     monkeypatch: pytest.MonkeyPatch,
     gone_eval_id: str,

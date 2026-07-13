@@ -195,7 +195,7 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
 
 
 async def current_sample_summaries(
-    eval_id: str, active_since: float | None = None
+    eval_id: str, active_since: float | None = None, errors_only: bool = False
 ) -> list[dict[str, Any]]:
     """Per-sample summaries for one eval (``GET /evals/<eval_id>/samples``).
 
@@ -231,6 +231,14 @@ async def current_sample_summaries(
     — the cheap "what changed since I last looked" delta. Pending samples (no
     activity) are excluded. It's a wall-clock *filter*, not a resume cursor (it
     returns current state of whatever changed, not an exactly-once stream).
+
+    ``errors_only`` restricts the result to samples that carry an error or
+    have been retried (``error`` set, or ``retries`` > 0) — the eval-set
+    triage read behind ``inspect ctl sample errors``. Filtering server-side
+    also skips pending-row synthesis entirely: a pending sample can never
+    carry an error or retries, and for a large dataset × epochs grid
+    building (and serializing) those rows on the eval's own event loop
+    dominates the response just to be discarded client-side.
     """
     by_key: dict[tuple[Any, int], dict[str, Any]] = {}
 
@@ -253,9 +261,15 @@ async def current_sample_summaries(
 
     # Pending: planned samples not yet running or done. No live source
     # holds these, so synthesize them from the registered planned ids.
-    _add_pending_samples(eval_id, by_key)
+    # Skipped for an errors-only read (see the docstring).
+    if not errors_only:
+        _add_pending_samples(eval_id, by_key)
 
     summaries = list(by_key.values())
+    if errors_only:
+        summaries = [
+            s for s in summaries if s["error"] is not None or (s["retries"] or 0) > 0
+        ]
     if active_since is not None:
         summaries = [
             s
