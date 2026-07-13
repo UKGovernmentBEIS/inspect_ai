@@ -399,6 +399,10 @@ def test_maybe_computer_use_tool_gpt54():
         "gpt-5.5",
         "gpt-5.5-mini",
         "gpt-5.5-pro",
+        "gpt-5.6",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
         "gpt-6",
         "gpt-6.0",
         "gpt-7.2",
@@ -451,6 +455,16 @@ def test_maybe_computer_use_tool_non_computer_tool():
     tool = ToolInfo(name="bash", description="bash", parameters=ToolParams())
     assert maybe_computer_use_tool("gpt-5.4", tool) is None
     assert maybe_computer_use_tool("gpt-5.5", tool) is None
+
+
+def test_maybe_computer_use_tool_is_latest_override():
+    # a codename/predeployment frontier model (is_latest) supports native
+    # computer use even though its name matches no gpt-version pattern.
+    tool = _computer_tool_info()
+    assert maybe_computer_use_tool("foo-bar-22", tool) is None
+    result = maybe_computer_use_tool("foo-bar-22", tool, is_latest=True)
+    assert result is not None
+    assert result["type"] == "computer"
 
 
 def test_back_and_forward_click():

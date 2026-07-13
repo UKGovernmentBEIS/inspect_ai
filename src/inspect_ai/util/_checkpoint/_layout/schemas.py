@@ -1,17 +1,15 @@
 """Pydantic models for the on-disk checkpoint layout.
 
 Defines the shape of the per-sample ``restic/restic-config.json`` and
-the per-checkpoint ``ckpt-NNNNN.json`` checkpoint files. See
-``design/plans/checkpointing-working.md`` §1 for the full layout
-description. These are pure data types — read/write helpers live with
-the Phase 3 write code.
+the per-checkpoint ``ckpt-NNNNN.json`` checkpoint files. These are pure
+data types — read/write helpers live with the write code.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from .._triggers import CheckpointTriggerKind
 
@@ -35,6 +33,15 @@ class SnapshotDetails(BaseModel):
     duration_ms: int
     """How long the restic invocation took, in milliseconds."""
 
+    files: list[str] | None = None
+    """Absolute paths of files added or changed in this snapshot (relative
+    to its parent; the full file set for the first snapshot), capped at
+    ``MAX_LISTED_FILES``."""
+
+    additional_files: int | None = None
+    """Count of files beyond ``MAX_LISTED_FILES`` not included in
+    ``files``. ``None`` when nothing was truncated."""
+
 
 class Checkpoint(BaseModel):
     """Per-checkpoint metadata file (``<attempt>/ckpt-NNNNN.json``).
@@ -51,6 +58,10 @@ class Checkpoint(BaseModel):
 
     trigger: CheckpointTriggerKind
     """The policy that fired this checkpoint."""
+
+    trigger_metadata: dict[str, JsonValue] | None = None
+    """Trigger-specific fire details (e.g. configured threshold vs.
+    actual usage at fire time)."""
 
     turn: int
     """Agent turn index at which this checkpoint was taken."""
@@ -86,5 +97,5 @@ class ResticConfig(BaseModel):
 
     restic_password: str
     """Password used by every repo (host + each sandbox) under this
-    sample. See ``design/plans/checkpointing-hydration.md`` for how it
-    reaches sandbox-side restic without being persisted in the sandbox."""
+    sample. Reaches sandbox-side restic via the per-exec environment;
+    never persisted in the sandbox."""

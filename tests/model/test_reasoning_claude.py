@@ -4,6 +4,7 @@ from test_helpers.utils import skip_if_no_anthropic
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.dataset import Sample
+from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.tool._tool import tool
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -22,7 +23,34 @@ async def test_reasoning_claude():
 async def test_reasoning_claude_opus_4_7():
     # Opus 4.7 defaults thinking.display to 'omitted'; Inspect sends
     # 'summarized', so summarized reasoning content must still come back.
-    await check_reasoning_content("anthropic/claude-opus-4-7")
+    # Claude 4.7+ rejects an explicit reasoning_tokens budget, so drive
+    # thinking via reasoning_effort only.
+    await check_reasoning_content("anthropic/claude-opus-4-7", reasoning_tokens=None)
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_reasoning_claude_sonnet_5():
+    # Coverage gap this fills: every other reasoning test in this module drives
+    # thinking via an explicit reasoning_tokens budget (check_reasoning_content's
+    # default of 1024). Claude 4.7+ removed budgeted thinking, so those tests must
+    # target pre-4.7 models and provide no effort-driven reasoning coverage for a
+    # current Sonnet-tier model. This test exercises that path directly on Sonnet 5.
+    #
+    # Sonnet 5 (Claude 4.7+) rejects an explicit reasoning_tokens budget, so drive
+    # thinking via reasoning_effort only. It defaults thinking.display to 'omitted'
+    # while Inspect requests 'summarized', so a non-empty summarized reasoning block
+    # must come back — and reasoning must not leak into the visible response text.
+    model = get_model("anthropic/claude-sonnet-5")
+    output = await model.generate(
+        "Solve 3*x^3-5*x=1",
+        config=GenerateConfig(reasoning_effort="low", max_tokens=8192),
+    )
+    assert "<think>" not in output.completion
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentReasoning)
+    assert content[0].reasoning.strip()
 
 
 @pytest.mark.anyio

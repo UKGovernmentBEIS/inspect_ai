@@ -54,21 +54,35 @@ class FileRecorder(Recorder):
         if not eval_log.samples:
             raise IndexError(f"No samples found in log {location}")
 
-        # find the sample
-        id = normalise_sample_id(id) if id is not None else id
-        eval_sample = next(
-            (
-                sample
-                for sample in (eval_log.samples)
-                if (
-                    id
-                    and normalise_sample_id(sample.id) == id
-                    and sample.epoch == epoch
-                )
-                or (uuid and sample.uuid == uuid)
-            ),
-            None,
-        )
+        # find the sample. Prefer an exact id match so ids that normalise alike
+        # (e.g. the string "001" and the int 1, which both normalise to a
+        # zero-filled "1") stay individually addressable, then fall back to the
+        # normalised match for loose addressing (e.g. "1" -> int 1) and uuid.
+        eval_sample: EvalSample | None = None
+        if id is not None:
+            eval_sample = next(
+                (
+                    sample
+                    for sample in eval_log.samples
+                    if sample.id == id and sample.epoch == epoch
+                ),
+                None,
+            )
+        if eval_sample is None:
+            norm_id = normalise_sample_id(id) if id is not None else None
+            eval_sample = next(
+                (
+                    sample
+                    for sample in eval_log.samples
+                    if (
+                        norm_id is not None
+                        and normalise_sample_id(sample.id) == norm_id
+                        and sample.epoch == epoch
+                    )
+                    or (uuid and sample.uuid == uuid)
+                ),
+                None,
+            )
         if eval_sample is None:
             raise IndexError(
                 f"Sample id {id} for epoch {epoch} not found in log {location}"

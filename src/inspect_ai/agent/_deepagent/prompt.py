@@ -4,6 +4,8 @@ Composes layered system prompts from string constants and dynamic
 content (subagent list, memory/plan configuration, user instructions).
 """
 
+from inspect_ai.agent._types import PARALLEL_TOOLS_PROMPT
+
 from .subagent import Subagent
 
 SUBAGENT_SUBMIT_PROMPT = """
@@ -14,7 +16,7 @@ information that will be returned. Include all relevant findings, evidence,
 and conclusions in your submission.
 """.strip()
 
-CORE_BEHAVIOR = """
+CORE_BEHAVIOR = f"""
 Complete tasks autonomously using your available tools. Act rather than
 narrate intent — don't say what you plan to do, just do it.
 
@@ -28,8 +30,7 @@ Be concise and direct. Avoid preamble, unnecessary explanation, and
 restating what you've already done. When you need information, use
 your tools rather than making assumptions.
 
-When multiple independent tool calls are needed, batch them in a single
-response rather than making sequential round-trips.
+{PARALLEL_TOOLS_PROMPT}
 
 Plan when the task is complex or multi-step. Break large tasks into
 smaller pieces and track your progress. Verify your work before
@@ -82,11 +83,13 @@ or blocked (with a reason and what you tried).
 """.strip()
 
 
-def build_subagent_dispatch(subagents: list[Subagent]) -> str:
+def build_subagent_dispatch(subagents: list[Subagent], background: bool = True) -> str:
     """Generate system prompt section describing available subagents.
 
     Args:
         subagents: List of configured subagents.
+        background: Whether background dispatch is enabled (adds guidance on
+            the ``background`` parameter and the lifecycle tools).
 
     Returns:
         Prompt text listing subagents and delegation guidance.
@@ -120,6 +123,22 @@ def build_subagent_dispatch(subagents: list[Subagent]) -> str:
             "the subagent cannot see your conversation history. Be specific "
             "about what information you need back."
         )
+    if background:
+        lines.append("")
+        lines.append(
+            "You can dispatch a subagent in the background with "
+            "`background=True` on the agent tool — the call returns an "
+            "`AGENT-N` handle immediately while the subagent runs in parallel "
+            "with your work. While waiting, do useful independent work in the "
+            "parent context. Use `agent_status(id)` for a quick non-blocking "
+            'peek. Use `agent_wait([ids], mode="any"|"all", timeout=...)` '
+            "when you actually need a result before continuing — prefer one "
+            "`agent_wait` over a polling loop of `agent_status` calls. Use "
+            "`agent_cancel(id)` when a background agent is no longer useful. "
+            "If you may have lost track of background agents — for example "
+            "after a long stretch of work or after context compaction — call "
+            "`agent_list()` to recover their state."
+        )
     return "\n".join(lines)
 
 
@@ -129,6 +148,7 @@ def build_system_prompt(
     memory: bool = True,
     todo_write: bool = True,
     instructions: str | None = None,
+    background: bool = True,
 ) -> str:
     """Assemble the deepagent system prompt from layers.
 
@@ -137,6 +157,7 @@ def build_system_prompt(
         memory: Whether the memory tool is enabled.
         todo_write: Whether the todo_write tool is enabled.
         instructions: User-provided instructions appended at the end.
+        background: Whether background dispatch is enabled.
 
     Returns:
         Assembled system prompt string.
@@ -144,7 +165,7 @@ def build_system_prompt(
     sections: list[str] = [CORE_BEHAVIOR]
 
     if subagents:
-        sections.append(build_subagent_dispatch(subagents))
+        sections.append(build_subagent_dispatch(subagents, background))
 
     if memory and todo_write:
         sections.append(MEMORY_INSTRUCTIONS)
@@ -166,6 +187,7 @@ def expand_prompt_placeholders(
     memory: bool = True,
     todo_write: bool = True,
     instructions: str | None = None,
+    background: bool = True,
 ) -> str:
     """Expand named placeholders in a custom prompt.
 
@@ -183,6 +205,7 @@ def expand_prompt_placeholders(
         memory: Whether the memory tool is enabled.
         todo_write: Whether the todo_write tool is enabled.
         instructions: User-provided instructions.
+        background: Whether background dispatch is enabled.
 
     Returns:
         Prompt with placeholders expanded.
@@ -192,7 +215,7 @@ def expand_prompt_placeholders(
 
     if subagents:
         result = result.replace(
-            "{subagent_dispatch}", build_subagent_dispatch(subagents)
+            "{subagent_dispatch}", build_subagent_dispatch(subagents, background)
         )
     else:
         result = result.replace("{subagent_dispatch}", "")

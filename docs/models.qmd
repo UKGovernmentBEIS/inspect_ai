@@ -69,6 +69,14 @@ eval("arc.py", model="google/gemini-2.5-pro", max_connections=20)
 
 Use `inspect eval --help` to learn about all of the available generation config options.
 
+::: {.callout-note appearance="simple"}
+#### Temperature is not random assignment {#temperature-random-assignment}
+
+Do not use model sampling as the source of random assignment in an eval. Increasing `temperature` can make outputs more variable, but it does not make equivalent labels, choices, or orderings equally likely.
+
+If the eval needs randomness, randomize in the dataset, solver, or setup code (for example, with [sample shuffling](datasets.qmd#shuffling) or [choice shuffling](datasets.qmd#choice-shuffling)). If the task intentionally asks the model to make a stochastic choice, run repeated [epochs](metrics.qmd#reducing-epochs) first and report the observed label distribution, for example with a categorical scorer and [`frequency()`](metrics.qmd#built-in-metrics).
+:::
+
 ## Model Args
 
 If there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:
@@ -208,11 +216,11 @@ inspect eval math.py \
     --model-role 'grader={model: openai/gpt-4o, temperature: 0.5}'
 ```
 
-Note that the built-in [model-graded scorers](scorers.qmd#model-graded) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
+Note that the built-in [model-graded scorers](model-graded.qmd) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
 
-Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](task-configuration.qmd#run-config).
+Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](tasks.qmd#run-config).
 
-For how model roles fit into the broader override and precedence model, see [Task Configuration](task-configuration.qmd#model-roles).
+For how model roles fit into the broader override and precedence model, see [Configuration](tasks.qmd#model-roles).
 
 ### Role Resolution
 

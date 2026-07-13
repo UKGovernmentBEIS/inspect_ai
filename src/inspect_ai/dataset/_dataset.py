@@ -56,8 +56,10 @@ class Sample(BaseModel):
                 SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
             setup: Optional. Setup script to run for sample (run
                 within default SandboxEnvironment).
-            checkpoint: Optional. Checkpoint configuration for this sample
-                (overridden by task- or eval-level `checkpoint`).
+            checkpoint: Optional. Checkpoint configuration for this sample.
+                Customize-only — it does not enable checkpointing by itself
+                (that is turned on at the task or eval level) and is ignored
+                when nothing enabled it.
         """
         super().__init__(
             input=input,
@@ -112,9 +114,10 @@ class Sample(BaseModel):
     checkpoint: CheckpointSampleConfig | None = Field(default=None)
     """Checkpoint configuration for this sample. Per-sample configs are
     restricted to the :class:`CheckpointSampleConfig` base class — the
-    eval-wide fields (``checkpoints_dir``, ``retention``) live only on
-    :class:`CheckpointConfig` at the task / eval layers. Overridden by
-    task- or eval-level `checkpoint` when set."""
+    eval-wide fields (``checkpoints_location``, ``retention``) live only on
+    :class:`CheckpointConfig` at the task / eval layers. Customize-only:
+    a sample config never enables checkpointing (that happens at the task
+    or eval layer) and is ignored when nothing enabled it."""
 
 
 def sample_input_len(sample: Sample) -> int:

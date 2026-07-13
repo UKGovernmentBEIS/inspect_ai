@@ -26,6 +26,7 @@ from inspect_ai.scorer._metric import (
     MetricProtocol,
     SampleScore,
     metric_create,
+    value_to_float,
 )
 from inspect_ai.scorer._metrics import grouped
 from inspect_ai.scorer._metrics.std import stderr
@@ -284,6 +285,12 @@ def metric_create_assert(name: str, **kwargs: Any) -> None:
     assert metric([]) == 1
 
 
+def test_accuracy_handles_empty_scores() -> None:
+    # An empty score list must not raise; mirror the std()/var() convention of
+    # returning 0 for insufficient data instead of a ZeroDivisionError.
+    assert accuracy()([]) == 0.0
+
+
 @metric
 def nested_dict_metric(correct: str = "C") -> Metric:
     def metric(scores: list[SampleScore]) -> Value:
@@ -309,10 +316,9 @@ def test_nested_dict_metrics() -> None:
         assert len(log.results.scores) == 4
         assert log.results.scores[1].name == "one"
         assert len(log.results.scores[1].metrics.values()) == 2
-        assert (
-            log.results.scores[1].metrics["nested_dict_metric_key1"].name
-            == "nested_dict_metric_key1"
-        )
+        m = log.results.scores[1].metrics["nested_dict_metric_key1"]
+        assert m.name == "key1"
+        assert m.group == "nested_dict_metric"
 
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
@@ -349,10 +355,9 @@ def test_nested_list_metrics() -> None:
         assert len(log.results.scores) == 4
         assert log.results.scores[1].name == "one"
         assert len(log.results.scores[1].metrics.values()) == 2
-        assert (
-            log.results.scores[1].metrics["nested_list_metric_0"].name
-            == "nested_list_metric_0"
-        )
+        m = log.results.scores[1].metrics["nested_list_metric_0"]
+        assert m.name == "0"
+        assert m.group == "nested_list_metric"
 
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
@@ -375,6 +380,43 @@ def test_stderr():
     metric = stderr()
     se = metric([SampleScore(score=Score(value=i)) for i in range(10)])
     assert round(se, 3) == 0.957
+
+
+def test_mean_numeric():
+    metric = mean()
+    result = metric([SampleScore(score=Score(value=i)) for i in range(10)])
+    assert result == 4.5
+
+
+def test_mean_label_vocabulary():
+    # Regression: mean() previously used Score.as_float(), which calls
+    # float("C") and raises ValueError on the framework's own CORRECT /
+    # INCORRECT / PARTIAL / NOANSWER labels -- even though accuracy() (and
+    # std/var/stderr) map them via value_to_float(). A scorer emitting these
+    # labels with [accuracy(), mean()] attached would crash at metric time.
+    # mean() now shares the same value-to-float vocabulary as its siblings.
+    metric = mean()
+    result = metric(
+        [
+            SampleScore(score=Score(value="C")),
+            SampleScore(score=Score(value="I")),
+            SampleScore(score=Score(value="P")),
+            SampleScore(score=Score(value="N")),
+        ]
+    )
+    # C=1.0, I=0, P=0.5, N=0 -> mean 0.375
+    assert result == 0.375
+
+
+def test_mean_custom_to_float():
+    metric = mean(to_float=value_to_float(correct="win"))
+    result = metric(
+        [
+            SampleScore(score=Score(value="win")),
+            SampleScore(score=Score(value="win")),
+        ]
+    )
+    assert result == 1.0
 
 
 def test_clustered_stderr():
@@ -670,3 +712,27 @@ def test_dict_metric_all_samples_unscored():
         assert r.scored_samples == 0
         assert r.unscored_samples == 3
         assert math.isnan(r.metrics["mean"].value)
+
+
+def test_metrics_return_zero_for_empty_scores() -> None:
+    # Every built-in numeric metric must handle an empty score list by
+    # returning 0.0 rather than nan (with numpy empty-slice warnings). See the
+    # empty-input guards documented in accuracy()/std()/var().
+    from inspect_ai.scorer import (
+        accuracy,
+        bootstrap_stderr,
+        mean,
+        std,
+        stderr,
+        var,
+    )
+
+    for metric_fn in (
+        accuracy(),
+        mean(),
+        var(),
+        std(),
+        stderr(),
+        bootstrap_stderr(),
+    ):
+        assert metric_fn([]) == 0.0

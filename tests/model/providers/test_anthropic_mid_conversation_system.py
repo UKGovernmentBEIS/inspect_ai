@@ -156,17 +156,158 @@ async def test_mid_conv_system_after_server_tool_use_valid() -> None:
 
 
 @pytest.mark.anyio
-async def test_mid_conv_system_unsupported_on_4_7() -> None:
+async def test_mid_conv_system_unsupported_becomes_reminder_4_7() -> None:
+    # On 4.7 (no mid-conv support) only the leading block is hoisted; a
+    # mid-conversation system becomes a <system-reminder> user turn rather
+    # than being hoisted (which would bust the prompt cache).
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
     input: list[ChatMessage] = [
         ChatMessageSystem(content="lead"),
         ChatMessageUser(content="hi"),
+        ChatMessageAssistant(content="hello"),
+        ChatMessageSystem(content="from now on, French"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead"]
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    assert msgs[-1]["content"] == (
+        "<system-reminder>\nfrom now on, French\n</system-reminder>"
+    )
+
+
+@pytest.mark.anyio
+async def test_mid_conv_reminder_merges_with_adjacent_user_4_7() -> None:
+    # A reminder converted from a mid-conv system merges into the preceding
+    # user turn via the consecutive-user reducer.
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageSystem(content="be brief"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead"]
+    assert [m["role"] for m in msgs] == ["user"]
+    assert msgs[0]["content"] == "hi\n<system-reminder>\nbe brief\n</system-reminder>"
+
+
+@pytest.mark.anyio
+async def test_reminder_hoisted_when_before_tool_result_4_7(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A system between an assistant tool call and its tool result must be
+    # hoisted, not rendered as a user turn — the reducer would merge it into
+    # the tool-result turn and strip thinking/cache context.
+    from inspect_ai.model._providers import anthropic as anthropic_mod
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        anthropic_mod, "warn_once", lambda _logger, msg: warnings.append(str(msg))
+    )
+
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(
+            content="ok",
+            tool_calls=[ToolCall(id="t1", function="f", arguments={})],
+        ),
+        ChatMessageSystem(content="be brief"),
+        ChatMessageTool(content="result", tool_call_id="t1"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead", "be brief"]
+    # tool-result turn stays pure (no reminder text merged in)
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    # the tool-result turn contains only the tool_result block (no merged text)
+    assert [b["type"] for b in msgs[-1]["content"]] == ["tool_result"]
+    assert any("tool result" in w for w in warnings)
+
+
+@pytest.mark.anyio
+async def test_reminder_hoisted_when_after_tool_result_4_7(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A system immediately following a tool result is also hoisted: it would
+    # merge into the (user-role) tool-result turn.
+    from inspect_ai.model._providers import anthropic as anthropic_mod
+
+    monkeypatch.setattr(anthropic_mod, "warn_once", lambda _logger, msg: None)
+
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(
+            content="ok",
+            tool_calls=[ToolCall(id="t1", function="f", arguments={})],
+        ),
+        ChatMessageTool(content="result", tool_call_id="t1"),
+        ChatMessageSystem(content="be brief"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead", "be brief"]
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    # the tool-result turn contains only the tool_result block (no merged text)
+    assert [b["type"] for b in msgs[-1]["content"]] == ["tool_result"]
+
+
+@pytest.mark.anyio
+async def test_reminder_kept_after_tool_result_followed_by_assistant_4_7() -> None:
+    # When a real assistant turn separates the system from the tool result, the
+    # reminder is safe to render (it joins a tool-result-free user run).
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(
+            content="ok",
+            tool_calls=[ToolCall(id="t1", function="f", arguments={})],
+        ),
+        ChatMessageTool(content="result", tool_call_id="t1"),
+        ChatMessageAssistant(content="done"),
+        ChatMessageSystem(content="be brief"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead"]
+    assert [m["role"] for m in msgs] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert msgs[-1]["content"] == "<system-reminder>\nbe brief\n</system-reminder>"
+
+
+@pytest.mark.anyio
+async def test_mid_conv_reminder_used_for_bedrock_4_8() -> None:
+    # Bedrock has no mid-conv support even on 4.8, so it uses the reminder
+    # fallback rather than native role="system" turns.
+    import os
+
+    os.environ.setdefault("AWS_REGION", "us-east-1")
+    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
+    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
+
+    api = AnthropicAPI(model_name="bedrock/claude-opus-4-8", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(content="hello"),
         ChatMessageSystem(content="mid"),
     ]
     system_param, msgs = await _resolve_system(api, input)
     assert system_param is not None
-    assert [b["text"] for b in system_param] == ["lead", "mid"]
-    assert [m["role"] for m in msgs] == ["user"]
+    assert [b["text"] for b in system_param] == ["lead"]
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    assert msgs[-1]["content"] == "<system-reminder>\nmid\n</system-reminder>"
 
 
 def test_supports_mid_conv_off_for_bedrock_and_vertex_4_8() -> None:

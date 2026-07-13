@@ -1,6 +1,8 @@
 import json
 import os
 from copy import copy
+from functools import partial
+from logging import getLogger
 from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
@@ -59,12 +61,16 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     as_stop_reason,
+    collect_stop_details,
 )
+from .._openai import openai_stop_details
 from .util import (
     environment_prerequisite_error,
     model_base_url,
 )
 from .util.hooks import HttpxHooks
+
+logger = getLogger(__name__)
 
 GROQ_API_KEY = "GROQ_API_KEY"
 
@@ -245,6 +251,9 @@ class GroqAPI(ModelAPI):
             ChatCompletionChoice(
                 message=chat_message_assistant(self.model_name, choice.message, tools),
                 stop_reason=as_stop_reason(choice.finish_reason),
+                stop_details=collect_stop_details(
+                    "groq", logger, partial(openai_stop_details, choice)
+                ),
             )
             for choice in choices
         ]
@@ -271,7 +280,7 @@ class GroqAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -407,7 +416,7 @@ def chat_tool_choice(tool_choice: ToolChoice) -> str | Dict[str, Any]:
     if isinstance(tool_choice, ToolFunction):
         return {"type": "function", "function": {"name": tool_choice.name}}
     elif tool_choice == "any":
-        return "auto"
+        return "required"
     else:
         return tool_choice
 

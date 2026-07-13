@@ -276,13 +276,26 @@ The reference frameworks implement a mix of context-management strategies to kee
 
 LangChain's `TASK_SYSTEM_PROMPT` heavily emphasizes launching multiple subagents in parallel: "Whenever you have independent steps to complete — kick off tasks in parallel to accomplish them faster." Claude Code does the same — models can invoke the `agent()` tool multiple times in a single response.
 
-**Inspect status:** Inspect's current `execute_tools` processes tool calls sequentially, but `agent()` is marked `parallel=True` (the default). Multiple `agent()` calls in one response execute one at a time in v1 but are architecturally safe — forked dispatch strips the trailing assistant message entirely (rather than repairing specific tool calls), so each child sees the same clean conversation prefix regardless of sibling calls. When parallel tool execution lands, `agent()` will benefit without changes.
+**Inspect status:** Shipped. `execute_tools` now partitions a turn's tool calls into ordered stages and runs consecutive `parallel=True` calls concurrently (`src/inspect_ai/model/_call_tools.py`). `agent()` is marked `parallel=True` (when its subagents are parallel-safe), so multiple `agent()` calls in one response run concurrently — forked dispatch strips the trailing assistant message entirely, so each child sees the same clean conversation prefix regardless of sibling calls. The system prompt also encourages the model to emit independent tool calls together (see `PARALLEL_TOOLS_PROMPT`, shared by `react()` and `deepagent()`).
 
 #### Async / background subagents
 
 Claude Code, Codex CLI, LangChain, and Pydantic Deep Agents all support some form of background or async subagent work: launch a long-running worker, continue in the parent, inspect status, and optionally steer or cancel the child.
 
-**Inspect status:** Out of scope for v1. `deepagent()` dispatch is synchronous: the parent blocks until the child returns its summary. Async/background subagents require new lifecycle concepts (task handles, status, cancellation, UI/log presentation, and possibly durable state) and should be designed as a separate feature.
+**Inspect status:** Shipped. The `agent` tool gained a `background` parameter: `agent(subagent_type, prompt, background=True)` returns an `AGENT-N` handle immediately and runs the child concurrently on the sample task group (`inspect_ai.util.background()`), rather than blocking until the child returns.
+
+Four lifecycle tools follow up on background dispatches:
+
+- `agent_status(agent_id)` — instant non-blocking peek (status, and for a running agent a soft progress snapshot: elapsed seconds, message/tool-call counts, and the latest assistant message truncated to ~2000 bytes; for a finished agent the full result).
+- `agent_wait(agent_ids, mode="any"|"all", timeout=None)` — block until the listed agents finish (or the timeout elapses); on timeout still-running agents are reported honestly with their current progress.
+- `agent_cancel(agent_id)` — terminate a running agent; idempotent on terminal agents.
+- `agent_list(status_filter=None)` — enumerate all dispatched agents (useful for recovering handles after a long stretch of work or context compaction).
+
+All four lifecycle tools return readable markdown and never raise — any problem (unknown id, no registry, empty input) is reported as content so the model can see it and adjust.
+
+**Switch and cap.** `deepagent(background=...)` controls the feature: `False` (default) disables it entirely (the `agent` tool's schema omits `background` and the lifecycle tools are not surfaced); `True` enables it with a cap of 8 concurrent background agents; a positive int sets a custom cap; `0`/negative raises `ValueError`. Only *running* agents count toward the cap; at cap, `agent(background=True)` rejects with a `ToolError` rather than blocking.
+
+**Lifetime: abandon on parent exit.** Background children run on `sample.tg` and are bounded by the sample, not the parent `react()` loop — when the parent returns, in-flight children keep running until they complete or the sample ends (at which point anyio cancels them). The parent does not drain. Each deepagent gets an isolated `BackgroundRegistry` (held in a ContextVar set in `deepagent.execute()`), so nested deepagents have independent `AGENT-N` namespaces. Sample-level limits propagate into background children via PEP 567 contextvar copy; per-subagent `limits` are deep-copied per dispatch.
 
 #### Cost-aware model routing
 
@@ -407,7 +420,7 @@ agent_tool_instance = agent_tool(subagents=[research(), plan(), general(), revie
 - Each subagent gets a `submit()` tool added by `react()`. The model must call `submit(answer=...)` to terminate and report results.
 - If the model stops calling tools without submitting, `react()`'s default continue prompt nudges it: "If you believe you have completed the task, please call the `submit()` tool with your final answer."
 - `AgentSubmit(answer_only=True)` ensures `state.output.completion` contains just the submitted answer (not the model's reasoning preamble). `_extract_result()` reads `completion` first, falling back to `message.text` if no submission occurred (e.g., limit exceeded).
-- Submit tool calls are removed from the subagent's message history after completion (`keep_in_messages=False`), preventing the parent from seeing submit calls that could confuse its own submit tracking.
+- Submit tool calls are **retained** in the subagent's message history (`keep_in_messages=True`), so a submit is distinguishable from a normal assistant turn in the subagent transcript. This is safe here because deepagent dispatches via `run()` (not `handoff()`): the subagent's messages never merge into the parent — the parent receives only the `_extract_result()` string — so a retained submit cannot confuse the parent's own submit tracking. The react append-to-content path is gated on `not keep_in_messages`, so the answer is not duplicated into the assistant content (it lives only in the `submit(answer=…)` call + tool result), and `state.output.completion` is still set via `answer_only` so the parent's result is unchanged. The viewer renders the retained submit once, as markdown, via a dedicated submit custom view (`customToolRendering.tsx`), which also avoids the input/output double-render (the submit tool echoes its `answer`).
 - The `SUBAGENT_SUBMIT_PROMPT` (defined in `prompt.py`) tells the model: "The parent agent that dispatched you cannot see your conversation history or tool calls — the content you pass to submit() is the only information that will be returned."
 - Built-in factory prompts (`research.py`, `plan.py`, `general.py`) reference `submit()` in their output guidance (e.g., "Submit your findings using the submit() tool").
 
@@ -530,17 +543,17 @@ Modified files:
 - `src/inspect_ai/tool/_tools/_update_plan.py` — deprecate with alias to `todo_write()`.
 - `src/inspect_ai/tool/_tools/_memory.py` — add `readonly=True` mode that exposes only read operations.
 
-#### 8. Parallel tool execution (deferred)
+#### 8. Parallel tool execution (shipped)
 
-The current `_execute_tools_impl` in `src/inspect_ai/model/_call_tools.py:300` processes tool calls sequentially. Parallel tool execution would benefit all agents — including `react()` — and would unblock concurrent subagent dispatch for `deepagent()`.
+`execute_tools` (`src/inspect_ai/model/_call_tools.py`) partitions a turn's tool calls into ordered stages: consecutive `parallel=True` calls coalesce into one concurrent stage, while each serial call is its own one-element stage that acts as a barrier preserving the model's declared ordering between stateful and stateless calls. This benefits all agents — including `react()` — and enables concurrent subagent dispatch for `deepagent()` (the `agent()` tool is `parallel=True` when its subagents are parallel-safe).
 
-However, this is a significant infrastructure change with nontrivial risks:
+The original concerns were addressed as follows:
 
-- **Breaking change.** `@tool` defaults `parallel=True` and `ToolDef` defaults unspecified tools to parallel-capable, but current execution is sequential. Flipping to concurrent would silently change behavior for existing tools whose authors never had to consider races.
-- **Output conflicts.** Current execution tracks a single `result_output`. Parallel batches with multiple tools returning `ExecuteToolsResult.output` need conflict resolution semantics.
-- **Approval flows.** Approval policies and interactive tools may not be safe to run concurrently even if the underlying tool is marked `parallel=True`.
+- **Breaking change.** Only tools that are `parallel=True` (the `@tool` default) coalesce; serial tools still run one at a time and act as barriers, so ordering between stateful and stateless calls is preserved.
+- **Output conflicts.** Resolved within the staged execution model.
+- **Approval flows.** Handled within the stage execution path.
 
-**Decision.** Defer parallel tool execution to a separate project. `deepagent()` v1 dispatches subagents sequentially. Both isolated and forked dispatch are architecturally safe to parallelize (forked subagents receive a copy of the parent's messages), so when parallel execution lands, `agent()` can opt in without design changes.
+To complement execution, the system prompt encourages the model to actually emit independent tool calls together — see `PARALLEL_TOOLS_PROMPT` in `src/inspect_ai/agent/_types.py`, shared by `react()`'s `DEFAULT_ASSISTANT_PROMPT`, `deepagent()`'s `CORE_BEHAVIOR`, and the dispatched subagents' assistant prompt.
 
 #### 9. Testing strategy
 

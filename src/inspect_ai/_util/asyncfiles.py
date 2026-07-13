@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import io
+import logging
 import shutil
 from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
@@ -15,6 +16,14 @@ import anyio
 import anyio.to_thread
 from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
+from botocore.exceptions import ClientError
+from tenacity import (
+    AsyncRetrying,
+    RetryCallState,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 from typing_extensions import TYPE_CHECKING, override
 
 if TYPE_CHECKING:
@@ -22,7 +31,10 @@ if TYPE_CHECKING:
     from boto3.s3.transfer import TransferConfig
 
 from inspect_ai._util._async import current_async_backend
+from inspect_ai._util.constants import HTTP
 from inspect_ai._util.file import FileInfo, file, filesystem, local_path
+
+logger = logging.getLogger(__name__)
 
 
 class _BytesByteReceiveStream(ByteReceiveStream):
@@ -287,15 +299,19 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def write_file(self, filename: str, content: bytes) -> None:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                client = await self.s3_client_async()
-                await client.upload_fileobj(
-                    Fileobj=io.BytesIO(content), Bucket=bucket, Key=key
-                )
-            else:
-                await anyio.to_thread.run_sync(
-                    s3_write_file, self.s3_client(), bucket, key, content
-                )
+
+            async def do_put() -> None:
+                if current_async_backend() == "asyncio":
+                    client = await self.s3_client_async()
+                    await client.upload_fileobj(
+                        Fileobj=io.BytesIO(content), Bucket=bucket, Key=key
+                    )
+                else:
+                    await anyio.to_thread.run_sync(
+                        s3_write_file, self.s3_client(), bucket, key, content
+                    )
+
+            await _s3_put_with_retry(do_put, location=filename)
         else:
             with file(filename, "wb") as f:
                 f.write(content)
@@ -313,22 +329,41 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                client = await self.s3_client_async()
-                await client.upload_fileobj(
-                    Fileobj=source,
-                    Bucket=bucket,
-                    Key=key,
-                    Config=_s3_transfer_config(),
-                )
+
+            try:
+                # Only retry streams we can replay exactly from their current offset.
+                # Non-seekable streams use one upload attempt because a retry after a
+                # partial read could otherwise write a truncated object.
+                start = source.tell() if source.seekable() else None
+                if start is not None:
+                    source.seek(start)
+            except (AttributeError, OSError):
+                start = None
+
+            async def do_put() -> None:
+                if start is not None:
+                    source.seek(start)
+                if current_async_backend() == "asyncio":
+                    client = await self.s3_client_async()
+                    await client.upload_fileobj(
+                        Fileobj=source,
+                        Bucket=bucket,
+                        Key=key,
+                        Config=_s3_transfer_config(),
+                    )
+                else:
+                    await anyio.to_thread.run_sync(
+                        s3_write_file_streaming,
+                        self.s3_client(),
+                        bucket,
+                        key,
+                        source,
+                    )
+
+            if start is None:
+                await do_put()
             else:
-                await anyio.to_thread.run_sync(
-                    s3_write_file_streaming,
-                    self.s3_client(),
-                    bucket,
-                    key,
-                    source,
-                )
+                await _s3_put_with_retry(do_put, location=filename)
         else:
             with file(
                 filename, "wb", fs_options={"block_size": _FSSPEC_WRITE_BLOCK_SIZE}
@@ -602,6 +637,58 @@ def s3_write_file_streaming(s3: Any, bucket: str, key: str, source: BinaryIO) ->
     s3.upload_fileobj(
         Fileobj=source, Bucket=bucket, Key=key, Config=_s3_transfer_config()
     )
+
+
+def _is_stale_signature_error(ex: BaseException) -> bool:
+    return (
+        isinstance(ex, ClientError)
+        and ex.response.get("Error", {}).get("Code") == "RequestTimeTooSkewed"
+    )
+
+
+def _log_s3_retry_attempt(location: str) -> Callable[[RetryCallState], None]:
+    def log_attempt(retry_state: RetryCallState) -> None:
+        from inspect_ai._util.retry import report_http_retry, sample_context_prefix
+
+        ex = retry_state.outcome.exception() if retry_state.outcome else None
+        request_id = ""
+        if isinstance(ex, ClientError):
+            request_id = ex.response.get("ResponseMetadata", {}).get("RequestId", "")
+
+        report_http_retry("transient")
+        logger.log(
+            HTTP,
+            "%sS3 write to %s hit RequestTimeTooSkewed on attempt %d; "
+            "retrying in %.0fs (request id %s)",
+            sample_context_prefix(),
+            location,
+            retry_state.attempt_number,
+            retry_state.upcoming_sleep,
+            request_id or "unknown",
+        )
+
+    return log_attempt
+
+
+async def _s3_put_with_retry(
+    do_put: Callable[[], Coroutine[Any, Any, None]], *, location: str
+) -> None:
+    # bound by attempt count only (each attempt re-signs the request). A
+    # wall-clock stop (stop_after_delay) is exactly wrong for this error:
+    # a stale signature means the attempt itself was delayed (e.g. queued
+    # behind a starved connection pool for 15+ minutes), so a single slow
+    # failure would exhaust the budget and the write would never be retried
+    # with a fresh signature.
+    async for attempt in AsyncRetrying(
+        retry=retry_if_exception(_is_stale_signature_error),
+        wait=wait_exponential_jitter(),
+        stop=stop_after_attempt(5),
+        sleep=anyio.sleep,
+        before_sleep=_log_s3_retry_attempt(location),
+        reraise=True,
+    ):
+        with attempt:
+            await do_put()
 
 
 def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:

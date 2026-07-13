@@ -1,14 +1,26 @@
 import contextlib
+import functools
 import logging
 import os
 import sys
 from contextlib import nullcontext
+from contextvars import Token, copy_context
 from pathlib import Path
 from typing import Any, Literal, cast
 
 import anyio
 from anyio.abc import TaskGroup
 
+from inspect_ai._control.eval_state import clear_all_eval_states
+from inspect_ai._control.server import (
+    control_server,
+    keep_alive_intent,
+    request_keep_alive,
+    reset_keep_alive,
+    resolve_ctl_server,
+    wait_for_shutdown_async,
+)
+from inspect_ai._eval.handoff import LaunchHandoff, emit_launch_handoff
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
@@ -69,7 +81,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
-from inspect_ai.util._checkpoint import CheckpointConfig
+from inspect_ai.util._checkpoint import CheckpointConfig, normalize_checkpoint
 from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._display import (
     DisplayType,
@@ -77,12 +89,19 @@ from inspect_ai.util._display import (
     display_type_initialized,
     init_display_type,
 )
+from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_tasks
-from .run import eval_run
-from .task import Epochs, PreviousTask
+from .loader import resolve_task_source, resolve_tasks
+from .run import TaskInjection, eval_run
+from .task import Epochs, PreviousTask, Task, TaskSource
+from .task.enqueue import (
+    TaskEnqueuer,
+    clear_task_enqueuer,
+    create_task_enqueuer,
+    register_task_enqueuer,
+)
 from .task.resolved import ResolvedTask, resolved_model_names
 from .task.tasks import Tasks
 
@@ -98,8 +117,9 @@ def eval(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -122,7 +142,8 @@ def eval(
     score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
-    token_limit: int | None = None,
+    token_limit: int | str | TokenLimit | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -167,12 +188,23 @@ def eval(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
-        checkpoint: Checkpoint configuration for this eval. Overrides
-            any task- or sample-level `checkpoint` when set.
+        checkpoint: Checkpoint configuration for this eval, or `True` to
+            enable checkpointing with the default trigger (every 500k
+            tokens) — equivalent to the bare `--checkpoint` CLI flag.
+            Overrides any task- or sample-level `checkpoint` that enables
+            checkpointing when set. A task can opt out with
+            `Task(checkpoint=False)`, which overrides this enable for that
+            task only.
         acp_server: Expose this eval over an Agent Client Protocol server.
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl process release`
+            (or `POST /release`).
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -219,7 +251,12 @@ def eval(
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
-        token_limit: Limit on total tokens used for each sample.
+        token_limit: Limit on tokens used for each sample. An `int` (or a
+            `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+            with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -228,7 +265,7 @@ def eval(
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
-        max_samples: Maximum number of samples to run in parallel
+        max_samples: Maximum number of samples to run in parallel within each task
             (default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
@@ -306,6 +343,7 @@ def eval(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 cost_limit=cost_limit,
@@ -327,6 +365,7 @@ def eval(
                 score=score,
                 score_display=score_display,
                 acp_server=acp_server,
+                ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -368,8 +407,9 @@ async def eval_async(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -390,7 +430,8 @@ async def eval_async(
     score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
-    token_limit: int | None = None,
+    token_limit: int | str | TokenLimit | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -430,11 +471,17 @@ async def eval_async(
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
-        checkpoint: Checkpoint configuration for this eval. Overrides any task- or sample-level `checkpoint` when set.
+        checkpoint: Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens), equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` when set.
         acp_server: Expose this eval over an Agent Client Protocol server.
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl process release`
+            (or `POST /release`).
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
         tags: Tags to associate with this evaluation run.
@@ -472,7 +519,12 @@ async def eval_async(
             log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them) so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
-        token_limit: Limit on total tokens used for each sample.
+        token_limit: Limit on tokens used for each sample. An `int` (or a
+            `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+            with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -481,7 +533,7 @@ async def eval_async(
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
-        max_samples: Maximum number of samples to run in parallel (default is max_connections)
+        max_samples: Maximum number of samples to run in parallel within each task (default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -510,6 +562,24 @@ async def eval_async(
     Returns:
         List of EvalLog (one for each task)
     """
+    # normalize `checkpoint=True` (enable, defer trigger) to a config;
+    # this is the single choke point for the eval layer — `eval`,
+    # `eval_set`, `eval_retry`, and `eval_retry_async` all funnel here.
+    checkpoint = normalize_checkpoint(checkpoint)
+
+    # validate ctl_server here too (it's resolved where it's consumed, at the
+    # control-server bind inside the run) so a bad value fails fast as an
+    # argument error rather than after models, tasks, and run-start hooks
+    # have already initialized
+    resolve_ctl_server(ctl_server)
+
+    # clear a stale keep-alive intent left by a prior run in this process —
+    # but only for a standalone eval. When nested in an eval-set (eval_set_id
+    # set), eval_set() owns the intent: it sets it BEFORE this inner eval()
+    # runs to advertise the impending park, so resetting here would erase it.
+    if eval_set_id is None:
+        reset_keep_alive()
+
     result: list[EvalLog] | None = None
 
     async def run(tg: TaskGroup) -> None:
@@ -547,6 +617,7 @@ async def eval_async(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 cost_limit=cost_limit,
@@ -568,6 +639,7 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 acp_server=acp_server,
+                ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -603,6 +675,7 @@ async def _eval_async_inner(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -623,7 +696,8 @@ async def _eval_async_inner(
     score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
-    token_limit: int | None = None,
+    token_limit: int | str | TokenLimit | None = None,
+    turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     cost_limit: float | None = None,
@@ -681,6 +755,7 @@ async def _eval_async_inner(
 
     run_id = uuid()
 
+    enqueuer_token: Token[TaskEnqueuer | None] | None = None
     try:
         # intialise eval
         model = eval_init(
@@ -695,7 +770,16 @@ async def _eval_async_inner(
             **kwargs,
         )
 
-        # resolve tasks
+        # A TaskSource drives the run dynamically: its initial_tasks() seed the
+        # run (resolved + validated up front like any task list) and become the
+        # first batch; next_tasks() then feeds subsequent batches (see the eval
+        # loop below). `tasks` may be a TaskSource instance or refer to one (a
+        # @task_source function, a registered name, or a file.py@name spec); any
+        # other task form resolves directly.
+        task_source = resolve_task_source(tasks, task_args)
+
+        # resolve tasks (a TaskSource seeds the run from initial_tasks(),
+        # resolved inside eval_resolve_tasks' initialized model/role context)
         resolved_tasks, approval = eval_resolve_tasks(
             tasks,
             task_args,
@@ -707,6 +791,7 @@ async def _eval_async_inner(
             sample_shuffle,
             checkpoint,
             notification,
+            task_source=task_source,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -787,6 +872,7 @@ async def _eval_async_inner(
 
         # create config
         epochs_reducer = epochs.reducer if epochs else None
+        token_limit_tokens, token_limit_type = token_limit_fields(token_limit)
         eval_config = EvalConfig(
             limit=limit,
             sample_id=sample_id,
@@ -802,7 +888,9 @@ async def _eval_async_inner(
             retry_on_error=retry_on_error,
             score_on_error=score_on_error,
             message_limit=message_limit,
-            token_limit=token_limit,
+            token_limit=token_limit_tokens,
+            token_limit_type=token_limit_type,
+            turn_limit=turn_limit,
             cost_limit=cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
@@ -822,11 +910,13 @@ async def _eval_async_inner(
             acp_server=acp_server,
         )
 
-        # run tasks - 2 codepaths, one for the traditional task at a time
-        # (w/ optional multiple models) and the other for true multi-task
-        # (which requires different scheduling and UI)
-        task_definitions = len(resolved_tasks) // len(model)
-        parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
+        # Max concurrently-executing (task × model) units. An explicit
+        # max_tasks bounds it directly — including a single task definition
+        # fanned across models, so `max_tasks=1` runs model-by-model rather
+        # than all at once (see issue #4195). When unset it has already been
+        # defaulted above to the model count (run all models in parallel) for
+        # the multi-model case, else None → 1 (one task at a time).
+        parallel = max_tasks if max_tasks is not None else 1
 
         # set run shape for log record enhancement
         if eval_config.epochs is not None:
@@ -864,55 +954,78 @@ async def _eval_async_inner(
         # via the discovery file in `<inspect_data_dir>/acp/`. Nested
         # rather than parenthesized because ``scan_cm`` is a sync
         # context manager and Python disallows mixing in the comma form.
-        async with _acp_server(eval_id=run_id, transport=acp_server):
+        #
+        # The control channel HTTP server is default-on (unlike ACP,
+        # which is opt-in; disable with ctl_server=False). It exposes
+        # live-eval read / direct / event-subscription operations to
+        # `inspect ctl` CLI clients, TUIs, and agents. Bind failures are
+        # logged and swallowed — eval correctness never depends on the
+        # control channel coming up. See design/control-channel.md
+        # "Implementation notes".
+        #
+        ctl = resolve_ctl_server(ctl_server)
+        # Advertise keep-alive via the process-global latch (the single source
+        # of truth the control server reports and the park gates on). A runtime
+        # `POST /keep` sets the same latch. An eval-set demotes its inner eval()
+        # to a plain on/off server and owns the latch itself, so ctl.keep_alive
+        # is only ever set here for a standalone eval.
+        if ctl.keep_alive:
+            request_keep_alive()
+
+        # Register a task enqueuer so additional tasks can be added to this run
+        # while it's in progress — imperatively via `enqueue_task`, or
+        # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
+        # the run's models / config; the eval loop below runs them under this
+        # run_id after each batch.
+        resolve_added_tasks = functools.partial(
+            _resolve_enqueued_tasks,
+            models=model,
+            model_roles=model_roles,
+            config=GenerateConfig(**kwargs),
+            sandbox=sandbox,
+            sample_shuffle=sample_shuffle,
+            checkpoint=checkpoint,
+            cost_limit=cost_limit,
+        )
+        enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
+        enqueuer_token = register_task_enqueuer(enqueuer)
+
+        async with (
+            control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
+            _acp_server(eval_id=run_id, transport=acp_server),
+        ):
+            # emitted here — after the control-server bind, before any task
+            # work — so a listener that has seen the handoff can rely on the
+            # control surface existing (or being definitively absent)
+            emit_launch_handoff(
+                LaunchHandoff(
+                    run_id=run_id,
+                    pid=os.getpid(),
+                    log_dir=log_dir,
+                    control_socket=str(_ctl_server.socket_path)
+                    if _ctl_server is not None and _ctl_server.socket_path is not None
+                    else None,
+                    eval_set_id=eval_set_id,
+                )
+            )
             with scan_cm:
-                # single task definition (could be multi-model) or max_tasks capped to 1
-                if parallel == 1:
-                    results: list[EvalLog] = []
-                    for sequence in sorted(set(t.sequence for t in resolved_tasks)):
-                        task_batch = list(
-                            filter(lambda t: t.sequence == sequence, resolved_tasks)
-                        )
-                        results.extend(
-                            await eval_run(
-                                eval_set_id=eval_set_id,
-                                run_id=run_id,
-                                tasks=task_batch,
-                                parallel=parallel,
-                                eval_config=eval_config,
-                                eval_sandbox=sandbox,
-                                eval_checkpoint=checkpoint,
-                                recorder=recorder,
-                                header_only=log_header_only,
-                                epochs_reducer=epochs_reducer,
-                                solver=solver,
-                                scanner=scanner,
-                                scan_id=scan_id,
-                                tags=tags,
-                                metadata=metadata,
-                                run_samples=run_samples,
-                                score=score,
-                                debug_errors=debug_errors is True,
-                                task_retry_attempts=task_retry_attempts,
-                                **kwargs,
-                            )
-                        )
-                        # exit the loop if there was a cancellation
-                        if any([result.status == "cancelled" for result in results]):
-                            break
-
-                    # return list of eval logs
-                    logs = EvalLogs(results)
-
-                # multiple task definitions AND tasks not capped at 1
-                else:
-                    results = await eval_run(
+                # The one place eval_run is invoked for a batch of tasks. The
+                # initial tasks run as the first loop iteration below; tasks
+                # added during the run (via `enqueue_task` or a `TaskSource`)
+                # feed later iterations, all under this run_id. `debug_errors`
+                # is passed only on the parallel==1 path (the multi-task path
+                # never set it — preserved asymmetry).
+                async def run_batch(
+                    tasks: list[ResolvedTask],
+                    debug: bool,
+                    inject: TaskInjection | None = None,
+                ) -> list[EvalLog]:
+                    return await eval_run(
                         eval_set_id=eval_set_id,
                         run_id=run_id,
-                        tasks=resolved_tasks,
+                        tasks=tasks,
                         parallel=parallel,
                         eval_config=eval_config,
-                        eval_sandbox=sandbox,
                         eval_checkpoint=checkpoint,
                         recorder=recorder,
                         header_only=log_header_only,
@@ -924,10 +1037,105 @@ async def _eval_async_inner(
                         metadata=metadata,
                         run_samples=run_samples,
                         score=score,
+                        debug_errors=debug,
                         task_retry_attempts=task_retry_attempts,
+                        task_source=task_source,
+                        inject=inject,
                         **kwargs,
                     )
-                    logs = EvalLogs(results)
+
+                # Run successive batches under this run_id until the run is
+                # exhausted: the seed first, then tasks added imperatively
+                # (enqueue_task) or declaratively (a TaskSource's next_tasks())
+                # feed later iterations, repeating until none remain. A
+                # cancelled batch ends the run. Returns the combined logs.
+                async def run_batches(initial: list[ResolvedTask]) -> EvalLogs:
+                    results: list[EvalLog] = []
+                    pending: list[ResolvedTask] | None = initial
+                    while pending is not None:
+                        batch_logs: list[EvalLog] = []
+                        if parallel == 1:
+                            # single task definition (could be multi-model): run
+                            # sequence groups in order, stopping on cancellation
+                            for sequence in sorted({t.sequence for t in pending}):
+                                batch_logs.extend(
+                                    await run_batch(
+                                        [t for t in pending if t.sequence == sequence],
+                                        debug_errors is True,
+                                    )
+                                )
+                                if any(r.status == "cancelled" for r in batch_logs):
+                                    break
+                        else:
+                            # multiple task definitions, run together
+                            batch_logs.extend(await run_batch(pending, False))
+                        results.extend(batch_logs)
+
+                        # a cancelled batch ends the run
+                        if any(r.status == "cancelled" for r in batch_logs):
+                            break
+
+                        # (a TaskSource observes results via sample_complete /
+                        # task_complete, fired from task_run as each sample/task
+                        # finishes — so its next_tasks() decision can use them)
+
+                        # next batch under this run_id: imperative additions
+                        # (enqueue_task) first, else the TaskSource's next_tasks()
+                        # (which may block, and ends the run by returning None).
+                        pending = enqueuer.drain() or None
+                        if pending is None and task_source is not None:
+                            next_tasks = await task_source.next_tasks()
+                            pending = (
+                                resolve_added_tasks(next_tasks) if next_tasks else None
+                            )
+                    return EvalLogs(results)
+
+                if task_source is not None and parallel > 1:
+                    # live (TaskSource-driven) run: one eval_run fed additional
+                    # tasks while in progress. Injected tasks — from the source's
+                    # next_tasks(), its sample/task_complete return values, or
+                    # enqueue_task — start on free capacity rather than waiting
+                    # for a batch boundary. This only helps when there is spare
+                    # capacity to fill (parallel > 1); with parallel == 1 nothing
+                    # runs concurrently, so we fall through to run_batches, which
+                    # preserves the parallel==1 sequence grouping (and still drives
+                    # the source via enqueuer.drain() / next_tasks()).
+                    async def inject_next() -> list[ResolvedTask] | None:
+                        more = await task_source.next_tasks()
+                        return resolve_added_tasks(more) if more else None
+
+                    injection = TaskInjection(
+                        drain=enqueuer.drain,
+                        next=inject_next,
+                        set_wake=lambda fn: setattr(enqueuer, "on_enqueue", fn),
+                    )
+                    logs = EvalLogs(
+                        await run_batch(
+                            resolved_tasks, debug_errors is True, inject=injection
+                        )
+                    )
+                else:
+                    logs = await run_batches(resolved_tasks)
+
+            # keep-alive: after the body, park while the control / ACP
+            # servers are still up so `inspect ctl` can read state and
+            # request shutdown. (Standalone eval parks here, inside the
+            # task display; eval-set instead parks after the display has
+            # closed — so this gate is scoped to standalone via eval_set_id.)
+            # The intent covers the launch flag and runtime `POST /keep` /
+            # `/release` (last-write-wins). EvalStates are cleared at the run
+            # boundary below. Intent off (never asked, or a release won the
+            # last word) skips the park and its notice entirely.
+            if eval_set_id is None and keep_alive_intent() and _ctl_server is not None:
+                import rich
+
+                rich.get_console().print(
+                    "Eval finished. Keeping process alive — press Ctrl+C "
+                    "or run `inspect ctl process release` to let it exit.",
+                    markup=False,
+                    highlight=False,
+                )
+                await wait_for_shutdown_async(_ctl_server)
 
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
@@ -943,8 +1151,65 @@ async def _eval_async_inner(
         _eval_async_running = False
         raise e
 
+    finally:
+        # Stop accepting task additions for this run.
+        if enqueuer_token is not None:
+            clear_task_enqueuer(enqueuer_token)
+        # Clear the process-level EvalState registry at the run boundary
+        # (after any keep-alive park) — but only for a standalone eval.
+        # When nested in an eval-set (eval_set_id set) the eval-set owns
+        # this, clearing after its own park.
+        if eval_set_id is None:
+            clear_all_eval_states()
+
     # return logs
     return logs
+
+
+def _resolve_enqueued_tasks(
+    tasks: Tasks,
+    *,
+    models: list[Model],
+    model_roles: dict[str, str | Model] | None,
+    config: GenerateConfig,
+    sandbox: SandboxEnvironmentType | None,
+    sample_shuffle: bool | int | None,
+    checkpoint: CheckpointConfig | None,
+    cost_limit: float | None,
+) -> list[ResolvedTask]:
+    """Resolve tasks added to a running eval (via ``enqueue_task``).
+
+    Bound (via ``functools.partial``) to the run's models / config / roles /
+    sandbox, then handed to the :class:`TaskEnqueuer` so additions resolve
+    consistently with the run. Raises ``ValueError`` if the tasks can't be
+    resolved.
+    """
+
+    def resolve() -> list[ResolvedTask]:
+        resolved_roles = resolve_model_roles(model_roles)
+        resolved: list[ResolvedTask] = []
+        for m in models:
+            init_active_model(m, config)
+            resolved.extend(
+                resolve_tasks(
+                    tasks, {}, m, resolved_roles, sandbox, sample_shuffle, checkpoint
+                )
+            )
+        return resolved
+
+    # Resolve in an isolated (copied) context. Unlike the up-front
+    # eval_resolve_tasks (which runs once in the eval context before samples
+    # fork), this runs synchronously wherever enqueue_task() is called — which
+    # may be inside a running solver / scorer / tool, or a sample/task_complete
+    # callback. init_active_model() mutates the active-model and active
+    # generate-config ContextVars, so running it in the caller's context would
+    # swap that sample's active model out from under it; the copy keeps those
+    # mutations local to resolution.
+    resolved = copy_context().run(resolve)
+    if not resolved:
+        raise ValueError("No tasks to enqueue (resolution produced none).")
+    resolve_model_costs(resolved, cost_limit)
+    return resolved
 
 
 def eval_retry(
@@ -975,13 +1240,14 @@ def eval_retry(
     score: bool = True,
     score_display: bool | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -994,7 +1260,7 @@ def eval_retry(
             (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults
             to "eval", the native high-performance format).
-        max_samples: Maximum number of samples to run in parallel
+        max_samples: Maximum number of samples to run in parallel within each task
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
@@ -1033,6 +1299,12 @@ def eval_retry(
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl process release`
+            (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;
@@ -1053,17 +1325,18 @@ def eval_retry(
             Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections:
             Adaptive concurrency for Model API connections. Defaults to enabled
-            (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100).
+            (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100).
             Pass `False` to opt out (uses static concurrency), an integer `N` as
             shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency`
             to fully customize bounds and tuning (cooldown_seconds, decrease_factor,
             scale_up_percent). An explicit `max_connections` or `batch=True`
             takes precedence and uses static concurrency.
         checkpoint:
-            Checkpoint configuration for this retry. Must match the config
-            used on the original eval for resume detection to find the
-            checkpoint files (the original `--checkpoint` is not recorded in the
-            log file).
+            Checkpoint configuration for this retry, or `True` to enable
+            checkpointing with the default trigger (every 500k tokens).
+            Must match the config used on the original eval for resume
+            detection to find the checkpoint files (the original
+            `--checkpoint` is not recorded in the log file).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1101,6 +1374,7 @@ def eval_retry(
             score=score,
             score_display=score_display,
             acp_server=acp_server,
+            ctl_server=ctl_server,
             scanner=scanner,
             max_retries=max_retries,
             timeout=timeout,
@@ -1152,13 +1426,14 @@ async def eval_retry_async(
     score: bool = True,
     score_display: bool | None = None,
     acp_server: bool | int | str | None = None,
+    ctl_server: bool | str | None = None,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1169,7 +1444,7 @@ async def eval_retry_async(
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
-        max_samples: Maximum number of samples to run in parallel
+        max_samples: Maximum number of samples to run in parallel within each task
            (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel (default is 1)
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
@@ -1202,6 +1477,12 @@ async def eval_retry_async(
             additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        ctl_server: Control-channel server for this eval process.
+            `True` or `None` (default) binds the default AF_UNIX socket;
+            `False` disables the control endpoint; `"keep"` additionally
+            keeps the process running after the eval finishes so external
+            clients can still query its state — exit via `inspect ctl process release`
+            (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;
@@ -1216,8 +1497,8 @@ async def eval_retry_async(
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
-        adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
-        checkpoint: Checkpoint configuration for this retry. Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
+        adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
+        checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1339,7 +1620,16 @@ async def eval_retry_async(
         approval = eval_log.eval.config.approval
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
-        token_limit = eval_log.eval.config.token_limit
+        config_token_limit = eval_log.eval.config.token_limit
+        config_token_limit_type = eval_log.eval.config.token_limit_type
+        token_limit: int | TokenLimit | None = (
+            TokenLimit(tokens=config_token_limit, type=config_token_limit_type)
+            if config_token_limit is not None
+            and config_token_limit_type is not None
+            and config_token_limit_type != "all"
+            else config_token_limit
+        )
+        turn_limit = eval_log.eval.config.turn_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
@@ -1415,7 +1705,9 @@ async def eval_retry_async(
         )
 
         config = eval_log.plan.config
-        config.max_retries = max_retries or config.max_retries
+        config.max_retries = (
+            max_retries if max_retries is not None else config.max_retries
+        )
         config.timeout = timeout or config.timeout
         config.attempt_timeout = attempt_timeout or config.attempt_timeout
         config.max_connections = max_connections or config.max_connections
@@ -1477,6 +1769,7 @@ async def eval_retry_async(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 max_samples=max_samples,
@@ -1494,6 +1787,7 @@ async def eval_retry_async(
                 score_display=score_display,
                 checkpoint=checkpoint,
                 acp_server=acp_server,
+                ctl_server=ctl_server,
                 **dict(config),
             )
         )[0]
@@ -1557,6 +1851,7 @@ def eval_resolve_tasks(
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
     notification: bool | str | None = None,
+    task_source: TaskSource | None = None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
@@ -1569,17 +1864,33 @@ def eval_resolve_tasks(
     active_display = active_task_display()
     with active_display.suspend_task_app() if active_display else nullcontext():
         resolved_tasks: list[ResolvedTask] = []
-        for m in models:
+        # A TaskSource's seed comes from initial_tasks() rather than `tasks`;
+        # produce it once, here, so it runs inside the same initialized
+        # model/role context as normal task creation (a seed that calls
+        # get_model() then behaves like a @task factory resolved here). The
+        # same seed tasks are then fanned out across all models below.
+        seed: list[Task] | None = None
+        for i, m in enumerate(models):
             init_active_model(m, config)
+            if task_source is not None:
+                if seed is None:
+                    seed = task_source.initial_tasks()
+                batch: Tasks = seed
+            else:
+                batch = tasks
             resolved_tasks.extend(
                 resolve_tasks(
-                    tasks,
+                    batch,
                     task_args,
                     m,
                     resolved_model_roles,
                     sandbox,
                     sample_shuffle,
                     eval_checkpoint,
+                    # warn once (not per model) if args can't be applied. A
+                    # TaskSource already consumed task_args to build its seed
+                    # (resolve_task_source), so don't warn for that path.
+                    warn_unconsumed_task_args=(i == 0 and task_source is None),
                 )
             )
 

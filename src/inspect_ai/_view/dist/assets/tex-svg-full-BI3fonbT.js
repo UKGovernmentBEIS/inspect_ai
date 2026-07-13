@@ -8791,7 +8791,7 @@ var e = { env: {} };
 			Object.defineProperty(t, `__esModule`, { value: !0 });
 			var o, s = n(9007), c = n(2756);
 			(function(e) {
-				var t = new Map([
+				var t = /* @__PURE__ */ new Map([
 					[`autoOP`, !0],
 					[`fnOP`, !0],
 					[`movesupsub`, !0],
@@ -10033,7 +10033,7 @@ var e = { env: {} };
 				}, t;
 			}(u);
 			t.AllTags = f, function(e) {
-				var t = new Map([[`none`, d], [`all`, f]]), n = `none`;
+				var t = /* @__PURE__ */ new Map([[`none`, d], [`all`, f]]), n = `none`;
 				e.OPTIONS = {
 					tags: n,
 					tagSide: `right`,
@@ -14771,7 +14771,7 @@ var e = { env: {} };
 			});
 		},
 		7960: function(e, t) {
-			Object.defineProperty(t, `__esModule`, { value: !0 }), t.COLORS = void 0, t.COLORS = new Map([
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.COLORS = void 0, t.COLORS = /* @__PURE__ */ new Map([
 				[`Apricot`, `#FBB982`],
 				[`Aquamarine`, `#00B5BE`],
 				[`Bittersweet`, `#C04F17`],
@@ -37745,7 +37745,7 @@ var e = { env: {} };
 						"background-color": `#F8F8F8`,
 						color: `black`
 					}
-				}, t.actions = new Map([
+				}, t.actions = /* @__PURE__ */ new Map([
 					[`toggle`, [function(e, t) {
 						e.adaptor.setAttribute(e.element, `data-toggle`, e.node.attributes.get(`selection`));
 						var n = e.factory.jax.math, r = e.factory.jax.document, i = e.node;
@@ -48230,7 +48230,7 @@ var e = { env: {} };
 					this.selections.sort(t.orderMethod.get(this.style));
 				}, t.prototype.toJson = function() {
 					return { type: `` };
-				}, t.chunkSize = 4, t.orderMethod = new Map([
+				}, t.chunkSize = 4, t.orderMethod = /* @__PURE__ */ new Map([
 					[`alphabetical`, function(e, t) {
 						return e.items[0].content.localeCompare(t.items[0].content);
 					}],
@@ -48639,7 +48639,7 @@ var e = { env: {} };
 		},
 		8290: function(e, t, n) {
 			Object.defineProperty(t, `__esModule`, { value: !0 }), t.isXml = t.registerRenderer = t.error = t.finalize = t.merge = t.markup = t.getSeparator = t.setSeparator = void 0;
-			let r = n(5897), i = n(4440), a = n(4196), o = n(8639), s = n(8990), c = n(6660), l = n(9536), u = n(7504), d = n(3757), f = n(4032), p = n(2456), m = new u.SsmlRenderer(), h = new Map([
+			let r = n(5897), i = n(4440), a = n(4196), o = n(8639), s = n(8990), c = n(6660), l = n(9536), u = n(7504), d = n(3757), f = n(4032), p = n(2456), m = new u.SsmlRenderer(), h = /* @__PURE__ */ new Map([
 				[i.Markup.NONE, new f.StringRenderer()],
 				[i.Markup.PUNCTUATION, new s.PunctuationRenderer()],
 				[i.Markup.LAYOUT, new o.LayoutRenderer()],
@@ -48911,7 +48911,7 @@ var e = { env: {} };
 					return t = typeof e == `number` ? e <= 250 ? `short` : e <= 500 ? `medium` : `long` : e, o.PAUSE_PUNCTUATION.get(t) || ``;
 				}
 			}
-			t.PunctuationRenderer = o, o.PAUSE_PUNCTUATION = new Map([
+			t.PunctuationRenderer = o, o.PAUSE_PUNCTUATION = /* @__PURE__ */ new Map([
 				[`short`, `,`],
 				[`medium`, `;`],
 				[`long`, `.`]
@@ -49355,7 +49355,7 @@ $2$3`).split(`\r
 		8496: function(e, t) {
 			Object.defineProperty(t, `__esModule`, { value: !0 }), t.Event = t.EventType = t.Move = t.KeyCode = void 0, function(e) {
 				e[e.ENTER = 13] = `ENTER`, e[e.ESC = 27] = `ESC`, e[e.SPACE = 32] = `SPACE`, e[e.PAGE_UP = 33] = `PAGE_UP`, e[e.PAGE_DOWN = 34] = `PAGE_DOWN`, e[e.END = 35] = `END`, e[e.HOME = 36] = `HOME`, e[e.LEFT = 37] = `LEFT`, e[e.UP = 38] = `UP`, e[e.RIGHT = 39] = `RIGHT`, e[e.DOWN = 40] = `DOWN`, e[e.TAB = 9] = `TAB`, e[e.LESS = 188] = `LESS`, e[e.GREATER = 190] = `GREATER`, e[e.DASH = 189] = `DASH`, e[e.ZERO = 48] = `ZERO`, e[e.ONE = 49] = `ONE`, e[e.TWO = 50] = `TWO`, e[e.THREE = 51] = `THREE`, e[e.FOUR = 52] = `FOUR`, e[e.FIVE = 53] = `FIVE`, e[e.SIX = 54] = `SIX`, e[e.SEVEN = 55] = `SEVEN`, e[e.EIGHT = 56] = `EIGHT`, e[e.NINE = 57] = `NINE`, e[e.A = 65] = `A`, e[e.B = 66] = `B`, e[e.C = 67] = `C`, e[e.D = 68] = `D`, e[e.E = 69] = `E`, e[e.F = 70] = `F`, e[e.G = 71] = `G`, e[e.H = 72] = `H`, e[e.I = 73] = `I`, e[e.J = 74] = `J`, e[e.K = 75] = `K`, e[e.L = 76] = `L`, e[e.M = 77] = `M`, e[e.N = 78] = `N`, e[e.O = 79] = `O`, e[e.P = 80] = `P`, e[e.Q = 81] = `Q`, e[e.R = 82] = `R`, e[e.S = 83] = `S`, e[e.T = 84] = `T`, e[e.U = 85] = `U`, e[e.V = 86] = `V`, e[e.W = 87] = `W`, e[e.X = 88] = `X`, e[e.Y = 89] = `Y`, e[e.Z = 90] = `Z`;
-			}(t.KeyCode ||= {}), t.Move = new Map([
+			}(t.KeyCode ||= {}), t.Move = /* @__PURE__ */ new Map([
 				[13, `ENTER`],
 				[27, `ESC`],
 				[32, `SPACE`],
@@ -49744,7 +49744,7 @@ $2$3`).split(`\r
 					return n.LOCALES.get(e) ? e : (console.error(`Locale ${e} does not exist! Using ${n.LOCALES.get(t)} instead.`), t);
 				}
 			}
-			t.Variables = n, n.VERSION = `4.0.6`, n.LOCALES = new Map([
+			t.Variables = n, n.VERSION = `4.0.6`, n.LOCALES = /* @__PURE__ */ new Map([
 				[`ca`, `Catalan`],
 				[`da`, `Danish`],
 				[`de`, `German`],
@@ -50826,7 +50826,7 @@ $2$3`).split(`\r
 					let i = e.bbox;
 					if (i && i.w) {
 						let a = .05, o = r.createElement(`span`), s = parseFloat(e.style.paddingLeft || `0`);
-						o.style.backgroundColor = n.background, o.style.opacity = n.alphaback.toString(), o.style.display = `inline-block`, o.style.height = i.h + i.d + 2 * a + `em`, o.style.verticalAlign = -i.d + `em`, o.style.marginTop = o.style.marginBottom = -a + `em`, o.style.width = i.w + 0 + `em`, o.style.marginLeft = s - 0 + `em`, o.style.marginRight = -i.w - 0 - s + `em`, e.parentNode.insertBefore(o, e), t.box = o;
+						o.style.backgroundColor = n.background, o.style.opacity = n.alphaback.toString(), o.style.display = `inline-block`, o.style.height = i.h + i.d + 2 * a + `em`, o.style.verticalAlign = -i.d + `em`, o.style.marginTop = o.style.marginBottom = "-0.05em", o.style.width = i.w + 0 + `em`, o.style.marginLeft = s - 0 + `em`, o.style.marginRight = -i.w - 0 - s + `em`, e.parentNode.insertBefore(o, e), t.box = o;
 					}
 					return t;
 				}
@@ -58709,13 +58709,13 @@ $2$3`).split(`\r
 				let t = e.childNodes[0].childNodes[0].childNodes[0].textContent;
 				return t.match(/^\(.+\)$/) ? t.slice(1, -1) : t;
 			};
-			let x = new Map([
+			let x = /* @__PURE__ */ new Map([
 				[3, `CSFleftsuperscript`],
 				[4, `CSFleftsubscript`],
 				[2, `CSFbaseline`],
 				[1, `CSFrightsubscript`],
 				[0, `CSFrightsuperscript`]
-			]), S = new Map([
+			]), S = /* @__PURE__ */ new Map([
 				[4, 2],
 				[3, 3],
 				[2, 1],
@@ -58988,7 +58988,7 @@ $2$3`).split(`\r
 			let r = n(7052), i = n(8290), a = n(5740), o = n(4440), s = n(6828), c = n(8496), l = n(2298), u = n(4356), d = n(2105), f = n(5656), p = n(9552), m = n(9543), h = n(8504), g = n(7730), _ = n(1214), v = n(179), y = n(1204), b = n(5274);
 			class x {
 				constructor(e, t, n, r) {
-					this.node = e, this.generator = t, this.highlighter = n, this.modifier = !1, this.keyMapping = new Map([
+					this.node = e, this.generator = t, this.highlighter = n, this.modifier = !1, this.keyMapping = /* @__PURE__ */ new Map([
 						[c.KeyCode.UP, this.up.bind(this)],
 						[c.KeyCode.DOWN, this.down.bind(this)],
 						[c.KeyCode.RIGHT, this.right.bind(this)],

@@ -1,4 +1,5 @@
 import json
+import re
 import traceback
 from logging import getLogger
 from pathlib import PurePosixPath
@@ -19,6 +20,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
+from .limits import OutputLimitExceededError, override_max_exec_output_size
 
 logger = getLogger(__name__)
 
@@ -26,6 +28,7 @@ logger = getLogger(__name__)
 REQUESTS_DIR = "requests"
 RESPONSES_DIR = "responses"
 SERVICES_DIR = "/var/tmp/sandbox-services"
+SERVICES_DIR_MODE = "1777"
 
 ID = "id"
 METHOD = "method"
@@ -36,7 +39,30 @@ RESULT = "result"
 
 POLLING_INTERVAL = 0.1
 
+SERVICE_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
+FILENAME_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+
+# Output limit applied when reading a service request file. A service request
+# payload (e.g. a model generate request carrying base64 images) can be far
+# larger than a normal command's output, so we read it with a higher limit than
+# the default exec output cap. 150 MiB is 3x the bridge proxy's 50 MiB request
+# body cap -- 3x because the proxy re-serializes the body with ensure_ascii=True,
+# which in the worst case triples the byte size of a non-ASCII body (a 2-byte
+# UTF-8 char -> "\uXXXX" = 6 bytes; a non-BMP char -> a 12-byte surrogate pair).
+# So this covers every request the proxy can accept.
+SERVICE_REQUEST_READ_OUTPUT_LIMIT = 150 * 1024**2
+
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
+
+
+def _is_service_name(value: object) -> bool:
+    return isinstance(value, str) and SERVICE_NAME_PATTERN.fullmatch(value) is not None
+
+
+def _is_filename_token(value: object) -> bool:
+    return (
+        isinstance(value, str) and FILENAME_TOKEN_PATTERN.fullmatch(value) is not None
+    )
 
 
 @overload
@@ -107,13 +133,13 @@ async def sandbox_service(
     ```
 
     Args:
-        name: Service name
+        name: Service name (a bounded ASCII Python identifier).
         methods: Service methods.
         until: Function used to check whether the service should stop.
         sandbox: Sandbox to publish service to.
         user: User to login as. Defaults to the sandbox environment's default user.
         instance: If you want multiple instances of a service in a single sandbox
-            then use the `instance` param.
+            then use the `instance` param (a bounded ASCII filename token).
         polling_interval: Polling interval for request checking. If not specified uses
             sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
         started: Event to set when service has been started
@@ -141,10 +167,12 @@ async def sandbox_service(
     await service.start()
 
     # function to handle requests catching errors and logging a warning
+    # (catch broadly so an unexpected error reading the request queue can't
+    # escape and tear down the polling loop)
     async def safe_handle_requests() -> None:
         try:
             await service.handle_requests()
-        except RuntimeError as ex:
+        except Exception as ex:
             logger.warning(f"Error waiting for sandbox rpc: {ex}")
 
     # wait for and process methods
@@ -204,14 +232,19 @@ class SandboxService:
         """Create a SandboxService.
 
         Args:
-            name (str): Service name
+            name (str): Service name (a bounded ASCII Python identifier).
             sandbox (SandboxEnvironment): Sandbox to publish service to.
             user (str | None): User to login as. Defaults to the sandbox environment's
               default user.
             instance: Unique identifier for an instance of this named service
-               (should be a valid posix filename)
+               (a bounded ASCII filename token).
             started: Event to set when service has been started
         """
+        if not _is_service_name(name):
+            raise ValueError(
+                f"invalid service name: {name!r} "
+                "(must be a 1-128 character ASCII Python identifier)"
+            )
         self._name = name
         self._sandbox = sandbox
         self._user = user
@@ -219,6 +252,11 @@ class SandboxService:
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
         self._root_service_dir = self._service_dir
         if instance is not None:
+            if not _is_filename_token(instance):
+                raise ValueError(
+                    f"invalid instance: {instance!r} "
+                    "(must be a 1-128 character ASCII filename token)"
+                )
             self._service_dir = self._service_dir / instance
         self._methods: dict[str, SandboxServiceMethod] = {}
         self._requests_dir: str = ""
@@ -236,6 +274,10 @@ class SandboxService:
 
     async def start(self) -> None:
         """Start running the service."""
+        # ensure shared parent exists with sticky-1777 perms and that
+        # <service_dir> is owned by us (squat-check)
+        await self._ensure_service_dir()
+
         # requests dir
         assert not self._requests_dir
         self._requests_dir = await self._create_rpc_dir(REQUESTS_DIR)
@@ -257,13 +299,25 @@ class SandboxService:
 
     async def handle_requests(self) -> None:
         """Handle all pending service requests."""
-        # list pending requests
-        list_requests = f"ls -1 {self._requests_dir}/*.json"
-        result = await self._exec(["bash", "-c", list_requests])
+        # NUL-delimited so hostile filenames (e.g. containing newlines) can't
+        # forge extra entries in the listing
+        result = await self._exec(
+            [
+                "find",
+                self._requests_dir,
+                "-maxdepth",
+                "1",
+                "-name",
+                "*.json",
+                "-type",
+                "f",
+                "-print0",
+            ]
+        )
 
         # process requests
         if result.success:
-            request_files = result.stdout.strip().splitlines()
+            request_files = [file for file in result.stdout.split("\0") if file]
             if request_files:
                 async with anyio.create_task_group() as tg:
                     for file in request_files:
@@ -274,76 +328,135 @@ class SandboxService:
                             self._handle_request,
                             file,
                         )
-
-    async def _handle_request(self, request_file: str) -> None:
-        # read request
-        read_request = f"cat {request_file}"
-        result = await self._exec(["bash", "-c", read_request])
-        if not result.success:
-            raise RuntimeError(
-                f"Error reading request for service {self._name}: '{read_request}' ({result.stderr})"
+        else:
+            logger.warning(
+                f"Error listing requests for sandbox service '{self._name}': "
+                f"{result.stderr}"
             )
 
-        # parse request (decode error could occur if its incomplete so bypass this)
+    async def _handle_request(self, request_file: str) -> None:
+        request_path = PurePosixPath(request_file)
+        requests_dir = PurePosixPath(self._requests_dir)
+        if request_path.parent != requests_dir:
+            logger.warning(
+                f"Ignoring sandbox service request outside '{requests_dir}': "
+                f"{request_file!r}"
+            )
+            return
+
+        request_id = request_path.name.removesuffix(".json")
+        if request_path.name != f"{request_id}.json" or not _is_filename_token(
+            request_id
+        ):
+            logger.warning(
+                "Discarding sandbox service request with invalid filename: "
+                f"{request_file!r}"
+            )
+            await self._remove_request_file(request_file)
+            return
+
+        # read request -- raise the exec output limit for this read only, since a
+        # service request payload can legitimately be much larger than a normal
+        # command's output (see SERVICE_REQUEST_READ_OUTPUT_LIMIT).
+        try:
+            with override_max_exec_output_size(SERVICE_REQUEST_READ_OUTPUT_LIMIT):
+                result = await self._exec(["cat", "--", request_file])
+        except OutputLimitExceededError as ex:
+            # Provider raised on overflow (e.g. k8s). The request is too large to
+            # ever read, so it would otherwise sit in the queue and be retried (and
+            # re-logged) on every poll forever while the client blocks. Discard it
+            # and deliver an error response to unblock the client.
+            await self._discard_unreadable_request(
+                request_file,
+                request_id,
+                f"exceeded the {ex.limit_str} sandbox exec output limit",
+            )
+            return None
+        if not result.success:
+            raise RuntimeError(
+                f"Error reading request '{request_file}' for service "
+                f"{self._name}: {result.stderr}"
+            )
+
+        # parse request
         try:
             request_data = json.loads(result.stdout)
         except json.JSONDecodeError:
-            logger.warning(
-                f"JSON decoding error reading service request: {result.stdout}"
-            )
+            # A decode error means either (a) the file is still being written --
+            # retry on the next poll -- or (b) the provider silently TRUNCATED an
+            # oversized read instead of raising (e.g. docker/local, whose service
+            # execs bypass the output-size verifier), leaving a partial tail that
+            # can never parse. Distinguish via the on-disk size: if the file
+            # exceeds the read limit it can never be read, so discard it; otherwise
+            # treat it as an incomplete write and retry.
+            size = await self._request_size(request_file)
+            if size is not None and size > SERVICE_REQUEST_READ_OUTPUT_LIMIT:
+                limit_mib = SERVICE_REQUEST_READ_OUTPUT_LIMIT // 1024**2
+                await self._discard_unreadable_request(
+                    request_file,
+                    request_id,
+                    f"exceeds the {limit_mib} MiB service request read limit",
+                )
+            else:
+                # log metadata only -- never the payload, which can be large and
+                # may contain sensitive request content
+                logger.warning(
+                    "JSON decoding error reading service request "
+                    f"'{request_file}' ({len(result.stdout)} chars read, on-disk "
+                    f"size {size if size is not None else 'unknown'} bytes); "
+                    "treating as an incomplete write and retrying."
+                )
             return None
         if not isinstance(request_data, dict):
-            raise TypeError(f"Service request is not a dict (type={request_data})")
-
-        # read id (after we have this we can write responses)
-        request_id = request_data.get(ID, None)
-        if not isinstance(request_id, str):
-            raise TypeError(
-                f"Service request id is not a string (type={type(request_id)})"
+            await self._write_response(
+                request_file,
+                request_id,
+                None,
+                f"Service request is not a dict (type={type(request_data)})",
             )
+            return None
 
-        # helpers to write responses and errors
-
-        async def write_response(
-            result: JsonValue | None, error: str | None = None
-        ) -> None:
-            # form response payload
-            response_data = {
-                ID: request_id,
-                RESULT: result,
-                ERROR: error,
-            }
-
-            # compute response path
-            response_path = PurePosixPath(
-                self._responses_dir, f"{request_id}.json"
-            ).as_posix()
-
-            # write response
-            await self._write_text_file(response_path, json.dumps(response_data))
-
-            # remove request file
-            exec_rm = await self._exec(["rm", "-f", request_file])
-            if not exec_rm.success:
-                raise RuntimeError(
-                    f"Error removing request file '{request_file}': {exec_rm.stderr}"
-                )
-
-        async def write_error_response(error: str) -> None:
-            await write_response(None, error)
+        request_data_id = request_data.get(ID, None)
+        if not _is_filename_token(request_data_id):
+            await self._write_response(
+                request_file,
+                request_id,
+                None,
+                "Service request id is invalid",
+            )
+            return None
+        if request_data_id != request_id:
+            await self._write_response(
+                request_file,
+                request_id,
+                None,
+                "Service request id does not match request filename",
+            )
+            return None
 
         # read and validate params
         method_name = request_data.get(METHOD, None)
         params = request_data.get(PARAMS, None)
         if not isinstance(method_name, str):
-            await write_error_response(
-                f"Service {METHOD} not passed or not a string (type={type(method_name)})"
+            await self._write_response(
+                request_file,
+                request_id,
+                None,
+                f"Service {METHOD} not passed or not a string (type={type(method_name)})",
             )
         elif method_name not in self._methods:
-            await write_error_response(f"Unknown method '{method_name}'")
+            await self._write_response(
+                request_file,
+                request_id,
+                None,
+                f"Unknown method '{method_name}'",
+            )
         elif not isinstance(params, dict):
-            await write_error_response(
-                f"{PARAMS} not passed or not a dict (type={params})"
+            await self._write_response(
+                request_file,
+                request_id,
+                None,
+                f"{PARAMS} not passed or not a dict (type={params})",
             )
 
         # all clear, call the method
@@ -355,18 +468,154 @@ class SandboxService:
                 params = cast(dict[str, JsonValue], request_data.get(PARAMS))
                 try:
                     method = self._methods[method_name]
-                    await write_response(await method(**params))
+                    await self._write_response(
+                        request_file, request_id, await method(**params)
+                    )
                 except LimitExceededError as ex:
                     active = sample_active()
                     if active is not None:
                         active.limit_exceeded(ex)
-                    await write_error_response(
-                        f"Limit exceeded calling method {method_name}: {ex.message}"
+                    await self._write_response(
+                        request_file,
+                        request_id,
+                        None,
+                        f"Limit exceeded calling method {method_name}: {ex.message}",
                     )
             except Exception as err:
                 err_traceback = traceback.format_exc()
-                await write_error_response(
-                    f"Error calling method {method_name}: {err}: {err_traceback}"
+                await self._write_response(
+                    request_file,
+                    request_id,
+                    None,
+                    f"Error calling method {method_name}: {err}: {err_traceback}",
+                )
+
+    async def _write_response(
+        self,
+        request_file: str,
+        request_id: str,
+        result: JsonValue | None,
+        error: str | None = None,
+    ) -> None:
+        response_data = {
+            ID: request_id,
+            RESULT: result,
+            ERROR: error,
+        }
+        await self._write_text_file(
+            self._response_path(request_id), json.dumps(response_data)
+        )
+        await self._remove_request_file(request_file)
+
+    def _response_path(self, request_id: str) -> str:
+        if not _is_filename_token(request_id):
+            raise ValueError(f"invalid request id: {request_id!r}")
+        return (PurePosixPath(self._responses_dir) / f"{request_id}.json").as_posix()
+
+    async def _remove_request_file(self, request_file: str) -> None:
+        request_path = PurePosixPath(request_file)
+        if request_path.parent != PurePosixPath(self._requests_dir):
+            raise ValueError(
+                f"request file is outside request directory: {request_file}"
+            )
+        result = await self._exec(["rm", "-f", "--", request_file])
+        if not result.success:
+            raise RuntimeError(
+                f"Error removing request file '{request_file}': {result.stderr}"
+            )
+
+    async def _request_size(self, request_file: str) -> int | None:
+        """On-disk size of the request file in bytes (None if it can't be read).
+
+        Used to tell an unreadable oversized request (which a provider may signal
+        by silently truncating the read) apart from a still-being-written file.
+        The size is read with a bounded command whose output is just a number, so
+        it can't itself trip the output limit.
+        """
+        result = await self._exec(["wc", "-c", "--", request_file])
+        if not result.success:
+            return None
+        try:
+            return int(result.stdout.split(maxsplit=1)[0])
+        except (IndexError, ValueError):
+            return None
+
+    async def _discard_unreadable_request(
+        self, request_file: str, request_id: str, detail: str
+    ) -> None:
+        """Discard a request that can't be read and notify the client.
+
+        Reading the full payload failed -- the provider either raised or silently
+        truncated an oversized read. The validated filename identifies the client
+        response, so no request payload needs to be parsed before the request is
+        removed.
+        """
+        error = (
+            f"Service '{self._name}' request payload could not be read "
+            f"({detail}); the request was discarded."
+        )
+        logger.warning(f"{error} (request_file='{request_file}')")
+
+        await self._write_response(request_file, request_id, None, error)
+
+    async def _ensure_service_dir(self) -> None:
+        # Make the shared parent 1777 so users other than the one that
+        # created it can still place their service dirs inside. Run as
+        # the sandbox default user (no user= override) since self._user
+        # typically can't chmod a dir owned by someone else; best-effort
+        # because even the default user may not own it.
+        try:
+            await self._sandbox.exec(
+                [
+                    "sh",
+                    "-c",
+                    f"mkdir -p {SERVICES_DIR} && "
+                    f"chmod {SERVICES_DIR_MODE} {SERVICES_DIR} 2>/dev/null; true",
+                ],
+                timeout=600,
+                concurrency=False,
+            )
+        except TimeoutError:
+            raise RuntimeError(
+                f"Timed out preparing shared services directory {SERVICES_DIR}"
+            )
+
+        service_dir = self._service_dir.as_posix()
+        result = await self._exec(["mkdir", "-p", service_dir])
+        if not result.success:
+            # When the chmod above silently no-op'd, mkdir fails with a
+            # generic Permission denied that blames the leaf. Re-blame
+            # the parent if it's actually the unwritable one.
+            parent = self._service_dir.parent.as_posix()
+            writable = await self._exec(["test", "-w", parent])
+            if not writable.success:
+                user = self._user or "the sandbox default user"
+                raise PrerequisiteError(
+                    f"Sandbox service '{self._name}' cannot create "
+                    f"'{service_dir}': its parent directory '{parent}' is "
+                    f"not writable by user '{user}'. Another service may "
+                    "have created it with restrictive permissions, or "
+                    "claimed this name."
+                )
+            raise RuntimeError(
+                f"Error creating service directory '{service_dir}' "
+                f"for sandbox service '{self._name}': {result.stderr}"
+            )
+
+        # Squat check. test -O passes iff path is owned by the effective
+        # uid; _exec runs as self._user, so this rejects dirs owned by
+        # other users. With instance, also check the <name> parent.
+        dirs_to_check = [service_dir]
+        if self._service_dir != self._root_service_dir:
+            dirs_to_check.append(self._root_service_dir.as_posix())
+        for path in dirs_to_check:
+            owned = await self._exec(["test", "-O", path])
+            if not owned.success:
+                user = self._user or "the sandbox default user"
+                raise PrerequisiteError(
+                    f"Sandbox service '{self._name}' cannot start: "
+                    f"'{path}' exists but is not owned by user '{user}'. "
+                    "Another service may have claimed this name."
                 )
 
     async def _create_rpc_dir(self, name: str) -> str:

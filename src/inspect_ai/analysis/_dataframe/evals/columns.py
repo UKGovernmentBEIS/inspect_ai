@@ -11,6 +11,7 @@ from ..columns import Column, ColumnType
 from ..extract import list_as_str, remove_namespace
 from ..validate import resolved_schema
 from .extract import (
+    eval_log_headline_metric,
     eval_log_headline_stderr,
     eval_log_location,
     eval_log_scores_dict,
@@ -110,6 +111,8 @@ EvalConfiguration: list[Column] = [
     EvalColumn("approval", path="eval.config.approval"),
     EvalColumn("message_limit", path="eval.config.message_limit"),
     EvalColumn("token_limit", path="eval.config.token_limit"),
+    EvalColumn("token_limit_type", path="eval.config.token_limit_type"),
+    EvalColumn("turn_limit", path="eval.config.turn_limit"),
     EvalColumn("time_limit", path="eval.config.time_limit"),
     EvalColumn("working_limit", path="eval.config.working_limit"),
 ]
@@ -122,7 +125,7 @@ EvalResults: list[Column] = [
     EvalColumn("total_samples", path="results.total_samples"),
     EvalColumn("completed_samples", path="results.completed_samples"),
     EvalColumn("score_headline_name", path="results.scores[0].scorer"),
-    EvalColumn("score_headline_metric", path="results.scores[0].metrics.*.name"),
+    EvalColumn("score_headline_metric", path=eval_log_headline_metric),
     EvalColumn("score_headline_value", path="results.scores[0].metrics.*.value"),
     EvalColumn("score_headline_stderr", path=eval_log_headline_stderr),
 ]

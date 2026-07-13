@@ -39,7 +39,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
@@ -57,6 +57,8 @@ inspect eval arc.py --model openai/gpt-4o-mini \
 Or from Python:
 
 ```{python}
+from inspect_ai import eval
+
 eval(
     "arc.py", model=" openai/gpt-4o-mini", 
     model_args= { "responses_api": True }
@@ -92,6 +94,17 @@ By default, Inspect's implementation of the Responses API does not store message
 ``` bash
 inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
+
+### Responses Metadata
+
+You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 \
+    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+```
+
+The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
 
 ### Flex Processing
 
@@ -145,6 +158,51 @@ inspect eval math.py --model openai/azure/gpt-4o-mini
 
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
 
+### OpenAI on AWS Bedrock {#openai-on-aws-bedrock}
+
+The `openai` provider supports OpenAI models served through [Amazon Bedrock](https://aws.amazon.com/bedrock/). Use the normal `openai` provider with the `bedrock` qualifier, and use a standard OpenAI model identifier (Inspect automatically adds prefixes and suffixes required by Bedrock). For example:
+
+``` bash
+export AWS_BEARER_TOKEN_BEDROCK=your-bedrock-api-key
+inspect eval arc.py --model openai/bedrock/gpt-5.5
+```
+
+You don't need to set a region for the example above — Inspect defaults to `us-east-2`. The available model ids (e.g. `gpt-5.5`, `gpt-oss-120b`) and the regions they're offered in vary over time and by account; the [`bedrock-mantle` documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html) lists the supported regions.
+
+#### Region
+
+The AWS region is resolved with the following precedence: the `aws_region` model arg (`-M aws_region`), then `AWS_REGION`, then `AWS_DEFAULT_REGION`, and finally a default of `us-east-2`. Region availability varies by model (for example, at the time of writing `gpt-5.5` is only offered in `us-east-2`. Note that Bedrock API keys are region-bound (a key only works in the region it was created in).
+
+If your environment sets a global `AWS_REGION` for other AWS services, you can target a specific region for this model only — without changing that global — using the model arg:
+
+``` bash
+inspect eval arc.py --model openai/bedrock/gpt-5.5 -M aws_region=us-east-2
+```
+
+#### Authentication
+
+Authentication uses an AWS Bedrock bearer token. There are two ways to provide one:
+
+| Variable | Description |
+|---------------------------|---------------------------------------------|
+| `AWS_BEARER_TOKEN_BEDROCK` | Bedrock bearer API key — the AWS-standard name, as used in the AWS and OpenAI documentation. |
+| `BEDROCK_OPENAI_API_KEY` | Bedrock bearer API key — Inspect-convention alias (takes precedence if both are set). |
+| `BEDROCK_OPENAI_BASE_URL` | Custom endpoint override (optional; the AWS-standard `AWS_BEDROCK_BASE_URL` is also accepted). By default Inspect targets the region's Mantle endpoint, choosing the model-appropriate path automatically (`/openai/v1` for frontier models like GPT-5.x and Codex, `/v1` for open-weight models like gpt-oss). |
+| `AWS_REGION` / `AWS_DEFAULT_REGION` | AWS region (optional; defaults to `us-east-2`). |
+
+The first option is a static bearer key. Generate an [Amazon Bedrock API key](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) and set it via `AWS_BEARER_TOKEN_BEDROCK` (the name used in the AWS and OpenAI docs; Inspect also accepts `BEDROCK_OPENAI_API_KEY`).
+
+The second option uses your standard AWS credentials (IAM roles, instance profiles, SSO, AssumeRole, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, or a configured `AWS_PROFILE`). If no bearer key is set, Inspect generates short-lived bearer tokens from these credentials. This requires the `aws-bedrock-token-generator` package:
+
+``` bash
+pip install aws-bedrock-token-generator
+export AWS_PROFILE=your-profile           # or any standard AWS credential source
+inspect eval arc.py --model openai/bedrock/gpt-5.5
+```
+
+If the package is not installed and no bearer key is available, Inspect raises an error explaining how to proceed.
+
+
 ## Anthropic {#anthropic}
 
 To use the [Anthropic](https://www.anthropic.com/api) provider, install the `anthropic` package, set your credentials, and specify a model using the `--model` option:
@@ -174,6 +232,32 @@ If there are other beta features you want to enable, use the `betas` model arg (
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
 ```
 
+### Refusal Fallback {#anthropic-refusal-fallback}
+
+::: {.callout-note appearance="simple"}
+The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+
+```bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Claude 5 classifiers can decline a request, returning a refusal (surfaced by Inspect as `stop_reason="content_filter"`). Such a request can usually be served by another Claude model. Set the `fallback_models` generate config to retry refused requests on one or more fallback models (tried in order) within the same request, using Anthropic's [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback):
+
+``` bash
+inspect eval arc.py --model anthropic/claude-fable-5 --fallback-models claude-opus-4-8
+```
+
+Or via the `eval()` / `GenerateConfig` API:
+
+``` python
+eval("arc.py", model="anthropic/claude-fable-5", fallback_models=["claude-opus-4-8"])
+```
+
+This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](models-batch.qmd), and is ignored (with a warning) in those cases.
+
+See the [Fallbacks](fallbacks.qmd) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
+
 #### Cache Diagnostics {#anthropic-cache-diagnostics}
 
 Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt cachijng. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
@@ -183,6 +267,16 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis
 ```
 
 Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
+
+### Cache TTL {#anthropic-cache-ttl}
+
+Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default, using the standard 5-minute cache TTL. Use the `cache_ttl` model arg (`-M`) to specify a different TTL. Valid values are "5m" (the default) and "1h":
+
+``` bash
+inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
+```
+
+Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart.
 
 ### Streaming
 
@@ -440,7 +534,7 @@ Note that all models on AWS Bedrock require that you [request model access](http
 
 You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
 
-If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access.
+If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access. If you are using OpenAI models on Bedrock, access them via the `openai` provider with the `bedrock` qualifier — see [OpenAI on AWS Bedrock](#openai-on-aws-bedrock).
 
 ## AWS SageMaker {#aws-sagemaker}
 
@@ -615,6 +709,12 @@ inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
+
+The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used (it is disabled by default). Pass `true` to enable streaming:
+
+``` bash
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
+```
 
 The following environment variables are supported by the Together AI provider
 
@@ -817,6 +917,26 @@ eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remo
 
 The flag is applied to both the model and tokenizer `from_pretrained()` calls.
 
+### Model Class
+
+By default the Hugging Face provider loads models with `AutoModelForCausalLM`. Some architectures are not registered with that auto-class and must be loaded with a different one — for example the Mistral 3 series and other image-text-to-text models require `AutoModelForImageTextToText`. Use the `auto_model_class` model arg to name the `transformers` auto-class to use:
+
+``` bash
+inspect eval arc.py --model hf/mistralai/Ministral-3-8B-Instruct-2512 -M auto_model_class=AutoModelForImageTextToText
+```
+
+Or from Python:
+
+``` python
+eval(
+    "arc.py",
+    model="hf/mistralai/Ministral-3-8B-Instruct-2512",
+    model_args=dict(auto_model_class="AutoModelForImageTextToText"),
+)
+```
+
+The value must be the name of a class exported by `transformers`.
+
 ### Local Models
 
 In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use `hf/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
@@ -862,7 +982,7 @@ vLLM is generally much faster than the Hugging Face provider as the library is d
 
 ### Multiple Servers
 
-`VLLM_BASE_URL` sets a single global endpoint, but a vLLM server only serves one model. If you need different models for different purposes — for example, a small model for the solver and a larger one as a judge for [model-graded scoring](scorers.qmd#model-graded) — start a vLLM server per model and pass a per-model `base_url` rather than relying on the env var.
+`VLLM_BASE_URL` sets a single global endpoint, but a vLLM server only serves one model. If you need different models for different purposes — for example, a small model for the solver and a larger one as a judge for [model-graded scoring](model-graded.qmd) — start a vLLM server per model and pass a per-model `base_url` rather than relying on the env var.
 
 The most ergonomic path is [model roles](models.qmd#model-roles), which lets the built-in `model_graded_*` scorers automatically resolve their judge from the `grader` role:
 
@@ -1003,7 +1123,7 @@ inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=fal
 `use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
 :::
 
-### Raw Text Completions
+### Raw Text Completions {#sec-vllm-completions}
 
 Use the `vllm-completions` provider when you want vLLM to receive a raw text prompt rather than chat messages rendered through a chat template:
 
@@ -1011,7 +1131,32 @@ Use the `vllm-completions` provider when you want vLLM to receive a raw text pro
 inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m
 ```
 
-This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations.
+This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations. It additionally manages the vLLM server lifecycle for you — to target an already-running OpenAI-compatible server, the [`openai-api-completions`](#openai-api-completions) provider offers the same behavior for any provider/server.
+
+#### Pre-Tokenized Prompts
+
+If you already have token IDs (custom tokenizer, pre-tokenized dataset, anything where you need exact control over the input sequence), pass them through `ChatMessage.metadata["prompt_token_ids"]` instead of a string. vLLM uses the IDs verbatim and skips re-tokenization, so you avoid an `ids → str → ids` round-trip that can change the sequence for non-bijective tokenizers.
+
+``` python
+from inspect_ai.model import ChatMessageUser, get_model
+
+token_ids = my_custom_tokenizer.encode("Hello")
+model = get_model("vllm-completions/EleutherAI/pythia-70m")
+response = await model.generate(
+    input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+)
+```
+
+When `prompt_token_ids` is present, only the IDs are sent to vLLM — the message's `content` is not used as the prompt. The `content` field is still part of the `ChatMessage` though, so it shows up in transcripts and is readable by scorers/judges. A common pattern is to put the decoded (or any human-readable) version of the prompt in `content` so downstream tooling has something useful to display:
+
+``` python
+ChatMessageUser(
+    content="Hello",  # what judges/transcripts see
+    metadata={"prompt_token_ids": token_ids},  # what the model actually receives
+)
+```
+
+vLLM only applies `add_special_tokens` when tokenizing a string prompt, so for `list[int]` prompts the IDs go through as-is regardless of that flag.
 
 ### Tool Use and Reasoning
 
@@ -1021,7 +1166,7 @@ For vLLM reasoning models, pass the model-specific parser and chat-template kwar
 
 ### Prompt Log Probabilities
 
-vLLM supports returning log probabilities for prompt tokens via the `prompt_logprobs` configuration option. This enables [perplexity-based scoring](scorers.qmd#perplexity) for benchmarks like WikiText, C4, ARC-C, and MMLU:
+vLLM supports returning log probabilities for prompt tokens via the `prompt_logprobs` configuration option. This enables [perplexity-based scoring](perplexity.qmd) for benchmarks like WikiText, C4, ARC-C, and MMLU:
 
 ``` bash
 inspect eval perplexity_eval.py --model vllm/meta-llama/Meta-Llama-3-8B \
@@ -1301,6 +1446,34 @@ You can enable the use of the streaming with the `openai-api` provider by passin
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
 ```
 
+### Completions API {#openai-api-completions}
+
+Use the `openai-api-completions` provider when you want the model to receive a raw prompt through the legacy `/v1/completions` endpoint rather than chat messages rendered through a chat template:
+
+``` bash
+inspect eval task.py --model openai-api-completions/<provider>/<model>
+```
+
+It follows the same naming and environment variable conventions as `openai-api`, accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations (echo mode, fill-in-the-middle, perplexity benchmarks).
+
+#### Pre-Tokenized Prompts
+
+If you already have token IDs (custom tokenizer, pre-tokenized dataset, anything where you need exact control over the input sequence), pass them through `ChatMessage.metadata["prompt_token_ids"]` instead of a string:
+
+``` python
+from inspect_ai.model import ChatMessageUser, get_model
+
+token_ids = my_custom_tokenizer.encode("Hello")
+model = get_model("openai-api-completions/<provider>/<model>")
+response = await model.generate(
+    input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+)
+```
+
+When `prompt_token_ids` is present, only the IDs are sent to the server — the message's `content` is not used as the prompt. The `content` field is still part of the `ChatMessage` though, so it shows up in transcripts and is readable by scorers/judges. A common pattern is to put the decoded (or any human-readable) version of the prompt in `content` so downstream tooling has something useful to display.
+
+Token IDs are passed through verbatim; whether the server adds special tokens to pre-tokenized prompts is server-dependent (vLLM does not — see [vLLM Completions API](#sec-vllm-completions)).
+
 ## OpenRouter
 
 To use the [OpenRouter](https://openrouter.ai/) provider, install the `openai` package (which the OpenRouter service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
@@ -1373,4 +1546,4 @@ inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream
 
 ## Custom Models
 
-If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions.qmd#sec-model-api-extensions) for additional details.
+If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions-model-api.qmd#sec-model-api-extensions) for additional details.

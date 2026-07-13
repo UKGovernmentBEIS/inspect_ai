@@ -1,6 +1,5 @@
 import contextlib
 import functools
-import importlib
 import sys
 import time
 from copy import copy, deepcopy
@@ -8,12 +7,19 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal, NamedTuple
 
 import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
+from inspect_ai._control.eval_state import (
+    finalize_eval,
+    record_sample_cancelled,
+    record_sample_completed,
+    record_sample_errored,
+    register_eval,
+)
 from inspect_ai._display import (
     TaskCancelled,
     TaskError,
@@ -32,7 +38,7 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS_BATCH,
 )
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import exception_message, is_cancellation_message
 from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.notgiven import NOT_GIVEN
@@ -68,22 +74,34 @@ from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
     read_eval_log_sample_async,
+    read_eval_log_sample_summaries_async,
 )
 from inspect_ai.log._log import (
+    EvalPlan,
     EvalRetryError,
     EvalSampleLimit,
     EvalSampleReductions,
     EvalSampleSummary,
+    EvalStatus,
     eval_error,
 )
-from inspect_ai.log._recorders.streaming import materialize_streaming_sample
+from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+    BufferTranscriptHistoryProvider,
+)
+from inspect_ai.log._recorders.streaming import (
+    eval_retry_error_from_history,
+    materialize_streaming_sample,
+)
 from inspect_ai.log._samples import (
     active_sample,
 )
 from inspect_ai.log._transcript import (
+    DEFAULT_RESIDENT_TAIL,
     Transcript,
+    TranscriptHistoryProvider,
     init_transcript,
     transcript,
+    transcript_bounded_enabled,
 )
 from inspect_ai.model import (
     GenerateConfig,
@@ -92,11 +110,12 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
+from inspect_ai.model._assistant_internal import init_sample_assistant_internal
 from inspect_ai.model._model import (
     init_model_usage,
     init_role_usage,
-    init_sample_model_usage,
-    init_sample_role_usage,
+    init_sample_model_data,
+    sample_model_fallbacks,
     sample_model_usage,
     sample_role_usage,
 )
@@ -116,6 +135,9 @@ from inspect_ai.util._checkpoint._layout import (
     has_sample_checkpoint,
     sample_checkpoints_dir,
 )
+from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
+    scan_latest_committed_checkpoint,
+)
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.config import (
     CheckpointConfig,
@@ -130,8 +152,12 @@ from inspect_ai.util._limit import (
     LimitExceededError,
     monitor_working_limit,
     record_sample_limit_data,
+    reset_sample_limit_data,
+    token_limit_usage,
+    turn_count,
 )
 from inspect_ai.util._limit import time_limit as create_time_limit
+from inspect_ai.util._limit import turn_limit as create_turn_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox import SandboxTimeoutError
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -142,6 +168,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
+from .enqueue import get_task_enqueuer
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -159,20 +186,69 @@ from .scan import (
     scanned_transcripts_for_resume,
 )
 from .store import DiskSampleStore, maybe_page_to_disk
+from .task_source import TaskSource
 from .util import sample_messages, slice_dataset
 
 py_logger = getLogger(__name__)
 
 
-EvalSampleSource = Callable[
-    [int | str, int], Awaitable[EvalSample | ResumeCheckpoint | None]
+@dataclass
+class PreviousError:
+    """Prior attempt of a sample that carries genuine error history.
+
+    Unlike a clean reused `EvalSample` (which short-circuits the re-run),
+    this signals that the sample must be re-run with its `error_retries`
+    seeded from the prior attempt (see `_seed_error_retries`). This unifies
+    task-level retries (eval-set / `retry_immediate`, which mint a fresh
+    log per attempt) with sample-level `retry_on_error` so both surface a
+    retry count and the prior errors on the surviving sample.
+
+    Carries the full prior `sample` so a retry attempt that is itself torn
+    down before re-running this sample can re-log it verbatim, keeping the
+    error history intact across the per-attempt log chain (see
+    `carry_forward_unlogged_samples`).
+    """
+
+    sample: EvalSample
+
+
+SampleLookup = Callable[
+    [int | str, int], Awaitable[EvalSample | ResumeCheckpoint | PreviousError | None]
 ]
+ErrorHistoryIds = Callable[[], Awaitable[set[tuple[int | str, int]]]]
+
+
+class EvalSampleSource(NamedTuple):
+    """A prior attempt's sample source.
+
+    `lookup` resolves one planned `(id, epoch)` to a reusable sample, a
+    resume checkpoint, or carried error history. `error_history_ids`
+    returns the `(id, epoch)` pairs that errored in the prior attempt —
+    the only candidates that can yield a `PreviousError` — so teardown
+    carry-forward can probe just those instead of the full plan.
+    """
+
+    lookup: SampleLookup
+    error_history_ids: ErrorHistoryIds
+
 
 # Units allocated for sample progress - the total units
 # represents the total units of progress for an individual sample
 # the remainder are increments of progress within a sample (and
 # must sum to the total_progress_units when the sample is complete)
 SAMPLE_TOTAL_PROGRESS_UNITS = 1
+
+
+def _sample_transcript_config(
+    logger: TaskLogger | None, sample_id: str | int, epoch: int
+) -> tuple[bool, TranscriptHistoryProvider | None]:
+    if logger is not None and logger.buffer_db is not None:
+        return (
+            transcript_bounded_enabled(),
+            BufferTranscriptHistoryProvider(logger.buffer_db, sample_id, epoch),
+        )
+    else:
+        return False, None
 
 
 @dataclass
@@ -200,6 +276,8 @@ class TaskRunOptions:
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
     initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
+    task_source: "TaskSource | None" = field(default=None)
+    """Run-level task source notified as this task's samples/task complete."""
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -232,6 +310,30 @@ def plan_agent_name(plan: Plan) -> str | None:
         if is_registry_object(last_step):
             return registry_unqualified_name(registry_info(last_step).name)
     return None
+
+
+def eval_plan_agent_name(plan: EvalPlan) -> str | None:
+    """Unqualified name of a recorded plan's terminal step (agent or solver).
+
+    The log-header counterpart of `plan_agent_name`. `plan_to_eval_plan`
+    records a `finish` solver again as the trailing step, so skip it to
+    match the live derivation.
+    """
+    steps = plan.steps[:-1] if plan.finish else plan.steps
+    return registry_unqualified_name(steps[-1].solver) if steps else None
+
+
+def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
+    """Add tasks a TaskSource callback returned to the running eval's queue.
+
+    Routes through the run's enqueuer (the same buffer ``enqueue_task`` feeds), so
+    the eval loop drains them as the next batch. A no-op if the callback returned
+    nothing or there is no active enqueuer.
+    """
+    if tasks:
+        enqueuer = get_task_enqueuer()
+        if enqueuer is not None:
+            enqueuer.enqueue(tasks)
 
 
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
@@ -299,6 +401,36 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # O(concurrent_samples) instead of O(total_samples * epochs))
     dataset = slice_dataset(task.dataset, config.limit, config.sample_id)
     total_samples = len(dataset) * epochs
+
+    # capture sample ids now, before `dataset` may be paged to disk and
+    # deleted below — used by register_eval and carry_forward_unlogged_samples
+    sample_ids = [s.id for s in dataset if s.id is not None]
+
+    async def finish_task_log(
+        status: EvalStatus,
+        stats: EvalStats,
+        results: EvalResults | None = None,
+        reductions: list[EvalSampleReductions] | None = None,
+        error: EvalError | None = None,
+    ) -> EvalLog:
+        """Finish via ``_finish_task_log`` with the run-invariant context.
+
+        Bound once here so every terminal branch finishes with the same
+        logger / sample-source / planned-ids context — a new branch can't
+        accidentally thread a stale or divergent value.
+        """
+        return await _finish_task_log(
+            logger=logger,
+            sample_source=options.sample_source,
+            sample_ids=sample_ids,
+            epochs=epochs,
+            log_images=log_images,
+            status=status,
+            stats=stats,
+            results=results,
+            reductions=reductions,
+            error=error,
+        )
 
     # handle sample errors (raise as required). use total_samples (sliced
     # dataset * epochs) as the denominator for fractional fail_on_error so
@@ -380,6 +512,39 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # call hook
             await emit_task_start(logger)
 
+            sample_semaphore = create_sample_semaphore(
+                config,
+                model.config.merge(generate_config),
+                model.api,
+                task_id=logger.eval.task_id,
+            )
+
+            # Register this eval with the process-level state aggregate
+            # so the control channel (and other readers) can answer
+            # "how many samples queued / running / done?" without
+            # polling active_samples() or scanning logs. Paired with
+            # the finalize_eval in the finally below.
+            register_eval(
+                logger.eval.eval_id,
+                total_samples,
+                task=logger.eval.task,
+                task_id=logger.eval.task_id,
+                model=str(model),
+                solver=profile.agent,
+                log_location=logger.location,
+                live=logger,
+                sample_ids=sample_ids,
+                epochs=epochs,
+                run_id=logger.eval.run_id,
+                # whether a failure of this attempt will be retried — lets the
+                # control channel show cancelled samples as pending (re-run
+                # coming) vs cancelled (terminal)
+                will_retry=task_cancel.can_retry if task_cancel is not None else False,
+                # the cancel handle the control channel's task-cancel
+                # directive fires (with "abort" — the display's user-cancel)
+                task_cancel=task_cancel,
+            )
+
             # call early stopping if we have it
             stopping_manager: str = ""
             if options.task.early_stopping is not None:
@@ -412,11 +577,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                 # set generate for fork module
                 set_task_generate(generate)
-
-                # semaphore to limit concurrency
-                sample_semaphore = create_sample_semaphore(
-                    config, generate_config, model.api
-                )
 
                 scanned_per_scanner = scanned_transcripts_for_resume(
                     scanner, scan_id, profile.log_location
@@ -480,8 +640,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # materialization to avoid unnecessary deepcopy + image I/O)
                     sample_id = sample_store[sample_index].id
                     resume_checkpoint: ResumeCheckpoint | None = None
+                    # prior task-attempt errors to seed this re-run's
+                    # error_retries (empty unless the sample source reports a
+                    # PreviousError); kept distinct from the sample-level
+                    # retry list so it doesn't suppress sample init/start emits
+                    previous_attempt_errors: list[EvalRetryError] = []
                     if sample_source and sample_id is not None:
-                        previous_sample = await sample_source(sample_id, epoch)
+                        previous_sample = await sample_source.lookup(sample_id, epoch)
                         if isinstance(previous_sample, EvalSample):
                             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
                             if logger and log_samples:
@@ -514,11 +679,25 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 eval_spec=logger.eval,
                             )
                             await sample_complete(sample_id, epoch, sample_scores)
+                            # reused sample: accumulate its own logged usage
+                            record_sample_completed(
+                                logger.eval.eval_id,
+                                tokens=sum(
+                                    u.total_tokens
+                                    for u in previous_sample.model_usage.values()
+                                ),
+                                messages=len(previous_sample.messages),
+                            )
                             return sample_scores
                         elif isinstance(previous_sample, ResumeCheckpoint):
                             # signal intent — agent code can branch on
-                            # `cp.is_resuming`. No state hydration yet.
+                            # `cp.attempt`. Hydration runs inside
+                            # `_CheckpointerSetup.__aenter__`.
                             resume_checkpoint = previous_sample
+                        elif isinstance(previous_sample, PreviousError):
+                            previous_attempt_errors = _seed_error_retries(
+                                previous_sample.sample
+                            )
 
                     # factory to create sample+state lazily (after semaphore)
                     # so only concurrently executing samples consume memory
@@ -539,6 +718,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 messages=sample_messages(sample),
                                 message_limit=config.message_limit,
                                 token_limit=config.token_limit,
+                                token_limit_type=config.token_limit_type or "all",
                                 cost_limit=config.cost_limit,
                                 completed=False,
                                 metadata=sample.metadata if sample.metadata else {},
@@ -548,6 +728,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         return sample, state
 
                     return await task_run_sample(
+                        task=task,
                         task_name=task.name,
                         log_location=profile.log_location,
                         create_sample_state=create_sample_state,
@@ -570,6 +751,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
                         early_stopping=options.task.early_stopping,
+                        task_source=options.task_source,
                         fails_on_error=(
                             config.fail_on_error is not False
                             and config.continue_on_fail is not True
@@ -578,6 +760,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         retry_on_error=config.retry_on_error or 0,
                         score_on_error=config.score_on_error or False,
                         error_retries=[],
+                        previous_attempt_errors=previous_attempt_errors,
+                        turn_limit=config.turn_limit,
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
                         semaphore=sample_semaphore,
@@ -643,8 +827,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             )
 
             # finish
-            eval_log = await logger.log_finish(
-                "error" if mark_log_as_error else "success", stats, results, reductions
+            eval_log = await finish_task_log(
+                status="error" if mark_log_as_error else "success",
+                stats=stats,
+                results=results,
+                reductions=reductions,
             )
 
             await emit_task_end(logger, eval_log)
@@ -681,8 +868,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         f"Task cancelled by user ({task_cancel.cancel_type})"
                     )
                     error = eval_error(cancel_ex, TerminateTaskError, cancel_ex, None)
-                    eval_log = await logger.log_finish(
-                        "error", stats, results, reductions, error
+                    eval_log = await finish_task_log(
+                        status="error",
+                        stats=stats,
+                        results=results,
+                        reductions=reductions,
+                        error=error,
                     )
                     td.complete(
                         TaskError(
@@ -694,8 +885,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     )
                 else:
                     # External cancellation (ctrl+c)
-                    eval_log = await logger.log_finish(
-                        "cancelled", stats, results, reductions
+                    eval_log = await finish_task_log(
+                        status="cancelled",
+                        stats=stats,
+                        results=results,
+                        reductions=reductions,
                     )
                     td.complete(TaskCancelled(logger.samples_completed, stats))
 
@@ -715,12 +909,21 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 collect_eval_data(stats)
 
                 # finish with error status
-                eval_log = await logger.log_finish(
-                    "error", stats, results, reductions, error
+                eval_log = await finish_task_log(
+                    status="error",
+                    stats=stats,
+                    results=results,
+                    reductions=reductions,
+                    error=error,
                 )
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
+
+        finally:
+            # every sample task has exited by here (the try encloses the task
+            # group), so any still-unaccounted samples can no longer record
+            finalize_eval(logger.eval.eval_id)
 
     # cleanup disk sample store if used
     if isinstance(sample_store, DiskSampleStore):
@@ -746,6 +949,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
     # restore sandbox limits
     reset_sandbox_limits(limit_tokens)
+
+    # notify a TaskSource (if the run has one) that this task is complete
+    # (it may return follow-up tasks to add to the run)
+    if options.task_source is not None:
+        _enqueue_source_tasks(await options.task_source.task_complete(eval_log))
 
     # return eval log
     return eval_log
@@ -804,7 +1012,7 @@ def update_metrics_display_fn(
                         task_metrics.append(
                             TaskDisplayMetric(
                                 scorer=score.name,
-                                name=metric.name,
+                                name=key,
                                 value=metric.value,
                                 reducer=score.reducer,
                                 params=metric.params,
@@ -821,8 +1029,36 @@ def update_metrics_display_fn(
     return compute
 
 
+def _sample_usage(state: TaskState) -> dict[str, int]:
+    """The just-finished sample's ``tokens`` / ``messages`` for the eval totals.
+
+    Model usage is read from the sample-scoped contextvar (still set on this
+    coroutine even though the ``active_sample`` context has exited by the
+    terminal block). Spread into ``record_sample_completed`` /
+    ``record_sample_errored`` so each terminal outcome is a single call.
+    """
+    return {
+        "tokens": sum(u.total_tokens for u in sample_model_usage().values()),
+        "messages": len(state.messages),
+    }
+
+
+def _sample_started() -> float | None:
+    """The just-finished sample's start time, for the eval's running-min start.
+
+    Read from the same sample-scoped timing contextvar that backs the logged
+    ``started_at`` (set when the sample began, still in scope in the terminal
+    block). Passed to ``record_sample_*`` so the eval's reported start pins to
+    its first sample even when that sample finished before any control poll
+    (see ``EvalState.started_at``). ``None`` for a sample that never started.
+    """
+    started = sample_start_datetime()
+    return started.timestamp() if started is not None else None
+
+
 async def task_run_sample(
     *,
+    task: Task,
     task_name: str,
     log_location: str,
     create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
@@ -848,9 +1084,12 @@ async def task_run_sample(
     ],
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
+    task_source: TaskSource | None,
     retry_on_error: int,
     score_on_error: bool,
     error_retries: list[EvalRetryError],
+    previous_attempt_errors: list[EvalRetryError],
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     semaphore: contextlib.AbstractAsyncContextManager[Any],
@@ -878,6 +1117,11 @@ async def task_run_sample(
         # materialize sample+state lazily (deferred until semaphore acquired)
         sample, state = await create_sample_state(sample_uuid)
 
+        # reset at the top of the attempt (not just before the limit scopes
+        # open) so that an attempt failing during init doesn't log the prior
+        # attempt's snapshot
+        reset_sample_limit_data()
+
         # validate that we have sample_id (mostly for the typechecker)
         sample_id = sample.id
         if sample_id is None:
@@ -895,10 +1139,17 @@ async def task_run_sample(
             )
 
         # initialise subtask and scoring context
-        init_sample_model_usage()
-        init_sample_role_usage()
+        init_sample_model_data()
         set_sample_state(state)
-        sample_transcript = Transcript(log_model_api=log_model_api)
+        sample_transcript_bounded, history_provider = _sample_transcript_config(
+            logger, sample_id, state.epoch
+        )
+        sample_transcript = Transcript(
+            log_model_api=log_model_api,
+            bounded=sample_transcript_bounded,
+            resident_tail=DEFAULT_RESIDENT_TAIL,
+            history_provider=history_provider,
+        )
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
         sample_transcript._subscribe(on_sample_event)
@@ -929,7 +1180,11 @@ async def task_run_sample(
         # precedence eval > sample > task (per-field merge — see
         # `merge_checkpoint_configs`).
         resolved_checkpoint = merge_checkpoint_configs(
-            checkpoint, sample.checkpoint, eval_checkpoint
+            checkpoint,
+            sample.checkpoint,
+            eval_checkpoint,
+            on_checkpoint=task.on_checkpoint,
+            on_resume=task.on_resume,
         )
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
@@ -963,14 +1218,8 @@ async def task_run_sample(
                 transcript()._event(ErrorEvent(error=err[0]))
                 return err
 
-        # Derive agent name for the ACP picker / TUI meta row. Mirrors
-        # inspect_scout's `_agent(log)` heuristic: prefer the configured
-        # eval-level solver string, fall back to the last plan step.
-        agent_name: str | None = None
-        if logger is not None and logger.eval.solver is not None:
-            agent_name = logger.eval.solver
-        elif plan.steps:
-            agent_name = registry_log_name(plan.steps[-1])
+        # Derive agent name for the ACP picker / TUI meta row.
+        agent_name = plan_agent_name(plan)
 
         async with active_sample(
             task=task_name,
@@ -980,6 +1229,10 @@ async def task_run_sample(
             epoch=state.epoch,
             message_limit=state.message_limit,
             token_limit=state.token_limit,
+            # the metering type is only meaningful when a ceiling is configured
+            token_limit_type=state.token_limit_type
+            if state.token_limit is not None
+            else None,
             cost_limit=state.cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
@@ -991,6 +1244,12 @@ async def task_run_sample(
             run_id=run_id,
             eval_id=task_id,
             agent_name=agent_name,
+            # prior failed attempts (task-level seed + sample-level retries),
+            # surfaced as the running sample's error history by the control channel
+            error_retries=previous_attempt_errors + error_retries,
+            # the uuid the logged EvalSample will carry — lets the control
+            # channel keep one event cursor valid across running→terminal
+            sample_uuid=state.uuid,
         ) as active:
             # check for early stopping
             if early_stopping is not None and logger is not None:
@@ -998,6 +1257,9 @@ async def task_run_sample(
                     state.sample_id, state.epoch
                 )
                 if early_stop is not None:
+                    # count the halt as terminal (not an error) so the eval can
+                    # reach `total` and be marked finished
+                    record_sample_completed(task_id)
                     return early_stop
 
             start_time: float | None = None
@@ -1082,6 +1344,7 @@ async def task_run_sample(
                             state._token_limit,
                             state._cost_limit,
                             state._message_limit,
+                            create_turn_limit(turn_limit),
                             create_time_limit(time_limit),
                             create_working_limit(working_limit),
                         ):
@@ -1131,22 +1394,32 @@ async def task_run_sample(
                                                 error, raise_error = handle_error(ex)
 
                                     elif active.limit_exceeded_error:
-                                        # record event
-                                        transcript()._event(
-                                            SampleLimitEvent(
-                                                type="working",
-                                                message=active.limit_exceeded_error.message,
-                                                limit=active.limit_exceeded_error.limit,
+                                        err = active.limit_exceeded_error
+                                        # Record a SampleLimitEvent ONLY for a working-time
+                                        # limit. `sample.limit_exceeded()` (which set
+                                        # `limit_exceeded_error` and cancelled us) has two
+                                        # callers: monitor_working_limit(), which records no
+                                        # event of its own — so here we are its sole recorder
+                                        # — and the sandbox service, which surfaces a bridged
+                                        # message/token/cost limit that ALREADY recorded its
+                                        # own event at its detection point (e.g.
+                                        # check_message_limit). Recording the latter here would
+                                        # both duplicate that event and mislabel it "working".
+                                        if err.type == "working":
+                                            transcript()._event(
+                                                SampleLimitEvent(
+                                                    type=err.type,
+                                                    message=err.message,
+                                                    limit=err.limit,
+                                                )
                                             )
-                                        )
 
                                         # capture most recent state for scoring
                                         state = sample_state() or state
                                         limit = EvalSampleLimit(
-                                            type=active.limit_exceeded_error.type,
-                                            limit=active.limit_exceeded_error.limit
-                                            if active.limit_exceeded_error.limit
-                                            is not None
+                                            type=err.type,
+                                            limit=err.limit
+                                            if err.limit is not None
                                             else -1,
                                         )
 
@@ -1417,34 +1690,60 @@ async def task_run_sample(
                             scores=results,
                             error=error,
                             limit=limit,
-                            error_retries=error_retries,
+                            # the logged sample carries the full retry history:
+                            # prior task attempts followed by this eval's
+                            # sample-level retries
+                            error_retries=previous_attempt_errors + error_retries,
                             started_at=sample_start_datetime(),
                             include_events=include_events,
                         )
 
-                    if logger:
-                        eval_sample = await log_sample(
-                            eval_sample=make_eval_sample(
-                                include_events=logger.buffer_db is None
-                            ),
-                            logger=logger,
-                            log_images=log_images,
+                    with anyio.CancelScope(
+                        shield=error is not None or cancelled_error is not None
+                    ):
+                        if logger:
+                            # When the full event history is still resident in
+                            # memory we can log the sample directly from memory
+                            # rather than reading every event back out of the
+                            # realtime buffer DB and re-validating it. This is the
+                            # case whenever realtime logging is off (no buffer DB)
+                            # OR the transcript was not bounded-evicted (events
+                            # never exceeded the resident tail — the common case for
+                            # high-throughput runs). Only fall back to the streaming
+                            # read-back when events were actually evicted.
+                            log_from_memory = (
+                                logger.buffer_db is None
+                                or not sample_transcript.history.resident_events_truncated
+                            )
+                            eval_sample = await log_sample(
+                                eval_sample=make_eval_sample(
+                                    include_events=log_from_memory
+                                ),
+                                logger=logger,
+                                log_images=log_images,
+                                from_memory=log_from_memory,
+                            )
+                        else:
+                            eval_sample = make_eval_sample()
+                        await scan_eval_sample(
+                            eval_sample,
+                            scanner,
+                            scan_id=scan_id,
+                            eval_id=task_id,
+                            log_location=log_location,
+                            model=str(state.model),
+                            eval_spec=logger.eval if logger else None,
                         )
-                    else:
-                        eval_sample = make_eval_sample()
-                    await scan_eval_sample(
-                        eval_sample,
-                        scanner,
-                        scan_id=scan_id,
-                        eval_id=task_id,
-                        log_location=log_location,
-                        model=str(state.model),
-                        eval_spec=logger.eval if logger else None,
-                    )
-                    await emit_attempt_end(will_retry=False)
-                    await emit_sample_end(
-                        eval_set_id, run_id, task_id, state.uuid, eval_sample
-                    )
+                        await emit_attempt_end(will_retry=False)
+                        await emit_sample_end(
+                            eval_set_id, run_id, task_id, state.uuid, eval_sample
+                        )
+                    # notify a TaskSource (if the run has one) as each sample
+                    # completes, so it can react in real time (and add tasks)
+                    if task_source is not None:
+                        _enqueue_source_tasks(
+                            await task_source.sample_complete(eval_sample, task)
+                        )
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
@@ -1457,12 +1756,15 @@ async def task_run_sample(
     ):
         await emit_attempt_end(will_retry=True)
 
+        retry_error = _eval_retry_error(error, logger, state.sample_id, state.epoch)
+
         # remove any buffered sample events
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)
 
         # recurse w/ tick down of retry_on_error and append of error to error_retries
         return await task_run_sample(
+            task=task,
             task_name=task_name,
             log_location=log_location,
             create_sample_state=create_sample_state,
@@ -1485,12 +1787,15 @@ async def task_run_sample(
             sample_error=sample_error,
             sample_complete=sample_complete,
             early_stopping=early_stopping,
+            task_source=task_source,
             fails_on_error=fails_on_error,
             # tick retry count down
             retry_on_error=retry_on_error - 1,
             score_on_error=score_on_error,
             # forward on error that caused retry
-            error_retries=copy(error_retries) + [_eval_retry_error(error)],
+            error_retries=copy(error_retries) + [retry_error],
+            previous_attempt_errors=previous_attempt_errors,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
@@ -1503,6 +1808,12 @@ async def task_run_sample(
 
     # re-raise cancellation after logging to preserve structured concurrency
     elif cancelled_error is not None:
+        # a cancelled sample is terminal but not a genuine error — count it so
+        # the eval can reach `total` and be marked finished (eg. a final-attempt
+        # failure that cancels an in-flight sibling)
+        record_sample_cancelled(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise cancelled_error
 
     # no error
@@ -1510,14 +1821,23 @@ async def task_run_sample(
         # call sample_complete callback if we have score results
         if results is not None:
             await sample_complete(state.sample_id, state.epoch, results)
+        record_sample_completed(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return results
 
     # we have an error and should raise it
     elif raise_error is not None:
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         raise raise_error
 
     # we have an error and should not raise it
     else:
+        record_sample_errored(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
         return None
 
 
@@ -1564,6 +1884,13 @@ def create_eval_sample(
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
+        model_fallbacks=sample_model_fallbacks() or None,
+        turn_count=turn_count(),
+        token_limit=state.token_limit,
+        token_limit_type=state.token_limit_type
+        if state.token_limit is not None
+        else None,
+        token_limit_usage=token_limit_usage(),
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,
@@ -1580,22 +1907,35 @@ async def log_sample(
     eval_sample: EvalSample,
     logger: TaskLogger,
     log_images: bool,
+    *,
+    from_memory: bool,
 ) -> EvalSample:
-    if logger.buffer_db is None:
+    # No realtime buffer DB, or the full history is still resident in memory:
+    # log directly from the in-memory sample (which carries its events). This
+    # avoids the open_sample_history -> materialize_streaming_sample round-trip
+    # (read every event back out of SQLite + re-validate). `complete_sample`
+    # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
+    # buffer exists it stays consistent for live viewing.
+    if logger.buffer_db is None or from_memory:
         await logger.complete_sample(
             condense_sample(eval_sample, log_images), flush=True
         )
         return eval_sample
 
+    # Events were bounded-evicted from memory: stream them back from the buffer
+    # DB (the only place the full history still lives) without re-materializing
+    # the whole sample in memory at once.
     logging_sample = condense_sample(
         eval_sample.model_copy(update={"events": [], "events_data": None}),
         log_images,
     )
     with logger.buffer_db.open_sample_history(
         eval_sample.id, eval_sample.epoch
-    ) as history:
-        materialized_sample = materialize_streaming_sample(eval_sample, history)
-        await logger.complete_sample_streaming(logging_sample, history, flush=True)
+    ) as sample_history:
+        materialized_sample = materialize_streaming_sample(eval_sample, sample_history)
+        await logger.complete_sample_streaming(
+            logging_sample, sample_history, flush=True
+        )
     return materialized_sample
 
 
@@ -1612,6 +1952,26 @@ def eval_log_sample_source(
     async def no_sample_source(id: int | str, epoch: int) -> None:
         return None
 
+    async def no_error_history() -> set[tuple[int | str, int]]:
+        return set()
+
+    async def error_history_from_file() -> set[tuple[int | str, int]]:
+        """The prior log's errored `(id, epoch)` pairs, from its summaries.
+
+        One bounded read of the summaries index — never per-sample log
+        reads. Degrades to "no candidates" on failure: this feeds teardown
+        carry-forward, which must not fail (or stall) task shutdown.
+        """
+        assert eval_log_info is not None
+        try:
+            summaries = await read_eval_log_sample_summaries_async(eval_log_info)
+            return {(s.id, s.epoch) for s in summaries if s.error is not None}
+        except Exception as ex:
+            py_logger.warning(
+                f"Unable to read sample summaries from retry log file: {ex}"
+            )
+            return set()
+
     async def _resume_if_checkpointed(
         id: int | str, epoch: int
     ) -> ResumeCheckpoint | None:
@@ -1619,11 +1979,41 @@ def eval_log_sample_source(
             return None
         if not await has_sample_checkpoint(eval_checkpoints_dir, id, epoch):
             return None
-        return ResumeCheckpoint(
-            sample_checkpoints_dir=sample_checkpoints_dir(
-                eval_checkpoints_dir, id, epoch
-            )
+        prior_sample_dir = sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
+        # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
+        # agent finished cleanly, scoring is the next thing → retry can
+        # skip the agent loop (the ``"resume_for_scoring"`` attempt).
+        checkpoint = await scan_latest_committed_checkpoint(prior_sample_dir)
+        attempt: Literal["initial", "resume", "resume_for_scoring"] = (
+            "resume_for_scoring"
+            if checkpoint is not None and checkpoint.trigger == "agent_complete"
+            else "resume"
         )
+        return ResumeCheckpoint(
+            sample_checkpoints_dir=prior_sample_dir,
+            attempt=attempt,
+        )
+
+    async def _resume_or_seed_retry(
+        id: int | str, epoch: int, sample: EvalSample | None
+    ) -> ResumeCheckpoint | PreviousError | None:
+        """Resolve a non-clean prior sample (errored, invalidated, or absent).
+
+        Prefers resuming from an on-disk checkpoint. Failing that, an
+        errored prior sample yields a `PreviousError` so the re-run seeds
+        its `error_retries` with the prior attempt's history; an absent or
+        invalidated sample yields `None` (re-run fresh).
+        """
+        resume = await _resume_if_checkpointed(id, epoch)
+        if resume is not None:
+            return resume
+        if (
+            sample is not None
+            and sample.error is not None
+            and _seed_error_retries(sample)
+        ):
+            return PreviousError(sample=sample)
+        return None
 
     # take care of no log or no samples in log. Note we still proceed when
     # in-memory samples and `eval_log_info` are both absent if a
@@ -1631,9 +2021,9 @@ def eval_log_sample_source(
     # killed before writing any sample, and on-disk checkpoint files
     # can still drive resume detection in `read_from_memory` below.
     if not eval_log:
-        return no_sample_source
+        return EvalSampleSource(no_sample_source, no_error_history)
     elif not eval_log.samples and not eval_log_info and not eval_checkpoints_dir:
-        return no_sample_source
+        return EvalSampleSource(no_sample_source, no_error_history)
 
     # determine whether all samples in the dataset have ids (if not, then we can't
     # provide a sample source in the case where either dataset is shuffled, as the ids
@@ -1647,20 +2037,20 @@ def eval_log_sample_source(
             "Unable to re-use samples from retry log file because the dataset was shuffled "
             + "and some samples in the dataset do not have an 'id' field."
         )
-        return no_sample_source
+        return EvalSampleSource(no_sample_source, no_error_history)
 
     elif eval_log.eval.dataset.samples != len(dataset):
         py_logger.warning(
             "Unable to re-use samples from retry log file because the dataset size changed "
             + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
-        return no_sample_source
+        return EvalSampleSource(no_sample_source, no_error_history)
     elif eval_log_info:
         reader: AsyncZipReader | None = None
 
         async def read_from_file(
             id: int | str, epoch: int
-        ) -> EvalSample | ResumeCheckpoint | None:
+        ) -> EvalSample | ResumeCheckpoint | PreviousError | None:
             nonlocal reader
             if not reader:
                 reader = AsyncZipReader(get_async_filesystem(), eval_log_info.name)
@@ -1668,68 +2058,124 @@ def eval_log_sample_source(
                 sample = await read_eval_log_sample_async(
                     eval_log_info, id, epoch, reader=reader
                 )
-                if sample.error is None and sample.invalidation is None:
-                    return sample
-            except IndexError:
-                pass
-            return await _resume_if_checkpointed(id, epoch)
+            except (IndexError, FileNotFoundError):
+                # FileNotFoundError: the prior attempt may never have written
+                # its log at all (e.g. its log_start() header flush failed)
+                return await _resume_if_checkpointed(id, epoch)
+            if sample.error is None and sample.invalidation is None:
+                return sample
+            return await _resume_or_seed_retry(id, epoch, sample)
 
-        return read_from_file
+        return EvalSampleSource(read_from_file, error_history_from_file)
     else:
 
         async def read_from_memory(
             id: int | str, epoch: int
-        ) -> EvalSample | ResumeCheckpoint | None:
-            clean = next(
+        ) -> EvalSample | ResumeCheckpoint | PreviousError | None:
+            match = next(
                 (
                     sample
                     for sample in (eval_log.samples or [])
-                    if sample.id == id
-                    and sample.epoch == epoch
-                    and sample.error is None
-                    and sample.invalidation is None
+                    if sample.id == id and sample.epoch == epoch
                 ),
                 None,
             )
-            return clean if clean else await _resume_if_checkpointed(id, epoch)
+            if match is not None and match.error is None and match.invalidation is None:
+                return match
+            return await _resume_or_seed_retry(id, epoch, match)
 
-        return read_from_memory
+        memory_error_ids = {
+            (sample.id, sample.epoch)
+            for sample in (eval_log.samples or [])
+            if sample.error is not None
+        }
+
+        async def memory_error_history() -> set[tuple[int | str, int]]:
+            return memory_error_ids
+
+        return EvalSampleSource(read_from_memory, memory_error_history)
 
 
-# semaphore to limit concurrency. default max_samples to
-# max_connections + 1 if not explicitly specified (this is
-# to make sure it always saturates the connection pool)
 def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
+    task_id: str | None = None,
 ) -> contextlib.AbstractAsyncContextManager[Any]:
+    """Create (or reuse) the task's sample-concurrency semaphore.
+
+    Bounds how many samples run at once so setup work (sandboxes, state)
+    stays proportional to what the model can actually serve: an explicit
+    ``max_samples`` is honored as a user setpoint; otherwise the adaptive
+    path follows the model's connection controller, and the static path
+    defaults from ``max_connections`` (so the connection pool always
+    saturates).
+
+    ``generate_config`` must be the model-composed config
+    (``model.config.merge(task_config)``, the same composition
+    ``Model._resolve_config`` applies) — classifying from the task-level
+    config alone would disagree with the generate path when the model
+    carries its own ``max_connections`` / ``adaptive_connections``,
+    coupling sample concurrency to a controller generates never use (see
+    ``ensure_model_controller`` for the same contract on the eager side).
+
+    Semaphores are task-scoped, not attempt-scoped: they're registered under
+    ``task_id`` and an in-process retry reuses its predecessor's semaphore,
+    so a mid-flight ``ctl config --max-samples`` retune survives the retry
+    rather than silently reverting to the config value (see the registry's
+    rationale in ``_concurrency.py``). The control channel's modify-limits
+    directive reads and retunes ``max_samples`` through this same registry
+    entry.
+    """
+    from inspect_ai.model._model import model_concurrency_key
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,
+        ResizableLimiter,
         adaptive_active,
+        register_task_sample_semaphore,
         resolve_adaptive,
+        task_sample_semaphore,
     )
 
+    # sample semaphores are task-scoped, not attempt-scoped: an in-process
+    # retry reuses its predecessor's semaphore so a mid-flight `ctl config
+    # --max-samples` retune survives the retry rather than silently reverting
+    # to the config value (see the registry's rationale in _concurrency.py)
+    if task_id is not None:
+        existing = task_sample_semaphore(task_id)
+        if existing is not None:
+            return existing
+
+    semaphore: "ResizableLimiter | DynamicSampleLimiter"
     if config.max_samples is not None:
         # explicit max_samples wins silently — under default-on
         # adaptive_connections, warning when max_samples < adaptive.max
-        # would fire for nearly every deliberate max_samples setting
-        return anyio.Semaphore(config.max_samples)
+        # would fire for nearly every deliberate max_samples setting.
+        # ResizableLimiter (not a fixed Semaphore) so the control channel can
+        # retune max_samples mid-eval (see design/control-channel.md phase 3).
+        semaphore = ResizableLimiter(config.max_samples)
     elif adaptive_active(
         generate_config.adaptive_connections,
         generate_config.max_connections,
         generate_config.batch,
     ):
-        # adaptive: dynamic limiter that tracks the controller(s) — sample
-        # concurrency grows with the controller's current limit so setup work
-        # (sandboxes etc.) stays proportional to actual model concurrency.
+        # adaptive: dynamic limiter that tracks this model's controller —
+        # sample concurrency grows with the controller's current limit so setup
+        # work (sandboxes etc.) stays proportional to actual model concurrency.
+        # The connection-pool key scopes the limiter to the task's own model's
+        # controller: controllers for other models in the process (graders,
+        # eval-set siblings) must not drive it. Without a ModelAPI (tests) the
+        # sentinel key matches no controller and the limiter stays at its
+        # initial value.
         # Both explicit max_connections and batch mode silently override
         # adaptive (matches the precedence in Model._connection_concurrency).
-        return DynamicSampleLimiter(
-            resolve_adaptive(generate_config.adaptive_connections)
+        semaphore = DynamicSampleLimiter(
+            resolve_adaptive(generate_config.adaptive_connections),
+            model_concurrency_key(modelapi) if modelapi else "<no-model>",
         )
     else:
-        # static path (existing behavior, unchanged)
+        # static path (default max_samples derived from max_connections).
+        # ResizableLimiter so the control channel can retune it mid-eval.
         max_samples = (
             generate_config.max_connections
             if generate_config.max_connections is not None
@@ -1739,52 +2185,169 @@ def create_sample_semaphore(
             if modelapi
             else DEFAULT_MAX_CONNECTIONS
         )
-        return anyio.Semaphore(max_samples)
+        semaphore = ResizableLimiter(max_samples)
+
+    if task_id is not None:
+        register_task_sample_semaphore(task_id, semaphore)
+    return semaphore
 
 
-# `importlib.util.find_spec` walks importer paths (~3 ms per call). Cache
-# at module load — package installation can't change during a process
-# lifetime, so the result is invariant. Without this, `init_sample_assistant_internal`
-# (called once per sample) was costing ~3 s per 500 samples in profiling.
-_HAS_OPENAI: bool = importlib.util.find_spec("openai") is not None
-_HAS_ANTHROPIC: bool = importlib.util.find_spec("anthropic") is not None
-
-
-def init_sample_assistant_internal() -> None:
-    if _HAS_OPENAI:
-        try:
-            from inspect_ai.model._openai_responses import (
-                init_sample_openai_assistant_internal,
-            )
-
-            init_sample_openai_assistant_internal()
-        except ImportError:
-            pass
-
-    if _HAS_ANTHROPIC:
-        try:
-            from inspect_ai.model._providers.anthropic import (
-                init_sample_anthropic_assistant_internal,
-            )
-
-            init_sample_anthropic_assistant_internal()
-        except ImportError:
-            pass
-
-
-def _eval_retry_error(error: EvalError) -> EvalRetryError:
+def _eval_retry_error(
+    error: EvalError,
+    logger: TaskLogger | None = None,
+    sample_id: str | int | None = None,
+    epoch: int | None = None,
+) -> EvalRetryError:
     """Create retry error with events from the most recent ModelEvent onward."""
     from inspect_ai.event._model import ModelEvent
 
-    events = transcript().events
-    recent_events = list(events)
-    for i in range(len(events) - 1, -1, -1):
-        if isinstance(events[i], ModelEvent):
-            recent_events = list(events[i:])
-            break
+    if logger is not None and logger.buffer_db is not None and sample_id is not None:
+        if epoch is None:
+            raise ValueError(
+                "epoch is required when reading retry events from buffer DB"
+            )
+        with logger.buffer_db.open_sample_history(sample_id, epoch) as sample_history:
+            return eval_retry_error_from_history(error, sample_history)
+
+    sample_transcript = transcript()
+    transcript_history = sample_transcript.history
+    recent_events = (
+        transcript_history.events_since_last(ModelEvent)
+        if transcript_history.full_history_available
+        else []
+    )
     return EvalRetryError(
         message=error.message,
         traceback=error.traceback,
         traceback_ansi=error.traceback_ansi,
         events=recent_events,
     )
+
+
+def _eval_retry_error_from_sample(sample: EvalSample) -> EvalRetryError:
+    """Build an `EvalRetryError` from a prior attempt's errored sample.
+
+    Mirrors `_eval_retry_error` (events back to the last ModelEvent) but
+    sources the error and events from a stored sample read via the sample
+    source rather than the live transcript.
+    """
+    from inspect_ai.event._model import ModelEvent
+
+    assert sample.error is not None
+    events = sample.events or []
+    recent_events = list(events)
+    for i in range(len(events) - 1, -1, -1):
+        if isinstance(events[i], ModelEvent):
+            recent_events = list(events[i:])
+            break
+    return EvalRetryError(
+        message=sample.error.message,
+        traceback=sample.error.traceback,
+        traceback_ansi=sample.error.traceback_ansi,
+        events=recent_events,
+    )
+
+
+def _is_cancellation_error(error: EvalError) -> bool:
+    # A sample cancelled because a sibling errored (the task was torn down
+    # for a task-level retry) never genuinely failed, so it must not count
+    # as a retry when the task is re-run.
+    return is_cancellation_message(error.message)
+
+
+def _seed_error_retries(sample: EvalSample) -> list[EvalRetryError]:
+    """Prior-attempt retry history to seed a re-run's `error_retries`.
+
+    Carries forward the sample's own `error_retries` (genuine failures from
+    earlier attempts) and appends the terminal error — but only when that
+    error is a genuine failure. A cancellation (sibling failure tore the
+    task down) is skipped so it doesn't inflate the retry count.
+    """
+    seed = list(sample.error_retries or [])
+    if sample.error is not None and not _is_cancellation_error(sample.error):
+        seed.append(_eval_retry_error_from_sample(sample))
+    return seed
+
+
+async def carry_forward_unlogged_samples(
+    logger: TaskLogger,
+    sample_source: EvalSampleSource | None,
+    sample_ids: list[str | int],
+    epochs: int,
+    log_images: bool,
+) -> None:
+    """Re-log carried error history for planned samples this attempt never logged.
+
+    When a task fails and is retried, the next attempt's sample source is
+    built from THIS attempt's log. A sample that errored in an earlier
+    attempt but was still pending when this attempt was torn down (a sibling
+    failed first, cancelling the rest) would otherwise be absent from this
+    log — breaking the per-attempt retry-history chain so the eventual
+    surviving sample under-reports its retry count.
+
+    Re-logging the prior record for such samples keeps the chain intact.
+    Only samples carrying genuine error history (`PreviousError`) need this,
+    and only the prior attempt's *errored* samples can yield one — so the
+    probe set is ``sample_source.error_history_ids()`` (at most one
+    summaries read) rather than the full plan. This runs at teardown,
+    inside the cancellation shield on the Ctrl-C path: probing every
+    planned ``(id, epoch)`` stalled shutdown of a large remote retry for
+    minutes, uninterruptibly.
+    """
+    if sample_source is None:
+        return
+    candidates = await sample_source.error_history_ids()
+    if not candidates:
+        return
+    summaries = await logger.sample_summaries()
+    logged = {(s.id, s.epoch) for s in (summaries or [])}
+    planned = {
+        (sample_id, epoch) for sample_id in sample_ids for epoch in range(1, epochs + 1)
+    }
+    # sorted for a deterministic re-log order
+    for sample_id, epoch in sorted(candidates, key=lambda k: (str(k[0]), k[1])):
+        if (sample_id, epoch) in logged or (sample_id, epoch) not in planned:
+            continue
+        previous = await sample_source.lookup(sample_id, epoch)
+        if isinstance(previous, PreviousError):
+            await logger.complete_sample(
+                condense_sample(previous.sample, log_images), flush=True
+            )
+
+
+async def _finish_task_log(
+    *,
+    logger: TaskLogger,
+    sample_source: EvalSampleSource | None,
+    sample_ids: list[str | int],
+    epochs: int,
+    log_images: bool,
+    status: EvalStatus,
+    stats: EvalStats,
+    results: EvalResults | None = None,
+    reductions: list[EvalSampleReductions] | None = None,
+    error: EvalError | None = None,
+) -> EvalLog:
+    """Finish the task log, preserving retry history first on non-success.
+
+    The single finish chokepoint for ``task_run``'s terminal branches: any
+    non-success finish is (or may be) a teardown that left planned samples
+    unlogged this attempt, and this attempt's log seeds the next attempt — so
+    unlogged samples' prior-attempt history is carried forward before the
+    finish is written. Routing every terminal branch through here means a
+    finish path can't forget the carry-forward (the external-cancellation
+    branch once did, silently dropping retry history on Ctrl-C — and
+    cancelled logs ARE retry seeds: ``retryable_eval_logs`` includes them and
+    eval-set treats any non-success log as incomplete).
+
+    Safe to call on fully-logged attempts (eg. an ``error`` status from the
+    ``fail_on_error`` threshold with every sample run): the carry-forward
+    re-logs only planned samples absent from this attempt's log whose source
+    carries genuine prior error history (``PreviousError``), so it degrades
+    to a no-op.
+    """
+    if status != "success":
+        await carry_forward_unlogged_samples(
+            logger, sample_source, sample_ids, epochs, log_images
+        )
+    return await logger.log_finish(status, stats, results, reductions, error)

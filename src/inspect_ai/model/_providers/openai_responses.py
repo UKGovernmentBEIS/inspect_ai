@@ -50,6 +50,8 @@ from .._openai_responses import (
     openai_responses_tool_choice,
     openai_responses_tools,
     responses_extra_body_fields,
+    should_swap_todo_write,
+    substitute_update_plan_tools,
 )
 from .util.hooks import HttpxHooks
 
@@ -92,10 +94,16 @@ async def generate_responses(
     batcher: OpenAIBatcher[Response] | None,
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
     | None = None,
+    model_family: str | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
         background = config.extra_body.get("background", None)
+
+    # pro mode requests can run for several minutes — default to background
+    # processing like the gpt-5-pro model line
+    if background is None and config.reasoning_mode == "pro":
+        background = True
 
     # batch mode and background are incompatible
     if batcher:
@@ -104,16 +112,30 @@ async def generate_responses(
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
 
+    # present inspect's todo_write tool to the model under OpenAI's native update_plan
+    # name/schema (the model is post-trained on update_plan); todo_write remains the tool
+    # that is actually executed. Decided once here and threaded to outbound tools + replay.
+    swap_todo_write = should_swap_todo_write(tools, config)
+    wire_tools = substitute_update_plan_tools(tools, swap_todo_write)
+
     # prepare request (we do this so we can log the ModelCall)
     tool_params = (
-        openai_responses_tools(tools, model_name, config)
+        openai_responses_tools(
+            wire_tools,
+            model_family or model_name,
+            config,
+            is_latest=model_info.is_latest(),
+        )
         if len(tools) > 0 or has_image_output(config.modalities)
         else NOT_GIVEN
     )
 
     request = dict(
         input=await openai_responses_inputs(
-            input, model_info, synthesize_phase=synthesize_phase
+            input,
+            model_info,
+            synthesize_phase=synthesize_phase,
+            swap_todo_write=swap_todo_write,
         ),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
@@ -189,11 +211,17 @@ async def generate_responses(
         # parse out choices
         choices = openai_responses_chat_choices(model_name, model_response, tools)
 
+        # surface response-level `metadata` (echoed request metadata, which
+        # some models augment with additional fields) so callers can read it
+        # without parsing the raw model call
+        response_metadata = getattr(model_response, "metadata", None)
+
         # return output and call
         return ModelOutput(
             model=model_response.model,
             choices=choices,
             usage=model_usage_from_response(model_response),
+            metadata=dict(response_metadata) if response_metadata else None,
         ), model_call
     except BadRequestError as e:
         model_call.set_error(
@@ -326,7 +354,11 @@ def completion_params_responses(
         model_info.is_o_series()
         or (model_info.is_gpt_5() and not model_info.is_gpt_5_plus())
         or (
-            model_info.is_gpt_5_plus() and config.reasoning_effort not in [None, "none"]
+            model_info.is_gpt_5_plus()
+            and (
+                config.reasoning_effort not in [None, "none"]
+                or config.reasoning_mode == "pro"
+            )
         )
     )
 
@@ -373,12 +405,22 @@ def completion_params_responses(
 
     reasoning: dict[str, str] = {}
     if config.reasoning_effort is not None:
-        # OpenAI's highest published effort is `xhigh`; map `max` to it so the
-        # request isn't rejected. Mirrors the mapping in
+        # models that predate `max` effort top out at `xhigh`; map `max` to it
+        # so the request isn't rejected. Mirrors the mapping in
         # `OpenAIAPI._get_reasoning_params_for_config`.
         reasoning["effort"] = (
-            "xhigh" if config.reasoning_effort == "max" else config.reasoning_effort
+            "xhigh"
+            if (
+                config.reasoning_effort == "max"
+                and not model_info.supports_max_reasoning_effort()
+            )
+            else config.reasoning_effort
         )
+    if config.reasoning_mode is not None:
+        # passed through for all models: the API accepts "pro" wherever it can
+        # be honored (gpt-5.6+ and legacy -pro models) and rejects it with a
+        # clear param-naming error otherwise.
+        reasoning["mode"] = config.reasoning_mode
     if config.reasoning_summary != "none":
         reasoning["summary"] = config.reasoning_summary or "auto"
     if len(reasoning) > 0:
