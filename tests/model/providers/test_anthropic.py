@@ -1396,6 +1396,51 @@ def test_anthropic_tool_param_not_strict_by_default() -> None:
     assert param["input_schema"]["properties"]["x"]["minimum"] == 0
 
 
+def test_anthropic_strict_tool_param_nested_additional_properties() -> None:
+    """Strict schemas require additionalProperties: false on all objects, nested included.
+
+    https://platform.claude.com/docs/en/build-with-claude/structured-outputs
+    (schema limitations: "additionalProperties (must be set to false for objects)").
+    The top level gets it from the ToolParams default; nested object schemas
+    must have it set explicitly, as set_additional_properties_false does for
+    the response_schema path.
+    """
+    from inspect_ai.tool import ToolParams
+    from inspect_ai.util import JSONSchema
+
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    tool = ToolInfo(
+        name="emit",
+        description="emit a value",
+        parameters=ToolParams(
+            properties={
+                "obj": JSONSchema(
+                    type="object",
+                    properties={"y": JSONSchema(type="integer")},
+                    required=["y"],
+                ),
+                "items": JSONSchema(
+                    type="array",
+                    items=JSONSchema(
+                        type="object",
+                        properties={"z": JSONSchema(type="string")},
+                        required=["z"],
+                    ),
+                ),
+            },
+            required=["obj", "items"],
+        ),
+        options={"strict": True},
+    )
+    from anthropic.types import ToolParam as SDKToolParam
+
+    (param,) = api.tool_params_for_tool_info(tool, GenerateConfig())
+    schema = cast("dict[str, Any]", cast("SDKToolParam", param)["input_schema"])
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["obj"]["additionalProperties"] is False
+    assert schema["properties"]["items"]["items"]["additionalProperties"] is False
+
+
 def test_anthropic_strict_tool_param() -> None:
     """ToolInfo.options["strict"] sets strict and strips extended schema fields."""
     api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
