@@ -44,6 +44,7 @@ import click
 import httpx
 from click.core import ParameterSource
 
+from inspect_ai._control.cancel import TaskCancelResolution
 from inspect_ai._control.discovery import (
     DiscoveredControlServer,
     discovery_dir,
@@ -373,7 +374,7 @@ def task_cancel_command(
     """
     if as_score and as_error:
         raise click.UsageError("--score and --error are mutually exclusive.")
-    resolution: Literal["cancelled", "score", "error"] = (
+    resolution: TaskCancelResolution = (
         "score" if as_score else "error" if as_error else "cancelled"
     )
     _run_task_cancel(task, resolution=resolution, dry_run=dry_run, as_json=as_json)
@@ -1772,7 +1773,7 @@ _CANCEL_ROUTE_MISSING = (
 def _run_task_cancel(
     task: str,
     *,
-    resolution: Literal["cancelled", "score", "error"] = "cancelled",
+    resolution: TaskCancelResolution = "cancelled",
     dry_run: bool,
     as_json: bool,
 ) -> None:

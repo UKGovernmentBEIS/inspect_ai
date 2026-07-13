@@ -76,7 +76,9 @@ def cancel_task(
     the graceful path can stall on a hung scorer, and the operator must keep a
     way to tear the task down); ``{"ok": False, "error": ...}`` when
     ``resolution="error"`` targets samples configured to fail on errors
-    (mirroring the sample-level gate — the auto-fail would race it), when the
+    (mirroring the sample-level gate — the auto-fail would race it; a sample
+    mid-materialization is invisible to this gate, so its self-interrupt
+    downgrades an ``error`` resolution to ``score`` instead), when the
     attempt has no cancel handle (defensive — a running attempt registered
     without one, which no production registration produces; reused/synthetic
     evals register finished and take the no-op branch instead) or the task is
@@ -132,6 +134,10 @@ def cancel_task(
                 "changed": False,
                 "reason": f"cancel already requested ({pending})",
             }
+    # a sample mid-materialization — past the queue check but not yet
+    # registered in active_samples() — is invisible to this gate; its
+    # self-interrupt (task/run.py) downgrades an "error" resolution to
+    # "score" when it fails on error, so the auto-fail can't fire there
     if resolution == "error" and any(sample.fails_on_error for sample in active):
         return {
             "ok": False,

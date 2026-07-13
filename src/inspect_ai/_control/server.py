@@ -32,13 +32,17 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, Literal, NamedTuple, cast
+from typing import Any, AsyncIterator, Literal, NamedTuple, cast, get_args
 
 import anyio
 
 from inspect_ai._control import CONTROL_API_VERSION
 from inspect_ai._control.buffer import flush_task_samples
-from inspect_ai._control.cancel import cancel_sample, cancel_task
+from inspect_ai._control.cancel import (
+    TaskCancelResolution,
+    cancel_sample,
+    cancel_task,
+)
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
 from inspect_ai._control.limits import process_limits, task_limits
@@ -390,7 +394,7 @@ class ControlServer:
         async def task_cancel(
             task_id: str, resolution: str = "cancelled", dry_run: bool = False
         ) -> Any:
-            if resolution not in ("cancelled", "score", "error"):
+            if resolution not in get_args(TaskCancelResolution):
                 return JSONResponse(
                     status_code=400,
                     content={
@@ -402,7 +406,7 @@ class ControlServer:
                 )
             result = cancel_task(
                 task_id,
-                resolution=cast(Literal["cancelled", "score", "error"], resolution),
+                resolution=cast(TaskCancelResolution, resolution),
                 dry_run=dry_run,
             )
             if result is None:

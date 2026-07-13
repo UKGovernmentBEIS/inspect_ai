@@ -1381,6 +1381,18 @@ async def task_run_sample(
                                         else None
                                     )
                                     if resolution == "score" or resolution == "error":
+                                        # an "error" resolution can slip past
+                                        # the control layer's fails-on-error
+                                        # gate while this sample materializes
+                                        # (it is not yet registered in
+                                        # active_samples()) — downgrade to
+                                        # "score" so the auto-fail the gate
+                                        # exists to prevent doesn't fire
+                                        if (
+                                            resolution == "error"
+                                            and active.fails_on_error
+                                        ):
+                                            resolution = "score"
                                         active.interrupt(resolution)
 
                                     # monitor working limit in the background
