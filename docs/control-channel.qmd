@@ -161,7 +161,7 @@ Note that `--cursor` takes the opaque `next` token, never a timestamp — for a 
 `inspect ctl sample messages` reads one sample's current conversation — its message list as it stands right now:
 
 ```bash
-$ inspect ctl sample messages gpqa 17
+$ inspect ctl sample messages gpqa 17 --tail 3
 #   role       content
 --  ---------  --------------------------------------------------
 12  assistant  Let me check the data.  → bash(ls /data)
