@@ -8,11 +8,11 @@ Commands are grouped by **resource noun**, mirroring the HTTP API's object
 model (see "CLI command hierarchy: noun groups" in the design doc):
 
 - ``task`` — a logical task in a running process (stable across retries):
-  ``list`` (implied by the bare noun), ``log-flush``; ``add`` / ``cancel`` /
+  ``list`` (implied by the bare noun), ``log-flush``, ``cancel``; ``add`` /
   ``drain`` are planned.
 - ``sample`` — one sample (``TASK SAMPLE_ID [EPOCH]``) or a task's samples:
-  ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``;
-  ``cancel`` / ``requeue`` are planned.
+  ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``,
+  ``cancel``; ``requeue`` is planned.
 - ``config`` — a top-level *command* (not a group): view / retune launch
   configuration mid-flight (concurrency limits, log buffering). Scope is a
   property of each knob (task vs process), labeled in the output.
@@ -173,7 +173,7 @@ def _forward_group_options(ctx: click.Context) -> None:
 
 @click.group("ctl")
 def ctl_command() -> None:
-    """Read the state of running evals and manage kept-alive processes.
+    """Read and direct running evals and manage kept-alive processes.
 
     Commands are grouped by resource noun (listed below); `list` verbs are
     implied by the bare noun (`inspect ctl task` ≡ `inspect ctl task list`).
@@ -257,8 +257,7 @@ def task_group(ctx: click.Context, as_json: bool) -> None:
     """Operate on the tasks of running evals (bare `task` lists them).
 
     Task ids are stable across retries and are the TASK selector other
-    commands take. `add` / `cancel` / `drain` are planned but not yet
-    available.
+    commands take. `add` / `drain` are planned but not yet available.
     """
     if ctx.invoked_subcommand is None:
         _run_task_list(as_json)
@@ -314,6 +313,38 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     _run_log_flush(task, as_json)
 
 
+@task_group.command("cancel")
+@click.argument("task")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be cancelled without doing it.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the mutation result envelope).",
+)
+def task_cancel_command(task: str, dry_run: bool, as_json: bool) -> None:
+    """Cancel a running task.
+
+    In-flight samples are interrupted (their transcripts so far are
+    preserved in the log as cancelled samples), completed samples are kept,
+    and the task's log is finalized with an error status noting the cancel;
+    an eval-set will not retry a cancelled task. Idempotent — cancelling a
+    finished (or already-cancelling) task is a clean no-op. A task between
+    attempts (its last attempt errored and the eval-set has a retry queued)
+    is rejected rather than no-opped: nothing is running to cancel yet, so
+    re-issue the cancel once the retry starts. To cancel a single sample
+    instead, use `inspect ctl sample cancel`. TASK (a task-id prefix or
+    name) is always required.
+    """
+    _run_task_cancel(task, dry_run=dry_run, as_json=as_json)
+
+
 # ---------------------------------------------------------------------------
 # sample group
 # ---------------------------------------------------------------------------
@@ -342,7 +373,7 @@ def sample_group(ctx: click.Context, active_since: float | None, as_json: bool) 
     """Operate on samples of running evals (bare `sample` lists them).
 
     An omitted TASK on `list` / `errors` reads across all running tasks.
-    `cancel` / `requeue` are planned but not yet available.
+    `requeue` is planned but not yet available.
     """
     if ctx.invoked_subcommand is None:
         _run_sample_list(None, active_since, as_json)
@@ -536,6 +567,60 @@ def sample_events_command(
         full=full,
         since_time=since_time,
         until=until,
+        as_json=as_json,
+    )
+
+
+@sample_group.command("cancel")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=None)
+@click.option(
+    "--error",
+    "as_error",
+    is_flag=True,
+    default=False,
+    help=(
+        "Mark the sample errored instead of scoring the work done so far "
+        "(not permitted for samples configured to fail on errors)."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be cancelled without doing it.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the mutation result envelope).",
+)
+def sample_cancel_command(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    as_error: bool,
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """Cancel one running sample.
+
+    By default the sample completes and the scorer runs on the work done so
+    far; pass `--error` to mark it errored instead. The rest of the task is
+    unaffected. Idempotent — cancelling a sample that has already finished
+    is a clean no-op. EPOCH defaults to 1 but is required whenever the task
+    runs more than one epoch (a defaulted epoch would silently cancel a
+    different attempt).
+    """
+    _run_sample_cancel(
+        task,
+        sample_id,
+        epoch,
+        action="error" if as_error else "score",
+        dry_run=dry_run,
         as_json=as_json,
     )
 
@@ -1610,6 +1695,179 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
         click.echo("\nNo buffered samples to flush.")
 
 
+def _mutation_envelope(
+    target: dict[str, Any], result: dict[str, Any], *, dry_run: bool
+) -> dict[str, Any]:
+    """The uniform ``--json`` mutation result envelope for the cancel verbs.
+
+    ``applied`` reports whether the mutation actually landed — false on a
+    dry run and on the idempotent already-in-that-state no-op (the server's
+    ``changed: false``) — so an agent branches on one field. The server's
+    response rides along as ``detail`` (minus the transport-level ``ok``).
+    """
+    return {
+        "target": target,
+        "applied": bool(result.get("changed")) and not dry_run,
+        "dry_run": dry_run,
+        "detail": {k: v for k, v in result.items() if k != "ok"},
+    }
+
+
+_CANCEL_ROUTE_MISSING = (
+    "This process is running an older inspect without the cancel "
+    "endpoint; restart the eval to pick up the current version."
+)
+
+
+@_envelope_failures
+def _run_task_cancel(task: str, *, dry_run: bool, as_json: bool) -> None:
+    servers = list_discovered_servers()
+    summaries = _fetch_summaries(servers).summaries
+    scope = _resolve_scope(servers, summaries, task, per_task_option="task cancel")
+    if scope is None:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+    assert scope.task_id is not None
+
+    params: dict[str, Any] = {}
+    if dry_run:
+        params["dry_run"] = True
+    # idempotent (a repeat cancel is a clean no-op), so it may ride the
+    # narrated busy-retry policy like keep/release
+    result = _request_json(
+        scope.socket_path,
+        f"/tasks/{scope.task_id}/cancel",
+        params=params,
+        what=f"cancel of task {scope.task_id}",
+        not_found=(
+            f"Task '{scope.task_id}' not found in this process (it may have finished)."
+        ),
+        not_found_missing_route=_CANCEL_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+    )
+
+    if as_json:
+        target = {"task_id": scope.task_id, "task": scope.task}
+        click.echo(
+            json_lib.dumps(
+                _mutation_envelope(target, result, dry_run=dry_run), indent=2
+            )
+        )
+        return
+
+    click.echo(scope.header)
+    click.echo()
+    if result.get("changed"):
+        in_flight = int(result.get("in_flight", 0) or 0)
+        interrupted = (
+            f"{in_flight} in-flight sample{'' if in_flight == 1 else 's'} "
+            f"{'would be' if dry_run else 'will be'} interrupted"
+        )
+        if dry_run:
+            click.echo(f"Would cancel — {interrupted}; completed samples are kept.")
+        else:
+            click.echo(f"Cancel requested — {interrupted}; completed samples are kept.")
+    else:
+        reason = str(result.get("reason") or "already in that state")
+        click.echo(f"Nothing to do: {reason}.")
+
+
+@_envelope_failures
+def _run_sample_cancel(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    *,
+    action: Literal["score", "error"],
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    fetched = _fetch_sample_summaries()
+    summaries = fetched.summaries
+    if not summaries:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+
+    # Mutation selector rule: a defaulted epoch doesn't error — it resolves
+    # to a *different sample* — so EPOCH is required whenever the task runs
+    # more than one epoch. (An older server doesn't report `epochs`; the
+    # epoch-1 default then stands, as it did before the field existed.)
+    if epoch is None:
+        epochs = int(target.get("epochs") or 1)
+        if epochs > 1:
+            _fail(
+                "ambiguous",
+                f"Task '{target.get('task') or '?'}' runs {epochs} epochs — "
+                "pass EPOCH explicitly (a defaulted epoch would cancel the "
+                "epoch-1 attempt).",
+            )
+        epoch = 1
+
+    params: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "action": action,
+    }
+    if dry_run:
+        params["dry_run"] = True
+    result = _request_json(
+        str(target["socket_path"]),
+        f"/evals/{target['eval_id']}/sample/cancel",
+        params=params,
+        what=f"cancel of sample {sample_id}",
+        not_found=(
+            f"Sample '{sample_id}' (epoch {epoch}) not found in task "
+            f"'{target.get('task') or '?'}'."
+        ),
+        not_found_missing_route=_CANCEL_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+    )
+
+    if as_json:
+        # echo the resolved identifiers so a defaulted epoch is visible and
+        # the target round-trips into other commands' selectors
+        envelope_target = {
+            "task_id": target.get("task_id"),
+            "task": target.get("task"),
+            "sample_id": result.get("sample_id", sample_id),
+            "epoch": result.get("epoch", epoch),
+        }
+        click.echo(
+            json_lib.dumps(
+                _mutation_envelope(envelope_target, result, dry_run=dry_run), indent=2
+            )
+        )
+        return
+
+    click.echo(_task_header(target))
+    click.echo()
+    label = f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
+    if result.get("changed"):
+        outcome = (
+            "scored on the work done so far"
+            if action == "score"
+            else "marked as errored"
+        )
+        if dry_run:
+            click.echo(f"Would cancel {label} — it would be {outcome}.")
+        else:
+            click.echo(f"Cancel requested for {label} — it will be {outcome}.")
+    else:
+        status = result.get("status")
+        suffix = f" (status: {status})" if status else ""
+        click.echo(f"Nothing to do — {label} has already finished{suffix}.")
+
+
 @_envelope_failures
 def _run_process_list(as_json: bool) -> None:
     as_of = time.time()
@@ -2628,6 +2886,7 @@ def _request_json(
     *,
     what: str,
     not_found: str,
+    not_found_missing_route: str | None = None,
     params: dict[str, Any] | None = None,
     mutate: Literal["post", "patch"] | None = None,
     retry_mutation: bool = False,
@@ -2644,6 +2903,13 @@ def _request_json(
     silent long wait. A 404 prints ``not_found`` and exits non-zero; a 400
     surfaces the server's ``{"error": ...}`` body; transport errors exit
     with ``what`` as context.
+
+    ``not_found_missing_route`` splits the 404 by origin (see
+    :func:`_handler_404`): a router 404 — the endpoint doesn't exist, so the
+    process is running an older inspect — prints it instead of ``not_found``,
+    which then only ever means the endpoint answered "entity not found".
+    Without it every 404 prints ``not_found``, which must therefore hedge
+    both meanings; new endpoints should pass it rather than hedge.
     """
     verb = "update" if mutate else "read"
     try:
@@ -2671,6 +2937,8 @@ def _request_json(
                 socket_path, path, params=params, what=f"Reading {what}"
             )
         if response.status_code == 404:
+            if not_found_missing_route is not None and not _handler_404(response):
+                _fail("not_found", not_found_missing_route, status=404)
             _fail("not_found", not_found, status=404)
         if response.status_code == 400:
             _fail(
@@ -2689,6 +2957,27 @@ def _request_json(
         click.echo(message, err=True)
         raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
+
+
+def _handler_404(response: httpx.Response) -> bool:
+    """Whether a 404 came from an endpoint handler rather than the router.
+
+    Handler 404s ("entity not found") always carry an ``{"error": ...}`` JSON
+    body — a control-server convention pinned by a test — while the router's
+    404 for a path with no route (a process running an older inspect without
+    the endpoint) is FastAPI's stock ``{"detail": "Not Found"}``. Reading the
+    distinction off the response beats gating on a version table: it needs no
+    per-endpoint bookkeeping and is accurate against servers that predate
+    version reporting entirely. Unparseable bodies count as router 404s —
+    misreporting a weird handler 404 as version skew still names a true
+    remedy (restart on current inspect), whereas the opposite error would
+    tell the user their task finished when it didn't.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    return isinstance(body, dict) and "error" in body
 
 
 def _post_flush(socket_path: str, task_id: str) -> dict[str, Any]:

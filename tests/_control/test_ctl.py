@@ -2009,6 +2009,185 @@ def test_log_flush_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> No
     assert payload["detail"] == {"flushed": 2}
 
 
+class _RequestSpy:
+    """Capture `_request_json` calls and answer with a canned response."""
+
+    def __init__(self, response: dict[str, Any]) -> None:
+        self.response = response
+        self.paths: list[str] = []
+        self.params: list[dict[str, Any]] = []
+
+    def __call__(self, socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        self.paths.append(path)
+        self.params.append(kwargs.get("params") or {})
+        return self.response
+
+
+def test_task_cancel_requires_task_argument() -> None:
+    """The destructive verb requires its selector outright — no sole-task default."""
+    result = cli_runner().invoke(ctl_command, ["task", "cancel"])
+    assert result.exit_code == 2
+    assert "TASK" in result.stderr
+
+
+def test_task_cancel_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "task_id": "aaa111", "changed": True, "in_flight": 2}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--json"])
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/aaa111/cancel"]
+    assert spy.params == [{}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert payload["applied"] is True and payload["dry_run"] is False
+    assert payload["detail"]["in_flight"] == 2
+
+
+def test_task_cancel_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True, "in_flight": 1})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--dry-run", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"dry_run": True}]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_task_cancel_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The idempotent no-op (already finished) reports applied: false."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1", status="completed")])
+    spy = _RequestSpy({"ok": True, "changed": False, "reason": "task already finished"})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False
+    assert payload["detail"]["reason"] == "task already finished"
+
+
+def test_task_cancel_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 3})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert "Cancel requested" in result.stdout
+    assert "3 in-flight samples" in result.stdout
+
+
+def test_task_cancel_missing_route_names_version_skew(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A router 404 (no `error` body) means the server predates the endpoint."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {"detail": "Not Found"})])
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    assert result.exit_code == 1
+    assert "older inspect without the cancel endpoint" in result.stderr
+    assert "may have finished" not in result.stderr
+
+
+def test_task_cancel_handler_404_means_task_gone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A handler 404 (`{"error": ...}` body) is definitive: the task is gone."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {"error": "task aaa111 not found"})])
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    assert result.exit_code == 1
+    assert "may have finished" in result.stderr
+    assert "older inspect" not in result.stderr
+
+
+def test_sample_cancel_defaults_epoch_for_single_epoch_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/cancel"]
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "action": "score"}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["target"]["epoch"] == 1
+    assert payload["applied"] is True
+
+
+def test_sample_cancel_requires_epoch_when_multi_epoch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A defaulted epoch on a multi-epoch task resolves to a different sample."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1"])
+    assert result.exit_code == 1
+    assert "pass EPOCH explicitly" in result.stderr
+    assert spy.paths == []  # nothing was sent
+
+    # ...and an explicit epoch goes through
+    ok = cli_runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1", "2"])
+    assert ok.exit_code == 0, ok.output
+    assert spy.params == [{"sample_id": "s1", "epoch": 2, "action": "score"}]
+
+
+def test_sample_cancel_error_flag_and_dry_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {"ok": True, "sample_id": "s1", "epoch": 1, "changed": True, "dry_run": True}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "cancel", "aaa111", "s1", "--error", "--dry-run", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [
+        {"sample_id": "s1", "epoch": 1, "action": "error", "dry_run": True}
+    ]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "status": "completed",
+            "reason": "sample already finished",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1"])
+    assert result.exit_code == 0, result.output
+    assert "already finished" in result.stdout
+    assert "status: completed" in result.stdout
+
+
 def test_print_config_process_scope_shows_buffer_placeholder(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

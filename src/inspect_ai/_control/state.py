@@ -460,6 +460,28 @@ async def sample_error_detail(
     }
 
 
+def find_active_sample(
+    eval_id: str, sample_id: str, epoch: int
+) -> "ActiveSample | None":
+    """The process's live sample matching ``(eval_id, sample_id, epoch)``, or ``None``.
+
+    The single definition of the control channel's active-sample identity
+    rule, shared by the error-detail, transcript-events, and cancel surfaces:
+    ``sample_id`` arrives as a query-param string, so integer ids match on
+    ``str(sample.id)``.
+    """
+    from inspect_ai.log._samples import active_samples
+
+    for sample in active_samples():
+        if (
+            sample.eval_id == eval_id
+            and str(sample.sample.id) == sample_id
+            and sample.epoch == epoch
+        ):
+            return sample
+    return None
+
+
 def _running_sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
@@ -470,22 +492,18 @@ def _running_sample_error_detail(
     still in ``active_samples`` is left to the on-disk log (which carries the
     final ``error_retries``).
     """
-    from inspect_ai.log._samples import active_samples
-
-    for s in active_samples():
-        if s.eval_id == eval_id and str(s.sample.id) == sample_id and s.epoch == epoch:
-            if s.completed is not None:
-                return None
-            return {
-                "sample_id": s.sample.id,
-                "epoch": s.epoch,
-                "status": "running",
-                "retries": s.retries,
-                "error": None,
-                "error_retries": [_error_dict(e) for e in s.error_retries],
-                "scores": {},
-            }
-    return None
+    s = find_active_sample(eval_id, sample_id, epoch)
+    if s is None or s.completed is not None:
+        return None
+    return {
+        "sample_id": s.sample.id,
+        "epoch": s.epoch,
+        "status": "running",
+        "retries": s.retries,
+        "error": None,
+        "error_retries": [_error_dict(e) for e in s.error_retries],
+        "scores": {},
+    }
 
 
 def _error_dict(error: Any) -> dict[str, Any]:
@@ -695,6 +713,11 @@ def _build_summary(
         "started_at": eval_started_at,
         "completed_at": completed_at,
         "attempts": attempts,
+        # Planned epoch count. `ctl sample cancel` uses it to require an
+        # explicit EPOCH when the task runs more than one (a defaulted epoch
+        # would silently target a different sample — see the selector
+        # conventions in design/control-channel.md).
+        "epochs": latest.epochs,
         "samples": {
             "total": total,
             "completed": completed,

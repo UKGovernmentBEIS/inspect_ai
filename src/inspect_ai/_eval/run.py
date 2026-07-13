@@ -19,6 +19,7 @@ import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
+from inspect_ai._control.eval_state import mark_eval_retry_pending
 from inspect_ai._display import display
 from inspect_ai._display.core.active import (
     clear_task_screen,
@@ -782,6 +783,13 @@ async def run_task_retry_attempts(
                     # could observe an idle run mid-reinit and finish early
                     retry_item: PendingTask | None = None
                     if retry and result is not None:
+                        # from here until the retry attempt registers its own
+                        # EvalState, this errored attempt is the task's latest —
+                        # flag it so task-keyed directives don't read its
+                        # completed_at as "task finished" (see EvalState
+                        # .retry_pending)
+                        mark_eval_retry_pending(result.eval.eval_id)
+
                         # build sample_source from the failed log so completed
                         # samples are reused on retry (mirrors legacy eval_set retry)
                         failed_log_info = EvalLogInfo(

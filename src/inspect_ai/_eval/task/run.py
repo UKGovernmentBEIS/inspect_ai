@@ -540,6 +540,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # control channel show cancelled samples as pending (re-run
                 # coming) vs cancelled (terminal)
                 will_retry=task_cancel.can_retry if task_cancel is not None else False,
+                # the cancel handle the control channel's task-cancel
+                # directive fires (with "abort" — the display's user-cancel)
+                task_cancel=task_cancel,
             )
 
             # call early stopping if we have it

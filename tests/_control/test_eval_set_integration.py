@@ -2426,3 +2426,140 @@ def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) ->
     applied = p.result["applied"]
     assert applied["max_samples"]["limit"] == 7
     assert applied["requested"] == {"max_samples": 7}
+
+
+# --- cancel directives (phase 3) --------------------------------------------
+
+
+def test_ctl_sample_cancel_scores_work_so_far(short_data_dir: Path) -> None:
+    """Cancelling a running sample (action=score) completes and scores it.
+
+    Mid-run, one gated sample cancels its gated sibling via the sample-cancel
+    directive: the sibling is interrupted, proceeds to scoring (limit
+    "operator"), and the eval finishes successfully — the cancel is
+    per-sample, not per-task.
+    """
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai.log import read_eval_log
+    from inspect_ai.log._samples import sample_active
+    from inspect_ai.scorer import Score, Target, accuracy, scorer
+
+    @scorer(metrics=[accuracy()])
+    def const_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+        return score
+
+    @task
+    def cancel_one_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[gate()],
+            scorer=const_scorer(),
+            name="cancel_one_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 2
+
+    async def capture() -> dict:
+        # the observer runs on one gated sample's task — cancel the *other*
+        # gated sample, so the interrupt doesn't tear down this capture
+        entry = (await current_eval_summaries(0.0))[0]
+        current = sample_active()
+        assert current is not None
+        other = next(i for i in (1, 2) if i != current.sample.id)
+        result = await cancel_sample(entry["eval_id"], str(other), 1)
+        repeat = await cancel_sample(entry["eval_id"], str(other), 1, dry_run=True)
+        return {"cancelled": other, "result": result, "repeat": repeat}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[cancel_one_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=2,
+        )
+
+    assert p.result is not None, "two samples never reached 'in flight'"
+    result = p.result["result"]
+    assert result["ok"] is True and result["changed"] is True
+    assert result["action"] == "score"
+
+    # the cancel is per-sample: the eval itself completes successfully
+    assert success
+    assert logs[0].status == "success"
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and len(log.samples) == 2
+    cancelled = next(s for s in log.samples if s.id == p.result["cancelled"])
+    assert cancelled.error is None
+    assert cancelled.limit is not None and cancelled.limit.type == "operator"
+    assert cancelled.scores  # the scorer ran on the work done so far
+
+
+def test_ctl_task_cancel_aborts_run(short_data_dir: Path) -> None:
+    """Cancelling a task tears down its in-flight samples and finalizes the log.
+
+    The directive fires the registered TaskCancel with "abort" — the same
+    path as the in-process display's cancel dialog — so the task's log ends
+    with an error status noting the user cancel, and eval_set does not retry
+    it.
+    """
+    from inspect_ai._control.cancel import cancel_task
+
+    @task
+    def cancel_whole_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[gate()],
+            name="cancel_whole_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 2
+
+    async def capture() -> dict:
+        entry = (await current_eval_summaries(0.0))[0]
+        dry = cancel_task(entry["task_id"], dry_run=True)
+        result = cancel_task(entry["task_id"])
+        repeat = cancel_task(entry["task_id"])
+        return {"dry": dry, "result": result, "repeat": repeat}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[cancel_whole_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=1,
+            retry_immediate=True,
+            max_samples=2,
+        )
+
+    assert p.result is not None, "two samples never reached 'in flight'"
+    dry = p.result["dry"]
+    assert dry is not None and dry["changed"] is True and dry["dry_run"] is True
+    assert dry["in_flight"] == 2
+    result = p.result["result"]
+    assert result["ok"] is True and result["changed"] is True
+    # the repeat (issued in the same tick, before teardown lands) is the
+    # idempotent no-op — the cancel was already requested
+    repeat = p.result["repeat"]
+    assert repeat is not None and repeat["changed"] is False
+
+    # aborted: the log ends with an error status naming the user cancel, and
+    # eval_set does not retry the task
+    assert not success
+    assert len(logs) == 1
+    assert logs[0].status == "error"
+    assert logs[0].error is not None
+    assert "cancelled by user (abort)" in logs[0].error.message

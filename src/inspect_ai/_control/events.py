@@ -227,20 +227,18 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> EventsSource | 
     evicted with no provider to recover it (a bounded transcript without
     realtime logging — not a production configuration).
     """
-    from inspect_ai.log._samples import active_samples
+    from inspect_ai._control.state import find_active_sample
 
-    for s in active_samples():
-        if s.eval_id == eval_id and str(s.sample.id) == sample_id and s.epoch == epoch:
-            history = s.transcript.history
-            return EventsSource(
-                nonce=_attempt_nonce(
-                    s.sample_uuid, s.sample.id, epoch, len(s.error_retries)
-                ),
-                fetch=history.events_from,
-                total=history.event_count,
-                done=s.completed is not None,
-            )
-    return None
+    s = find_active_sample(eval_id, sample_id, epoch)
+    if s is None:
+        return None
+    history = s.transcript.history
+    return EventsSource(
+        nonce=_attempt_nonce(s.sample_uuid, s.sample.id, epoch, len(s.error_retries)),
+        fetch=history.events_from,
+        total=history.event_count,
+        done=s.completed is not None,
+    )
 
 
 async def _logged_source(

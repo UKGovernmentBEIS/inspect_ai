@@ -145,3 +145,57 @@ def test_abort_cancel_not_retried_in_run_multiple() -> None:
         # loop (since abort currently produces status="error"). This is
         # acceptable for now — the key thing is it doesn't hang or crash.
         assert run_count >= 1
+
+
+def test_errored_attempt_marked_retry_pending() -> None:
+    """The runner stamps retry_pending on the errored attempt it re-queues.
+
+    Between an errored attempt (completed_at stamped) and its retry starting
+    (fresh EvalState registered), the errored attempt is the task's latest —
+    the flag is what lets `ctl task cancel` reject with "between attempts"
+    instead of claiming the task finished (see EvalState.retry_pending).
+    """
+    from inspect_ai._control.eval_state import (
+        mark_eval_retry_pending as original_mark,
+    )
+
+    marked: list[str] = []
+
+    def recording_mark(eval_id: str) -> None:
+        marked.append(eval_id)
+        original_mark(eval_id)
+
+    attempts = 0
+
+    @solver(name=f"fail_once_solver_{id(marked)}")
+    def fail_once_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("first attempt fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        with patch("inspect_ai._eval.run.mark_eval_retry_pending", recording_mark):
+            success, logs = eval_set(
+                tasks=[
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        solver=[fail_once_solver()],
+                        name="task_retry_pending",
+                    ),
+                ],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+            )
+
+        assert success
+        assert len(logs) == 1 and logs[0].status == "success"
+        # stamped exactly once, on the errored attempt — not the retry
+        assert len(marked) == 1
+        assert marked[0] != logs[0].eval.eval_id

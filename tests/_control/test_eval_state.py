@@ -122,17 +122,30 @@ def test_detach_eval_live_clears_live_data() -> None:
     detach_eval_live("never-registered")
 
 
-async def test_summary_carries_model_and_solver() -> None:
-    """Registration metadata (model, solver) flows through to /evals summaries."""
+async def test_summary_carries_registration_metadata() -> None:
+    """Registration metadata (model, solver, epochs) flows through to /evals summaries.
+
+    ``epochs`` matters beyond display: the CLI's multi-epoch EPOCH guard for
+    sample mutations treats a missing field as an old server and falls back
+    to the epoch-1 default, so dropping it from the summary would silently
+    disable the guard with the CLI tests still green.
+    """
     from inspect_ai._control.state import current_eval_summaries
 
     register_eval(
-        "e1", 1, task="t", task_id="tid", model="mockllm/model", solver="react"
+        "e1",
+        3,
+        task="t",
+        task_id="tid",
+        model="mockllm/model",
+        solver="react",
+        epochs=3,
     )
 
     [entry] = await current_eval_summaries(0.0)
     assert entry["model"] == "mockllm/model"
     assert entry["solver"] == "react"
+    assert entry["epochs"] == 3
 
 
 async def test_deferred_sample_stats_resolve_lazily_and_once() -> None:
