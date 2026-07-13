@@ -292,3 +292,71 @@ def test_claude_40_reasoning_tokens_not_promoted_to_adaptive():
         GenerateConfig(reasoning_tokens=4096)
     )
     assert fields == {"thinking": {"type": "enabled", "budget_tokens": 4096}}
+
+
+# --- review finding 3: thinking + tool use round trip (live) ---------------
+#
+# AWS docs require the last assistant message's thinking block (with
+# signature) to be passed back during tool use, else "an error occurs".
+# The Bedrock provider replays Claude reasoning as `<think>` text
+# (`emulate_reasoning=True`) and `ConverseReasoningText` has no signature
+# field, so with thinking actually enabled the second request of a tool
+# loop is expected to fail. These tests pin the round trip working.
+
+from test_helpers.utils import skip_if_no_bedrock  # noqa: E402
+
+from inspect_ai.model import ChatMessageTool, ChatMessageUser, get_model  # noqa: E402
+from inspect_ai.tool import ToolInfo  # noqa: E402
+from inspect_ai.tool._tool_params import ToolParam, ToolParams  # noqa: E402
+
+
+def _weather_tool() -> ToolInfo:
+    return ToolInfo(
+        name="get_weather",
+        description="Get current weather for a location",
+        parameters=ToolParams(
+            properties={"location": ToolParam(type="string", description="City name")},
+            required=["location"],
+        ),
+    )
+
+
+async def _tool_round_trip(model_name: str, config: GenerateConfig) -> str:
+    model = get_model(model_name, config=config)
+    tool = _weather_tool()
+    user = ChatMessageUser(
+        content="What's the weather in Paris? Use the get_weather tool."
+    )
+    first = await model.generate(input=[user], tools=[tool])
+    assistant = first.message
+    assert assistant.tool_calls, "model did not call the tool"
+    call = assistant.tool_calls[0]
+    tool_result = ChatMessageTool(
+        content="Current temperature: 88°F",
+        tool_call_id=call.id,
+        function=call.function,
+    )
+    second = await model.generate(input=[user, assistant, tool_result], tools=[tool])
+    return second.completion
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_bedrock_budget_thinking_tool_round_trip():
+    """Claude 4.5: enabled+budget_tokens thinking across a tool call."""
+    completion = await _tool_round_trip(
+        "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        GenerateConfig(reasoning_tokens=1024, max_tokens=4096),
+    )
+    assert completion
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_bedrock_adaptive_thinking_tool_round_trip():
+    """Claude 4.6: adaptive thinking + output_config.effort across a tool call."""
+    completion = await _tool_round_trip(
+        "bedrock/us.anthropic.claude-sonnet-4-6",
+        GenerateConfig(reasoning_effort="high", max_tokens=4096),
+    )
+    assert completion
