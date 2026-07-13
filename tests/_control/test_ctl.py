@@ -796,6 +796,99 @@ def test_fetch_summaries_sole_server_rides_full_budget(
     assert "retrying" in capsys.readouterr().err
 
 
+def test_fetch_summaries_exact_id_match_short_circuits_fan_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An exact full-task_id match stops the fan-out at the server holding it."""
+    from inspect_ai._cli.ctl import _fetch_summaries
+
+    counter = _stub_httpx(monkeypatch, [[{"task_id": "aaa111"}]])
+    fetched = _fetch_summaries(
+        [_disc(7), _disc(8)], raise_on_busy=True, stop_on_task_id="aaa111"
+    )
+    assert [s["task_id"] for s in fetched.summaries] == ["aaa111"]
+    assert counter["gets"] == 1  # pid 8 never contacted
+
+
+def test_fetch_summaries_prefix_query_still_fans_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A prefix (non-exact) query never stops early — ambiguity needs all servers."""
+    from inspect_ai._cli.ctl import _fetch_summaries
+
+    counter = _stub_httpx(
+        monkeypatch, [[{"task_id": "aaa111"}], [{"task_id": "aaa222"}]]
+    )
+    fetched = _fetch_summaries(
+        [_disc(7), _disc(8)], raise_on_busy=True, stop_on_task_id="aaa"
+    )
+    assert [s["task_id"] for s in fetched.summaries] == ["aaa111", "aaa222"]
+    assert counter["gets"] == 2
+
+
+def test_fetch_summaries_duplicate_id_resolves_to_newest_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The duplicate-id corner (old kept-alive attempt, newer retry) resolves newest.
+
+    Only the newest server's payload is stubbed: contacting the older
+    sibling would exhaust the sequence and fail loudly.
+    """
+    from inspect_ai._cli.ctl import _fetch_summaries
+
+    counter = _stub_httpx(monkeypatch, [[{"task_id": "aaa111", "task": "t1"}]])
+    fetched = _fetch_summaries(
+        [_disc(8), _disc(7)], raise_on_busy=True, stop_on_task_id="aaa111"
+    )
+    assert counter["gets"] == 1
+    resolved = _resolve_target_eval(fetched.summaries, "aaa111")
+    assert resolved["pid"] == 8
+
+
+def test_list_discovered_servers_sorts_newest_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Discovery lists servers newest-first — the exact-id short-circuit relies on it."""
+    from inspect_ai._control import discovery
+
+    entries = [
+        {"pid": 1, "socket_path": "/tmp/1.sock", "started_at": 100.0},
+        {"pid": 3, "socket_path": "/tmp/3.sock", "started_at": 300.0},
+        {"pid": 2, "socket_path": "/tmp/2.sock", "started_at": 200.0},
+    ]
+    monkeypatch.setattr(discovery, "list_alive_discovery_entries", lambda d: entries)
+    assert [s.pid for s in discovery.list_discovered_servers()] == [3, 2, 1]
+
+
+def test_events_poll_with_full_task_id_skips_sibling_servers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`sample events` with a full task_id never contacts sibling processes.
+
+    Two servers discovered, match on the first: the whole invocation is
+    exactly two requests (its /tasks + the events read) — a third would
+    exhaust the stub sequence and fail loudly.
+    """
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_disc(8), _disc(7)],
+    )
+    counter = _stub_httpx(
+        monkeypatch,
+        [
+            [{"task_id": "aaa111", "task": "t1", "eval_id": "eval_a"}],
+            {"events": [], "next": None, "done": True},
+        ],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert counter["gets"] == 2
+    payload = json.loads(result.stdout)
+    assert payload["task_id"] == "aaa111"
+
+
 def test_sample_detail_read_retries_busy_timeout(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1314,6 +1407,7 @@ def _stub_limits(
             "max_sandboxes",
             "max_subprocesses",
             "max_connections",
+            "key",
             "log_buffer",
             "log_shared",
         )
@@ -1423,6 +1517,78 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     assert "! max_samples is not adjustable" in result.stderr
     # the buffer warning restates the headline error and is not repeated
     assert "! log_buffer" not in result.stderr
+
+
+def test_config_gates_key_on_pre_version_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--key` gates on the shipped `_KNOB_SINCE` entry (since-2).
+
+    An older server's PATCH handler silently ignores the unknown key/key_limit
+    params (returning a success-shaped view with the retune unapplied), so the
+    gate must refuse the whole request pre-flight — a server that predates the
+    knob refuses it, and a current server (advertising `CONTROL_API_VERSION`)
+    accepts it.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=1)],
+    )
+
+    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
+        raise AssertionError("the mutation must not be sent")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
+    result = cli_runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
+    assert result.exit_code == 1
+    assert "--key not supported" in result.stderr
+    assert "pid 7 is running an older inspect" in result.stderr
+
+    # the gate covers dry runs too: a dry-run PATCH on an older server would
+    # report a success-shaped view that omits the key retune
+    dry = cli_runner().invoke(
+        ctl_command, ["config", "--key", "my_api", "2", "--dry-run"]
+    )
+    assert dry.exit_code == 1
+    assert "--key not supported" in dry.stderr
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "concurrency": [
+                    {"name": "my_api", "limit": 2, "in_use": 0, "adjustable": True}
+                ],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"concurrency:my_api": 2},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--key", "my_api", "2", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["key"] == ("my_api", 2)
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["knobs"]["concurrency"]["keys"][0]["name"] == "my_api"
 
 
 def test_config_task_knob_with_only_orphan_task_says_retry(
