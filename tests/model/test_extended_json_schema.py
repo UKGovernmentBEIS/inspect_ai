@@ -22,7 +22,7 @@ from inspect_ai.model import (
     ResponseSchema,
     get_model,
 )
-from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
+from inspect_ai.tool import ToolFunction, ToolInfo, ToolParam, ToolParams
 from inspect_ai.util import json_schema
 
 # Tool with extended JSON Schema constraint fields
@@ -104,6 +104,135 @@ async def test_anthropic_extended_response_schema():
     model = get_model("anthropic/claude-sonnet-4-5")
     result = await model.generate(input=INPUT_SCHEMA, config=_response_config())
     assert result.completion is not None
+
+
+# CONSTRAINED_TOOL as a strict tool: flat schema, so only the extended
+# constraint fields (which strict schemas reject) must be stripped for the
+# API to accept it.
+STRICT_FLAT_TOOL = CONSTRAINED_TOOL.model_copy(update={"options": {"strict": True}})
+
+
+def _assert_valid_flat_args(args: dict) -> None:
+    assert isinstance(args["username"], str)
+    assert isinstance(args["age"], int)
+
+
+@skip_if_no_anthropic
+async def test_anthropic_strict_flat_tool_schema():
+    """The API accepts a strict tool with a flat schema and calls it conformantly."""
+    model = get_model("anthropic/claude-sonnet-4-5")
+    result = await model.generate(
+        input=INPUT_TOOL,
+        tools=[STRICT_FLAT_TOOL],
+        tool_choice=ToolFunction(name="register_user"),
+    )
+    tool_calls = result.message.tool_calls
+    assert tool_calls
+    _assert_valid_flat_args(tool_calls[0].arguments)
+
+
+@skip_if_no_anthropic
+async def test_anthropic_strict_flat_tool_schema_with_thinking():
+    """Strict flat tool calls conform to schema when thinking is enabled.
+
+    The motivating case for strict tool use (#4432): with thinking enabled
+    tool_choice is not sent, so strict is the only way to guarantee a
+    schema-conformant tool call.
+    """
+    model = get_model("anthropic/claude-sonnet-4-6")
+    result = await model.generate(
+        input=INPUT_TOOL,
+        tools=[STRICT_FLAT_TOOL],
+        config=GenerateConfig(reasoning_tokens=1024, max_tokens=8192),
+    )
+    tool_calls = result.message.tool_calls
+    assert tool_calls
+    _assert_valid_flat_args(tool_calls[0].arguments)
+
+
+# Strict variant of CONSTRAINED_TOOL, with a nested object parameter. Under
+# strict tool use the extended constraint fields must be stripped and every
+# object schema (nested included) must carry additionalProperties: false, or
+# the API rejects the request.
+STRICT_TOOL = ToolInfo(
+    name="register_user",
+    description="Register a new user with a username, age, and address.",
+    parameters=ToolParams(
+        properties={
+            "username": ToolParam(
+                type="string",
+                description="The username.",
+                pattern=r"^[a-zA-Z0-9_]+$",
+                minLength=3,
+                maxLength=20,
+            ),
+            "age": ToolParam(
+                type="integer",
+                description="The user's age.",
+                minimum=0,
+                maximum=150,
+            ),
+            "address": ToolParam(
+                type="object",
+                description="The user's address.",
+                properties={
+                    "city": ToolParam(type="string", description="City name."),
+                    "postal_code": ToolParam(type="string", description="Postal code."),
+                },
+                required=["city", "postal_code"],
+            ),
+        },
+        required=["username", "age", "address"],
+    ),
+    options={"strict": True},
+)
+
+INPUT_STRICT_TOOL = [
+    ChatMessageUser(
+        content="Register a user named alice who is 30 years old and lives "
+        "in Springfield, postal code 12345."
+    )
+]
+
+
+def _assert_valid_register_user_args(args: dict) -> None:
+    assert isinstance(args["username"], str)
+    assert isinstance(args["age"], int)
+    assert isinstance(args["address"], dict)
+    assert {"city", "postal_code"} <= args["address"].keys()
+
+
+@skip_if_no_anthropic
+async def test_anthropic_strict_tool_schema():
+    """The API accepts a strict tool schema (nested object included)."""
+    model = get_model("anthropic/claude-sonnet-4-5")
+    result = await model.generate(
+        input=INPUT_STRICT_TOOL,
+        tools=[STRICT_TOOL],
+        tool_choice=ToolFunction(name="register_user"),
+    )
+    tool_calls = result.message.tool_calls
+    assert tool_calls
+    _assert_valid_register_user_args(tool_calls[0].arguments)
+
+
+@skip_if_no_anthropic
+async def test_anthropic_strict_tool_schema_with_thinking():
+    """Strict tool calls conform to schema when thinking is enabled.
+
+    The motivating case for strict tool use (#4432): with thinking enabled
+    tool_choice is not sent, so strict is the only way to guarantee a
+    schema-conformant tool call.
+    """
+    model = get_model("anthropic/claude-sonnet-4-6")
+    result = await model.generate(
+        input=INPUT_STRICT_TOOL,
+        tools=[STRICT_TOOL],
+        config=GenerateConfig(reasoning_tokens=1024, max_tokens=8192),
+    )
+    tool_calls = result.message.tool_calls
+    assert tool_calls
+    _assert_valid_register_user_args(tool_calls[0].arguments)
 
 
 # -- Google -------------------------------------------------------------------
