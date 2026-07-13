@@ -2271,59 +2271,6 @@ def test_task_cancel_handler_404_means_task_gone(
     assert "older inspect" not in result.stderr
 
 
-def test_cancel_action_since_within_api_version() -> None:
-    """The shipped gate constant can't outrun `CONTROL_API_VERSION`.
-
-    The analogue of `test_knob_since_table_is_consistent`'s second assertion:
-    a `_CANCEL_ACTION_SINCE` of N+1 while the constant is still N would
-    make the CLI block `--action score`/`--action error` against every
-    server, including current ones.
-    """
-    from inspect_ai._cli.ctl import _CANCEL_ACTION_SINCE
-    from inspect_ai._control import CONTROL_API_VERSION
-
-    assert _CANCEL_ACTION_SINCE <= CONTROL_API_VERSION
-
-
-def test_task_cancel_gates_action_on_older_server(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`--action score`/`--action error` hard-error against an older server.
-
-    An older server's cancel handler silently ignores the `action` param
-    and aborts the task — the opposite of the graceful completion requested —
-    so nothing may be sent. A plain cancel is not gated (abort is what an
-    older server does anyway).
-    """
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=1)],
-    )
-    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 1})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-
-    result = cli_runner().invoke(
-        ctl_command, ["task", "cancel", "aaa111", "--action", "score"]
-    )
-    assert result.exit_code == 1
-    assert "--action score not supported" in result.stderr
-    assert "pid 7 is running an older inspect" in result.stderr
-    assert "No cancel was sent" in result.stderr
-    assert spy.paths == []  # nothing was sent
-
-    error = cli_runner().invoke(
-        ctl_command, ["task", "cancel", "aaa111", "--action", "error"]
-    )
-    assert error.exit_code == 1
-    assert "--action error not supported" in error.stderr
-    assert spy.paths == []
-
-    plain = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
-    assert plain.exit_code == 0, plain.output
-    assert spy.params == [{}]
-
-
 def test_task_cancel_action_sent_on_current_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

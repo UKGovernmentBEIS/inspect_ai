@@ -43,5 +43,4 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       non-GET route (`_control/strict.py`), so `api_version >= 3` means a
 #       client can rely on the server to reject rather than partially apply
 #       an unsupported knob.
-#   4 — task cancel `action` param.
-CONTROL_API_VERSION: int = 4
+CONTROL_API_VERSION: int = 3
