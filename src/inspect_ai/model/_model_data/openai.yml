@@ -426,4 +426,37 @@ openai:
       versions:
         gpt-5.5-2026-04-23:
           snapshot: "2026-04-23"
+    # the bare `gpt-5.6` model id is an alias that routes to gpt-5.6-sol
+    gpt-5.6:
+      display_name: GPT-5.6
+      release_date: 2026-07-09
+      knowledge_cutoff_date: 2026-02-16
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+    gpt-5.6-sol:
+      display_name: GPT-5.6 Sol
+      release_date: 2026-07-09
+      knowledge_cutoff_date: 2026-02-16
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+    gpt-5.6-terra:
+      display_name: GPT-5.6 Terra
+      release_date: 2026-07-09
+      knowledge_cutoff_date: 2026-02-16
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+    gpt-5.6-luna:
+      display_name: GPT-5.6 Luna
+      release_date: 2026-07-09
+      knowledge_cutoff_date: 2026-02-16
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
 

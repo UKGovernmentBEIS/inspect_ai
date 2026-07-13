@@ -1,6 +1,30 @@
 ## Unreleased
 
 - Anthropic: Support strict tool use via `ToolInfo.options["strict"] = True` (sets `strict: true` on the tool definition, strips unsupported schema validation keywords, and adds the structured outputs beta header). (#4432)
+- Eval: `EvalSample` and `EvalSampleSummary` now record `turn_count` and the sample's token limit (`token_limit`, `token_limit_type`, and metered `token_limit_usage`).
+- Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
+- Control Channel: `inspect ctl sample list` now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.
+- Bugfix: Crash recovery now reconstructs `sample.messages` from the first model role's conversation when a solver runs multiple agents concurrently, instead of returning whichever agent's model call happened to fire last. (#4414)
+
+## 0.3.246 (10 July 2026)
+
+- Grok: Support for Grok 4.5 (model info database entry; accepts `reasoning_effort` with a documented default of `high`).
+- OpenAI: Support for GPT-5.6 (Sol, Terra, and Luna) — model info database entries and codename frontier aliasing now target `gpt-5.6`.
+- OpenAI: `reasoning_effort="max"` is now passed through natively for GPT-5.6+ models rather than being clamped to `xhigh`.
+- OpenAI: Compatibility with openai >= 2.45.0, which is now the minimum required version (usage conversion now populates the new required `cache_write_tokens` field).
+- Model API: New `reasoning_mode` generation option (`--reasoning-mode`) for GPT-5.6 pro mode; requesting "pro" defaults to background processing like the gpt-5-pro model line.
+- Checkpointing: `Task(checkpoint=False)` now vetoes checkpointing for that task, overriding an eval-set/CLI enable (previously a no-op).
+- Control Channel: Reorganized the `inspect ctl` CLI into resource-noun groups (`ctl task`, `ctl sample`, `ctl config`, `ctl process`); the old flat spellings remain as hidden deprecated aliases, except `ctl sample` which is now the group (use `ctl sample show`).
+- Control Channel: `inspect ctl` sample commands now warn and skip an eval that stays busy through the retries instead of failing outright, with stderr caveats (and an honest non-zero exit when no tasks remain visible) wherever the skip could mislead.
+- Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
+- Control Channel: New `--json` flag for `inspect eval`, `inspect eval-set`, and `inspect eval-retry` emits machine-readable launch-handoff and `done` JSON lines on stdout, so agents can use `inspect ctl` immediately after launch instead of sleep-and-retrying.
+- CLI: `--debug` attach diagnostics ("Waiting for debugger attach") now print to stderr, keeping stdout clean for machine-readable output such as `--json`.
+- Control Channel: `inspect ctl config` now errors when the target process runs an inspect version too old to support a requested knob, instead of silently ignoring it.
+- Control Channel: Failed `inspect ctl` `--json` invocations now emit a structured `{"error": {kind, exception, message, status}}` envelope on stdout (exit code still non-zero) instead of only stderr prose or a raw traceback; human output is unchanged.
+- Control Channel: `max_subprocesses` is now retunable mid-flight via `inspect ctl config --max-subprocesses` and the `PATCH /config` endpoints, alongside the other concurrency knobs.
+- Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
+- Eval: Task retries no longer fail when the prior attempt errored before writing its log file (e.g. a failed log start on unreachable storage).
+- Model Roles: `--model-role` roles that share the same model and config now report their token usage separately in `role_usage` instead of collapsing onto one role. (#4450)
 
 ## 0.3.245 (08 July 2026)
 
@@ -24,11 +48,12 @@
 - Limits: Token limits can now meter only output tokens via `token_limit(n, type="output")`, `Task`/`eval()` `token_limit=TokenLimit(...)` values, or string forms like `--token-limit output:1m` (with `k`/`m`/`b` magnitude suffixes).
 - Performance: make `stable_message_ids()` linear per turn.
 - Performance: Reading `.eval` logs now looks up zip members via a cached O(1) name index instead of an O(members) scan per member, removing quadratic (O(members²)) overhead when loading logs with many samples (e.g. `read_eval_log`, `eval-retry`, `samples_df(full=True)`).
-- Sandbox: Validate sandbox-service names and request IDs, bind response paths to request filenames, and prevent queue filenames from being interpreted as shell commands.- Scoring: Fix edge case where `pattern` `match_all=True` could incorrectly return the target value when no matches were present.
+- Sandbox: Validate sandbox-service names and request IDs, bind response paths to request filenames, and prevent queue filenames from being interpreted as shell commands.
 - Scoring: Fix edge case where `pattern` `match_all=True` could incorrectly return the target value when no matches were present.
 - Scoring: `model_graded_qa` / `model_graded_fact` now mark a sample unscored (instead of `INCORRECT`) when the judge's output does not match the grade regex, tagging `unscored_reason="grade_parse_failure"` so judge-parse failures leave the rate and stay visible rather than inflating the `INCORRECT` count.
 - Security: Constrain Docker sandbox `read_file()` staging to a generated regular file so container paths cannot copy outside the private host temporary directory.
 - vLLM: Keep the connection-pool/adaptive-concurrency scope stable across lazy server startup instead of splitting it on the first generate.
+- Bugfix: A failed log write escaping a task (e.g. the `log_start()` header flush when log storage is unreachable) now yields an errored `EvalLog` — re-queued by task retries and `eval_set()` — instead of tearing down the entire run and cancelling sibling tasks.
 - Bugfix `--score-on-error` and `--continue-on-fail` (when absent on the command line) silently overwriting a value set in a `@task`, a `--run-config` file, or a prior eval log being retried.
 - Bugfix: `mean()` and `bootstrap_stderr()` now return `0.0` for an empty score list instead of `nan` (with numpy empty-slice warnings), matching the empty-input handling of `accuracy()`/`std()`/`stderr()`/`var()`.
 - Bugfix: Sample concurrency now honors model-level `max_connections` / `adaptive_connections` settings instead of classifying the adaptive-vs-static path from task-level config alone.

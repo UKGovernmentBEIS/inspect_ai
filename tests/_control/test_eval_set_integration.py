@@ -21,8 +21,6 @@ wait) live in ``test_server.py``.
 See ``tests/_control/control_probe.py`` for the observation primitives.
 """
 
-import tempfile
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -50,62 +48,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._samples import active_samples
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
-
-@pytest.fixture(autouse=True)
-def _isolate_active_model() -> Iterator[None]:
-    """Keep ``eval_set``'s active-model contextvar from leaking across tests.
-
-    ``eval`` sets the process ``active_model`` contextvar. These tests run
-    ``eval_set`` *synchronously* in the test's own context (not a background
-    thread), so without isolation that set persists after the call and leaks
-    ``mockllm/model`` into later tests — e.g. one resolving a bare ``inspect``
-    model, which then resolves to the leaked active model instead of
-    ``INSPECT_EVAL_MODEL``. Restore the contextvar after each test.
-    """
-    from inspect_ai.model._model import active_model_context_var
-
-    token = active_model_context_var.set(active_model_context_var.get(None))
-    try:
-        yield
-    finally:
-        active_model_context_var.reset(token)
-
-
-@pytest.fixture
-def short_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    """Short data dir under /tmp so AF_UNIX paths fit in 104 chars.
-
-    macOS pytest tmp_path lives under ``/private/var/folders/...`` which blows
-    past the AF_UNIX limit. The control server still binds a socket during the
-    run (even though we observe in-loop, not over it), so the discovery dir
-    must stay short. Patches both control and ACP discovery modules so neither
-    subsystem writes outside the test's sandbox.
-    """
-    dirpath = Path(tempfile.mkdtemp(prefix="ctl_es_", dir="/tmp"))
-
-    def _stub(subdir: str | None) -> Path:
-        path = (dirpath / (subdir or "")).resolve()
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    monkeypatch.setattr("inspect_ai._control.discovery.inspect_data_dir", _stub)
-    monkeypatch.setattr("inspect_ai.agent._acp.discovery.inspect_data_dir", _stub)
-    try:
-        yield dirpath
-    finally:
-        for p in dirpath.rglob("*"):
-            try:
-                p.unlink()
-            except OSError:
-                pass
-        try:
-            for sub in sorted(dirpath.rglob("*"), reverse=True):
-                if sub.is_dir():
-                    sub.rmdir()
-            dirpath.rmdir()
-        except OSError:
-            pass
-
+# `_isolate_active_model` (autouse) and `short_data_dir` come from
+# tests/_control/conftest.py.
 
 # --- ls / GET /evals: per-eval listing -------------------------------------
 
@@ -1015,7 +959,6 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
 
     # CLI target resolution (pure over the summaries the endpoint returns).
     summaries = [entry]
-    assert _resolve_target_eval(summaries, None) is entry  # sole task
     assert _resolve_target_eval(summaries, entry["task_id"][:12]) is entry  # id prefix
     assert _resolve_target_eval(summaries, "task_mul") is entry  # task-name prefix
     with pytest.raises(click.exceptions.Exit):
@@ -1158,7 +1101,7 @@ def test_ctl_flush_writes_buffered_samples_and_buffer_config(
     directive end to end (read the live config off the running `TaskLogger`,
     then lower the flush buffer) to pin the provider wiring.
     """
-    from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
+    from inspect_ai._control.buffer import flush_task_samples, task_buffer_config
 
     @task
     def task_nine() -> Task:
@@ -1183,7 +1126,7 @@ def test_ctl_flush_writes_buffered_samples_and_buffer_config(
         from inspect_ai.log._file import read_eval_log_sample_summaries_async
 
         entry = (await current_eval_summaries(0.0))[0]
-        eval_id = entry["eval_id"]
+        task_id = entry["task_id"]
         location = next(s.log_location for s in get_eval_states() if s.log_location)
 
         async def on_disk_completed() -> set:
@@ -1194,13 +1137,13 @@ def test_ctl_flush_writes_buffered_samples_and_buffer_config(
             return {s.id for s in summaries if s.completed}
 
         before = await on_disk_completed()
-        config_before = await eval_buffer_config(eval_id)
-        flushed = await flush_eval_samples(eval_id)
+        config_before = task_buffer_config(task_id)
+        flushed = await flush_task_samples(task_id)
         after = await on_disk_completed()
         # a second flush with nothing newly completed is a no-op
-        flushed_again = await flush_eval_samples(eval_id)
-        # lower the flush buffer via the buffer directive
-        config_after = await eval_buffer_config(eval_id, log_buffer=1)
+        flushed_again = await flush_task_samples(task_id)
+        # lower the flush buffer via the config directive
+        config_after = task_buffer_config(task_id, log_buffer=1)
         return {
             "before": before,
             "flushed": flushed,
@@ -2431,7 +2374,7 @@ def test_task_retry_detaches_superseded_attempt_live(
     )
 
 
-# --- limits / GET + PATCH /tasks/<id>/limits -------------------------------
+# --- limits / GET + PATCH /tasks/<id>/config -------------------------------
 
 
 def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) -> None:
