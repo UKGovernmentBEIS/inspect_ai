@@ -222,22 +222,21 @@ def sample_limits() -> SampleLimits:
     if limit_data is not None:
         return limit_data
 
-    def get_root_node(node: TNode | None, name: str) -> TNode:
-        if node is None:
+    def require_root(tree: _Tree[TNode], name: str) -> TNode:
+        root = _tree_root(tree)
+        if root is None:
             raise RuntimeError(
                 f"No {name} limit node found. Is there a running sample?"
             )
-        while node.parent is not None:
-            node = node.parent
-        return node
+        return root
 
     return SampleLimits(
-        token=get_root_node(token_limit_tree.get(), "token"),
-        cost=get_root_node(cost_limit_tree.get(), "cost"),
-        message=get_root_node(message_limit_tree.get(), "message"),
-        turn=get_root_node(turn_limit_tree.get(), "turn"),
-        working=get_root_node(working_limit_tree.get(), "working"),
-        time=get_root_node(time_limit_tree.get(), "time"),
+        token=require_root(token_limit_tree, "token"),
+        cost=require_root(cost_limit_tree, "cost"),
+        message=require_root(message_limit_tree, "message"),
+        turn=require_root(turn_limit_tree, "turn"),
+        working=require_root(working_limit_tree, "working"),
+        time=require_root(time_limit_tree, "time"),
     )
 
 
@@ -255,9 +254,69 @@ def record_sample_limit_data(message_usage: float) -> None:
     )
 
 
+def reset_sample_limit_data() -> None:
+    """Clear any previously recorded sample limit snapshot.
+
+    Called at the start of each sample attempt. A sample retried via
+    `retry_on_error` re-runs in the same context that `record_sample_limit_data`
+    populated at the end of the prior attempt; without a reset, `sample_limits()`
+    (and everything built on it) would keep returning the prior attempt's frozen
+    snapshot instead of reading the new attempt's live limit trees.
+    """
+    _sample_limit_data.set(None)
+
+
 _sample_limit_data: ContextVar[SampleLimits | None] = ContextVar(
     "SampleLimitData", default=None
 )
+
+
+def _tree_root(tree: _Tree[TNode]) -> TNode | None:
+    """Outermost (root) node of a limit tree, or `None` when the tree is empty."""
+    node = tree.get()
+    if node is None:
+        return None
+    while node.parent is not None:
+        node = node.parent
+    return node
+
+
+def token_limit_usage() -> int | None:
+    """Metered token usage for the current sample's token limit.
+
+    Returns the computed metered value for the outermost token limit,
+    respecting the limit's `type` (`all` meters total tokens, `output` meters
+    output tokens, and a formula meters its floored result). Returns `None`
+    when no token limit ceiling is configured (an unlimited sample) or when
+    there is no active token limit scope. Tokens consumed while limits are
+    suspended (see `suspend_token_limit()`) are not metered.
+
+    This is snapshot-aware: it reflects the live value while the sample is
+    running and the final value after the sample's limit scopes have closed.
+    """
+    data = _sample_limit_data.get()
+    root: Limit | None = (
+        data.token if data is not None else _tree_root(token_limit_tree)
+    )
+    if root is None or root.limit is None:
+        return None
+    return int(root.usage)
+
+
+def turn_count() -> int | None:
+    """Turn count for the current sample.
+
+    Returns the number of turns recorded against the outermost turn limit
+    (a turn being one top-level `generate()` call), or `None` when there is
+    no active turn limit scope. Turns taken while limits are suspended (see
+    `suspend_turn_limit()`) are not counted.
+
+    This is snapshot-aware: it reflects the live value while the sample is
+    running and the final value after the sample's limit scopes have closed.
+    """
+    data = _sample_limit_data.get()
+    root: Limit | None = data.turn if data is not None else _tree_root(turn_limit_tree)
+    return int(root.usage) if root is not None else None
 
 
 _TOKEN_FORMULA_VARS = ("input", "output")

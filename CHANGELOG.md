@@ -1,5 +1,12 @@
 ## Unreleased
 
+- Eval: `EvalSample` and `EvalSampleSummary` now record `turn_count` and the sample's token limit (`token_limit`, `token_limit_type`, and metered `token_limit_usage`).
+- Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
+- Control Channel: `inspect ctl sample list` now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.
+- Bugfix: Crash recovery now reconstructs `sample.messages` from the first model role's conversation when a solver runs multiple agents concurrently, instead of returning whichever agent's model call happened to fire last. (#4414)
+
+## 0.3.246 (10 July 2026)
+
 - Grok: Support for Grok 4.5 (model info database entry; accepts `reasoning_effort` with a documented default of `high`).
 - OpenAI: Support for GPT-5.6 (Sol, Terra, and Luna) — model info database entries and codename frontier aliasing now target `gpt-5.6`.
 - OpenAI: `reasoning_effort="max"` is now passed through natively for GPT-5.6+ models rather than being clamped to `xhigh`.
