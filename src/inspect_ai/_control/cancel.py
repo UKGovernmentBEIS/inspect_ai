@@ -144,7 +144,8 @@ def cancel_task(
             "error": (
                 "resolution 'error' is not permitted when the task's samples "
                 "are configured to fail on errors (they will surface errors "
-                "of their own accord) — use 'score' or 'cancelled' instead"
+                "of their own accord) — use the 'score' resolution or a "
+                "plain cancel instead"
             ),
         }
 

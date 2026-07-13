@@ -91,6 +91,12 @@ _KNOB_SINCE: dict[str, int] = {
     "log_shared": 0,
 }
 
+# Minimum control-API version for the task-cancel `resolution` param (same
+# bookkeeping as `_KNOB_SINCE`: an older server's cancel handler silently
+# ignores the param and aborts the task, so `_run_task_cancel` hard-errors
+# a `--score`/`--error` request against an older process before sending).
+_CANCEL_RESOLUTION_SINCE = 2
+
 # Rendered for a task-scoped knob that a process-level view can't show.
 _PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
 
@@ -1792,22 +1798,10 @@ def _run_task_cancel(
     if resolution != "cancelled":
         # a server that predates the resolution param would silently ignore
         # it and abort the task — hard-error before sending (same rationale
-        # as `_gate_knob_support`; version 2 introduced the param)
-        server = next(
-            (s for s in servers if str(s.socket_path) == str(scope.socket_path)), None
-        )
-        api_version = server.api_version if server is not None else 0
-        if api_version < 2:
-            process = (
-                f"pid {server.pid}" if server is not None else "the target process"
-            )
-            click.echo(
-                f"--{resolution} not supported — {process} is running an older "
-                "inspect; restart the eval to pick up the current version. "
-                "No cancel was sent.",
-                err=True,
-            )
-            raise click.exceptions.Exit(code=1)
+        # as `_gate_knob_support`)
+        api_version, server = _server_api_version(servers, str(scope.socket_path))
+        if api_version < _CANCEL_RESOLUTION_SINCE:
+            _version_gate_error(server, f"--{resolution}", "No cancel was sent.")
         params["resolution"] = resolution
     if dry_run:
         params["dry_run"] = True
@@ -3102,17 +3096,47 @@ def _gate_knob_support(
     gated = [knob for knob in requested_knobs if _KNOB_SINCE[knob] > 0]
     if not gated:
         return
-    server = next((s for s in servers if str(s.socket_path) == socket_path), None)
-    api_version = server.api_version if server is not None else 0
+    api_version, server = _server_api_version(servers, socket_path)
     unsupported = [knob for knob in gated if _KNOB_SINCE[knob] > api_version]
     if not unsupported:
         return
     flags = ", ".join("--" + knob.replace("_", "-") for knob in unsupported)
+    _version_gate_error(server, flags, "No changes were applied.")
+
+
+class _ServerVersion(NamedTuple):
+    """A target process's advertised control-API version + discovery entry."""
+
+    api_version: int
+    server: DiscoveredControlServer | None
+
+
+def _server_api_version(
+    servers: list[DiscoveredControlServer], socket_path: str
+) -> _ServerVersion:
+    """The advertised control-API version of the process at ``socket_path``.
+
+    A process with no advertised version (a discovery file predating the
+    field, or a socket with no discovery entry at all) is version 0 — the
+    fail-closed default the version gates rely on.
+    """
+    server = next((s for s in servers if str(s.socket_path) == str(socket_path)), None)
+    return _ServerVersion(server.api_version if server is not None else 0, server)
+
+
+def _version_gate_error(
+    server: DiscoveredControlServer | None, flags: str, not_sent: str
+) -> NoReturn:
+    """Fail a command whose flags the target process is too old to honor.
+
+    The version integer is meaningless to users, so the message names the
+    offending ``flags`` and the remedy (restart the eval); ``not_sent``
+    states that nothing was mutated, in the command's own vocabulary.
+    """
     target = f"pid {server.pid}" if server is not None else "the target process"
     click.echo(
         f"{flags} not supported — {target} is running an older inspect; "
-        "restart the eval to pick up the current version. No changes were "
-        "applied.",
+        f"restart the eval to pick up the current version. {not_sent}",
         err=True,
     )
     raise click.exceptions.Exit(code=1)
