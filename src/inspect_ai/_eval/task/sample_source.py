@@ -53,7 +53,10 @@ class SampleSource:
         return immediately (no awaiting / blocking). The returned samples drive
         the task's up-front setup (validation, sandbox startup) and are the
         first batch. May be empty, in which case the task starts by calling
-        ``next_samples()``.
+        ``next_samples()``. The seed isn't required for sandboxes: a sandbox
+        config first seen in a later-added sample gets the same startup
+        (image build/pull, validation, registered cleanup) before that sample
+        runs.
         """
         return []
 

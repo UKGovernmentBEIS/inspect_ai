@@ -6,13 +6,24 @@ The source seeds the task with `initial_samples()`, observes each result via
 samples are live: they start as soon as there is free capacity.
 """
 
+from typing import Any, Literal, overload
+
 import anyio
 import pytest
+from pydantic import BaseModel
+from typing_extensions import override
 
 from inspect_ai import SampleSource, Task, enqueue_sample, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util import (
+    ExecResult,
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+    SandboxEnvironmentSpec,
+    sandboxenv,
+)
 
 
 def _sample_inputs(log: EvalLog) -> list[str]:
@@ -473,3 +484,194 @@ def test_sample_source_enqueue_during_terminal_next_samples() -> None:
     )
     assert logs[0].status == "success"
     assert _sample_inputs(logs[0]) == ["late", "seed"]
+
+
+# frozen so specs embedding it stay hashable (sandbox startup sets them)
+class _SandboxConfig(BaseModel, frozen=True):
+    name: str
+
+
+_sandbox_events: list[str] = []
+
+
+def _config_name(config: SandboxEnvironmentConfigType | None) -> str:
+    assert isinstance(config, _SandboxConfig)
+    return config.name
+
+
+@sandboxenv(name="source_events")
+class _EventsSandbox(SandboxEnvironment):
+    """Sandboxenv that records task/sample lifecycle events by config name."""
+
+    @override
+    @classmethod
+    def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
+        return _SandboxConfig(**config)
+
+    @override
+    @classmethod
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
+        _sandbox_events.append(f"task_init:{_config_name(config)}")
+
+    @override
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        _sandbox_events.append(f"sample_init:{_config_name(config)}")
+        return {"default": _EventsSandbox()}
+
+    @override
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        environments: dict[str, SandboxEnvironment],
+        interrupted: bool,
+    ) -> None:
+        pass
+
+    @override
+    @classmethod
+    async def task_cleanup(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
+    ) -> None:
+        _sandbox_events.append(f"task_cleanup:{_config_name(config)}")
+
+    @override
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        raise NotImplementedError
+
+    @override
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        raise NotImplementedError
+
+    @overload
+    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+
+    @overload
+    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+
+    @override
+    async def read_file(self, file: str, text: bool = True) -> str | bytes:
+        raise NotImplementedError
+
+
+def test_sample_source_sandbox_startup_without_seed() -> None:
+    # sandboxes don't require a seed: with an empty seed and a task-level
+    # sandbox, the config is initialized (task_init) before the first added
+    # sample runs, and its task_cleanup runs at the end of the run
+    _sandbox_events.clear()
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not self._produced:
+                self._produced = True
+                return [Sample(input="added", target="ok")]
+            return None
+
+    logs = eval(
+        Task(
+            dataset=_Src(),
+            solver=[generate()],
+            sandbox=SandboxEnvironmentSpec("source_events", _SandboxConfig(name="A")),
+        ),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    assert _sandbox_events.index("task_init:A") < _sandbox_events.index("sample_init:A")
+    assert "task_cleanup:A" in _sandbox_events
+
+
+def test_sample_source_sandbox_startup_for_added_config() -> None:
+    # a sandbox config first seen in added samples gets task_init once (not
+    # per sample) before any of them runs; the seed's config isn't re-inited
+    _sandbox_events.clear()
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not self._produced:
+                self._produced = True
+                sandbox = SandboxEnvironmentSpec(
+                    "source_events", _SandboxConfig(name="B")
+                )
+                return [
+                    Sample(input="added1", target="ok", sandbox=sandbox),
+                    Sample(input="added2", target="ok", sandbox=sandbox),
+                ]
+            return None
+
+    logs = eval(
+        Task(
+            dataset=_Src(),
+            solver=[generate()],
+            sandbox=SandboxEnvironmentSpec("source_events", _SandboxConfig(name="A")),
+        ),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    assert _sandbox_events.count("task_init:A") == 1
+    assert _sandbox_events.count("task_init:B") == 1
+    assert _sandbox_events.index("task_init:B") < _sandbox_events.index("sample_init:B")
+    assert _sandbox_events.count("sample_init:B") == 2
+    assert "task_cleanup:A" in _sandbox_events
+    assert "task_cleanup:B" in _sandbox_events
+
+
+def test_sample_source_sandbox_same_config_not_reinited() -> None:
+    # added samples reusing the seed's config don't trigger another task_init
+    _sandbox_events.clear()
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not self._produced:
+                self._produced = True
+                return [Sample(input="added", target="ok")]
+            return None
+
+    logs = eval(
+        Task(
+            dataset=_Src(),
+            solver=[generate()],
+            sandbox=SandboxEnvironmentSpec("source_events", _SandboxConfig(name="A")),
+        ),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    assert _sandbox_events.count("task_init:A") == 1
+    assert _sandbox_events.count("sample_init:A") == 2
+    assert _sandbox_events.count("task_cleanup:A") == 1

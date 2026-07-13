@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 import sys
@@ -29,7 +30,7 @@ from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
-from inspect_ai.dataset._dataset import Dataset
+from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
 from inspect_ai.log._log import eval_error
@@ -322,6 +323,16 @@ async def eval_run(
                 )
                 await logger.init()
 
+                # samples a SampleSource adds mid-run go through the same
+                # incremental sandbox startup pass as the seed dataset above
+                startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = (
+                    None
+                )
+                if run_samples and task.sample_source is not None:
+                    startup_sandboxes = functools.partial(
+                        sandbox_manager.start_for_samples, resolved_task
+                    )
+
                 # append task
                 task_run_options.append(
                     TaskRunOptions(
@@ -346,6 +357,7 @@ async def eval_run(
                         initial_model_usage=resolved_task.initial_model_usage,
                         initial_role_usage=resolved_task.initial_role_usage,
                         task_source=task_source,
+                        startup_sandboxes=startup_sandboxes,
                     )
                 )
                 # register the prepared task so a failed run can clean it up
@@ -902,9 +914,10 @@ def resolve_task_sample_ids(
 class SandboxManager:
     """Starts sandbox environments incrementally and tears them all down.
 
-    Tasks injected into a live run arrive in batches, so startup must be
-    callable repeatedly — :meth:`start` initializes only sandboxenvs not already
-    started and accumulates their cleanups; :meth:`shutdown` runs every
+    Tasks injected into a live run — and samples a `SampleSource` adds to a
+    live task — arrive in batches, so startup must be callable repeatedly:
+    :meth:`start` / :meth:`start_for_samples` initialize only sandboxenvs not
+    already started and accumulate their cleanups; :meth:`shutdown` runs every
     accumulated cleanup once, at the end of the run.
     """
 
@@ -919,9 +932,10 @@ class SandboxManager:
         self._cleanups: list[
             tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]
         ] = []
+        self._init_lock = anyio.Lock()
 
     async def start(self, tasks: list[ResolvedTask]) -> None:
-        # find unique sandboxenvs not already started
+        # find unique sandboxenvs to start
         sandboxenvs: Set[TaskSandboxEnvironment] = set()
         for task in tasks:
             # resolve each sample and add to sandboxenvs
@@ -935,45 +949,81 @@ class SandboxManager:
                 sandbox = await resolve_sandbox_for_task_and_sample(
                     task.sandbox, task.task, sample
                 )
-                if (
-                    sandbox is not None
-                    and sandbox not in self._started
-                    and sandbox not in sandboxenvs
-                ):
+                if sandbox is not None and sandbox not in sandboxenvs:
                     sandboxenvs.add(sandbox)
 
+        await self._start_sandboxenvs(sandboxenvs)
+
+    async def start_for_samples(
+        self, task: ResolvedTask, samples: list[Sample]
+    ) -> None:
+        """Initialize the sandboxenvs of samples added to a live task.
+
+        The counterpart of :meth:`start` for samples a `SampleSource` adds
+        while its task runs: a sandbox config first seen in an added sample
+        (including the task-level config when the seed dataset was empty)
+        gets the same `task_init` startup as seed configs — up-front image
+        build/pull, fail-fast validation, and a registered `task_cleanup` —
+        before the sample runs. Configs already started are a no-op.
+        """
+        sandboxenvs: Set[TaskSandboxEnvironment] = set()
+        for sample in samples:
+            sandbox = await resolve_sandbox_for_task_and_sample(
+                task.sandbox, task.task, sample
+            )
+            if sandbox is not None and sandbox not in sandboxenvs:
+                sandboxenvs.add(sandbox)
+
+        await self._start_sandboxenvs(sandboxenvs)
+
+    async def _start_sandboxenvs(
+        self, sandboxenvs: Set[TaskSandboxEnvironment]
+    ) -> None:
+        """Run `task_init` for sandboxenvs not already started.
+
+        Serialized on a lock with the started-set re-checked under it, so
+        concurrent callers (e.g. two live tasks adding samples at once)
+        can't double-init the same sandboxenv.
+        """
         if not sandboxenvs:
             return
 
-        # initialiase sandboxenvs (track cleanups)
-        with display().suspend_task_app():
-            for sandboxenv in sandboxenvs:
-                # find type
-                sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+        async with self._init_lock:
+            sandboxenvs = {env for env in sandboxenvs if env not in self._started}
+            if not sandboxenvs:
+                return
 
-                # pre-register the type's resizable concurrency limiter before
-                # task_init (image pulls/builds can take minutes) so a `ctl
-                # limits --max-sandboxes` issued during startup isn't dropped
-                await ensure_sandbox_limiter(
-                    sandboxenv_type, sandboxenv.sandbox.type, self._config.max_sandboxes
-                )
+            # initialiase sandboxenvs (track cleanups)
+            with display().suspend_task_app():
+                for sandboxenv in sandboxenvs:
+                    # find type
+                    sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
 
-                # run startup
-                task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-                with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
-                    await task_init("startup", sandboxenv.sandbox.config)
+                    # pre-register the type's resizable concurrency limiter before
+                    # task_init (image pulls/builds can take minutes) so a `ctl
+                    # limits --max-sandboxes` issued during startup isn't dropped
+                    await ensure_sandbox_limiter(
+                        sandboxenv_type,
+                        sandboxenv.sandbox.type,
+                        self._config.max_sandboxes,
+                    )
 
-                # track as started and append cleanup method
-                self._started.add(sandboxenv)
-                task_cleanup = cast(
-                    TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
-                )
-                self._cleanups.append(
-                    (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
-                )
+                    # run startup
+                    task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+                    with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
+                        await task_init("startup", sandboxenv.sandbox.config)
 
-            # provide some space above task display
-            print("")
+                    # track as started and append cleanup method
+                    self._started.add(sandboxenv)
+                    task_cleanup = cast(
+                        TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
+                    )
+                    self._cleanups.append(
+                        (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
+                    )
+
+                # provide some space above task display
+                print("")
 
     async def shutdown(self) -> None:
         with anyio.CancelScope(shield=True):

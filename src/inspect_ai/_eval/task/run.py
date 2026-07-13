@@ -284,6 +284,10 @@ class TaskRunOptions:
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
     task_source: "TaskSource | None" = field(default=None)
     """Run-level task source notified as this task's samples/task complete."""
+    startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = field(
+        default=None
+    )
+    """Run-level incremental sandbox startup for samples a SampleSource adds."""
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -914,6 +918,23 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             )
                         return indexes
 
+                    async def add_and_start(samples: list[Sample]) -> list[int]:
+                        """Add samples, starting any sandboxenvs they need first.
+
+                        Added samples get the same run-level sandbox startup as
+                        the seed (``task_init`` for configs not seen before:
+                        image build/pull, validation, cleanup registration)
+                        before they spawn; already-started configs are a cheap
+                        no-op. A startup failure propagates and fails the task,
+                        matching a seed config failing startup.
+                        """
+                        indexes = add_samples(samples)
+                        if indexes and options.startup_sandboxes is not None:
+                            await options.startup_sandboxes(
+                                [get_sample(index) for index in indexes]
+                            )
+                        return indexes
+
                     async with anyio.create_task_group() as tg:
 
                         async def run_one(sample_index: int, epoch: int) -> None:
@@ -941,7 +962,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             # returning samples / enqueue_sample) start first
                             buffered = enqueuer.drain()
                             if buffered:
-                                spawn(add_samples(buffered))
+                                spawn(await add_and_start(buffered))
                                 continue
                             if in_flight > 0:
                                 await wake.wait()
@@ -959,12 +980,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 # was finishing rather than dropping them
                                 # (enqueue_sample never drops silently); if
                                 # any run, the source may be consulted again
-                                final = add_samples(enqueuer.drain())
+                                final = await add_and_start(enqueuer.drain())
                                 if not final:
                                     break
                                 spawn(final)
                             elif more:
-                                spawn(add_samples(more))
+                                spawn(await add_and_start(more))
 
                     return results
 

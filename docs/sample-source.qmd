@@ -124,6 +124,10 @@ Enqueued samples share a buffer with samples returned from `sample_complete`. `e
 
 A `SampleSource` task is live: a sample added mid-run starts as soon as there is free capacity, rather than waiting for the current samples to finish. Concurrency is bounded by `max_samples` as usual (see [Parallelism](parallelism.qmd)).
 
+## Sandboxes
+
+Samples added mid-run get the same [sandbox](sandboxing.qmd) startup as the seed: a sandbox configuration first seen in an added sample (including the task's own configuration when the seed is empty) is initialized — images built/pulled, configuration validated, cleanup registered — before that sample runs, and configurations the seed already initialized are not re-initialized. The seed is therefore not required for sandboxes: a source driven entirely by `next_samples()` works with sandboxed samples too.
+
 ## Limits and sample filtering
 
 The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, further additions are ignored (with a warning) and the task ends when the in-flight samples finish (`next_samples()` is not consulted again). The cap counts samples, not runs: each sample within the limit still runs for the task's configured number of epochs.
