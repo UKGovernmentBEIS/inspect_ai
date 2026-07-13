@@ -9,6 +9,7 @@ from inspect_ai import eval
 from inspect_ai.event import Timeline, timeline_build
 
 from .generate import (
+    scenario_bridge_utility,
     scenario_deep_nesting,
     scenario_deep_utility,
     scenario_handoff_and_as_tool,
@@ -22,6 +23,8 @@ from .generate import (
     scenario_sequential_run,
     scenario_simple_agent,
     scenario_utility_agent,
+    scenario_workflow_generate,
+    validate_bridge_utility,
     validate_deep_nesting,
     validate_deep_utility,
     validate_handoff_and_as_tool,
@@ -35,6 +38,7 @@ from .generate import (
     validate_sequential_run,
     validate_simple_agent,
     validate_utility_agent,
+    validate_workflow_generate,
 )
 
 
@@ -99,6 +103,14 @@ def test_timeline_sequential_and_parallel() -> None:
 
 def test_timeline_deep_utility() -> None:
     _run_and_validate(scenario_deep_utility, validate_deep_utility)
+
+
+def test_timeline_workflow_generate() -> None:
+    _run_and_validate(scenario_workflow_generate, validate_workflow_generate)
+
+
+def test_timeline_bridge_utility() -> None:
+    _run_and_validate(scenario_bridge_utility, validate_bridge_utility)
 
 
 def test_timeline_parallel_heterogeneous() -> None:
