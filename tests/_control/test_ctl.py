@@ -1883,6 +1883,19 @@ def test_messages_json_no_servers_echoes_identifiers(
     assert payload["task_id"] is None
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
     assert payload["messages"] == [] and payload["count"] == 0
+    # the envelope shape stays uniform: as_of is present (None — no server
+    # stamped a read time)
+    assert "as_of" in payload and payload["as_of"] is None
+
+
+def test_messages_rejects_non_positive_tail() -> None:
+    """--tail must be >= 1; a negative/zero window is a usage error."""
+    for value in ("-3", "0"):
+        result = cli_runner().invoke(
+            ctl_command, ["sample", "messages", "t", "s1", "--tail", value]
+        )
+        assert result.exit_code != 0
+        assert "--tail" in result.stderr
 
 
 def test_group_option_before_verb_forwards(monkeypatch: pytest.MonkeyPatch) -> None:

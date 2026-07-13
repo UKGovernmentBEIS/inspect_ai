@@ -65,7 +65,8 @@ async def sample_messages(
         eval_id: The eval's id.
         sample_id: The sample's id (string; matched against running + logged).
         epoch: The sample epoch.
-        tail: Only the last ``tail`` messages (``None`` = the whole list).
+        tail: Only the last ``tail`` messages (``None`` = the whole list;
+            negative values clamp to 0, an empty window).
         full: Raw serialized ``ChatMessage`` objects instead of the compact
             projection.
     """
@@ -84,7 +85,9 @@ async def sample_messages(
 
     # `tail` selects a recent window; the projection still reports each
     # message's absolute index so a tailed view lines up with the full one.
-    start = max(0, count - tail) if tail is not None else 0
+    # A negative `tail` (raw HTTP callers — the CLI validates) clamps to an
+    # empty window rather than overshooting the slice bounds.
+    start = max(0, count - max(0, tail)) if tail is not None else 0
     projected = [
         _project(message, index, full)
         for index, message in enumerate(messages[start:], start=start)

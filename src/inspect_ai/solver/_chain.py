@@ -6,7 +6,7 @@ from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 
 from ._solver import Generate, Solver, solver
-from ._task_state import TaskState
+from ._task_state import TaskState, set_sample_state
 
 
 @solver
@@ -85,6 +85,10 @@ class Chain(Sequence[Solver], Solver):
             async with solver_transcript(slv, state) as st:
                 state = await slv(state, generate)
                 st.complete(state)
+            # a solver may return a *new* TaskState (e.g. a fork() result or a
+            # deepcopy) — refresh the context handle so `sample_state()` and
+            # the control channel's live view track the threaded state
+            set_sample_state(state)
             if state.completed:
                 break
 

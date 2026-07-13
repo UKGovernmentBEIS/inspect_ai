@@ -149,6 +149,24 @@ async def test_running_sample_tail_windows_from_the_end(
     assert [m["content"] for m in page["messages"]] == ["m7", "m8", "m9"]
 
 
+async def test_negative_tail_clamps_to_empty_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A negative tail (raw HTTP callers) is an empty window, not a crash."""
+    import inspect_ai.log._samples as samples_mod
+
+    messages = [ChatMessageUser(content=f"m{i}") for i in range(5)]
+    monkeypatch.setattr(
+        samples_mod, "active_samples", lambda: [_fake_running_sample(messages)]
+    )
+
+    page = await sample_messages("e1", "1", 1, tail=-3)
+    assert page is not None
+    # count still reports the full conversation; the window is just empty
+    assert page["count"] == 5
+    assert page["messages"] == []
+
+
 async def test_missing_sample_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     import inspect_ai._control.state as state_mod
     import inspect_ai.log._samples as samples_mod

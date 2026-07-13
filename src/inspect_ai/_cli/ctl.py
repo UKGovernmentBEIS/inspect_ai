@@ -583,7 +583,7 @@ def sample_events_command(
 @click.argument("epoch", required=False, type=int, default=1)
 @click.option(
     "--tail",
-    type=int,
+    type=click.IntRange(min=1),
     default=None,
     help=(
         "Only the last N messages (default: the recent tail — "
@@ -1654,11 +1654,13 @@ def _run_sample_messages(
     if not summaries:
         if as_json:
             # Uniform --json shape even on the empty page (task_id is
-            # unresolvable with no running evals).
+            # unresolvable with no running evals; as_of is None because no
+            # server stamped a read time).
             empty_page: dict[str, Any] = {
                 "task_id": None,
                 "sample_id": sample_id,
                 "epoch": epoch,
+                "as_of": None,
                 "status": None,
                 "count": 0,
                 "messages": [],
