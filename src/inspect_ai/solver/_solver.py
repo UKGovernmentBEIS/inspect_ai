@@ -212,8 +212,13 @@ def solver(
                 async def call_with_state(
                     state: TaskState, generate: Generate
                 ) -> TaskState:
+                    prev_state = state
                     state = await original_call(state, generate)
-                    set_sample_state(state)
+                    # solvers can run inside a fork() branch, whose copied
+                    # context still reaches the shared ActiveSample — CAS via
+                    # `replacing` so a branch lineage can't capture the live
+                    # view (see `set_sample_state`)
+                    set_sample_state(state, replacing=prev_state)
                     return state
 
                 registered_solver = solver
@@ -227,8 +232,10 @@ def solver(
                 async def registered_solver(
                     state: TaskState, generate: Generate
                 ) -> TaskState:
+                    prev_state = state
                     state = await solver(state, generate)
-                    set_sample_state(state)
+                    # CAS-guarded for the same fork() reason as above
+                    set_sample_state(state, replacing=prev_state)
                     return state
 
             registry_tag(

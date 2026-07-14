@@ -1,3 +1,29 @@
+"""Process-wide registry of running samples (and in-flight model events).
+
+Despite living in the ``log`` package, this module is not about log
+persistence — it's the runtime observability hub for samples currently
+executing in this process. Each running sample has an :class:`ActiveSample`
+in the module-global registry (:func:`active_samples`): the executing side
+(task runner, model layer, limits, solvers) *pushes* live state onto it via
+the ``set_active_sample_*`` functions, and cross-task observers (the TUI,
+the control channel, ACP) read it. The pushes exist because most sample
+state is context-bound (ContextVars, limit trees) and therefore unreachable
+from an observer's task — the registry mirrors it outward. Most such
+mirrors are copied scalars (token/turn totals, limits);
+:attr:`ActiveSample.live_state` is the exception, a *handle* to the
+sample's live ``TaskState`` (copying a conversation per append would be
+prohibitive), and the one upward-pointing object edge here.
+
+That role makes this module a cross-layer hub: it's imported from every
+layer of the stack, and its own references to higher-layer types
+(``TaskState``, ACP transport, hooks) are ``TYPE_CHECKING``-only or
+function-local to keep the module import graph acyclic.
+
+The ``_active_model_event`` half of the file is a sibling concern — tracking
+the in-flight ``ModelEvent`` so providers can attach call payloads and retry
+counts — cohabiting here rather than part of the sample registry.
+"""
+
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -93,17 +119,12 @@ class ActiveSample:
         self.total_messages = 0
         self.total_tokens = 0
         self.total_turns = 0
-        # The sample's live `TaskState`, so the control channel can serve the
-        # current conversation (`TaskState.messages`) without reaching into the
-        # context-bound `_sample_state` ContextVar (unreachable from the control
-        # server's request-handler task). Captured when the sample starts and
-        # refreshed by `set_sample_state` (via `set_active_sample_state`) —
-        # called at sample start, after each `Chain` / `Plan` solver step, and
-        # pre-scoring — so it survives a solver replacing the `TaskState`
-        # object outright (e.g. returning a `fork()` result or a deepcopy).
-        # Step-boundary refreshes are compare-and-swap guarded so a `Chain` /
-        # `Plan` running inside a `fork()` subtask can't capture the handle
-        # for its branch conversation (see `set_active_sample_state`).
+        # The sample's live `TaskState` — the handle observers read the
+        # current conversation from (see the module docstring). Refreshed via
+        # `set_sample_state` (sample start, `Chain`/`Plan` step boundaries,
+        # pre-scoring) so it survives a solver replacing the state object;
+        # step-boundary refreshes are compare-and-swap guarded against
+        # capture by `fork()` branches (see `set_active_sample_state`).
         # `None` only in the brief window before the first state is set.
         self.live_state: "TaskState | None" = None
         self.token_limit_usage: int | None = None
