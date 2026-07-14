@@ -23,8 +23,13 @@ import inspect_ai.dataset
 import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._view import fastapi_server
-from inspect_ai._view.common import get_direct_url, list_eval_logs_async
+from inspect_ai._view.common import (
+    get_direct_url,
+    list_eval_logs_async,
+    read_eval_set_info_async,
+)
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.model._generate_config import GenerateConfig
 
@@ -1001,6 +1006,49 @@ def test_api_eval_set_uses_fs_options_reader(
     resp.raise_for_status()
     assert resp.json() is None
     assert calls == [("s3://bucket/logs", {"anon": True})]
+
+
+def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub common.filesystem so az:// paths don't construct a real adlfs fs."""
+    from inspect_ai._view import common
+
+    class FlatFileSystem:
+        sep = "/"
+
+    def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FlatFileSystem:
+        return FlatFileSystem()
+
+    monkeypatch.setattr(common, "filesystem", fake_filesystem)
+
+
+async def test_read_eval_set_info_async_suppresses_azure_auth_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    class AzureAuthErrorFilesystem:
+        async def exists(self, filename: str) -> bool:
+            raise Exception("Server failed to authenticate the request")
+
+    result = await read_eval_set_info_async(
+        "az://container/logs", cast(AsyncFilesystem, AzureAuthErrorFilesystem())
+    )
+    assert result is None
+
+
+async def test_read_eval_set_info_async_raises_non_auth_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    class BrokenFilesystem:
+        async def exists(self, filename: str) -> bool:
+            raise RuntimeError("connection reset by peer")
+
+    with pytest.raises(RuntimeError):
+        await read_eval_set_info_async(
+            "az://container/logs", cast(AsyncFilesystem, BrokenFilesystem())
+        )
 
 
 async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(

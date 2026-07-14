@@ -21,6 +21,7 @@ from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 from inspect_ai._eval.evalset import EvalSet
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import (
@@ -130,13 +131,19 @@ async def read_eval_set_info_async(
     Async counterpart to `read_eval_set_info`. Reads the manifest through
     `AsyncFilesystem` (riding the shared client) rather than bouncing sync fsspec
     through a threadpool — see the fsspec/`to_thread` warning in CLAUDE.md.
-    Returns None when the manifest is absent.
+    Returns None when the manifest is absent, or (matching `read_eval_set_info`)
+    when the check/read fails with an Azure auth error.
     """
     sep = filesystem(eval_set_dir).sep
     manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
-    if not await afs.exists(manifest):
-        return None
-    return EvalSet.model_validate_json(await afs.read_file(manifest))
+    try:
+        if not await afs.exists(manifest):
+            return None
+        return EvalSet.model_validate_json(await afs.read_file(manifest))
+    except Exception as ex:
+        if is_azure_auth_error(ex):
+            return None
+        raise
 
 
 async def get_log_files(
