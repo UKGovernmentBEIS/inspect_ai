@@ -500,7 +500,7 @@ def sample_show_command(
     help=(
         "Start this many events from the end (when --cursor is not given). "
         f"Default: {_DEFAULT_EVENTS_TAIL}, applied only to a fully unseeded "
-        "read (no --cursor and no --since-time/--until window)."
+        "read (no --cursor, no --from-start, and no --since-time/--until window)."
     ),
 )
 @click.option(
@@ -945,6 +945,7 @@ def events_alias(
         epoch,
         cursor=cursor,
         tail=tail,
+        from_start=False,
         types=types,
         full=full,
         since_time=since_time,
@@ -1526,7 +1527,7 @@ def _run_sample_events(
     *,
     cursor: str | None,
     tail: int | None,
-    from_start: bool = False,
+    from_start: bool,
     types: str | None,
     full: bool,
     since_time: float | None,
