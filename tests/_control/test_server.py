@@ -151,7 +151,7 @@ def test_endpoint_error_becomes_structured_500(monkeypatch: pytest.MonkeyPatch) 
     """
     from inspect_ai._control import server as server_mod
 
-    async def _boom(eval_id: str, active_since: float | None = None, **kwargs: object):
+    async def _boom(*args: object, **kwargs: object) -> list:
         raise RuntimeError("kaboom")
 
     monkeypatch.setattr(server_mod, "current_sample_listing", _boom)
@@ -587,6 +587,54 @@ async def test_sample_messages_endpoint_round_trips_and_404(
             "/evals/e1/sample/messages", params={"sample_id": "missing"}
         )
         assert missing.status_code == 404
+
+
+async def test_samples_endpoint_parses_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`GET /evals/<id>/samples` parses `filter` and defaults it off.
+
+    The state-layer filtering is unit-tested; this pins the route wiring —
+    `filter=errors` reaches the state layer as "errors", an omitted param
+    keeps the full listing (None), and an unrecognized filter value is
+    rejected (422) rather than silently answered with the full listing,
+    since the CLI trusts the filter was applied and keeps no fallback.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.state import SampleListing
+
+    seen: dict[str, object] = {}
+
+    async def _fake(
+        eval_id: str,
+        active_since: float | None = None,
+        statuses: frozenset[str] | None = None,
+        limit: int | None = None,
+        sample_filter: str | None = None,
+    ) -> SampleListing:
+        seen["eval_id"] = eval_id
+        seen["sample_filter"] = sample_filter
+        return SampleListing(counts={}, samples=[], truncated=False)
+
+    monkeypatch.setattr(server_mod, "current_sample_listing", _fake)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        filtered = await client.get("/evals/e1/samples", params={"filter": "errors"})
+        assert filtered.status_code == 200, filtered.text
+        assert seen["sample_filter"] == "errors"
+
+        default = await client.get("/evals/e1/samples")
+        assert default.status_code == 200, default.text
+        assert seen["sample_filter"] is None
+
+        seen.clear()
+        unknown = await client.get("/evals/e1/samples", params={"filter": "bogus"})
+        assert unknown.status_code == 422, unknown.text
+        assert "sample_filter" not in seen  # rejected before the state layer
 
 
 async def test_404_body_shape_distinguishes_missing_route(

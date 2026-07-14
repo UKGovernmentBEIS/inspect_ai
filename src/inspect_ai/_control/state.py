@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from functools import partial
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import is_cancellation_message
@@ -278,7 +278,10 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     return summaries
 
 
-async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
+async def current_sample_summaries(
+    eval_id: str,
+    sample_filter: Literal["errors"] | None = None,
+) -> list[dict[str, Any]]:
     """Per-sample summaries for one eval (``GET /evals/<eval_id>/samples``).
 
     Lists *all* of the eval's samples — running, completed, and pending —
@@ -308,6 +311,14 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     terminal / pending samples), ``scores`` (``{scorer: value}``, empty
     until scored), ``error``, ``retries``, ``limit``.
 
+    ``sample_filter="errors"`` restricts the result to samples that carry an
+    error or have been retried (``error`` set, or ``retries`` > 0) — the
+    eval-set triage read behind ``inspect ctl sample errors``. Filtering
+    server-side also skips pending-row synthesis entirely: a pending sample
+    can never carry an error or retries, and for a large dataset × epochs
+    grid building (and serializing) those rows on the eval's own event loop
+    dominates the response just to be discarded client-side.
+
     The ``active_since`` recency filter lives in
     :func:`current_sample_listing` (its single home), which wraps this
     full listing.
@@ -333,9 +344,16 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
 
     # Pending: planned samples not yet running or done. No live source
     # holds these, so synthesize them from the registered planned ids.
-    _add_pending_samples(eval_id, by_key)
+    # Skipped for an errors-filtered read (see the docstring).
+    if sample_filter != "errors":
+        _add_pending_samples(eval_id, by_key)
 
-    return _sorted_samples(list(by_key.values()))
+    summaries = list(by_key.values())
+    if sample_filter == "errors":
+        summaries = [
+            s for s in summaries if s["error"] is not None or (s["retries"] or 0) > 0
+        ]
+    return _sorted_samples(summaries)
 
 
 class SampleListing(NamedTuple):
@@ -360,6 +378,7 @@ async def current_sample_listing(
     active_since: float | None = None,
     statuses: frozenset[str] | None = None,
     limit: int | None = DEFAULT_SAMPLE_LIST_LIMIT,
+    sample_filter: Literal["errors"] | None = None,
 ) -> SampleListing:
     """The capped samples listing for one eval (histogram + rows).
 
@@ -380,8 +399,15 @@ async def current_sample_listing(
     activity) are excluded. It's a wall-clock *filter*, not a resume
     cursor (it returns current state of whatever changed, not an
     exactly-once stream).
+
+    ``sample_filter="errors"`` is applied upstream in
+    :func:`current_sample_summaries` (restricting to errored/retried
+    samples and skipping pending-row synthesis — see its docstring), so
+    under it the ``counts`` histogram covers only the filtered samples:
+    the whole-eval listing is exactly what the filter exists to avoid
+    building.
     """
-    summaries = await current_sample_summaries(eval_id)
+    summaries = await current_sample_summaries(eval_id, sample_filter)
 
     counts = dict.fromkeys(SAMPLE_STATUSES, 0)
     for summary in summaries:
@@ -566,7 +592,7 @@ async def _read_full_sample(
 async def sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
-    """Full error detail for one sample (``GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>``).
+    """Summary + error detail for one sample (``GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>``).
 
     Two sources, mirroring :func:`current_sample_summaries`:
 
@@ -579,6 +605,19 @@ async def sample_error_detail(
       live in detail (``error_retries``); per-sample summaries carry just a
       retry *count*. Heavy fields (messages, events, store, attachments, output)
       are excluded — only error data is needed.
+
+    Alongside the error history, the response carries the sample's summary
+    fields (timing / tokens / messages — the same values its
+    :func:`current_sample_summaries` row reports): the running path reads them
+    off the same ``ActiveSample``, and the terminal path folds in the sample's
+    summary row from the recorder / on-disk log. Returning them here makes
+    ``inspect ctl sample show`` a single atomic read — without this it would
+    have to fetch the eval's *entire* listing (O(dataset) transfer) just to
+    pick one row, and a sample retrying between the two reads would tear the
+    view (fresh timing merged with a prior attempt's error history).
+    ``status``/``error`` follow the listing's classification: a cancellation
+    is never ``error`` — it reads as ``pending``/``cancelled`` with the
+    cancellation repr suppressed (:func:`_cancellation_status`).
 
     Returns ``None`` when the eval isn't in this process, or the sample isn't
     running and isn't readable yet — the endpoint turns that into a 404.
@@ -598,12 +637,41 @@ async def sample_error_detail(
     if sample is None:
         return None
 
+    # The sample's summary row supplies the summary fields (timing / tokens /
+    # messages) the heavy-field-excluded EvalSample can't fully provide
+    # (message_count needs the excluded messages). Same source as the listing,
+    # so the two views agree on them; the detail fields below override on
+    # overlap. A missing row (unexpected — the full sample was just readable)
+    # degrades to the detail fields alone.
+    row = next(
+        (
+            r
+            for r in await _completed_sample_summaries(eval_id)
+            if str(r["sample_id"]) == str(sample.id) and r["epoch"] == sample.epoch
+        ),
+        None,
+    )
+
+    # status/error apply the listing's classification
+    # (_summary_from_eval_sample_summary reads the same error message), so the
+    # detail's override of the row can't contradict it: a cancellation is
+    # never an error — it reads as pending/cancelled with the repr suppressed.
+    status: str
+    error: dict[str, Any] | None
+    if sample.error is None:
+        status, error = "completed", None
+    elif is_cancellation_message(sample.error.message):
+        status, error = _cancellation_status(_eval_will_retry(eval_id)), None
+    else:
+        status, error = "error", _error_dict(sample.error)
+
     return {
+        **(row or {}),
         "sample_id": sample.id,
         "epoch": sample.epoch,
-        "status": "error" if sample.error is not None else "completed",
+        "status": status,
         "retries": len(sample.error_retries) if sample.error_retries else 0,
-        "error": _error_dict(sample.error) if sample.error is not None else None,
+        "error": error,
         "error_retries": [_error_dict(e) for e in (sample.error_retries or [])],
         "scores": {name: score.value for name, score in (sample.scores or {}).items()},
     }
@@ -634,24 +702,24 @@ def find_active_sample(
 def _running_sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
-    """Error detail for a sample currently running in this process, or None.
+    """Summary + error detail for a sample currently running in this process, or None.
 
     A running sample has no current error yet; its ``error_retries`` are the
     prior failed attempts seeded onto the ``ActiveSample``. A terminal sample
     still in ``active_samples`` is left to the on-disk log (which carries the
-    final ``error_retries``).
+    final ``error_retries``). The summary fields come from the same
+    ``ActiveSample`` row the listing reports (:func:`_active_sample_summary`),
+    read in the same pass as the error history — one atomic view. That
+    includes ``status``: a matched sample that hasn't started yet reads
+    ``queued``, as in the listing, rather than a hardcoded ``running``.
     """
     s = find_active_sample(eval_id, sample_id, epoch)
     if s is None or s.completed is not None:
         return None
     return {
-        "sample_id": s.sample.id,
-        "epoch": s.epoch,
-        "status": "running",
+        **_active_sample_summary(s),
         "retries": s.retries,
-        "error": None,
         "error_retries": [_error_dict(e) for e in s.error_retries],
-        "scores": {},
     }
 
 
@@ -687,16 +755,33 @@ async def _sample_summaries_from_log(
     return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
 
 
+def _cancellation_status(will_retry: bool) -> str:
+    """How a cancelled sample's status reads — never ``error``.
+
+    A cancellation isn't a genuine error: the sample was torn down because a
+    sibling failed (or the eval was cancelled). It reads as ``pending`` when a
+    retry will re-run it, else ``cancelled``. Shared by the listing
+    (:func:`_summary_from_eval_sample_summary`) and the per-sample detail
+    (:func:`sample_error_detail`) so the two views can't drift.
+    """
+    return "pending" if will_retry else "cancelled"
+
+
+def _eval_will_retry(eval_id: str) -> bool:
+    """Whether a failure of the eval's current attempt will be retried."""
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    return state is not None and state.will_retry
+
+
 def _summary_from_eval_sample_summary(
     summary: Any, will_retry: bool = False
 ) -> dict[str, Any]:
     error = summary.error
     if error is not None and is_cancellation_message(error):
-        # A cancellation isn't a genuine error — the sample was torn down
-        # because a sibling failed (or the eval was cancelled). It reads as
-        # `pending` when a retry will re-run it, else `cancelled`. Either way
-        # the cancellation message itself isn't surfaced as an error.
-        status = "pending" if will_retry else "cancelled"
+        # the cancellation message itself isn't surfaced as an error
+        status = _cancellation_status(will_retry)
         error = None
     elif error is not None:
         status = "error"
@@ -733,49 +818,52 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
     """The eval's currently in-flight samples (the running source)."""
     from inspect_ai.log._samples import active_samples
 
-    summaries: list[dict[str, Any]] = []
-    for s in active_samples():
-        if s.eval_id != eval_id:
-            continue
-        if s.completed is not None:
-            status = "completed"
-        elif s.started is not None:
-            status = "running"
-        else:
-            status = "queued"
-        # Liveness signals (the only freshest source is the in-memory
-        # transcript). `last_activity_at` is when the sample last produced an
-        # event; `events` is a monotonic count. Together they let a consumer
-        # tell "stalled" from "working" without diffing successive polls — the
-        # per-turn token/message counters don't move *within* an in-flight
-        # model call, but these advance on every model / tool / store event.
-        last_event = s.transcript.history.last_event
-        last_activity_at = (
-            last_event.timestamp.timestamp() if last_event is not None else s.started
-        )
-        summaries.append(
-            {
-                "sample_id": s.sample.id,
-                "epoch": s.epoch,
-                "status": status,
-                "started_at": s.started,
-                "completed_at": s.completed,
-                "total_time": s.running_time,
-                "total_tokens": s.total_tokens,
-                "message_count": s.total_messages,
-                "turn_count": s.total_turns,
-                "token_limit_usage": s.token_limit_usage,
-                "token_limit_total": s.token_limit,
-                "token_limit_type": s.token_limit_type,
-                "last_activity_at": last_activity_at,
-                "events": s.transcript.history.event_count,
-                "scores": {},  # running samples aren't scored yet
-                "error": None,
-                "retries": s.retries or None,
-                "limit": None,
-            }
-        )
-    return summaries
+    return [_active_sample_summary(s) for s in active_samples() if s.eval_id == eval_id]
+
+
+def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
+    """One in-flight sample's summary row, read off its ``ActiveSample``.
+
+    The single source of a live sample's summary fields — shared by the
+    listing (:func:`_sample_summaries_from_active`) and the per-sample detail
+    (:func:`_running_sample_error_detail`) so the two views can't drift.
+    """
+    if s.completed is not None:
+        status = "completed"
+    elif s.started is not None:
+        status = "running"
+    else:
+        status = "queued"
+    # Liveness signals (the only freshest source is the in-memory
+    # transcript). `last_activity_at` is when the sample last produced an
+    # event; `events` is a monotonic count. Together they let a consumer
+    # tell "stalled" from "working" without diffing successive polls — the
+    # per-turn token/message counters don't move *within* an in-flight
+    # model call, but these advance on every model / tool / store event.
+    last_event = s.transcript.history.last_event
+    last_activity_at = (
+        last_event.timestamp.timestamp() if last_event is not None else s.started
+    )
+    return {
+        "sample_id": s.sample.id,
+        "epoch": s.epoch,
+        "status": status,
+        "started_at": s.started,
+        "completed_at": s.completed,
+        "total_time": s.running_time,
+        "total_tokens": s.total_tokens,
+        "message_count": s.total_messages,
+        "turn_count": s.total_turns,
+        "token_limit_usage": s.token_limit_usage,
+        "token_limit_total": s.token_limit,
+        "token_limit_type": s.token_limit_type,
+        "last_activity_at": last_activity_at,
+        "events": s.transcript.history.event_count,
+        "scores": {},  # running samples aren't scored yet
+        "error": None,
+        "retries": s.retries or None,
+        "limit": None,
+    }
 
 
 def _iso_to_timestamp(value: str | None) -> float | None:

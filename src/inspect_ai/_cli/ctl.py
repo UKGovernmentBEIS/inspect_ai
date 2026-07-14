@@ -1482,6 +1482,7 @@ def _list_sample_rows(
     task: str | None,
     active_since: float | None,
     *,
+    sample_filter: Literal["errors"] | None = None,
     statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
@@ -1527,6 +1528,7 @@ def _list_sample_rows(
                 target["socket_path"],
                 target["eval_id"],
                 active_since,
+                sample_filter=sample_filter,
                 status=status_param,
                 limit=limit,
                 all_samples=all_samples,
@@ -1618,7 +1620,6 @@ def _run_sample_list(
         task,
         active_since,
         as_json,
-        select=lambda s: True,
         empty_read="(no samples started yet)",
         printer=_print_samples_table,
         statuses=_parse_statuses(status),
@@ -1645,12 +1646,12 @@ def _run_sample_errors(task: str | None, as_json: bool) -> None:
         task,
         None,
         as_json,
-        select=lambda s: bool(s.get("error") or (s.get("retries") or 0) > 0),
+        sample_filter="errors",
         empty_read="(no errors or retries)",
         printer=_print_errors_table,
-        # The error/retry filter is applied client-side over all rows, so the
-        # triage view must see the full listing — the default cap would
-        # silently hide errors beyond it.
+        # The triage view must see every errored/retried row — the default
+        # cap would silently hide errors beyond it (the server's errors
+        # filter narrows the rows, but capped-filtered is still capped).
         all_samples=True,
     )
 
@@ -1661,7 +1662,7 @@ def _run_sample_listing(
     active_since: float | None,
     as_json: bool,
     *,
-    select: Callable[[dict[str, Any]], bool],
+    sample_filter: Literal["errors"] | None = None,
     empty_read: str,
     printer: "_RowsPrinter",
     statuses: frozenset[str] | None = None,
@@ -1682,9 +1683,14 @@ def _run_sample_listing(
     ``--status`` member set (``None`` = no filter).
     """
     listing = _list_sample_rows(
-        task, active_since, statuses=statuses, limit=limit, all_samples=all_samples
+        task,
+        active_since,
+        sample_filter=sample_filter,
+        statuses=statuses,
+        limit=limit,
+        all_samples=all_samples,
     )
-    rows = [s for s in listing.rows if select(s)]
+    rows = listing.rows
 
     if as_json:
         click.echo(
@@ -1786,40 +1792,16 @@ def _run_sample_show(
         return
 
     target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    # One atomic read: the detail carries the summary fields (timing / tokens
+    # / messages) alongside the error history, so there is no supplemental
+    # listing fetch (and no torn view if the sample retries between reads).
     detail = _fetch_sample_detail(
         target["socket_path"], target["eval_id"], sample_id, epoch
     )
-
-    # The error detail is the authoritative core; fold in the sample's listing
-    # row for the summary fields (timing / tokens / messages) it doesn't carry.
-    try:
-        # all_samples: this lookup needs the target sample's row, which the
-        # default cap could drop.
-        samples = _fetch_samples(
-            target["socket_path"],
-            target["eval_id"],
-            all_samples=True,
-        ).samples
-    except _ServerUnreachable as exc:
-        # The detail already in hand answers the question; the process
-        # exiting — or staying busy (_ServerBusy) — between the two reads
-        # shouldn't discard it.
-        hint = " — try again shortly" if isinstance(exc, _ServerBusy) else ""
-        click.echo(
-            f"Could not read the samples listing for eval {target['eval_id']} "
-            f"({_unreachable_detail(exc)}); showing the sample without its "
-            f"summary fields (timing / tokens / messages){hint}.",
-            err=True,
-        )
-        samples = []
-    row = next(
-        (
-            s
-            for s in samples
-            if str(s.get("sample_id")) == str(detail.get("sample_id"))
-            and s.get("epoch") == detail.get("epoch")
-        ),
-        None,
+    row = (
+        _fetch_sample_row_from_listing(target, detail)
+        if "message_count" not in detail
+        else None
     )
     merged: dict[str, Any] = {
         "task_id": target.get("task_id"),
@@ -1833,6 +1815,51 @@ def _run_sample_show(
         return
 
     _print_sample_detail(merged, show_traceback)
+
+
+def _fetch_sample_row_from_listing(
+    target: dict[str, Any], detail: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The sample's listing row — `sample show`'s old-server fallback.
+
+    A current control server's detail response carries the summary fields
+    (timing / tokens / messages), so their *absence* — keyed on
+    ``message_count``, present even when null — marks a server from before
+    they were added (``ctl`` attaches to already-running processes, so the
+    CLI can be newer than the server). Only then is the eval's listing
+    fetched to fold in the sample's row, restoring the fields the old
+    two-read flow reported; a failed fallback read degrades to the detail
+    alone with a stderr caveat rather than discarding the answer in hand.
+    Not a strict version test: a current server also omits the keys on its
+    terminal path's degrade case (its own summary-row lookup missed), where
+    this fallback fires harmlessly as a second chance at the row.
+    """
+    try:
+        # all_samples: this lookup needs the target sample's row, which the
+        # default cap could drop.
+        samples = _fetch_samples(
+            target["socket_path"],
+            target["eval_id"],
+            all_samples=True,
+        ).samples
+    except _ServerUnreachable as exc:
+        hint = " — try again shortly" if isinstance(exc, _ServerBusy) else ""
+        click.echo(
+            f"Could not read the samples listing for eval {target['eval_id']} "
+            f"({_unreachable_detail(exc)}); showing the sample without its "
+            f"summary fields (timing / tokens / messages){hint}.",
+            err=True,
+        )
+        return None
+    return next(
+        (
+            s
+            for s in samples
+            if str(s.get("sample_id")) == str(detail.get("sample_id"))
+            and s.get("epoch") == detail.get("epoch")
+        ),
+        None,
+    )
 
 
 @_envelope_failures
@@ -3308,6 +3335,7 @@ def _fetch_samples(
     eval_id: str,
     active_since: float | None = None,
     *,
+    sample_filter: Literal["errors"] | None = None,
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
@@ -3327,19 +3355,29 @@ def _fetch_samples(
     server's bare array or histogram-less envelope (stamping ``as_of``
     client-side, pre-request, and leaving ``counts`` to the caller).
 
+    ``sample_filter="errors"`` (sent as ``filter=errors`` on the wire) asks
+    the server to return only errored/retried samples (skipping its
+    pending-row synthesis — the whole dataset × epochs grid on a large
+    eval). The result is trusted as-filtered — no client-side fallback.
+    Skew with a server from an older install is not defended (the server
+    runs locally from the same install as the CLI in all but
+    upgraded-mid-eval cases).
+
     Raises :class:`_ServerUnreachable` on a non-retryable read failure and
     :class:`_ServerBusy` when the eval stays busy through ``attempts``
     retries (defaulting to the degraded budget — see
     :func:`_get_response_with_retry`); the caller owns the outcome:
     warn-and-skip (an unscoped fan-out over many evals), fail the command
     (a single targeted read, which passes the full budget), or degrade in
-    place (``sample show``'s supplemental listing read, which keeps the
-    default budget and drops only the summary fields).
+    place (``sample show``'s old-server fallback listing read, which keeps
+    the default budget and drops only the summary fields).
     """
     fallback_as_of = time.time()
     params: dict[str, Any] = {}
     if active_since is not None:
         params["active_since"] = active_since
+    if sample_filter is not None:
+        params["filter"] = sample_filter
     if status is not None:
         params["status"] = status
     if all_samples:
@@ -3372,11 +3410,12 @@ def _fetch_samples(
 def _fetch_sample_detail(
     socket_path: str, eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any]:
-    """Query one control server for a single sample's full error detail.
+    """Query one control server for a single sample's summary + error detail.
 
-    The authoritative read behind ``sample show``, so it rides the full
-    narrated busy-retry policy rather than failing on a momentary event-loop
-    stall (unlike the degradable supplemental listing read).
+    The one read behind ``sample show`` — the response carries the summary
+    fields (timing / tokens / messages) alongside the error history, so no
+    supplemental listing fetch is needed. It rides the full narrated
+    busy-retry policy rather than failing on a momentary event-loop stall.
     """
     # sample_id goes in the query string (httpx URL-encodes it) so ids
     # containing `/`, `?`, `#`, etc. address correctly — they can't be

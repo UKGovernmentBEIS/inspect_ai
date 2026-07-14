@@ -1099,13 +1099,22 @@ def _patch_surface(
         lambda s, **kwargs: _FetchedSummaries(summaries, busy_pids or []),
     )
     if samples_by_eval is not None:
-        monkeypatch.setattr(
-            "inspect_ai._cli.ctl._fetch_samples",
-            lambda socket_path, eval_id, active_since=None, **kwargs: _SamplesPage(
-                as_of=123.0,
-                samples=samples_by_eval.get(eval_id, []),
-            ),
-        )
+        # Mirrors the real server: `sample_filter="errors"` returns only
+        # errored/retried rows (the CLI keeps no client-side fallback).
+        def fake_fetch_samples(
+            socket_path: Any,
+            eval_id: str,
+            active_since: float | None = None,
+            *,
+            sample_filter: str | None = None,
+            **kwargs: Any,
+        ) -> _SamplesPage:
+            samples = samples_by_eval.get(eval_id, [])
+            if sample_filter == "errors":
+                samples = [s for s in samples if s["error"] or (s["retries"] or 0) > 0]
+            return _SamplesPage(as_of=123.0, samples=samples)
+
+        monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_fetch_samples)
 
 
 def test_bare_task_noun_implies_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1197,6 +1206,83 @@ def test_sample_errors_unscoped_filters_across_tasks(
         ("aaa111", "bad"),
         ("bbb222", "retried"),
     ]
+
+
+def test_sample_errors_requests_server_side_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`sample errors` asks the server to filter and trusts the result.
+
+    The request carries `sample_filter="errors"` and the returned rows are
+    displayed as-is — there is no client-side fallback filter.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    seen: dict[str, Any] = {}
+
+    def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        *,
+        sample_filter: str | None = None,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        seen["sample_filter"] = sample_filter
+        return _SamplesPage(
+            as_of=123.0,
+            samples=[_sample_row("bad", error="boom")],
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    result = cli_runner().invoke(ctl_command, ["sample", "errors", "--json"])
+    assert result.exit_code == 0, result.output
+    assert seen["sample_filter"] == "errors"
+    payload = json.loads(result.stdout)
+    assert [r["sample_id"] for r in payload["samples"]] == ["bad"]
+
+
+def test_sample_list_does_not_request_errors_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    seen: dict[str, Any] = {}
+
+    def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        *,
+        sample_filter: str | None = None,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        seen["sample_filter"] = sample_filter
+        return _SamplesPage(as_of=123.0, samples=[_sample_row("s1")])
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    assert seen["sample_filter"] is None
+
+
+def test_fetch_samples_sends_filter_param(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The wire param is `filter=errors`, and only when requested."""
+    from inspect_ai._cli.ctl import _fetch_samples
+
+    seen: dict[str, Any] = {}
+
+    def fake_get(
+        socket_path: Any, path: str, *, params: Any = None, **kwargs: Any
+    ) -> Any:
+        seen["params"] = params
+        return {"as_of": 1.0, "samples": []}
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry", fake_get)
+    _fetch_samples("/tmp/x.sock", "e1", sample_filter="errors")
+    assert seen["params"] == {"filter": "errors"}
+    _fetch_samples("/tmp/x.sock", "e1")
+    assert seen["params"] == {}
 
 
 def _capture_fetch_kwargs(
@@ -1645,19 +1731,18 @@ def test_sample_list_scoped_unreachable_exits(
     assert "Failed to read samples for eval eval_aaa111" in result.stderr
 
 
-def test_sample_show_merges_summary_row_and_detail(
+def test_sample_show_reports_detail_summary_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`show` reports the full sample summary, not just the error detail."""
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        samples_by_eval={"eval_aaa111": [_sample_row("s1", total_tokens=42)]},
-    )
+    """`show` reports the summary fields the detail read itself carries."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     detail = {
         "sample_id": "s1",
         "epoch": 1,
         "status": "error",
+        "total_time": 1.0,
+        "total_tokens": 42,
+        "message_count": 3,
         "retries": 0,
         "error": {"message": "boom"},
         "error_retries": [],
@@ -1671,29 +1756,34 @@ def test_sample_show_merges_summary_row_and_detail(
     )
     payload = json.loads(result.stdout)
     assert payload["task_id"] == "aaa111"
-    assert payload["total_tokens"] == 42  # from the listing row
-    assert payload["error"] == {"message": "boom"}  # detail wins on overlap
+    assert payload["total_tokens"] == 42
+    assert payload["message_count"] == 3
+    assert payload["error"] == {"message": "boom"}
     assert payload["status"] == "error"
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)  # echoed
 
 
-def test_sample_show_listing_unreachable_keeps_detail(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`show` still answers from the fetched detail if the listing read fails.
+def test_sample_show_is_a_single_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`show` never fetches the eval's sample listing.
 
-    The process exiting between the detail read and the supplemental listing
-    read costs only the summary fields (timing / tokens / messages), not the
-    authoritative detail already in hand.
+    A current server's detail response carries the summary fields itself
+    (message_count marks it), so the former O(dataset) supplemental listing
+    read (and the torn view a retry between the two reads produced) is gone.
     """
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _patch_samples_unreachable_for(monkeypatch, "eval_aaa111")
+
+    def fail_fetch(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("sample show should not fetch the samples listing")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fail_fetch)
     detail = {
         "sample_id": "s1",
         "epoch": 1,
-        "status": "error",
+        "status": "completed",
+        "total_tokens": 7,
+        "message_count": 2,
         "retries": 0,
-        "error": {"message": "boom"},
+        "error": None,
         "error_retries": [],
         "scores": {},
     }
@@ -1704,20 +1794,73 @@ def test_sample_show_listing_unreachable_keeps_detail(
         ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
     )
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.stdout)
-    assert payload["error"] == {"message": "boom"}
-    assert "total_tokens" not in payload  # the listing row never arrived
-    assert "Could not read the samples listing for eval eval_aaa111" in result.stderr
+    assert json.loads(result.stdout)["total_tokens"] == 7
 
 
-def test_sample_show_busy_listing_keeps_detail(
+def _old_server_detail() -> dict[str, Any]:
+    """A detail response from a server that predates the summary fields.
+
+    No ``message_count`` (or other summary) keys — the marker `show` uses
+    to decide the listing fallback is needed.
+    """
+    return {
+        "sample_id": "s1",
+        "epoch": 1,
+        "status": "error",
+        "retries": 1,
+        "error": {"message": "boom"},
+        "error_retries": [],
+        "scores": {},
+    }
+
+
+def test_sample_show_old_server_falls_back_to_listing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A busy eval (listing retries exhausted) doesn't discard the detail.
+    """Against an old server, `show` folds in the sample's listing row.
 
-    The listing read opts into _ServerBusy on retry exhaustion, which the
-    same except-_ServerUnreachable fallback covers; the detail already in
-    hand must still be rendered.
+    An old server's detail response has no summary fields at all; the CLI
+    detects their absence and restores the two-read flow so timing / tokens
+    / messages aren't silently dropped — with the detail's own fields still
+    winning on overlap.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="completed", retries=0, total_tokens=42)
+            ]
+        },
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail",
+        lambda *a, **k: _old_server_detail(),
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    # summary fields come from the listing row...
+    assert payload["total_tokens"] == 42
+    assert payload["message_count"] == 1
+    # ...while the detail stays authoritative on overlap
+    assert payload["status"] == "error"
+    assert payload["retries"] == 1
+    assert payload["error"] == {"message": "boom"}
+
+
+@pytest.mark.parametrize("busy", [False, True], ids=["unreachable", "busy"])
+def test_sample_show_old_server_fallback_unreachable_degrades(
+    monkeypatch: pytest.MonkeyPatch, busy: bool
+) -> None:
+    """A failed fallback listing read degrades with a caveat, not an error.
+
+    The detail already in hand answers the question; the old server exiting
+    — or staying busy through the listing read's retries (_ServerBusy, which
+    adds a "try again shortly" hint) — costs only the summary fields,
+    surfaced on stderr, with stdout still valid JSON.
     """
     from inspect_ai._cli.ctl import _ServerBusy
 
@@ -1725,28 +1868,23 @@ def test_sample_show_busy_listing_keeps_detail(
     _patch_samples_unreachable_for(
         monkeypatch,
         "eval_aaa111",
-        exc=_ServerBusy("no response after 2 attempts — the eval's event loop is busy"),
+        exc=_ServerBusy("no response after 2 attempts — the eval's event loop is busy")
+        if busy
+        else None,
     )
-    detail = {
-        "sample_id": "s1",
-        "epoch": 1,
-        "status": "error",
-        "retries": 0,
-        "error": {"message": "boom"},
-        "error_retries": [],
-        "scores": {},
-    }
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: detail
+        "inspect_ai._cli.ctl._fetch_sample_detail",
+        lambda *a, **k: _old_server_detail(),
     )
     result = cli_runner().invoke(
         ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
     )
     assert result.exit_code == 0, result.output
+    assert "Could not read the samples listing" in result.stderr
+    assert ("try again shortly" in result.stderr) == busy
     payload = json.loads(result.stdout)
     assert payload["error"] == {"message": "boom"}
-    assert "Could not read the samples listing" in result.stderr
-    assert "busy" in result.stderr
+    assert "message_count" not in payload
 
 
 def test_old_flat_spellings_hidden_from_help() -> None:
