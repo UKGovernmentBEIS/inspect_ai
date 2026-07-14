@@ -147,12 +147,12 @@ def test_terminal_summary_token_limit_none_when_unlimited() -> None:
     assert row["token_limit_type"] is None
 
 
-# --- errors-only listing -------------------------------------------------
+# --- errors-filtered listing ----------------------------------------------
 #
-# `errors_only` is the eval-set triage read behind `ctl sample errors`: it
-# must return only errored/retried samples and must NOT synthesize the
-# pending dataset × epochs grid (which can never carry errors and dominates
-# the response on large evals).
+# `sample_filter="errors"` is the eval-set triage read behind `ctl sample
+# errors`: it must return only errored/retried samples and must NOT
+# synthesize the pending dataset × epochs grid (which can never carry errors
+# and dominates the response on large evals).
 
 
 class _FakeLive:
@@ -165,7 +165,7 @@ class _FakeLive:
         return self._summaries
 
 
-async def test_errors_only_filters_and_skips_pending_grid(monkeypatch) -> None:
+async def test_errors_filter_filters_and_skips_pending_grid(monkeypatch) -> None:
     from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
     from inspect_ai._control.state import current_sample_summaries
 
@@ -188,7 +188,7 @@ async def test_errors_only_filters_and_skips_pending_grid(monkeypatch) -> None:
             epochs=2,
         )
 
-        rows = await current_sample_summaries("e-errs", errors_only=True)
+        rows = await current_sample_summaries("e-errs", sample_filter="errors")
         assert {(r["sample_id"], r["status"]) for r in rows} == {
             ("bad", "error"),
             ("retried", "completed"),

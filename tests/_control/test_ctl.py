@@ -960,13 +960,22 @@ def _patch_surface(
         lambda s, **kwargs: _FetchedSummaries(summaries, busy_pids or []),
     )
     if samples_by_eval is not None:
-        monkeypatch.setattr(
-            "inspect_ai._cli.ctl._fetch_samples",
-            lambda socket_path, eval_id, active_since=None, **kwargs: _SamplesPage(
-                as_of=123.0,
-                samples=samples_by_eval.get(eval_id, []),
-            ),
-        )
+        # Mirrors the real server: `sample_filter="errors"` returns only
+        # errored/retried rows (the CLI keeps no client-side fallback).
+        def fake_fetch_samples(
+            socket_path: Any,
+            eval_id: str,
+            active_since: float | None = None,
+            *,
+            sample_filter: str | None = None,
+            **kwargs: Any,
+        ) -> _SamplesPage:
+            samples = samples_by_eval.get(eval_id, [])
+            if sample_filter == "errors":
+                samples = [s for s in samples if s["error"] or (s["retries"] or 0) > 0]
+            return _SamplesPage(as_of=123.0, samples=samples)
+
+        monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_fetch_samples)
 
 
 def test_bare_task_noun_implies_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1063,11 +1072,10 @@ def test_sample_errors_unscoped_filters_across_tasks(
 def test_sample_errors_requests_server_side_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`sample errors` asks the server to filter, keeping the client fallback.
+    """`sample errors` asks the server to filter and trusts the result.
 
-    The request carries `errors_only=True`, but the client-side filter still
-    applies for older servers, which ignore the unknown query param and
-    return the full listing.
+    The request carries `sample_filter="errors"` and the returned rows are
+    displayed as-is — there is no client-side fallback filter.
     """
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     seen: dict[str, Any] = {}
@@ -1077,20 +1085,19 @@ def test_sample_errors_requests_server_side_filter(
         eval_id: str,
         active_since: float | None = None,
         *,
-        errors_only: bool = False,
+        sample_filter: str | None = None,
         **kwargs: Any,
     ) -> _SamplesPage:
-        seen["errors_only"] = errors_only
-        # an older server ignores the param — return the full listing
+        seen["sample_filter"] = sample_filter
         return _SamplesPage(
             as_of=123.0,
-            samples=[_sample_row("ok"), _sample_row("bad", error="boom")],
+            samples=[_sample_row("bad", error="boom")],
         )
 
     monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "errors", "--json"])
     assert result.exit_code == 0, result.output
-    assert seen["errors_only"] is True
+    assert seen["sample_filter"] == "errors"
     payload = json.loads(result.stdout)
     assert [r["sample_id"] for r in payload["samples"]] == ["bad"]
 
@@ -1106,22 +1113,22 @@ def test_sample_list_does_not_request_errors_filter(
         eval_id: str,
         active_since: float | None = None,
         *,
-        errors_only: bool = False,
+        sample_filter: str | None = None,
         **kwargs: Any,
     ) -> _SamplesPage:
-        seen["errors_only"] = errors_only
+        seen["sample_filter"] = sample_filter
         return _SamplesPage(as_of=123.0, samples=[_sample_row("s1")])
 
     monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
-    assert seen["errors_only"] is False
+    assert seen["sample_filter"] is None
 
 
-def test_fetch_samples_sends_errors_only_param(
+def test_fetch_samples_sends_filter_param(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The wire param is `errors_only=true`, and only when requested."""
+    """The wire param is `filter=errors`, and only when requested."""
     from inspect_ai._cli.ctl import _fetch_samples
 
     seen: dict[str, Any] = {}
@@ -1133,8 +1140,8 @@ def test_fetch_samples_sends_errors_only_param(
         return {"as_of": 1.0, "samples": []}
 
     monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry", fake_get)
-    _fetch_samples("/tmp/x.sock", "e1", errors_only=True)
-    assert seen["params"] == {"errors_only": True}
+    _fetch_samples("/tmp/x.sock", "e1", sample_filter="errors")
+    assert seen["params"] == {"filter": "errors"}
     _fetch_samples("/tmp/x.sock", "e1")
     assert seen["params"] == {}
 

@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import is_cancellation_message
@@ -195,7 +195,9 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
 
 
 async def current_sample_summaries(
-    eval_id: str, active_since: float | None = None, errors_only: bool = False
+    eval_id: str,
+    active_since: float | None = None,
+    sample_filter: Literal["errors"] | None = None,
 ) -> list[dict[str, Any]]:
     """Per-sample summaries for one eval (``GET /evals/<eval_id>/samples``).
 
@@ -232,12 +234,12 @@ async def current_sample_summaries(
     activity) are excluded. It's a wall-clock *filter*, not a resume cursor (it
     returns current state of whatever changed, not an exactly-once stream).
 
-    ``errors_only`` restricts the result to samples that carry an error or
-    have been retried (``error`` set, or ``retries`` > 0) — the eval-set
-    triage read behind ``inspect ctl sample errors``. Filtering server-side
-    also skips pending-row synthesis entirely: a pending sample can never
-    carry an error or retries, and for a large dataset × epochs grid
-    building (and serializing) those rows on the eval's own event loop
+    ``sample_filter="errors"`` restricts the result to samples that carry an
+    error or have been retried (``error`` set, or ``retries`` > 0) — the
+    eval-set triage read behind ``inspect ctl sample errors``. Filtering
+    server-side also skips pending-row synthesis entirely: a pending sample
+    can never carry an error or retries, and for a large dataset × epochs
+    grid building (and serializing) those rows on the eval's own event loop
     dominates the response just to be discarded client-side.
     """
     by_key: dict[tuple[Any, int], dict[str, Any]] = {}
@@ -261,12 +263,12 @@ async def current_sample_summaries(
 
     # Pending: planned samples not yet running or done. No live source
     # holds these, so synthesize them from the registered planned ids.
-    # Skipped for an errors-only read (see the docstring).
-    if not errors_only:
+    # Skipped for an errors-filtered read (see the docstring).
+    if sample_filter != "errors":
         _add_pending_samples(eval_id, by_key)
 
     summaries = list(by_key.values())
-    if errors_only:
+    if sample_filter == "errors":
         summaries = [
             s for s in summaries if s["error"] is not None or (s["retries"] or 0) > 0
         ]

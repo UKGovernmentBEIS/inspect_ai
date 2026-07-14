@@ -291,23 +291,23 @@ class ControlServer:
         async def list_eval_samples(
             eval_id: str,
             active_since: float | None = None,
-            errors_only: bool = False,
+            filter: Literal["errors"] | None = None,
         ) -> dict[str, Any]:
             # `active_since` (unix ts) is the recency delta: only samples that
             # started or updated since then. A filter, not a cursor. The
             # response is an `{as_of, samples}` envelope — `as_of` is stamped
             # BEFORE the listing is built, so a client feeding it back as the
             # next `active_since` can't miss changes that land mid-read.
-            # `errors_only` restricts to errored/retried samples and skips
-            # pending-row synthesis (the `sample errors` triage read). No
-            # CONTROL_API_VERSION bump: an older server ignoring the param
-            # returns the full listing, which the client filter reduces —
-            # silent-ignore is harmless for this read, unlike a PATCH knob.
+            # `filter=errors` restricts to errored/retried samples and skips
+            # pending-row synthesis (the `sample errors` triage read). Typed
+            # as a Literal so an unrecognized value is rejected (422) rather
+            # than silently answered with the full listing — the CLI trusts
+            # the filter was applied and keeps no client-side fallback.
             as_of = time.time()
             return {
                 "as_of": as_of,
                 "samples": await current_sample_summaries(
-                    eval_id, active_since, errors_only
+                    eval_id, active_since, filter
                 ),
             }
 
