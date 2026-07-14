@@ -231,7 +231,7 @@ class SampleBufferDatabase(SampleBuffer):
             if len(logs) > 0:
                 self.db_path = logs[0]
             else:
-                raise FileNotFoundError("Log database for '{location}' not found.")
+                raise FileNotFoundError(f"Log database for '{location}' not found.")
 
         # Per-sample pool indices; full pool entries live in SQLite.
         self._msg_indices: dict[tuple[str, int], MessagePoolIndex] = {}
