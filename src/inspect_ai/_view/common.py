@@ -12,6 +12,7 @@ from typing import Any, AsyncIterator, Literal, NamedTuple, Tuple, cast
 
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
+from botocore.exceptions import ClientError
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic import BaseModel
@@ -632,13 +633,24 @@ async def list_eval_logs_async(
         # iter_files(detail=True) is a single list_objects_v2 sweep that returns
         # FileInfo (name/size/mtime) — no separate existence precheck or per-file
         # stat — and a missing prefix simply yields nothing.
-        async with AsyncFilesystem() as afs:
-            logs = [
-                info
-                async for info in afs.iter_files(
-                    log_dir, recursive=recursive, detail=True
-                )
-            ]
+        try:
+            async with AsyncFilesystem() as afs:
+                logs = [
+                    info
+                    async for info in afs.iter_files(
+                        log_dir, recursive=recursive, detail=True
+                    )
+                ]
+        except ClientError as ex:
+            # a missing bucket is an empty listing (as with the existence
+            # precheck the other branches perform), not an error
+            if ex.response.get("Error", {}).get("Code") in (
+                "NoSuchBucket",
+                "404",
+                "NotFound",
+            ):
+                return []
+            raise
         # resolve to eval logs (async fan-out so header reads on
         # non-conforming filenames don't block the event loop)
         return await log_files_from_ls_async(logs, formats, descending)

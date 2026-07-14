@@ -1124,6 +1124,22 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
     assert logs[0].task_id == "id"
 
 
+async def test_list_eval_logs_async_s3_missing_bucket_returns_empty(
+    mock_s3: None,
+) -> None:
+    logs = await list_eval_logs_async("s3://no-such-bucket/logs")
+    assert logs == []
+
+
+async def test_list_eval_logs_async_s3_lists_logs(mock_s3: None) -> None:
+    s3_log = (
+        "s3://test-bucket/list-fast-path/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    )
+    _write_eval_log_to_s3(s3_log)
+    logs = await list_eval_logs_async("s3://test-bucket/list-fast-path")
+    assert [log.name for log in logs] == [s3_log]
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Tests using memory:// + AccessPolicy / FileMappingPolicy
 # ═══════════════════════════════════════════════════════════════════════════
