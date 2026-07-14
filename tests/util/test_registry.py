@@ -1,7 +1,12 @@
-from inspect_ai import Task, eval, task
+from typing import cast
+
+from inspect_ai import Task, TaskSource, eval, task, task_source
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
+    RegistryInfo,
     extract_named_params,
+    registry_add,
+    registry_create,
     registry_create_from_dict,
     registry_info,
     registry_kwargs,
@@ -15,8 +20,9 @@ from inspect_ai.model._compaction.native import CompactionNative
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.scorer import Metric, metric
+from inspect_ai.scorer import Metric, ScoreReducer, metric
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._reducer.reducer import mean_score
 from inspect_ai.solver import Solver, solver, use_tools
 from inspect_ai.tool import Tool, bash
 
@@ -128,6 +134,56 @@ def test_registry_arg_preserves_ordinary_registry_shaped_dict() -> None:
     assert not is_registry_dict(ordinary)
     assert registry_arg(ordinary) == ordinary
     assert registry_arg({"config": ordinary}) == {"config": ordinary}
+
+
+def test_registry_arg_instantiates_nested_score_reducer() -> None:
+    """Snake-case registry types should restore the registered instance."""
+    from inspect_ai._util.registry import registry_arg
+
+    restored = registry_arg(registry_value(mean_score()))
+
+    assert restored is not mean_score
+
+
+def test_registry_arg_instantiates_nested_task_source() -> None:
+    """Generic nested restoration should not require a type-specific workaround."""
+    from inspect_ai._util.registry import registry_arg
+
+    @task_source(name="registry_roundtrip_task_source")
+    def roundtrip_task_source() -> TaskSource:
+        return TaskSource()
+
+    restored = registry_arg(registry_value(roundtrip_task_source()))
+
+    assert isinstance(restored, TaskSource)
+
+
+def test_registry_create_from_dict_instantiates_without_type_name_heuristic() -> None:
+    def score_reducer_factory() -> ScoreReducer:
+        return mean_score()
+
+    registry_add(
+        score_reducer_factory,
+        RegistryInfo(type="score_reducer", name="non_matching_return_annotation"),
+    )
+
+    assert (
+        cast(
+            object,
+            registry_create("score_reducer", "non_matching_return_annotation"),
+        )
+        is score_reducer_factory
+    )
+
+    restored = registry_create_from_dict(
+        {
+            "type": "score_reducer",
+            "name": "non_matching_return_annotation",
+            "params": {},
+        }
+    )
+
+    assert isinstance(restored, ScoreReducer)
 
 
 def _extract(fn, *args, **kwargs):
