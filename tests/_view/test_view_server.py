@@ -986,15 +986,11 @@ def test_api_eval_set_uses_fs_options_reader(
 ) -> None:
     calls: list[tuple[str, dict[str, Any]]] = []
 
-    def fake_read_eval_set_info(
-        log_dir: str, fs_options: dict[str, Any] = {}
-    ) -> None:
+    def fake_read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> None:
         calls.append((log_dir, fs_options))
         return None
 
-    monkeypatch.setattr(
-        fastapi_server, "read_eval_set_info", fake_read_eval_set_info
-    )
+    monkeypatch.setattr(fastapi_server, "read_eval_set_info", fake_read_eval_set_info)
     app = fastapi_server.view_server_app(fs_options={"anon": True})
     with fastapi.testclient.TestClient(app) as client:
         resp = client.request(
@@ -1039,9 +1035,7 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
         def invalidate_cache(self, log_dir: str) -> None:
             pass
 
-        async def _ls(
-            self, log_dir: str, detail: bool = True
-        ) -> list[dict[str, Any]]:
+        async def _ls(self, log_dir: str, detail: bool = True) -> list[dict[str, Any]]:
             return [
                 {
                     "name": f"{log_dir}/2026-01-01T00-00-00_task_id.eval",
