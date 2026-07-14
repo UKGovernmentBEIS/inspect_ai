@@ -33,7 +33,7 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, Literal, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, NamedTuple, cast
 
 import anyio
 
@@ -60,7 +60,17 @@ from inspect_ai._util.discovery import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.sockets import lock_socket_file, prepare_socket_path
 
+if TYPE_CHECKING:
+    from fastapi.responses import JSONResponse
+
 logger = getLogger(__name__)
+
+
+class _ParsedRetryKnobs(NamedTuple):
+    """Parsed retry-override knob values, or the 400 that rejects them."""
+
+    values: dict[str, "int | Literal['clear'] | None"]
+    error: "JSONResponse | None"
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +299,49 @@ class ControlServer:
                         content={"error": f"{label} must be >= 1 (got {value})"},
                     )
             return None
+
+        def _parse_retry_knobs(*knobs: tuple[str, str | None]) -> _ParsedRetryKnobs:
+            """Parse the retry-override knobs' raw query values.
+
+            Unlike the limits knobs these are declared ``str`` on the route:
+            every integer >= 0 is a real value (0 = fail after the first
+            attempt / a zero budget), so clearing an override is spelled with
+            the keyword ``clear`` rather than a sentinel integer. Values above
+            :data:`MAX_GENERATE_CONFIG_OVERRIDE` are rejected here too — the
+            store enforces the same bound, but a 400 at the wire beats a 500.
+            Returns the parsed values plus a 400 for the first invalid one
+            (a ``None`` passes through as "not requested").
+            """
+            from inspect_ai.model._generate_overrides import (
+                MAX_GENERATE_CONFIG_OVERRIDE,
+            )
+
+            parsed: dict[str, int | Literal["clear"] | None] = {}
+            for label, raw in knobs:
+                if raw is None:
+                    parsed[label] = None
+                elif raw == "clear":
+                    parsed[label] = "clear"
+                else:
+                    try:
+                        value = int(raw)
+                    except ValueError:
+                        value = -1
+                    if value < 0 or value > MAX_GENERATE_CONFIG_OVERRIDE:
+                        return _ParsedRetryKnobs(
+                            values=parsed,
+                            error=JSONResponse(
+                                status_code=400,
+                                content={
+                                    "error": f"{label} must be an integer "
+                                    f"between 0 and "
+                                    f"{MAX_GENERATE_CONFIG_OVERRIDE} or "
+                                    f"'clear' (got {raw!r})"
+                                },
+                            ),
+                        )
+                    parsed[label] = value
+            return _ParsedRetryKnobs(values=parsed, error=None)
 
         def _key_pair_error(
             key: str | None, key_limit: int | None
@@ -522,8 +575,10 @@ class ControlServer:
         # read, like GET. `model` filters the adaptive controllers (name start or
         # after a `/`); `key`/`key_limit` retune a named concurrency() registry
         # entry by exact name (400 for a name with no entry — named limits are
-        # created lazily on first use). `dry_run=true` reports the intended
-        # change without applying it. Never 404s — a process always exists.
+        # created lazily on first use). The retry knobs (timeout /
+        # attempt_timeout / max_retries) set live overrides; the keyword
+        # `clear` removes one. `dry_run=true` reports the intended change
+        # without applying it. Never 404s — a process always exists.
         # Unknown query params 400 (fail closed) rather than partially applying.
         @app.patch("/config")
         async def patch_process_limits(
@@ -533,6 +588,9 @@ class ControlServer:
             model: str | None = None,
             key: str | None = None,
             key_limit: int | None = None,
+            timeout: str | None = None,
+            attempt_timeout: str | None = None,
+            max_retries: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -544,6 +602,13 @@ class ControlServer:
                 return error
             if error := _key_pair_error(key, key_limit):
                 return error
+            retry_knobs, retry_error = _parse_retry_knobs(
+                ("timeout", timeout),
+                ("attempt_timeout", attempt_timeout),
+                ("max_retries", max_retries),
+            )
+            if retry_error is not None:
+                return retry_error
             try:
                 return await process_limits(
                     max_sandboxes=max_sandboxes,
@@ -552,6 +617,9 @@ class ControlServer:
                     model=model,
                     key=key,
                     key_limit=key_limit,
+                    timeout=retry_knobs["timeout"],
+                    attempt_timeout=retry_knobs["attempt_timeout"],
+                    max_retries=retry_knobs["max_retries"],
                     dry_run=dry_run,
                 )
             except UnknownConcurrencyKeyError as exc:
@@ -594,6 +662,9 @@ class ControlServer:
             key_limit: int | None = None,
             log_buffer: int | None = None,
             log_shared: int | None = None,
+            timeout: str | None = None,
+            attempt_timeout: str | None = None,
+            max_retries: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -608,6 +679,13 @@ class ControlServer:
                 return error
             if error := _key_pair_error(key, key_limit):
                 return error
+            retry_knobs, retry_error = _parse_retry_knobs(
+                ("timeout", timeout),
+                ("attempt_timeout", attempt_timeout),
+                ("max_retries", max_retries),
+            )
+            if retry_error is not None:
+                return retry_error
             try:
                 result = await task_limits(
                     task_id,
@@ -620,6 +698,9 @@ class ControlServer:
                     key_limit=key_limit,
                     log_buffer=log_buffer,
                     log_shared=log_shared,
+                    timeout=retry_knobs["timeout"],
+                    attempt_timeout=retry_knobs["attempt_timeout"],
+                    max_retries=retry_knobs["max_retries"],
                     dry_run=dry_run,
                 )
             except UnknownConcurrencyKeyError as exc:

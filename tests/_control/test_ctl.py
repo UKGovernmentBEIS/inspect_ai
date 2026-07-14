@@ -15,6 +15,7 @@ import pytest
 
 from _control.conftest import cli_runner
 from inspect_ai._cli.ctl import (
+    _KNOB_SCOPE,
     _KNOB_SINCE,
     _SHORT_ID_LEN,
     _ConfigResult,
@@ -1433,15 +1434,9 @@ def _stub_limits(
     """Stub the server config view for `ctl config` (minimal adjustable knobs)."""
 
     def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
-        knobs = (
-            "max_samples",
-            "max_sandboxes",
-            "max_subprocesses",
-            "max_connections",
-            "key",
-            "log_buffer",
-            "log_shared",
-        )
+        # derive from the canonical knob table so a future knob can't be
+        # missed here (which would misreport its sets as mutated=False)
+        knobs = _KNOB_SCOPE.keys()
         return _ConfigResult(
             view={
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
@@ -1655,8 +1650,6 @@ def test_config_help_scope_tags_derive_from_knob_table() -> None:
     derive from that one table; this pins the help side (the JSON side is
     pinned by test_compose_config_labels_every_knob_with_scope).
     """
-    from inspect_ai._cli.ctl import _KNOB_SCOPE
-
     out = cli_runner().invoke(ctl_command, ["config", "--help"]).output
     options = out[out.index("Options:") :]  # the docstring also names flags
     for knob, scope in _KNOB_SCOPE.items():
@@ -1677,7 +1670,6 @@ def test_knob_since_table_is_consistent() -> None:
     reusing the current N without a bump — is convention only; see the
     comment on `CONTROL_API_VERSION`.)
     """
-    from inspect_ai._cli.ctl import _KNOB_SCOPE
     from inspect_ai._control import CONTROL_API_VERSION
 
     assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
@@ -1810,6 +1802,81 @@ def test_config_gates_max_subprocesses_on_pre_version_server(
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
+
+
+def test_config_gates_retry_overrides_by_real_since_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The retry overrides gate on their real `_KNOB_SINCE` entries (since-2).
+
+    Unlike the gate tests above, no table entry is monkeypatched: a version-0
+    process rejects a retry-override set pre-flight, and a process at the
+    current version applies it.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--timeout", "300", "--attempt-timeout", "60"]
+    )
+    assert result.exit_code == 1
+    assert "--timeout, --attempt-timeout not supported" in result.stderr
+
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = cli_runner().invoke(ctl_command, ["config", "--timeout", "300", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_config_retry_overrides_accept_clear_keyword(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`clear` parses as a knob value (a mutation) and bad spellings fail early."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-retries", "clear", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+    # neither an integer nor 'clear' → click usage error, no request made
+    result = cli_runner().invoke(ctl_command, ["config", "--max-retries", "unset"])
+    assert result.exit_code == 2
+    assert "is not an integer or 'clear'" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--timeout=-5"])
+    assert result.exit_code == 2
+    assert "negative" in result.stderr
+
+    # over the shared value bound -> click usage error, no request made
+    from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
+
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--attempt-timeout", str(MAX_GENERATE_CONFIG_OVERRIDE + 1)],
+    )
+    assert result.exit_code == 2
+    assert "maximum override value" in result.stderr
 
 
 def test_discovery_api_version_parsed_with_bootstrap_default(

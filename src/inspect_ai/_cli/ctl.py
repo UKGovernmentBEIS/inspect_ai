@@ -75,6 +75,9 @@ _KNOB_SCOPE: dict[str, str] = {
     "key": "process",
     "log_buffer": "task",
     "log_shared": "task",
+    "timeout": "process",
+    "attempt_timeout": "process",
+    "max_retries": "process",
 }
 
 # Minimum control-API version each knob requires of the *server* process (the
@@ -96,7 +99,57 @@ _KNOB_SINCE: dict[str, int] = {
     "key": 2,
     "log_buffer": 0,
     "log_shared": 0,
+    "timeout": 4,
+    "attempt_timeout": 4,
+    "max_retries": 4,
 }
+
+
+class _IntOrClearType(click.ParamType):
+    """Non-negative integer, or the keyword ``clear`` (restore launch config).
+
+    The retry-override knobs' value domain: every integer >= 0 (up to the
+    server-shared ``MAX_GENERATE_CONFIG_OVERRIDE`` bound) is a real value
+    (``--max-retries 0`` means fail after the first attempt), so clearing an
+    override needs an out-of-band spelling — the literal ``clear``, passed
+    through to the server verbatim.
+    """
+
+    name = "integer or 'clear'"
+
+    def convert(
+        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
+    ) -> int | Literal["clear"]:
+        from inspect_ai.model._generate_overrides import (
+            MAX_GENERATE_CONFIG_OVERRIDE,
+        )
+
+        if isinstance(value, int):
+            parsed = value
+        elif value.strip().lower() == "clear":
+            return "clear"
+        else:
+            try:
+                parsed = int(value)
+            except ValueError:
+                self.fail(f"{value!r} is not an integer or 'clear'.", param, ctx)
+        if parsed < 0:
+            self.fail(
+                f"{parsed} is negative (pass 'clear' to restore launch config).",
+                param,
+                ctx,
+            )
+        if parsed > MAX_GENERATE_CONFIG_OVERRIDE:
+            self.fail(
+                f"{parsed} is larger than the maximum override value "
+                f"({MAX_GENERATE_CONFIG_OVERRIDE}).",
+                param,
+                ctx,
+            )
+        return parsed
+
+
+_INT_OR_CLEAR = _IntOrClearType()
 
 # Rendered for a task-scoped knob that a process-level view can't show.
 _PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
@@ -778,6 +831,37 @@ def sample_cancel_command(
     help=f"[{_KNOB_SCOPE['log_shared']}] Shared-log event sync interval, in seconds.",
 )
 @click.option(
+    "--timeout",
+    type=_INT_OR_CLEAR,
+    metavar="SECONDS",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['timeout']}] Override the total retry budget per "
+        "generate call, in seconds ('clear' restores launch config)."
+    ),
+)
+@click.option(
+    "--attempt-timeout",
+    type=_INT_OR_CLEAR,
+    metavar="SECONDS",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['attempt_timeout']}] Override the per-attempt API "
+        "timeout, in seconds ('clear' restores launch config)."
+    ),
+)
+@click.option(
+    "--max-retries",
+    type=_INT_OR_CLEAR,
+    metavar="INTEGER",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['max_retries']}] Override the max retries per "
+        "generate call (0 fails after the first attempt; 'clear' restores "
+        "launch config)."
+    ),
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -800,6 +884,9 @@ def config_command(
     key: tuple[str, int] | None,
     log_buffer: int | None,
     log_shared: int | None,
+    timeout: int | Literal["clear"] | None,
+    attempt_timeout: int | Literal["clear"] | None,
+    max_retries: int | Literal["clear"] | None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -819,8 +906,11 @@ def config_command(
     new work waits until in-flight holders drain. `--log-buffer` /
     `--log-shared` are the retune side of `inspect ctl task log-flush`: they
     set the buffering policy for future writes, while log-flush writes
-    what's already buffered now. TASK is required only for setting a
-    task-scoped knob when several tasks run.
+    what's already buffered now. `--timeout` / `--attempt-timeout` /
+    `--max-retries` set live overrides read by the model retry loop, so a
+    change reaches even generate calls already retrying (in-flight API
+    requests still drain first); pass `clear` to remove an override. TASK
+    is required only for setting a task-scoped knob when several tasks run.
     """
     _run_config(
         task,
@@ -832,6 +922,9 @@ def config_command(
         key=key,
         log_buffer=log_buffer,
         log_shared=log_shared,
+        timeout=timeout,
+        attempt_timeout=attempt_timeout,
+        max_retries=max_retries,
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -2094,6 +2187,9 @@ def _applied_knob_names(
     max_subprocesses: int | None,
     max_connections: int | None,
     key: tuple[str, int] | None,
+    timeout: int | Literal["clear"] | None,
+    attempt_timeout: int | Literal["clear"] | None,
+    max_retries: int | Literal["clear"] | None,
 ) -> list[str]:
     """Names of the requested knobs the server reported as adjustable.
 
@@ -2101,7 +2197,10 @@ def _applied_knob_names(
     applied" tail names only knobs that actually landed — a requested knob
     the server reported as not adjustable did NOT apply. The buffer knobs
     self-exclude: their adjustability check (no ``buffer`` view) is exactly
-    the condition that put the caller on the error path.
+    the condition that put the caller on the error path. The retry overrides
+    are always adjustable: the override layer exists regardless of any
+    task's launch config, and `_gate_knob_support` has already excluded
+    older servers.
     """
     return [
         name
@@ -2135,6 +2234,9 @@ def _applied_knob_names(
                     for row in limits_view.get("concurrency") or []
                 ),
             ),
+            ("--timeout", timeout, True),
+            ("--attempt-timeout", attempt_timeout, True),
+            ("--max-retries", max_retries, True),
         )
         if value is not None and adjustable
     ]
@@ -2152,6 +2254,9 @@ def _run_config(
     key: tuple[str, int] | None,
     log_buffer: int | None,
     log_shared: int | None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -2192,7 +2297,7 @@ def _run_config(
         _echo_no_running_evals()
         return
 
-    knob_values: dict[str, int | None] = {
+    knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
@@ -2200,6 +2305,9 @@ def _run_config(
         "key": key[1] if key is not None else None,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
+        "timeout": timeout,
+        "attempt_timeout": attempt_timeout,
+        "max_retries": max_retries,
     }
     # a knob missing here would be silently exempt from the version gate —
     # the exact silent-skew failure `_gate_knob_support` exists to close
@@ -2218,6 +2326,9 @@ def _run_config(
         key=key,
         log_buffer=log_buffer,
         log_shared=log_shared,
+        timeout=timeout,
+        attempt_timeout=attempt_timeout,
+        max_retries=max_retries,
         dry_run=dry_run,
     )
 
@@ -2240,6 +2351,9 @@ def _run_config(
                 max_subprocesses=max_subprocesses,
                 max_connections=max_connections,
                 key=key,
+                timeout=timeout,
+                attempt_timeout=attempt_timeout,
+                max_retries=max_retries,
             )
             message = (
                 f"Task '{scope.task_id}' has no sample buffer in this "
@@ -2265,16 +2379,13 @@ def _run_config(
         )
 
     # The process-scoped knobs reach every task in the process — surface that
-    # blast radius structurally when a set (or dry-run) used one.
+    # blast radius structurally when a set (or dry-run) used one. Derived from
+    # `_KNOB_SCOPE` (via the assert-tied `knob_values`) so a future
+    # process-scoped knob can't silently miss the note.
     global_knobs = [
-        name
-        for name, value in (
-            ("--max-connections", max_connections),
-            ("--max-sandboxes", max_sandboxes),
-            ("--max-subprocesses", max_subprocesses),
-            ("--key", key),
-        )
-        if value is not None
+        f"--{knob.replace('_', '-')}"
+        for knob, value in knob_values.items()
+        if value is not None and _KNOB_SCOPE[knob] == "process"
     ]
     notes = []
     note = _process_scope_note(global_knobs, scope.siblings)
@@ -2334,6 +2445,19 @@ def _compose_config(
         "scope": _KNOB_SCOPE["max_connections"],
         "adaptive": limits_view.get("adaptive") or [],
     }
+    # The retry-override knobs (absent from an older server's view). `override`
+    # is the live process-wide override, None = launch config applies per call.
+    retry_view = limits_view.get("retry")
+    if retry_view is not None:
+        from inspect_ai.model._generate_overrides import (
+            GENERATE_CONFIG_OVERRIDE_FIELDS,
+        )
+
+        for knob in GENERATE_CONFIG_OVERRIDE_FIELDS:
+            knobs[knob] = {
+                "scope": _KNOB_SCOPE[knob],
+                "override": retry_view.get(knob),
+            }
     # `keys: None` (vs an empty list) means the server predates the
     # concurrency view — rendered as unreported rather than empty
     knobs["concurrency"] = {
@@ -2539,8 +2663,9 @@ def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
 def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
     """Note that process-scoped config knobs reach every task in the process.
 
-    ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes`` /
-    ``--max-subprocesses``) supplied on this invocation; ``siblings`` counts the tasks the retune can
+    ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes``
+    / ``--max-subprocesses`` / the retry overrides) supplied on this
+    invocation; ``siblings`` counts the tasks the retune can
     reach (the process's active tasks, plus the named target when it is
     completed). Returns ``None`` when there's nothing to flag — no such knob
     was set, or the target task is the only one the change can reach, so
@@ -2549,9 +2674,12 @@ def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
     if not global_knobs or siblings <= 1:
         return None
     verb = "applies" if len(global_knobs) == 1 else "apply"
+    if len(global_knobs) == 1:
+        names = global_knobs[0]
+    else:
+        names = f"{', '.join(global_knobs[:-1])} and {global_knobs[-1]}"
     return (
-        f"{' and '.join(global_knobs)} {verb} process-wide — every active "
-        "task in this process is affected."
+        f"{names} {verb} process-wide — every active task in this process is affected."
     )
 
 
@@ -3318,6 +3446,9 @@ def _exec_limits(
     key: tuple[str, int] | None = None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     dry_run: bool,
 ) -> "_ConfigResult":
     """Read (no set knobs) or retune (any set knob) a scope's config.
@@ -3327,16 +3458,19 @@ def _exec_limits(
     ``log_shared`` buffer params; task ids are stable across retry attempts);
     with ``task_id=None`` it targets the process-level ``/config``
     (``max_sandboxes`` / ``max_subprocesses`` / ``max_connections`` / the
-    named-key knob only). ``model`` filters the adaptive controllers (a read
-    param, applies to both); ``key`` is the ``(name, limit)`` pair for a named
-    ``concurrency()`` registry entry, carried on the wire as ``key`` /
-    ``key_limit``. Any settable knob that is not ``None`` makes this a
-    mutation: a single-shot PATCH given the full mutation budget (see
-    :data:`_MUTATION_TIMEOUT`) — derived here, not caller-supplied, so a knob
-    can never ride a GET as an ignored query param. A pure read is a GET that
-    retries a busy process on timeout. ``dry_run`` only applies to a set.
+    retry overrides / named-key knob). ``model`` filters the adaptive
+    controllers (a read param, applies to both); ``key`` is the ``(name,
+    limit)`` pair for a named ``concurrency()`` registry entry, carried on
+    the wire as ``key`` / ``key_limit``. The retry overrides (``timeout`` /
+    ``attempt_timeout`` / ``max_retries``) accept the keyword ``clear`` to
+    remove an override (``0`` is a real value for them). Any settable knob
+    that is not ``None`` makes this a mutation: a single-shot PATCH given the
+    full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
+    caller-supplied, so a knob can never ride a GET as an ignored query
+    param. A pure read is a GET that retries a busy process on timeout.
+    ``dry_run`` only applies to a set.
     """
-    knob_values: dict[str, int | None] = {
+    knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
@@ -3344,6 +3478,9 @@ def _exec_limits(
         "key": key[1] if key is not None else None,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
+        "timeout": timeout,
+        "attempt_timeout": attempt_timeout,
+        "max_retries": max_retries,
     }
     # the settable knobs are exactly the scope and since tables' — a knob
     # added to one without the others fails loudly here rather than silently
@@ -3420,7 +3557,8 @@ def _error_detail_from_response(response: httpx.Response) -> str:
 
 def _knob_label(display: str, knob: str) -> str:
     """Aligned human config label carrying the knob's scope from ``_KNOB_SCOPE``."""
-    # width fits the longest label ("max subprocesses [process]:") plus a space
+    # width fits the longest label ("max subprocesses [process]:") plus a
+    # space — widen it if a longer knob label is ever added
     return f"  {display} [{_KNOB_SCOPE[knob]}]:".ljust(30)
 
 
@@ -3517,6 +3655,31 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                     f", last: {last.get('from')}→{last.get('to')} {last.get('reason')}"
                 )
             click.echo(line)
+
+    # The retry-override knobs. Absent entirely from an older server's view
+    # (which has no override layer) — skipped then rather than shown as a
+    # value claim. A knob's current value is the live override or "launch
+    # config" (no override — each generate call's own config applies); on a
+    # dry-run the requested value renders as an arrow, with `clear` shown as
+    # its meaning (back to launch config).
+    def _render_retry_knob(knob: str, display: str, unit: str) -> None:
+        view = knobs.get(knob)
+        if view is None:
+            return
+
+        def fmt(value: Any) -> str:
+            return "launch config" if value in (None, "clear") else f"{value}{unit}"
+
+        current = view.get("override")
+        rendered = fmt(current) if current is None else f"{fmt(current)} (override)"
+        proposed = requested.get(knob)
+        if proposed is not None and fmt(proposed) != fmt(current):
+            rendered += f" → {fmt(proposed)}"
+        click.echo(_knob_label(display, knob) + rendered)
+
+    _render_retry_knob("timeout", "timeout", "s")
+    _render_retry_knob("attempt_timeout", "attempt timeout", "s")
+    _render_retry_knob("max_retries", "max retries", "")
 
     # The named concurrency() registry entries, addressable via `--key` by the
     # exact name shown. Entries appear lazily on first use, so an empty
