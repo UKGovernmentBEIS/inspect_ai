@@ -106,14 +106,6 @@ class Plan(Solver):
                     state = await solver(state, generate)
                     st.complete(state)
 
-                # a solver may return a different TaskState object than it
-                # was passed (eg. a deepcopy it made, or a state it got from
-                # fork()) — refresh the context handle so `sample_state()`
-                # and the control channel's live view follow the threaded
-                # state. The `replacing` CAS covers a separate case: when
-                # this plan is itself running *inside* a fork() branch, its
-                # states are branch copies and the refresh must not move the
-                # shared live view (see `set_sample_state`)
                 set_sample_state(state, replacing=prev_state)
 
                 # check for completed

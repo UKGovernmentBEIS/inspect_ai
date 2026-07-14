@@ -474,17 +474,23 @@ def sample_state() -> TaskState | None:
 def set_sample_state(state: TaskState, *, replacing: TaskState | None = None) -> None:
     """Set the context's current `TaskState`.
 
-    Also keeps the control channel's live-conversation handle
-    (`ActiveSample.live_state`) current when a solver replaces the
-    `TaskState` object. The ContextVar is context-isolated, but the handle
-    is a plain attribute on the shared `ActiveSample` — reachable from
-    `fork()` subtasks, whose branch conversations must not be served as the
-    sample's main thread. Step-threading callers (the `Chain` / `Plan` step
-    loops) therefore pass ``replacing`` (the state the step superseded) to
-    make the handle refresh a compare-and-swap: it only lands if the handle
-    currently points at ``replacing``, so a lineage that never owned the
-    handle (a fork branch threads a deepcopy) can't capture it. Without
-    ``replacing`` the refresh is unconditional (sample start, pre-scoring).
+    Called wherever the current `TaskState` may have been replaced with a
+    different object — a solver can return a deepcopy or a state it got from
+    `fork()` rather than the state it was passed — so that `sample_state()`
+    and the control channel's live-conversation handle
+    (`ActiveSample.live_state`) follow the threaded state.
+
+    The ContextVar is context-isolated, but the handle is a plain attribute
+    on the shared `ActiveSample` — reachable from `fork()` subtasks, whose
+    branch conversations must not be served as the sample's main thread.
+    Callers that can themselves be running inside a fork() branch (the
+    `Chain` / `Plan` step loops, the `@solver` call wrapper) therefore pass
+    ``replacing`` (the state the step superseded) to make the handle refresh
+    a compare-and-swap: it only lands if the handle currently points at
+    ``replacing``, so a lineage that never owned the handle (a fork branch
+    threads a deepcopy) can't capture it. Without ``replacing`` the refresh
+    is unconditional — reserved for callers that are by definition on the
+    sample's main thread (sample start, pre-scoring).
     """
     _sample_state.set(state)
     from inspect_ai.log._samples import set_active_sample_state

@@ -214,10 +214,6 @@ def solver(
                 ) -> TaskState:
                     prev_state = state
                     state = await original_call(state, generate)
-                    # solvers can run inside a fork() branch, whose copied
-                    # context still reaches the shared ActiveSample — CAS via
-                    # `replacing` so a branch lineage can't capture the live
-                    # view (see `set_sample_state`)
                     set_sample_state(state, replacing=prev_state)
                     return state
 
@@ -234,7 +230,6 @@ def solver(
                 ) -> TaskState:
                     prev_state = state
                     state = await solver(state, generate)
-                    # CAS-guarded for the same fork() reason as above
                     set_sample_state(state, replacing=prev_state)
                     return state
 
