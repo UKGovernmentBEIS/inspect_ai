@@ -2,13 +2,20 @@ import sqlite3
 
 import pytest
 
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.event import InfoEvent, ModelEvent
 from inspect_ai.log._log import EvalSample, EventsData
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelCall, ModelOutput
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageUser,
+    GenerateConfig,
+    ModelCall,
+    ModelOutput,
+)
 
 
 def _model(
@@ -16,11 +23,14 @@ def _model(
     completion: str,
     pending: bool | None = None,
     call: ModelCall | None = None,
+    input: list[ChatMessage] | None = None,
 ) -> ModelEvent:
     return ModelEvent(
         uuid=uuid,
         model="mockllm/model",
-        input=[ChatMessageUser(id="input-message", content="question")],
+        input=input
+        if input is not None
+        else [ChatMessageUser(id="input-message", content="question")],
         tools=[],
         tool_choice="none",
         config=GenerateConfig(),
@@ -424,6 +434,144 @@ def test_open_sample_history_from_honors_limit(tmp_path):
     with db.open_sample_history_from("sample", 1, 4, limit=10) as history:
         rows = history.raw_event_rows
     assert [row.event["data"] for row in rows] == [4]
+
+
+def test_page_scoped_history_loads_only_referenced_pool_entries(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    msg_a = ChatMessageUser(id="msg-a", content="question one")
+    msg_b = ChatMessageUser(id="msg-b", content="question two")
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-1", "a", input=[msg_a])
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-2", "b", input=[msg_b])
+            ),
+        ]
+    )
+
+    # the page's events reference only pool position 1
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        assert [row.event_id for row in history.raw_event_rows] == ["event-2"]
+        assert set(history.message_pool) == {1}
+        assert history.message_pool[1].content == "question two"
+
+    with db.open_sample_history_tail("sample", 1, 1) as history:
+        assert [row.event_id for row in history.raw_event_rows] == ["event-2"]
+        assert set(history.message_pool) == {1}
+
+    # full-history reads still carry the complete pool
+    with db.open_sample_history("sample", 1) as history:
+        assert set(history.message_pool) == {0, 1}
+        assert len(history.events_data["messages"]) == 2
+
+
+def test_page_scoped_history_rejects_events_data(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    msg_a = ChatMessageUser(id="msg-a", content="question one")
+    msg_b = ChatMessageUser(id="msg-b", content="question two")
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-1", "a", input=[msg_a])
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-2", "b", input=[msg_b])
+            ),
+        ]
+    )
+
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        with pytest.raises(RuntimeError, match="page-scoped"):
+            _ = history.events_data
+
+
+def test_page_scoped_history_loads_only_referenced_attachments(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    big_first = "a" * 200
+    big_second = "b" * 200
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=InfoEvent(uuid="info-1", data=big_first)
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=InfoEvent(uuid="info-2", data=big_second)
+            ),
+        ]
+    )
+
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        assert set(history.attachments) == {mm3_hash(big_second)}
+
+    with db.open_sample_history("sample", 1) as history:
+        assert set(history.attachments) == {mm3_hash(big_first), mm3_hash(big_second)}
+
+
+def test_page_scoped_history_materializes_pool_entry_attachments(tmp_path):
+    """A page read resolves attachments referenced from its pool entries.
+
+    Large message content is stored as an attachment *inside* the pooled
+    message, so page-scoped attachment collection must walk the loaded pool
+    entries, not just the event rows.
+    """
+    from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+        BufferTranscriptHistoryProvider,
+    )
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    big_content = "b" * 200
+    msg_a = ChatMessageUser(id="msg-a", content="short question")
+    msg_b = ChatMessageUser(id="msg-b", content=big_content)
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-1", "a", input=[msg_a])
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-2", "b", input=[msg_b])
+            ),
+        ]
+    )
+
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        assert mm3_hash(big_content) in history.attachments
+
+    events = BufferTranscriptHistoryProvider(db, "sample", 1).events_from(1, 1)
+    assert len(events) == 1
+    model_event = events[0]
+    assert isinstance(model_event, ModelEvent)
+    assert model_event.input_refs is None
+    assert model_event.input[0].content == big_content
+
+
+def test_page_scoped_history_loads_referenced_call_pool_entries(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+
+    def call(content: str) -> ModelCall:
+        return ModelCall(
+            request={"messages": [{"role": "user", "content": content}]},
+            response={},
+        )
+
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-1", "a", call=call("one"))
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-2", "b", call=call("two"))
+            ),
+        ]
+    )
+
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        assert set(history.call_pool) == {1}
+        assert history.call_pool[1] == {"role": "user", "content": "two"}
+
+    with db.open_sample_history("sample", 1) as history:
+        assert set(history.call_pool) == {0, 1}
 
 
 def test_read_only_connection_does_not_recreate_deleted_db(tmp_path):

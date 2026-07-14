@@ -10,7 +10,16 @@ from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection, OperationalError
-from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Literal, cast
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Iterable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    TypeVar,
+    cast,
+)
 
 import psutil
 from pydantic import BaseModel, JsonValue
@@ -45,6 +54,7 @@ from inspect_ai.model import ChatMessage
 from ..._condense import (
     ATTACHMENT_PROTOCOL,
     WalkContext,
+    attachment_refs_from_value,
     attachments_content_fn,
     walk_chat_message,
     walk_events,
@@ -711,14 +721,18 @@ class SampleBufferDatabase(SampleBuffer):
         n: int,
     ) -> Iterator[SampleHistory]:
         if n <= 0:
-            yield SampleHistory([], [], [], {})
+            yield SampleHistory([], {}, {}, {})
             return
 
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
                 conn.execute("BEGIN")
                 history = self._sample_history(
-                    conn, id, epoch, self._get_events_tail(conn, id, epoch, n)
+                    conn,
+                    id,
+                    epoch,
+                    self._get_events_tail(conn, id, epoch, n),
+                    page_scoped=True,
                 )
                 conn.commit()
             yield history
@@ -739,6 +753,7 @@ class SampleBufferDatabase(SampleBuffer):
                     id,
                     epoch,
                     self._get_events_from(conn, id, epoch, start, limit),
+                    page_scoped=True,
                 )
                 conn.commit()
             yield history
@@ -767,18 +782,105 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         events: Iterable[EventData],
+        *,
+        page_scoped: bool = False,
     ) -> SampleHistory:
-        message_pool = [
-            json.loads(entry.data) for entry in self._get_message_pool(conn, id, epoch)
-        ]
-        call_pool = [
-            json.loads(entry.data) for entry in self._get_call_pool(conn, id, epoch)
-        ]
-        attachments = {
-            entry.hash: entry.content
-            for entry in self._get_attachments(conn, id, epoch)
-        }
-        return SampleHistory(list(events), message_pool, call_pool, attachments)
+        """Assemble a ``SampleHistory`` for the given event rows.
+
+        With ``page_scoped``, only the pool entries and attachments actually
+        referenced by ``events`` are loaded, keeping per-page read cost
+        proportional to the page rather than the whole sample. Whole-history
+        reads load everything: their events reference (nearly) all of it
+        anyway, and the .eval recorder needs the complete pools to serialize
+        ``events_data``.
+        """
+        event_rows = list(events)
+        if page_scoped:
+            positions = _event_pool_positions(event_rows)
+            message_pool = {
+                pos: json.loads(data)
+                for pos, data in self._get_pool_entries_at(
+                    conn, "message_pool", id, epoch, positions.message_positions
+                )
+            }
+            call_pool = {
+                pos: json.loads(data)
+                for pos, data in self._get_pool_entries_at(
+                    conn, "call_pool", id, epoch, positions.call_positions
+                )
+            }
+            hashes: set[str] = set()
+            for row in event_rows:
+                hashes.update(attachment_refs_from_value(row.event))
+            for pool_value in (*message_pool.values(), *call_pool.values()):
+                hashes.update(attachment_refs_from_value(pool_value))
+            attachments = self._get_sample_attachments_content(conn, id, epoch, hashes)
+        else:
+            message_pool = {
+                pos: json.loads(entry.data)
+                for pos, entry in enumerate(self._get_message_pool(conn, id, epoch))
+            }
+            call_pool = {
+                pos: json.loads(entry.data)
+                for pos, entry in enumerate(self._get_call_pool(conn, id, epoch))
+            }
+            attachments = {
+                entry.hash: entry.content
+                for entry in self._get_attachments(conn, id, epoch)
+            }
+        return SampleHistory(event_rows, message_pool, call_pool, attachments)
+
+    def _get_pool_entries_at(
+        self,
+        conn: Connection,
+        table: Literal["message_pool", "call_pool"],
+        id: str | int,
+        epoch: int,
+        positions: set[int],
+    ) -> Iterator[tuple[int, str]]:
+        """Pool entries at the given .eval positional indices.
+
+        Position equals insertion rank within the sample (rows are inserted in
+        pool-position order — see ``_condense_model_event``), so rank is
+        recovered with ROW_NUMBER over the autoincrement id.
+        """
+        if not positions:
+            return
+        query = f"""
+            WITH ordered AS (
+                SELECT ROW_NUMBER() OVER (ORDER BY id) - 1 AS pos, data
+                FROM {table}
+                WHERE sample_id = ? AND sample_epoch = ?
+            )
+            SELECT pos, data FROM ordered WHERE pos IN
+        """
+        for chunk in _chunked(sorted(positions), _SQLITE_MAX_VARIABLES):
+            placeholders = ",".join("?" * len(chunk))
+            for row in conn.execute(
+                f"{query} ({placeholders})", [str(id), epoch, *chunk]
+            ):
+                yield int(row["pos"]), str(row["data"])
+
+    def _get_sample_attachments_content(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        hashes: set[str],
+    ) -> dict[str, str]:
+        """The sample's attachment bodies for the given hashes (missing omitted)."""
+        attachments: dict[str, str] = {}
+        for chunk in _chunked(sorted(hashes), _SQLITE_MAX_VARIABLES):
+            placeholders = ",".join("?" * len(chunk))
+            for row in conn.execute(
+                f"""
+                SELECT hash, content FROM attachments
+                WHERE sample_id = ? AND sample_epoch = ? AND hash IN ({placeholders})
+                """,
+                [str(id), epoch, *chunk],
+            ):
+                attachments[str(row["hash"])] = str(row["content"])
+        return attachments
 
     @contextmanager
     def _acquire_sample_read_lease(
@@ -1729,6 +1831,48 @@ def maximum_ids(
     if sample_data.call_pool:
         call_pool_id = max(call_pool_id, sample_data.call_pool[-1].id)
     return event_id, attachment_id, message_pool_id, call_pool_id
+
+
+# stay safely under SQLite's historical 999 bound-parameter limit
+_SQLITE_MAX_VARIABLES = 500
+
+_T = TypeVar("_T")
+
+
+def _chunked(items: list[_T], size: int) -> Iterator[list[_T]]:
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
+
+
+class _PagePoolPositions(NamedTuple):
+    message_positions: set[int]
+    call_positions: set[int]
+
+
+def _event_pool_positions(event_rows: list[EventData]) -> _PagePoolPositions:
+    """Positional pool indices referenced by a page of condensed event rows."""
+    message_positions: set[int] = set()
+    call_positions: set[int] = set()
+    for row in event_rows:
+        _ref_positions(row.event.get("input_refs"), message_positions)
+        call = row.event.get("call")
+        if isinstance(call, dict):
+            _ref_positions(call.get("call_refs"), call_positions)
+    return _PagePoolPositions(
+        message_positions=message_positions, call_positions=call_positions
+    )
+
+
+def _ref_positions(refs: object, positions: set[int]) -> None:
+    """Accumulate positions covered by range-encoded ``(start, end)`` refs."""
+    if not isinstance(refs, list):
+        return
+    for ref in refs:
+        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
+            continue
+        start, end = ref
+        if isinstance(start, int) and isinstance(end, int):
+            positions.update(range(start, end))
 
 
 def _remap_refs(

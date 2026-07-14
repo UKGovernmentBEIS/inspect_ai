@@ -41,8 +41,8 @@ from ._model import ModelEvent
 
 def materialize_pooled_events(
     events: Iterable[object],
-    message_pool: list[ChatMessage],
-    call_pool: list[JsonValue],
+    message_pool: Sequence[ChatMessage] | Mapping[int, ChatMessage],
+    call_pool: Sequence[JsonValue] | Mapping[int, JsonValue],
 ) -> list[Event]:
     materialized = validate_events(list(events))
     materialized = resolve_model_event_inputs(materialized, message_pool)
@@ -244,15 +244,22 @@ _T = TypeVar("_T")
 
 def _expand_refs(
     refs: list[tuple[int, int]],
-    pool: list[_T],
+    pool: Sequence[_T] | Mapping[int, _T],
 ) -> list[_T]:
     """Expand range-encoded refs against a pool.
 
     Each element is ``(start, end_exclusive)``: yields ``pool[start:end_exclusive]``.
+    Position-keyed mappings (page-scoped buffer reads carry only the positions
+    their events reference) are indexed per position, skipping absent positions
+    to mirror slice truncation of out-of-range refs.
     """
     result: list[_T] = []
-    for start, end_exclusive in refs:
-        result.extend(pool[start:end_exclusive])
+    if isinstance(pool, Mapping):
+        for start, end_exclusive in refs:
+            result.extend(pool[i] for i in range(start, end_exclusive) if i in pool)
+    else:
+        for start, end_exclusive in refs:
+            result.extend(pool[start:end_exclusive])
     return result
 
 
@@ -338,7 +345,7 @@ def condense_model_event_calls(
 
 def resolve_model_event_calls(
     events: list[Event],
-    call_pool: list[JsonValue],
+    call_pool: Sequence[JsonValue] | Mapping[int, JsonValue],
 ) -> list[Event]:
     """Restore call.request messages from call_pool references."""
     if not call_pool:
@@ -364,7 +371,7 @@ def resolve_model_event_calls(
 
 def resolve_model_event_inputs(
     events: list[Event],
-    message_pool: list[ChatMessage],
+    message_pool: Sequence[ChatMessage] | Mapping[int, ChatMessage],
 ) -> list[Event]:
     """Resolve ModelEvent input_refs back to full input lists."""
     if not message_pool:
