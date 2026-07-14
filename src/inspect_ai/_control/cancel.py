@@ -47,16 +47,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from inspect_ai.log._samples import ActiveSample, SampleInterruptAction
+    from inspect_ai.log._samples import ActiveSample, SampleCancelAction
 
 TaskCancelAction = Literal["cancel", "score", "error"]
 """How a task cancel resolves its samples (see :func:`cancel_task`).
 
-Deliberately spelled like ``SampleInterruptAction`` (one disposition
-vocabulary), but a distinct type: task ``"cancel"`` aborts the attempt
-(it does *not* map to the sample-level ``"cancel"`` interrupt), and the
-task set may diverge (e.g. a future graceful-drain action). Kept in this
-CLI-light module because ``ctl.py`` needs it at import time.
+The sample-level counterpart, ``SampleCancelAction``, lives in
+``inspect_ai.log._samples`` beside the ``ActiveSample.interrupt``
+primitive it types. Deliberately a distinct type despite the identical
+values: task ``"cancel"`` aborts the attempt (it does *not* map to the
+sample-level ``"cancel"`` interrupt), the task set may diverge (e.g. a
+future graceful-drain action), and this CLI-light module is importable
+at ``ctl.py`` startup where ``log._samples`` is not.
 """
 
 
@@ -71,9 +73,10 @@ def cancel_task(
     Resolves the task's latest attempt and cancels it per ``action``
     (unless ``dry_run``): ``"cancel"`` fires its ``TaskCancel`` with
     ``"abort"``; ``"score"`` / ``"error"`` stamp the resolution on the handle,
-    interrupt each in-flight sample with the matching action (first interrupt
-    wins — a sample already interrupted keeps its resolution), abandon queued
-    samples, and let the task complete naturally (see the module docstring).
+    interrupt each in-flight sample with the matching action (first resolution
+    wins — a sample already interrupted, or whose limit has already fired,
+    keeps its outcome), abandon queued samples, and let the task complete
+    naturally (see the module docstring).
 
     Returns ``None`` when the task isn't in this process; a ``changed: False``
     no-op when it has already finished or a cancel is already in flight (the
@@ -163,15 +166,24 @@ def cancel_task(
         else:
             # stamp the resolution first (queued samples check it as they
             # leave the queue, initializing samples as they start), then
-            # interrupt the samples already running. First interrupt wins:
+            # interrupt the samples already running. First resolution wins:
             # a sample already interrupted — e.g. a per-sample 'cancel',
             # now inside its logging window (`completed` is stamped only at
-            # context exit) — keeps its resolution; overwriting a
-            # 'cancel' would re-raise its sample-scoped CancelledError
-            # into the task group and tear the whole task down.
+            # context exit) — keeps its resolution; overwriting would flip
+            # a not-yet-handled 'cancel' to this score/error disposition
+            # (the runner reads the live interrupt_action as it handles the
+            # interrupt) and re-fire on_interrupt hooks on a sample already
+            # being resolved. A fired-but-not-yet-handled limit likewise
+            # keeps its disposition: the runner checks interrupt_action
+            # before limit_exceeded_error, so interrupting such a sample
+            # would hijack the limit outcome (and re-fire on_interrupt on
+            # top of the limit's own firing).
             state.task_cancel.cancel_task(action)
             for sample in in_flight:
-                if sample.interrupt_action is None:
+                if (
+                    sample.interrupt_action is None
+                    and sample.limit_exceeded_error is None
+                ):
                     sample.interrupt(action)
     return {**result, "changed": True}
 
@@ -181,7 +193,7 @@ async def cancel_sample(
     sample_id: str,
     epoch: int,
     *,
-    action: SampleInterruptAction = "score",
+    action: SampleCancelAction = "score",
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
     """Cancel one running sample (``POST /evals/<id>/sample/cancel``).
@@ -215,7 +227,8 @@ async def cancel_sample(
                 "error": (
                     "action 'error' is not permitted when the sample is "
                     "configured to fail on errors (it will surface an error "
-                    "of its own accord) — use the default 'score' action"
+                    "of its own accord) — use the 'score' or 'cancel' "
+                    "action instead"
                 ),
             }
         if not dry_run:

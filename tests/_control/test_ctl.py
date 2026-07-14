@@ -2379,7 +2379,7 @@ def test_sample_cancel_error_flag_and_dry_run(
     assert payload["applied"] is False and payload["dry_run"] is True
 
 
-def test_sample_cancel_cancelled_action_sent(
+def test_sample_cancel_cancel_action_sent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     summary = _full_summary("aaa111", "t1")

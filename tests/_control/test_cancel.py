@@ -6,7 +6,7 @@ cancel: interrupt via ``ActiveSample.interrupt``) and the server routes that
 wrap them (``POST /tasks/<id>/cancel``, ``POST /evals/<id>/sample/cancel``).
 """
 
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 import pytest
@@ -22,7 +22,6 @@ from inspect_ai._control.eval_state import (
     register_eval,
 )
 from inspect_ai._display.core.display import CancelType, TaskCancel
-from inspect_ai.log._samples import SampleInterruptAction
 
 
 @pytest.fixture(autouse=True)
@@ -69,9 +68,10 @@ class _FakeActiveSample:
         self.completed = completed
         self.fails_on_error = fails_on_error
         self.interrupts: list[str] = []
-        self.interrupt_action: SampleInterruptAction | None = None
+        self.interrupt_action: Literal["score", "error", "cancel"] | None = None
+        self.limit_exceeded_error: Exception | None = None
 
-    def interrupt(self, action: SampleInterruptAction) -> None:
+    def interrupt(self, action: Literal["score", "error", "cancel"]) -> None:
         self.interrupts.append(action)
         self.interrupt_action = action
 
@@ -316,9 +316,8 @@ def test_cancel_task_resolution_sweep_skips_already_interrupted(
 
     A sample that was per-sample cancelled is still "in flight" until its
     (post-scoring/logging) context exit stamps `completed`; re-interrupting
-    it would flip its 'cancelled' disposition to score/error, defeating the
-    runner guard that keeps its sample-scoped CancelledError from tearing
-    down the whole task.
+    it would flip a not-yet-handled 'cancel' to the score/error disposition
+    and re-fire on_interrupt hooks on a sample already being resolved.
     """
     handle = _FakeTaskCancel()
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
@@ -330,6 +329,30 @@ def test_cancel_task_resolution_sweep_skips_already_interrupted(
     result = cancel_task("t1", action="score")
     assert result is not None and result["changed"] is True
     assert already_cancelled.interrupts == ["cancel"]  # not re-interrupted
+    assert running.interrupts == ["score"]
+
+
+def test_cancel_task_resolution_sweep_skips_fired_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The in-flight sweep never overwrites a fired-but-unhandled limit.
+
+    A sample whose limit has fired but whose cancellation the runner has
+    not yet handled has `limit_exceeded_error` set and `interrupt_action`
+    unset; the runner checks `interrupt_action` first, so interrupting it
+    would hijack the limit's legitimate outcome with the sweep's
+    disposition (and re-fire on_interrupt on top of the limit's firing).
+    """
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    limited = _FakeActiveSample(sample_id="s1")
+    limited.limit_exceeded_error = Exception("working limit")
+    running = _FakeActiveSample(sample_id="s2")
+    _patch_active_samples(monkeypatch, [limited, running])
+
+    result = cancel_task("t1", action="score")
+    assert result is not None and result["changed"] is True
+    assert limited.interrupts == []  # limit outcome preserved
     assert running.interrupts == ["score"]
 
 
@@ -393,7 +416,7 @@ async def test_cancel_sample_error_action(monkeypatch: pytest.MonkeyPatch) -> No
     assert sample.interrupts == ["error"]
 
 
-async def test_cancel_sample_cancelled_action(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_cancel_sample_cancel_action(monkeypatch: pytest.MonkeyPatch) -> None:
     sample = _FakeActiveSample()
     _patch_active_samples(monkeypatch, [sample])
 
@@ -403,12 +426,12 @@ async def test_cancel_sample_cancelled_action(monkeypatch: pytest.MonkeyPatch) -
     assert sample.interrupts == ["cancel"]
 
 
-async def test_cancel_sample_cancelled_action_not_gated_by_fails_on_error(
+async def test_cancel_sample_cancel_action_not_gated_by_fails_on_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The fail-on-error gate does not apply to the 'cancelled' action.
+    """The fail-on-error gate does not apply to the 'cancel' action.
 
-    'cancelled' bypasses error handling entirely, and the gate exists only
+    'cancel' bypasses error handling entirely, and the gate exists only
     because the auto-fail would race a manual 'error'.
     """
     sample = _FakeActiveSample(fails_on_error=True)
@@ -614,7 +637,7 @@ async def test_sample_cancel_route(monkeypatch: pytest.MonkeyPatch) -> None:
         assert sample.interrupts == ["score"]  # only the first call fired
 
 
-async def test_sample_cancel_route_cancelled_action(
+async def test_sample_cancel_route_cancel_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sample = _FakeActiveSample()

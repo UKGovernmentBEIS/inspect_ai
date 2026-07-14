@@ -54,15 +54,17 @@ import httpx
 from click.core import ParameterSource
 
 from inspect_ai._control.cancel import TaskCancelAction
-
-if TYPE_CHECKING:
-    from inspect_ai.log._samples import SampleInterruptAction
 from inspect_ai._control.discovery import (
     DiscoveredControlServer,
     discovery_dir,
     list_discovered_servers,
 )
 from inspect_ai._util.name_match import match_name_prefix
+
+if TYPE_CHECKING:
+    # TYPE_CHECKING to keep the CLI import-light: `inspect_ai.log._samples`
+    # pulls in a chunk of the core package this thin HTTP client never needs.
+    from inspect_ai.log._samples import SampleCancelAction
 
 # Events shown on an unseeded `sample events` read (no --cursor / --tail /
 # --since-time / --until): a recent tail rather than the full backlog — the
@@ -87,14 +89,15 @@ _KNOB_SCOPE: dict[str, str] = {
 # Minimum control-API version each knob requires of the *server* process (the
 # `CONTROL_API_VERSION` from `inspect_ai._control` that its inspect embedded
 # at launch). Parallel to `_KNOB_SCOPE`: every knob needs an entry (key-set
-# parity is asserted in `_exec_limits` and pinned by a test), so a new knob
-# can't silently default to "understood by every server". Since-0 knobs
-# predate version reporting and are never gated. A PR that adds a knob older
-# servers' PATCH handlers would silently ignore must bump
-# `CONTROL_API_VERSION` and record the new value here; `_gate_knob_support`
-# then hard-errors the request against an older process *before* the
-# mutation, instead of letting it partially apply behind a success-shaped
-# response.
+# parity is asserted in `_exec_limits` and pinned by a test). Since-0 knobs
+# are never gated — and every *new* knob is since-0: strict servers
+# (version >= 3, the only ones left in the field) reject unknown mutation
+# params with a 400, so no pre-send gate is needed (see the skew-policy
+# comment in `inspect_ai._control`). The nonzero entries predate strict
+# mutations, when an older server's PATCH handler would silently ignore an
+# unknown knob while applying the rest; `_gate_knob_support` hard-errors
+# those against a pre-strict process before sending, and retires with
+# issue #67.
 _KNOB_SINCE: dict[str, int] = {
     "max_samples": 0,
     "max_sandboxes": 0,
@@ -650,7 +653,7 @@ def sample_cancel_command(
         task,
         sample_id,
         epoch,
-        action=cast("SampleInterruptAction", action),
+        action=cast("SampleCancelAction", action),
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -1841,7 +1844,11 @@ def _run_task_cancel(
         suffix = (
             "completed samples are kept"
             if action == "cancel"
-            else "queued samples are abandoned and the task will complete"
+            else (
+                "queued samples would be abandoned and the task would complete"
+                if dry_run
+                else "queued samples are abandoned and the task will complete"
+            )
         )
         if dry_run:
             click.echo(f"Would cancel — {interrupted}; {suffix}.")
@@ -1858,7 +1865,7 @@ def _run_sample_cancel(
     sample_id: str,
     epoch: int | None,
     *,
-    action: SampleInterruptAction,
+    action: SampleCancelAction,
     dry_run: bool,
     as_json: bool,
 ) -> None:

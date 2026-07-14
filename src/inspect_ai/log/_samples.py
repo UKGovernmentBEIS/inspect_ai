@@ -39,14 +39,8 @@ from ._transcript import Transcript
 logger = getLogger(__name__)
 
 
-SampleInterruptAction = Literal["score", "error", "cancel"]
-"""How an interrupted sample is resolved (see :meth:`ActiveSample.interrupt`).
-
-The shared vocabulary of the control channel's cancel directives, ACP's
-``inspect/cancel_sample``, and the in-process TUI cancel: ``"score"`` scores
-the work done so far, ``"error"`` marks the sample errored, ``"cancel"``
-records it as cancelled (no scoring, not counted as an error).
-"""
+SampleCancelAction = Literal["score", "error", "cancel"]
+"""How a cancelled sample resolves (see :meth:`ActiveSample.interrupt`)."""
 
 
 class ActiveSample:
@@ -117,7 +111,7 @@ class ActiveSample:
         # sample source. Empty on the first attempt. The control channel
         # surfaces these as the running sample's error history.
         self.error_retries: list[EvalRetryError] = error_retries or []
-        self._interrupt_action: SampleInterruptAction | None = None
+        self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
@@ -211,7 +205,7 @@ class ActiveSample:
         else:
             return 0
 
-    def interrupt(self, action: SampleInterruptAction) -> None:
+    def interrupt(self, action: SampleCancelAction) -> None:
         """Terminate this running sample.
 
         ``action`` selects the outcome: ``"score"`` completes the sample and
@@ -261,7 +255,7 @@ class ActiveSample:
             )
 
     @property
-    def interrupt_action(self) -> SampleInterruptAction | None:
+    def interrupt_action(self) -> SampleCancelAction | None:
         return self._interrupt_action
 
     @property

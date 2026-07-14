@@ -70,7 +70,7 @@ if TYPE_CHECKING:
         ElicitationRequest,
         ElicitationResponse,
     )
-    from inspect_ai.log._samples import ActiveSample, SampleInterruptAction
+    from inspect_ai.log._samples import ActiveSample, SampleCancelAction
 
 logger = getLogger(__name__)
 
@@ -597,7 +597,7 @@ class ConnectionHandler:
     async def cancel_sample(
         self,
         session_id: str,
-        action: SampleInterruptAction,
+        action: SampleCancelAction,
     ) -> dict[str, Any]:
         """Terminate the bound sample via :meth:`ActiveSample.interrupt`.
 
@@ -633,8 +633,8 @@ class ConnectionHandler:
                 {
                     "reason": (
                         "action='error' not permitted when sample is "
-                        "configured to fail on errors "
-                        "(fails_on_error=True — use action='score')"
+                        "configured to fail on errors (fails_on_error=True "
+                        "— use action='score' or action='cancel')"
                     )
                 }
             )

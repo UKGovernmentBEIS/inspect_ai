@@ -242,11 +242,6 @@ class ControlServer:
             reject_unknown_query_params,
         )
 
-        # imported here rather than at module scope: log._samples reaches
-        # the checkpointer/event chain, which circularly imports back into
-        # modules that import this one early (e.g. via inspect_ai._control)
-        from inspect_ai.log._samples import SampleInterruptAction
-
         # Attached app-wide so every mutation route — including any added
         # later — fails closed and atomically on unknown query params instead
         # of partially applying, with no per-route annotation to remember.
@@ -481,6 +476,11 @@ class ControlServer:
             action: str = "score",
             dry_run: bool = False,
         ) -> Any:
+            # Function-local: a module-level `inspect_ai.log` import from
+            # this module is circular (`inspect_ai` -> `_eval.eval` ->
+            # `_control.server`).
+            from inspect_ai.log._samples import SampleCancelAction
+
             if epoch is None:
                 return JSONResponse(
                     status_code=400,
@@ -492,7 +492,7 @@ class ControlServer:
                         )
                     },
                 )
-            if action not in get_args(SampleInterruptAction):
+            if action not in get_args(SampleCancelAction):
                 return JSONResponse(
                     status_code=400,
                     content={
@@ -506,7 +506,7 @@ class ControlServer:
                 eval_id,
                 sample_id,
                 epoch,
-                action=cast(SampleInterruptAction, action),
+                action=cast(SampleCancelAction, action),
                 dry_run=dry_run,
             )
             if result is None:
