@@ -39,6 +39,19 @@ process-global (shared across the process's tasks), :func:`process_limits`
 exposes them without a task — the process-level ``GET``/``PATCH /config``
 endpoint — for the common case of viewing or throttling a whole process without
 naming one of its tasks.
+
+Beyond the named knobs, any ``concurrency()`` registry entry — the public API
+tools and user code register named limits through (web-search providers, model
+compaction, sandbox-tools injection, arbitrary solver code) — can be retuned by
+its exact name via ``key`` / ``key_limit``. The view carries a ``concurrency``
+list enumerating every registry entry with its ``(limit, in_use, adjustable)``,
+and the default registry backs every static entry with a resizable semaphore,
+so third-party limits are adjustable without their creator opting in. Named
+limits are created lazily on first use, so a key that names no entry raises
+:class:`UnknownConcurrencyKeyError` (listing the keys that do exist) *before*
+any other knob applies — unlike the shipped knobs' not-adjustable warnings, a
+mistyped name silently matching nothing would read as applied. The registry is
+process-global, so the key knob rides both endpoints.
 """
 
 from __future__ import annotations
@@ -48,12 +61,51 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from inspect_ai._util.name_match import match_name_prefix
 
 if TYPE_CHECKING:
-    from inspect_ai.util._concurrency import AdaptiveConcurrencyController
+    from inspect_ai.util._concurrency import (
+        AdaptiveConcurrencyController,
+        ConcurrencySemaphore,
+    )
 
 # How many of an adaptive controller's most-recent scale changes to surface in
 # the read view — enough to see whether it's actively being throttled without
 # dumping the controller's full bounded history.
 _RECENT_CHANGES = 5
+
+
+class UnknownConcurrencyKeyError(ValueError):
+    """A concurrency-key retune named a registry entry that does not exist.
+
+    Named ``concurrency()`` limits are created lazily on first use, so an
+    unknown key may simply not have been exercised yet — the message lists the
+    keys that do exist. Raised by the directive functions before any knob is
+    applied (the routes turn it into a 400), so a combined ``PATCH`` fails
+    whole rather than applying its other knobs first.
+    """
+
+
+def check_concurrency_key(key: str | None) -> None:
+    """Raise :class:`UnknownConcurrencyKeyError` when ``key`` names no entry.
+
+    ``None`` (no key requested) passes. Matching is by exact registered name —
+    a mutation should not fan out on a prefix the caller never spelled.
+    """
+    if key is None:
+        return
+    from inspect_ai.util._concurrency import concurrency_semaphores
+
+    names = sorted({sem.name for sem in concurrency_semaphores()})
+    if key in names:
+        return
+    available = (
+        f"available: {', '.join(names)}"
+        if names
+        else "no concurrency keys are registered yet"
+    )
+    raise UnknownConcurrencyKeyError(
+        f"no concurrency key named '{key}' ({available}). Named limits are "
+        "created lazily on first use, so a key does not exist until the code "
+        "that registers it has run."
+    )
 
 
 async def process_limits(
@@ -62,25 +114,36 @@ async def process_limits(
     max_subprocesses: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
+    key: str | None = None,
+    key_limit: int | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """Read (and optionally retune) the process-global concurrency limits.
 
     Covers the knobs that are shared across every task in the process:
     ``max_sandboxes`` (per-provider sandbox concurrency), ``max_subprocesses``
-    (subprocess concurrency) and ``max_connections`` (the adaptive controllers'
-    scaling ceiling). It carries no ``max_samples`` — that is per-task; use
-    :func:`task_limits` when a specific task is in view.
+    (subprocess concurrency), ``max_connections`` (the adaptive controllers'
+    scaling ceiling), and ``key`` / ``key_limit`` (a named ``concurrency()``
+    registry entry — the registry is process-global). It carries no
+    ``max_samples`` — that is per-task; use :func:`task_limits` when a
+    specific task is in view.
 
     A process always exists, so unlike :func:`task_limits` this never returns
     ``None``. With every knob ``None`` it's a pure read. ``model`` restricts the
     adaptive controllers considered (matched at name start or after a ``/``).
+
+    Raises:
+        UnknownConcurrencyKeyError: When ``key`` names no registry entry —
+            before any other knob is applied.
     """
+    check_concurrency_key(key)
     views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        key=key,
+        key_limit=key_limit,
         dry_run=dry_run,
     )
     return {
@@ -88,6 +151,7 @@ async def process_limits(
         "max_sandboxes": views.max_sandboxes,
         "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
+        "concurrency": views.concurrency,
         "requested": views.requested or None,
         "warnings": views.warnings,
     }
@@ -101,6 +165,8 @@ async def task_limits(
     max_subprocesses: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
+    key: str | None = None,
+    key_limit: int | None = None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
     dry_run: bool = False,
@@ -139,6 +205,11 @@ async def task_limits(
             every adaptive controller in the process), or ``None`` to leave it.
         model: Restrict the adaptive controllers ``max_connections`` targets (and
             the reported adaptive view) to those matching, or ``None`` for all.
+        key: Name of a ``concurrency()`` registry entry to retune (exact
+            match; the registry is process-global), or ``None``. An unknown
+            name raises :class:`UnknownConcurrencyKeyError` before any other
+            knob is applied.
+        key_limit: The new limit for ``key``, or ``None``.
         log_buffer: New completed-samples-per-log-write buffer threshold, or
             ``None`` to leave it.
         log_shared: New shared-log event sync interval (seconds), or ``None``.
@@ -156,6 +227,10 @@ async def task_limits(
     latest = latest_eval_for_task(task_id)
     if latest is None:
         return None
+
+    # an unknown key fails the whole request, so it must be rejected before
+    # the per-task knobs below (not just before the process knobs) apply
+    check_concurrency_key(key)
 
     # max_samples — the task's sample semaphore. Only a ResizableLimiter is a
     # user setpoint; a DynamicSampleLimiter (adaptive path) or a missing entry
@@ -227,6 +302,8 @@ async def task_limits(
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        key=key,
+        key_limit=key_limit,
         dry_run=dry_run,
     )
     # per-task entries lead, then the process-global ones
@@ -256,6 +333,7 @@ async def task_limits(
         "max_sandboxes": views.max_sandboxes,
         "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
+        "concurrency": views.concurrency,
         "buffer": buffer_view,
         "requested": requested or None,
         "warnings": warnings,
@@ -281,8 +359,28 @@ class _ProcessKnobViews(NamedTuple):
     max_sandboxes: list[dict[str, Any]]
     max_subprocesses: dict[str, Any] | None
     adaptive: list[dict[str, Any]]
+    concurrency: list[dict[str, Any]]
     requested: dict[str, int]
     warnings: list[str]
+
+
+def _static_semaphores() -> "list[ConcurrencySemaphore]":
+    """The non-adaptive concurrency-registry entries (the key knob's targets).
+
+    Adaptive controllers are excluded: they are surfaced through the
+    ``adaptive`` view and retuned via ``max_connections`` (their limit is a
+    scaling ceiling, not a fixed setpoint a key retune could set directly).
+    """
+    from inspect_ai.util._concurrency import (
+        AdaptiveConcurrencyController,
+        concurrency_semaphores,
+    )
+
+    return [
+        sem
+        for sem in concurrency_semaphores()
+        if not isinstance(sem, AdaptiveConcurrencyController)
+    ]
 
 
 def _apply_process_knobs(
@@ -291,6 +389,8 @@ def _apply_process_knobs(
     max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
+    key: str | None = None,
+    key_limit: int | None = None,
     dry_run: bool,
 ) -> _ProcessKnobViews:
     """Apply the process-global knobs and build their views.
@@ -299,9 +399,12 @@ def _apply_process_knobs(
     warnings (callers merge their own per-task entries in front). The views
     are re-read after applying, so a real set reflects the new values.
     ``model`` restricts the adaptive controllers considered (for both
-    ``max_connections`` and the reported view) to those matching it.
+    ``max_connections`` and the reported view) to those matching it. ``key``
+    must already have passed :func:`check_concurrency_key` (the caller
+    rejects unknown keys before any knob applies).
     """
     from inspect_ai.util._concurrency import (
+        ResizableSemaphore,
         adaptive_controllers,
         sandbox_limiters,
         subprocess_limiter,
@@ -365,6 +468,31 @@ def _apply_process_knobs(
             for ctrl in controllers:
                 ctrl.set_max(max_connections)
 
+    # key — a named concurrency() registry entry, matched by exact name (a
+    # name can back several entries — e.g. one model on two accounts — and the
+    # retune reaches them all, like max_connections' name matching). The
+    # caller already rejected unknown names, so a no-match here means the name
+    # belongs only to an adaptive controller.
+    if key is not None and key_limit is not None:
+        requested[f"concurrency:{key}"] = key_limit
+        matches = [sem for sem in _static_semaphores() if sem.name == key]
+        resizable_matches = [
+            sem for sem in matches if isinstance(sem, ResizableSemaphore)
+        ]
+        if not matches:
+            warnings.append(
+                f"'{key}' is managed by adaptive connections — retune its "
+                "ceiling with max_connections (scoped with model if needed)."
+            )
+        elif not resizable_matches:
+            warnings.append(
+                f"'{key}' is not adjustable (its semaphore does not support "
+                "live resizing)."
+            )
+        elif not dry_run:
+            for sem in resizable_matches:
+                sem.concurrency = key_limit
+
     # Read `in_use` from the limiter directly (exact borrowed count) rather than
     # deriving it as `concurrency - value`: once a limit is lowered below the
     # in-flight count, `value` clamps to 0 and that derivation would report
@@ -405,10 +533,26 @@ def _apply_process_knobs(
         for ctrl in sorted(controllers, key=lambda c: c.name)
     ]
 
+    # The concurrency-key view: every static registry entry by its exact
+    # registered name (the addressable identity for the key knob — no prefix
+    # shortening, `visible=False` entries included). Re-read after applying,
+    # like the other views. A `name` can appear twice when two entries (with
+    # distinct storage keys) share a display name.
+    concurrency_view = [
+        {
+            "name": sem.name,
+            "limit": sem.concurrency,
+            "in_use": sem.in_use,
+            "adjustable": isinstance(sem, ResizableSemaphore),
+        }
+        for sem in sorted(_static_semaphores(), key=lambda s: s.name)
+    ]
+
     return _ProcessKnobViews(
         max_sandboxes=max_sandboxes_view,
         max_subprocesses=max_subprocesses_view,
         adaptive=adaptive_view,
+        concurrency=concurrency_view,
         requested=requested,
         warnings=warnings,
     )
