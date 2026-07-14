@@ -78,9 +78,7 @@ def reconstruct_eval_sample(
 
     deduped_event_data = collapse_event_versions(sample_data.events)
 
-    events = validate_events(
-        [event_data.event for event_data in deduped_event_data]
-    )
+    events = validate_events([event_data.event for event_data in deduped_event_data])
 
     # Buffer-DB rows store events condensed; without resolving here,
     # _extract_messages_from_events sees empty ModelEvent.input and drops
