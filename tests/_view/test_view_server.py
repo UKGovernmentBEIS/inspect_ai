@@ -1,6 +1,7 @@
 """Tests for the inspect view server."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import math
@@ -23,7 +24,7 @@ import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._view import fastapi_server
-from inspect_ai._view.common import get_direct_url
+from inspect_ai._view.common import get_direct_url, list_eval_logs_async
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.model._generate_config import GenerateConfig
 
@@ -978,6 +979,107 @@ def test_api_eval_set_missing(view_client: ViewTestClient) -> None:
     )
     resp.raise_for_status()
     assert resp.json() is None
+
+
+def test_api_eval_set_uses_fs_options_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_read_eval_set_info(
+        log_dir: str, fs_options: dict[str, Any] = {}
+    ) -> None:
+        calls.append((log_dir, fs_options))
+        return None
+
+    monkeypatch.setattr(
+        fastapi_server, "read_eval_set_info", fake_read_eval_set_info
+    )
+    app = fastapi_server.view_server_app(fs_options={"anon": True})
+    with fastapi.testclient.TestClient(app) as client:
+        resp = client.request(
+            "GET",
+            f"/eval-set?dir={urllib.parse.quote_plus('s3://bucket/logs')}",
+        )
+
+    resp.raise_for_status()
+    assert resp.json() is None
+    assert calls == [("s3://bucket/logs", {"anon": True})]
+
+
+async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._util.file import FileInfo
+    from inspect_ai._view import common
+
+    filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+    async_filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+
+    class FakeFileSystem:
+        def is_s3(self) -> bool:
+            return True
+
+        def is_async(self) -> bool:
+            return True
+
+        def _file_info(self, info: dict[str, Any]) -> FileInfo:
+            return FileInfo(
+                name=info["name"],
+                type=info["type"],
+                size=info.get("size", 0),
+                mtime=info.get("mtime"),
+                etag=None,
+            )
+
+    class FakeAsyncFileSystem:
+        async def _exists(self, log_dir: str) -> bool:
+            return True
+
+        def invalidate_cache(self, log_dir: str) -> None:
+            pass
+
+        async def _ls(
+            self, log_dir: str, detail: bool = True
+        ) -> list[dict[str, Any]]:
+            return [
+                {
+                    "name": f"{log_dir}/2026-01-01T00-00-00_task_id.eval",
+                    "type": "file",
+                    "size": 123,
+                    "mtime": 1710000000.0,
+                }
+            ]
+
+    def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FakeFileSystem:
+        filesystem_calls.append((path, fs_options))
+        return FakeFileSystem()
+
+    @contextlib.asynccontextmanager
+    async def fake_async_filesystem(
+        location: str, fs_options: dict[str, Any] = {}
+    ) -> Any:
+        async_filesystem_calls.append((location, fs_options))
+        yield FakeAsyncFileSystem()
+
+    class UnexpectedAsyncFilesystem:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("AsyncFilesystem fast path should not be used")
+
+    monkeypatch.setattr(common, "filesystem", fake_filesystem)
+    monkeypatch.setattr(common, "async_filesystem", fake_async_filesystem)
+    monkeypatch.setattr(common, "AsyncFilesystem", UnexpectedAsyncFilesystem)
+
+    logs = await list_eval_logs_async(
+        "s3://bucket/logs", recursive=False, fs_options={"anon": True}
+    )
+
+    assert filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    assert len(logs) == 1
+    assert logs[0].name == "s3://bucket/logs/2026-01-01T00-00-00_task_id.eval"
+    assert logs[0].task == "task"
+    assert logs[0].task_id == "id"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

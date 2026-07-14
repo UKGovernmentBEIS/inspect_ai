@@ -25,7 +25,7 @@ from starlette.types import ASGIApp, Scope
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
-from inspect_ai._eval.evalset import EvalSet
+from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
@@ -384,6 +384,8 @@ def view_server_app(
         # return the eval set info for this directory (async fs, not to_thread —
         # see the fsspec/to_thread warning in CLAUDE.md)
         mapped = await _map_file(request, eval_set_dir)
+        if fs_options:
+            return read_eval_set_info(mapped, fs_options=fs_options)
         async with AsyncFilesystem() as afs:
             return await read_eval_set_info_async(mapped, afs)
 
