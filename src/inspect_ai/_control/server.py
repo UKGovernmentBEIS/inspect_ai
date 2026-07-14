@@ -13,13 +13,15 @@ without the surface — eval correctness never depends on the control
 channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
-Current scope is the phase 1-2 read surface: ``GET /tasks`` (per-task
+Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
 status histogram and an ``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
 detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
-pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control.
-State-mutating directives (cancel / drain / requeue) and SSE push land
-in phases 3-4.
+pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
+and the first phase-3 directives: the config/log-flush mutations and
+``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
+The remaining directives (drain / requeue / add-task) and SSE push land
+with the rest of phases 3-4.
 """
 
 from __future__ import annotations
@@ -30,15 +32,20 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, NamedTuple
+from typing import Any, AsyncIterator, Literal, NamedTuple, cast
 
 import anyio
 
 from inspect_ai._control import CONTROL_API_VERSION
 from inspect_ai._control.buffer import flush_task_samples
+from inspect_ai._control.cancel import cancel_sample, cancel_task
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import sample_events
-from inspect_ai._control.limits import process_limits, task_limits
+from inspect_ai._control.limits import (
+    UnknownConcurrencyKeyError,
+    process_limits,
+    task_limits,
+)
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_listing,
@@ -225,11 +232,28 @@ class ControlServer:
         Imported lazily so module import doesn't pay the FastAPI cost
         when control is disabled.
         """
-        from fastapi import FastAPI, Request
+        from fastapi import Depends, FastAPI, Request
         from fastapi.responses import JSONResponse
 
-        app = FastAPI()
+        from inspect_ai._control.strict import (
+            UnknownQueryParamsError,
+            reject_unknown_query_params,
+        )
+
+        # Attached app-wide so every mutation route — including any added
+        # later — fails closed and atomically on unknown query params instead
+        # of partially applying, with no per-route annotation to remember.
+        # The dependency short-circuits on safe methods (see the strict
+        # module docstring for the rationale, including why GETs stay
+        # tolerant).
+        app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
         started_at = self._started_at
+
+        @app.exception_handler(UnknownQueryParamsError)
+        async def on_unknown_params(
+            request: Request, exc: UnknownQueryParamsError
+        ) -> JSONResponse:
+            return JSONResponse(status_code=400, content={"error": str(exc)})
 
         @app.exception_handler(Exception)
         async def on_error(request: Request, exc: Exception) -> JSONResponse:
@@ -244,6 +268,14 @@ class ControlServer:
                 status_code=500, content={"error": f"{type(exc).__name__}: {exc}"}
             )
 
+        # 404 convention: a handler 404 ("entity not found") MUST carry an
+        # {"error": ...} JSON body. The CLI reads the body shape to tell
+        # handler 404s apart from the router's stock {"detail": "Not Found"}
+        # (no such route — the server predates the endpoint) and reports
+        # version skew definitively (see `_handler_404` in
+        # `inspect_ai._cli.ctl`); a handler 404 without the key would
+        # misreport as skew. Pinned by a test in tests/_control/test_server.py.
+
         def _limits_below_one(*knobs: tuple[str, int | None]) -> JSONResponse | None:
             """400 for the first requested limit below 1, else None.
 
@@ -257,6 +289,22 @@ class ControlServer:
                         status_code=400,
                         content={"error": f"{label} must be >= 1 (got {value})"},
                     )
+            return None
+
+        def _key_pair_error(
+            key: str | None, key_limit: int | None
+        ) -> JSONResponse | None:
+            """400 when only one of ``key`` / ``key_limit`` was provided.
+
+            Shared by both PATCH limits routes. A bare ``key`` has no value to
+            apply and a bare ``key_limit`` no target — either alone is a
+            malformed request, not a read.
+            """
+            if (key is None) != (key_limit is None):
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "key and key_limit must be provided together"},
+                )
             return None
 
         # Folded per-task summaries (retry attempts of a task collapse into
@@ -394,6 +442,78 @@ class ControlServer:
                 )
             return result
 
+        # Cancel a running task (phase 3). Task-keyed like `config` and
+        # `log-flush` — the handle never dangles across a retry. Fires the
+        # latest attempt's TaskCancel with "abort" (the in-process display's
+        # user-cancel path): in-flight samples are interrupted, completed
+        # work is preserved, and the log finishes with an error status.
+        # Idempotent (a repeat — or a cancel of a finished task — reports
+        # `changed: false`); `dry_run=true` reports without acting.
+        @app.post("/tasks/{task_id}/cancel")
+        async def task_cancel(task_id: str, dry_run: bool = False) -> Any:
+            result = cancel_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # Cancel one running sample (phase 3). `sample_id` is a query param
+        # like the other per-sample routes (ids may contain URL-reserved
+        # characters). `epoch` is required — this is a mutation, and a
+        # defaulted epoch would silently target the epoch-1 attempt on a
+        # multi-epoch task (the read routes keep their harmless `= 1`
+        # default; see the selector conventions in
+        # design/control-channel.md). `action` selects the outcome: "score"
+        # completes the sample and scores the work done so far; "error"
+        # marks it errored (rejected for fail-on-error samples). Idempotent
+        # — an already-terminal sample reports `changed: false`;
+        # `dry_run=true` reports without acting.
+        @app.post("/evals/{eval_id}/sample/cancel")
+        async def sample_cancel(
+            eval_id: str,
+            sample_id: str,
+            epoch: int | None = None,
+            action: str = "score",
+            dry_run: bool = False,
+        ) -> Any:
+            if epoch is None:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "epoch is required — a defaulted epoch would "
+                            "silently cancel the epoch-1 attempt on a "
+                            "multi-epoch task"
+                        )
+                    },
+                )
+            if action not in ("score", "error"):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": f"action must be 'score' or 'error' (got '{action}')"
+                    },
+                )
+            result = await cancel_sample(
+                eval_id,
+                sample_id,
+                epoch,
+                action=cast(Literal["score", "error"], action),
+                dry_run=dry_run,
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
         # Read the process-global concurrency limits (max_sandboxes /
         # max_subprocesses / max_connections) without naming an eval — the
         # common case for viewing or throttling a whole process. No max_samples
@@ -404,29 +524,42 @@ class ControlServer:
 
         # Retune the process-global limits. Omitting every set value makes this a
         # read, like GET. `model` filters the adaptive controllers (name start or
-        # after a `/`). `dry_run=true` reports the intended change without
-        # applying it. Never 404s — a process always exists.
+        # after a `/`); `key`/`key_limit` retune a named concurrency() registry
+        # entry by exact name (400 for a name with no entry — named limits are
+        # created lazily on first use). `dry_run=true` reports the intended
+        # change without applying it. Never 404s — a process always exists.
+        # Unknown query params 400 (fail closed) rather than partially applying.
         @app.patch("/config")
         async def patch_process_limits(
             max_sandboxes: int | None = None,
             max_subprocesses: int | None = None,
             max_connections: int | None = None,
             model: str | None = None,
+            key: str | None = None,
+            key_limit: int | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
                 ("max_sandboxes", max_sandboxes),
                 ("max_subprocesses", max_subprocesses),
                 ("max_connections", max_connections),
+                ("key_limit", key_limit),
             ):
                 return error
-            return await process_limits(
-                max_sandboxes=max_sandboxes,
-                max_subprocesses=max_subprocesses,
-                max_connections=max_connections,
-                model=model,
-                dry_run=dry_run,
-            )
+            if error := _key_pair_error(key, key_limit):
+                return error
+            try:
+                return await process_limits(
+                    max_sandboxes=max_sandboxes,
+                    max_subprocesses=max_subprocesses,
+                    max_connections=max_connections,
+                    model=model,
+                    key=key,
+                    key_limit=key_limit,
+                    dry_run=dry_run,
+                )
+            except UnknownConcurrencyKeyError as exc:
+                return JSONResponse(status_code=400, content={"error": str(exc)})
 
         # Read the task's retunable config (max_samples / max_sandboxes /
         # max_subprocesses / max_connections plus the log_buffer / log_shared
@@ -451,7 +584,8 @@ class ControlServer:
         # and reports the intended change without applying it (the phase-3
         # agent-shape constraint). Idempotent: re-applying the same value is a
         # no-op. Returns the resulting config view (with any warnings for a
-        # knob that isn't adjustable for this task).
+        # knob that isn't adjustable for this task). Unknown query params 400
+        # (fail closed) rather than partially applying.
         @app.patch("/tasks/{task_id}/config")
         async def patch_limits(
             task_id: str,
@@ -460,6 +594,8 @@ class ControlServer:
             max_subprocesses: int | None = None,
             max_connections: int | None = None,
             model: str | None = None,
+            key: str | None = None,
+            key_limit: int | None = None,
             log_buffer: int | None = None,
             log_shared: int | None = None,
             dry_run: bool = False,
@@ -469,21 +605,29 @@ class ControlServer:
                 ("max_sandboxes", max_sandboxes),
                 ("max_subprocesses", max_subprocesses),
                 ("max_connections", max_connections),
+                ("key_limit", key_limit),
                 ("log_buffer", log_buffer),
                 ("log_shared", log_shared),
             ):
                 return error
-            result = await task_limits(
-                task_id,
-                max_samples=max_samples,
-                max_sandboxes=max_sandboxes,
-                max_subprocesses=max_subprocesses,
-                max_connections=max_connections,
-                model=model,
-                log_buffer=log_buffer,
-                log_shared=log_shared,
-                dry_run=dry_run,
-            )
+            if error := _key_pair_error(key, key_limit):
+                return error
+            try:
+                result = await task_limits(
+                    task_id,
+                    max_samples=max_samples,
+                    max_sandboxes=max_sandboxes,
+                    max_subprocesses=max_subprocesses,
+                    max_connections=max_connections,
+                    model=model,
+                    key=key,
+                    key_limit=key_limit,
+                    log_buffer=log_buffer,
+                    log_shared=log_shared,
+                    dry_run=dry_run,
+                )
+            except UnknownConcurrencyKeyError as exc:
+                return JSONResponse(status_code=400, content={"error": str(exc)})
             if result is None:
                 return JSONResponse(
                     status_code=404,

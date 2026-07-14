@@ -8,11 +8,11 @@ Commands are grouped by **resource noun**, mirroring the HTTP API's object
 model (see "CLI command hierarchy: noun groups" in the design doc):
 
 - ``task`` — a logical task in a running process (stable across retries):
-  ``list`` (implied by the bare noun), ``log-flush``; ``add`` / ``cancel`` /
+  ``list`` (implied by the bare noun), ``log-flush``, ``cancel``; ``add`` /
   ``drain`` are planned.
 - ``sample`` — one sample (``TASK SAMPLE_ID [EPOCH]``) or a task's samples:
-  ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``;
-  ``cancel`` / ``requeue`` are planned.
+  ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``,
+  ``cancel``; ``requeue`` is planned.
 - ``config`` — a top-level *command* (not a group): view / retune launch
   configuration mid-flight (concurrency limits, log buffering). Scope is a
   property of each knob (task vs process), labeled in the output.
@@ -73,6 +73,7 @@ _KNOB_SCOPE: dict[str, str] = {
     "max_sandboxes": "process",
     "max_subprocesses": "process",
     "max_connections": "process",
+    "key": "process",
     "log_buffer": "task",
     "log_shared": "task",
 }
@@ -93,6 +94,7 @@ _KNOB_SINCE: dict[str, int] = {
     "max_sandboxes": 0,
     "max_subprocesses": 1,
     "max_connections": 0,
+    "key": 2,
     "log_buffer": 0,
     "log_shared": 0,
 }
@@ -208,7 +210,7 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
 
 @click.group("ctl")
 def ctl_command() -> None:
-    """Read the state of running evals and manage kept-alive processes.
+    """Read and direct running evals and manage kept-alive processes.
 
     Commands are grouped by resource noun (listed below); `list` verbs are
     implied by the bare noun (`inspect ctl task` ≡ `inspect ctl task list`).
@@ -285,8 +287,7 @@ def task_group(ctx: click.Context, /, **mirrored: Any) -> None:
     """Operate on the tasks of running evals (bare `task` lists them).
 
     Task ids are stable across retries and are the TASK selector other
-    commands take. `add` / `cancel` / `drain` are planned but not yet
-    available.
+    commands take. `add` / `drain` are planned but not yet available.
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(task_list_command, **mirrored)
@@ -333,6 +334,38 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     _run_log_flush(task, as_json)
 
 
+@task_group.command("cancel")
+@click.argument("task")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be cancelled without doing it.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the mutation result envelope).",
+)
+def task_cancel_command(task: str, dry_run: bool, as_json: bool) -> None:
+    """Cancel a running task.
+
+    In-flight samples are interrupted (their transcripts so far are
+    preserved in the log as cancelled samples), completed samples are kept,
+    and the task's log is finalized with an error status noting the cancel;
+    an eval-set will not retry a cancelled task. Idempotent — cancelling a
+    finished (or already-cancelling) task is a clean no-op. A task between
+    attempts (its last attempt errored and the eval-set has a retry queued)
+    is rejected rather than no-opped: nothing is running to cancel yet, so
+    re-issue the cancel once the retry starts. To cancel a single sample
+    instead, use `inspect ctl sample cancel`. TASK (a task-id prefix or
+    name) is always required.
+    """
+    _run_task_cancel(task, dry_run=dry_run, as_json=as_json)
+
+
 # ---------------------------------------------------------------------------
 # sample group
 # ---------------------------------------------------------------------------
@@ -348,7 +381,7 @@ def sample_group(ctx: click.Context, /, **mirrored: Any) -> None:
     """Operate on samples of running evals (bare `sample` lists them).
 
     An omitted TASK on `list` / `errors` reads across all running tasks.
-    `cancel` / `requeue` are planned but not yet available.
+    `requeue` is planned but not yet available.
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(sample_list_command, **mirrored)
@@ -572,6 +605,60 @@ def sample_events_command(
     )
 
 
+@sample_group.command("cancel")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=None)
+@click.option(
+    "--error",
+    "as_error",
+    is_flag=True,
+    default=False,
+    help=(
+        "Mark the sample errored instead of scoring the work done so far "
+        "(not permitted for samples configured to fail on errors)."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be cancelled without doing it.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the mutation result envelope).",
+)
+def sample_cancel_command(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    as_error: bool,
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """Cancel one running sample.
+
+    By default the sample completes and the scorer runs on the work done so
+    far; pass `--error` to mark it errored instead. The rest of the task is
+    unaffected. Idempotent — cancelling a sample that has already finished
+    is a clean no-op. EPOCH defaults to 1 but is required whenever the task
+    runs more than one epoch (a defaulted epoch would silently cancel a
+    different attempt).
+    """
+    _run_sample_cancel(
+        task,
+        sample_id,
+        epoch,
+        action="error" if as_error else "score",
+        dry_run=dry_run,
+        as_json=as_json,
+    )
+
+
 # ---------------------------------------------------------------------------
 # config command
 # ---------------------------------------------------------------------------
@@ -623,6 +710,19 @@ def sample_events_command(
     ),
 )
 @click.option(
+    "--key",
+    "key",
+    type=(str, click.IntRange(min=1)),
+    default=None,
+    metavar="NAME LIMIT",
+    help=(
+        f"[{_KNOB_SCOPE['key']}] Set the named `concurrency()` limit NAME to "
+        "LIMIT — any limit tools or task code register by name (the output's "
+        "`concurrency keys` section lists them, exactly as addressable here). "
+        "An unknown NAME errors, listing the available keys."
+    ),
+)
+@click.option(
     "--log-buffer",
     type=click.IntRange(min=1),
     metavar="INTEGER",
@@ -654,6 +754,7 @@ def config_command(
     max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
+    key: tuple[str, int] | None,
     log_buffer: int | None,
     log_shared: int | None,
     dry_run: bool,
@@ -668,12 +769,15 @@ def config_command(
     and the output labels every knob likewise. Pass `--dry-run` to see what
     would change without applying it.
 
-    Lowering a concurrency limit never interrupts running samples — new
-    work waits until in-flight holders drain. `--log-buffer` / `--log-shared`
-    are the retune side of `inspect ctl task log-flush`: they set the
-    buffering policy for future writes, while log-flush writes what's
-    already buffered now. TASK is required only for setting a task-scoped
-    knob when several tasks run.
+    Beyond the named flags, any limit registered by name through the
+    `concurrency()` API — by tools (e.g. web search providers) or task code —
+    is settable with `--key NAME LIMIT`; the output lists the registered
+    keys. Lowering a concurrency limit never interrupts running samples —
+    new work waits until in-flight holders drain. `--log-buffer` /
+    `--log-shared` are the retune side of `inspect ctl task log-flush`: they
+    set the buffering policy for future writes, while log-flush writes
+    what's already buffered now. TASK is required only for setting a
+    task-scoped knob when several tasks run.
     """
     _run_config(
         task,
@@ -682,6 +786,7 @@ def config_command(
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        key=key,
         log_buffer=log_buffer,
         log_shared=log_shared,
         dry_run=dry_run,
@@ -892,6 +997,7 @@ def buffer_alias(
         max_subprocesses=None,
         max_connections=None,
         model=None,
+        key=None,
         log_buffer=log_buffer,
         log_shared=log_shared,
         dry_run=False,
@@ -905,6 +1011,7 @@ def buffer_alias(
 @click.option("--max-sandboxes", type=click.IntRange(min=1), default=None)
 @click.option("--max-connections", type=click.IntRange(min=1), default=None)
 @click.option("--model", default=None)
+@click.option("--key", "key", type=(str, click.IntRange(min=1)), default=None)
 @click.option("--dry-run", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
 def limits_alias(
@@ -913,6 +1020,7 @@ def limits_alias(
     max_sandboxes: int | None,
     max_connections: int | None,
     model: str | None,
+    key: tuple[str, int] | None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -925,6 +1033,7 @@ def limits_alias(
         max_subprocesses=None,
         max_connections=max_connections,
         model=model,
+        key=key,
         log_buffer=None,
         log_shared=None,
         dry_run=dry_run,
@@ -1228,7 +1337,7 @@ def _list_sample_rows(
     cap = effective_sample_limit(limit, all_samples)
     counts = dict.fromkeys(SAMPLE_STATUSES, 0)
     truncated = False
-    fetched = _fetch_sample_summaries()
+    fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         return _SampleRows(
@@ -1505,7 +1614,7 @@ def _echo_truncation_footer(
 def _run_sample_show(
     task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
 ) -> None:
-    fetched = _fetch_sample_summaries()
+    fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         if as_json:
@@ -1588,7 +1697,7 @@ def _run_sample_events(
     # the all-busy exit inside the fetch matters doubly here: the done:true
     # empty page below would falsely end a polling loop for an eval whose
     # events may live on the busy pid
-    fetched = _fetch_sample_summaries()
+    fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         if as_json:
@@ -1778,6 +1887,179 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
         click.echo("\nNo buffered samples to flush.")
 
 
+def _mutation_envelope(
+    target: dict[str, Any], result: dict[str, Any], *, dry_run: bool
+) -> dict[str, Any]:
+    """The uniform ``--json`` mutation result envelope for the cancel verbs.
+
+    ``applied`` reports whether the mutation actually landed — false on a
+    dry run and on the idempotent already-in-that-state no-op (the server's
+    ``changed: false``) — so an agent branches on one field. The server's
+    response rides along as ``detail`` (minus the transport-level ``ok``).
+    """
+    return {
+        "target": target,
+        "applied": bool(result.get("changed")) and not dry_run,
+        "dry_run": dry_run,
+        "detail": {k: v for k, v in result.items() if k != "ok"},
+    }
+
+
+_CANCEL_ROUTE_MISSING = (
+    "This process is running an older inspect without the cancel "
+    "endpoint; restart the eval to pick up the current version."
+)
+
+
+@_envelope_failures
+def _run_task_cancel(task: str, *, dry_run: bool, as_json: bool) -> None:
+    servers = list_discovered_servers()
+    summaries = _fetch_summaries(servers).summaries
+    scope = _resolve_scope(servers, summaries, task, per_task_option="task cancel")
+    if scope is None:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+    assert scope.task_id is not None
+
+    params: dict[str, Any] = {}
+    if dry_run:
+        params["dry_run"] = True
+    # idempotent (a repeat cancel is a clean no-op), so it may ride the
+    # narrated busy-retry policy like keep/release
+    result = _request_json(
+        scope.socket_path,
+        f"/tasks/{scope.task_id}/cancel",
+        params=params,
+        what=f"cancel of task {scope.task_id}",
+        not_found=(
+            f"Task '{scope.task_id}' not found in this process (it may have finished)."
+        ),
+        not_found_missing_route=_CANCEL_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+    )
+
+    if as_json:
+        target = {"task_id": scope.task_id, "task": scope.task}
+        click.echo(
+            json_lib.dumps(
+                _mutation_envelope(target, result, dry_run=dry_run), indent=2
+            )
+        )
+        return
+
+    click.echo(scope.header)
+    click.echo()
+    if result.get("changed"):
+        in_flight = int(result.get("in_flight", 0) or 0)
+        interrupted = (
+            f"{in_flight} in-flight sample{'' if in_flight == 1 else 's'} "
+            f"{'would be' if dry_run else 'will be'} interrupted"
+        )
+        if dry_run:
+            click.echo(f"Would cancel — {interrupted}; completed samples are kept.")
+        else:
+            click.echo(f"Cancel requested — {interrupted}; completed samples are kept.")
+    else:
+        reason = str(result.get("reason") or "already in that state")
+        click.echo(f"Nothing to do: {reason}.")
+
+
+@_envelope_failures
+def _run_sample_cancel(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    *,
+    action: Literal["score", "error"],
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    fetched = _fetch_sample_summaries()
+    summaries = fetched.summaries
+    if not summaries:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+
+    # Mutation selector rule: a defaulted epoch doesn't error — it resolves
+    # to a *different sample* — so EPOCH is required whenever the task runs
+    # more than one epoch. (An older server doesn't report `epochs`; the
+    # epoch-1 default then stands, as it did before the field existed.)
+    if epoch is None:
+        epochs = int(target.get("epochs") or 1)
+        if epochs > 1:
+            _fail(
+                "ambiguous",
+                f"Task '{target.get('task') or '?'}' runs {epochs} epochs — "
+                "pass EPOCH explicitly (a defaulted epoch would cancel the "
+                "epoch-1 attempt).",
+            )
+        epoch = 1
+
+    params: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "action": action,
+    }
+    if dry_run:
+        params["dry_run"] = True
+    result = _request_json(
+        str(target["socket_path"]),
+        f"/evals/{target['eval_id']}/sample/cancel",
+        params=params,
+        what=f"cancel of sample {sample_id}",
+        not_found=(
+            f"Sample '{sample_id}' (epoch {epoch}) not found in task "
+            f"'{target.get('task') or '?'}'."
+        ),
+        not_found_missing_route=_CANCEL_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+    )
+
+    if as_json:
+        # echo the resolved identifiers so a defaulted epoch is visible and
+        # the target round-trips into other commands' selectors
+        envelope_target = {
+            "task_id": target.get("task_id"),
+            "task": target.get("task"),
+            "sample_id": result.get("sample_id", sample_id),
+            "epoch": result.get("epoch", epoch),
+        }
+        click.echo(
+            json_lib.dumps(
+                _mutation_envelope(envelope_target, result, dry_run=dry_run), indent=2
+            )
+        )
+        return
+
+    click.echo(_task_header(target))
+    click.echo()
+    label = f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
+    if result.get("changed"):
+        outcome = (
+            "scored on the work done so far"
+            if action == "score"
+            else "marked as errored"
+        )
+        if dry_run:
+            click.echo(f"Would cancel {label} — it would be {outcome}.")
+        else:
+            click.echo(f"Cancel requested for {label} — it will be {outcome}.")
+    else:
+        status = result.get("status")
+        suffix = f" (status: {status})" if status else ""
+        click.echo(f"Nothing to do — {label} has already finished{suffix}.")
+
+
 @_envelope_failures
 def _run_process_list(as_json: bool) -> None:
     as_of = time.time()
@@ -1830,6 +2112,60 @@ def _run_process_list(as_json: bool) -> None:
     _render_table(("pid", "keep-alive", "tasks", "started"), table_rows)
 
 
+def _applied_knob_names(
+    limits_view: dict[str, Any],
+    *,
+    max_samples: int | None,
+    max_sandboxes: int | None,
+    max_subprocesses: int | None,
+    max_connections: int | None,
+    key: tuple[str, int] | None,
+) -> list[str]:
+    """Names of the requested knobs the server reported as adjustable.
+
+    Serves the no-live-buffer hard-error path so its "other knobs were still
+    applied" tail names only knobs that actually landed — a requested knob
+    the server reported as not adjustable did NOT apply. The buffer knobs
+    self-exclude: their adjustability check (no ``buffer`` view) is exactly
+    the condition that put the caller on the error path.
+    """
+    return [
+        name
+        for name, value, adjustable in (
+            (
+                "--max-samples",
+                max_samples,
+                bool((limits_view.get("max_samples") or {}).get("adjustable")),
+            ),
+            (
+                "--max-sandboxes",
+                max_sandboxes,
+                bool(limits_view.get("max_sandboxes")),
+            ),
+            (
+                "--max-subprocesses",
+                max_subprocesses,
+                bool(limits_view.get("max_subprocesses")),
+            ),
+            (
+                "--max-connections",
+                max_connections,
+                bool(limits_view.get("adaptive")),
+            ),
+            (
+                "--key",
+                key,
+                key is not None
+                and any(
+                    row.get("name") == key[0] and row.get("adjustable")
+                    for row in limits_view.get("concurrency") or []
+                ),
+            ),
+        )
+        if value is not None and adjustable
+    ]
+
+
 @_envelope_failures
 def _run_config(
     task: str | None,
@@ -1839,6 +2175,7 @@ def _run_config(
     max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
+    key: tuple[str, int] | None,
     log_buffer: int | None,
     log_shared: int | None,
     dry_run: bool,
@@ -1886,6 +2223,7 @@ def _run_config(
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
+        "key": key[1] if key is not None else None,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
     }
@@ -1903,6 +2241,7 @@ def _run_config(
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        key=key,
         log_buffer=log_buffer,
         log_shared=log_shared,
         dry_run=dry_run,
@@ -1920,32 +2259,14 @@ def _run_config(
     buffer_warnings: list[str] = []
     if scope.task_id is not None and limits_view.get("buffer") is None:
         if set_buffer:
-            applied_names = [
-                name
-                for name, value, adjustable in (
-                    (
-                        "--max-samples",
-                        max_samples,
-                        bool((limits_view.get("max_samples") or {}).get("adjustable")),
-                    ),
-                    (
-                        "--max-sandboxes",
-                        max_sandboxes,
-                        bool(limits_view.get("max_sandboxes")),
-                    ),
-                    (
-                        "--max-subprocesses",
-                        max_subprocesses,
-                        bool(limits_view.get("max_subprocesses")),
-                    ),
-                    (
-                        "--max-connections",
-                        max_connections,
-                        bool(limits_view.get("adaptive")),
-                    ),
-                )
-                if value is not None and adjustable
-            ]
+            applied_names = _applied_knob_names(
+                limits_view,
+                max_samples=max_samples,
+                max_sandboxes=max_sandboxes,
+                max_subprocesses=max_subprocesses,
+                max_connections=max_connections,
+                key=key,
+            )
             message = (
                 f"Task '{scope.task_id}' has no sample buffer in this "
                 "process (e.g. a reused log, or a retry attempt that's "
@@ -1977,6 +2298,7 @@ def _run_config(
             ("--max-connections", max_connections),
             ("--max-sandboxes", max_sandboxes),
             ("--max-subprocesses", max_subprocesses),
+            ("--key", key),
         )
         if value is not None
     ]
@@ -2037,6 +2359,12 @@ def _compose_config(
     knobs["max_connections"] = {
         "scope": _KNOB_SCOPE["max_connections"],
         "adaptive": limits_view.get("adaptive") or [],
+    }
+    # `keys: None` (vs an empty list) means the server predates the
+    # concurrency view — rendered as unreported rather than empty
+    knobs["concurrency"] = {
+        "scope": _KNOB_SCOPE["key"],
+        "keys": limits_view.get("concurrency"),
     }
     buffer_view = limits_view.get("buffer")
     if buffer_view is not None:
@@ -2465,6 +2793,7 @@ def _fetch_summaries(
     servers: list[DiscoveredControlServer],
     *,
     raise_on_busy: bool = False,
+    stop_on_task_id: str | None = None,
 ) -> _FetchedSummaries:
     """Query each discovered control server for its eval summary.
 
@@ -2484,6 +2813,16 @@ def _fetch_summaries(
     common cause is a process that just exited between discovery and connect,
     but the same path also catches a server-side ``500`` or a malformed
     response, which the user should see.
+
+    ``stop_on_task_id`` short-circuits the fan-out: once a server's rows
+    contain that exact task id, the remaining servers are not contacted.
+    Safe only for an exact *full* id — it wins resolution outright (see
+    :func:`_resolve_target_eval`), so the skipped servers could neither add
+    candidates nor create ambiguity; a prefix or name query never equals a
+    full id, so it still sees every server. Discovery is newest-first, so
+    only siblings started before the target are skipped, and the
+    duplicate-id corner (an old kept-alive attempt a newer process is
+    retrying) resolves to the newest attempt.
     """
     summaries: list[dict[str, Any]] = []
     busy_pids: list[int] = []
@@ -2526,10 +2865,14 @@ def _fetch_summaries(
                 row["pid"] = server.pid
                 row["socket_path"] = str(server.socket_path)
             summaries.extend(rows)
+            if stop_on_task_id is not None and any(
+                row.get("task_id") == stop_on_task_id for row in rows
+            ):
+                break
     return _FetchedSummaries(summaries=summaries, busy_pids=busy_pids)
 
 
-def _fetch_sample_summaries() -> _FetchedSummaries:
+def _fetch_sample_summaries(task_query: str | None = None) -> _FetchedSummaries:
     """Fetch the discovered summaries for a sample command.
 
     Busy processes are warned-and-skipped (``raise_on_busy``) so one wedged
@@ -2537,8 +2880,16 @@ def _fetch_sample_summaries() -> _FetchedSummaries:
     process alive yet busy), exit non-zero via :func:`_exit_all_busy`: an
     alive-but-busy eval must never be indistinguishable from no eval at all.
     ``busy_pids`` rides the return for scoped resolution's caveats.
+
+    ``task_query`` is the command's TASK selector; an exact full task id
+    stops the fan-out at the server holding it (see ``stop_on_task_id`` on
+    :func:`_fetch_summaries`).
     """
-    fetched = _fetch_summaries(list_discovered_servers(), raise_on_busy=True)
+    fetched = _fetch_summaries(
+        list_discovered_servers(),
+        raise_on_busy=True,
+        stop_on_task_id=task_query,
+    )
     if not fetched.summaries and fetched.busy_pids:
         _exit_all_busy(fetched.busy_pids)
     return fetched
@@ -2823,6 +3174,7 @@ def _request_json(
     *,
     what: str,
     not_found: str,
+    not_found_missing_route: str | None = None,
     params: dict[str, Any] | None = None,
     mutate: Literal["post", "patch"] | None = None,
     retry_mutation: bool = False,
@@ -2839,6 +3191,13 @@ def _request_json(
     silent long wait. A 404 prints ``not_found`` and exits non-zero; a 400
     surfaces the server's ``{"error": ...}`` body; transport errors exit
     with ``what`` as context.
+
+    ``not_found_missing_route`` splits the 404 by origin (see
+    :func:`_handler_404`): a router 404 — the endpoint doesn't exist, so the
+    process is running an older inspect — prints it instead of ``not_found``,
+    which then only ever means the endpoint answered "entity not found".
+    Without it every 404 prints ``not_found``, which must therefore hedge
+    both meanings; new endpoints should pass it rather than hedge.
     """
     verb = "update" if mutate else "read"
     try:
@@ -2866,6 +3225,8 @@ def _request_json(
                 socket_path, path, params=params, what=f"Reading {what}"
             )
         if response.status_code == 404:
+            if not_found_missing_route is not None and not _handler_404(response):
+                _fail("not_found", not_found_missing_route, status=404)
             _fail("not_found", not_found, status=404)
         if response.status_code == 400:
             _fail(
@@ -2884,6 +3245,27 @@ def _request_json(
         click.echo(message, err=True)
         raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
+
+
+def _handler_404(response: httpx.Response) -> bool:
+    """Whether a 404 came from an endpoint handler rather than the router.
+
+    Handler 404s ("entity not found") always carry an ``{"error": ...}`` JSON
+    body — a control-server convention pinned by a test — while the router's
+    404 for a path with no route (a process running an older inspect without
+    the endpoint) is FastAPI's stock ``{"detail": "Not Found"}``. Reading the
+    distinction off the response beats gating on a version table: it needs no
+    per-endpoint bookkeeping and is accurate against servers that predate
+    version reporting entirely. Unparseable bodies count as router 404s —
+    misreporting a weird handler 404 as version skew still names a true
+    remedy (restart on current inspect), whereas the opposite error would
+    tell the user their task finished when it didn't.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    return isinstance(body, dict) and "error" in body
 
 
 def _post_flush(socket_path: str, task_id: str) -> dict[str, Any]:
@@ -2947,6 +3329,7 @@ def _exec_limits(
     max_subprocesses: int | None = None,
     max_connections: int | None,
     model: str | None,
+    key: tuple[str, int] | None = None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
     dry_run: bool,
@@ -2957,20 +3340,22 @@ def _exec_limits(
     per-task view, including ``max_samples`` and the ``log_buffer`` /
     ``log_shared`` buffer params; task ids are stable across retry attempts);
     with ``task_id=None`` it targets the process-level ``/config``
-    (``max_sandboxes`` / ``max_subprocesses`` / ``max_connections`` only).
-    ``model`` filters the adaptive controllers (a read param, applies to
-    both). Any settable knob
-    that is not ``None`` makes this a mutation: a single-shot PATCH given the
-    full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
-    caller-supplied, so a knob can never ride a GET as an ignored query
-    param. A pure read is a GET that retries a busy process on timeout.
-    ``dry_run`` only applies to a set.
+    (``max_sandboxes`` / ``max_subprocesses`` / ``max_connections`` / the
+    named-key knob only). ``model`` filters the adaptive controllers (a read
+    param, applies to both); ``key`` is the ``(name, limit)`` pair for a named
+    ``concurrency()`` registry entry, carried on the wire as ``key`` /
+    ``key_limit``. Any settable knob that is not ``None`` makes this a
+    mutation: a single-shot PATCH given the full mutation budget (see
+    :data:`_MUTATION_TIMEOUT`) — derived here, not caller-supplied, so a knob
+    can never ride a GET as an ignored query param. A pure read is a GET that
+    retries a busy process on timeout. ``dry_run`` only applies to a set.
     """
     knob_values: dict[str, int | None] = {
         "max_samples": max_samples,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
+        "key": key[1] if key is not None else None,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
     }
@@ -2979,9 +3364,16 @@ def _exec_limits(
     # no-opping (or riding past the version gate ungated)
     assert knob_values.keys() == _KNOB_SCOPE.keys() == _KNOB_SINCE.keys()
     set_values = any(value is not None for value in knob_values.values())
+    # the key knob rides the wire as two params (key=<name>, key_limit=<n>),
+    # so it's excluded from the value passthrough and added explicitly
     params: dict[str, Any] = {
-        knob: value for knob, value in knob_values.items() if value is not None
+        knob: value
+        for knob, value in knob_values.items()
+        if knob != "key" and value is not None
     }
+    if key is not None:
+        params["key"] = key[0]
+        params["key_limit"] = key[1]
     if model is not None:
         params["model"] = model
     if dry_run:
@@ -3139,6 +3531,30 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                     f", last: {last.get('from')}→{last.get('to')} {last.get('reason')}"
                 )
             click.echo(line)
+
+    # The named concurrency() registry entries, addressable via `--key` by the
+    # exact name shown. Entries appear lazily on first use, so an empty
+    # registry gets a placeholder (like the sibling knobs) that keeps the
+    # knob discoverable and distinguishes it from an older server whose view
+    # omits the section (`keys` is None).
+    keys = (knobs.get("concurrency") or {}).get("keys")
+    if keys:
+        click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]:")
+        for row in keys:
+            # on a dry-run set, `_target` renders the requested key's limit as
+            # `current → requested` (the request rides `concurrency:<name>`)
+            limit = _target(row.get("limit"), f"concurrency:{row.get('name')}")
+            line = f"    {row.get('name')}: {limit} ({row.get('in_use')} in use)"
+            if not row.get("adjustable"):
+                line += " — not adjustable"
+            click.echo(line)
+    else:
+        empty = (
+            "none registered yet (named limits appear on first use)"
+            if keys is not None
+            else "not reported (older server)"
+        )
+        click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]: {empty}")
 
     # The process-level view carries no buffer knobs (they're per-task, read
     # off one task's live logger): mirror the max_samples placeholder so the
@@ -3401,7 +3817,7 @@ def _print_samples_table(
 
     ``show_task`` adds a leading task column — the rendering for a listing
     that spans tasks (the ``--json`` rows carry ``task_id`` regardless).
-    Three more columns are conditional, shown only when relevant (keeping the
+    Several columns are conditional, shown only when relevant (keeping the
     common case uncluttered):
     - ``retries`` — when some sample was retried on error. Per-sample
       (sample-level ``retry_on_error``); blank for samples with none.
@@ -3411,11 +3827,16 @@ def _print_samples_table(
     - ``idle`` — when some sample is running: time since its last transcript
       event (``now - last_activity_at``). A high idle time on a long-running
       sample is the cheap "is it stalled?" cue. Blank for non-running rows.
+    - ``limit usage`` / ``limit total`` — when some sample has a token limit
+      configured. ``limit usage`` is the metered value for that limit
+      (respecting its type — ``all``/``output``/formula) and ``limit total``
+      the configured ceiling. Blank for rows without either.
     """
     any_retries = any((s.get("retries") or 0) > 0 for s in samples)
     scorers = sorted({name for s in samples for name in (s.get("scores") or {})})
     score_col = scorers[0] if len(scorers) == 1 else None
     any_running = any(s.get("status") == "running" for s in samples)
+    any_token_limit = any(s.get("token_limit_total") is not None for s in samples)
     now = datetime.now(timezone.utc).timestamp()
 
     rows: list[tuple[str, ...]] = []
@@ -3431,10 +3852,14 @@ def _print_samples_table(
             row.append(str(s["retries"]) if s.get("retries") else "")
         if score_col is not None:
             row.append(_format_score((s.get("scores") or {}).get(score_col)))
+        # blank (not 0) when the turn count is unknown: pending rows and
+        # samples logged before turn counting existed carry None
+        turn_count = s.get("turn_count")
         cells = [
             _format_duration(s.get("total_time")),
             str(s.get("total_tokens", 0)),
             str(s.get("message_count") or 0),
+            str(turn_count) if turn_count is not None else "",
         ]
         if any_running:
             last = s.get("last_activity_at")
@@ -3444,6 +3869,11 @@ def _print_samples_table(
                 else ""
             )
             cells.insert(1, idle)  # after time, before tokens
+        if any_token_limit:
+            usage = s.get("token_limit_usage")
+            total = s.get("token_limit_total")
+            cells.append(str(usage) if usage is not None else "")
+            cells.append(str(total) if total is not None else "")
         row.extend(cells)
         rows.append(tuple(row))
 
@@ -3457,7 +3887,9 @@ def _print_samples_table(
     headers.append("time")
     if any_running:
         headers.append("idle")
-    headers.extend(["tokens", "messages"])
+    headers.extend(["tokens", "messages", "turns"])
+    if any_token_limit:
+        headers.extend(["limit usage", "limit total"])
     _render_table(tuple(headers), rows)
 
 

@@ -538,6 +538,35 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert missing.status_code == 404
 
 
+async def test_404_body_shape_distinguishes_missing_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Handler 404s carry ``{"error": ...}``; the router's 404 does not.
+
+    The CLI reads this distinction (`_handler_404`) to report version skew
+    definitively when a route doesn't exist on an older server — see the
+    convention comment in ``_build_app``. A handler 404 that dropped the
+    ``error`` key would misreport an entity-not-found as version skew.
+    """
+    from inspect_ai._cli.ctl import _handler_404
+    from inspect_ai._control import server as server_mod
+
+    monkeypatch.setattr(server_mod, "cancel_task", lambda task_id, dry_run=False: None)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        handler = await client.post("/tasks/nope/cancel")
+        assert handler.status_code == 404
+        assert _handler_404(handler)
+
+        router = await client.post("/tasks/nope/endpoint-from-the-future")
+        assert router.status_code == 404
+        assert not _handler_404(router)
+
+
 def test_resolve_ctl_server_values() -> None:
     """The ``ctl_server`` param resolves to ``(enabled, keep_alive)``.
 
