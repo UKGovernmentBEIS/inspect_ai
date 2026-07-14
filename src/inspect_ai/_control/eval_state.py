@@ -1,7 +1,7 @@
 """Process-level per-eval state aggregate.
 
 Tracks running totals across the samples of each in-flight eval
-(``eval_id``-keyed). Consumed by the control-channel ``GET /evals``
+(``eval_id``-keyed). Consumed by the control-channel ``GET /tasks``
 endpoint to surface counts that ``active_samples()`` alone can't
 provide.
 
@@ -11,7 +11,7 @@ total sample count is known), plus :func:`record_sample_completed` /
 are not unregistered per-eval — the registry is cleared in one shot at
 the outermost run boundary (``eval`` / ``eval_set``) via
 :func:`clear_all_eval_states`, which keeps completed evals visible in
-``inspect ctl tasks`` through the run (and any keep-alive park).
+``inspect ctl task list`` through the run (and any keep-alive park).
 
 Lives under ``_control/`` because the control channel is currently
 the only consumer; if other surfaces (TUI, view server) ever need
@@ -47,6 +47,7 @@ logger = getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from inspect_ai._display.core.display import TaskCancel
     from inspect_ai.log._log import EvalSample, EvalSampleSummary
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
@@ -104,7 +105,7 @@ if TYPE_CHECKING:
 
 
 class BufferConfig(NamedTuple):
-    """A running eval's sample-buffer parameters (see ``inspect ctl buffer``).
+    """A running eval's sample-buffer parameters (see ``inspect ctl config``).
 
     Reported by the buffer directive and, when set values are supplied,
     re-reported after the update.
@@ -186,6 +187,11 @@ class EvalState:
     model: str = ""
     """Primary model name. Same rationale as :attr:`task`."""
 
+    solver: str = ""
+    """Solver name — the unqualified name of the plan's terminal step
+    (an agent name for agentic tasks, e.g. ``react``). Same rationale
+    as :attr:`task`."""
+
     log_location: str = ""
     """This eval's log file location. The per-sample listing reads
     completed samples from here once the live recorder is gone (see
@@ -202,6 +208,15 @@ class EvalState:
     ``None`` by :func:`detach_eval_live` when a retry supersedes the
     attempt the logger was bound to (after which reads fall back to
     :attr:`log_location` until the retry sweep removes that log)."""
+
+    task_cancel: "TaskCancel | None" = None
+    """The running attempt's cancel handle — the same ``TaskCancel`` the
+    in-process task display's cancel dialog drives. The control channel's
+    task-cancel directive fires it with ``"abort"`` (see
+    :mod:`inspect_ai._control.cancel`). ``None`` for reused/synthetic evals
+    (nothing is running, so there is nothing to cancel); each retry attempt
+    registers its own handle, and :func:`latest_eval_for_task` resolves the
+    current one."""
 
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
@@ -254,6 +269,18 @@ class EvalState:
     Set from ``TaskCancel.can_retry`` at registration. Lets the control
     endpoint render a cancelled sample as ``pending`` (a retry will re-run
     it) rather than ``cancelled`` (terminal — no retry coming)."""
+
+    retry_pending: bool = False
+    """Whether this attempt finished with an error and a retry has been queued.
+
+    Stamped by :func:`mark_eval_retry_pending` at the eval-set's retry
+    decision point, so directives that would otherwise read a stamped
+    :attr:`completed_at` as "task finished" (eg. task cancel) can answer
+    honestly during the window between attempts — the retry registers its
+    own :class:`EvalState` only when it actually starts, and until then
+    this errored attempt is the task's latest. Never cleared: once the
+    retry starts, :func:`latest_eval_for_task` resolves to its fresh
+    state and this one is no longer consulted."""
 
     total_tokens: int = 0
     """Cumulative model tokens used by this eval's terminal samples.
@@ -316,18 +343,20 @@ def register_eval(
     task: str = "",
     task_id: str = "",
     model: str = "",
+    solver: str | None = None,
     log_location: str = "",
     live: "LiveEvalData | None" = None,
     sample_ids: list[str | int] | None = None,
     epochs: int = 1,
     run_id: str | None = None,
     will_retry: bool = False,
+    task_cancel: "TaskCancel | None" = None,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
-    Idempotent on ``eval_id`` — re-registering an existing eval (eg.
-    on retry) returns the existing state without resetting its
-    counters.
+    Idempotent on ``eval_id`` — re-registering an existing eval (eg. on
+    retry, which mints a fresh ``eval_id`` via ``TaskLogger.reinit``) returns
+    the existing state without resetting its counters.
     """
     with _lock:
         existing = _eval_states.get(eval_id)
@@ -339,12 +368,14 @@ def register_eval(
             task=task,
             task_id=task_id,
             model=model,
+            solver=solver or "",
             log_location=log_location,
             live=live,
             sample_ids=sample_ids or [],
             epochs=epochs,
             run_id=run_id,
             will_retry=will_retry,
+            task_cancel=task_cancel,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
@@ -364,6 +395,7 @@ def register_completed_eval(
     task: str = "",
     task_id: str = "",
     model: str = "",
+    solver: str | None = None,
     log_location: str = "",
     run_id: str | None = None,
     completed_at: float | None = None,
@@ -398,6 +430,7 @@ def register_completed_eval(
             task=task,
             task_id=task_id,
             model=model,
+            solver=solver or "",
             log_location=log_location,
             run_id=run_id,
             completed_at=completed_at if completed_at is not None else time.time(),
@@ -515,6 +548,44 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def latest_eval_for_task(task_id: str) -> "EvalState | None":
+    """The last-registered attempt of ``task_id``, or ``None`` if untracked.
+
+    The same fold rule the summaries use (registration order — a retry
+    registers after the attempt it supersedes), so a task-keyed directive
+    acts on the attempt the read surface reports as current. A non-``None``
+    result doubles as the existence check for task-keyed directives —
+    including reused-log tasks registered via :func:`register_completed_eval`,
+    which never run here but should get "not adjustable" warnings rather
+    than a 404. A falsy ``task_id`` never resolves (states without one are
+    addressable only by eval id).
+    """
+    if not task_id:
+        return None
+    with _lock:
+        latest = None
+        for state in _eval_states.values():
+            if state.task_id == task_id:
+                latest = state
+        return latest
+
+
+def mark_eval_retry_pending(eval_id: str) -> None:
+    """Record that a retry of this (errored, finished) attempt has been queued.
+
+    Called by the eval-set runner at the point it decides to re-queue a
+    failed task — after the attempt's ``finalize_eval`` (which stamped
+    ``completed_at``) and before the retry attempt starts (which registers
+    a fresh :class:`EvalState`). See :attr:`EvalState.retry_pending` for
+    why the window between those two events needs the flag. No-ops if the
+    eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.retry_pending = True
+
+
 def detach_eval_live(eval_id: str) -> None:
     """Detach a superseded attempt's live data source.
 
@@ -525,7 +596,9 @@ def detach_eval_live(eval_id: str) -> None:
     Clearing it makes the superseded attempt's reads fall back to its own
     ``log_location`` — its data stays correct until the retry sweep removes
     that log, after which per-sample reads degrade to empty/404 (the counters
-    on the state itself are unaffected). No-ops if the eval isn't registered.
+    on the state itself are unaffected).
+
+    No-ops if the eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
