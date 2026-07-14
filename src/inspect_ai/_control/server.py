@@ -32,7 +32,7 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, Literal, NamedTuple, cast, get_args
+from typing import Any, AsyncIterator, NamedTuple, cast, get_args
 
 import anyio
 
@@ -241,6 +241,11 @@ class ControlServer:
             UnknownQueryParamsError,
             reject_unknown_query_params,
         )
+
+        # imported here rather than at module scope: log._samples reaches
+        # the checkpointer/event chain, which circularly imports back into
+        # modules that import this one early (e.g. via inspect_ai._control)
+        from inspect_ai.log._samples import SampleInterruptAction
 
         # Attached app-wide so every mutation route — including any added
         # later — fails closed and atomically on unknown query params instead
@@ -487,12 +492,12 @@ class ControlServer:
                         )
                     },
                 )
-            if action not in ("score", "error", "cancel"):
+            if action not in get_args(SampleInterruptAction):
                 return JSONResponse(
                     status_code=400,
                     content={
                         "error": (
-                            "action must be 'score', 'error' or 'cancelled' "
+                            "action must be 'score', 'error' or 'cancel' "
                             f"(got '{action}')"
                         )
                     },
@@ -501,7 +506,7 @@ class ControlServer:
                 eval_id,
                 sample_id,
                 epoch,
-                action=cast(Literal["score", "error", "cancel"], action),
+                action=cast(SampleInterruptAction, action),
                 dry_run=dry_run,
             )
             if result is None:

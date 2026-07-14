@@ -6,7 +6,7 @@ cancel: interrupt via ``ActiveSample.interrupt``) and the server routes that
 wrap them (``POST /tasks/<id>/cancel``, ``POST /evals/<id>/sample/cancel``).
 """
 
-from typing import Any, Literal
+from typing import Any
 
 import httpx
 import pytest
@@ -22,6 +22,7 @@ from inspect_ai._control.eval_state import (
     register_eval,
 )
 from inspect_ai._display.core.display import CancelType, TaskCancel
+from inspect_ai.log._samples import SampleInterruptAction
 
 
 @pytest.fixture(autouse=True)
@@ -68,9 +69,9 @@ class _FakeActiveSample:
         self.completed = completed
         self.fails_on_error = fails_on_error
         self.interrupts: list[str] = []
-        self.interrupt_action: Literal["score", "error", "cancel"] | None = None
+        self.interrupt_action: SampleInterruptAction | None = None
 
-    def interrupt(self, action: Literal["score", "error", "cancel"]) -> None:
+    def interrupt(self, action: SampleInterruptAction) -> None:
         self.interrupts.append(action)
         self.interrupt_action = action
 

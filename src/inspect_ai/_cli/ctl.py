@@ -38,13 +38,25 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, NoReturn, ParamSpec, Protocol, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    NamedTuple,
+    NoReturn,
+    ParamSpec,
+    Protocol,
+    cast,
+)
 
 import click
 import httpx
 from click.core import ParameterSource
 
 from inspect_ai._control.cancel import TaskCancelAction
+
+if TYPE_CHECKING:
+    from inspect_ai.log._samples import SampleInterruptAction
 from inspect_ai._control.discovery import (
     DiscoveredControlServer,
     discovery_dir,
@@ -638,7 +650,7 @@ def sample_cancel_command(
         task,
         sample_id,
         epoch,
-        action=cast(Literal["score", "error", "cancel"], action),
+        action=cast("SampleInterruptAction", action),
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -1781,6 +1793,11 @@ def _run_task_cancel(
 
     params: dict[str, Any] = {}
     if action != "cancel":
+        # omit the param when it's the default: a strict server that
+        # predates `action` 400s on unknown mutation params, and a plain
+        # cancel must keep working against any server with the route
+        # (abort is what those servers do anyway). An explicit
+        # score/error against such a server *should* fail loudly.
         params["action"] = action
     if dry_run:
         params["dry_run"] = True
@@ -1841,7 +1858,7 @@ def _run_sample_cancel(
     sample_id: str,
     epoch: int | None,
     *,
-    action: Literal["score", "error", "cancel"],
+    action: SampleInterruptAction,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -3144,47 +3161,17 @@ def _gate_knob_support(
     gated = [knob for knob in requested_knobs if _KNOB_SINCE[knob] > 0]
     if not gated:
         return
-    api_version, server = _server_api_version(servers, socket_path)
+    server = next((s for s in servers if str(s.socket_path) == socket_path), None)
+    api_version = server.api_version if server is not None else 0
     unsupported = [knob for knob in gated if _KNOB_SINCE[knob] > api_version]
     if not unsupported:
         return
     flags = ", ".join("--" + knob.replace("_", "-") for knob in unsupported)
-    _version_gate_error(server, flags, "No changes were applied.")
-
-
-class _ServerVersion(NamedTuple):
-    """A target process's advertised control-API version + discovery entry."""
-
-    api_version: int
-    server: DiscoveredControlServer | None
-
-
-def _server_api_version(
-    servers: list[DiscoveredControlServer], socket_path: str
-) -> _ServerVersion:
-    """The advertised control-API version of the process at ``socket_path``.
-
-    A process with no advertised version (a discovery file predating the
-    field, or a socket with no discovery entry at all) is version 0 — the
-    fail-closed default the version gates rely on.
-    """
-    server = next((s for s in servers if str(s.socket_path) == str(socket_path)), None)
-    return _ServerVersion(server.api_version if server is not None else 0, server)
-
-
-def _version_gate_error(
-    server: DiscoveredControlServer | None, flags: str, not_sent: str
-) -> NoReturn:
-    """Fail a command whose flags the target process is too old to honor.
-
-    The version integer is meaningless to users, so the message names the
-    offending ``flags`` and the remedy (restart the eval); ``not_sent``
-    states that nothing was mutated, in the command's own vocabulary.
-    """
     target = f"pid {server.pid}" if server is not None else "the target process"
     click.echo(
         f"{flags} not supported — {target} is running an older inspect; "
-        f"restart the eval to pick up the current version. {not_sent}",
+        "restart the eval to pick up the current version. No changes were "
+        "applied.",
         err=True,
     )
     raise click.exceptions.Exit(code=1)

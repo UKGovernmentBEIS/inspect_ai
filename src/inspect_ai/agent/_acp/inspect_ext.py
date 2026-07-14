@@ -36,13 +36,14 @@ from __future__ import annotations
 import asyncio
 import math
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Final, Literal
+from typing import TYPE_CHECKING, Any, Callable, Final
 
 import anyio
 from acp.exceptions import RequestError
 from pydantic import BaseModel, Field, ValidationError
 
 from inspect_ai.agent._acp._guards import acp_guard, acp_send_guard
+from inspect_ai.log._samples import SampleInterruptAction
 
 if TYPE_CHECKING:
     from acp.connection import Connection
@@ -200,7 +201,7 @@ class CancelSampleParams(BaseModel):
     """Pydantic param model for :data:`INSPECT_CANCEL_SAMPLE_METHOD`."""
 
     session_id: str = Field(alias="sessionId")
-    action: Literal["score", "error", "cancel"]
+    action: SampleInterruptAction
 
     model_config = {"populate_by_name": True}
 
