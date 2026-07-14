@@ -86,11 +86,14 @@ class Chain(Sequence[Solver], Solver):
             async with solver_transcript(slv, state) as st:
                 state = await slv(state, generate)
                 st.complete(state)
-            # a solver may return a *new* TaskState (e.g. a fork() result or a
-            # deepcopy) — refresh the context handle so `sample_state()` and
-            # the control channel's live view track the threaded state
-            # (`replacing` keeps a chain running inside a fork() branch from
-            # capturing the shared live view — see `set_sample_state`)
+            # a solver may return a different TaskState object than it was
+            # passed (eg. a deepcopy it made, or a state it got from fork())
+            # — refresh the context handle so `sample_state()` and the
+            # control channel's live view follow the threaded state. The
+            # `replacing` CAS covers a separate case: when this chain is
+            # itself running *inside* a fork() branch, its states are branch
+            # copies and the refresh must not move the shared live view
+            # (see `set_sample_state`)
             set_sample_state(state, replacing=prev_state)
             if state.completed:
                 break
