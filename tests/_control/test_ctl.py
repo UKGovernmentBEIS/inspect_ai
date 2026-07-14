@@ -278,18 +278,32 @@ def test_token_limit_columns_hidden_when_no_limit(
     assert "limit usage" not in header and "limit total" not in header
 
 
-def test_sorted_samples_orders_running_then_terminal_then_pending() -> None:
+def test_sorted_samples_orders_running_queued_terminal_pending() -> None:
+    """The cap keeps the head of this order, so every status's rank matters.
+
+    Queued rows must sort between running and terminal by explicit rank —
+    not by a started_at tiebreak a terminal row without a start time
+    could tie with.
+    """
     from inspect_ai._control.state import _sorted_samples
 
     rows: list[dict[str, Any]] = [
         {"status": "pending", "started_at": None},
         {"status": "completed", "started_at": 100.0},
+        {"status": "cancelled", "started_at": None},
         {"status": "running", "started_at": 200.0},
+        {"status": "queued", "started_at": None},
         {"status": "error", "started_at": 50.0},
     ]
     ordered = [r["status"] for r in _sorted_samples(rows)]
-    # running first; terminal (completed/error) by start time; pending last.
-    assert ordered == ["running", "error", "completed", "pending"]
+    assert ordered == [
+        "running",
+        "queued",
+        "cancelled",  # terminal without a start time still sorts after queued
+        "error",
+        "completed",
+        "pending",
+    ]
 
 
 def test_retries_column_shown_when_a_sample_retried(
@@ -1183,6 +1197,342 @@ def test_sample_errors_unscoped_filters_across_tasks(
         ("aaa111", "bad"),
         ("bbb222", "retried"),
     ]
+
+
+def _capture_fetch_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+    page: _SamplesPage | None = None,
+) -> list[dict[str, Any]]:
+    """Stub `_fetch_samples`, recording each call's cap/filter kwargs."""
+    calls: list[dict[str, Any]] = []
+    result = page if page is not None else _SamplesPage(as_of=123.0, samples=[])
+
+    def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        calls.append(dict(kwargs))
+        return result
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    return calls
+
+
+def test_sample_list_forwards_cap_and_filter_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--limit` / `--status` ride the request; the default sends neither."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+
+    cli_runner().invoke(
+        ctl_command,
+        ["sample", "list", "--limit", "5", "--status", "running,error", "--json"],
+    )
+    assert calls[-1]["limit"] == 5
+    # the filter rides in its parsed (normalized) form, not the raw flag value
+    assert calls[-1]["status"] == "error,running"
+    assert calls[-1]["all_samples"] is False
+
+    cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert calls[-1]["limit"] is None  # server default cap applies
+    assert calls[-1]["all_samples"] is False
+
+
+def test_sample_list_all_requests_full_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--all", "--json"])
+    assert result.exit_code == 0, result.output
+    assert calls[-1]["all_samples"] is True
+
+
+def test_sample_list_all_and_limit_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--all` and `--limit` contradict; error rather than pick silently."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "list", "--all", "--limit", "5", "--json"]
+    )
+    assert result.exit_code != 0
+    assert "mutually exclusive" in result.stderr
+    assert calls == []  # failed before any request
+
+
+def test_sample_list_unknown_status_teaches_vocabulary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A `--status` typo fails fast with the valid statuses, before any read."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "list", "--status", "compleeted", "--json"]
+    )
+    assert result.exit_code != 0
+    assert "compleeted" in result.stderr
+    assert "pending" in result.stderr  # names the vocabulary
+    assert calls == []
+
+
+def test_sample_list_empty_status_fails_fast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty `--status` member set errors rather than dropping every row."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    for empty in ("", ","):
+        result = cli_runner().invoke(
+            ctl_command, ["sample", "list", "--status", empty, "--json"]
+        )
+        assert result.exit_code != 0, empty
+        assert "at least one status" in result.stderr
+    assert calls == []
+
+
+def test_sample_list_mirrored_cap_flags_on_bare_noun(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ctl sample --limit N --status S` (no verb) behaves like `list`."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "--limit", "7", "--status", "running", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert calls[-1]["limit"] == 7
+    assert calls[-1]["status"] == "running"
+
+
+def test_sample_list_envelope_aggregates_counts_and_truncated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The `--json` envelope sums per-eval histograms and ORs `truncated`."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")],
+    )
+    pages = {
+        "eval_aaa111": _SamplesPage(
+            as_of=123.0,
+            samples=[_sample_row("s1", status="running")],
+            counts={"running": 1, "completed": 200},
+            truncated=True,
+        ),
+        "eval_bbb222": _SamplesPage(
+            as_of=124.0,
+            samples=[_sample_row("s2")],
+            counts={"completed": 1},
+            truncated=False,
+        ),
+    }
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_samples",
+        lambda socket_path, eval_id, active_since=None, **kwargs: pages[eval_id],
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["truncated"] is True
+    assert payload["counts"]["running"] == 1
+    assert payload["counts"]["completed"] == 201
+    assert payload["counts"]["error"] == 0  # stable keys, zero when empty
+    assert len(payload["samples"]) == 2
+
+
+def test_sample_list_counts_derived_for_older_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A histogram-less envelope (older server) derives counts from its rows.
+
+    On such a server the rows are the full listing, so the derived histogram
+    is accurate — and the envelope keeps its shape for agents either way.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="running"),
+                _sample_row("s2"),
+                _sample_row("s3", status="error", error="boom"),
+            ]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
+    payload = json.loads(result.stdout)
+    assert payload["counts"]["running"] == 1
+    assert payload["counts"]["completed"] == 1
+    assert payload["counts"]["error"] == 1
+    assert payload["truncated"] is False
+
+
+def test_sample_list_filters_and_caps_for_older_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An older server ignores `status`/`limit`; the CLI applies them itself.
+
+    A histogram-less envelope signals a server that dropped the new query
+    params and returned the full listing — presenting those rows under the
+    requested flags would fake a filtered/capped read, so the filter and cap
+    run client-side (with `truncated` derived from the cap) and the counts
+    stay whole-listing.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="running"),
+                _sample_row("s2"),
+                _sample_row("s3"),
+                _sample_row("s4", status="error", error="boom"),
+            ]
+        },
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "list", "--status", "completed", "--json"]
+    )
+    payload = json.loads(result.stdout)
+    assert [r["sample_id"] for r in payload["samples"]] == ["s2", "s3"]
+    assert payload["counts"]["running"] == 1  # counts stay whole-listing
+    assert payload["truncated"] is False
+
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "list", "--limit", "2", "--json"]
+    )
+    payload = json.loads(result.stdout)
+    assert [r["sample_id"] for r in payload["samples"]] == ["s1", "s2"]
+    assert payload["truncated"] is True
+
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--all", "--json"])
+    payload = json.loads(result.stdout)
+    assert len(payload["samples"]) == 4
+    assert payload["truncated"] is False
+
+
+def test_sample_list_human_truncation_footer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A capped human listing says so — no silent truncation."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _capture_fetch_kwargs(
+        monkeypatch,
+        page=_SamplesPage(
+            as_of=123.0,
+            samples=[_sample_row("s1", status="running")],
+            counts={"running": 1, "completed": 250},
+            truncated=True,
+        ),
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert "showing 1 of 251 samples" in result.output
+    assert "--all" in result.output
+    assert "--status to filter" in result.output
+
+
+def test_sample_list_truncation_footer_with_filters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The footer's totals honor an active filter.
+
+    `counts` is the whole-task histogram, so a `--status`-narrowed footer
+    must not claim `--all` would return the whole-task total — it reports
+    the matching total from the histogram instead (and drops the redundant
+    `--status` hint). A delta poll's matching total is unknowable
+    client-side, so that footer claims no matching total at all.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _capture_fetch_kwargs(
+        monkeypatch,
+        page=_SamplesPage(
+            as_of=123.0,
+            samples=[_sample_row("s1", status="error", error="boom")],
+            counts={"running": 3, "completed": 240, "error": 8},
+            truncated=True,
+        ),
+    )
+
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--status", "error"])
+    assert result.exit_code == 0, result.output
+    assert "showing 1 of 8 matching samples (251 total" in result.output
+    assert "--all" in result.output
+    assert "--status to filter" not in result.output
+
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "list", "--active-since", "99"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "showing first 1 matching sample (251 total" in result.output
+    assert "--status to filter" in result.output
+
+
+def test_sample_list_empty_filtered_listing_says_no_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty filtered listing must not claim nothing started.
+
+    `--status error` on a healthy eval returns zero rows while samples are
+    running — "(no samples started yet)" would be a false claim, so the
+    empty message reports the miss against the whole-task histogram. An
+    empty `--active-since` delta likewise scopes its claim to the window.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _capture_fetch_kwargs(
+        monkeypatch,
+        page=_SamplesPage(
+            as_of=123.0,
+            samples=[],
+            counts={"running": 3, "completed": 248, "error": 0},
+            truncated=False,
+        ),
+    )
+
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--status", "error"])
+    assert result.exit_code == 0, result.output
+    assert "(no matching samples: 0 of 251)" in result.output
+    assert "no samples started yet" not in result.output
+
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "list", "--active-since", "99"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "(no samples active since the given timestamp)" in result.output
+    assert "no samples started yet" not in result.output
+
+
+def test_sample_errors_requests_full_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The triage view sees every row — the cap must not hide errors."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    result = cli_runner().invoke(ctl_command, ["sample", "errors", "--json"])
+    assert result.exit_code == 0, result.output
+    assert calls[-1]["all_samples"] is True
+
+
+def test_sample_show_row_lookup_requests_full_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`show`'s supplemental row lookup must not lose its row to the cap."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail",
+        lambda *a, **k: {"sample_id": "s1", "epoch": 1, "status": "completed"},
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert calls[-1]["all_samples"] is True
 
 
 def _patch_samples_unreachable_for(

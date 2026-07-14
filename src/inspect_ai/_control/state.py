@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import is_cancellation_message
@@ -44,6 +44,90 @@ from inspect_ai._util.file import local_path
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
     from inspect_ai.log._samples import ActiveSample
+
+# The canonical per-sample status vocabulary of the samples listing — the
+# keys of the listing envelope's ``counts`` histogram (always all present,
+# zero when empty, so the schema is stable for agents) and the values the
+# ``status`` filter accepts.
+SAMPLE_STATUSES = ("running", "completed", "error", "cancelled", "pending", "queued")
+
+# Default row cap for the samples listing (`GET /evals/<id>/samples` and
+# `inspect ctl sample list`). The listing is otherwise linear in sample
+# count — a 10k-sample eval-set would return ~10k rows in one response,
+# flooding an LLM agent's context (see "Shape constraints from agent
+# consumers" in design/control-channel.md, constraint 2). Rows sort
+# running → terminal → pending, so the cap keeps the most relevant rows;
+# the envelope's `counts` histogram keeps the aggregate answer complete
+# and `truncated` reports the cap structurally.
+DEFAULT_SAMPLE_LIST_LIMIT = 100
+
+
+class StatusFilterParse(NamedTuple):
+    """Result of :func:`parse_status_filter`.
+
+    Exactly one field is non-``None`` when a filter was given: ``statuses``
+    is the parsed member set, ``error`` says why the value is invalid.
+    Both are ``None`` when no filter was given.
+    """
+
+    statuses: frozenset[str] | None
+    error: str | None
+
+
+def parse_status_filter(status: str | None, param: str = "status") -> StatusFilterParse:
+    """Parse a comma-separated status filter into its member set.
+
+    The single home for the filter's parse and validation, shared by the
+    server endpoint and the CLI's fail-fast check so the vocabulary error
+    wording can't drift between the two surfaces. ``param`` names the
+    parameter in error messages (``status`` server-side, ``--status`` in
+    the CLI).
+
+    Args:
+        status: The raw comma-separated value (``None`` = no filter).
+        param: Parameter name to use in error messages.
+
+    Returns:
+        The member set, or the error message describing why the value
+        is invalid (an empty or unknown member).
+    """
+    if status is None:
+        return StatusFilterParse(statuses=None, error=None)
+    members = frozenset(t for t in (p.strip() for p in status.split(",")) if t)
+    # A closed-vocabulary filter with no members is always a mistake (it
+    # would silently drop every row), not "no filter".
+    if not members:
+        return StatusFilterParse(
+            statuses=None,
+            error=(
+                f"{param} requires at least one status "
+                f"(expected {', '.join(SAMPLE_STATUSES)})"
+            ),
+        )
+    unknown = sorted(members - frozenset(SAMPLE_STATUSES))
+    if unknown:
+        return StatusFilterParse(
+            statuses=None,
+            error=(
+                f"unknown {param} '{unknown[0]}' "
+                f"(expected {', '.join(SAMPLE_STATUSES)})"
+            ),
+        )
+    return StatusFilterParse(statuses=members, error=None)
+
+
+def effective_sample_limit(limit: int | None, all_samples: bool) -> int | None:
+    """Resolve a samples listing's row cap from its `limit`/`all` params.
+
+    The single home for the cap semantics (shared by the server endpoint
+    and the CLI's older-server fallback): ``all_samples`` means no cap,
+    an explicit ``limit`` wins otherwise, and the default is
+    :data:`DEFAULT_SAMPLE_LIST_LIMIT`. Callers reject the contradictory
+    ``all_samples and limit is not None`` case before resolving.
+    """
+    if all_samples:
+        return None
+    return limit if limit is not None else DEFAULT_SAMPLE_LIST_LIMIT
 
 
 async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
@@ -194,9 +278,7 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     return summaries
 
 
-async def current_sample_summaries(
-    eval_id: str, active_since: float | None = None
-) -> list[dict[str, Any]]:
+async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     """Per-sample summaries for one eval (``GET /evals/<eval_id>/samples``).
 
     Lists *all* of the eval's samples — running, completed, and pending —
@@ -217,8 +299,8 @@ async def current_sample_summaries(
     pending one. Sorted running → terminal → pending. Returns an empty
     list when the eval isn't in this process.
 
-    Each entry has: ``sample_id``, ``epoch``, ``status`` (running /
-    completed / error / pending), ``started_at``, ``completed_at``,
+    Each entry has: ``sample_id``, ``epoch``, ``status`` (a
+    :data:`SAMPLE_STATUSES` member), ``started_at``, ``completed_at``,
     ``total_time``, ``total_tokens``, ``message_count``,
     ``last_activity_at`` (unix ts of the sample's most recent event — for a
     running sample, ``now - last_activity_at`` is its idle time, a cheap
@@ -226,11 +308,9 @@ async def current_sample_summaries(
     terminal / pending samples), ``scores`` (``{scorer: value}``, empty
     until scored), ``error``, ``retries``, ``limit``.
 
-    ``active_since`` (unix ts) restricts the result to samples that started or
-    were updated at/after that time — i.e. ``last_activity_at >= active_since``
-    — the cheap "what changed since I last looked" delta. Pending samples (no
-    activity) are excluded. It's a wall-clock *filter*, not a resume cursor (it
-    returns current state of whatever changed, not an exactly-once stream).
+    The ``active_since`` recency filter lives in
+    :func:`current_sample_listing` (its single home), which wraps this
+    full listing.
     """
     by_key: dict[tuple[Any, int], dict[str, Any]] = {}
 
@@ -255,15 +335,80 @@ async def current_sample_summaries(
     # holds these, so synthesize them from the registered planned ids.
     _add_pending_samples(eval_id, by_key)
 
-    summaries = list(by_key.values())
+    return _sorted_samples(list(by_key.values()))
+
+
+class SampleListing(NamedTuple):
+    """The samples listing behind ``GET /evals/<eval_id>/samples``.
+
+    ``counts`` is the status histogram over *all* of the eval's samples —
+    computed before the ``active_since`` / status filters and the row cap,
+    so the aggregate answer stays complete even when ``samples`` is
+    filtered or capped. It always carries every :data:`SAMPLE_STATUSES`
+    key (zero when empty). ``truncated`` reports whether the row cap
+    dropped rows that passed the filters — the structural "this response
+    is incomplete" signal (no silent truncation).
+    """
+
+    counts: dict[str, int]
+    samples: list[dict[str, Any]]
+    truncated: bool
+
+
+async def current_sample_listing(
+    eval_id: str,
+    active_since: float | None = None,
+    statuses: frozenset[str] | None = None,
+    limit: int | None = DEFAULT_SAMPLE_LIST_LIMIT,
+) -> SampleListing:
+    """The capped samples listing for one eval (histogram + rows).
+
+    Builds the full per-sample summaries via
+    :func:`current_sample_summaries`, then:
+
+    - computes the ``counts`` status histogram over the full set (so the
+      aggregate stays complete regardless of the filters and cap below);
+    - applies the ``active_since`` recency filter and the ``statuses``
+      filter (a set of :data:`SAMPLE_STATUSES` members) to the rows;
+    - caps the rows at ``limit`` (``None`` = unlimited), keeping the head
+      of the existing running → terminal → pending sort order — the most
+      relevant rows — and flags ``truncated`` when the cap dropped any.
+
+    ``active_since`` (unix ts) keeps samples that started or were updated
+    at/after that time — i.e. ``last_activity_at >= active_since`` — the
+    cheap "what changed since I last looked" delta. Pending samples (no
+    activity) are excluded. It's a wall-clock *filter*, not a resume
+    cursor (it returns current state of whatever changed, not an
+    exactly-once stream).
+    """
+    summaries = await current_sample_summaries(eval_id)
+
+    counts = dict.fromkeys(SAMPLE_STATUSES, 0)
+    for summary in summaries:
+        status = summary["status"]
+        counts[status] = counts.get(status, 0) + 1
+
+    rows = summaries
     if active_since is not None:
-        summaries = [
-            s
-            for s in summaries
-            if s["last_activity_at"] is not None
-            and s["last_activity_at"] >= active_since
-        ]
-    return _sorted_samples(summaries)
+        rows = _filter_active_since(rows, active_since)
+    if statuses is not None:
+        rows = [s for s in rows if s["status"] in statuses]
+
+    truncated = limit is not None and len(rows) > limit
+    if truncated:
+        rows = rows[:limit]
+    return SampleListing(counts=counts, samples=rows, truncated=truncated)
+
+
+def _filter_active_since(
+    summaries: list[dict[str, Any]], active_since: float
+) -> list[dict[str, Any]]:
+    """Samples that started or were updated at/after ``active_since``."""
+    return [
+        s
+        for s in summaries
+        if s["last_activity_at"] is not None and s["last_activity_at"] >= active_since
+    ]
 
 
 def _add_pending_samples(
@@ -306,14 +451,18 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
 
 
 def _sorted_samples(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    # Running first (the live ones a monitor cares about), then terminal
-    # (by start time, longest-running leading), then pending last.
+    # Running first (the live ones a monitor cares about), then queued,
+    # then terminal (by start time, longest-running leading), then pending
+    # last. The listing cap keeps the head of this order, so each status's
+    # position is an explicit, documented rank — not a tiebreak accident.
     def _rank(status: str) -> int:
         if status == "running":
             return 0
+        if status == "queued":
+            return 1
         if status == "pending":
-            return 2
-        return 1  # completed / error
+            return 3
+        return 2  # completed / error / cancelled
 
     summaries.sort(key=lambda r: (_rank(r["status"]), r["started_at"] or 0.0))
     return summaries
