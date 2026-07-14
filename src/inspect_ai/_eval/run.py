@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, replace
-from typing import Any, Awaitable, Callable, NamedTuple, Set, cast
+from typing import Any, Awaitable, Callable, Iterable, NamedTuple, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._util._async import Wake
@@ -49,6 +49,7 @@ from inspect_ai.util._checkpoint._layout import (
 from inspect_ai.util._display import display_type
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
+    SandboxEnvironmentSpec,
     TaskCleanup,
     TaskInit,
 )
@@ -70,8 +71,10 @@ from .task.run import (
 from .task.sandbox import (
     TaskSandboxEnvironment,
     ensure_sandbox_limiter,
+    resolve_sandbox,
     resolve_sandbox_for_task_and_sample,
 )
+from .task.task import Task
 from .task.task_source import TaskSource
 from .task.util import slice_dataset, task_run_dir
 
@@ -201,6 +204,31 @@ async def eval_run(
                     resolved_task.task.name, task_eval_config.sample_id
                 )
 
+                # reject options that assume a fixed sample set for a
+                # SampleSource-driven task — here, before the task's logger
+                # is created, so the config error surfaces pre-run rather
+                # than as a task error log
+                if task.sample_source is not None:
+                    # early stopping managers register the seed only (samples
+                    # the source adds are never registered) and samples they
+                    # halt complete without notifying the source — a source
+                    # blocked awaiting completions would hang the task
+                    if task.early_stopping is not None:
+                        raise PrerequisiteError(
+                            "early_stopping is not currently supported for "
+                            "tasks whose dataset is a SampleSource."
+                        )
+                    # a range limit selects seed samples by position, but
+                    # samples the source adds have no position — there is no
+                    # coherent way to apply it
+                    if isinstance(task_eval_config.limit, tuple):
+                        raise PrerequisiteError(
+                            "A range --limit (start,end) is not supported for "
+                            "tasks whose dataset is a SampleSource (added "
+                            "samples have no dataset position); use a plain "
+                            "numeric --limit to cap total samples."
+                        )
+
                 # resolve the task scorers
                 eval_scorer_specs = (
                     [as_scorer_spec(scorer) for scorer in task.scorer]
@@ -322,6 +350,7 @@ async def eval_run(
                     viewer=task.viewer,
                     recorder=recorder,
                     header_only=header_only,
+                    dynamic_dataset=task.sample_source is not None,
                 )
                 await logger.init()
 
@@ -942,24 +971,26 @@ class SandboxManager:
             tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]
         ] = []
         self._init_lock = anyio.Lock()
+        # keyed by (task, spec): resolution folds in per-task state (run_dir),
+        # so a spec-only key would leak one task's resolution to another
+        self._resolved_no_metadata: dict[
+            tuple[Task, SandboxEnvironmentSpec], TaskSandboxEnvironment
+        ] = {}
 
     async def start(self, tasks: list[ResolvedTask]) -> None:
         # find unique sandboxenvs to start
         sandboxenvs: Set[TaskSandboxEnvironment] = set()
         for task in tasks:
-            # resolve each sample and add to sandboxenvs
             resolved_task_sample_ids = resolve_task_sample_ids(
                 task.task.name, self._config.sample_id
             )
             dataset = slice_dataset(
-                task.task.dataset, self._config.limit, resolved_task_sample_ids
+                task.task.dataset,
+                self._config.limit,
+                resolved_task_sample_ids,
+                dynamic=task.task.sample_source is not None,
             )
-            for sample in dataset:
-                sandbox = await resolve_sandbox_for_task_and_sample(
-                    task.sandbox, task.task, sample
-                )
-                if sandbox is not None and sandbox not in sandboxenvs:
-                    sandboxenvs.add(sandbox)
+            sandboxenvs |= await self._resolve_sandboxenvs(task, dataset)
 
         await self._start_sandboxenvs(sandboxenvs)
 
@@ -975,15 +1006,39 @@ class SandboxManager:
         build/pull, fail-fast validation, and a registered `task_cleanup` —
         before the sample runs. Configs already started are a no-op.
         """
+        await self._start_sandboxenvs(await self._resolve_sandboxenvs(task, samples))
+
+    async def _resolve_sandboxenvs(
+        self, task: ResolvedTask, samples: Iterable[Sample]
+    ) -> Set[TaskSandboxEnvironment]:
+        """Resolve each sample's sandboxenv (deduped; sandbox-less samples skipped).
+
+        Full resolution reads the sandbox config (and, for docker configs with
+        metadata interpolation, spawns a subprocess) per sample — meaningful
+        when a source adds samples batch after batch. Metadata-less samples
+        resolve deterministically per spec, so those resolutions are cached;
+        samples with metadata must always fully resolve (their config may
+        interpolate it into a per-sample init environment).
+        """
         sandboxenvs: Set[TaskSandboxEnvironment] = set()
         for sample in samples:
-            sandbox = await resolve_sandbox_for_task_and_sample(
-                task.sandbox, task.task, sample
-            )
-            if sandbox is not None and sandbox not in sandboxenvs:
-                sandboxenvs.add(sandbox)
-
-        await self._start_sandboxenvs(sandboxenvs)
+            sandboxenv: TaskSandboxEnvironment | None = None
+            cache_key: tuple[Task, SandboxEnvironmentSpec] | None = None
+            if not sample.metadata:
+                spec = await resolve_sandbox(task.sandbox, sample, task.task.name)
+                if spec is None:
+                    continue
+                cache_key = (task.task, spec)
+                sandboxenv = self._resolved_no_metadata.get(cache_key)
+            if sandboxenv is None:
+                sandboxenv = await resolve_sandbox_for_task_and_sample(
+                    task.sandbox, task.task, sample
+                )
+                if sandboxenv is not None and cache_key is not None:
+                    self._resolved_no_metadata[cache_key] = sandboxenv
+            if sandboxenv is not None:
+                sandboxenvs.add(sandboxenv)
+        return sandboxenvs
 
     async def _start_sandboxenvs(
         self, sandboxenvs: Set[TaskSandboxEnvironment]
@@ -992,8 +1047,12 @@ class SandboxManager:
 
         Serialized on a lock with the started-set re-checked under it, so
         concurrent callers (e.g. two live tasks adding samples at once)
-        can't double-init the same sandboxenv.
+        can't double-init the same sandboxenv. The pre-lock filter lets a
+        caller whose configs are all already started return without waiting
+        out another caller's (possibly minutes-long) image pull — safe
+        because the started set only ever grows.
         """
+        sandboxenvs = {env for env in sandboxenvs if env not in self._started}
         if not sandboxenvs:
             return
 

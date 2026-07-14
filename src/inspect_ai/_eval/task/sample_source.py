@@ -77,6 +77,11 @@ class SampleSource:
         Return a list of samples to add to the task (equivalent to calling
         ``enqueue_sample`` with them): they start as soon as there is free
         capacity. Return ``None`` (the default) to add nothing.
+
+        On a task retry this is also called for samples reused from the prior
+        attempt, so a completion-driven source regenerates its follow-ups
+        (returned samples whose ids match the prior attempt are themselves
+        reused rather than re-run).
         """
         return None
 

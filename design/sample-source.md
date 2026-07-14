@@ -85,12 +85,16 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   display denominator (`td.sample_complete`), the fractional `fail_on_error`
   threshold (`SampleErrorHandler.total_samples`), the end-of-run
   `eval_results` / `_should_eval_fail` counts, and the control-channel state
-  via `record_samples_added` ([eval_state.py](../src/inspect_ai/_control/eval_state.py))
-  — which also un-stamps a provisional `completed_at` (every planned sample
-  can be terminal while the source is still producing). `register_eval` now
-  copies its `sample_ids` argument so the state's planned-ids list grows only
-  via `record_samples_added` (task_run mutates its own list for
-  carry-forward).
+  via `record_samples_added` ([eval_state.py](../src/inspect_ai/_control/eval_state.py)).
+  The eval registers as `dynamic`, which suppresses the provisional
+  `completed_at` stamp entirely — every planned sample can be terminal while
+  the source is still producing (or the seed can be empty, `total == 0`), and
+  a stamped `completed_at` would make `ctl task cancel` no-op and listings
+  read "completed" while the task idles in `next_samples()`; only
+  `finalize_eval` (the task's true finish point) clears the flag and stamps.
+  `register_eval` also copies its `sample_ids` argument so the state's
+  planned-ids list grows only via `record_samples_added` (task_run mutates
+  its own list for carry-forward).
 
 ## `enqueue_sample`
 
@@ -111,23 +115,40 @@ dropping samples.
   (`sample_limit_count(limit) - seed`) as its budget for added samples —
   additions beyond it are ignored with a warning, and once the budget is
   exhausted the loop finishes without consulting `next_samples()` again. A
-  tuple limit's budget is the size of its slice (`stop - start`).
+  *range* limit (`start,end`) is rejected with a `PrerequisiteError`: it
+  selects seed samples by position, and added samples have no position, so
+  there is no coherent way to apply it (it would select nothing from a short
+  seed while still admitting `stop - start` additions).
+- **`fail_on_error`**: a fractional threshold is *deferred* to the end-of-run
+  check for SampleSource tasks (`SampleErrorHandler(defer_fractional=True)`) —
+  the planned total grows while the task runs, so a mid-run check would
+  measure early errors against a transiently small denominator (a 1-sample
+  seed erroring first would trip `1 >= 0.5*1` before the source produced the
+  rest). Absolute-count and any-error thresholds still abort mid-run.
 - **`--sample-id`** filters produced samples with the same
   normalise+`fnmatch` predicate that filters the seed (`sample_id_filter` in
-  task/util.py). The seed of a SampleSource task is marked with
-  `DATASET_SAMPLE_SOURCE_ATTR` so `slice_dataset` (log spec, sandbox startup,
-  task_run) neither warns nor raises for requested ids missing from the seed —
-  the source may produce them at runtime. Filtered-out samples still register
-  their ids (duplicate ids stay a hard error) but don't run and don't grow the
-  planned totals. As in `slice_dataset`, `--sample-id` and `--limit` are
-  mutually exclusive (the filter wins).
+  task/util.py). Callers that hold the task pass `dynamic=True` to
+  `slice_dataset` (log spec, sandbox startup, task_run) so it neither warns
+  nor raises for requested ids missing from the seed — the source may produce
+  them at runtime. Filtered-out samples still register their ids (duplicate
+  ids stay a hard error) but don't run and don't grow the planned totals. As
+  in `slice_dataset`, `--sample-id` and `--limit` are mutually exclusive (the
+  filter wins).
 - **Task retries** (`task_retry_attempts` / eval-set): the retry attempt
-  re-drives the source; completed samples are reused via the normal
-  `EvalSampleSource` lookup only where regenerated ids match — i.e. resume
-  pays off for deterministic sources, the same determinism contract as
-  `TaskSource` + eval_set (see task-source.md).
-- **Early stopping** managers receive only the seed at `start_task`;
-  `schedule_sample` / `complete_sample` still fire for injected samples.
+  re-drives the *same source instance* (the retry rebuilds `TaskRunOptions`
+  around the same `Task`); completed samples are reused via the normal
+  `EvalSampleSource` lookup, and the reuse path re-fires
+  `sample_feed.sample_complete` for each reused sample so a completion-driven
+  source regenerates its follow-ups (which are then themselves reused where
+  regenerated ids match). A source that instead holds internal
+  `next_samples()` state resumes mid-state on retry — it must be resumable
+  (or derive its follow-ups from `sample_complete`) for retries to
+  reconstruct the run; this is the same determinism contract as `TaskSource`
+  + eval_set (see task-source.md).
+- **Early stopping** is rejected (`PrerequisiteError`): managers register a
+  fixed sample set at `start_task` (added samples would never be registered),
+  and samples a manager halts complete without notifying the source, which
+  would hang a source blocked awaiting completions.
 - **The log's dataset spec stays seed-sized**: the finished log's
   `eval.dataset.samples` / `sample_ids` describe the seed, not the grown set
   (`log.samples` and `results.total_samples` do reflect everything that ran).
@@ -140,10 +161,14 @@ dropping samples.
   retry reuse — `eval_log_sample_source` rejects a prior log when
   `eval.dataset.samples != len(dataset)`, and a retry's fresh seed is
   seed-sized — so the spec must not be rewritten to the grown size at finish.
-- **Sandboxes**: the task-level sandbox startup pass runs once, up front, over
-  the seed. Injected samples get per-sample sandboxes via `sandboxenv_context`
-  as usual, but a *sample-level* sandbox spec appearing only on injected
-  samples won't have had its task-level `task_init` startup pass.
+- **Sandboxes**: the task-level sandbox startup pass runs up front over the
+  seed, and *incrementally* for samples the source adds: each added batch goes
+  through `SandboxManager.start_for_samples` (threaded into the dispatcher as
+  `TaskRunOptions.startup_sandboxes`) before spawning, so a sandbox config
+  first seen in an added sample — including the task-level config when the
+  seed is empty — still gets `task_init` (image build/pull, validation) and a
+  registered `task_cleanup`. Already-started configs are a set-membership
+  no-op. Per-sample sandboxes then run via `sandboxenv_context` as usual.
 - **Progress bar steps** (`profile.steps`) are fixed at seed size; the
   completed/total counter grows correctly (total passed on each update), and a
   zero-step seed no longer divides by zero (`RichProgress.update` guards it).

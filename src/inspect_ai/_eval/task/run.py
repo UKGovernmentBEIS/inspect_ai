@@ -40,7 +40,10 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS_BATCH,
 )
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.error import exception_message, is_cancellation_message
+from inspect_ai._util.error import (
+    exception_message,
+    is_cancellation_message,
+)
 from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.notgiven import NOT_GIVEN
@@ -429,7 +432,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # slice dataset (but don't materialize all sample+state pairs upfront --
     # they are created lazily inside run_sample to keep memory at
     # O(concurrent_samples) instead of O(total_samples * epochs))
-    dataset = slice_dataset(task.dataset, config.limit, config.sample_id)
+    dataset = slice_dataset(
+        task.dataset, config.limit, config.sample_id, dynamic=sample_feed is not None
+    )
     total_samples = len(dataset) * epochs
 
     # capture sample ids now, before `dataset` may be paged to disk and
@@ -464,10 +469,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
     # handle sample errors (raise as required). use total_samples (sliced
     # dataset * epochs) as the denominator for fractional fail_on_error so
-    # the mid-run abort threshold matches the end-of-run check below.
+    # the mid-run abort threshold matches the end-of-run check below. for a
+    # SampleSource-driven task that denominator grows while the task runs,
+    # so fractional thresholds are deferred to the end-of-run check (see
+    # SampleErrorHandler).
     sample_error_handler = SampleErrorHandler(
         config.fail_on_error if config.continue_on_fail is not True else False,
         total_samples,
+        defer_fractional=sample_feed is not None,
     )
 
     # optionally page dataset to disk if it exceeds the memory budget
@@ -478,14 +487,18 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         del dataset
 
     # samples a SampleSource injects while the task runs, indexed after the
-    # seed store (kept in memory — they arrive incrementally, not up front)
+    # seed store (kept in memory — they arrive incrementally, not up front).
+    # a slot is released (set to None) once all its epochs have run, so an
+    # open-ended source doesn't accumulate every sample it ever produced
     store_len = len(sample_store)
-    injected_samples: list[Sample] = []
+    injected_samples: list[Sample | None] = []
 
     def get_sample(sample_index: int) -> Sample:
         if sample_index < store_len:
             return sample_store[sample_index]
-        return injected_samples[sample_index - store_len]
+        sample = injected_samples[sample_index - store_len]
+        assert sample is not None, "sample accessed after all its epochs completed"
+        return sample
 
     # register the sample enqueuer that buffers additions to a
     # SampleSource-driven task (callback-returned samples / enqueue_sample);
@@ -593,6 +606,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # the cancel handle the control channel's task-cancel
                 # directive fires (with "abort" — the display's user-cancel)
                 task_cancel=task_cancel,
+                # a SampleSource-driven eval's totals grow while it runs, so
+                # counters reaching total must not read as "finished" (e.g.
+                # while blocked in next_samples() with an empty seed)
+                dynamic=sample_feed is not None,
             )
 
             # call early stopping if we have it
@@ -729,6 +746,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 eval_spec=logger.eval,
                             )
                             await sample_complete(sample_id, epoch, sample_scores)
+                            # notify the task's SampleSource of the reused
+                            # sample: a completion-driven source regenerates
+                            # its follow-ups on retry from these notifications
+                            # (the follow-ups are then themselves reused via
+                            # this same prior-attempt lookup)
+                            if sample_feed is not None:
+                                _enqueue_source_samples(
+                                    await sample_feed.sample_complete(previous_sample)
+                                )
                             # reused sample: accumulate its own logged usage
                             record_sample_completed(
                                 logger.eval.eval_id,
@@ -850,7 +876,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                     # --sample-id: added samples must also match the filter
                     include_id = (
-                        sample_id_filter(config.sample_id)
+                        sample_id_filter(config.sample_id).matches
                         if config.sample_id is not None
                         else None
                     )
@@ -871,14 +897,19 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # injected samples without ids continue the seed's 1-based
                     # numbering, skipping ids already in use; ids are compared
                     # by their str() form (matching ensure_unique_ids, since
-                    # log member names and score grouping key on it)
-                    seen_ids = {str(get_sample(i).id) for i in range(store_len)}
+                    # log member names and score grouping key on it). the seed
+                    # ids come from sample_ids (captured before the store may
+                    # have been paged to disk) rather than re-reading the store
+                    seen_ids = {str(id) for id in sample_ids}
                     auto_id = store_len
 
-                    def add_samples(samples: list[Sample]) -> list[int]:
+                    class AddedSamples(NamedTuple):
+                        indexes: list[int]
+                        samples: list[Sample]
+
+                    def add_samples(samples: list[Sample]) -> AddedSamples:
                         nonlocal total_samples, auto_id, remaining
-                        indexes: list[int] = []
-                        added_ids: list[int | str] = []
+                        added = AddedSamples([], [])
                         over_limit = 0
                         for sample in samples:
                             if sample.id is None:
@@ -901,47 +932,39 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                     continue
                                 remaining -= 1
                             sample_ids.append(sample.id)
-                            added_ids.append(sample.id)
                             injected_samples.append(sample)
-                            indexes.append(store_len + len(injected_samples) - 1)
+                            added.samples.append(sample)
+                            added.indexes.append(store_len + len(injected_samples) - 1)
                         if over_limit:
                             py_logger.warning(
                                 f"Sample limit ({limit_count}) reached: ignoring "
                                 f"{over_limit} sample(s) added to the task."
                             )
-                        if indexes:
+                        if added.indexes:
                             # grow the planned totals (display denominator,
                             # fail_on_error threshold, control-channel counters)
-                            total_samples += len(indexes) * epochs
+                            total_samples += len(added.indexes) * epochs
                             sample_error_handler.total_samples = total_samples
                             record_samples_added(
                                 logger.eval.eval_id,
-                                len(indexes) * epochs,
-                                sample_ids=added_ids,
+                                len(added.indexes) * epochs,
+                                sample_ids=[
+                                    sample.id
+                                    for sample in added.samples
+                                    if sample.id is not None
+                                ],
                             )
                             td.sample_complete(
                                 complete=len(progress_results), total=total_samples
                             )
-                        return indexes
-
-                    async def add_and_start(samples: list[Sample]) -> list[int]:
-                        """Add samples, starting any sandboxenvs they need first.
-
-                        Added samples get the same run-level sandbox startup as
-                        the seed (``task_init`` for configs not seen before:
-                        image build/pull, validation, cleanup registration)
-                        before they spawn; already-started configs are a cheap
-                        no-op. A startup failure propagates and fails the task,
-                        matching a seed config failing startup.
-                        """
-                        indexes = add_samples(samples)
-                        if indexes and options.startup_sandboxes is not None:
-                            await options.startup_sandboxes(
-                                [get_sample(index) for index in indexes]
-                            )
-                        return indexes
+                        return added
 
                     async with anyio.create_task_group() as tg:
+                        # runs outstanding per injected index: when an index's
+                        # last epoch completes its slot is released (the seed
+                        # store pages to disk under memory pressure; injected
+                        # samples would otherwise stay resident forever)
+                        injected_runs_left: dict[int, int] = {}
 
                         async def run_one(sample_index: int, epoch: int) -> None:
                             nonlocal in_flight
@@ -949,14 +972,42 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 results.append(await run_sample(sample_index, epoch))
                             finally:
                                 in_flight -= 1
+                                left = injected_runs_left.get(sample_index)
+                                if left is not None:
+                                    if left == 1:
+                                        del injected_runs_left[sample_index]
+                                        injected_samples[sample_index - store_len] = (
+                                            None
+                                        )
+                                    else:
+                                        injected_runs_left[sample_index] = left - 1
                                 wake.set()
 
                         def spawn(indexes: list[int]) -> None:
                             nonlocal in_flight
                             for sample_index in indexes:
+                                if sample_index >= store_len:
+                                    injected_runs_left[sample_index] = epochs
                                 for epoch in range(1, epochs + 1):
                                     in_flight += 1
                                     tg.start_soon(run_one, sample_index, epoch)
+
+                        async def add_and_start(samples: list[Sample]) -> bool:
+                            """Add samples and start them; True if any started.
+
+                            Added samples get the same run-level sandbox startup
+                            as the seed (``task_init`` for configs not seen
+                            before: image build/pull, validation, cleanup
+                            registration) before they spawn; already-started
+                            configs are a cheap no-op. A startup failure
+                            propagates and fails the task, matching a seed
+                            config failing startup.
+                            """
+                            added = add_samples(samples)
+                            if added.samples and options.startup_sandboxes is not None:
+                                await options.startup_sandboxes(added.samples)
+                            spawn(added.indexes)
+                            return bool(added.indexes)
 
                         spawn(list(range(store_len)))
                         while True:
@@ -968,7 +1019,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             # returning samples / enqueue_sample) start first
                             buffered = enqueuer.drain()
                             if buffered:
-                                spawn(await add_and_start(buffered))
+                                await add_and_start(buffered)
                                 continue
                             if in_flight > 0:
                                 await wake.wait()
@@ -986,16 +1037,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 # was finishing rather than dropping them
                                 # (enqueue_sample never drops silently); if
                                 # any run, the source may be consulted again
-                                final = await add_and_start(enqueuer.drain())
-                                if not final:
+                                if not await add_and_start(enqueuer.drain()):
                                     break
-                                spawn(final)
                             elif more:
-                                spawn(await add_and_start(more))
+                                await add_and_start(more)
 
                     return results
 
-                if sample_feed is not None and sample_enqueuer is not None:
+                if sample_feed is not None:
+                    # created together with sample_feed's registration above
+                    assert sample_enqueuer is not None
                     try:
                         sample_results = await run_samples_dynamic(
                             sample_feed, sample_enqueuer
@@ -1978,8 +2029,11 @@ async def task_run_sample(
                         )
                     # notify the task's SampleSource (if it has one) as each
                     # sample completes, so it can react in real time (and add
-                    # samples to the running task)
-                    if sample_feed is not None:
+                    # samples to the running task). skipped for a cancelled
+                    # sample: the task is unwinding (any follow-ups could
+                    # never run) and this scope is shielded, so awaiting user
+                    # callback code here would be uncancellable
+                    if sample_feed is not None and cancelled_error is None:
                         _enqueue_source_samples(
                             await sample_feed.sample_complete(eval_sample)
                         )

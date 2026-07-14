@@ -6,6 +6,8 @@ The source seeds the task with `initial_samples()`, observes each result via
 samples are live: they start as soon as there is free capacity.
 """
 
+import tempfile
+from pathlib import Path
 from typing import Any, Literal, overload
 
 import anyio
@@ -13,9 +15,11 @@ import pytest
 from pydantic import BaseModel
 from typing_extensions import override
 
-from inspect_ai import SampleSource, Task, enqueue_sample, eval
+from inspect_ai import SampleSource, Task, enqueue_sample, eval, eval_set, task
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalSample
+from inspect_ai.log import EvalLog, EvalSample, read_eval_log
+from inspect_ai.scorer import SampleScore
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util import (
     ExecResult,
@@ -675,3 +679,154 @@ def test_sample_source_sandbox_same_config_not_reinited() -> None:
     assert _sandbox_events.count("task_init:A") == 1
     assert _sandbox_events.count("sample_init:A") == 2
     assert _sandbox_events.count("task_cleanup:A") == 1
+
+
+class _EarlyStoppingStub:
+    """Minimal EarlyStopping implementation (never stops anything)."""
+
+    async def start_task(self, task: Any, samples: Any, epochs: int) -> str:
+        return "stub"
+
+    async def schedule_sample(self, id: str | int, epoch: int) -> None:
+        return None
+
+    async def complete_sample(
+        self, id: str | int, epoch: int, scores: dict[str, SampleScore]
+    ) -> None:
+        return None
+
+    async def complete_task(self) -> dict[str, Any]:
+        return {}
+
+
+def test_sample_source_early_stopping_rejected() -> None:
+    # early stopping assumes a fixed sample set (the manager registers the
+    # seed only, and halted samples complete without notifying the source),
+    # so the combination is rejected pre-run with a clear error
+    with pytest.raises(PrerequisiteError, match="early_stopping"):
+        eval(
+            Task(
+                dataset=SampleSource.from_samples([Sample(input="x", target="y")]),
+                solver=[generate()],
+                early_stopping=_EarlyStoppingStub(),
+            ),
+            model="mockllm/model",
+            display="none",
+        )
+
+
+def test_sample_source_range_limit_rejected() -> None:
+    # a range limit selects seed samples by position; added samples have no
+    # position, so the combination is rejected pre-run with a clear error
+    with pytest.raises(PrerequisiteError, match="range"):
+        eval(
+            Task(
+                dataset=SampleSource.from_samples([Sample(input="x", target="y")]),
+                solver=[generate()],
+            ),
+            model="mockllm/model",
+            display="none",
+            limit=(2, 5),
+        )
+
+
+def test_sample_source_fractional_fail_on_error_uses_final_total() -> None:
+    # a fractional fail_on_error is deferred to the end-of-run check: the
+    # planned total grows while the task runs, so an early error must not be
+    # measured against a transiently small denominator (here the 1-sample
+    # seed errors first — 1/1 mid-run — but the final ratio is 1/4)
+    @solver
+    def fail_for_fail_input() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.input_text == "fail":
+                raise RuntimeError("boom")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(input="fail", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not self._produced:
+                self._produced = True
+                return [Sample(input=f"ok{i}", target="ok") for i in range(3)]
+            return None
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[fail_for_fail_input()]),
+        model="mockllm/model",
+        display="none",
+        fail_on_error=0.5,
+        retry_on_error=0,
+    )
+    log = logs[0]
+    assert log.status == "success"
+    errors = [str(sample.input) for sample in (log.samples or []) if sample.error]
+    assert errors == ["fail"]
+    assert len(log.samples or []) == 4
+
+
+def test_sample_source_task_retry_regenerates_followups() -> None:
+    # on a task retry, reused samples re-fire the source's sample_complete,
+    # so a completion-driven source regenerates its follow-ups: the reused
+    # seed produces the follow-up again, which (having errored last attempt)
+    # re-runs and succeeds — nothing is silently dropped from the retry log
+    attempts = {"n": 0}
+
+    @solver
+    def fail_followup_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.input_text == "followup":
+                attempts["n"] += 1
+                if attempts["n"] == 1:
+                    raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        # stateless on purpose: the same instance is re-driven on retry, so
+        # follow-ups derive from the completion, not internal state
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id == 1:
+                return [Sample(id=2, input="followup", target="ok")]
+            return None
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="seed", target="ok")]
+
+    @task
+    def retry_source_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[fail_followup_once()],
+            name="retry_source_task",
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, logs = eval_set(
+            tasks=[retry_source_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        log = read_eval_log(logs[0].location)
+
+    assert sorted(str(sample.input) for sample in (log.samples or [])) == [
+        "followup",
+        "seed",
+    ]
+    followup = next(sample for sample in (log.samples or []) if sample.id == 2)
+    assert followup.error is None
+    # the re-run follow-up carries the prior attempt's error history
+    assert followup.error_retries
+    assert "transient failure" in followup.error_retries[0].message

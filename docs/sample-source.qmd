@@ -130,9 +130,15 @@ Samples added mid-run get the same [sandbox](sandboxing.qmd) startup as the seed
 
 ## Limits and sample filtering
 
-The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, further additions are ignored (with a warning) and the task ends when the in-flight samples finish (`next_samples()` is not consulted again). The cap counts samples, not runs: each sample within the limit still runs for the task's configured number of epochs.
+The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, further additions are ignored (with a warning) and the task ends when the in-flight samples finish (`next_samples()` is not consulted again). The cap counts samples, not runs: each sample within the limit still runs for the task's configured number of epochs. A *range* limit (`--limit 10,20`) is not supported for `SampleSource` tasks — it selects samples by dataset position, which generated samples don't have.
 
 The `--sample-id` option filters generated samples the same way it filters the seed: only samples whose ids match run. Since the source may produce a requested id while the task runs, it is not an error for a `--sample-id` value to be missing from the seed.
+
+A *fractional* `fail_on_error` threshold (e.g. `0.5`) is evaluated at the end of the run rather than mid-run for `SampleSource` tasks: the planned total grows while the task runs, so a mid-run check would measure early errors against a transiently small denominator. Absolute-count and any-error thresholds behave as usual. The `early_stopping` task option is not supported with a `SampleSource` (managers require a fixed sample set).
+
+## Retries
+
+On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
 
 ## Logs
 
