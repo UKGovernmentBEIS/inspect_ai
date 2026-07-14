@@ -388,17 +388,25 @@ class ControlServer:
             status: str | None = None,
             limit: int | None = None,
             all: bool = False,
+            filter: Literal["errors"] | None = None,
         ) -> Any:
             # `active_since` (unix ts) is the recency delta: only samples that
             # started or updated since then. A filter, not a cursor. `status`
             # is a comma-separated status filter; rows are capped at `limit`
             # (default DEFAULT_SAMPLE_LIST_LIMIT) unless `all=true` asks for
-            # the full dump. The response is an `{as_of, counts, samples,
-            # truncated}` envelope — `as_of` is stamped BEFORE the listing is
-            # built, so a client feeding it back as the next `active_since`
-            # can't miss changes that land mid-read; `counts` is the whole
-            # eval's status histogram (complete even when rows are filtered
-            # or capped) and `truncated` reports a hit cap structurally.
+            # the full dump. `filter=errors` restricts to errored/retried
+            # samples and skips pending-row synthesis (the `sample errors`
+            # triage read); typed as a Literal so an unrecognized value is
+            # rejected (422) rather than silently answered with the full
+            # listing — the CLI trusts the filter was applied and keeps no
+            # client-side fallback. The response is an `{as_of, counts,
+            # samples, truncated}` envelope — `as_of` is stamped BEFORE the
+            # listing is built, so a client feeding it back as the next
+            # `active_since` can't miss changes that land mid-read; `counts`
+            # is the eval's status histogram over the (possibly
+            # `filter`-restricted) listing, complete even when rows are
+            # status-filtered or capped, and `truncated` reports a hit cap
+            # structurally.
             if all and limit is not None:
                 return JSONResponse(
                     status_code=400,
@@ -415,6 +423,7 @@ class ControlServer:
                 active_since,
                 statuses=statuses,
                 limit=effective_sample_limit(limit, all),
+                sample_filter=filter,
             )
             return {
                 "as_of": as_of,

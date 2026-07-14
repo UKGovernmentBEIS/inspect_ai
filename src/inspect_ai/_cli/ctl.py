@@ -1413,6 +1413,7 @@ def _list_sample_rows(
     task: str | None,
     active_since: float | None,
     *,
+    sample_filter: Literal["errors"] | None = None,
     statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
@@ -1458,6 +1459,7 @@ def _list_sample_rows(
                 target["socket_path"],
                 target["eval_id"],
                 active_since,
+                sample_filter=sample_filter,
                 status=status_param,
                 limit=limit,
                 all_samples=all_samples,
@@ -1549,7 +1551,6 @@ def _run_sample_list(
         task,
         active_since,
         as_json,
-        select=lambda s: True,
         empty_read="(no samples started yet)",
         printer=_print_samples_table,
         statuses=_parse_statuses(status),
@@ -1576,12 +1577,12 @@ def _run_sample_errors(task: str | None, as_json: bool) -> None:
         task,
         None,
         as_json,
-        select=lambda s: bool(s.get("error") or (s.get("retries") or 0) > 0),
+        sample_filter="errors",
         empty_read="(no errors or retries)",
         printer=_print_errors_table,
-        # The error/retry filter is applied client-side over all rows, so the
-        # triage view must see the full listing — the default cap would
-        # silently hide errors beyond it.
+        # The triage view must see every errored/retried row — the default
+        # cap would silently hide errors beyond it (the server's errors
+        # filter narrows the rows, but capped-filtered is still capped).
         all_samples=True,
     )
 
@@ -1592,7 +1593,7 @@ def _run_sample_listing(
     active_since: float | None,
     as_json: bool,
     *,
-    select: Callable[[dict[str, Any]], bool],
+    sample_filter: Literal["errors"] | None = None,
     empty_read: str,
     printer: "_RowsPrinter",
     statuses: frozenset[str] | None = None,
@@ -1613,9 +1614,14 @@ def _run_sample_listing(
     ``--status`` member set (``None`` = no filter).
     """
     listing = _list_sample_rows(
-        task, active_since, statuses=statuses, limit=limit, all_samples=all_samples
+        task,
+        active_since,
+        sample_filter=sample_filter,
+        statuses=statuses,
+        limit=limit,
+        all_samples=all_samples,
     )
-    rows = [s for s in listing.rows if select(s)]
+    rows = listing.rows
 
     if as_json:
         click.echo(
@@ -3187,6 +3193,7 @@ def _fetch_samples(
     eval_id: str,
     active_since: float | None = None,
     *,
+    sample_filter: Literal["errors"] | None = None,
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
@@ -3206,6 +3213,14 @@ def _fetch_samples(
     server's bare array or histogram-less envelope (stamping ``as_of``
     client-side, pre-request, and leaving ``counts`` to the caller).
 
+    ``sample_filter="errors"`` (sent as ``filter=errors`` on the wire) asks
+    the server to return only errored/retried samples (skipping its
+    pending-row synthesis — the whole dataset × epochs grid on a large
+    eval). The result is trusted as-filtered — no client-side fallback.
+    Skew with a server from an older install is not defended (the server
+    runs locally from the same install as the CLI in all but
+    upgraded-mid-eval cases).
+
     Raises :class:`_ServerUnreachable` on a non-retryable read failure and
     :class:`_ServerBusy` when the eval stays busy through ``attempts``
     retries (defaulting to the degraded budget — see
@@ -3219,6 +3234,8 @@ def _fetch_samples(
     params: dict[str, Any] = {}
     if active_since is not None:
         params["active_since"] = active_since
+    if sample_filter is not None:
+        params["filter"] = sample_filter
     if status is not None:
         params["status"] = status
     if all_samples:

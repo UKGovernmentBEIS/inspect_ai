@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from functools import partial
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import is_cancellation_message
@@ -278,7 +278,10 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     return summaries
 
 
-async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
+async def current_sample_summaries(
+    eval_id: str,
+    sample_filter: Literal["errors"] | None = None,
+) -> list[dict[str, Any]]:
     """Per-sample summaries for one eval (``GET /evals/<eval_id>/samples``).
 
     Lists *all* of the eval's samples — running, completed, and pending —
@@ -308,6 +311,14 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     terminal / pending samples), ``scores`` (``{scorer: value}``, empty
     until scored), ``error``, ``retries``, ``limit``.
 
+    ``sample_filter="errors"`` restricts the result to samples that carry an
+    error or have been retried (``error`` set, or ``retries`` > 0) — the
+    eval-set triage read behind ``inspect ctl sample errors``. Filtering
+    server-side also skips pending-row synthesis entirely: a pending sample
+    can never carry an error or retries, and for a large dataset × epochs
+    grid building (and serializing) those rows on the eval's own event loop
+    dominates the response just to be discarded client-side.
+
     The ``active_since`` recency filter lives in
     :func:`current_sample_listing` (its single home), which wraps this
     full listing.
@@ -333,9 +344,16 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
 
     # Pending: planned samples not yet running or done. No live source
     # holds these, so synthesize them from the registered planned ids.
-    _add_pending_samples(eval_id, by_key)
+    # Skipped for an errors-filtered read (see the docstring).
+    if sample_filter != "errors":
+        _add_pending_samples(eval_id, by_key)
 
-    return _sorted_samples(list(by_key.values()))
+    summaries = list(by_key.values())
+    if sample_filter == "errors":
+        summaries = [
+            s for s in summaries if s["error"] is not None or (s["retries"] or 0) > 0
+        ]
+    return _sorted_samples(summaries)
 
 
 class SampleListing(NamedTuple):
@@ -360,6 +378,7 @@ async def current_sample_listing(
     active_since: float | None = None,
     statuses: frozenset[str] | None = None,
     limit: int | None = DEFAULT_SAMPLE_LIST_LIMIT,
+    sample_filter: Literal["errors"] | None = None,
 ) -> SampleListing:
     """The capped samples listing for one eval (histogram + rows).
 
@@ -380,8 +399,15 @@ async def current_sample_listing(
     activity) are excluded. It's a wall-clock *filter*, not a resume
     cursor (it returns current state of whatever changed, not an
     exactly-once stream).
+
+    ``sample_filter="errors"`` is applied upstream in
+    :func:`current_sample_summaries` (restricting to errored/retried
+    samples and skipping pending-row synthesis — see its docstring), so
+    under it the ``counts`` histogram covers only the filtered samples:
+    the whole-eval listing is exactly what the filter exists to avoid
+    building.
     """
-    summaries = await current_sample_summaries(eval_id)
+    summaries = await current_sample_summaries(eval_id, sample_filter)
 
     counts = dict.fromkeys(SAMPLE_STATUSES, 0)
     for summary in summaries:
