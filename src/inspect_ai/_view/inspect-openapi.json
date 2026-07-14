@@ -2,7 +2,7 @@
   "components": {
     "schemas": {
       "AdaptiveConcurrency": {
-        "description": "Bounds and tuning for an adaptive concurrency controller.\n\nBasic fields (`min`, `start`, `max`) bound the range the controller will\nscale within. Advanced fields (`cooldown_seconds`, `decrease_factor`,\n`scale_up_percent`) tune the response curve and have sensible defaults\nfor typical evaluation workloads \u2014 see the parallelism docs for guidance.\nAccepts a string shorthand (\"min-max\" or \"min-start-max\") for use in CLI\nflags and config files; advanced fields are Python-only.",
+        "description": "Bounds and tuning for an adaptive concurrency controller.\n\nBasic fields (`min`, `start`, `max`) bound the range the controller will\nscale within. Advanced fields (`cooldown_seconds`, `decrease_factor`,\n`scale_up_percent`) tune the response curve and have sensible defaults\nfor typical evaluation workloads — see the parallelism docs for guidance.\nAccepts a string shorthand (\"min-max\" or \"min-start-max\") for use in CLI\nflags and config files; advanced fields are Python-only.",
         "properties": {
           "cooldown_seconds": {
             "default": 15.0,
@@ -1141,7 +1141,7 @@
       },
       "CheckpointEvent": {
         "additionalProperties": true,
-        "description": "A successful checkpoint commit.\n\nEmitted by the checkpointer immediately after the per-checkpoint\nfile JSON is written \u2014 see working.md \u00a78a. Carries the full\ncheckpoint payload flattened into top-level fields (via multiple\ninheritance from :class:`Checkpoint`), so a consumer of\n``transcript().events`` (or the ``.eval`` log) reads\n``event.checkpoint_id`` / ``event.trigger`` / ``event.host`` etc.\ndirectly \u2014 same data as someone reading\n``<sample>/ckpt-NNNNN.json`` from disk.",
+        "description": "A successful checkpoint commit.\n\nEmitted by the checkpointer immediately after the per-checkpoint\nfile JSON is written — see working.md §8a. Carries the full\ncheckpoint payload flattened into top-level fields (via multiple\ninheritance from :class:`Checkpoint`), so a consumer of\n``transcript().events`` (or the ``.eval`` log) reads\n``event.checkpoint_id`` / ``event.trigger`` / ``event.host`` etc.\ndirectly — same data as someone reading\n``<sample>/ckpt-NNNNN.json`` from disk.",
         "properties": {
           "checkpoint_id": {
             "title": "Checkpoint Id",
@@ -1278,7 +1278,7 @@
         "type": "object"
       },
       "CheckpointSampleConfig": {
-        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_location``\nand ``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.",
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge — precedence: eval > sample > task).\n\nThe fields excluded from this base class — ``checkpoints_location``\nand ``retention`` — are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.",
         "properties": {
           "max_consecutive_failures": {
             "anyOf": [
@@ -3889,6 +3889,9 @@
                     },
                     {
                       "type": "boolean"
+                    },
+                    {
+                      "type": "null"
                     }
                   ]
                 },
@@ -5915,7 +5918,7 @@
         "type": "object"
       },
       "InterruptEvent": {
-        "description": "Records that an agent's turn or sample was cut short.\n\nEmitted in three cases:\n\n- ``source=\"user_cancel\"`` \u2014 an ACP client (e.g. an editor or TUI)\n  called ``session/cancel`` while a turn was in flight.\n- ``source=\"limit\"`` \u2014 a sample-level limit (tokens, time, cost,\n  messages) tripped during execution.\n- ``source=\"system\"`` \u2014 the eval is shutting down for an external\n  reason and is cancelling active samples.\n\nThe ``interrupted`` field records what was running at the moment\nthe cancel reached the cancel scope. ``interrupted_tool_call_id``\nand ``interrupted_model_event_id`` give cross-references when\napplicable so downstream consumers can correlate this event with\nthe in-flight ``ToolEvent`` or ``ModelEvent``.",
+        "description": "Records that an agent's turn or sample was cut short.\n\nEmitted in three cases:\n\n- ``source=\"user_cancel\"`` — an ACP client (e.g. an editor or TUI)\n  called ``session/cancel`` while a turn was in flight.\n- ``source=\"limit\"`` — a sample-level limit (tokens, time, cost,\n  messages) tripped during execution.\n- ``source=\"system\"`` — the eval is shutting down for an external\n  reason and is cancelling active samples.\n\nThe ``interrupted`` field records what was running at the moment\nthe cancel reached the cancel scope. ``interrupted_tool_call_id``\nand ``interrupted_model_event_id`` give cross-references when\napplicable so downstream consumers can correlate this event with\nthe in-flight ``ToolEvent`` or ``ModelEvent``.",
         "properties": {
           "event": {
             "const": "interrupt",
@@ -6812,7 +6815,7 @@
         "type": "object"
       },
       "Manual": {
-        "description": "No-op trigger spec.\n\nThe engine's ``tick()`` always returns ``None`` for this spec \u2014\nfires happen only through explicit ``cp.checkpoint()`` calls.",
+        "description": "No-op trigger spec.\n\nThe engine's ``tick()`` always returns ``None`` for this spec —\nfires happen only through explicit ``cp.checkpoint()`` calls.",
         "properties": {},
         "title": "Manual",
         "type": "object"
@@ -8561,6 +8564,9 @@
                     },
                     {
                       "type": "boolean"
+                    },
+                    {
+                      "type": "null"
                     }
                   ]
                 },
@@ -8600,7 +8606,7 @@
         "type": "object"
       },
       "ScoreColorScale": {
-        "description": "A numeric `score_color_scales` entry with an explicit value range.\n\nBy default the viewer anchors a named palette at the descriptor's\nauto-detected min/max, which is the *observed* range across the\nlog's samples. When the score has a known *conceptual* range \u2014\ne.g. an alignment-judge dimension that's always graded 1..10 \u2014\npin it via `min`/`max` so middling values don't get paint-clamped\nto the extremes when the observed data happens to cluster at one\nend. Either bound can be omitted to fall back to the descriptor's\ndetection for that side.",
+        "description": "A numeric `score_color_scales` entry with an explicit value range.\n\nBy default the viewer anchors a named palette at the descriptor's\nauto-detected min/max, which is the *observed* range across the\nlog's samples. When the score has a known *conceptual* range —\ne.g. an alignment-judge dimension that's always graded 1..10 —\npin it via `min`/`max` so middling values don't get paint-clamped\nto the extremes when the observed data happens to cluster at one\nend. Either bound can be omitted to fall back to the descriptor's\ndetection for that side.",
         "properties": {
           "max": {
             "anyOf": [
@@ -8728,6 +8734,9 @@
                     },
                     {
                       "type": "boolean"
+                    },
+                    {
+                      "type": "null"
                     }
                   ]
                 },
@@ -9083,7 +9092,7 @@
       },
       "SnapshotDetails": {
         "additionalProperties": true,
-        "description": "Per-backup stats captured in the checkpoint file.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
+        "description": "Per-backup stats captured in the checkpoint file.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary — see :class:`ResticBackupSummary`.",
         "properties": {
           "additional_files": {
             "anyOf": [
@@ -9511,7 +9520,7 @@
         "type": "object"
       },
       "StopDetails": {
-        "description": "Additional detail about why a model stopped generating (e.g. a content refusal).\n\n`categories` is the canonical list (always iterable; a single-category provider\nappears as one entry). `category` and `explanation` are a convenience high-level\nsummary derived from the same data \u2014 `category` is the primary category and\n`explanation` is human-readable (synthesized from `categories` when the provider\nsupplies no text). Read either way; both describe the same stop.",
+        "description": "Additional detail about why a model stopped generating (e.g. a content refusal).\n\n`categories` is the canonical list (always iterable; a single-category provider\nappears as one entry). `category` and `explanation` are a convenience high-level\nsummary derived from the same data — `category` is the primary category and\n`explanation` is human-readable (synthesized from `categories` when the provider\nsupplies no text). Read either way; both describe the same stop.",
         "properties": {
           "categories": {
             "items": {
@@ -10082,7 +10091,7 @@
         "type": "object"
       },
       "Timeline": {
-        "description": "A named timeline view over a transcript.\n\nMultiple timelines allow different interpretations of the same event\nstream \u2014 e.g. a default agent-centric view alongside an alternative\ngrouping or filtered view.",
+        "description": "A named timeline view over a transcript.\n\nMultiple timelines allow different interpretations of the same event\nstream — e.g. a default agent-centric view alongside an alternative\ngrouping or filtered view.",
         "properties": {
           "description": {
             "title": "Description",
@@ -10126,7 +10135,7 @@
         "type": "object"
       },
       "TimelineSpan": {
-        "description": "A span of execution \u2014 agent, scorer, tool, or root.",
+        "description": "A span of execution — agent, scorer, tool, or root.",
         "properties": {
           "agent_result": {
             "anyOf": [
@@ -10812,7 +10821,7 @@
         "type": "object"
       },
       "TurnInterval": {
-        "description": "Fire after every ``every`` agent turns of work.\n\nThe very first ``tick()`` call marks the boundary *before* turn 1\nhas run \u2014 agents place ``cp.tick()`` at the top of their loop, so\nthe opening tick stands between \"no turn yet\" and \"turn 1.\" That\nboundary is informational and doesn't count toward the threshold;\notherwise ``every=1`` would fire an empty checkpoint on the\nopening tick.",
+        "description": "Fire after every ``every`` agent turns of work.\n\nThe very first ``tick()`` call marks the boundary *before* turn 1\nhas run — agents place ``cp.tick()`` at the top of their loop, so\nthe opening tick stands between \"no turn yet\" and \"turn 1.\" That\nboundary is informational and doesn't count toward the threshold;\notherwise ``every=1`` would fire an empty checkpoint on the\nopening tick.",
         "properties": {
           "every": {
             "title": "Every",
