@@ -108,6 +108,11 @@ class LogFilesResponse(BaseModel):
 
 class LogListingResponse(BaseModel):
     log_dir: str
+    """The log dir in request/display form (relative or `~`-aliased for local paths)."""
+
+    log_dir_uri: str | None = None
+    """The log dir in the canonical URI namespace of the file names (see `log_dir_uri`)."""
+
     files: list[LogHandle]
 
 
@@ -486,6 +491,7 @@ async def get_logs(
 def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> LogListingResponse:
     return LogListingResponse(
         log_dir=aliased_path(log_dir),
+        log_dir_uri=log_dir_uri(log_dir),
         files=[
             LogHandle(
                 name=normalize_azure_listing_name(log_dir, log.name),
@@ -496,6 +502,24 @@ def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> LogListingResponse
             for log in logs
         ],
     )
+
+
+def log_dir_uri(log_dir: str) -> str | None:
+    """Resolve a log dir to the canonical URI namespace of listing file names.
+
+    File names are `unstrip_protocol`-form URIs (e.g. `file:///abs/dir/x.eval`)
+    while `log_dir` is echoed in request/display form (relative or `~`-aliased
+    for local paths). The viewer scopes its cache by treating names as
+    dir-prefixed identities, which requires the dir in the names' namespace.
+    Returns None when the path can't be resolved (the viewer then skips
+    cache persistence for the scope rather than storing unreachable rows).
+    """
+    try:
+        fs = filesystem(log_dir)
+        uri = fs.path_as_uri(fs.fs._strip_protocol(log_dir))
+        return normalize_azure_listing_name(log_dir, uri)
+    except Exception:
+        return None
 
 
 def _normalize_listing_name(log_dir: str | None, name: str) -> str:

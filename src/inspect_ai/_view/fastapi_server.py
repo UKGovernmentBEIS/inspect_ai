@@ -353,6 +353,8 @@ def view_server_app(
         for entry in listing.files:
             entry.name = await _unmap_file(request, entry.name)
         listing.log_dir = await _unmap_file(request, listing.log_dir)
+        if listing.log_dir_uri is not None:
+            listing.log_dir_uri = await _unmap_file(request, listing.log_dir_uri)
         return listing
 
     @app.get(
