@@ -6621,6 +6621,17 @@
           "log_dir": {
             "title": "Log Dir",
             "type": "string"
+          },
+          "log_dir_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Dir Uri"
           }
         },
         "required": [

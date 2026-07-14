@@ -666,6 +666,22 @@ def test_api_logs_listing(view_client: ViewTestClient) -> None:
     assert tasks == {"t1", "t2"}
 
 
+def test_api_logs_listing_log_dir_uri(view_client: ViewTestClient) -> None:
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    resp = view_client.request(
+        "GET", f"/logs?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    # The canonical dir URI shares the file names' namespace, so names are
+    # dir-prefixed identities (what the viewer's cache scoping relies on).
+    assert body["log_dir_uri"]
+    for f in body["files"]:
+        assert f["name"].startswith(body["log_dir_uri"] + "/")
+
+
 def test_api_log_headers(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname, status="started")
