@@ -4,6 +4,7 @@ import functools
 import io
 import logging
 import shutil
+import time
 from contextlib import AbstractAsyncContextManager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -46,6 +47,12 @@ from inspect_ai._util.constants import HTTP
 from inspect_ai._util.file import FileInfo, file, filesystem, local_path
 
 logger = logging.getLogger(__name__)
+
+# Recreate the async S3 client when it is older than this so that externally
+# rotated static credentials (e.g. tooling that rewrites ~/.aws/credentials)
+# get picked up without a restart: botocore only auto-refreshes provider-based
+# credentials (STS/SSO/IMDS); static keys are pinned at client creation.
+S3_CLIENT_TTL_SECONDS = 15 * 60
 
 
 class _BytesByteReceiveStream(ByteReceiveStream):
@@ -169,6 +176,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         self._region_name = region_name
         self._s3_client: Any | None = None
         self._s3_client_async: Any | None = None
+        self._s3_client_async_created: float = 0.0
+        self._s3_clients_retired: list[Any] = []
         self._s3_lock = anyio.Lock()
         self._owns_context: bool = False
 
@@ -577,9 +586,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def close(
         self,
     ) -> None:
+        clients = self._s3_clients_retired
         if self._s3_client_async is not None:
-            client = self._s3_client_async
-            self._s3_client_async = None
+            clients = clients + [self._s3_client_async]
+        self._s3_client_async = None
+        self._s3_clients_retired = []
+        for client in clients:
             await client.__aexit__(None, None, None)
 
     def s3_client(self) -> Any:
@@ -606,13 +618,27 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         return self._s3_client
 
     async def s3_client_async(self) -> Any:
-        if self._s3_client_async is None:
+        def expired() -> bool:
+            return (
+                self._s3_client_async is None
+                or time.monotonic() - self._s3_client_async_created
+                > S3_CLIENT_TTL_SECONDS
+            )
+
+        if expired():
             async with self._s3_lock:
-                if self._s3_client_async is None:
-                    self._s3_client_async = await self._create_s3_client_async(
+                if expired():
+                    if self._s3_client_async is not None:
+                        # retired, not closed: in-flight operations may still
+                        # hold a reference to it; close() cleans these up
+                        self._s3_clients_retired.append(self._s3_client_async)
+                        self._s3_client_async = None
+                    client = await self._create_s3_client_async(
                         anonymous=self._anonymous,
                         region_name=self._region_name,
                     )
+                    self._s3_client_async = client
+                    self._s3_client_async_created = time.monotonic()
         return self._s3_client_async
 
     @staticmethod
