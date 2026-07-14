@@ -534,13 +534,16 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert spaced.status_code == 200, spaced.text
         assert seen["types"] == frozenset({"model", "tool"})
 
-        # `limit` (page size) rides down; omitted → the server default
-        assert seen["limit"] == 500
+        # `limit` (page size) rides down; omitted → the server default.
+        # pop rather than index: mypy narrows `seen["limit"]` to the first
+        # compared literal (it can't see the handler mutating `seen`), which
+        # would flag the second comparison as non-overlapping.
+        assert seen.pop("limit") == 500
         limited = await client.get(
             "/evals/e1/sample/events", params={"sample_id": "case/001", "limit": 15}
         )
         assert limited.status_code == 200, limited.text
-        assert seen["limit"] == 15
+        assert seen.pop("limit") == 15
 
         # a limit below 1 would loop a paging client on an unmoving cursor
         bad_limit = await client.get(
