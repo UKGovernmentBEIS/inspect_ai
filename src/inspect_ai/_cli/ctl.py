@@ -514,6 +514,16 @@ def sample_show_command(
     ),
 )
 @click.option(
+    "--limit",
+    type=int,
+    default=None,
+    help=(
+        "Max events per page (server default 500); page through the rest via "
+        "`next`/--cursor. Counted before the --type filter, so a filtered "
+        "page may return fewer. Combines with any window seed."
+    ),
+)
+@click.option(
     "--type",
     "types",
     default=None,
@@ -555,6 +565,7 @@ def sample_events_command(
     legacy_since: str | None,
     tail: int | None,
     from_start: bool,
+    limit: int | None,
     types: str | None,
     full: bool,
     since_time: float | None,
@@ -578,6 +589,7 @@ def sample_events_command(
         cursor=cursor,
         tail=tail,
         from_start=from_start,
+        limit=limit,
         types=types,
         full=full,
         since_time=since_time,
@@ -946,6 +958,7 @@ def events_alias(
         cursor=cursor,
         tail=tail,
         from_start=False,
+        limit=None,
         types=types,
         full=full,
         since_time=since_time,
@@ -1528,6 +1541,7 @@ def _run_sample_events(
     cursor: str | None,
     tail: int | None,
     from_start: bool,
+    limit: int | None,
     types: str | None,
     full: bool,
     since_time: float | None,
@@ -1536,6 +1550,8 @@ def _run_sample_events(
 ) -> None:
     _validate_from_start(from_start, cursor=cursor, tail=tail, since_time=since_time)
     _validate_cursor(cursor)
+    if limit is not None and limit < 1:
+        _fail("invalid_request", "--limit must be at least 1.")
     types = _normalized_types(types)
 
     # The unseeded default is a recent tail — never an empty page, never the
@@ -1581,6 +1597,7 @@ def _run_sample_events(
         epoch,
         cursor=cursor,
         tail=tail,
+        limit=limit,
         types=types,
         full=full,
         since_time=since_time,
@@ -3009,6 +3026,7 @@ def _fetch_sample_events(
     *,
     cursor: str | None,
     tail: int | None,
+    limit: int | None,
     types: str | None,
     full: bool,
     since_time: float | None,
@@ -3028,6 +3046,8 @@ def _fetch_sample_events(
         params["since"] = cursor
     if tail is not None:
         params["tail"] = tail
+    if limit is not None:
+        params["limit"] = limit
     if types is not None:
         params["type"] = types
     if since_time is not None:

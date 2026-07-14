@@ -148,6 +148,7 @@ Other options:
 |----|----|
 | `--tail N` | Start N events from the end (default 20 on a fully unseeded read — no `--cursor`, no `--since-time`/`--until` window, no `--from-start`). |
 | `--from-start` | Start from the first event and page through the full backlog (cannot be combined with `--cursor`, `--tail`, or `--since-time`). |
+| `--limit N` | Max events per page (default 500); combines with any start point (e.g. `--from-start --limit 15` for the first 15). Counted before the `--type` filter, so a filtered page may return fewer. |
 | `--type model,tool` | Filter by event type (`all` for everything). By default, high-volume structural events are excluded. |
 | `--full` | Return complete raw events instead of compact one-line summaries. |
 | `--since-time` / `--until` | Filter to a wall-clock window (unix timestamps). |

@@ -376,10 +376,12 @@ async def test_sample_events_endpoint_parses_type_and_404(
         full: object,
         since_time: object,
         until: object,
+        limit: object,
     ) -> dict[str, object] | None:
         seen["sample_id"] = sample_id
         seen["types"] = types
         seen["full"] = full
+        seen["limit"] = limit
         if sample_id == "missing":
             return None
         return {"events": [], "next": "c", "done": True}
@@ -408,6 +410,21 @@ async def test_sample_events_endpoint_parses_type_and_404(
         )
         assert spaced.status_code == 200, spaced.text
         assert seen["types"] == frozenset({"model", "tool"})
+
+        # `limit` (page size) rides down; omitted → the server default
+        assert seen["limit"] == 500
+        limited = await client.get(
+            "/evals/e1/sample/events", params={"sample_id": "case/001", "limit": 15}
+        )
+        assert limited.status_code == 200, limited.text
+        assert seen["limit"] == 15
+
+        # a limit below 1 would loop a paging client on an unmoving cursor
+        bad_limit = await client.get(
+            "/evals/e1/sample/events", params={"sample_id": "case/001", "limit": 0}
+        )
+        assert bad_limit.status_code == 400
+        assert "limit" in bad_limit.json()["error"]
 
         missing = await client.get(
             "/evals/e1/sample/events", params={"sample_id": "missing"}

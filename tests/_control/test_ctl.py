@@ -926,6 +926,7 @@ def test_sample_events_read_retries_busy_timeout(
         1,
         cursor=None,
         tail=5,
+        limit=None,
         types=None,
         full=False,
         since_time=None,
@@ -2027,6 +2028,48 @@ def test_events_from_start_conflicts_with_window_seeds() -> None:
         )
         assert result.exit_code == 1
         assert "--from-start" in result.stderr and extra[0] in result.stderr
+
+
+def test_events_limit_rides_wire_and_combines_with_seeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--limit` is a page size: passed through, combinable with any seed."""
+    captured: dict[str, Any] = {}
+
+    def fake_events(
+        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        captured.clear()
+        captured.update(kwargs)
+        return {"events": [], "next": None, "done": True}
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    runner = cli_runner()
+
+    result = runner.invoke(
+        ctl_command,
+        ["sample", "events", "aaa111", "s1", "--from-start", "--limit", "15"],
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["limit"] == 15
+
+    # --limit is not a window seed: the unseeded default tail still applies
+    result = runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--limit", "15"]
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["limit"] == 15 and captured["tail"] == 20
+
+    # omitted → not on the wire (server default applies)
+    runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1"])
+    assert captured["limit"] is None
+
+    result = runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--limit", "0"]
+    )
+    assert result.exit_code == 1
+    assert "--limit" in result.stderr
 
 
 def test_events_json_no_servers_echoes_identifiers(
