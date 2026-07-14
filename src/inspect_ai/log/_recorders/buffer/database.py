@@ -721,7 +721,7 @@ class SampleBufferDatabase(SampleBuffer):
         n: int,
     ) -> Iterator[SampleHistory]:
         if n <= 0:
-            yield SampleHistory([], {}, {}, {})
+            yield SampleHistory([], {}, {}, {}, page_scoped=True)
             return
 
         with self._acquire_sample_read_lease(id, epoch):
@@ -828,7 +828,9 @@ class SampleBufferDatabase(SampleBuffer):
                 entry.hash: entry.content
                 for entry in self._get_attachments(conn, id, epoch)
             }
-        return SampleHistory(event_rows, message_pool, call_pool, attachments)
+        return SampleHistory(
+            event_rows, message_pool, call_pool, attachments, page_scoped=page_scoped
+        )
 
     def _get_pool_entries_at(
         self,

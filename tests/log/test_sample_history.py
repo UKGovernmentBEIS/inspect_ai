@@ -486,6 +486,13 @@ def test_page_scoped_history_rejects_events_data(tmp_path):
         with pytest.raises(RuntimeError, match="page-scoped"):
             _ = history.events_data
 
+    # a page referencing a contiguous pool prefix (positions 0..k) is
+    # indistinguishable from a full pool by its keys, but must still raise
+    with db.open_sample_history_from("sample", 1, 0, 1) as history:
+        assert set(history.message_pool) == {0}
+        with pytest.raises(RuntimeError, match="page-scoped"):
+            _ = history.events_data
+
 
 def test_page_scoped_history_loads_only_referenced_attachments(tmp_path):
     db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)

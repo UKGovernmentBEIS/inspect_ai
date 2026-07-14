@@ -34,6 +34,10 @@ class SampleHistory:
     message_pool: dict[int, ChatMessage]
     call_pool: dict[int, JsonValue]
     attachments: dict[str, str]
+    page_scoped: bool = False
+    """True when pools/attachments carry only the entries referenced by this
+    page's events (which may still form a contiguous prefix, so completeness
+    can't be inferred from the keys)."""
 
     def __post_init__(self) -> None:
         validated_messages = validate_chat_messages(
@@ -50,15 +54,14 @@ class SampleHistory:
         """Dense pools for embedding in an ``EvalSample`` / .eval log.
 
         Positional refs index into the dense lists, so this requires a
-        full-history read (contiguous pools starting at 0); page-scoped
-        histories raise rather than silently misalign refs.
+        full-history read (complete pools with contiguous positions from 0);
+        page-scoped histories raise rather than silently misalign refs.
         """
-        for pool in (self.message_pool, self.call_pool):
-            if pool and max(pool) != len(pool) - 1:
-                raise RuntimeError(
-                    "events_data requires a full sample history; this history "
-                    "is page-scoped and carries only referenced pool entries"
-                )
+        if self.page_scoped:
+            raise RuntimeError(
+                "events_data requires a full sample history; this history "
+                "is page-scoped and carries only referenced pool entries"
+            )
         return EventsData(
             messages=[self.message_pool[i] for i in range(len(self.message_pool))],
             calls=[self.call_pool[i] for i in range(len(self.call_pool))],
