@@ -356,9 +356,9 @@ class ControlServer:
             return detail
 
         # Per-sample transcript events, cursored pull (phase 2). `type` is a
-        # comma-separated event-type filter (`*` = all; omitted = high-signal
-        # tier); `since` is an opaque cursor, `tail` an int, `full` a bool,
-        # `since_time`/`until` a wall-clock window.
+        # comma-separated event-type filter (`all` or `*` = everything;
+        # omitted = high-signal tier); `since` is an opaque cursor, `tail` an
+        # int, `full` a bool, `since_time`/`until` a wall-clock window.
         @app.get("/evals/{eval_id}/sample/events")
         async def get_sample_events(
             eval_id: str,

@@ -1935,6 +1935,100 @@ def test_events_unseeded_defaults_to_recent_tail(
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
 
 
+def test_events_type_all_normalized_to_star(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--type all` is the blessed shell-safe spelling of `--type '*'`.
+
+    Normalized client-side to the `*` wire value so it also works against a
+    running server that predates the synonym; a comma list member normalizes
+    the same way, and other members pass through untouched.
+    """
+    captured: dict[str, Any] = {}
+
+    def fake_events(
+        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        captured.clear()
+        captured.update(kwargs)
+        return {"events": [], "next": None, "done": True}
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    runner = cli_runner()
+
+    result = runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--type", "all"]
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["types"] == "*"
+
+    runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--type", "model, all"]
+    )
+    assert captured["types"] == "model,*"
+
+    # non-magic members pass through untouched (`*` stays a quiet synonym)
+    runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--type", "model,tool"]
+    )
+    assert captured["types"] == "model,tool"
+
+    runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--type", "*"])
+    assert captured["types"] == "*"
+
+
+def test_events_from_start_reads_full_backlog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--from-start` seeds the window at event 0 (no default tail)."""
+    captured: dict[str, Any] = {}
+
+    def fake_events(
+        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        captured.clear()
+        captured.update(kwargs)
+        return {"events": [], "next": None, "done": True}
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    runner = cli_runner()
+
+    result = runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--from-start", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    # no window params on the wire — an unseeded, tail-less read starts at 0
+    assert captured["tail"] is None and captured["cursor"] is None
+    assert captured["since_time"] is None
+
+    # --until is allowed: bound a from-the-start read by wall clock
+    result = runner.invoke(
+        ctl_command,
+        ["sample", "events", "aaa111", "s1", "--from-start", "--until", "5.0"],
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["tail"] is None and captured["until"] == 5.0
+
+
+def test_events_from_start_conflicts_with_window_seeds() -> None:
+    """`--from-start` rejects --cursor / --tail / --since-time."""
+    from inspect_ai._control.events import encode_cursor
+
+    runner = cli_runner()
+    for extra in (
+        ["--cursor", encode_cursor("n", 3)],
+        ["--tail", "5"],
+        ["--since-time", "5.0"],
+    ):
+        result = runner.invoke(
+            ctl_command, ["sample", "events", "t", "s1", "--from-start", *extra]
+        )
+        assert result.exit_code == 1
+        assert "--from-start" in result.stderr and extra[0] in result.stderr
+
+
 def test_events_json_no_servers_echoes_identifiers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

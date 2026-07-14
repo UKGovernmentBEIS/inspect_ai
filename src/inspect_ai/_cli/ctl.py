@@ -52,9 +52,9 @@ from inspect_ai._control.discovery import (
 from inspect_ai._util.name_match import match_name_prefix
 
 # Events shown on an unseeded `sample events` read (no --cursor / --tail /
-# --since-time / --until): a recent tail rather than the full backlog — the
-# first call must never be empty or a context-flooding dump (see the agent
-# output contract in design/control-channel.md).
+# --since-time / --until / --from-start): a recent tail rather than the full
+# backlog — the first call must never be empty or a context-flooding dump
+# (see the agent output contract in design/control-channel.md).
 _DEFAULT_EVENTS_TAIL = 20
 
 # One source of truth for each retunable config knob's scope. The `ctl config`
@@ -504,12 +504,22 @@ def sample_show_command(
     ),
 )
 @click.option(
+    "--from-start",
+    is_flag=True,
+    default=False,
+    help=(
+        "Start from the first event instead of the recent tail, then page "
+        "through the full backlog via `next`/--cursor. Cannot be combined "
+        "with --cursor, --tail, or --since-time."
+    ),
+)
+@click.option(
     "--type",
     "types",
     default=None,
     help=(
         "Comma-separated event types to include (e.g. `model,tool,error`); "
-        "`*` for all. Default: the high-signal set."
+        "`all` for all. Default: the high-signal set."
     ),
 )
 @click.option(
@@ -544,6 +554,7 @@ def sample_events_command(
     cursor: str | None,
     legacy_since: str | None,
     tail: int | None,
+    from_start: bool,
     types: str | None,
     full: bool,
     since_time: float | None,
@@ -552,9 +563,10 @@ def sample_events_command(
 ) -> None:
     """Read one running sample's transcript events (cursored pull).
 
-    The first call returns a recent tail; each page ends with a `next`
-    cursor — pass it back via `--cursor` to read only what's new. `done:
-    true` means the sample has terminated and no more events will come.
+    The first call returns a recent tail (or the beginning, with
+    `--from-start`); each page ends with a `next` cursor — pass it back via
+    `--cursor` to read only what's new. `done: true` means the sample has
+    terminated and no more events will come.
     """
     if legacy_since is not None:
         with _structured_failures(as_json):
@@ -565,6 +577,7 @@ def sample_events_command(
         epoch,
         cursor=cursor,
         tail=tail,
+        from_start=from_start,
         types=types,
         full=full,
         since_time=since_time,
@@ -1513,17 +1526,27 @@ def _run_sample_events(
     *,
     cursor: str | None,
     tail: int | None,
+    from_start: bool = False,
     types: str | None,
     full: bool,
     since_time: float | None,
     until: float | None,
     as_json: bool,
 ) -> None:
+    _validate_from_start(from_start, cursor=cursor, tail=tail, since_time=since_time)
     _validate_cursor(cursor)
+    types = _normalized_types(types)
 
     # The unseeded default is a recent tail — never an empty page, never the
-    # full backlog. A cursor or an explicit window disables it.
-    if cursor is None and tail is None and since_time is None and until is None:
+    # full backlog. A cursor, an explicit window, or --from-start disables it
+    # (an unseeded, tail-less read starts at event 0 — exactly "from start").
+    if (
+        not from_start
+        and cursor is None
+        and tail is None
+        and since_time is None
+        and until is None
+    ):
         tail = _DEFAULT_EVENTS_TAIL
 
     # the all-busy exit inside the fetch matters doubly here: the done:true
@@ -1610,6 +1633,55 @@ def _exit_removed_since(value: str) -> NoReturn:
         "invalid_request",
         f"--since was split into --cursor (opaque resume cursor) and "
         f"--since-time (wall-clock window): {hint}.",
+    )
+
+
+def _validate_from_start(
+    from_start: bool,
+    *,
+    cursor: str | None,
+    tail: int | None,
+    since_time: float | None,
+) -> None:
+    """Reject ``--from-start`` combined with another window seed.
+
+    A resume cursor contradicts "from the beginning", and ``--tail`` /
+    ``--since-time`` each seed a different window start. ``--until`` is
+    deliberately allowed — bounding a from-the-start read by wall clock is
+    coherent.
+    """
+    if not from_start:
+        return
+    conflicting = [
+        flag
+        for flag, value in (
+            ("--cursor", cursor),
+            ("--tail", tail),
+            ("--since-time", since_time),
+        )
+        if value is not None
+    ]
+    if conflicting:
+        _fail(
+            "invalid_request",
+            f"--from-start reads from the first event and cannot be combined "
+            f"with {' / '.join(conflicting)}.",
+        )
+
+
+def _normalized_types(types: str | None) -> str | None:
+    """Map the blessed ``all`` spelling onto the wire's ``*``.
+
+    ``--type '*'`` must be quoted (bare ``*`` glob-expands in bash and errors
+    in zsh), so ``all`` is the documented spelling — safe as a magic value
+    since no event type is named ``all``. Translated client-side so it also
+    works against a running server that predates the synonym.
+    """
+    if types is None:
+        return None
+    return ",".join(
+        "*" if member == "all" else member
+        for member in (part.strip() for part in types.split(","))
     )
 
 

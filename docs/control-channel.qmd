@@ -140,14 +140,15 @@ time      event  summary
 next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  (resume with --cursor)
 ```
 
-The first (unseeded) call returns the recent tail (the last 20 events; widen with `--tail N`). Reads are incremental: each page ends with a `next` cursor, and passing it back via `--cursor` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript. If the eval process is momentarily too busy to answer, the command fails (non-zero exit, message on stderr) rather than serving an empty page — treat that as "try again shortly", not as the sample or eval being gone.
+The first (unseeded) call returns the recent tail (the last 20 events; widen with `--tail N`, or start from the first event with `--from-start`). Reads are incremental: each page ends with a `next` cursor, and passing it back via `--cursor` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript. If the eval process is momentarily too busy to answer, the command fails (non-zero exit, message on stderr) rather than serving an empty page — treat that as "try again shortly", not as the sample or eval being gone.
 
 Other options:
 
 | Option | Description |
 |----|----|
-| `--tail N` | Start N events from the end (default 20 on a fully unseeded read — no `--cursor` and no `--since-time`/`--until` window). |
-| `--type model,tool` | Filter by event type (`*` for all). By default, high-volume structural events are excluded. |
+| `--tail N` | Start N events from the end (default 20 on a fully unseeded read — no `--cursor`, no `--since-time`/`--until` window, no `--from-start`). |
+| `--from-start` | Start from the first event and page through the full backlog (cannot be combined with `--cursor`, `--tail`, or `--since-time`). |
+| `--type model,tool` | Filter by event type (`all` for everything). By default, high-volume structural events are excluded. |
 | `--full` | Return complete raw events instead of compact one-line summaries. |
 | `--since-time` / `--until` | Filter to a wall-clock window (unix timestamps). |
 
