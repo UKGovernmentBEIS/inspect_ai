@@ -151,10 +151,10 @@ def test_endpoint_error_becomes_structured_500(monkeypatch: pytest.MonkeyPatch) 
     """
     from inspect_ai._control import server as server_mod
 
-    async def _boom(eval_id: str, active_since: float | None = None) -> list:
+    async def _boom(*args: object, **kwargs: object) -> list:
         raise RuntimeError("kaboom")
 
-    monkeypatch.setattr(server_mod, "current_sample_summaries", _boom)
+    monkeypatch.setattr(server_mod, "current_sample_listing", _boom)
 
     async def scenario() -> httpx.Response:
         app = server_mod.ControlServer(run_id="test")._build_app()
@@ -241,6 +241,129 @@ def test_start_does_not_publish_discovery_when_bind_fails(
         assert list_discovered_servers() == []
 
     asyncio.run(run())
+
+
+def _listing_rows(n_completed: int, n_running: int = 0) -> list[dict]:
+    """Fixed sample rows in the listing's sort order (running first)."""
+    rows = [
+        {"sample_id": f"r{i}", "epoch": 1, "status": "running", "last_activity_at": 5.0}
+        for i in range(n_running)
+    ]
+    rows.extend(
+        {
+            "sample_id": f"c{i}",
+            "epoch": 1,
+            "status": "completed",
+            "last_activity_at": 5.0,
+        }
+        for i in range(n_completed)
+    )
+    return rows
+
+
+async def test_samples_endpoint_caps_and_histograms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`GET /evals/<id>/samples` caps rows by default and stays aggregate-complete.
+
+    The unseeded read on a large eval must not dump every row (the design
+    doc's constraint 2 — a full dump eats LLM-agent context): rows are capped
+    at the default limit, the `counts` histogram still covers the whole eval,
+    and `truncated` reports the cap structurally (no silent truncation).
+    `all=true` / `limit=N` adjust the cap; `status` filters rows without
+    shrinking `counts`.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control import state as state_mod
+    from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT
+
+    async def _many(eval_id: str, active_since: float | None = None) -> list[dict]:
+        return _listing_rows(n_completed=DEFAULT_SAMPLE_LIST_LIMIT + 50, n_running=3)
+
+    # Patch the state layer's full listing (the endpoint's real cap /
+    # histogram logic in current_sample_listing still runs).
+    monkeypatch.setattr(state_mod, "current_sample_summaries", _many)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        # default: capped, histogram complete, truncation flagged
+        page = (await client.get("/evals/e1/samples")).json()
+        assert len(page["samples"]) == DEFAULT_SAMPLE_LIST_LIMIT
+        assert page["truncated"] is True
+        assert page["counts"]["running"] == 3
+        assert page["counts"]["completed"] == DEFAULT_SAMPLE_LIST_LIMIT + 50
+        assert page["counts"]["error"] == 0  # stable keys, zero when empty
+        # running rows sort first, so the cap keeps them
+        assert [s["status"] for s in page["samples"][:3]] == ["running"] * 3
+
+        # all=true: the explicit full dump
+        page = (await client.get("/evals/e1/samples", params={"all": True})).json()
+        assert len(page["samples"]) == DEFAULT_SAMPLE_LIST_LIMIT + 53
+        assert page["truncated"] is False
+
+        # limit=N: a custom cap
+        page = (await client.get("/evals/e1/samples", params={"limit": 5})).json()
+        assert len(page["samples"]) == 5
+        assert page["truncated"] is True
+
+        # status filter: rows narrow, counts stay whole-eval
+        page = (
+            await client.get("/evals/e1/samples", params={"status": "running"})
+        ).json()
+        assert [s["status"] for s in page["samples"]] == ["running"] * 3
+        assert page["truncated"] is False
+        assert page["counts"]["completed"] == DEFAULT_SAMPLE_LIST_LIMIT + 50
+
+        # active_since (the recency delta) rides the same envelope: rows
+        # empty (nothing active since then), counts still whole-eval
+        page = (
+            await client.get("/evals/e1/samples", params={"active_since": 10.0})
+        ).json()
+        assert page["samples"] == []
+        assert page["truncated"] is False
+        assert page["counts"]["completed"] == DEFAULT_SAMPLE_LIST_LIMIT + 50
+
+
+async def test_samples_endpoint_rejects_bad_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bad `limit` / `status` / `all` combinations 400 with a structured error."""
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control import state as state_mod
+
+    async def _none(eval_id: str, active_since: float | None = None) -> list[dict]:
+        return []
+
+    monkeypatch.setattr(state_mod, "current_sample_summaries", _none)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        below_one = await client.get("/evals/e1/samples", params={"limit": 0})
+        assert below_one.status_code == 400
+        assert "limit" in below_one.json()["error"]
+
+        contradictory = await client.get(
+            "/evals/e1/samples", params={"limit": 5, "all": True}
+        )
+        assert contradictory.status_code == 400
+        assert "mutually exclusive" in contradictory.json()["error"]
+
+        unknown = await client.get("/evals/e1/samples", params={"status": "bogus"})
+        assert unknown.status_code == 400
+        assert "bogus" in unknown.json()["error"]
+        assert "pending" in unknown.json()["error"]  # names the valid vocabulary
+
+        # an empty member set would silently drop every row — 400 instead
+        for empty in ("", ","):
+            response = await client.get("/evals/e1/samples", params={"status": empty})
+            assert response.status_code == 400, empty
+            assert "at least one status" in response.json()["error"]
 
 
 async def test_sample_endpoint_addresses_reserved_char_ids(
@@ -430,6 +553,54 @@ async def test_sample_events_endpoint_parses_type_and_404(
             "/evals/e1/sample/events", params={"sample_id": "missing"}
         )
         assert missing.status_code == 404
+
+
+async def test_samples_endpoint_parses_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`GET /evals/<id>/samples` parses `filter` and defaults it off.
+
+    The state-layer filtering is unit-tested; this pins the route wiring —
+    `filter=errors` reaches the state layer as "errors", an omitted param
+    keeps the full listing (None), and an unrecognized filter value is
+    rejected (422) rather than silently answered with the full listing,
+    since the CLI trusts the filter was applied and keeps no fallback.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.state import SampleListing
+
+    seen: dict[str, object] = {}
+
+    async def _fake(
+        eval_id: str,
+        active_since: float | None = None,
+        statuses: frozenset[str] | None = None,
+        limit: int | None = None,
+        sample_filter: str | None = None,
+    ) -> SampleListing:
+        seen["eval_id"] = eval_id
+        seen["sample_filter"] = sample_filter
+        return SampleListing(counts={}, samples=[], truncated=False)
+
+    monkeypatch.setattr(server_mod, "current_sample_listing", _fake)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        filtered = await client.get("/evals/e1/samples", params={"filter": "errors"})
+        assert filtered.status_code == 200, filtered.text
+        assert seen["sample_filter"] == "errors"
+
+        default = await client.get("/evals/e1/samples")
+        assert default.status_code == 200, default.text
+        assert seen["sample_filter"] is None
+
+        seen.clear()
+        unknown = await client.get("/evals/e1/samples", params={"filter": "bogus"})
+        assert unknown.status_code == 422, unknown.text
+        assert "sample_filter" not in seen  # rejected before the state layer
 
 
 async def test_404_body_shape_distinguishes_missing_route(
