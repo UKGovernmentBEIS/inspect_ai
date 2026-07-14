@@ -164,9 +164,11 @@ def cancel_task(
             # interrupt the samples already running. First interrupt wins:
             # a sample already interrupted — e.g. a per-sample 'cancel',
             # now inside its logging window (`completed` is stamped only at
-            # context exit) — keeps its resolution; overwriting a
-            # 'cancel' would re-raise its sample-scoped CancelledError
-            # into the task group and tear the whole task down.
+            # context exit) — keeps its resolution; overwriting would flip
+            # a not-yet-handled 'cancel' to this score/error disposition
+            # (the runner reads the live interrupt_action as it handles the
+            # interrupt) and re-fire on_interrupt hooks on a sample already
+            # being resolved.
             state.task_cancel.cancel_task(action)
             for sample in in_flight:
                 if sample.interrupt_action is None:
