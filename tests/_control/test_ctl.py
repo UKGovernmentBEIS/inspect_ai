@@ -431,7 +431,7 @@ def test_print_events_table_and_footer(
         "next": "CURSORX",
         "done": False,
     }
-    _print_events(page)
+    _print_events(page, full=False)
     out = capsys.readouterr().out
     assert "event" in out.splitlines()[0]  # table header
     # per-type summaries
@@ -445,11 +445,42 @@ def test_print_events_table_and_footer(
 def test_print_events_empty_and_done(capsys: pytest.CaptureFixture[str]) -> None:
     from inspect_ai._cli.ctl import _print_events
 
-    _print_events({"events": [], "next": "X", "done": True})
+    _print_events({"events": [], "next": "X", "done": True}, full=False)
     out = capsys.readouterr().out
     assert "(no events)" in out
     assert "done" in out
     assert "next:" not in out  # a done stream offers no resume cursor
+
+
+def test_print_events_full_pretty_prints_raw(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Full mode emits raw JSON: nested fields the summary table can't render."""
+    from inspect_ai._cli.ctl import _print_events
+
+    page = {
+        "events": [
+            {
+                "event": "model",
+                # raw model_dump timestamps are ISO strings, not unix floats
+                "timestamp": "2026-07-14T19:10:05+00:00",
+                "model": "openai/gpt",
+                "output": {"usage": {"total_tokens": 42}, "completion": "hello"},
+            }
+        ],
+        "next": "CURSORX",
+        "done": False,
+    }
+    _print_events(page, full=True)
+    out = capsys.readouterr().out
+    # nested raw fields survive (the compact table would have dropped them)
+    assert '"total_tokens": 42' in out
+    assert '"completion": "hello"' in out
+    assert "2026-07-14T19:10:05+00:00" in out
+    # the cursor footer still supports polling loops
+    assert "1 event" in out
+    assert "more" in out
+    assert "next: CURSORX" in out
 
 
 def test_keep_alive_footer_on_when_all_tasks_keep_alive(

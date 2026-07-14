@@ -1644,7 +1644,7 @@ def _run_sample_events(
         click.echo(json_lib.dumps(page, indent=2))
         return
 
-    _print_events(page)
+    _print_events(page, full=full)
 
 
 @_envelope_failures
@@ -3572,10 +3572,15 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         click.echo(f"  note: {note}")
 
 
-def _print_events(page: dict[str, Any]) -> None:
+def _print_events(page: dict[str, Any], *, full: bool) -> None:
     """Render a page of transcript events (table) plus a cursor footer."""
     events = page.get("events") or []
-    if not events:
+    if full:
+        # Raw mode is for machine consumption; the human rendering is the
+        # compact projection (whose flattened fields the table expects), so
+        # just pretty-print the raw events.
+        click.echo(json_lib.dumps(events, indent=2))
+    elif not events:
         click.echo("(no events)")
     else:
         rows: list[tuple[str, ...]] = []
