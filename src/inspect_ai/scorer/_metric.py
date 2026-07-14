@@ -48,7 +48,7 @@ NOANSWER = "N"
 
 Value = Union[
     str | int | float | bool,
-    Sequence[str | int | float | bool],
+    Sequence[str | int | float | bool | None],
     Mapping[str, str | int | float | bool | None],
 ]
 """Value provided by a score.

@@ -173,6 +173,29 @@ def test_dict_metric() -> None:
     check_log(log)
 
 
+def test_list_score_with_nan_logs_without_error() -> None:
+    # Regression for #4491: a list-valued Score containing NaN must not crash
+    # sample logging. NaN serializes to JSON null, so the Sequence branch of
+    # Value has to admit None to survive the event-validation round-trip (the
+    # Mapping branch already does). Before the fix this eval finished with
+    # status="error" and no results.
+    @scorer(metrics=[accuracy()])
+    def nan_list_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=[float("nan"), 1.0])
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=nan_list_scorer(),
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+    assert log.status == "success"
+    assert log.results is not None
+
+
 def test_alternative_metrics() -> None:
     # check that we get the alternative metrics
     def check_log(log):
