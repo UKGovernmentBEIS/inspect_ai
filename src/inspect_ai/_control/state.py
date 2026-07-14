@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 
 
 async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
-    """Build per-eval summaries for the ``GET /evals`` endpoint.
+    """Build per-task summaries for the ``GET /tasks`` endpoint.
 
     No ``run_id`` filter — the discovery layer already scopes
     visibility per process (each running inspect process has its own
@@ -162,6 +162,9 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 "task": first.task,
                 "task_id": "",
                 "model": first.model,
+                # ActiveSample doesn't carry the solver name; it arrives with
+                # the eval's registration (which hasn't happened yet here)
+                "solver": "",
                 "log_location": local_path(first.log_location),
                 "status": "running",
                 "started_at": min(
@@ -202,7 +205,7 @@ async def current_sample_summaries(
     - **running** ← ``active_samples`` (the only place a running sample
       exists; freshest live detail).
     - **completed** ← the recorder's in-memory summaries while the eval
-      runs (gap-free, ahead of disk; via ``EvalState.summaries_provider``),
+      runs (gap-free, ahead of disk; via ``EvalState.live.sample_summaries``),
       falling back to the finalized on-disk log once the recorder is gone
       (eval finished / torn down).
     - **pending** ← synthesized from the eval's registered planned
@@ -289,6 +292,10 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "total_time": None,
         "total_tokens": 0,
         "message_count": None,
+        "turn_count": None,
+        "token_limit_usage": None,
+        "token_limit_total": None,
+        "token_limit_type": None,
         "last_activity_at": None,
         "events": None,
         "scores": {},
@@ -326,8 +333,8 @@ async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     # logging. It returns None once torn down (eval finished) — a clean
     # signal to fall back to the log. Any other failure is unexpected and
     # propagates to the API entry point.
-    if state is not None and state.summaries_provider is not None:
-        summaries = await state.summaries_provider()
+    if state is not None and state.live is not None:
+        summaries = await state.live.sample_summaries()
         if summaries is not None:
             return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
 
@@ -352,9 +359,9 @@ async def _full_sample(
     The single place the per-sample control reads (error detail, event pages)
     source a sample that is no longer running, so they can't disagree: prefer
     the live recorder's not-yet-flushed in-memory sample
-    (``EvalState.sample_provider`` — the same gap-free source
+    (``EvalState.live.read_sample`` — the same gap-free source
     :func:`current_sample_summaries` lists from), falling back to the finalized
-    on-disk log when there's no provider (a reused/synthetic eval) or the
+    on-disk log when there's no live source (a reused/synthetic eval) or the
     recorder no longer holds it. ``None`` when the eval isn't in this process or
     the sample is in neither source.
 
@@ -383,11 +390,11 @@ async def _read_full_sample(
     exclude_fields: set[str] | None,
 ) -> Any | None:
     """Read one concrete ``(sample_id, epoch)`` — recorder, else on-disk log."""
-    # The provider already does recorder-then-disk; only when there's no
-    # provider (reused/synthetic eval, or a superseded retry attempt whose
-    # providers were detached) do we read the on-disk log directly.
-    if state.sample_provider is not None:
-        return await state.sample_provider(
+    # The live logger already does recorder-then-disk; only when there's no
+    # live source (reused/synthetic eval, or a superseded retry attempt whose
+    # logger was detached) do we read the on-disk log directly.
+    if state.live is not None:
+        return await state.live.read_sample(
             sample_id, epoch, exclude_fields=exclude_fields
         )
 
@@ -410,7 +417,7 @@ async def _read_full_sample(
 async def sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
-    """Full error detail for one sample (``GET /evals/<id>/samples/<sid>/<epoch>``).
+    """Full error detail for one sample (``GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>``).
 
     Two sources, mirroring :func:`current_sample_summaries`:
 
@@ -453,6 +460,28 @@ async def sample_error_detail(
     }
 
 
+def find_active_sample(
+    eval_id: str, sample_id: str, epoch: int
+) -> "ActiveSample | None":
+    """The process's live sample matching ``(eval_id, sample_id, epoch)``, or ``None``.
+
+    The single definition of the control channel's active-sample identity
+    rule, shared by the error-detail, transcript-events, and cancel surfaces:
+    ``sample_id`` arrives as a query-param string, so integer ids match on
+    ``str(sample.id)``.
+    """
+    from inspect_ai.log._samples import active_samples
+
+    for sample in active_samples():
+        if (
+            sample.eval_id == eval_id
+            and str(sample.sample.id) == sample_id
+            and sample.epoch == epoch
+        ):
+            return sample
+    return None
+
+
 def _running_sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
@@ -463,22 +492,18 @@ def _running_sample_error_detail(
     still in ``active_samples`` is left to the on-disk log (which carries the
     final ``error_retries``).
     """
-    from inspect_ai.log._samples import active_samples
-
-    for s in active_samples():
-        if s.eval_id == eval_id and str(s.sample.id) == sample_id and s.epoch == epoch:
-            if s.completed is not None:
-                return None
-            return {
-                "sample_id": s.sample.id,
-                "epoch": s.epoch,
-                "status": "running",
-                "retries": s.retries,
-                "error": None,
-                "error_retries": [_error_dict(e) for e in s.error_retries],
-                "scores": {},
-            }
-    return None
+    s = find_active_sample(eval_id, sample_id, epoch)
+    if s is None or s.completed is not None:
+        return None
+    return {
+        "sample_id": s.sample.id,
+        "epoch": s.epoch,
+        "status": "running",
+        "retries": s.retries,
+        "error": None,
+        "error_retries": [_error_dict(e) for e in s.error_retries],
+        "scores": {},
+    }
 
 
 def _error_dict(error: Any) -> dict[str, Any]:
@@ -540,6 +565,10 @@ def _summary_from_eval_sample_summary(
         "total_time": summary.total_time,
         "total_tokens": sum(u.total_tokens for u in summary.model_usage.values()),
         "message_count": summary.message_count,
+        "turn_count": summary.turn_count,
+        "token_limit_usage": summary.token_limit_usage,
+        "token_limit_total": summary.token_limit,
+        "token_limit_type": summary.token_limit_type,
         # A terminal sample's last activity is its completion; `events` is a
         # live-only progress counter (the on-disk summary doesn't carry it).
         "last_activity_at": _iso_to_timestamp(summary.completed_at),
@@ -585,6 +614,10 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
                 "total_time": s.running_time,
                 "total_tokens": s.total_tokens,
                 "message_count": s.total_messages,
+                "turn_count": s.total_turns,
+                "token_limit_usage": s.token_limit_usage,
+                "token_limit_total": s.token_limit,
+                "token_limit_type": s.token_limit_type,
                 "last_activity_at": last_activity_at,
                 "events": s.transcript.history.event_count,
                 "scores": {},  # running samples aren't scored yet
@@ -670,6 +703,7 @@ def _build_summary(
         "task": task_name,
         "task_id": latest.task_id,
         "model": model,
+        "solver": latest.solver,
         # Where this attempt's results are written — lets an agent monitoring a
         # run it didn't launch find the log without knowing the launch args.
         # `local_path` drops the `file://` prefix for local logs (leaving
@@ -679,6 +713,11 @@ def _build_summary(
         "started_at": eval_started_at,
         "completed_at": completed_at,
         "attempts": attempts,
+        # Planned epoch count. `ctl sample cancel` uses it to require an
+        # explicit EPOCH when the task runs more than one (a defaulted epoch
+        # would silently target a different sample — see the selector
+        # conventions in design/control-channel.md).
+        "epochs": latest.epochs,
         "samples": {
             "total": total,
             "completed": completed,
