@@ -768,12 +768,13 @@ def view_server(
         logger.warning(warning)
 
     async def run_server() -> None:
-        # Warm the shared async S3 client (connection pool + credentials) once,
-        # on the server loop, so the first request doesn't pay the cold-start.
-        # Only relevant for S3; other backends don't use the aioboto3 client.
-        if fs.is_s3():
+        async def warm_shared_fs() -> None:
+            # Warm the shared async S3 client (connection pool + credentials)
+            # concurrently with server startup, so the first request doesn't
+            # pay the cold-start but slow credential resolution doesn't delay
+            # listening. Only relevant for S3; other backends don't use the
+            # aioboto3 client.
             try:
-                await shared_fs.s3_client_async()
                 await shared_fs.exists(log_dir)
             except Exception:
                 logger.warning("Failed to pre-warm shared S3 filesystem", exc_info=True)
@@ -803,6 +804,8 @@ def view_server(
 
         try:
             async with anyio.create_task_group() as tg:
+                if fs.is_s3():
+                    tg.start_soon(warm_shared_fs)
                 tg.start_soon(announce_when_ready)
                 await server.serve()
         finally:
