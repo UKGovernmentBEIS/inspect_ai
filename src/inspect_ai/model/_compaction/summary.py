@@ -4,8 +4,10 @@ from typing import Any
 from typing_extensions import override
 
 from inspect_ai._util.list import find_last_match
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai._util.text import truncate_string_to_bytes
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
 from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model_info import get_model_input_tokens
 from inspect_ai.model._trim import partition_messages
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -104,8 +106,19 @@ class CompactionSummary(CompactionStrategy):
         # use model explicitly passed to us or fall back to compaction model
         model = self.model or model
 
+        # a long tool output right before compaction can push the summarization
+        # input past the model's context window; truncate it so the summary
+        # generate below doesn't itself overflow
+        summarization_input = await _fit_summarization_input(model, summarization_input)
+
         # perform summary
         output = await model.generate(input=summarization_input)
+        if output.stop_reason == "model_length" or output.error is not None:
+            raise RuntimeError(
+                "Compaction summary generation exceeded the model's context "
+                "window. Consider lowering the compaction threshold or reducing "
+                "the maximum tool output size (max_tool_output)."
+            )
 
         # create summary message
         summary = ChatMessageUser(
@@ -162,3 +175,71 @@ class CompactionSummary(CompactionStrategy):
     For each file, include the path and a brief description of what
     information it contains and when to reference it.
     """)
+
+
+# maximum passes when shrinking oversized tool output to fit the window
+_MAX_TRUNCATION_ITERATIONS = 12
+
+# marker left in place of tool output elided to fit the summarization window
+_TRUNCATION_MARKER = "\n\n...[tool output truncated for summarization]...\n\n"
+
+
+async def _fit_summarization_input(
+    model: Model, messages: list[ChatMessage]
+) -> list[ChatMessage]:
+    """Truncate oversized tool output so the summarization input fits the window.
+
+    A long tool output immediately preceding compaction can push the
+    summarization input past the summarization model's context window, so that
+    the summary `generate()` itself overflows — crashing the run, or (on
+    providers that report overflow as `stop_reason="model_length"` with the
+    error text as content) silently turning that error text into the summary.
+    Truncate the largest tool messages until the input fits, so summarization
+    can proceed.
+
+    Returns the input unchanged when the context window is unknown or the input
+    already fits. Edits are made on copies so the transcript is left untouched.
+    """
+    context_window = get_model_input_tokens(model)
+    if context_window is None:
+        return messages
+
+    if await model.count_tokens(messages) <= context_window:
+        return messages
+
+    # edit copies of the tool messages so the live transcript is left untouched
+    messages = [
+        m.model_copy(deep=True) if isinstance(m, ChatMessageTool) else m
+        for m in messages
+    ]
+
+    for _ in range(_MAX_TRUNCATION_ITERATIONS):
+        largest = max(
+            (m for m in messages if isinstance(m, ChatMessageTool) and m.text),
+            key=lambda m: len(m.text),
+            default=None,
+        )
+        if largest is None:
+            break
+        largest.text = _truncate_middle(largest.text, len(largest.text) // 2)
+        if await model.count_tokens(messages) <= context_window:
+            break
+
+    return messages
+
+
+def _truncate_middle(text: str, max_bytes: int) -> str:
+    """Middle-truncate `text` to about `max_bytes`, marking the elided region.
+
+    Keeps the head and tail (where tool output is most informative) and drops
+    the middle. Re-truncation discards a previous marker because it sits in the
+    elided middle.
+    """
+    # reserve room for the marker so the result stays within max_bytes and
+    # successive truncations converge
+    budget = max_bytes - len(_TRUNCATION_MARKER)
+    truncated = truncate_string_to_bytes(text, budget) if budget > 0 else None
+    if truncated is None:
+        return text
+    half = len(truncated.output) // 2
+    return truncated.output[:half] + _TRUNCATION_MARKER + truncated.output[half:]

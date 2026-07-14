@@ -1431,3 +1431,76 @@ async def test_resumed_compaction_does_not_resummarize() -> None:
     # handler must not re-summarize.
     _, summary2 = await compact2.compact_input(history)
     assert summary2 is None
+
+
+# ==============================================================================
+# Summarization Overflow Tests
+# ==============================================================================
+async def test_summary_overflow_not_used_as_summary() -> None:
+    """A summarization generate that overflows must not become the summary (#3600)."""
+    # simulate a provider that reports context-window overflow as
+    # stop_reason="model_length" with the error text as content
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                "mockllm/model",
+                "ERROR: prompt is too long: exceeds the model's context window",
+                stop_reason="model_length",
+            )
+        ],
+    )
+    strategy = CompactionSummary()
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("do the task", "u1", source="input"),
+        assistant_msg("working on it", "a1"),
+    ]
+
+    with pytest.raises(RuntimeError, match="context"):
+        await strategy.compact(model, messages, tools=[])
+
+
+async def test_summary_truncates_oversized_tool_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Oversized tool output is truncated so summarization fits the window (#3600)."""
+    import inspect_ai.model._model_info as _model_info
+    from inspect_ai.model import ModelInfo
+
+    received: dict[str, bool] = {}
+
+    def summarizer(
+        input: list[ChatMessage], tools: object, tool_choice: object, config: object
+    ) -> ModelOutput:
+        # simulate the provider overflowing while the huge middle is still present
+        text = "".join(m.text for m in input)
+        oversized = "OVERSIZED_MIDDLE" in text
+        received["oversized"] = oversized
+        if oversized:
+            return ModelOutput.from_content(
+                "mockllm/overflow-test",
+                "ERROR: exceeds context window",
+                stop_reason="model_length",
+            )
+        return ModelOutput.from_content("mockllm/overflow-test", "GOOD SUMMARY")
+
+    model = get_model("mockllm/overflow-test", custom_outputs=summarizer)
+    # small context window so a modest tool output overflows it
+    monkeypatch.setitem(
+        _model_info._custom_models, str(model), ModelInfo(_input_tokens=200)
+    )
+
+    strategy = CompactionSummary()
+    big = "A" * 4000 + "OVERSIZED_MIDDLE" + "Z" * 4000
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("do the task", "u1", source="input"),
+        ChatMessageTool(content=big, tool_call_id="t1", function="bash", id="tool1"),
+    ]
+
+    _, summary = await strategy.compact(model, messages, tools=[])
+
+    assert summary is not None
+    assert "GOOD SUMMARY" in summary.text
+    assert received["oversized"] is False  # the oversized middle was truncated away
