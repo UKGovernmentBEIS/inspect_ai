@@ -215,8 +215,6 @@ def _peak_model_concurrency(max_tasks: int | None) -> int:
     A `record` solver brackets its work with enter/exit markers; the peak depth
     of overlapping enter/exit pairs is how many models ran at once.
     """
-    import anyio
-
     from inspect_ai.solver import Generate, TaskState, solver
 
     events: list[str] = []
