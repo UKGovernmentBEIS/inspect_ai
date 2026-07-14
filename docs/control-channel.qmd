@@ -205,6 +205,7 @@ Scope is a property of each knob, not of the command: task-scoped knobs apply to
 | `--max-sandboxes N` | process | Per-provider sandbox concurrency. |
 | `--max-subprocesses N` | process | Subprocess concurrency (inactive until the run's first subprocess). |
 | `--max-connections N` | process | Adaptive connections scaling ceiling. |
+| `--key NAME LIMIT` | process | Set a named [`concurrency()`](parallelism.qmd#sec-parallel-solvers-and-scorers) registry limit — any limit tools or task code register by name. |
 | `--log-buffer N` | task | Completed samples buffered before a log write (lower it to write to S3 more often). |
 | `--log-shared S` | task | Shared-log event sync interval in seconds. |
 | `--model M` | — | Restrict `--max-connections` (and the adaptive view) to matching models in mixed-model runs. |
@@ -213,6 +214,8 @@ Scope is a property of each knob, not of the command: task-scoped knobs apply to
 : {tbl-colwidths=[25,12,63]}
 
 Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/subprocesses/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. `--log-buffer` affects future writes only — run `inspect ctl task log-flush` to write what is already pending.
+
+Beyond the named flags, any limit registered through the `concurrency()` API — by built-in tools (for example the web search providers), model compaction, or your own solver and tool code — is settable with `--key NAME LIMIT`. The config output lists the registered keys under `concurrency keys`, exactly as addressable here; named limits are created lazily on first use, so a key that names no registered limit errors and lists the keys that do exist.
 
 Task-scoped knobs are keyed by the task (stable across retries): with eval sets' default immediate retries, a retune survives a task retry rather than reverting to the launch configuration (legacy batch-mode retries — `retry_immediate=False` — run as separate calls and revert). With no `TASK` argument the command targets the sole running task; in a multi-task process the process-scoped knobs still work without a selector (they apply process-wide), while setting a task-scoped knob then requires the `TASK`.
 

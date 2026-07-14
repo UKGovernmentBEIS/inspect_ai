@@ -66,6 +66,7 @@ _KNOB_SCOPE: dict[str, str] = {
     "max_sandboxes": "process",
     "max_subprocesses": "process",
     "max_connections": "process",
+    "key": "process",
     "log_buffer": "task",
     "log_shared": "task",
 }
@@ -86,6 +87,7 @@ _KNOB_SINCE: dict[str, int] = {
     "max_sandboxes": 0,
     "max_subprocesses": 1,
     "max_connections": 0,
+    "key": 2,
     "log_buffer": 0,
     "log_shared": 0,
 }
@@ -676,6 +678,19 @@ def sample_cancel_command(
     ),
 )
 @click.option(
+    "--key",
+    "key",
+    type=(str, click.IntRange(min=1)),
+    default=None,
+    metavar="NAME LIMIT",
+    help=(
+        f"[{_KNOB_SCOPE['key']}] Set the named `concurrency()` limit NAME to "
+        "LIMIT — any limit tools or task code register by name (the output's "
+        "`concurrency keys` section lists them, exactly as addressable here). "
+        "An unknown NAME errors, listing the available keys."
+    ),
+)
+@click.option(
     "--log-buffer",
     type=click.IntRange(min=1),
     metavar="INTEGER",
@@ -713,6 +728,7 @@ def config_command(
     max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
+    key: tuple[str, int] | None,
     log_buffer: int | None,
     log_shared: int | None,
     dry_run: bool,
@@ -727,12 +743,15 @@ def config_command(
     and the output labels every knob likewise. Pass `--dry-run` to see what
     would change without applying it.
 
-    Lowering a concurrency limit never interrupts running samples — new
-    work waits until in-flight holders drain. `--log-buffer` / `--log-shared`
-    are the retune side of `inspect ctl task log-flush`: they set the
-    buffering policy for future writes, while log-flush writes what's
-    already buffered now. TASK is required only for setting a task-scoped
-    knob when several tasks run.
+    Beyond the named flags, any limit registered by name through the
+    `concurrency()` API — by tools (e.g. web search providers) or task code —
+    is settable with `--key NAME LIMIT`; the output lists the registered
+    keys. Lowering a concurrency limit never interrupts running samples —
+    new work waits until in-flight holders drain. `--log-buffer` /
+    `--log-shared` are the retune side of `inspect ctl task log-flush`: they
+    set the buffering policy for future writes, while log-flush writes
+    what's already buffered now. TASK is required only for setting a
+    task-scoped knob when several tasks run.
     """
     _run_config(
         task,
@@ -741,6 +760,7 @@ def config_command(
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        key=key,
         log_buffer=log_buffer,
         log_shared=log_shared,
         dry_run=dry_run,
@@ -973,6 +993,7 @@ def buffer_alias(
         max_subprocesses=None,
         max_connections=None,
         model=None,
+        key=None,
         log_buffer=log_buffer,
         log_shared=log_shared,
         dry_run=False,
@@ -986,6 +1007,7 @@ def buffer_alias(
 @click.option("--max-sandboxes", type=click.IntRange(min=1), default=None)
 @click.option("--max-connections", type=click.IntRange(min=1), default=None)
 @click.option("--model", default=None)
+@click.option("--key", "key", type=(str, click.IntRange(min=1)), default=None)
 @click.option("--dry-run", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
 def limits_alias(
@@ -994,6 +1016,7 @@ def limits_alias(
     max_sandboxes: int | None,
     max_connections: int | None,
     model: str | None,
+    key: tuple[str, int] | None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -1006,6 +1029,7 @@ def limits_alias(
         max_subprocesses=None,
         max_connections=max_connections,
         model=model,
+        key=key,
         log_buffer=None,
         log_shared=None,
         dry_run=dry_run,
@@ -1288,7 +1312,7 @@ def _list_sample_rows(
 ) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks."""
     fallback_as_of = time.time()
-    fetched = _fetch_sample_summaries()
+    fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         return _SampleRows(as_of=fallback_as_of, targets=[], read=[], rows=[])
@@ -1429,7 +1453,7 @@ def _run_sample_listing(
 def _run_sample_show(
     task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
 ) -> None:
-    fetched = _fetch_sample_summaries()
+    fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         if as_json:
@@ -1509,7 +1533,7 @@ def _run_sample_events(
     # the all-busy exit inside the fetch matters doubly here: the done:true
     # empty page below would falsely end a polling loop for an eval whose
     # events may live on the busy pid
-    fetched = _fetch_sample_summaries()
+    fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         if as_json:
@@ -1924,6 +1948,60 @@ def _run_process_list(as_json: bool) -> None:
     _render_table(("pid", "keep-alive", "tasks", "started"), table_rows)
 
 
+def _applied_knob_names(
+    limits_view: dict[str, Any],
+    *,
+    max_samples: int | None,
+    max_sandboxes: int | None,
+    max_subprocesses: int | None,
+    max_connections: int | None,
+    key: tuple[str, int] | None,
+) -> list[str]:
+    """Names of the requested knobs the server reported as adjustable.
+
+    Serves the no-live-buffer hard-error path so its "other knobs were still
+    applied" tail names only knobs that actually landed — a requested knob
+    the server reported as not adjustable did NOT apply. The buffer knobs
+    self-exclude: their adjustability check (no ``buffer`` view) is exactly
+    the condition that put the caller on the error path.
+    """
+    return [
+        name
+        for name, value, adjustable in (
+            (
+                "--max-samples",
+                max_samples,
+                bool((limits_view.get("max_samples") or {}).get("adjustable")),
+            ),
+            (
+                "--max-sandboxes",
+                max_sandboxes,
+                bool(limits_view.get("max_sandboxes")),
+            ),
+            (
+                "--max-subprocesses",
+                max_subprocesses,
+                bool(limits_view.get("max_subprocesses")),
+            ),
+            (
+                "--max-connections",
+                max_connections,
+                bool(limits_view.get("adaptive")),
+            ),
+            (
+                "--key",
+                key,
+                key is not None
+                and any(
+                    row.get("name") == key[0] and row.get("adjustable")
+                    for row in limits_view.get("concurrency") or []
+                ),
+            ),
+        )
+        if value is not None and adjustable
+    ]
+
+
 @_envelope_failures
 def _run_config(
     task: str | None,
@@ -1933,6 +2011,7 @@ def _run_config(
     max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
+    key: tuple[str, int] | None,
     log_buffer: int | None,
     log_shared: int | None,
     dry_run: bool,
@@ -1980,6 +2059,7 @@ def _run_config(
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
+        "key": key[1] if key is not None else None,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
     }
@@ -1997,6 +2077,7 @@ def _run_config(
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        key=key,
         log_buffer=log_buffer,
         log_shared=log_shared,
         dry_run=dry_run,
@@ -2014,32 +2095,14 @@ def _run_config(
     buffer_warnings: list[str] = []
     if scope.task_id is not None and limits_view.get("buffer") is None:
         if set_buffer:
-            applied_names = [
-                name
-                for name, value, adjustable in (
-                    (
-                        "--max-samples",
-                        max_samples,
-                        bool((limits_view.get("max_samples") or {}).get("adjustable")),
-                    ),
-                    (
-                        "--max-sandboxes",
-                        max_sandboxes,
-                        bool(limits_view.get("max_sandboxes")),
-                    ),
-                    (
-                        "--max-subprocesses",
-                        max_subprocesses,
-                        bool(limits_view.get("max_subprocesses")),
-                    ),
-                    (
-                        "--max-connections",
-                        max_connections,
-                        bool(limits_view.get("adaptive")),
-                    ),
-                )
-                if value is not None and adjustable
-            ]
+            applied_names = _applied_knob_names(
+                limits_view,
+                max_samples=max_samples,
+                max_sandboxes=max_sandboxes,
+                max_subprocesses=max_subprocesses,
+                max_connections=max_connections,
+                key=key,
+            )
             message = (
                 f"Task '{scope.task_id}' has no sample buffer in this "
                 "process (e.g. a reused log, or a retry attempt that's "
@@ -2071,6 +2134,7 @@ def _run_config(
             ("--max-connections", max_connections),
             ("--max-sandboxes", max_sandboxes),
             ("--max-subprocesses", max_subprocesses),
+            ("--key", key),
         )
         if value is not None
     ]
@@ -2131,6 +2195,12 @@ def _compose_config(
     knobs["max_connections"] = {
         "scope": _KNOB_SCOPE["max_connections"],
         "adaptive": limits_view.get("adaptive") or [],
+    }
+    # `keys: None` (vs an empty list) means the server predates the
+    # concurrency view — rendered as unreported rather than empty
+    knobs["concurrency"] = {
+        "scope": _KNOB_SCOPE["key"],
+        "keys": limits_view.get("concurrency"),
     }
     buffer_view = limits_view.get("buffer")
     if buffer_view is not None:
@@ -2559,6 +2629,7 @@ def _fetch_summaries(
     servers: list[DiscoveredControlServer],
     *,
     raise_on_busy: bool = False,
+    stop_on_task_id: str | None = None,
 ) -> _FetchedSummaries:
     """Query each discovered control server for its eval summary.
 
@@ -2578,6 +2649,16 @@ def _fetch_summaries(
     common cause is a process that just exited between discovery and connect,
     but the same path also catches a server-side ``500`` or a malformed
     response, which the user should see.
+
+    ``stop_on_task_id`` short-circuits the fan-out: once a server's rows
+    contain that exact task id, the remaining servers are not contacted.
+    Safe only for an exact *full* id — it wins resolution outright (see
+    :func:`_resolve_target_eval`), so the skipped servers could neither add
+    candidates nor create ambiguity; a prefix or name query never equals a
+    full id, so it still sees every server. Discovery is newest-first, so
+    only siblings started before the target are skipped, and the
+    duplicate-id corner (an old kept-alive attempt a newer process is
+    retrying) resolves to the newest attempt.
     """
     summaries: list[dict[str, Any]] = []
     busy_pids: list[int] = []
@@ -2620,10 +2701,14 @@ def _fetch_summaries(
                 row["pid"] = server.pid
                 row["socket_path"] = str(server.socket_path)
             summaries.extend(rows)
+            if stop_on_task_id is not None and any(
+                row.get("task_id") == stop_on_task_id for row in rows
+            ):
+                break
     return _FetchedSummaries(summaries=summaries, busy_pids=busy_pids)
 
 
-def _fetch_sample_summaries() -> _FetchedSummaries:
+def _fetch_sample_summaries(task_query: str | None = None) -> _FetchedSummaries:
     """Fetch the discovered summaries for a sample command.
 
     Busy processes are warned-and-skipped (``raise_on_busy``) so one wedged
@@ -2631,8 +2716,16 @@ def _fetch_sample_summaries() -> _FetchedSummaries:
     process alive yet busy), exit non-zero via :func:`_exit_all_busy`: an
     alive-but-busy eval must never be indistinguishable from no eval at all.
     ``busy_pids`` rides the return for scoped resolution's caveats.
+
+    ``task_query`` is the command's TASK selector; an exact full task id
+    stops the fan-out at the server holding it (see ``stop_on_task_id`` on
+    :func:`_fetch_summaries`).
     """
-    fetched = _fetch_summaries(list_discovered_servers(), raise_on_busy=True)
+    fetched = _fetch_summaries(
+        list_discovered_servers(),
+        raise_on_busy=True,
+        stop_on_task_id=task_query,
+    )
     if not fetched.summaries and fetched.busy_pids:
         _exit_all_busy(fetched.busy_pids)
     return fetched
@@ -3058,6 +3151,7 @@ def _exec_limits(
     max_subprocesses: int | None = None,
     max_connections: int | None,
     model: str | None,
+    key: tuple[str, int] | None = None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
     dry_run: bool,
@@ -3068,20 +3162,22 @@ def _exec_limits(
     per-task view, including ``max_samples`` and the ``log_buffer`` /
     ``log_shared`` buffer params; task ids are stable across retry attempts);
     with ``task_id=None`` it targets the process-level ``/config``
-    (``max_sandboxes`` / ``max_subprocesses`` / ``max_connections`` only).
-    ``model`` filters the adaptive controllers (a read param, applies to
-    both). Any settable knob
-    that is not ``None`` makes this a mutation: a single-shot PATCH given the
-    full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
-    caller-supplied, so a knob can never ride a GET as an ignored query
-    param. A pure read is a GET that retries a busy process on timeout.
-    ``dry_run`` only applies to a set.
+    (``max_sandboxes`` / ``max_subprocesses`` / ``max_connections`` / the
+    named-key knob only). ``model`` filters the adaptive controllers (a read
+    param, applies to both); ``key`` is the ``(name, limit)`` pair for a named
+    ``concurrency()`` registry entry, carried on the wire as ``key`` /
+    ``key_limit``. Any settable knob that is not ``None`` makes this a
+    mutation: a single-shot PATCH given the full mutation budget (see
+    :data:`_MUTATION_TIMEOUT`) — derived here, not caller-supplied, so a knob
+    can never ride a GET as an ignored query param. A pure read is a GET that
+    retries a busy process on timeout. ``dry_run`` only applies to a set.
     """
     knob_values: dict[str, int | None] = {
         "max_samples": max_samples,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
+        "key": key[1] if key is not None else None,
         "log_buffer": log_buffer,
         "log_shared": log_shared,
     }
@@ -3090,9 +3186,16 @@ def _exec_limits(
     # no-opping (or riding past the version gate ungated)
     assert knob_values.keys() == _KNOB_SCOPE.keys() == _KNOB_SINCE.keys()
     set_values = any(value is not None for value in knob_values.values())
+    # the key knob rides the wire as two params (key=<name>, key_limit=<n>),
+    # so it's excluded from the value passthrough and added explicitly
     params: dict[str, Any] = {
-        knob: value for knob, value in knob_values.items() if value is not None
+        knob: value
+        for knob, value in knob_values.items()
+        if knob != "key" and value is not None
     }
+    if key is not None:
+        params["key"] = key[0]
+        params["key_limit"] = key[1]
     if model is not None:
         params["model"] = model
     if dry_run:
@@ -3250,6 +3353,30 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                     f", last: {last.get('from')}→{last.get('to')} {last.get('reason')}"
                 )
             click.echo(line)
+
+    # The named concurrency() registry entries, addressable via `--key` by the
+    # exact name shown. Entries appear lazily on first use, so an empty
+    # registry gets a placeholder (like the sibling knobs) that keeps the
+    # knob discoverable and distinguishes it from an older server whose view
+    # omits the section (`keys` is None).
+    keys = (knobs.get("concurrency") or {}).get("keys")
+    if keys:
+        click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]:")
+        for row in keys:
+            # on a dry-run set, `_target` renders the requested key's limit as
+            # `current → requested` (the request rides `concurrency:<name>`)
+            limit = _target(row.get("limit"), f"concurrency:{row.get('name')}")
+            line = f"    {row.get('name')}: {limit} ({row.get('in_use')} in use)"
+            if not row.get("adjustable"):
+                line += " — not adjustable"
+            click.echo(line)
+    else:
+        empty = (
+            "none registered yet (named limits appear on first use)"
+            if keys is not None
+            else "not reported (older server)"
+        )
+        click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]: {empty}")
 
     # The process-level view carries no buffer knobs (they're per-task, read
     # off one task's live logger): mirror the max_samples placeholder so the
