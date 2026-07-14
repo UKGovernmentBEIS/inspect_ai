@@ -40,6 +40,7 @@ from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._control.events import decode_cursor, sample_events
 from inspect_ai._control.state import (
     current_eval_summaries,
+    current_sample_listing,
     current_sample_summaries,
     sample_error_detail,
 )
@@ -2018,10 +2019,14 @@ def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> N
             "page": page,
             "model_only": await sample_events(eid, "1", 1, types=frozenset({"model"})),
             "resumed": await sample_events(eid, "1", 1, since=page["next"]),
-            "active_future": await current_sample_summaries(
-                eid, active_since=_time.time() + 1000
-            ),
-            "active_all": await current_sample_summaries(eid, active_since=0.0),
+            "active_future": (
+                await current_sample_listing(
+                    eid, active_since=_time.time() + 1000, limit=None
+                )
+            ).samples,
+            "active_all": (
+                await current_sample_listing(eid, active_since=0.0, limit=None)
+            ).samples,
         }
 
     with probe(ready, capture) as p:
