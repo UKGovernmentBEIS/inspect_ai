@@ -14,8 +14,8 @@ channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
 Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
-summaries), ``GET /evals/{id}/samples`` (sample listing, with an
-``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
+summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
+status histogram and an ``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
 detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
 pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations and
@@ -48,7 +48,9 @@ from inspect_ai._control.limits import (
 )
 from inspect_ai._control.state import (
     current_eval_summaries,
-    current_sample_summaries,
+    current_sample_listing,
+    effective_sample_limit,
+    parse_status_filter,
     sample_error_detail,
 )
 from inspect_ai._util.discovery import (
@@ -287,8 +289,9 @@ class ControlServer:
         def _limits_below_one(*knobs: tuple[str, int | None]) -> JSONResponse | None:
             """400 for the first requested limit below 1, else None.
 
-            Shared by both PATCH limits routes so the knob validation can't
-            drift between them.
+            Shared by the routes that take integer knobs (both PATCH limits
+            routes and the samples listing) so the validation can't drift
+            between them.
             """
             for label, value in knobs:
                 if value is not None and value < 1:
@@ -379,17 +382,44 @@ class ControlServer:
 
         @app.get("/evals/{eval_id}/samples")
         async def list_eval_samples(
-            eval_id: str, active_since: float | None = None
-        ) -> dict[str, Any]:
+            eval_id: str,
+            active_since: float | None = None,
+            status: str | None = None,
+            limit: int | None = None,
+            all: bool = False,
+        ) -> Any:
             # `active_since` (unix ts) is the recency delta: only samples that
-            # started or updated since then. A filter, not a cursor. The
-            # response is an `{as_of, samples}` envelope — `as_of` is stamped
-            # BEFORE the listing is built, so a client feeding it back as the
-            # next `active_since` can't miss changes that land mid-read.
+            # started or updated since then. A filter, not a cursor. `status`
+            # is a comma-separated status filter; rows are capped at `limit`
+            # (default DEFAULT_SAMPLE_LIST_LIMIT) unless `all=true` asks for
+            # the full dump. The response is an `{as_of, counts, samples,
+            # truncated}` envelope — `as_of` is stamped BEFORE the listing is
+            # built, so a client feeding it back as the next `active_since`
+            # can't miss changes that land mid-read; `counts` is the whole
+            # eval's status histogram (complete even when rows are filtered
+            # or capped) and `truncated` reports a hit cap structurally.
+            if all and limit is not None:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "limit and all are mutually exclusive"},
+                )
+            if error := _limits_below_one(("limit", limit)):
+                return error
+            statuses, status_error = parse_status_filter(status)
+            if status_error is not None:
+                return JSONResponse(status_code=400, content={"error": status_error})
             as_of = time.time()
+            listing = await current_sample_listing(
+                eval_id,
+                active_since,
+                statuses=statuses,
+                limit=effective_sample_limit(limit, all),
+            )
             return {
                 "as_of": as_of,
-                "samples": await current_sample_summaries(eval_id, active_since),
+                "counts": listing.counts,
+                "samples": listing.samples,
+                "truncated": listing.truncated,
             }
 
         # `sample_id` is a query parameter (not a path segment) here and on
