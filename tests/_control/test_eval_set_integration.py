@@ -2355,7 +2355,9 @@ def test_task_retry_detaches_superseded_attempt_live(
         ]
         orig_clear()
 
-    monkeypatch.setattr("inspect_ai._eval.evalset.clear_all_eval_states", spy_clear)
+    # patch the eval_state module itself: the run boundary reaches the clear
+    # through reset_run_registries(), which resolves it from module globals
+    monkeypatch.setattr(eval_state_mod, "clear_all_eval_states", spy_clear)
 
     ok, _ = eval_set(
         tasks=[task_flaky()],
