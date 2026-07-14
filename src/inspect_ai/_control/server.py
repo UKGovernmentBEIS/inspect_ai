@@ -15,8 +15,9 @@ notes" for the lifecycle / flag policy.
 
 Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
-status histogram and an ``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
-detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
+status histogram and an ``active_since`` recency delta), ``GET
+/evals/{id}/sample`` (summary + error detail), and ``GET
+/evals/{id}/sample/events`` (cursored transcript
 pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations and
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
