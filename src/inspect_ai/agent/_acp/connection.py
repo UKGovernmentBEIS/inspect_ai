@@ -633,8 +633,8 @@ class ConnectionHandler:
                 {
                     "reason": (
                         "action='error' not permitted when sample is "
-                        "configured to fail on errors "
-                        "(fails_on_error=True — use action='score')"
+                        "configured to fail on errors (fails_on_error=True "
+                        "— use action='score' or action='cancel')"
                     )
                 }
             )

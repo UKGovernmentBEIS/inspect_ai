@@ -69,6 +69,7 @@ class _FakeActiveSample:
         self.fails_on_error = fails_on_error
         self.interrupts: list[str] = []
         self.interrupt_action: Literal["score", "error", "cancel"] | None = None
+        self.limit_exceeded_error: Exception | None = None
 
     def interrupt(self, action: Literal["score", "error", "cancel"]) -> None:
         self.interrupts.append(action)
@@ -315,9 +316,8 @@ def test_cancel_task_resolution_sweep_skips_already_interrupted(
 
     A sample that was per-sample cancelled is still "in flight" until its
     (post-scoring/logging) context exit stamps `completed`; re-interrupting
-    it would flip its 'cancel' disposition to score/error, defeating the
-    runner guard that keeps its sample-scoped CancelledError from tearing
-    down the whole task.
+    it would flip a not-yet-handled 'cancel' to the score/error disposition
+    and re-fire on_interrupt hooks on a sample already being resolved.
     """
     handle = _FakeTaskCancel()
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
@@ -329,6 +329,30 @@ def test_cancel_task_resolution_sweep_skips_already_interrupted(
     result = cancel_task("t1", action="score")
     assert result is not None and result["changed"] is True
     assert already_cancelled.interrupts == ["cancel"]  # not re-interrupted
+    assert running.interrupts == ["score"]
+
+
+def test_cancel_task_resolution_sweep_skips_fired_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The in-flight sweep never overwrites a fired-but-unhandled limit.
+
+    A sample whose limit has fired but whose cancellation the runner has
+    not yet handled has `limit_exceeded_error` set and `interrupt_action`
+    unset; the runner checks `interrupt_action` first, so interrupting it
+    would hijack the limit's legitimate outcome with the sweep's
+    disposition (and re-fire on_interrupt on top of the limit's firing).
+    """
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    limited = _FakeActiveSample(sample_id="s1")
+    limited.limit_exceeded_error = Exception("working limit")
+    running = _FakeActiveSample(sample_id="s2")
+    _patch_active_samples(monkeypatch, [limited, running])
+
+    result = cancel_task("t1", action="score")
+    assert result is not None and result["changed"] is True
+    assert limited.interrupts == []  # limit outcome preserved
     assert running.interrupts == ["score"]
 
 
