@@ -712,3 +712,27 @@ def test_dict_metric_all_samples_unscored():
         assert r.scored_samples == 0
         assert r.unscored_samples == 3
         assert math.isnan(r.metrics["mean"].value)
+
+
+def test_metrics_return_zero_for_empty_scores() -> None:
+    # Every built-in numeric metric must handle an empty score list by
+    # returning 0.0 rather than nan (with numpy empty-slice warnings). See the
+    # empty-input guards documented in accuracy()/std()/var().
+    from inspect_ai.scorer import (
+        accuracy,
+        bootstrap_stderr,
+        mean,
+        std,
+        stderr,
+        var,
+    )
+
+    for metric_fn in (
+        accuracy(),
+        mean(),
+        var(),
+        std(),
+        stderr(),
+        bootstrap_stderr(),
+    ):
+        assert metric_fn([]) == 0.0

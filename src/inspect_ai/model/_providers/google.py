@@ -96,7 +96,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
-from inspect_ai.model._model import RetryDecision, log_model_retry
+from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import (
     StopCategory,
@@ -118,7 +118,7 @@ from inspect_ai.model._reasoning import (
     effort_to_reasoning_tokens,
     reasoning_to_think_tag,
 )
-from inspect_ai.model._retry import model_retry_config
+from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -1011,14 +1011,7 @@ class GoogleGenAIAPI(ModelAPI):
         self._batcher = GoogleBatcher(
             client,
             batch_config,
-            model_retry_config(
-                self.model_name,
-                config.max_retries,
-                config.timeout,
-                self.should_retry,
-                lambda ex: None,
-                log_model_retry,
-            ),
+            batch_admin_retry_config(self.model_name, config, self.should_retry),
             self.service_model_name(),
         )
 
@@ -1950,12 +1943,18 @@ def usage_metadata_to_model_usage(
     # cached count from `input_tokens` and surface it separately.
     cached = metadata.cached_content_token_count or 0
     prompt = metadata.prompt_token_count or 0
+    # Gemini also reports thoughts separately from candidates. Fold them into
+    # `output_tokens` to match the OpenAI/Anthropic convention — reasoning is
+    # included in output (Gemini bills thinking at the output rate), with
+    # `reasoning_tokens` as the detail subset. This also keeps output-metered
+    # token limits (`token_limit(type="output")`) counting thinking tokens.
+    thoughts = metadata.thoughts_token_count or 0
     return ModelUsage(
         input_tokens=max(prompt - cached, 0),
-        output_tokens=metadata.candidates_token_count or 0,
+        output_tokens=(metadata.candidates_token_count or 0) + thoughts,
         total_tokens=metadata.total_token_count or 0,
         input_tokens_cache_read=cached or None,
-        reasoning_tokens=metadata.thoughts_token_count or 0,
+        reasoning_tokens=thoughts,
     )
 
 

@@ -27,6 +27,7 @@ from inspect_ai.util._limit import (
     check_cost_limit,
     check_message_limit,
     check_token_limit,
+    token_limit_usage,
 )
 from inspect_ai.util._limit import cost_limit as create_cost_limit
 from inspect_ai.util._limit import message_limit as create_message_limit
@@ -158,6 +159,7 @@ class TaskState:
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
+        token_limit_type: str = "all",
         cost_limit: float | None = None,
         completed: bool = False,
         metadata: dict[str, Any] | None = None,
@@ -175,7 +177,7 @@ class TaskState:
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))
         self._message_limit = create_message_limit(message_limit)
-        self._token_limit = create_token_limit(token_limit)
+        self._token_limit = create_token_limit(token_limit, type=token_limit_type)
         self._cost_limit = create_cost_limit(cost_limit)
         self._completed = completed
         self._store = Store(store)
@@ -333,21 +335,41 @@ class TaskState:
 
     @property
     def token_limit(self) -> int | None:
-        """Limit on total tokens allowed per conversation."""
+        """Limit on tokens allowed per conversation."""
         return self._token_limit.limit
 
     @token_limit.setter
     def token_limit(self, tokens: int | None) -> None:
-        """Set limit on total tokens allowed per conversation.
+        """Set limit on tokens allowed per conversation.
+
+        The metering type (all vs. output tokens) is fixed at sample init and
+        is not affected by setting a new numeric limit.
 
         Also checks whether the current token usage exceeds the new limit.
         """
+        from inspect_ai.log._samples import (
+            set_active_sample_token_limit,
+            set_active_sample_token_limit_type,
+            set_active_sample_token_limit_usage,
+        )
+
         self._token_limit.limit = tokens
+
+        # push the full limit group (ceiling, type, metered usage) before the
+        # check so the control channel reflects the new ceiling even when the
+        # check trips; type and usage are reported only alongside a ceiling
+        set_active_sample_token_limit(tokens)
+        set_active_sample_token_limit_type(
+            self._token_limit.type if tokens is not None else None
+        )
+        set_active_sample_token_limit_usage(token_limit_usage())
+
         check_token_limit()
 
-        from inspect_ai.log._samples import set_active_sample_token_limit
-
-        set_active_sample_token_limit(tokens)
+    @property
+    def token_limit_type(self) -> str:
+        """Which tokens the token limit meters (fixed at sample init)."""
+        return self._token_limit.type
 
     @property
     def token_usage(self) -> int:

@@ -35,6 +35,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
+from inspect_ai.util._concurrency import LimitChangeReason
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
@@ -148,6 +149,13 @@ class EvalConfig(BaseModel):
 
     token_limit: int | None = Field(default=None)
     """Maximum tokens usage per sample."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters (None indicates "all").
+
+    Either a keyword ("all" or "output") or an arithmetic formula over `input`
+    and `output` (see `TokenLimit`).
+    """
 
     turn_limit: int | None = Field(default=None)
     """Maximum turns (model generations) per sample."""
@@ -320,6 +328,18 @@ class EvalSampleSummary(BaseModel):
 
     message_count: int | None = Field(default=None)
     """Number of messages in the sample conversation."""
+
+    turn_count: int | None = Field(default=None)
+    """Number of turns (top-level model generations) in the sample."""
+
+    token_limit: int | None = Field(default=None)
+    """Configured token limit ceiling for the sample (None when no limit)."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
+
+    token_limit_usage: int | None = Field(default=None)
+    """Metered usage for the sample's token limit (respects the limit's type)."""
 
     @model_validator(mode="after")
     def thin_data(self) -> "EvalSampleSummary":
@@ -506,6 +526,18 @@ class EvalSample(BaseModel):
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
 
+    turn_count: int | None = Field(default=None)
+    """Number of turns (top-level model generations) in the sample."""
+
+    token_limit: int | None = Field(default=None)
+    """Configured token limit ceiling for the sample (None when no limit)."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
+
+    token_limit_usage: int | None = Field(default=None)
+    """Metered usage for the sample's token limit (respects the limit's type)."""
+
     def summary(self) -> EvalSampleSummary:
         """Summary of sample.
 
@@ -539,6 +571,10 @@ class EvalSample(BaseModel):
             retries=len(self.error_retries) if self.error_retries is not None else None,
             completed=True,
             message_count=len(self.messages),
+            turn_count=self.turn_count,
+            token_limit=self.token_limit,
+            token_limit_type=self.token_limit_type,
+            token_limit_usage=self.token_limit_usage,
         )
 
     # deprecated properties
@@ -1056,8 +1092,9 @@ class ConnectionLimitChange(BaseModel):
     new_limit: int
     """Concurrency limit after the change."""
 
-    reason: Literal["slow_start", "steady_state_up", "rate_limit"]
-    """Why the change occurred."""
+    reason: LimitChangeReason
+    """Why the change occurred: an adaptive-scaling decision (`slow_start` /
+    `steady_state_up` / `rate_limit`) or a `manual` control-channel retune."""
 
 
 class EvalStats(BaseModel):

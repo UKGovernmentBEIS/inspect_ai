@@ -25,6 +25,11 @@ def mean(to_float: ValueToFloat = value_to_float()) -> Metric:
     def metric(scores: list[SampleScore]) -> float:
         import numpy as np
 
+        if not scores:
+            # No scores to average; return 0 rather than nan (and avoid the
+            # numpy empty-slice warning), mirroring the empty-input guards in
+            # accuracy()/std()/var().
+            return 0.0
         return np.mean([to_float(score.score.value) for score in scores]).item()
 
     return metric

@@ -231,7 +231,7 @@ class SampleBufferDatabase(SampleBuffer):
             if len(logs) > 0:
                 self.db_path = logs[0]
             else:
-                raise FileNotFoundError("Log database for '{location}' not found.")
+                raise FileNotFoundError(f"Log database for '{location}' not found.")
 
         # Per-sample pool indices; full pool entries live in SQLite.
         self._msg_indices: dict[tuple[str, int], MessagePoolIndex] = {}
@@ -1036,6 +1036,44 @@ class SampleBufferDatabase(SampleBuffer):
             # here — the connection persists and is closed at cleanup.
             if write:
                 self._sync()
+
+    @property
+    def shared_sync_interval(self) -> int | None:
+        """Effective shared-log sync interval in seconds, or None when off.
+
+        ``log_shared`` carries the raw configured value, but a normal CLI run
+        passes ``0`` ("off") which is stored as ``0`` yet never creates a
+        filestore. Shared sync is actually running only when a filestore was
+        created (``log_shared`` truthy at construction). This collapses both
+        ``0`` and "no filestore" to ``None`` so callers report a single "off"
+        signal rather than a misleading ``0s`` interval.
+        """
+        return self.log_shared if self._sync_filestore is not None else None
+
+    def set_sync_interval(self, seconds: int) -> bool:
+        """Change the interval for syncing buffered events to the shared log dir.
+
+        Only meaningful when this buffer is syncing to a shared (eg. S3) log
+        directory — i.e. it was opened with a ``log_shared`` interval. Lowering
+        the interval makes in-progress sample events appear in the shared log
+        sooner; raising it reduces remote-write frequency. The running sync
+        worker picks up the new interval on its next wake-up.
+
+        Args:
+            seconds: New sync interval, in seconds (clamped to a minimum of 1).
+
+        Returns:
+            True if the interval was updated, False if this buffer has no
+            shared-log sync configured (nothing to retune).
+        """
+        if self.log_shared is None or self._sync_filestore is None:
+            return False
+        with self._sync_lock:
+            self.log_shared = max(1, seconds)
+            self._sync_filestore.update_interval = self.log_shared
+            # wake the worker so it recomputes its wait against the new interval
+            self._sync_wakeup.notify_all()
+        return True
 
     def _sync(self) -> None:
         sync_filestore = self._sync_filestore

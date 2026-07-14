@@ -77,6 +77,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample_summaries_async,
 )
 from inspect_ai.log._log import (
+    EvalPlan,
     EvalRetryError,
     EvalSampleLimit,
     EvalSampleReductions,
@@ -151,6 +152,9 @@ from inspect_ai.util._limit import (
     LimitExceededError,
     monitor_working_limit,
     record_sample_limit_data,
+    reset_sample_limit_data,
+    token_limit_usage,
+    turn_count,
 )
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import turn_limit as create_turn_limit
@@ -306,6 +310,17 @@ def plan_agent_name(plan: Plan) -> str | None:
         if is_registry_object(last_step):
             return registry_unqualified_name(registry_info(last_step).name)
     return None
+
+
+def eval_plan_agent_name(plan: EvalPlan) -> str | None:
+    """Unqualified name of a recorded plan's terminal step (agent or solver).
+
+    The log-header counterpart of `plan_agent_name`. `plan_to_eval_plan`
+    records a `finish` solver again as the trailing step, so skip it to
+    match the live derivation.
+    """
+    steps = plan.steps[:-1] if plan.finish else plan.steps
+    return registry_unqualified_name(steps[-1].solver) if steps else None
 
 
 def _enqueue_source_tasks(tasks: list[Task] | None) -> None:
@@ -497,6 +512,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # call hook
             await emit_task_start(logger)
 
+            sample_semaphore = create_sample_semaphore(
+                config,
+                model.config.merge(generate_config),
+                model.api,
+                task_id=logger.eval.task_id,
+            )
+
             # Register this eval with the process-level state aggregate
             # so the control channel (and other readers) can answer
             # "how many samples queued / running / done?" without
@@ -508,10 +530,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 task=logger.eval.task,
                 task_id=logger.eval.task_id,
                 model=str(model),
+                solver=profile.agent,
                 log_location=logger.location,
-                summaries_provider=logger.sample_summaries,
-                sample_provider=logger.read_sample,
-                events_provider=logger.sample_events_provider,
+                live=logger,
                 sample_ids=sample_ids,
                 epochs=epochs,
                 run_id=logger.eval.run_id,
@@ -519,6 +540,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # control channel show cancelled samples as pending (re-run
                 # coming) vs cancelled (terminal)
                 will_retry=task_cancel.can_retry if task_cancel is not None else False,
+                # the cancel handle the control channel's task-cancel
+                # directive fires (with "abort" — the display's user-cancel)
+                task_cancel=task_cancel,
             )
 
             # call early stopping if we have it
@@ -553,11 +577,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                 # set generate for fork module
                 set_task_generate(generate)
-
-                # semaphore to limit concurrency
-                sample_semaphore = create_sample_semaphore(
-                    config, generate_config, model.api
-                )
 
                 scanned_per_scanner = scanned_transcripts_for_resume(
                     scanner, scan_id, profile.log_location
@@ -699,6 +718,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 messages=sample_messages(sample),
                                 message_limit=config.message_limit,
                                 token_limit=config.token_limit,
+                                token_limit_type=config.token_limit_type or "all",
                                 cost_limit=config.cost_limit,
                                 completed=False,
                                 metadata=sample.metadata if sample.metadata else {},
@@ -1097,6 +1117,11 @@ async def task_run_sample(
         # materialize sample+state lazily (deferred until semaphore acquired)
         sample, state = await create_sample_state(sample_uuid)
 
+        # reset at the top of the attempt (not just before the limit scopes
+        # open) so that an attempt failing during init doesn't log the prior
+        # attempt's snapshot
+        reset_sample_limit_data()
+
         # validate that we have sample_id (mostly for the typechecker)
         sample_id = sample.id
         if sample_id is None:
@@ -1155,7 +1180,11 @@ async def task_run_sample(
         # precedence eval > sample > task (per-field merge — see
         # `merge_checkpoint_configs`).
         resolved_checkpoint = merge_checkpoint_configs(
-            checkpoint, sample.checkpoint, eval_checkpoint
+            checkpoint,
+            sample.checkpoint,
+            eval_checkpoint,
+            on_checkpoint=task.on_checkpoint,
+            on_resume=task.on_resume,
         )
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
@@ -1200,6 +1229,10 @@ async def task_run_sample(
             epoch=state.epoch,
             message_limit=state.message_limit,
             token_limit=state.token_limit,
+            # the metering type is only meaningful when a ceiling is configured
+            token_limit_type=state.token_limit_type
+            if state.token_limit is not None
+            else None,
             cost_limit=state.cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
@@ -1852,6 +1885,12 @@ def create_eval_sample(
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
         model_fallbacks=sample_model_fallbacks() or None,
+        turn_count=turn_count(),
+        token_limit=state.token_limit,
+        token_limit_type=state.token_limit_type
+        if state.token_limit is not None
+        else None,
+        token_limit_usage=token_limit_usage(),
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,
@@ -2019,7 +2058,11 @@ def eval_log_sample_source(
                 sample = await read_eval_log_sample_async(
                     eval_log_info, id, epoch, reader=reader
                 )
-            except IndexError:
+            except (IndexError, FileNotFoundError):
+                # IndexError: sample not present in the log. FileNotFoundError:
+                # the log file itself was never written (the prior attempt
+                # failed before its first flush, e.g. an errored log_start()).
+                # Either way there is no prior sample to reuse.
                 return await _resume_if_checkpointed(id, epoch)
             if sample.error is None and sample.invalidation is None:
                 return sample
@@ -2055,40 +2098,86 @@ def eval_log_sample_source(
         return EvalSampleSource(read_from_memory, memory_error_history)
 
 
-# semaphore to limit concurrency. default max_samples to
-# max_connections + 1 if not explicitly specified (this is
-# to make sure it always saturates the connection pool)
 def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
+    task_id: str | None = None,
 ) -> contextlib.AbstractAsyncContextManager[Any]:
+    """Create (or reuse) the task's sample-concurrency semaphore.
+
+    Bounds how many samples run at once so setup work (sandboxes, state)
+    stays proportional to what the model can actually serve: an explicit
+    ``max_samples`` is honored as a user setpoint; otherwise the adaptive
+    path follows the model's connection controller, and the static path
+    defaults from ``max_connections`` (so the connection pool always
+    saturates).
+
+    ``generate_config`` must be the model-composed config
+    (``model.config.merge(task_config)``, the same composition
+    ``Model._resolve_config`` applies) — classifying from the task-level
+    config alone would disagree with the generate path when the model
+    carries its own ``max_connections`` / ``adaptive_connections``,
+    coupling sample concurrency to a controller generates never use (see
+    ``ensure_model_controller`` for the same contract on the eager side).
+
+    Semaphores are task-scoped, not attempt-scoped: they're registered under
+    ``task_id`` and an in-process retry reuses its predecessor's semaphore,
+    so a mid-flight ``ctl config --max-samples`` retune survives the retry
+    rather than silently reverting to the config value (see the registry's
+    rationale in ``_concurrency.py``). The control channel's modify-limits
+    directive reads and retunes ``max_samples`` through this same registry
+    entry.
+    """
+    from inspect_ai.model._model import model_concurrency_key
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,
+        ResizableLimiter,
         adaptive_active,
+        register_task_sample_semaphore,
         resolve_adaptive,
+        task_sample_semaphore,
     )
 
+    # sample semaphores are task-scoped, not attempt-scoped: an in-process
+    # retry reuses its predecessor's semaphore so a mid-flight `ctl config
+    # --max-samples` retune survives the retry rather than silently reverting
+    # to the config value (see the registry's rationale in _concurrency.py)
+    if task_id is not None:
+        existing = task_sample_semaphore(task_id)
+        if existing is not None:
+            return existing
+
+    semaphore: "ResizableLimiter | DynamicSampleLimiter"
     if config.max_samples is not None:
         # explicit max_samples wins silently — under default-on
         # adaptive_connections, warning when max_samples < adaptive.max
-        # would fire for nearly every deliberate max_samples setting
-        return anyio.Semaphore(config.max_samples)
+        # would fire for nearly every deliberate max_samples setting.
+        # ResizableLimiter (not a fixed Semaphore) so the control channel can
+        # retune max_samples mid-eval (see design/control-channel.md phase 3).
+        semaphore = ResizableLimiter(config.max_samples)
     elif adaptive_active(
         generate_config.adaptive_connections,
         generate_config.max_connections,
         generate_config.batch,
     ):
-        # adaptive: dynamic limiter that tracks the controller(s) — sample
-        # concurrency grows with the controller's current limit so setup work
-        # (sandboxes etc.) stays proportional to actual model concurrency.
+        # adaptive: dynamic limiter that tracks this model's controller —
+        # sample concurrency grows with the controller's current limit so setup
+        # work (sandboxes etc.) stays proportional to actual model concurrency.
+        # The connection-pool key scopes the limiter to the task's own model's
+        # controller: controllers for other models in the process (graders,
+        # eval-set siblings) must not drive it. Without a ModelAPI (tests) the
+        # sentinel key matches no controller and the limiter stays at its
+        # initial value.
         # Both explicit max_connections and batch mode silently override
         # adaptive (matches the precedence in Model._connection_concurrency).
-        return DynamicSampleLimiter(
-            resolve_adaptive(generate_config.adaptive_connections)
+        semaphore = DynamicSampleLimiter(
+            resolve_adaptive(generate_config.adaptive_connections),
+            model_concurrency_key(modelapi) if modelapi else "<no-model>",
         )
     else:
-        # static path (existing behavior, unchanged)
+        # static path (default max_samples derived from max_connections).
+        # ResizableLimiter so the control channel can retune it mid-eval.
         max_samples = (
             generate_config.max_connections
             if generate_config.max_connections is not None
@@ -2098,7 +2187,11 @@ def create_sample_semaphore(
             if modelapi
             else DEFAULT_MAX_CONNECTIONS
         )
-        return anyio.Semaphore(max_samples)
+        semaphore = ResizableLimiter(max_samples)
+
+    if task_id is not None:
+        register_task_sample_semaphore(task_id, semaphore)
+    return semaphore
 
 
 def _eval_retry_error(

@@ -16,6 +16,10 @@ The CI gates exist to prevent two failure modes:
 1. **Regression in sandbox-related tool behavior.** The end-to-end tests under `tests/tools/` that exercise real sandboxes are too slow to run in the normal test gate, so they're excluded there and run in a dedicated slow-test gate instead. That gate only triggers when a PR touches code that could plausibly regress them — the host-side tool code, the injectable, or the tests themselves. PRs touching those paths pay the cost of the slower tests; PRs that don't, don't.
 2. **Merging injectable source changes that haven't been published.** If `src/inspect_sandbox_tools/` changes but `sandbox_tools_version.txt` isn't bumped (and the new `v{N}` isn't uploaded to S3), the next PyPI wheel build will either fail or bundle the wrong binary, and editable installs on `main` will S3-download a binary that doesn't match the source tree. The gates force the bump and verify the S3 upload before the PR can land.
 
+## Fast unit gate
+
+Separate from the slow integration gates below, the **`sandbox-tools-unit`** job runs the package's own fast, self-contained unit tests (`src/inspect_sandbox_tools/tests/agent_bridge/`, notably the model proxy) on any change under `src/inspect_sandbox_tools/**` — including test-only changes. It installs the package as its own project (`uv pip install "./src/inspect_sandbox_tools[dev]"`) so pytest resolves that package's `pyproject.toml` as config (`asyncio_mode=auto`); these tests can't run under the root `test` job, whose anyio conftest blocks `@pytest.mark.asyncio`. It needs no Docker or built binary, so it gives fast feedback on proxy-logic regressions that the slow integration gates (which require a binary + version bump) would not.
+
 ## Gates
 
 Three jobs run in sequence on PRs:

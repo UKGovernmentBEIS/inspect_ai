@@ -33,7 +33,6 @@ from tenacity import (
     RetryCallState,
     retry_if_exception,
     stop_after_attempt,
-    stop_after_delay,
     wait_exponential_jitter,
 )
 from typing_extensions import TYPE_CHECKING, override
@@ -742,10 +741,16 @@ def _log_s3_retry_attempt(location: str) -> Callable[[RetryCallState], None]:
 async def _s3_put_with_retry(
     do_put: Callable[[], Coroutine[Any, Any, None]], *, location: str
 ) -> None:
+    # bound by attempt count only (each attempt re-signs the request). A
+    # wall-clock stop (stop_after_delay) is exactly wrong for this error:
+    # a stale signature means the attempt itself was delayed (e.g. queued
+    # behind a starved connection pool for 15+ minutes), so a single slow
+    # failure would exhaust the budget and the write would never be retried
+    # with a fresh signature.
     async for attempt in AsyncRetrying(
         retry=retry_if_exception(_is_stale_signature_error),
         wait=wait_exponential_jitter(),
-        stop=stop_after_attempt(5) | stop_after_delay(60),
+        stop=stop_after_attempt(5),
         sleep=anyio.sleep,
         before_sleep=_log_s3_retry_attempt(location),
         reraise=True,
