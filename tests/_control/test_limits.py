@@ -6,7 +6,7 @@ sandbox-limiter registry), the server routes that wrap it, and the CLI rendering
 """
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -17,6 +17,12 @@ from inspect_ai._control.eval_state import (
     register_eval,
 )
 from inspect_ai._control.limits import task_limits
+from inspect_ai.model._generate_overrides import (
+    MAX_GENERATE_CONFIG_OVERRIDE,
+    generate_config_override,
+    reset_generate_config_overrides,
+    set_generate_config_override,
+)
 from inspect_ai.util._concurrency import (
     AdaptiveConcurrencyController,
     ResizableLimiter,
@@ -32,9 +38,11 @@ from inspect_ai.util._concurrency import (
 def _clear_states():
     clear_all_eval_states()
     init_concurrency()  # resets the sandbox and subprocess limiter registries
+    reset_generate_config_overrides()
     yield
     clear_all_eval_states()
     init_concurrency()
+    reset_generate_config_overrides()
 
 
 # ---------------------------------------------------------------------------
@@ -406,6 +414,199 @@ async def test_process_limits_model_no_match_warns() -> None:
         "no adaptive connection controller matches model 'mistral'" in w
         for w in result["warnings"]
     )
+
+
+# ---------------------------------------------------------------------------
+# Retry-loop overrides (timeout / attempt_timeout / max_retries)
+# ---------------------------------------------------------------------------
+
+
+async def test_retry_overrides_default_view() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits()
+    assert result["retry"] == {
+        "timeout": None,
+        "attempt_timeout": None,
+        "max_retries": None,
+    }
+
+
+async def test_retry_overrides_set_and_clear() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits(timeout=120, attempt_timeout=30, max_retries=5)
+    assert result["requested"] == {
+        "timeout": 120,
+        "attempt_timeout": 30,
+        "max_retries": 5,
+    }
+    assert result["retry"] == {"timeout": 120, "attempt_timeout": 30, "max_retries": 5}
+    # always adjustable — the override layer exists regardless of launch config
+    assert result["warnings"] == []
+    assert generate_config_override("timeout") == 120
+
+    # "clear" removes an override (restoring launch config); the others stand
+    result = await process_limits(timeout="clear")
+    assert result["requested"] == {"timeout": "clear"}
+    assert result["retry"] == {"timeout": None, "attempt_timeout": 30, "max_retries": 5}
+    assert generate_config_override("timeout") is None
+
+    # 0 is a real value, not a clear — max_retries 0 = no retries (fail fast)
+    result = await process_limits(max_retries=0)
+    assert result["requested"] == {"max_retries": 0}
+    assert result["retry"]["max_retries"] == 0
+    assert generate_config_override("max_retries") == 0
+
+
+async def test_retry_overrides_dry_run_does_not_apply() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits(max_retries=2, dry_run=True)
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_retries": 2}
+    assert result["retry"]["max_retries"] is None
+    assert generate_config_override("max_retries") is None
+
+
+async def test_retry_overrides_via_task_limits() -> None:
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1", max_retries=3)
+    assert result is not None
+    assert result["retry"]["max_retries"] == 3
+    assert result["requested"] == {"max_retries": 3}
+    assert generate_config_override("max_retries") == 3
+
+
+def test_retry_override_reaches_live_retry_stop() -> None:
+    """The tenacity stop reads the overrides on every post-attempt check.
+
+    This is the mid-flight contract: a retune reaches generate calls already
+    inside their retry loop (whose stop was built before the override was
+    set), not just calls started afterwards.
+    """
+    from tenacity import RetryCallState
+
+    from inspect_ai.model._retry import model_retry_config
+
+    retry_config = model_retry_config(
+        "m",
+        None,  # max_retries: launch config says retry forever
+        None,  # timeout
+        lambda ex: True,
+        lambda ex: None,
+        lambda name, rs: None,
+    )
+    stop = retry_config["stop"]
+    assert callable(stop)
+
+    state = RetryCallState(cast(Any, None), None, (), {})
+    state.attempt_number = 5
+    assert stop(state) is False  # no override → retry forever
+
+    # max_retries counts retries: N allows N+1 attempts, so after attempt 5
+    # an override of 4 (4 retries = 5 attempts) stops and 5 keeps going
+    set_generate_config_override("max_retries", 4)
+    assert stop(state) is True  # the same stop now fails fast
+    set_generate_config_override("max_retries", 5)
+    assert stop(state) is False
+    set_generate_config_override("max_retries", None)
+    assert stop(state) is False
+
+    # 0 = no retries: stop right after the first attempt
+    set_generate_config_override("max_retries", 0)
+    state.attempt_number = 1
+    assert stop(state) is True
+    set_generate_config_override("max_retries", None)
+    state.attempt_number = 5
+
+    # total-budget override (timeout) keys on seconds_since_start
+    state.outcome_timestamp = state.start_time + 100
+    set_generate_config_override("timeout", 50)
+    assert stop(state) is True
+    set_generate_config_override("timeout", 200)
+    assert stop(state) is False
+
+
+def test_retry_override_defers_to_base_config_when_unset() -> None:
+    """Without an override the per-call config's own values stand."""
+    from tenacity import RetryCallState
+
+    from inspect_ai.model._retry import model_retry_config
+
+    retry_config = model_retry_config(
+        "m",
+        2,  # max_retries from the call's GenerateConfig
+        300,  # timeout
+        lambda ex: True,
+        lambda ex: None,
+        lambda name, rs: None,
+    )
+    stop = retry_config["stop"]
+    assert callable(stop)
+
+    state = RetryCallState(cast(Any, None), None, (), {})
+    state.attempt_number = 2
+    assert stop(state) is False  # 2 retries = 3 attempts; attempt 2 continues
+    state.attempt_number = 3
+    assert stop(state) is True  # base max_retries exhausted after attempt 3
+
+    # raising the override rides out what the base config would stop
+    set_generate_config_override("max_retries", 10)
+    assert stop(state) is False
+    state.outcome_timestamp = state.start_time + 400
+    assert stop(state) is True  # base timeout still stands (not overridden)
+
+
+def test_retry_override_opted_out_for_batch_admin_ops() -> None:
+    """`live_overrides=False` (batcher admin ops) pins the launch config.
+
+    A fail-fast retune must not reach batch create/poll retry loops — an
+    exhausted admin-op retry fails every request riding the batch.
+    """
+    from tenacity import RetryCallState
+
+    from inspect_ai.model._retry import model_retry_config
+
+    retry_config = model_retry_config(
+        "m",
+        None,  # launch config: retry forever
+        None,
+        lambda ex: True,
+        lambda ex: None,
+        lambda name, rs: None,
+        live_overrides=False,
+    )
+    stop = retry_config["stop"]
+    assert callable(stop)
+
+    state = RetryCallState(cast(Any, None), None, (), {})
+    state.attempt_number = 5
+    set_generate_config_override("max_retries", 0)
+    set_generate_config_override("timeout", 1)
+    state.outcome_timestamp = state.start_time + 100
+    assert stop(state) is False  # the fail-fast retune is ignored
+
+
+def test_set_generate_config_override_rejects_out_of_range() -> None:
+    """A programmatic sign or magnitude bug errors loudly, not becomes an override.
+
+    An unbounded value would poison the point of use rather than the caller
+    (a huge attempt_timeout raises OverflowError inside every subsequent
+    generate call's `anyio.move_on_after`), so the store rejects it here.
+    """
+    with pytest.raises(ValueError, match="max_retries"):
+        set_generate_config_override("max_retries", -1)
+    with pytest.raises(ValueError, match="attempt_timeout"):
+        set_generate_config_override(
+            "attempt_timeout", MAX_GENERATE_CONFIG_OVERRIDE + 1
+        )
+    assert generate_config_override("max_retries") is None
+    assert generate_config_override("attempt_timeout") is None
+    # the bound itself is a legal value
+    set_generate_config_override("timeout", MAX_GENERATE_CONFIG_OVERRIDE)
+    assert generate_config_override("timeout") == MAX_GENERATE_CONFIG_OVERRIDE
 
 
 # ---------------------------------------------------------------------------
@@ -806,6 +1007,53 @@ async def test_process_limits_route_model_filter() -> None:
         assert [a["name"] for a in patched.json()["adaptive"]] == ["openai/gpt-4"]
         assert gpt.max == 20
         assert claude.max == 100  # unmatched, untouched
+
+
+async def test_retry_overrides_route_patch_and_clear() -> None:
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch("/config", params={"timeout": 90})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["retry"]["timeout"] == 90
+        assert generate_config_override("timeout") == 90
+
+        # the task-keyed route carries the same knobs (process-scoped)
+        patched = await client.patch("/tasks/t1/config", params={"max_retries": 4})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["retry"] == {
+            "timeout": 90,
+            "attempt_timeout": None,
+            "max_retries": 4,
+        }
+
+        # "clear" removes an override; 0 is a real value (no retries)
+        cleared = await client.patch("/config", params={"timeout": "clear"})
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["retry"]["timeout"] is None
+        zeroed = await client.patch("/config", params={"max_retries": 0})
+        assert zeroed.status_code == 200, zeroed.text
+        assert zeroed.json()["retry"]["max_retries"] == 0
+        assert generate_config_override("max_retries") == 0
+        restored = await client.patch("/config", params={"max_retries": 4})
+        assert restored.status_code == 200, restored.text
+
+        # negative, non-integer and over-bound values are rejected on both
+        # routes (an over-bound attempt_timeout would otherwise surface as
+        # an OverflowError inside every subsequent generate call)
+        for path in ("/config", "/tasks/t1/config"):
+            for bad_value in ("-1", "unset", str(MAX_GENERATE_CONFIG_OVERRIDE + 1)):
+                bad = await client.patch(path, params={"attempt_timeout": bad_value})
+                assert bad.status_code == 400
+                assert "attempt_timeout" in bad.json()["error"]
+
+        # GET reports the active overrides too
+        got = await client.get("/config")
+        assert got.status_code == 200, got.text
+        assert got.json()["retry"]["max_retries"] == 4
 
 
 async def test_limits_route_dry_run() -> None:
@@ -1223,6 +1471,85 @@ def test_print_config_buffer_knobs_and_notes(
     assert "log buffer [task]:          10 samples (2 pending)" in out
     assert "shared sync [task]:         off" in out
     assert "note: --max-connections applies process-wide." in out
+
+
+def test_print_config_retry_overrides(capsys: pytest.CaptureFixture[str]) -> None:
+    """Retry knobs render the live override, or 'launch config' when unset."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "timeout": {"scope": "process", "override": None},
+                "attempt_timeout": {"scope": "process", "override": 30},
+                "max_retries": {"scope": "process", "override": None},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "  timeout [process]:          launch config" in out
+    assert "  attempt timeout [process]:  30s (override)" in out
+    assert "  max retries [process]:      launch config" in out
+
+
+def test_print_config_retry_overrides_dry_run_arrows(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dry-run renders `current → requested`, with `clear` shown as its meaning."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": True,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "timeout": {"scope": "process", "override": None},
+                "attempt_timeout": {"scope": "process", "override": 30},
+                "max_retries": {"scope": "process", "override": None},
+            },
+            "requested": {"timeout": 300, "attempt_timeout": "clear", "max_retries": 0},
+            "warnings": [],
+            "notes": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "launch config → 300s" in out
+    assert "30s (override) → launch config" in out
+    # 0 is a real requested value (no retries), not a clear
+    assert "  max retries [process]:      launch config → 0\n" in out
+
+
+def test_print_config_omits_retry_knobs_for_older_server(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An older server's view has no retry knobs — no line, no value claim."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "timeout" not in out
+    assert "max retries" not in out
 
 
 def test_print_config_concurrency_keys_section(

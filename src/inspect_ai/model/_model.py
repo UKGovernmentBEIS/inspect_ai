@@ -69,6 +69,7 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
+from inspect_ai.model._generate_overrides import generate_config_override
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -1211,9 +1212,21 @@ class Model:
             )
 
             # create timeout context manager if we have an attempt timeout
+            # (resolved per attempt so a live `inspect ctl config` override
+            # applies from the next attempt onward). A batched call keeps its
+            # launch value: its attempt awaits an entire provider batch, and
+            # an override cancelling that wait would resubmit the request
+            # into a new batch on every retry (duplicated provider work) —
+            # the whole-batch blast radius the batchers' admin-op override
+            # opt-out exists to avoid.
+            attempt_timeout = (
+                config.attempt_timeout
+                if config.batch
+                else generate_config_override("attempt_timeout", config.attempt_timeout)
+            )
             timeout_cm = (
-                anyio.move_on_after(config.attempt_timeout)
-                if config.attempt_timeout is not None
+                anyio.move_on_after(attempt_timeout)
+                if attempt_timeout is not None
                 else contextlib.nullcontext()
             )
 
@@ -1247,7 +1260,7 @@ class Model:
                             isinstance(timeout_cm, anyio.CancelScope)
                             and timeout_cm.cancel_called
                         ):
-                            raise AttemptTimeoutError(config.attempt_timeout)
+                            raise AttemptTimeoutError(attempt_timeout)
                 except Exception as ex:
                     # Mark event as failed for uncaught provider exceptions
                     complete(ex, None)

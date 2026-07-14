@@ -22,8 +22,8 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     DeferredSampleStats,
-    clear_all_eval_states,
     register_completed_eval,
+    reset_run_registries,
 )
 from inspect_ai._control.server import (
     control_server,
@@ -760,7 +760,7 @@ def eval_set(
         # return status + results
         return success, results
     finally:
-        clear_all_eval_states()
+        reset_run_registries()
 
 
 @contextlib.contextmanager
