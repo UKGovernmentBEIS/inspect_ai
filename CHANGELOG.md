@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Docs: `SandboxEnvironment.exec` docstring now notes that some providers (including Docker) pre-truncate over-limit output streams to the trailing bytes and return them, rather than raising `OutputLimitExceededError` — so callers parsing large `exec` output should not assume the limit surfaces as an error.
 - Eval: `EvalSample` and `EvalSampleSummary` now record `turn_count` and the sample's token limit (`token_limit`, `token_limit_type`, and metered `token_limit_usage`).
 - Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
 - Control Channel: `inspect ctl sample list` now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.
