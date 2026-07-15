@@ -9,9 +9,10 @@ extractors, and the `service.py` wrapper that turns an exception into a
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from pydantic import JsonValue
 
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
@@ -21,9 +22,12 @@ from inspect_ai.agent._bridge._errors import (
 )
 from inspect_ai.agent._bridge.sandbox import service as bridge_service
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._model import ModelAPI, ModelGenerateError
 from inspect_ai.model._registry import modelapi
+from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
+from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 
 
 class _ProviderError(Exception):
@@ -107,7 +111,9 @@ def test_provider_error_payload_bare_exception() -> None:
 
 
 async def test_forward_provider_errors_passes_success_through() -> None:
-    async def ok(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def ok(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         return {"id": "x", "choices": []}
 
     wrapped = _forward_provider_errors(ok)
@@ -115,7 +121,9 @@ async def test_forward_provider_errors_passes_success_through() -> None:
 
 
 async def test_forward_provider_errors_returns_marker_on_exception() -> None:
-    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise ModelGenerateError(
             "debug", status_code=503, provider_message="overloaded"
         )
@@ -134,7 +142,9 @@ async def test_forward_provider_errors_warns_on_non_provider_error(
         bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
     )
 
-    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise ValueError("our own translation bug")
 
     result = await _forward_provider_errors(boom)({})
@@ -153,12 +163,135 @@ async def test_forward_provider_errors_no_warn_on_provider_error(
         bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
     )
 
-    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def boom(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise ModelGenerateError("debug", status_code=503, provider_message="x")
 
     result = await _forward_provider_errors(boom)({})
     assert result == {PROVIDER_ERROR_KEY: {"status": 503, "message": "x"}}
     assert warnings == []
+
+
+class _SandboxCompletion:
+    def model_dump(self, *, mode: str, warnings: bool) -> dict[str, JsonValue]:
+        return {"id": "completion"}
+
+
+async def test_sandbox_generation_filters_and_forwards_client_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received_headers: list[dict[str, str] | None] = []
+
+    async def request(
+        json_data: dict[str, JsonValue],
+        headers: dict[str, str] | None,
+        bridge: SandboxAgentBridge,
+    ) -> _SandboxCompletion:
+        received_headers.append(headers)
+        return _SandboxCompletion()
+
+    monkeypatch.setattr(bridge_service, "inspect_completions_api_request", request)
+    generate = bridge_service.generate_completions(cast(SandboxAgentBridge, None))
+
+    await generate(
+        {"model": "inspect"},
+        {
+            "authorization": "Bearer secret",
+            "x-claude-code-agent-id": "toolu_x",
+        },
+    )
+
+    assert received_headers == [{"x-claude-code-agent-id": "toolu_x"}]
+
+
+async def test_sandbox_responses_filters_and_forwards_client_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received_headers: list[dict[str, str] | None] = []
+
+    async def request(
+        json_data: dict[str, JsonValue],
+        headers: dict[str, str] | None,
+        web_search: WebSearchProviders,
+        code_execution: CodeExecutionProviders,
+        bridge: SandboxAgentBridge,
+    ) -> _SandboxCompletion:
+        received_headers.append(headers)
+        return _SandboxCompletion()
+
+    monkeypatch.setattr(bridge_service, "inspect_responses_api_request", request)
+    generate = bridge_service.generate_responses(
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+        cast(SandboxAgentBridge, None),
+    )
+
+    await generate(
+        {"model": "inspect"},
+        {
+            "authorization": "Bearer secret",
+            "x-claude-code-agent-id": "toolu_x",
+        },
+    )
+
+    assert received_headers == [{"x-claude-code-agent-id": "toolu_x"}]
+
+
+async def test_sandbox_anthropic_filters_and_forwards_client_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received_headers: list[dict[str, str] | None] = []
+
+    async def request(
+        json_data: dict[str, JsonValue],
+        headers: dict[str, str] | None,
+        web_search: WebSearchProviders,
+        code_execution: CodeExecutionProviders,
+        bridge: SandboxAgentBridge,
+    ) -> _SandboxCompletion:
+        received_headers.append(headers)
+        return _SandboxCompletion()
+
+    monkeypatch.setattr(bridge_service, "inspect_anthropic_api_request", request)
+    generate = bridge_service.generate_anthropic(
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+        cast(SandboxAgentBridge, None),
+    )
+
+    await generate(
+        {"model": "inspect"},
+        {
+            "authorization": "Bearer secret",
+            "x-claude-code-agent-id": "toolu_x",
+        },
+    )
+
+    assert received_headers == [{"x-claude-code-agent-id": "toolu_x"}]
+
+
+async def test_sandbox_google_generation_accepts_service_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def request(
+        json_data: dict[str, JsonValue],
+        web_search: WebSearchProviders,
+        code_execution: CodeExecutionProviders,
+        bridge: SandboxAgentBridge,
+    ) -> dict[str, JsonValue]:
+        return {"id": "completion"}
+
+    monkeypatch.setattr(bridge_service, "inspect_google_api_request", request)
+    generate = bridge_service.generate_google(
+        cast(WebSearchProviders, None),
+        cast(CodeExecutionProviders, None),
+        cast(SandboxAgentBridge, None),
+    )
+
+    result = await generate({"model": "inspect"}, {"x-claude-code-agent-id": "toolu_x"})
+
+    assert result == {"id": "completion"}
 
 
 # ---------- _model.py wrap path (end to end) ----------
