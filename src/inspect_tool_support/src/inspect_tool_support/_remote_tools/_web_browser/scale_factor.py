@@ -1,5 +1,9 @@
+import functools
+import logging
 import subprocess
 import sys
+
+logger = logging.getLogger(__name__)
 
 # Playwright launches Chromium with --force-device-scale-factor=1 by default, which
 # ensures consistent rendering and measurement behavior using CSS pixels instead of
@@ -19,17 +23,35 @@ import sys
 # allows the code to accurately calculate node visibility.
 
 
+@functools.cache
+def _warn_missing_appkit() -> None:
+    # @cache makes this warn exactly once per process, however many headful macOS
+    # calls hit the missing optional AppKit dependency.
+    logger.warning(
+        "pyobjc-framework-AppKit is not installed; falling back to a screen "
+        "scale factor of 1. Install it (`pip install pyobjc-framework-AppKit`) "
+        "to enable HiDPI scale-factor detection when running headfully on macOS."
+    )
+
+
+def _darwin_scale_factor() -> float:
+    try:
+        # `pip install pyobjc-framework-AppKit` is required to run headfully on macOS
+        from AppKit import NSScreen  # type: ignore  # noqa: PLC0415
+
+        screen = NSScreen.mainScreen()
+    except ModuleNotFoundError:
+        _warn_missing_appkit()
+        return 1.0
+    except Exception:
+        return 1.0
+    # mainScreen() is None when no display is attached (headless / over SSH)
+    return float(screen.backingScaleFactor()) if screen is not None else 1.0
+
+
 def get_screen_scale_factor() -> float:
     if sys.platform == "darwin":
-        try:
-            # `pip install pyobjc-framework-AppKit` is required to run headfully on macOS
-            from AppKit import NSScreen  # type: ignore  # noqa: PLC0415
-
-            screen = NSScreen.mainScreen()
-        except Exception:
-            return 1.0
-        # mainScreen() is None when no display is attached (headless / over SSH)
-        return float(screen.backingScaleFactor()) if screen is not None else 1.0
+        return _darwin_scale_factor()
     elif sys.platform == "win32":
         try:
             # Using GetDpiForSystem from Windows API
