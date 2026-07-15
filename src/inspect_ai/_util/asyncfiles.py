@@ -18,6 +18,7 @@ from typing import (
     Coroutine,
     Iterator,
     Literal,
+    NamedTuple,
     TypeVar,
     cast,
     overload,
@@ -152,6 +153,13 @@ class SuffixResult:
     etag: str | None = None
 
 
+class _RetiredClient(NamedTuple):
+    """An async S3 client rotated out by `client_ttl`, awaiting closure."""
+
+    client: Any
+    retired_at: float
+
+
 class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     """Interface for reading/writing files that uses different interfaces depending on context
 
@@ -191,7 +199,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         self._s3_client: Any | None = None
         self._s3_client_async: Any | None = None
         self._s3_client_async_created: float = 0.0
-        self._s3_clients_retired: list[Any] = []
+        self._s3_clients_retired: list[_RetiredClient] = []
         self._s3_lock = anyio.Lock()
         self._owns_context: bool = False
 
@@ -600,9 +608,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def close(
         self,
     ) -> None:
-        clients = self._s3_clients_retired
+        clients = [retired.client for retired in self._s3_clients_retired]
         if self._s3_client_async is not None:
-            clients = clients + [self._s3_client_async]
+            clients.append(self._s3_client_async)
         self._s3_client_async = None
         self._s3_clients_retired = []
         for client in clients:
@@ -645,8 +653,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 if expired():
                     if self._s3_client_async is not None:
                         # retired, not closed: in-flight operations may still
-                        # hold a reference to it; close() cleans these up
-                        self._s3_clients_retired.append(self._s3_client_async)
+                        # hold a reference to it; closed once a full client_ttl
+                        # has passed (below, on a later rotation) or in close()
+                        self._s3_clients_retired.append(
+                            _RetiredClient(self._s3_client_async, time.monotonic())
+                        )
                         self._s3_client_async = None
                     client = await self._create_s3_client_async(
                         anonymous=self._anonymous,
@@ -654,7 +665,37 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     )
                     self._s3_client_async = client
                     self._s3_client_async_created = time.monotonic()
+                    if self._s3_clients_retired:
+                        await self._close_retired_clients_past_grace()
         return self._s3_client_async
+
+    async def _close_retired_clients_past_grace(self) -> None:
+        """Close retired clients that have aged past the reuse-safety grace.
+
+        The grace period is one `client_ttl`: an operation still streaming
+        through a retired client when it was rotated out gets at least a full
+        TTL to finish before the client can be closed under it. Called only
+        from `s3_client_async` while holding `_s3_lock`, so rotations (the
+        only producer of retirees) and reaping never interleave.
+        """
+        assert self._client_ttl is not None
+        now = time.monotonic()
+        due = [
+            retired
+            for retired in self._s3_clients_retired
+            if now - retired.retired_at > self._client_ttl
+        ]
+        if due:
+            self._s3_clients_retired = [
+                retired
+                for retired in self._s3_clients_retired
+                if now - retired.retired_at <= self._client_ttl
+            ]
+            for retired in due:
+                try:
+                    await retired.client.__aexit__(None, None, None)
+                except Exception:
+                    logger.warning("Error closing retired S3 client", exc_info=True)
 
     @staticmethod
     async def _create_s3_client_async(

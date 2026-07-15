@@ -13,6 +13,7 @@ from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
+    _RetiredClient,
     get_async_filesystem,
 )
 
@@ -1084,12 +1085,41 @@ async def test_s3_client_async_recreated_after_ttl(
 
     assert client2 is not client1
     assert len(created) == 2
-    # the retired client stays open for in-flight operations
+    # the retired client stays open (within grace) for in-flight operations
     assert not client1.closed
 
     await fs.close()
     assert client1.closed
     assert client2.closed
+
+
+async def test_s3_client_async_retired_client_closed_after_grace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fs = AsyncFilesystem(client_ttl=60)
+    created = _patch_client_factory(monkeypatch, fs)
+
+    client1 = await fs.s3_client_async()
+    fs._s3_client_async_created = time.monotonic() - 61
+    client2 = await fs.s3_client_async()
+    assert not client1.closed
+
+    # age the retired client past the grace period and rotate again
+    fs._s3_clients_retired = [
+        _RetiredClient(retired.client, time.monotonic() - 61)
+        for retired in fs._s3_clients_retired
+    ]
+    fs._s3_client_async_created = time.monotonic() - 61
+    client3 = await fs.s3_client_async()
+
+    assert len(created) == 3
+    assert client1.closed
+    # client2 was just retired: still within grace
+    assert not client2.closed
+
+    await fs.close()
+    assert client2.closed
+    assert client3.closed
 
 
 async def test_s3_client_async_no_ttl_never_recreates(
