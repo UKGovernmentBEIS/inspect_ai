@@ -99,9 +99,7 @@ def test_score_on_error_contributes_to_metrics():
     # scored_samples == 2 (not 1). See docs/handling-errors.qmd.
     log = eval(
         Task(
-            dataset=MemoryDataset(
-                [Sample(id=1, input="hi"), Sample(id=2, input="hi")]
-            ),
+            dataset=MemoryDataset([Sample(id=1, input="hi"), Sample(id=2, input="hi")]),
             solver=solver_that_raises_on_sample_2(),
             scorer=score_by_solver_completion(),
         ),
