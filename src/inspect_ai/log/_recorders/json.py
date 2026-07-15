@@ -1,3 +1,4 @@
+from functools import partial
 from logging import getLogger
 from typing import IO, Any, get_args
 
@@ -9,12 +10,13 @@ from pydantic_core import from_json
 from typing_extensions import override
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.atomic_write import atomic_write_bytes
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
     get_deserializing_context,
 )
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import absolute_file_path, file, filesystem
+from inspect_ai._util.file import absolute_file_path, file, filesystem, local_path
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
@@ -33,7 +35,7 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
-from .file import FileRecorder
+from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
 
@@ -176,7 +178,8 @@ class JSONRecorder(FileRecorder):
     @override
     async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
-        await self.write_log(log.file, log.data)
+        # intermediate snapshot: skip fsync (see _write_log_impl)
+        await self._write_log_impl(log.file, log.data, fsync=False)
 
     @override
     @classmethod
@@ -240,6 +243,25 @@ class JSONRecorder(FileRecorder):
         if_match_etag: str | None = None,
         header_only: bool = False,
     ) -> None:
+        await cls._write_log_impl(location, log, if_match_etag, header_only, fsync=True)
+
+    @classmethod
+    async def _write_log_impl(
+        cls,
+        location: str,
+        log: EvalLog,
+        if_match_etag: str | None = None,
+        header_only: bool = False,
+        *,
+        fsync: bool,
+    ) -> None:
+        """Write the log, controlling durability of the local write.
+
+        The public ``write_log`` always passes ``fsync=True`` (a caller
+        writing a log expects it durable); intermediate ``flush()`` passes
+        ``fsync=False`` for a skippable snapshot (see
+        ``write_local_snapshot``).
+        """
         from inspect_ai.log._file import eval_log_json
 
         if header_only:
@@ -261,12 +283,23 @@ class JSONRecorder(FileRecorder):
             await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
             # Standard write
-            # get log as bytes
+            # get log as bytes (serialized on the event loop: the pydantic
+            # log object may be mutated by concurrent coroutines, whereas
+            # the resulting bytes are immutable and safe to hand to a thread)
             log_bytes = eval_log_json(log)
 
             with trace_action(logger, "Log Write", location):
-                with file(location, "wb") as f:
-                    f.write(log_bytes)
+                if fs.is_local():
+                    await write_local_snapshot(
+                        location,
+                        fsync,
+                        partial(
+                            atomic_write_bytes, local_path(location), log_bytes, fsync
+                        ),
+                    )
+                else:
+                    with file(location, "wb") as f:
+                        f.write(log_bytes)
 
     @classmethod
     async def _merge_disk_samples_for_header_only(

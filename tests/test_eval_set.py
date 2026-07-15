@@ -1745,7 +1745,7 @@ def test_eval_set_embed_viewer(tmp_path: Path) -> None:
 def test_eval_set_single_flush_error() -> None:
     """A broken log write fails the run as a task error (never silent success)."""
 
-    async def broken_flush(self: ZipLogFile) -> None:
+    async def broken_flush(self: ZipLogFile, *, fsync: bool = True) -> None:
         raise OSError("Simulated S3 write failure")
 
     with tempfile.TemporaryDirectory() as log_dir:
@@ -1772,7 +1772,7 @@ def test_eval_set_single_flush_error() -> None:
 def test_eval_set_parallel_flush_error(retry_immediate: bool) -> None:
     """run_parallel must not swallow task errors and return success=True."""
 
-    async def broken_flush(self: ZipLogFile) -> None:
+    async def broken_flush(self: ZipLogFile, *, fsync: bool = True) -> None:
         raise OSError("Simulated S3 write failure")
 
     # With 2 tasks run_parallel is used. The original bug was that the worker
