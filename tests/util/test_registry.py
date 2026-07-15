@@ -143,6 +143,7 @@ def test_registry_arg_instantiates_nested_score_reducer() -> None:
     restored = registry_arg(registry_value(mean_score()))
 
     assert restored is not mean_score
+    assert isinstance(restored, ScoreReducer)
 
 
 def test_registry_arg_instantiates_nested_task_source() -> None:
