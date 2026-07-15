@@ -1831,6 +1831,11 @@ async def task_run_sample(
         record_sample_errored(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
+        # no sample_complete here even if the sample was scored: raising fails
+        # the whole eval, whose log finishes with results=None (metrics are
+        # never computed), so there is nothing for the scores to contribute
+        # to — and notifying early stopping/progress for a dying task would
+        # mislead. the scores are still in the sample log written above.
         raise raise_error
 
     # we have an error and should not raise it
@@ -1838,9 +1843,12 @@ async def task_run_sample(
         record_sample_errored(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
-        # with score_on_error the sample may have been scored on its partial
-        # state; surface those results so they contribute to metrics (mirrors
-        # the `error is None` branch above and matches docs/handling-errors.qmd)
+        # the sample may have scores despite the error: score_on_error scoring
+        # of its partial state, scores a solver wrote to state.scores before a
+        # later error, or scores from scorers that completed before another
+        # raised. those scores are already in the sample log, so surface them
+        # here too — the log and metrics should never diverge (mirrors the
+        # `error is None` branch above and matches docs/handling-errors.qmd)
         if results:
             await sample_complete(state.sample_id, state.epoch, results)
             return results
