@@ -3839,7 +3839,8 @@ def _event_summary(e: dict[str, Any]) -> str:
     if t == "error":
         return _truncate(str(e.get("error") or ""), 80)
     if t == "info":
-        return str(e.get("source") or "")
+        bits = [str(e.get("source") or ""), str(e.get("data") or "")]
+        return _truncate(" · ".join(b for b in bits if b), 80)
     return ""
 
 

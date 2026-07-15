@@ -193,6 +193,22 @@ def test_project_compact_error() -> None:
     assert "uuid" in out and "span_id" in out
 
 
+def test_project_compact_info_carries_data() -> None:
+    # transcript().info(...) content must be visible without --full: the
+    # compact projection carries the (truncated, text-form) data payload.
+    out = _project(InfoEvent(source="my-solver", data="phase 1 complete"), full=False)
+    assert out["event"] == "info"
+    assert out["source"] == "my-solver"
+    assert out["data"] == "phase 1 complete"
+    # non-string data is serialized to text
+    out = _project(InfoEvent(data={"step": 2}), full=False)
+    assert out["source"] is None
+    assert out["data"] == '{"step": 2}'
+    # long payloads are truncated, not dumped whole
+    out = _project(InfoEvent(data="x" * 1000), full=False)
+    assert len(out["data"]) <= 256
+
+
 def test_project_full_is_raw_dump() -> None:
     out = _project(_error_event("boom"), full=True)
     assert out["event"] == "error"

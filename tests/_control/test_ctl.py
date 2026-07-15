@@ -442,6 +442,12 @@ def test_print_events_table_and_footer(
                 "result": "files",
             },
             {"event": "error", "timestamp": 1002.0, "error": "boom"},
+            {
+                "event": "info",
+                "timestamp": 1003.0,
+                "source": "my-solver",
+                "data": "phase 1 complete",
+            },
         ],
         "next": "CURSORX",
         "done": False,
@@ -451,8 +457,9 @@ def test_print_events_table_and_footer(
     assert "event" in out.splitlines()[0]  # table header
     # per-type summaries
     assert "openai/gpt" in out and "bash" in out and "boom" in out
+    assert "my-solver" in out and "phase 1 complete" in out
     # footer: count, "more" (not done), and the resume cursor
-    assert "3 events" in out
+    assert "4 events" in out
     assert "more" in out
     assert "next: CURSORX" in out
 
