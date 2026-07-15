@@ -7,7 +7,7 @@ import regex
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai.solver._task_state import TaskState
 
-from ._metric import CORRECT, INCORRECT, NOANSWER, Score
+from ._metric import CORRECT, INCORRECT, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
@@ -970,14 +970,18 @@ def math() -> Scorer:
             )
 
         # Parse failure: the completion contained no mathematical expression
-        # we could extract. Record NOANSWER so it's not silently counted as
-        # an INCORRECT answer in aggregate metrics. Same family as #4026
-        # (model_graded_qa / _fact), addressed by #4048 for that scorer.
+        # we could extract. The value stays INCORRECT (a format violation is
+        # the model failing the task, and must not inflate accuracy by
+        # leaving the denominator), but the failure mode is recorded in
+        # metadata so analysis can separate "wrong answer" from "couldn't
+        # parse an answer". See #4091 for the cross-scorer convention.
         if result is None:
             return Score(
-                value=NOANSWER,
-                answer=state.output.completion,
-                explanation=state.output.completion,
+                value=INCORRECT,
+                answer=None,
+                explanation="No mathematical expression could be extracted "
+                + f"from the model output: {state.output.completion}",
+                metadata={"reason": "invalid_response_format"},
             )
 
         return Score(
