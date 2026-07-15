@@ -426,6 +426,7 @@ def _project(event: "Event", full: bool) -> dict[str, Any]:
         out["error"] = getattr(err, "message", None) if err else None
     elif et == "info":
         out["source"] = getattr(event, "source", None)
+        out["data"] = _truncate(_to_text(getattr(event, "data", None)))
     return out
 
 
