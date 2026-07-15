@@ -211,7 +211,9 @@ async def test_model_output_from_openai_responses_basic() -> None:
             input_tokens=100,
             output_tokens=200,
             total_tokens=300,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
         incomplete_details=None,
@@ -265,7 +267,9 @@ async def test_model_output_from_openai_responses_with_reasoning() -> None:
             input_tokens=50,
             output_tokens=150,
             total_tokens=200,
-            input_tokens_details=InputTokensDetails(cached_tokens=10),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=10, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=50),
         ),
         incomplete_details=None,
@@ -320,7 +324,7 @@ async def test_model_output_from_openai_responses_dict_input() -> None:
             "input_tokens": 20,
             "output_tokens": 30,
             "total_tokens": 50,
-            "input_tokens_details": {"cached_tokens": 0},
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
             "output_tokens_details": {"reasoning_tokens": 0},
         },
     }
@@ -358,7 +362,9 @@ async def test_model_output_from_openai_responses_with_refusal() -> None:
             input_tokens=10,
             output_tokens=10,
             total_tokens=20,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
         incomplete_details=None,
@@ -543,7 +549,9 @@ async def test_model_output_from_openai_responses_cache_normalization() -> None:
             input_tokens=1000,
             output_tokens=50,
             total_tokens=1050,
-            input_tokens_details=InputTokensDetails(cached_tokens=600),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=600, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -691,18 +699,17 @@ def test_replay_redacted_no_summary() -> None:
     assert result["id"] == "rs_456"
 
 
-def test_replay_no_encrypted_content() -> None:
-    """No encryption at all — just readable text."""
+def test_replay_no_encrypted_content_uses_empty_content() -> None:
+    """OpenAI rejects reasoning input content, even for readable reasoning."""
     content = ContentReasoning(
         reasoning="just thinking",
         redacted=False,
         signature="rs_789",
     )
     result = responses_reasoning_from_reasoning(content)
-    result_content = list(result["content"])
     assert result["encrypted_content"] is None
-    assert len(result_content) == 1
-    assert result_content[0]["text"] == "just thinking"
+    assert list(result["content"]) == []
+    assert result["id"] == "rs_789"
 
 
 # --- Round-trip test ---
@@ -730,7 +737,7 @@ def test_reasoning_round_trip_preserves_encrypted() -> None:
 
 
 def test_reasoning_round_trip_content_encrypted_and_summary() -> None:
-    """When content, encrypted_content, and summary all exist, replay restores all three."""
+    """Replay restores encrypted content and summary, but leaves content empty."""
     item = ResponseReasoningItem.model_construct(
         id="rs_rt_all",
         type="reasoning",
@@ -746,9 +753,7 @@ def test_reasoning_round_trip_content_encrypted_and_summary() -> None:
 
     replayed = responses_reasoning_from_reasoning(content)
     assert replayed["encrypted_content"] == "ENCRYPTED_BLOB"
-    replayed_content = list(replayed["content"])
-    assert len(replayed_content) == 1
-    assert replayed_content[0]["text"] == "raw cot thinking"
+    assert list(replayed["content"]) == []
     replayed_summary = list(replayed["summary"])
     assert len(replayed_summary) == 1
     assert replayed_summary[0]["text"] == "API summary"

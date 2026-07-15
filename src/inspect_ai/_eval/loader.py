@@ -49,11 +49,12 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
-from .registry import task_create
+from .registry import task_create, task_source_create
 from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.hf import task_create_from_hf
 from .task.run import eval_log_sample_source
+from .task.task_source import TaskSource
 from .task.tasks import Tasks
 
 logger = getLogger(__name__)
@@ -78,7 +79,24 @@ def resolve_tasks(
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
+    warn_unconsumed_task_args: bool = False,
 ) -> list[ResolvedTask]:
+    # A TaskSource drives a run dynamically and is handled by eval() (which
+    # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete,
+    # resumable task list, so it can't be used here (eval_set / eval_retry /
+    # score). Detect both a passed instance and a spec/name that refers to one
+    # so the CLI (`inspect eval-set file.py@source`) gets the same clear error
+    # rather than a confusing "task not found".
+    if refers_to_task_source(tasks):
+        raise ValueError(
+            "A TaskSource is only supported by `eval()` / `inspect eval`. "
+            "eval_set, eval_retry, and score require a fixed, resumable set of "
+            "tasks, but a TaskSource generates tasks dynamically (via "
+            "next_tasks() / sample_complete) that have no stable identity to "
+            "track, retry, or resume. Run a TaskSource-driven eval with "
+            "`inspect eval` instead."
+        )
+
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         # shuffle data in tasks if requested
         if sample_shuffle:
@@ -122,11 +140,24 @@ def resolve_tasks(
             eval_checkpoint=eval_checkpoint,
         )
 
-    # simple cases of passing us Task objects
-    if isinstance(tasks, Task):
-        return as_resolved_tasks([tasks])
-    elif isinstance(tasks, list) and isinstance(tasks[0], Task):
-        return as_resolved_tasks([t for t in tasks if isinstance(t, Task)])
+    # simple cases of passing us Task objects -- task_args are never applied
+    # to Task instances (their args come from the instance's own construction
+    # params), so warn if the caller passed args that will be silently ignored
+    if isinstance(tasks, Task) or (
+        isinstance(tasks, list) and isinstance(tasks[0], Task)
+    ):
+        if warn_unconsumed_task_args and task_args:
+            logger.warning(
+                f"task_args {sorted(task_args.keys())} will not be applied: "
+                "they are ignored for Task instances passed directly. Pass "
+                "them to your @task function when creating the task instead."
+            )
+        task_list = (
+            [tasks]
+            if isinstance(tasks, Task)
+            else [t for t in tasks if isinstance(t, Task)]
+        )
+        return as_resolved_tasks(task_list)
 
     # convert TaskInfo to str
     if isinstance(tasks, TaskInfo):
@@ -148,6 +179,104 @@ def resolve_tasks(
 
     # done! let's load the tasks
     return as_resolved_tasks(load_tasks(cast(list[str] | None, tasks), task_args))
+
+
+def refers_to_task_source(tasks: Tasks) -> bool:
+    """Whether `tasks` is, or refers to, a `TaskSource` — without creating it.
+
+    Mirrors :func:`resolve_task_source`'s detection (instance, `@task_source`
+    function, registered name, or `file.py@name` spec) but stops short of
+    instantiating the source. Used to reject a `TaskSource` where it isn't
+    supported (eval_set / eval_retry / score) without paying its (potentially
+    expensive) construction just to raise an error.
+    """
+    if isinstance(tasks, list):
+        if len(tasks) != 1:
+            return False
+        tasks = tasks[0]
+    if isinstance(tasks, TaskSource):
+        return True
+    if callable(tasks):
+        return is_registry_object(tasks) and registry_info(tasks).type == "task_source"
+    if isinstance(tasks, str):
+        if registry_lookup("task_source", tasks) is not None:
+            return True
+        file, name = split_spec(tasks)
+        if name is not None:
+            task_path = Path(file)
+            if task_path.suffix == ".py" and task_path.exists():
+                try:
+                    has_source = code_has_decorator(
+                        task_path.read_text(encoding="utf-8"), "task_source"
+                    )
+                except OSError:
+                    return False
+                if has_source:
+                    # load the module so its `@task_source` registers, then
+                    # confirm `name` is the source (not a `@task` in the same file)
+                    load_file_tasks(task_path.absolute())
+                    return registry_lookup("task_source", name) is not None
+    return False
+
+
+def resolve_task_source(tasks: Tasks, task_args: dict[str, Any]) -> TaskSource | None:
+    """Resolve `tasks` to a `TaskSource` if it is (or names) one, else `None`.
+
+    Handles the forms `eval()` accepts for a source: a `TaskSource` instance, a
+    `@task_source`-decorated function, a registered source name, or a
+    `file.py@name` spec naming a `@task_source`. Anything else returns `None` so
+    normal task resolution proceeds. The single-element list form is accepted
+    because the CLI passes specs as a list.
+    """
+    if isinstance(tasks, list):
+        if len(tasks) != 1:
+            return None
+        tasks = tasks[0]
+
+    # already a TaskSource instance
+    if isinstance(tasks, TaskSource):
+        return tasks
+
+    # a @task_source-decorated function (registered under type "task_source")
+    if callable(tasks):
+        if is_registry_object(tasks) and registry_info(tasks).type == "task_source":
+            return task_source_create(registry_info(tasks).name, **task_args)
+        return None
+
+    # a registered source name, or a file.py@name spec naming a source
+    if isinstance(tasks, str):
+        if registry_lookup("task_source", tasks) is not None:
+            return task_source_create(tasks, **task_args)
+        file, name = split_spec(tasks)
+        if name is not None:
+            return _load_task_source_from_file(file, name, task_args)
+
+    return None
+
+
+def _load_task_source_from_file(
+    file: str, name: str, task_args: dict[str, Any]
+) -> TaskSource | None:
+    # only probe local .py files that actually define a @task_source (a cheap
+    # text check so a task-only file isn't loaded here and then again as tasks)
+    task_path = Path(file)
+    if task_path.suffix != ".py" or not task_path.exists():
+        return None
+    try:
+        if not code_has_decorator(task_path.read_text(encoding="utf-8"), "task_source"):
+            return None
+    except OSError:
+        return None
+
+    # load the file's module (registers its decorators), then create the source
+    # — mirrors create_tasks' load_file_tasks + create_file_tasks for tasks
+    load_file_tasks(task_path.absolute())
+    if registry_lookup("task_source", name) is None:
+        return None
+    source = task_source_create(name, **task_args)
+    setattr(source, TASK_FILE_ATTR, task_path.as_posix())
+    setattr(source, TASK_RUN_DIR_ATTR, task_path.parent.resolve().as_posix())
+    return source
 
 
 def resolve_previous_tasks(
@@ -287,15 +416,23 @@ def resolve_task_sandbox(
             # if we found an override without a config then we may still
             # want to forward the task config if it's docker config ->
             # docker compatible sandbox
-            if (
-                resolved_sandbox.config is None
-                and task.sandbox is not None
-                and is_docker_compatible_config(task.sandbox.config)
-                and is_docker_compatible_sandbox_type(resolved_sandbox.type)
-            ):
-                resolved_sandbox = SandboxEnvironmentSpec(
-                    resolved_sandbox.type, task.sandbox.config
-                )
+            if resolved_sandbox.config is None and task.sandbox is not None:
+                if is_docker_compatible_config(
+                    task.sandbox.config
+                ) and is_docker_compatible_sandbox_type(resolved_sandbox.type):
+                    resolved_sandbox = SandboxEnvironmentSpec(
+                        resolved_sandbox.type, task.sandbox.config
+                    )
+                elif is_docker_compatible_config(task.sandbox.config):
+                    warn_once(
+                        logger,
+                        f"Task '{task.name}' declares sandbox '{task.sandbox.type}' "
+                        "with a Dockerfile/compose.yaml configuration, but the "
+                        f"'{resolved_sandbox.type}' sandbox specified for the eval "
+                        "does not support that configuration. The task's compose "
+                        "services, packages, and tools will not be available in "
+                        f"the '{resolved_sandbox.type}' sandbox.",
+                    )
 
         # resolve relative paths
         if isinstance(resolved_sandbox.config, str):
@@ -431,8 +568,9 @@ def create_file_tasks(
 # change the working directory, this one does not b/c it is
 # intended as a helper function)
 def _load_task_specs(task_path: Path) -> list[str]:
-    # load the module
-    module = load_module(task_path, code_has_task)
+    # load the module (also load files that only define task sources, so a
+    # `@task_source` is registered/discoverable just like a `@task`)
+    module = load_module(task_path, code_has_task_or_source)
     if module:
         # find the tasks in the module
         tasks = parse_decorators(task_path, "task")
@@ -464,6 +602,10 @@ def code_has_decorator(code: str, decorator: str) -> bool:
 
 def code_has_task(code: str) -> bool:
     return code_has_decorator(code, "task")
+
+
+def code_has_task_or_source(code: str) -> bool:
+    return code_has_decorator(code, "task") or code_has_decorator(code, "task_source")
 
 
 def as_solver_spec(solver: Solver) -> SolverSpec:

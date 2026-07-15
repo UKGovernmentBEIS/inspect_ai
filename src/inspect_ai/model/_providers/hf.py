@@ -18,6 +18,7 @@ from typing import Any, Literal, Protocol, cast
 import anyio
 import numpy as np
 import torch  # type: ignore
+import transformers  # type: ignore
 from torch import Tensor  # type: ignore
 from transformers import (  # type: ignore
     AutoModelForCausalLM,
@@ -108,6 +109,23 @@ class HuggingFaceAPI(ModelAPI):
         if not isinstance(trust_remote_code, bool):
             raise ValueError("trust_remote_code must be a bool")
 
+        # select the transformers auto-class used to load the model. Some
+        # architectures (e.g. the Mistral 3 series and other image-text-to-text
+        # models) are not registered with AutoModelForCausalLM and must be
+        # loaded with a different class such as AutoModelForImageTextToText.
+        auto_model_class = collect_model_arg("auto_model_class")
+        if auto_model_class is not None:
+            if not isinstance(auto_model_class, str):
+                raise ValueError("auto_model_class must be a str")
+            model_loader = getattr(transformers, auto_model_class, None)
+            if model_loader is None:
+                raise ValueError(
+                    f"auto_model_class '{auto_model_class}' is not a valid "
+                    "transformers class"
+                )
+        else:
+            model_loader = AutoModelForCausalLM
+
         # device
         if device:
             self.device = device
@@ -120,7 +138,7 @@ class HuggingFaceAPI(ModelAPI):
 
         # model
         if model_path:
-            self.model: Any = AutoModelForCausalLM.from_pretrained(
+            self.model: Any = model_loader.from_pretrained(
                 model_path,
                 device_map=self.device,
                 token=self.api_key,
@@ -128,7 +146,7 @@ class HuggingFaceAPI(ModelAPI):
                 **model_args,
             )
         else:
-            self.model = AutoModelForCausalLM.from_pretrained(
+            self.model = model_loader.from_pretrained(
                 model_name,
                 device_map=self.device,
                 token=self.api_key,
@@ -139,20 +157,28 @@ class HuggingFaceAPI(ModelAPI):
         # tokenizer
         if tokenizer:
             self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
-                tokenizer, trust_remote_code=trust_remote_code
+                tokenizer,
+                token=self.api_key,
+                trust_remote_code=trust_remote_code,
             )
         elif model_path:
             if tokenizer_path:
                 self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
-                    tokenizer_path, trust_remote_code=trust_remote_code
+                    tokenizer_path,
+                    token=self.api_key,
+                    trust_remote_code=trust_remote_code,
                 )
             else:
                 self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
-                    model_path, trust_remote_code=trust_remote_code
+                    model_path,
+                    token=self.api_key,
+                    trust_remote_code=trust_remote_code,
                 )
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
-                model_name, trust_remote_code=trust_remote_code
+                model_name,
+                token=self.api_key,
+                trust_remote_code=trust_remote_code,
             )
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -173,7 +199,7 @@ class HuggingFaceAPI(ModelAPI):
     ) -> ModelOutput:
         # create handler
         handler: ChatAPIHandler | None = (
-            HFHandler(self.model_name) if len(tools) > 0 else None
+            HFHandler(self.model_name, self.model_family()) if len(tools) > 0 else None
         )
 
         # create chat
@@ -296,10 +322,11 @@ class HuggingFaceAPI(ModelAPI):
                 json_schema_dump(tool, exclude=JSON_SCHEMA_EXTENDED_FIELDS)
                 for tool in tools
             ]
-            if "mistral" in self.model_name.lower():
+            family = self.model_family().lower()
+            if "mistral" in family:
                 hf_messages = shorten_tool_id(hf_messages)
                 tools_list = tools_to_mistral_format(tools_list)
-            elif "qwen" in self.model_name.lower():
+            elif "qwen" in family:
                 hf_messages = inspect_tools_to_string(hf_messages)
 
         hf_messages = message_content_to_string(hf_messages)

@@ -26,16 +26,18 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_output import ModelFallback, ModelOutput
 from inspect_ai.scorer._metric import Score
 
 
 def _make_model_event(
     input_messages: list[ChatMessage],
     output_content: str,
+    role: str | None = None,
 ) -> ModelEvent:
     return ModelEvent(
         model="mockllm/model",
+        role=role,
         input=input_messages,
         tools=[],
         tool_choice="auto",
@@ -69,6 +71,15 @@ def _make_completed_summary() -> EvalSampleSummary:
         input="What is 2+2?",
         target="4",
         scores={"accuracy": Score(value="C", answer="4")},
+        model_fallbacks=[
+            ModelFallback(
+                model="claude-fable-5", fallback_model="claude-opus-4-8", count=2
+            )
+        ],
+        turn_count=3,
+        token_limit=1000,
+        token_limit_type="output",
+        token_limit_usage=15,
         started_at=datetime.now(timezone.utc).isoformat(),
         completed_at=datetime.now(timezone.utc).isoformat(),
     )
@@ -106,6 +117,11 @@ def test_reconstruct_completed_sample() -> None:
     assert sample.scores is not None
     assert "accuracy" in sample.scores
     assert sample.error is None
+    assert sample.model_fallbacks == summary.model_fallbacks
+    assert sample.turn_count == 3
+    assert sample.token_limit == 1000
+    assert sample.token_limit_type == "output"
+    assert sample.token_limit_usage == 15
 
     # Messages extracted from ModelEvent
     assert len(sample.messages) == 2  # user + assistant
@@ -196,6 +212,130 @@ def test_reconstruct_multiple_model_events() -> None:
     assert sample.output.choices[0].message.content == "4"
 
 
+def test_reconstruct_multi_agent_follows_first_role() -> None:
+    """Reconstruction follows the first ModelEvent's role under concurrent agents.
+
+    A solver running two agents in parallel (e.g. an auditor driving a
+    target) interleaves both agents' ModelEvents, each carrying its own
+    conversation. Recovery must return the first role's conversation
+    deterministically, not whichever agent's event happened to fire last.
+    """
+    summary = _make_completed_summary()
+
+    auditor_user = ChatMessageUser(content="Probe the target.")
+    auditor_event1 = _make_model_event(
+        [auditor_user], "Sending a question.", role="auditor"
+    )
+
+    target_user = ChatMessageUser(content="What is 2+2?")
+    target_event1 = _make_model_event([target_user], "4", role="target")
+
+    auditor_assistant = ChatMessageAssistant(content="Sending a question.")
+    auditor_user2 = ChatMessageUser(content="The target answered 4.")
+    auditor_event2 = _make_model_event(
+        [auditor_user, auditor_assistant, auditor_user2],
+        "Audit complete.",
+        role="auditor",
+    )
+
+    target_assistant = ChatMessageAssistant(content="4")
+    target_user2 = ChatMessageUser(content="Are you sure?")
+    target_event2 = _make_model_event(
+        [target_user, target_assistant, target_user2], "Yes, 4.", role="target"
+    )
+
+    # The target's event fires last
+    sample_data = SampleData(
+        events=[
+            _event_to_event_data(auditor_event1, id=1),
+            _event_to_event_data(target_event1, id=2),
+            _event_to_event_data(auditor_event2, id=3),
+            _event_to_event_data(target_event2, id=4),
+        ],
+        attachments=[],
+    )
+
+    sample = reconstruct_eval_sample(summary, sample_data)
+
+    assert [m.text for m in sample.messages] == [
+        "Probe the target.",
+        "Sending a question.",
+        "The target answered 4.",
+        "Audit complete.",
+    ]
+    assert sample.output.choices[0].message.content == "Audit complete."
+
+
+def test_reconstruct_multi_agent_primary_is_first_in_stream() -> None:
+    """The primary role is whichever role's ModelEvent appears first."""
+    summary = _make_completed_summary()
+
+    target_user = ChatMessageUser(content="Hello")
+    target_event = _make_model_event([target_user], "Hi there!", role="target")
+
+    auditor_user = ChatMessageUser(content="The target said hi.")
+    auditor_event = _make_model_event([auditor_user], "Noted.", role="auditor")
+
+    sample_data = SampleData(
+        events=[
+            _event_to_event_data(target_event, id=1),
+            _event_to_event_data(auditor_event, id=2),
+        ],
+        attachments=[],
+    )
+
+    sample = reconstruct_eval_sample(summary, sample_data)
+
+    assert [m.text for m in sample.messages] == ["Hello", "Hi there!"]
+    assert sample.output.choices[0].message.content == "Hi there!"
+
+
+def test_reconstruct_multi_agent_compaction_survives_foreign_interleave() -> None:
+    """A compaction attributed to the primary role survives a foreign event in between.
+
+    Regression for a review comment on #4417: primary P1, then a foreign
+    secondary event, then a compaction of the primary's own conversation,
+    then primary P2. Since the secondary event is the most recent
+    ModelEvent when the compaction fires, attributing the compaction by
+    "most recent event's role" would skip flushing P1 and drop
+    p1_input/p1_output. CompactionEvent.role removes the guesswork.
+    """
+    summary = _make_completed_summary()
+
+    p1_user = ChatMessageUser(content="p1_input")
+    p1_event = _make_model_event([p1_user], "p1_output", role="primary")
+
+    s1_user = ChatMessageUser(content="s1_input")
+    s1_event = _make_model_event([s1_user], "s1_output", role="secondary")
+
+    compaction = CompactionEvent(type="summary", role="primary")
+
+    summary_msg = ChatMessageUser(content="summary")
+    p2_user = ChatMessageUser(content="p2_input")
+    p2_event = _make_model_event([summary_msg, p2_user], "p2_output", role="primary")
+
+    sample_data = SampleData(
+        events=[
+            _event_to_event_data(p1_event, id=1),
+            _event_to_event_data(s1_event, id=2),
+            _event_to_event_data(compaction, id=3),
+            _event_to_event_data(p2_event, id=4),
+        ],
+        attachments=[],
+    )
+
+    sample = reconstruct_eval_sample(summary, sample_data)
+
+    assert [m.text for m in sample.messages] == [
+        "p1_input",
+        "p1_output",
+        "summary",
+        "p2_input",
+        "p2_output",
+    ]
+    assert sample.output.choices[0].message.content == "p2_output"
+
+
 def test_reconstruct_empty_events() -> None:
     """Test reconstruction with no events at all."""
     summary = _make_in_progress_summary()
@@ -254,6 +394,11 @@ def test_reconstruct_summary_can_be_generated() -> None:
     assert new_summary.epoch == 1
     assert new_summary.scores is not None
     assert new_summary.message_count == 2
+    # limit fields survive the summary -> sample -> summary round trip
+    assert new_summary.turn_count == 3
+    assert new_summary.token_limit == 1000
+    assert new_summary.token_limit_type == "output"
+    assert new_summary.token_limit_usage == 15
 
 
 def test_reconstruct_with_summary_compaction() -> None:
@@ -485,6 +630,109 @@ def test_message_accumulator_compaction_across_chunks() -> None:
     assert messages[4].text == "[Summary]"
     assert messages[6].text == "6"
     assert output.choices[0].message.content == "6"
+
+
+def test_message_accumulator_multi_role_chunked() -> None:
+    """The primary role persists across chunked segment batches."""
+    auditor_user = ChatMessageUser(content="Probe the target.")
+    auditor_event1 = _make_model_event(
+        [auditor_user], "Sending a question.", role="auditor"
+    )
+    target_event1 = _make_model_event(
+        [ChatMessageUser(content="What is 2+2?")], "4", role="target"
+    )
+    auditor_assistant = ChatMessageAssistant(content="Sending a question.")
+    auditor_user2 = ChatMessageUser(content="The target answered 4.")
+    auditor_event2 = _make_model_event(
+        [auditor_user, auditor_assistant, auditor_user2],
+        "Audit complete.",
+        role="auditor",
+    )
+    target_event2 = _make_model_event(
+        [ChatMessageUser(content="Are you sure?")], "Yes, 4.", role="target"
+    )
+
+    acc = MessageAccumulator()
+    acc.process_events([auditor_event1])
+    acc.process_events([target_event1, auditor_event2])
+    acc.process_events([target_event2])
+    messages, output = acc.result()
+
+    assert [m.text for m in messages] == [
+        "Probe the target.",
+        "Sending a question.",
+        "The target answered 4.",
+        "Audit complete.",
+    ]
+    assert output.choices[0].message.content == "Audit complete."
+
+
+def test_message_accumulator_compaction_attributed_to_last_role() -> None:
+    """A compaction following another role's event leaves the primary conversation alone.
+
+    CompactionEvent carries no role, so it is attributed to the most recent
+    ModelEvent's role. Here the summary compacted the target's conversation;
+    flushing the auditor's history instead would duplicate its messages in
+    the merged result.
+    """
+    auditor_user = ChatMessageUser(content="Probe the target.")
+    auditor_event1 = _make_model_event(
+        [auditor_user], "Sending a question.", role="auditor"
+    )
+    target_event = _make_model_event(
+        [ChatMessageUser(content="Question")], "Answer", role="target"
+    )
+    compaction = CompactionEvent(type="summary")
+    auditor_assistant = ChatMessageAssistant(content="Sending a question.")
+    auditor_event2 = _make_model_event(
+        [auditor_user, auditor_assistant], "Done.", role="auditor"
+    )
+
+    acc = MessageAccumulator()
+    acc.process_events([auditor_event1, target_event, compaction, auditor_event2])
+    messages, output = acc.result()
+
+    assert [m.text for m in messages] == [
+        "Probe the target.",
+        "Sending a question.",
+        "Done.",
+    ]
+    assert output.choices[0].message.content == "Done."
+
+
+def test_message_accumulator_compaction_role_survives_foreign_interleave() -> None:
+    """CompactionEvent.role is used when present instead of the last-event heuristic.
+
+    Same regression as test_reconstruct_multi_agent_compaction_survives_foreign_interleave,
+    exercised directly against MessageAccumulator: a foreign event between the
+    primary's last event and its own compaction must not cause that
+    compaction to be skipped.
+    """
+    p1_event = _make_model_event(
+        [ChatMessageUser(content="p1_input")], "p1_output", role="primary"
+    )
+    s1_event = _make_model_event(
+        [ChatMessageUser(content="s1_input")], "s1_output", role="secondary"
+    )
+    compaction = CompactionEvent(type="summary", role="primary")
+    p2_event = _make_model_event(
+        [ChatMessageUser(content="summary"), ChatMessageUser(content="p2_input")],
+        "p2_output",
+        role="primary",
+    )
+
+    acc = MessageAccumulator()
+    acc.process_events([p1_event, s1_event, compaction, p2_event])
+    messages, output = acc.result()
+
+    assert [m.text for m in messages] == [
+        "p1_input",
+        "p1_output",
+        "summary",
+        "p2_input",
+        "p2_output",
+    ]
+    assert output.choices[0].message.content == "p2_output"
 
 
 def test_reconstruct_in_progress_summary_without_uuid_synthesizes_one() -> None:

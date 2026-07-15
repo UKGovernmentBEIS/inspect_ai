@@ -10,7 +10,7 @@ valid restic repo on extraction.
 Ingress is the inverse: on resume, copy a host-side repo back into the
 sandbox and restic-restore the files at their original absolute paths.
 
-Layout under the same ``/opt/inspect-restic/`` root as :mod:`.repo`:
+Layout under the same ``/root/.cache/inspect/`` root as :mod:`.repo`:
 - ``./egress-manifest.txt`` — sorted list of files already shipped
 - ``./staging/`` — per-cycle tarballs awaiting host-side extraction
 """
@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import io
 import json
+import sys
 import tarfile
 from pathlib import Path
 
@@ -26,6 +27,7 @@ import anyio
 
 from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
 from .._async_fs import async_mkdir
 from .repo import _SANDBOX_RESTIC_DIR, _SANDBOX_RESTIC_PATH, _SANDBOX_RESTIC_REPO
@@ -45,7 +47,7 @@ async def ingress_sandbox(
        the prior eval's host side just before this call).
     2. Stream the tarball into the sandbox via root ``sh`` so the agent
        never sees the bytes in flight, extracting into the standard
-       in-sandbox repo location (``/opt/inspect-restic/repo``).
+       in-sandbox repo location (``/root/.cache/inspect/repo``).
     3. Run ``restic restore latest --target /`` inside the sandbox so
        restored files land at their original absolute paths, replacing
        whatever the fresh sandbox came up with.
@@ -139,7 +141,10 @@ async def egress_sandbox(
     # different copy-out mechanism. Typical inspect deltas are small
     # enough that a one-shot read_file is the right default.
     tar_path = f"{_EGRESS_STAGING}/egress-{tag}.tar"
-    tar_bytes = await env.read_file(tar_path, text=False)
+    # The tarball carries the full initial pack set and can
+    # legitimately exceed the default read cap.
+    with override_max_read_file_size(sys.maxsize):
+        tar_bytes = await env.read_file(tar_path, text=False)
     await async_mkdir(dest_repo)
     await anyio.to_thread.run_sync(_extract_tar, tar_bytes, dest_repo)
 
@@ -153,6 +158,10 @@ async def _build_egress_tar(env: SandboxEnvironment, tag: str) -> list[str]:
 
     Returns the list of newly-staged file paths (relative to the repo
     root). Empty list ⇒ nothing new this cycle, no tar produced.
+
+    The scratch listings live in the root-only staging dir rather than
+    ``/tmp``, where they would be world-readable and advertise the
+    repo's existence to the agent.
     """
     # `comm -23` requires both inputs sorted; `find` output is sorted via
     # `LC_ALL=C sort`. `tar -T -` reads the file list from stdin in the
@@ -175,11 +184,11 @@ rm -f {_EGRESS_STAGING}/egress-*.tar
   find data -type f 2>/dev/null
   find index -type f 2>/dev/null
   find snapshots -type f 2>/dev/null
-}} | LC_ALL=C sort > /tmp/egress-current.txt
-LC_ALL=C comm -23 /tmp/egress-current.txt {_EGRESS_MANIFEST} > /tmp/egress-new.txt
-if [ ! -s /tmp/egress-new.txt ]; then exit 0; fi
-tar -cf {_EGRESS_STAGING}/egress-{tag}.tar -T /tmp/egress-new.txt
-cat /tmp/egress-new.txt
+}} | LC_ALL=C sort > {_EGRESS_STAGING}/current.txt
+LC_ALL=C comm -23 {_EGRESS_STAGING}/current.txt {_EGRESS_MANIFEST} > {_EGRESS_STAGING}/new.txt
+if [ ! -s {_EGRESS_STAGING}/new.txt ]; then exit 0; fi
+tar -cf {_EGRESS_STAGING}/egress-{tag}.tar -T {_EGRESS_STAGING}/new.txt
+cat {_EGRESS_STAGING}/new.txt
 """
     result = await env.exec(["sh", "-c", script], user="root")
     if not result.success:
@@ -188,8 +197,13 @@ cat /tmp/egress-new.txt
 
 
 def _extract_tar(tar_bytes: bytes, dest_repo: str) -> None:
+    # The tarball bytes originate inside the sandbox (read via `read_file`),
+    # so they are untrusted: a sandboxed agent can plant a malicious tar at
+    # the egress staging path. `filter="data"` rejects absolute paths, `..`
+    # traversal, and outside-pointing links, preventing host-side writes
+    # outside `dest_repo` (CVE-2007-4559 class). See PEP 706.
     with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:") as tar:
-        tar.extractall(dest_repo)
+        tar.extractall(dest_repo, filter="data")
 
 
 async def _verify_destination(

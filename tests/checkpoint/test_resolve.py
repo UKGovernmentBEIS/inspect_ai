@@ -3,17 +3,40 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Literal
 
 import pytest
 
 from inspect_ai.util._checkpoint import (
     CheckpointConfig,
     CheckpointSampleConfig,
-    Retention,
+    Manual,
     TimeInterval,
+    TokenInterval,
     TurnInterval,
 )
-from inspect_ai.util._checkpoint.config import merge_checkpoint_configs
+from inspect_ai.util._checkpoint.config import (
+    DEFAULT_CHECKPOINT_TRIGGER,
+    CheckpointDisabled,
+    merge_checkpoint_configs,
+)
+
+# --- builders -------------------------------------------------------
+
+
+def _cfg(field: str, value: object) -> CheckpointConfig:
+    cfg = CheckpointConfig()
+    setattr(cfg, field, value)
+    return cfg
+
+
+def _sample_cfg(field: str, value: object) -> CheckpointSampleConfig:
+    cfg = CheckpointSampleConfig()
+    setattr(cfg, field, value)
+    return cfg
+
+
+# --- enable predicate + defaults ------------------------------------
 
 
 def test_no_layers_returns_none() -> None:
@@ -23,89 +46,108 @@ def test_no_layers_returns_none() -> None:
 
 
 def test_single_layer_passes_through() -> None:
-    cfg = CheckpointConfig(trigger=TurnInterval(every=5))
-    out = merge_checkpoint_configs(cfg)
+    out = merge_checkpoint_configs(CheckpointConfig(trigger=TurnInterval(every=5)))
     assert out is not None
     assert out.trigger == TurnInterval(every=5)
     # Defaults are materialized.
     assert out.sandbox_paths == {}
-    assert out.retention == Retention()
+    assert out.retention == "delete"
 
 
-def test_layer_without_trigger_raises() -> None:
-    with pytest.raises(ValueError, match="no trigger"):
-        merge_checkpoint_configs(CheckpointConfig(checkpoints_location="/tmp"))
+def test_enabled_without_trigger_defaults_to_500k_tokens() -> None:
+    out = merge_checkpoint_configs(CheckpointConfig(checkpoints_location="/tmp"))
+    assert out is not None
+    assert out.trigger == DEFAULT_CHECKPOINT_TRIGGER == TokenInterval(every=500_000)
+    assert out.checkpoints_location == "/tmp"
+
+
+def test_sample_only_does_not_enable() -> None:
+    """A sample-layer config never enables checkpointing — it is ignored."""
+    assert (
+        merge_checkpoint_configs(
+            None, CheckpointSampleConfig(trigger=TurnInterval(every=2)), None
+        )
+        is None
+    )
+    # Even with no trigger, a lone sample config is silently ignored (no raise).
+    assert merge_checkpoint_configs(None, CheckpointSampleConfig(), None) is None
+
+
+def test_sample_supplies_trigger_when_eval_has_none() -> None:
+    """Eval enables (no trigger); sample customizes the trigger."""
+    out = merge_checkpoint_configs(
+        task=None,
+        sample=CheckpointSampleConfig(trigger=TurnInterval(every=2)),
+        eval_=CheckpointConfig(sandbox_paths={"default": ["/workspace"]}),
+    )
+    assert out is not None
+    assert out.trigger == TurnInterval(every=2)  # from sample
+    assert out.sandbox_paths == {"default": ["/workspace"]}  # from eval
 
 
 def test_sample_layer_uses_sample_config_type() -> None:
-    """Sample-layer configs are typed CheckpointSampleConfig — no checkpoints_dir field."""
+    """Sample-layer configs are typed CheckpointSampleConfig — no eval-wide fields."""
     sample = CheckpointSampleConfig(trigger=TurnInterval(every=2))
-    assert not hasattr(sample, "checkpoints_dir")
+    assert not hasattr(sample, "checkpoints_location")
     assert not hasattr(sample, "retention")
 
-    out = merge_checkpoint_configs(
-        task=CheckpointConfig(
-            trigger=TurnInterval(every=5), checkpoints_location="/tmp"
-        ),
-        sample=sample,
-    )
-    assert out is not None
-    assert out.checkpoints_location == "/tmp"  # from task
-    assert out.trigger == TurnInterval(every=2)  # from sample
+
+# --- per-field precedence (eval > sample > task) --------------------
+
+# Distinct value per layer for each mergeable field, so the winner is
+# unambiguous. The sample value lives on both config types (these fields
+# are shared with CheckpointSampleConfig).
+_MERGEABLE_VALUES: dict[str, dict[str, object]] = {
+    "trigger": {
+        "task": TurnInterval(every=5),
+        "sample": TurnInterval(every=2),
+        "eval": TimeInterval(every=timedelta(minutes=15)),
+    },
+    "sandbox_paths": {
+        "task": {"task": ["/t"]},
+        "sample": {"sample": ["/s"]},
+        "eval": {"eval": ["/e"]},
+    },
+    "max_consecutive_failures": {"task": 3, "sample": 10, "eval": 7},
+}
+
+# (present layers, winning layer) under precedence eval > sample > task.
+# Sample-only is excluded — it never enables, covered separately.
+_PRECEDENCE_COMBOS = [
+    (("task", "sample", "eval"), "eval"),
+    (("task", "sample"), "sample"),
+    (("task", "eval"), "eval"),
+    (("sample", "eval"), "eval"),
+    (("task",), "task"),
+    (("eval",), "eval"),
+]
 
 
-def test_higher_priority_overrides_trigger() -> None:
-    task = CheckpointConfig(trigger=TurnInterval(every=5))
-    sample = CheckpointConfig(trigger=TurnInterval(every=2))
-    eval_ = CheckpointConfig(trigger=TimeInterval(every=timedelta(minutes=15)))
+@pytest.mark.parametrize("field", list(_MERGEABLE_VALUES))
+@pytest.mark.parametrize("present, winner", _PRECEDENCE_COMBOS)
+def test_mergeable_field_precedence(
+    field: str, present: tuple[str, ...], winner: str
+) -> None:
+    vals = _MERGEABLE_VALUES[field]
+    task = _cfg(field, vals["task"]) if "task" in present else None
+    sample = _sample_cfg(field, vals["sample"]) if "sample" in present else None
+    eval_ = _cfg(field, vals["eval"]) if "eval" in present else None
 
-    # task < sample < eval (left to right priority increases)
     out = merge_checkpoint_configs(task, sample, eval_)
     assert out is not None
-    assert out.trigger == TimeInterval(every=timedelta(minutes=15))
+    # Distinct keys mean a winning sandbox_paths dict also proves
+    # whole-dict replacement (no key-wise merge).
+    assert getattr(out, field) == vals[winner]
 
 
-def test_sample_overrides_task_when_eval_absent() -> None:
-    task = CheckpointConfig(trigger=TurnInterval(every=5))
-    sample = CheckpointConfig(trigger=TurnInterval(every=2))
-    out = merge_checkpoint_configs(task, sample, None)
-    assert out is not None
-    assert out.trigger == TurnInterval(every=2)
-
-
-def test_lower_layer_supplies_default_for_unset_field() -> None:
-    """Task provides paths; sample overrides only trigger; merged has both."""
-    task = CheckpointConfig(
-        trigger=TurnInterval(every=5),
-        sandbox_paths={"default": ["/workspace"]},
-    )
-    sample = CheckpointConfig(trigger=TurnInterval(every=2))
-    out = merge_checkpoint_configs(task, sample, None)
-    assert out is not None
-    assert out.trigger == TurnInterval(every=2)
-    assert out.sandbox_paths == {"default": ["/workspace"]}
-
-
-def test_sandbox_paths_whole_dict_replacement() -> None:
-    """Higher layer's sandbox_paths replaces the whole dict (no per-key merge)."""
-    task = CheckpointConfig(
-        trigger=TurnInterval(every=5),
-        sandbox_paths={"default": ["/workspace"]},
-    )
-    sample = CheckpointConfig(sandbox_paths={"tools": ["/data"]})
-    out = merge_checkpoint_configs(task, sample, None)
-    assert out is not None
-    assert out.sandbox_paths == {"tools": ["/data"]}
-
-
-def test_per_field_layering() -> None:
-    """Different fields can come from different layers."""
+def test_cross_field_layering() -> None:
+    """Different fields resolve from different layers in one merge."""
     task = CheckpointConfig(
         trigger=TurnInterval(every=5),
         sandbox_paths={"default": ["/workspace"]},
         max_consecutive_failures=3,
     )
-    sample = CheckpointConfig(max_consecutive_failures=10)
+    sample = CheckpointSampleConfig(max_consecutive_failures=10)
     eval_ = CheckpointConfig(checkpoints_location="s3://bucket/checkpoints")
     out = merge_checkpoint_configs(task, sample, eval_)
     assert out is not None
@@ -128,12 +170,184 @@ def test_eval_only_with_partial_config_completes_from_task() -> None:
     assert out.sandbox_paths == {"default": ["/workspace"]}
 
 
-def test_retention_inherits() -> None:
-    task = CheckpointConfig(
-        trigger=TurnInterval(every=5),
-        retention=Retention(after_eval="retain"),
+# --- eval-wide field precedence (task / eval only) ------------------
+
+_LOCATION = {"task": "/task/ckpt", "eval": "s3://bucket/eval"}
+
+
+@pytest.mark.parametrize(
+    "present, winner",
+    [(("task", "eval"), "eval"), (("task",), "task"), (("eval",), "eval")],
+)
+def test_checkpoints_location_eval_wide_precedence(
+    present: tuple[str, ...], winner: str
+) -> None:
+    task = (
+        CheckpointConfig(
+            trigger=TurnInterval(every=5), checkpoints_location=_LOCATION["task"]
+        )
+        if "task" in present
+        else None
     )
-    sample = CheckpointConfig(trigger=TurnInterval(every=2))
-    out = merge_checkpoint_configs(task, sample, None)
+    eval_ = (
+        CheckpointConfig(
+            trigger=TurnInterval(every=5), checkpoints_location=_LOCATION["eval"]
+        )
+        if "eval" in present
+        else None
+    )
+    out = merge_checkpoint_configs(task, None, eval_)
     assert out is not None
-    assert out.retention == Retention(after_eval="retain")
+    assert out.checkpoints_location == _LOCATION[winner]
+
+
+@pytest.mark.parametrize(
+    "task_r, eval_r",
+    [
+        ("retain", None),  # task inherits (eval absent)
+        ("delete", "retain"),  # eval wins
+        (None, "retain"),  # eval only
+    ],
+)
+def test_retention_eval_wide_precedence(
+    task_r: Literal["delete", "retain"] | None,
+    eval_r: Literal["delete", "retain"] | None,
+) -> None:
+    # The expected winner is always "retain" (non-default), so a result
+    # of "retain" cannot be confused with the materialized default.
+    task = (
+        CheckpointConfig(trigger=TurnInterval(every=5), retention=task_r)
+        if task_r is not None
+        else None
+    )
+    eval_ = (
+        CheckpointConfig(trigger=TurnInterval(every=5), retention=eval_r)
+        if eval_r is not None
+        else None
+    )
+    out = merge_checkpoint_configs(task, None, eval_)
+    assert out is not None
+    assert out.retention == "retain"
+
+
+# --- falsy-but-set edges (None means inherit, not 0 / {}) -----------
+
+
+def test_explicit_empty_sandbox_paths_overrides_lower() -> None:
+    """An explicit empty dict replaces a lower layer's paths (host-only)."""
+    out = merge_checkpoint_configs(
+        task=CheckpointConfig(
+            trigger=TurnInterval(every=5), sandbox_paths={"default": ["/workspace"]}
+        ),
+        sample=CheckpointSampleConfig(sandbox_paths={}),
+    )
+    assert out is not None
+    assert out.sandbox_paths == {}
+
+
+def test_zero_max_consecutive_failures_is_set_not_inherited() -> None:
+    """``0`` (any failure fatal) is honored, not treated as unset."""
+    out = merge_checkpoint_configs(
+        task=CheckpointConfig(
+            trigger=TurnInterval(every=5), max_consecutive_failures=5
+        ),
+        sample=CheckpointSampleConfig(max_consecutive_failures=0),
+    )
+    assert out is not None
+    assert out.max_consecutive_failures == 0
+
+
+# --- veto (checkpoint=False) overrides ---------------------------------
+
+
+@pytest.mark.parametrize(
+    "task, sample, eval_",
+    [
+        pytest.param(
+            CheckpointDisabled(),
+            None,
+            CheckpointConfig(trigger=TurnInterval(every=1)),
+            id="task_veto_overrides_eval_enable",
+        ),
+        pytest.param(
+            CheckpointConfig(trigger=TurnInterval(every=1)),
+            None,
+            CheckpointDisabled(),
+            id="eval_veto_overrides_task_enable",
+        ),
+        pytest.param(
+            CheckpointDisabled(),
+            CheckpointSampleConfig(trigger=TurnInterval(every=1)),
+            None,
+            id="task_veto_overrides_sample_config",
+        ),
+    ],
+)
+def test_veto_disables_checkpointing(
+    task: CheckpointConfig | CheckpointDisabled | None,
+    sample: CheckpointSampleConfig | None,
+    eval_: CheckpointConfig | CheckpointDisabled | None,
+) -> None:
+    assert merge_checkpoint_configs(task, sample, eval_) is None
+
+
+def test_veto_is_per_task_not_eval_wide() -> None:
+    # One shared eval enable; a vetoing task resolves to disabled while a
+    # non-vetoing task under the same eval config stays enabled. Proves the
+    # veto is per-task (no shared-state leak).
+    eval_cfg = CheckpointConfig(trigger=TurnInterval(every=1))
+    assert merge_checkpoint_configs(CheckpointDisabled(), None, eval_cfg) is None
+    assert merge_checkpoint_configs(None, None, eval_cfg) is not None
+
+
+def test_merge_attaches_task_callbacks() -> None:
+    async def on_checkpoint(state: object) -> None:
+        return None
+
+    async def on_resume(state: object, attempt: str) -> str:
+        return "resumed"
+
+    resolved = merge_checkpoint_configs(
+        CheckpointConfig(trigger=Manual()),
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
+    )
+    assert resolved is not None
+    assert resolved.on_checkpoint is on_checkpoint
+    assert resolved.on_resume is on_resume
+
+
+def test_merge_disabled_ignores_callbacks() -> None:
+    async def on_resume(state: object, attempt: str) -> None:
+        return None
+
+    # No task/eval config -> checkpointing disabled -> None regardless of callbacks
+    assert merge_checkpoint_configs(None, None, None, on_resume=on_resume) is None
+
+
+def test_task_callbacks_reach_resolved_config() -> None:
+    from inspect_ai import Task
+    from inspect_ai.dataset import Sample
+
+    async def on_resume(state: object, attempt: str) -> str:
+        return "resumed"
+
+    async def on_checkpoint(state: object) -> None:
+        return None
+
+    task = Task(
+        dataset=[Sample(input="hi")],
+        checkpoint=True,
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
+    )
+    resolved = merge_checkpoint_configs(
+        task.checkpoint,
+        None,
+        None,
+        on_checkpoint=task.on_checkpoint,
+        on_resume=task.on_resume,
+    )
+    assert resolved is not None
+    assert resolved.on_checkpoint is on_checkpoint
+    assert resolved.on_resume is on_resume

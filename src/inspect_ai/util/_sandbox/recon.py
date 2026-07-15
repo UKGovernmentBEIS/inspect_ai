@@ -9,13 +9,19 @@ Architecture: TypeAlias = Literal[
     "arm64",  # 64-bit ARM
 ]
 
+Libc: TypeAlias = Literal[
+    "glibc",  # GNU libc (most distros)
+    "musl",  # musl libc (Alpine and other musl-based distros)
+]
+
 
 class SupportedContainerOSInfo(TypedDict, total=False):
     os: Literal["Linux"]
-    distribution: Literal["Ubuntu", "Debian", "Kali Linux", "Debian-based"]
+    distribution: Literal["Ubuntu", "Debian", "Kali Linux", "Alpine", "Debian-based"]
     version: str
     version_info: str
     architecture: Architecture
+    libc: Libc
     uname: str
 
 
@@ -80,6 +86,24 @@ fi
     return arch_mapping[arch]
 
 
+async def _detect_libc(sandbox: SandboxEnvironment) -> Libc:
+    """Detect whether the container uses musl or glibc.
+
+    Lifted from inspect_swe's detect_sandbox_platform: the musl loader/libc is
+    present at /lib/libc.musl-{arch}.so.1 on musl distros (e.g. Alpine); `ldd` on
+    a musl system also reports "musl". The `||` chain short-circuits on the .so
+    check so `ldd` is only consulted as a fallback, and its absence resolves to
+    glibc.
+    """
+    musl_check_cmd = (
+        "if [ -f /lib/libc.musl-x86_64.so.1 ] || "
+        "[ -f /lib/libc.musl-aarch64.so.1 ] || "
+        "ldd /bin/ls 2>&1 | grep -q musl; then "
+        "echo 'musl'; else echo 'glibc'; fi"
+    )
+    return "musl" if await _sandbox_exec(sandbox, musl_check_cmd) == "musl" else "glibc"
+
+
 async def _detect_linux(sandbox: SandboxEnvironment) -> SupportedContainerOSInfo:
     """Detect Linux distribution information."""
     # Check /etc/os-release first
@@ -92,6 +116,7 @@ fi
 """
 
     architecture = await _detect_architecture(sandbox)
+    libc = await _detect_libc(sandbox)
     os_release_output = await _sandbox_exec(sandbox, os_release_cmd)
     if os_release_output and os_release_output != "not_found":
         os_info = {
@@ -110,10 +135,13 @@ fi
                 if distro_id == "ubuntu"
                 else "Debian"
                 if distro_id == "debian"
+                else "Alpine"
+                if distro_id == "alpine"
                 else "Kali Linux"
             ),
             version=os_info.get("VERSION", "Unknown"),
             architecture=architecture,
+            libc=libc,
         )
 
     # Fallback: check for Kali version file
@@ -126,6 +154,7 @@ fi
             distribution="Kali Linux",
             version=kali_version,
             architecture=architecture,
+            libc=libc,
         )
 
     # Fallback: check for Debian version file
@@ -138,6 +167,7 @@ fi
             distribution="Debian-based",
             version=debian_version,
             architecture=architecture,
+            libc=libc,
         )
 
     # Last resort: raise error if OS/distribution could not be determined

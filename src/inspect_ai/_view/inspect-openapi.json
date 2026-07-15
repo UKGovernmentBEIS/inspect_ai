@@ -20,7 +20,7 @@
             "type": "integer"
           },
           "min": {
-            "default": 4,
+            "default": 10,
             "title": "Min",
             "type": "integer"
           },
@@ -131,6 +131,31 @@
           "anchor_id"
         ],
         "title": "AnchorEvent",
+        "type": "object"
+      },
+      "AppConfig": {
+        "description": "Application configuration returned by GET /app-config.",
+        "properties": {
+          "inspect_version": {
+            "title": "Inspect Version",
+            "type": "string"
+          },
+          "scout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scout Version"
+          }
+        },
+        "required": [
+          "inspect_version"
+        ],
+        "title": "AppConfig",
         "type": "object"
       },
       "ApprovalEvent": {
@@ -609,6 +634,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Logprobs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopDetails"
               },
               {
                 "type": "null"
@@ -1186,10 +1221,25 @@
               "manual",
               "token",
               "cost",
-              "budget"
+              "budget",
+              "agent_complete"
             ],
             "title": "Trigger",
             "type": "string"
+          },
+          "trigger_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Metadata"
           },
           "turn": {
             "title": "Turn",
@@ -1228,7 +1278,7 @@
         "type": "object"
       },
       "CheckpointSampleConfig": {
-        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_dir`` and\n``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_location``\nand ``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.",
         "properties": {
           "max_consecutive_failures": {
             "anyOf": [
@@ -1342,6 +1392,17 @@
             ],
             "title": "Pending"
           },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
           "source": {
             "anyOf": [
               {
@@ -1441,13 +1502,21 @@
             "type": "integer"
           },
           "reason": {
-            "enum": [
-              "slow_start",
-              "steady_state_up",
-              "rate_limit"
+            "anyOf": [
+              {
+                "enum": [
+                  "slow_start",
+                  "steady_state_up",
+                  "rate_limit"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "manual",
+                "type": "string"
+              }
             ],
-            "title": "Reason",
-            "type": "string"
+            "title": "Reason"
           },
           "timestamp": {
             "title": "Timestamp",
@@ -2612,6 +2681,28 @@
             ],
             "title": "Token Limit"
           },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
+          "turn_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Limit"
+          },
           "working_limit": {
             "anyOf": [
               {
@@ -2859,6 +2950,17 @@
       "EvalMetric": {
         "description": "Metric for evaluation score.",
         "properties": {
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
           "metadata": {
             "anyOf": [
               {
@@ -3433,6 +3535,20 @@
             "title": "Metadata",
             "type": "object"
           },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -3529,6 +3645,39 @@
             ],
             "title": "Timelines"
           },
+          "token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit"
+          },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
+          "token_limit_usage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Usage"
+          },
           "total_time": {
             "anyOf": [
               {
@@ -3539,6 +3688,17 @@
               }
             ],
             "title": "Total Time"
+          },
+          "turn_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Count"
           },
           "uuid": {
             "anyOf": [
@@ -3594,6 +3754,7 @@
               "working",
               "message",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"
@@ -3879,6 +4040,20 @@
             "title": "Metadata",
             "type": "object"
           },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -3943,6 +4118,39 @@
             ],
             "title": "Target"
           },
+          "token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit"
+          },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
+          "token_limit_usage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Usage"
+          },
           "total_time": {
             "anyOf": [
               {
@@ -3953,6 +4161,17 @@
               }
             ],
             "title": "Total Time"
+          },
+          "turn_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Count"
           },
           "uuid": {
             "anyOf": [
@@ -4878,6 +5097,20 @@
             ],
             "title": "Extra Headers"
           },
+          "fallback_models": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Models"
+          },
           "frequency_penalty": {
             "anyOf": [
               {
@@ -5071,6 +5304,21 @@
               }
             ],
             "title": "Reasoning History"
+          },
+          "reasoning_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "standard",
+                  "pro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Mode"
           },
           "reasoning_summary": {
             "anyOf": [
@@ -6317,6 +6565,17 @@
           "log_dir": {
             "title": "Log Dir",
             "type": "string"
+          },
+          "log_dir_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Dir Uri"
           }
         },
         "required": [
@@ -6633,7 +6892,7 @@
         "type": "object"
       },
       "MetadataField": {
-        "description": "A metadata key promoted out of metadata into a top level value.",
+        "description": "Identifies a field in metadata.",
         "properties": {
           "collapsed": {
             "default": false,
@@ -7049,6 +7308,43 @@
         "title": "ModelEvent",
         "type": "object"
       },
+      "ModelFallback": {
+        "description": "A model fallback (request served by a different model than requested).",
+        "properties": {
+          "count": {
+            "default": 1,
+            "title": "Count",
+            "type": "integer"
+          },
+          "fallback_model": {
+            "title": "Fallback Model",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "fallback_model",
+          "count"
+        ],
+        "title": "ModelFallback",
+        "type": "object"
+      },
       "ModelOutput": {
         "description": "Output from model generation.",
         "properties": {
@@ -7075,6 +7371,16 @@
               }
             ],
             "title": "Error"
+          },
+          "fallback": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelFallback"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "metadata": {
             "anyOf": [
@@ -7784,6 +8090,7 @@
               "time",
               "working",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"
@@ -7820,17 +8127,7 @@
       "SampleScoreView": {
         "description": "How the sample-header score panel should render when there are 3 or more scores.",
         "properties": {
-          "sort": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SampleScoreViewSort"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "view": {
+          "default": {
             "anyOf": [
               {
                 "enum": [
@@ -7843,7 +8140,17 @@
                 "type": "null"
               }
             ],
-            "title": "View"
+            "title": "Default"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleScoreViewSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "SampleScoreView",
@@ -7915,190 +8222,6 @@
           "etag"
         ],
         "title": "Samples",
-        "type": "object"
-      },
-      "SamplesColumn": {
-        "description": "A column entry in the task's Sample List view.",
-        "properties": {
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "visible": {
-            "default": true,
-            "title": "Visible",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "visible"
-        ],
-        "title": "SamplesColumn",
-        "type": "object"
-      },
-      "SamplesSort": {
-        "description": "A single sort entry for the task's Sample List grid.",
-        "properties": {
-          "column": {
-            "title": "Column",
-            "type": "string"
-          },
-          "dir": {
-            "default": "asc",
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "title": "Dir",
-            "type": "string"
-          }
-        },
-        "required": [
-          "column",
-          "dir"
-        ],
-        "title": "SamplesSort",
-        "type": "object"
-      },
-      "SamplesView": {
-        "description": "Default configuration for the task's Sample List grid.\n\nConfigures the list of samples shown in a task's eval-log view \u2014\ndistinct from `sample_score_view`, which configures the score panel\nwithin an individual sample's detail view.\n\nThe viewer applies `SamplesView` only when the user has not\nexplicitly overridden the view in their browser. User overrides\nshadow the eval-author default; the resolution priority is\n`user > eval default > built-in`.",
-        "properties": {
-          "color_scales_enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Color Scales Enabled"
-          },
-          "columns": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/SamplesColumn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Columns"
-          },
-          "compact_scores": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Compact Scores"
-          },
-          "filter": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Filter"
-          },
-          "multiline": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Multiline"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "score_color_scales": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "enum": [
-                        "good-high",
-                        "good-low",
-                        "neutral",
-                        "diverging"
-                      ],
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ScoreColorScale"
-                    },
-                    {
-                      "additionalProperties": {
-                        "enum": [
-                          "good",
-                          "bad",
-                          "warn",
-                          "info",
-                          "muted"
-                        ],
-                        "type": "string"
-                      },
-                      "type": "object"
-                    }
-                  ]
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score Color Scales"
-          },
-          "score_labels": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score Labels"
-          },
-          "sort": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/SamplesSort"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sort"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "SamplesView",
         "type": "object"
       },
       "SandboxEnvironmentSpec": {
@@ -8327,7 +8450,7 @@
         "type": "object"
       },
       "ScannerResultView": {
-        "description": "Customizes the rendering of scanner results.",
+        "description": "Customizes the rendering of the sample scanner results.",
         "properties": {
           "exclude_fields": {
             "items": {
@@ -8973,9 +9096,34 @@
         "additionalProperties": true,
         "description": "Per-backup stats captured in the checkpoint file.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
         "properties": {
+          "additional_files": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Files"
+          },
           "duration_ms": {
             "title": "Duration Ms",
             "type": "integer"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files"
           },
           "size_bytes": {
             "title": "Size Bytes",
@@ -9348,6 +9496,81 @@
         "title": "StepEvent",
         "type": "object"
       },
+      "StopCategory": {
+        "description": "A single refusal/safety category reported by (or derived for) a model stop.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          }
+        },
+        "required": [
+          "category"
+        ],
+        "title": "StopCategory",
+        "type": "object"
+      },
+      "StopDetails": {
+        "description": "Additional detail about why a model stopped generating (e.g. a content refusal).\n\n`categories` is the canonical list (always iterable; a single-category provider\nappears as one entry). `category` and `explanation` are a convenience high-level\nsummary derived from the same data \u2014 `category` is the primary category and\n`explanation` is human-readable (synthesized from `categories` when the provider\nsupplies no text). Read either way; both describe the same stop.",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/StopCategory"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "StopDetails",
+        "type": "object"
+      },
       "StoreEvent": {
         "description": "Change to data within the current `Store`.",
         "properties": {
@@ -9637,6 +9860,221 @@
           "name"
         ],
         "title": "TaskDisplayMetric",
+        "type": "object"
+      },
+      "TaskSamplesColumn": {
+        "description": "A column entry in the task's Sample List view.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sampleStatus",
+                  "sampleId",
+                  "sampleUuid",
+                  "epoch",
+                  "input",
+                  "target",
+                  "answer",
+                  "tokens",
+                  "duration",
+                  "retries",
+                  "error",
+                  "limit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Id"
+          },
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "visible"
+        ],
+        "title": "TaskSamplesColumn",
+        "type": "object"
+      },
+      "TaskSamplesSort": {
+        "description": "A single sort entry for the task's Sample List grid.",
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sampleStatus",
+                  "sampleId",
+                  "sampleUuid",
+                  "epoch",
+                  "input",
+                  "target",
+                  "answer",
+                  "tokens",
+                  "duration",
+                  "retries",
+                  "error",
+                  "limit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Column"
+          },
+          "dir": {
+            "default": "asc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column",
+          "dir"
+        ],
+        "title": "TaskSamplesSort",
+        "type": "object"
+      },
+      "TaskSamplesView": {
+        "description": "Default configuration for the task's Sample List grid.\n\nConfigures the list of samples shown in a task's eval-log view.\n\nThe viewer applies `TaskSamplesView` only when the user has not\nexplicitly overridden the view in their browser. User overrides\nshadow the eval-author default; the resolution priority is\n`user > eval default > built-in`.",
+        "properties": {
+          "color_scales_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Scales Enabled"
+          },
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskSamplesColumn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
+          "compact_scores": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compact Scores"
+          },
+          "multiline": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiline"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "score_color_scales": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "good-high",
+                        "good-low",
+                        "neutral",
+                        "diverging"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ScoreColorScale"
+                    },
+                    {
+                      "additionalProperties": {
+                        "enum": [
+                          "good",
+                          "bad",
+                          "warn",
+                          "info",
+                          "muted"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Color Scales"
+          },
+          "score_labels": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Labels"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskSamplesSort"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TaskSamplesView",
         "type": "object"
       },
       "TimeInterval": {
@@ -10533,7 +10971,7 @@
         "type": "object"
       },
       "ViewerConfig": {
-        "description": "Top-level viewer configuration.\n\n`scanner_result_view` keys are fnmatch-style glob patterns (`\"*\"`,\n``\"audit_*\"``, exact names). Pass a ScannerResultView to apply a single\nconfiguration to every scanner.",
+        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list and each sample's score and scanner result display.",
         "properties": {
           "sample_score_view": {
             "anyOf": [
@@ -10562,11 +11000,11 @@
           "task_samples_view": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SamplesView"
+                "$ref": "#/components/schemas/TaskSamplesView"
               },
               {
                 "items": {
-                  "$ref": "#/components/schemas/SamplesView"
+                  "$ref": "#/components/schemas/TaskSamplesView"
                 },
                 "type": "array"
               },
@@ -10591,6 +11029,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/app-config": {
+      "get": {
+        "operationId": "api_app_config_app_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api App Config"
+      }
+    },
     "/chat-message": {
       "get": {
         "operationId": "_chat_message_chat_message_get",
@@ -10831,8 +11287,8 @@
       }
     },
     "/log-delete/{log}": {
-      "get": {
-        "operationId": "api_log_delete_log_delete__log__get",
+      "delete": {
+        "operationId": "api_log_delete_log_delete__log__delete",
         "parameters": [
           {
             "in": "path",
@@ -10849,7 +11305,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Api Log Delete Log Delete  Log  Get",
+                  "title": "Response Api Log Delete Log Delete  Log  Delete",
                   "type": "boolean"
                 }
               }
@@ -11065,8 +11521,8 @@
       }
     },
     "/log-message": {
-      "get": {
-        "operationId": "api_log_message_log_message_get",
+      "post": {
+        "operationId": "api_log_message_log_message_post",
         "parameters": [
           {
             "in": "query",

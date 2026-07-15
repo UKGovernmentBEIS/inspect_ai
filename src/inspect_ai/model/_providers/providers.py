@@ -53,6 +53,17 @@ def openai_api() -> type[ModelAPI]:
     return OpenAICompatibleAPI
 
 
+@modelapi(name="openai-api-completions")
+def openai_api_completions() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("OpenAI Compatible Completions API")
+
+    # in the clear
+    from .openai_compatible_completions import OpenAICompatibleCompletionsAPI
+
+    return OpenAICompatibleCompletionsAPI
+
+
 @modelapi(name="anthropic")
 def anthropic() -> type[ModelAPI]:
     # validate
@@ -332,7 +343,7 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "2.26.0"
+    MIN_VERSION = "2.45.0"
 
     # verify we have the package
     try:
@@ -346,7 +357,7 @@ def validate_openai_client(feature: str) -> None:
 
 def validate_anthropic_client(feature: str) -> None:
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.105.0"
+    MIN_VERSION = "0.115.0"
 
     # verify we have the package
     try:

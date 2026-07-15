@@ -1,7 +1,10 @@
+import contextlib
 import functools
 import json
-from collections.abc import Callable
-from typing import Any, Literal, cast
+import os
+import sys
+from collections.abc import Callable, Iterator
+from typing import Any, Literal, TextIO, cast
 
 import click
 import yaml
@@ -17,6 +20,7 @@ from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
+from inspect_ai._eval.handoff import LaunchHandoff, set_launch_handoff_listener
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -28,11 +32,11 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_RETRY_ON_ERROR,
 )
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
-from inspect_ai.log._log import EvalConfig
+from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
@@ -46,6 +50,7 @@ from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
+from inspect_ai.util._limit import TokenLimit
 from inspect_ai.util._resource import resource
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -56,6 +61,7 @@ from .common import (
 )
 from .util import (
     SectionedCommand,
+    ctl_server_flag_callback,
     int_bool_or_str_flag_callback,
     int_bool_or_str_retry_flag_callback,
     int_or_bool_flag_callback,
@@ -63,6 +69,7 @@ from .util import (
     parse_cli_config,
     parse_model_role_cli_args,
     parse_sandbox,
+    token_limit_flag_callback,
 )
 
 _SCANNER_OPTION_NAMES = {
@@ -119,7 +126,7 @@ MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (
 ADAPTIVE_CONNECTIONS_HELP = (
     "Adaptive concurrency for Model API connections, automatically scaling "
     "between bounds based on rate-limit feedback (default: enabled, with "
-    "min=4, start=20, max=100). Pass `false` to opt out, an integer N for "
+    "min=10, start=20, max=100). Pass `false` to opt out, an integer N for "
     "a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or "
     "`min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and "
     "`--batch` take precedence."
@@ -131,7 +138,7 @@ TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
 ATTEMPT_TIMEOUT_HELP = "Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."
 CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration."
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
-CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for default (every 5 turns), --checkpoint=turn:N / time:Ns/m/h/d / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
+CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for the default (every 500k tokens), --checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / turn:N / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
 
 
 def _notification_callback(
@@ -401,11 +408,10 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--checkpoint",
         is_flag=False,
-        flag_value="turn:5",
+        flag_value="default",
         default=None,
         help=CHECKPOINT_HELP,
         envvar="INSPECT_EVAL_CHECKPOINT",
-        hidden=True,
     )
     @click.option(
         "--acp-server",
@@ -427,6 +433,25 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "until one attaches."
         ),
         envvar="INSPECT_EVAL_ACP_SERVER",
+    )
+    @click.option(
+        "--ctl-server",
+        is_flag=False,
+        flag_value="true",
+        default=None,
+        callback=ctl_server_flag_callback,
+        help=(
+            "Control-channel server for this eval process (default: enabled "
+            "on an AF_UNIX socket — the endpoint the `inspect ctl` CLI, "
+            "scripted agents, and TUIs query). Pass `false` to disable it. "
+            "Pass `keep` to also keep the process running "
+            "after the eval finishes so its state and results stay readable; "
+            "the process exits when `inspect ctl process release` is run (or POST "
+            "/release is sent to the control endpoint). Without `keep` "
+            "the process exits as soon as the eval body returns, taking the "
+            "control surface with it."
+        ),
+        envvar="INSPECT_EVAL_CTL_SERVER",
     )
     @click.option(
         "--limit",
@@ -533,9 +558,18 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--token-limit",
-        type=int,
-        help="Limit on total tokens used for each sample.",
+        type=str,
+        callback=token_limit_flag_callback,
+        help="Limit on tokens used for each sample (e.g. 500000, '500k', or '1m'; "
+        "prefix with 'output:' to limit only output tokens, e.g. 'output:1m', or "
+        "with a formula over 'input'/'output', e.g. '(input*0.1)+output:1m').",
         envvar="INSPECT_EVAL_TOKEN_LIMIT",
+    )
+    @click.option(
+        "--turn-limit",
+        type=int,
+        help="Limit on total turns (model generations) used for each sample.",
+        envvar="INSPECT_EVAL_TURN_LIMIT",
     )
     @click.option(
         "--cost-limit",
@@ -581,7 +615,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--continue-on-fail",
         type=bool,
         is_flag=True,
-        default=False,
+        default=None,
         help=CONTINUE_ON_FAIL_HELP,
         envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
     )
@@ -598,7 +632,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--score-on-error",
         type=bool,
         is_flag=True,
-        default=False,
+        default=None,
         help=SCORE_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_SCORE_ON_ERROR",
     )
@@ -791,6 +825,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(
+        "--fallback-models",
+        type=str,
+        help="Fallback models (comma-separated, tried in order) when the model's safety classifiers refuse the request. Anthropic Claude API only.",
+        envvar="INSPECT_EVAL_FALLBACK_MODELS",
+    )
+    @click.option(
         "--verbosity",
         type=click.Choice(["low", "medium", "high"]),
         help='Constrains the verbosity of the model\'s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)',
@@ -807,6 +847,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=click.Choice(["none", "minimal", "low", "medium", "high", "xhigh", "max"]),
         help="Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).",
         envvar="INSPECT_EVAL_REASONING_EFFORT",
+    )
+    @click.option(
+        "--reasoning-mode",
+        type=click.Choice(["standard", "pro"]),
+        help='Reasoning mode. "pro" performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only ("standard" is the default).',
+        envvar="INSPECT_EVAL_REASONING_MODE",
     )
     @click.option(
         "--reasoning-tokens",
@@ -882,47 +928,89 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 @click.command("eval", cls=EvalCommand)
 @click.argument("tasks", nargs=-1)
+@click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_JSON",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each task's log location and status when the eval finishes.",
+)
 @eval_options
 @click.pass_context
 def eval_command(ctx: click.Context, /, **params: Any) -> None:
     """Evaluate tasks."""
-    # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*) defer
-    # to the run config _for fields the run config actually provides_. Env
-    # values still apply to fields the run config leaves unset. Common-options
-    # env vars (INSPECT_LOG_LEVEL, INSPECT_LOG_DIR, ...) are never cleared —
-    # they describe how the run is logged/displayed, not what is run.
-    if params.get("run_config"):
-        from click.core import ParameterSource
+    with _json_prerequisite_errors_to_stderr(params["json_output"]):
+        # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*)
+        # defer to the run config _for fields the run config actually
+        # provides_. Env values still apply to fields the run config leaves
+        # unset. Common-options env vars (INSPECT_LOG_LEVEL, INSPECT_LOG_DIR,
+        # ...) are never cleared — they describe how the run is
+        # logged/displayed, not what is run.
+        if params.get("run_config"):
+            from click.core import ParameterSource
 
-        run_params = parse_run_config(params["run_config"])
+            run_params = parse_run_config(params["run_config"])
 
-        # Map Click parameter name -> the cli_params key it ultimately produces
-        # in eval_exec. Most are identity; these are the exceptions.
-        click_to_cli_key = {
-            "m": "model_args",
-            "t": "task_args",
-            "model_role": "model_roles",
-            "no_sandbox_cleanup": "sandbox_cleanup",
-            "s": "solver",
-            "solver_config": "solver",
-        }
+            # Map Click parameter name -> the cli_params key it ultimately
+            # produces in eval_exec. Most are identity; these are the
+            # exceptions.
+            click_to_cli_key = {
+                "m": "model_args",
+                "t": "task_args",
+                "model_role": "model_roles",
+                "no_sandbox_cleanup": "sandbox_cleanup",
+                "s": "solver",
+                "solver_config": "solver",
+            }
 
-        for param in ctx.command.params:
-            name = param.name
-            if name is None or name == "run_config":
-                continue
-            envvar = getattr(param, "envvar", None)
-            if not (isinstance(envvar, str) and envvar.startswith("INSPECT_EVAL_")):
-                continue
-            if ctx.get_parameter_source(name) != ParameterSource.ENVIRONMENT:
-                continue
-            cli_key = click_to_cli_key.get(name, name)
-            if cli_key not in run_params:
-                continue
-            value = params.get(name)
-            params[name] = () if isinstance(value, tuple) else None
+            for param in ctx.command.params:
+                name = param.name
+                if name is None or name == "run_config":
+                    continue
+                envvar = getattr(param, "envvar", None)
+                if not (isinstance(envvar, str) and envvar.startswith("INSPECT_EVAL_")):
+                    continue
+                if ctx.get_parameter_source(name) != ParameterSource.ENVIRONMENT:
+                    continue
+                cli_key = click_to_cli_key.get(name, name)
+                if cli_key not in run_params:
+                    continue
+                value = params.get(name)
+                params[name] = () if isinstance(value, tuple) else None
 
-    _eval_command_impl(**params)
+        _eval_command_impl(**params)
+
+
+@contextlib.contextmanager
+def _json_prerequisite_errors_to_stderr(json_output: bool) -> Iterator[None]:
+    """Re-render ``PrerequisiteError``s to stderr when ``--json`` owns stdout.
+
+    ``--json`` promises that stdout carries only JSON records, and the
+    default ``PrerequisiteError`` handling breaks that twice over: the
+    excepthook renders the message through the global rich console, which
+    writes to *stdout* for failures raised before the display initializes
+    (``parse_run_config``, the config conflict checks in ``eval_exec``,
+    ...) and is reconfigured to quiet once ``display="none"`` takes
+    effect inside ``eval()`` — silently dropping the diagnostic for
+    every common launch failure (bad task path, missing API key, ...).
+    So under ``--json`` print the message to stderr (builtin ``print``,
+    matching the excepthook — a rich ``Console`` would interpret
+    bracketed text in messages as markup and hard-wrap long paths) and
+    exit non-zero via ``SilentException``. This wraps the whole command
+    so pre-flight failures on either side of ``eval()`` behave
+    identically. A no-op (errors propagate unchanged) without ``--json``.
+    """
+    try:
+        yield
+    except PrerequisiteError as ex:
+        if not json_output:
+            raise
+        # flush: nothing else will — the process exits via the exception,
+        # and captured/piped stderr is block-buffered
+        print(f"\n{ex.message}\n", file=sys.stderr, flush=True)
+        raise SilentException() from ex
 
 
 def _eval_command_impl(
@@ -960,6 +1048,7 @@ def _eval_command_impl(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -991,9 +1080,11 @@ def _eval_command_impl(
     internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    fallback_models: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
+    reasoning_mode: Literal["standard", "pro"] | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
@@ -1002,7 +1093,8 @@ def _eval_command_impl(
     batch: int | str | None,
     modalities: str | None,
     message_limit: int | None,
-    token_limit: int | None,
+    token_limit: int | TokenLimit | None,
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     cost_limit: float | None,
@@ -1028,10 +1120,20 @@ def _eval_command_impl(
     no_score_display: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
+    json_output: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
     # read config
     config = config_from_locals(dict(locals()))
+
+    # --json owns stdout (JSON lines only), so route the display to the
+    # quiet "none" renderer — including when --no-ansi would otherwise
+    # promote it back to "rich" or --trace (/INSPECT_EVAL_TRACE) would
+    # promote it to "conversation", which writes panels to stdout
+    if json_output:
+        common["display"] = "none"
+        common["no_ansi"] = None
+        trace = None
 
     # resolve common options
     process_common_options(common)
@@ -1083,6 +1185,7 @@ def _eval_command_impl(
         sample_shuffle=sample_shuffle,
         message_limit=message_limit,
         token_limit=token_limit,
+        turn_limit=turn_limit,
         time_limit=time_limit,
         working_limit=working_limit,
         cost_limit=cost_limit,
@@ -1108,13 +1211,24 @@ def _eval_command_impl(
         no_score=no_score,
         no_score_display=no_score_display,
         acp_server=acp_server,
+        ctl_server=ctl_server,
         is_eval_set=False,
+        json_output=json_output,
         **config,
     )
 
 
 @click.command("eval-set", cls=EvalCommand)
 @click.argument("tasks", nargs=-1)
+@click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_JSON",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, eval_set_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with overall success and each task's log location and status when the eval set finishes (the exit code still reports success as usual). When every task is already complete no eval runs, so stdout carries only the 'done' record; with --no-retry-immediate each batch retry binds afresh and emits a fresh 'launch' record, and the 'done' record carries the last launch's run_id.",
+)
 @click.option(
     "--retry-attempts",
     type=int,
@@ -1223,6 +1337,7 @@ def eval_set_command(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1254,9 +1369,11 @@ def eval_set_command(
     internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    fallback_models: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
+    reasoning_mode: Literal["standard", "pro"] | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
@@ -1265,7 +1382,8 @@ def eval_set_command(
     batch: int | str | None,
     modalities: str | None,
     message_limit: int | None,
-    token_limit: int | None,
+    token_limit: int | TokenLimit | None,
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     cost_limit: float | None,
@@ -1296,103 +1414,117 @@ def eval_set_command(
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
     eval_set_id: str | None,
+    json_output: bool,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks with retries.
 
     Learn more about eval sets at https://inspect.aisi.org.uk/eval-sets.html.
     """
-    # read config
-    config = config_from_locals(dict(locals()))
+    with _json_prerequisite_errors_to_stderr(json_output):
+        # read config
+        config = config_from_locals(dict(locals()))
 
-    # resolve common options
-    process_common_options(common)
+        # --json owns stdout (JSON lines only), so route the display to the
+        # quiet "none" renderer — including when --no-ansi would otherwise
+        # promote it back to "rich" or --trace (/INSPECT_EVAL_TRACE) would
+        # promote it to "conversation", which writes panels to stdout
+        if json_output:
+            common["display"] = "none"
+            common["no_ansi"] = None
+            trace = None
 
-    # exec eval
-    success = eval_exec(
-        tasks=tasks,
-        solver=solver,
-        log_level=common["log_level"],
-        log_level_transcript=log_level_transcript,
-        log_dir=common["log_dir"],
-        log_format=log_format,
-        model=model,
-        model_base_url=model_base_url,
-        m=m,
-        model_config=model_config,
-        run_config=run_config,
-        model_role=model_role,
-        t=t,
-        task_config=task_config,
-        s=s,
-        solver_config=solver_config,
-        scanner=scanner,
-        scanner_arg=scanner_arg,
-        scans=scans,
-        scan_name=scan_name,
-        scan_tags=scan_tags,
-        scan_metadata=scan_metadata,
-        scan_filter=scan_filter,
-        scan_model=scan_model,
-        scan_model_base_url=scan_model_base_url,
-        scan_model_arg=scan_model_arg,
-        scan_model_config=scan_model_config,
-        scan_model_role=scan_model_role,
-        scan_generate_config=scan_generate_config,
-        tags=tags,
-        metadata=metadata,
-        trace=trace,
-        approval=approval,
-        notification=notification,
-        sandbox=sandbox,
-        no_sandbox_cleanup=no_sandbox_cleanup,
-        checkpoint=checkpoint,
-        epochs=epochs,
-        epochs_reducer=epochs_reducer,
-        no_epochs_reducer=no_epochs_reducer,
-        limit=limit,
-        sample_id=sample_id,
-        sample_shuffle=sample_shuffle,
-        message_limit=message_limit,
-        token_limit=token_limit,
-        cost_limit=cost_limit,
-        model_cost_config=model_cost_config,
-        time_limit=time_limit,
-        working_limit=working_limit,
-        max_samples=max_samples,
-        max_dataset_memory=max_dataset_memory,
-        max_tasks=max_tasks,
-        max_subprocesses=max_subprocesses,
-        max_sandboxes=max_sandboxes,
-        fail_on_error=fail_on_error,
-        no_fail_on_error=no_fail_on_error,
-        continue_on_fail=continue_on_fail,
-        retry_on_error=retry_on_error,
-        score_on_error=score_on_error,
-        debug_errors=common["debug_errors"],
-        no_log_samples=no_log_samples,
-        no_log_realtime=no_log_realtime,
-        log_images=log_images,
-        log_model_api=log_model_api,
-        log_refusals=log_refusals,
-        log_buffer=log_buffer,
-        log_shared=log_shared,
-        no_score=no_score,
-        no_score_display=no_score_display,
-        acp_server=acp_server,
-        is_eval_set=True,
-        retry_attempts=retry_attempts,
-        retry_immediate=retry_immediate,
-        retry_wait=retry_wait,
-        retry_connections=retry_connections,
-        retry_cleanup=not no_retry_cleanup,
-        bundle_dir=bundle_dir,
-        bundle_overwrite=True if bundle_overwrite else False,
-        embed_viewer=True if embed_viewer else False,
-        log_dir_allow_dirty=log_dir_allow_dirty,
-        eval_set_id=eval_set_id,
-        **config,
-    )
+        # resolve common options
+        process_common_options(common)
+
+        # exec eval
+        success = eval_exec(
+            tasks=tasks,
+            solver=solver,
+            log_level=common["log_level"],
+            log_level_transcript=log_level_transcript,
+            log_dir=common["log_dir"],
+            log_format=log_format,
+            model=model,
+            model_base_url=model_base_url,
+            m=m,
+            model_config=model_config,
+            run_config=run_config,
+            model_role=model_role,
+            t=t,
+            task_config=task_config,
+            s=s,
+            solver_config=solver_config,
+            scanner=scanner,
+            scanner_arg=scanner_arg,
+            scans=scans,
+            scan_name=scan_name,
+            scan_tags=scan_tags,
+            scan_metadata=scan_metadata,
+            scan_filter=scan_filter,
+            scan_model=scan_model,
+            scan_model_base_url=scan_model_base_url,
+            scan_model_arg=scan_model_arg,
+            scan_model_config=scan_model_config,
+            scan_model_role=scan_model_role,
+            scan_generate_config=scan_generate_config,
+            tags=tags,
+            metadata=metadata,
+            trace=trace,
+            approval=approval,
+            notification=notification,
+            sandbox=sandbox,
+            no_sandbox_cleanup=no_sandbox_cleanup,
+            checkpoint=checkpoint,
+            epochs=epochs,
+            epochs_reducer=epochs_reducer,
+            no_epochs_reducer=no_epochs_reducer,
+            limit=limit,
+            sample_id=sample_id,
+            sample_shuffle=sample_shuffle,
+            message_limit=message_limit,
+            token_limit=token_limit,
+            turn_limit=turn_limit,
+            cost_limit=cost_limit,
+            model_cost_config=model_cost_config,
+            time_limit=time_limit,
+            working_limit=working_limit,
+            max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
+            max_tasks=max_tasks,
+            max_subprocesses=max_subprocesses,
+            max_sandboxes=max_sandboxes,
+            fail_on_error=fail_on_error,
+            no_fail_on_error=no_fail_on_error,
+            continue_on_fail=continue_on_fail,
+            retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
+            debug_errors=common["debug_errors"],
+            no_log_samples=no_log_samples,
+            no_log_realtime=no_log_realtime,
+            log_images=log_images,
+            log_model_api=log_model_api,
+            log_refusals=log_refusals,
+            log_buffer=log_buffer,
+            log_shared=log_shared,
+            no_score=no_score,
+            no_score_display=no_score_display,
+            acp_server=acp_server,
+            ctl_server=ctl_server,
+            is_eval_set=True,
+            retry_attempts=retry_attempts,
+            retry_immediate=retry_immediate,
+            retry_wait=retry_wait,
+            retry_connections=retry_connections,
+            retry_cleanup=not no_retry_cleanup,
+            bundle_dir=bundle_dir,
+            bundle_overwrite=True if bundle_overwrite else False,
+            embed_viewer=True if embed_viewer else False,
+            log_dir_allow_dirty=log_dir_allow_dirty,
+            eval_set_id=eval_set_id,
+            json_output=json_output,
+            **config,
+        )
 
     # exit code indicating whether the evals are all complete
     ctx.exit(0 if success else 1)
@@ -1592,6 +1724,7 @@ def eval_exec(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1599,7 +1732,8 @@ def eval_exec(
     sample_id: str | None,
     sample_shuffle: int | None,
     message_limit: int | None,
-    token_limit: int | None,
+    token_limit: int | TokenLimit | None,
+    turn_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
     cost_limit: float | None,
@@ -1625,6 +1759,7 @@ def eval_exec(
     no_score: bool | None,
     no_score_display: bool | None,
     is_eval_set: bool = False,
+    json_output: bool = False,
     retry_attempts: int | None = None,
     retry_immediate: bool | None = None,
     retry_wait: int | None = None,
@@ -1779,6 +1914,7 @@ def eval_exec(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            turn_limit=turn_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             cost_limit=cost_limit,
@@ -1798,6 +1934,7 @@ def eval_exec(
             score=score,
             score_display=score_display,
             acp_server=acp_server,
+            ctl_server=ctl_server,
         )
         | kwargs
     )
@@ -1817,12 +1954,171 @@ def eval_exec(
         params["embed_viewer"] = embed_viewer
         params["log_dir_allow_dirty"] = log_dir_allow_dirty
         params["eval_set_id"] = eval_set_id
+        if json_output:
+            return _eval_exec_json(lambda: eval_set(**params), is_eval_set=True)
         success, _ = eval_set(**params)
         return success
     else:
         params["log_header_only"] = True  # cli invocation doesn't need full log
-        eval(**params)
+        if json_output:
+            _eval_exec_json(lambda: (True, eval(**params)))
+        else:
+            eval(**params)
         return True
+
+
+def _eval_exec_json(
+    run: Callable[[], tuple[bool, list[EvalLog]]], is_eval_set: bool = False
+) -> bool:
+    """Run an eval (via ``run``) emitting the agent-facing JSON lines on stdout.
+
+    ``run`` executes the eval — ``eval()``, ``eval_set()``, or
+    ``eval_retry()`` — and returns overall success plus the resulting
+    logs (``eval()`` and ``eval_retry()`` report ``True`` like their
+    exit codes: per-task outcomes live in the ``logs`` statuses).
+
+    Two records, one per line (documented in the ``--json`` option help):
+
+    - ``launch`` — printed by the launch-handoff listener the moment the
+      control surface is bound (or definitively absent), before any task
+      work begins. This is the synchronous launch handoff: an agent that
+      has read this line can trust ``inspect ctl`` immediately — an empty
+      task list means "no tasks registered yet", never "no server".
+    - ``done`` — printed after ``eval()`` returns, with each task's log
+      location and status (the live → ``inspect log`` handoff). A run
+      that raises emits no ``done`` record and exits non-zero.
+
+    For an eval set the same records apply, with a few wrinkles the
+    option help documents: the ``done`` record additionally reports the resolved
+    ``eval_set_id`` and overall ``success`` (all tasks completed
+    successfully — what the exit code also reports), and a set whose
+    tasks are all already complete runs no eval at all, so stdout may
+    carry only the ``done`` record. In the legacy ``--no-retry-immediate``
+    mode each batch retry makes a fresh ``eval()`` call, and each bind
+    emits a fresh ``launch`` record; the ``done`` record then carries the
+    *last* launch's ``run_id`` — the run that produced the final state,
+    matching the most recent ``launch`` record an agent read
+    (``eval_set_id`` is stable across batches).
+
+    ``eval_retry`` runs each retried log file as its own eval with its
+    own ``run_id``, so a multi-file retry emits one ``launch`` record
+    per file (sequentially — each supersedes the previous) with the
+    same last-launch ``done`` correlation.
+
+    Stdout belongs exclusively to these records: ``eval()`` runs with
+    stdout redirected to stderr (see ``_stdout_owned_for_json``) — an
+    OS-level redirect, so both bare ``print`` writers inside the run
+    (trailing scan status, cosmetic spacing, task/solver code, ...) and
+    subprocesses spawned without capturing output land on stderr, where
+    they remain visible as diagnostics, instead of corrupting the NDJSON
+    stream. The records themselves are written to the saved real stdout.
+
+    Pre-flight failures (``PrerequisiteError``) are re-rendered to
+    stderr by ``_json_prerequisite_errors_to_stderr``, which wraps the
+    whole command — covering failures raised both before ``eval()``
+    (e.g. an invalid ``--run-config``) and inside it.
+    """
+    handoffs: list[LaunchHandoff] = []
+
+    with _stdout_owned_for_json() as stdout:
+
+        def on_launch(handoff: LaunchHandoff) -> None:
+            handoffs.append(handoff)
+            print(
+                json.dumps(
+                    {
+                        "event": "launch",
+                        "run_id": handoff.run_id,
+                        "eval_set_id": handoff.eval_set_id,
+                        "pid": handoff.pid,
+                        "log_dir": handoff.log_dir,
+                        "control": (
+                            {"socket_path": handoff.control_socket}
+                            if handoff.control_socket is not None
+                            else None
+                        ),
+                    }
+                ),
+                file=stdout,
+                flush=True,
+            )
+
+        set_launch_handoff_listener(on_launch)
+        try:
+            success, logs = run()
+        finally:
+            set_launch_handoff_listener(None)
+            # stray prints redirected to stderr may sit in a buffered wrapper
+            # (e.g. under CliRunner); surface them before the command returns
+            sys.stderr.flush()
+
+        # with multiple launches (legacy --no-retry-immediate batch retries)
+        # report the last one — the run that produced the final state
+        done: dict[str, Any] = {
+            "event": "done",
+            "run_id": handoffs[-1].run_id if handoffs else None,
+        }
+        if is_eval_set:
+            # resolved id (may be generated / read from the log dir); fall
+            # back to the log headers when no eval ran (all tasks reused)
+            done["eval_set_id"] = (
+                handoffs[-1].eval_set_id
+                if handoffs
+                else (logs[0].eval.eval_set_id if logs else None)
+            )
+            done["success"] = success
+        done["logs"] = [
+            {
+                "task": log.eval.task,
+                "task_id": log.eval.task_id,
+                "eval_id": log.eval.eval_id,
+                "status": log.status,
+                "location": log.location,
+            }
+            for log in logs
+        ]
+        print(json.dumps(done), file=stdout, flush=True)
+
+    return success
+
+
+@contextlib.contextmanager
+def _stdout_owned_for_json() -> Iterator[TextIO]:
+    """Redirect stdout to stderr, yielding a handle on the real stdout.
+
+    A Python-level ``redirect_stdout`` alone cannot own stdout: it only
+    rebinds the ``sys.stdout`` object, while subprocesses spawned by
+    task/solver code without capturing output inherit file descriptor 1
+    and write straight into the NDJSON stream. So dup fd 1 for the JSON
+    records, then ``dup2`` stderr's fd onto fd 1 for the duration —
+    covering C-level and subprocess writers too. ``sys.stdout`` is also
+    rebound to stderr so Python writers don't interleave through fd 1's
+    buffer.
+
+    Falls back to the Python-level redirect alone when the streams have
+    no real file descriptors (in-process harnesses like click's
+    ``CliRunner``), where subprocess capture is a non-issue for the
+    contract (there is no real stdout to corrupt).
+    """
+    try:
+        fds = (sys.stdout.fileno(), sys.stderr.fileno())
+    except (ValueError, OSError):
+        fds = None
+    if fds is None:
+        real_stdout = sys.stdout
+        with contextlib.redirect_stdout(sys.stderr):
+            yield real_stdout
+        return
+
+    stdout_fd, stderr_fd = fds
+    sys.stdout.flush()
+    with os.fdopen(os.dup(stdout_fd), "w") as saved_stdout:
+        os.dup2(stderr_fd, stdout_fd)
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                yield saved_stdout
+        finally:
+            os.dup2(saved_stdout.fileno(), stdout_fd)
 
 
 def _parse_adaptive_connections_cli(
@@ -1891,6 +2187,8 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
         if key in config_keys and value is not None:
             if key == "stop_seqs":
                 value = value.split(",")
+            if key == "fallback_models":
+                value = [m.strip() for m in value.split(",")]
             if key == "logprobs" and value is False:
                 value = None
             if key == "logit_bias" and value is not None:
@@ -1985,6 +2283,15 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.command("eval-retry", cls=EvalCommand)
 @click.argument("log_files", nargs=-1, required=True)
 @click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_JSON",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each retried task's log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one 'launch' record per file (sequentially — each supersedes the previous), and the 'done' record carries the last launch's run_id.",
+)
+@click.option(
     "--max-samples", type=int, help=MAX_SAMPLES_HELP, envvar="INSPECT_EVAL_MAX_SAMPLES"
 )
 @click.option(
@@ -2036,7 +2343,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--continue-on-fail",
     type=bool,
     is_flag=True,
-    default=False,
+    default=None,
     help=CONTINUE_ON_FAIL_HELP,
     envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
 )
@@ -2053,7 +2360,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--score-on-error",
     type=bool,
     is_flag=True,
-    default=False,
+    default=None,
     help=SCORE_ON_ERROR_HELP,
     envvar="INSPECT_EVAL_SCORE_ON_ERROR",
 )
@@ -2142,6 +2449,21 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_ACP_SERVER",
 )
 @click.option(
+    "--ctl-server",
+    is_flag=False,
+    flag_value="true",
+    default=None,
+    callback=ctl_server_flag_callback,
+    help=(
+        "Control-channel server for the retried eval's process (default: "
+        "enabled). Pass `false` to disable it; pass `keep` "
+        "to keep the process running after the retried eval finishes so "
+        "external clients (the `inspect ctl` CLI, scripted agents) can still "
+        "query its state. Run `inspect ctl process release` to release."
+    ),
+    envvar="INSPECT_EVAL_CTL_SERVER",
+)
+@click.option(
     "--max-connections",
     type=int,
     help=MAX_CONNECTIONS_HELP,
@@ -2177,17 +2499,17 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.option(
     "--checkpoint",
     is_flag=False,
-    flag_value="turn:5",
+    flag_value="default",
     default=None,
     help=CHECKPOINT_HELP
     + " For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval.",
     envvar="INSPECT_EVAL_CHECKPOINT",
-    hidden=True,
 )
 @scanner_options
 @common_options
 def eval_retry_command(
     log_files: tuple[str, ...],
+    json_output: bool,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -2209,6 +2531,7 @@ def eval_retry_command(
     no_score: bool | None,
     no_score_display: bool | None,
     acp_server: bool | int | str | None,
+    ctl_server: bool | str | None,
     max_connections: int | None,
     adaptive_connections: str | None,
     max_retries: int | None,
@@ -2232,61 +2555,54 @@ def eval_retry_command(
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
-    # resolve common options
-    process_common_options(common)
+    with _json_prerequisite_errors_to_stderr(json_output):
+        # --json owns stdout (JSON lines only), so route the display to the
+        # quiet "none" renderer — including when --no-ansi would otherwise
+        # promote it back to "rich" or --trace (/INSPECT_EVAL_TRACE) would
+        # promote it to "conversation", which writes panels to stdout
+        if json_output:
+            common["display"] = "none"
+            common["no_ansi"] = None
+            trace = None
 
-    # resolve negating options
-    sandbox_cleanup = False if no_sandbox_cleanup else None
-    log_samples = False if no_log_samples else None
-    log_realtime = False if no_log_realtime else None
-    log_images = False if log_images is False else None
-    log_refusals = True if log_refusals is True else None
-    score = False if no_score else True
-    score_display = False if no_score_display else None
+        # resolve common options
+        process_common_options(common)
 
-    # resolve fail_on_error
-    if no_fail_on_error is True:
-        fail_on_error = False
-    elif fail_on_error == 0.0:
-        fail_on_error = True
+        # resolve negating options
+        sandbox_cleanup = False if no_sandbox_cleanup else None
+        log_samples = False if no_log_samples else None
+        log_realtime = False if no_log_realtime else None
+        log_images = False if log_images is False else None
+        log_refusals = True if log_refusals is True else None
+        score = False if no_score else True
+        score_display = False if no_score_display else None
 
-    # resolve retry on error
-    if retry_on_error == 0:
-        retry_on_error = None
+        # resolve fail_on_error
+        if no_fail_on_error is True:
+            fail_on_error = False
+        elif fail_on_error == 0.0:
+            fail_on_error = True
 
-    # resolve log file
-    retry_log_files = [
-        log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
-    ]
+        # resolve retry on error
+        if retry_on_error == 0:
+            retry_on_error = None
 
-    # parse adaptive_connections (str → bool | AdaptiveConcurrency)
-    adaptive_connections_value = _parse_adaptive_connections_cli(adaptive_connections)
+        # resolve log file
+        retry_log_files = [
+            log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
+        ]
 
-    # resolve scanner spec (None unless --scanner was provided)
-    from inspect_ai._display.core.results import set_retry_args_suffix
+        # parse adaptive_connections (str → bool | AdaptiveConcurrency)
+        adaptive_connections_value = _parse_adaptive_connections_cli(
+            adaptive_connections
+        )
 
-    from ._scanner import resolve_cli_scanner, serialize_scanner_cli_args
+        # resolve scanner spec (None unless --scanner was provided)
+        from inspect_ai._display.core.results import set_retry_args_suffix
 
-    eval_scanner = resolve_cli_scanner(
-        scanner,
-        scanner_arg,
-        scans=scans,
-        scan_name=scan_name,
-        scan_tags=scan_tags,
-        scan_metadata=scan_metadata,
-        scan_filter=scan_filter,
-        scan_model=scan_model,
-        scan_model_base_url=scan_model_base_url,
-        scan_model_arg=scan_model_arg,
-        scan_model_config=scan_model_config,
-        scan_model_role=scan_model_role,
-        scan_generate_config=scan_generate_config,
-    )
+        from ._scanner import resolve_cli_scanner, serialize_scanner_cli_args
 
-    # preserve scanner flags on any further `eval-retry` suggestion shown
-    # if this retry itself interrupts
-    set_retry_args_suffix(
-        serialize_scanner_cli_args(
+        eval_scanner = resolve_cli_scanner(
             scanner,
             scanner_arg,
             scans=scans,
@@ -2301,40 +2617,66 @@ def eval_retry_command(
             scan_model_role=scan_model_role,
             scan_generate_config=scan_generate_config,
         )
-    )
 
-    # retry
-    eval_retry(
-        retry_log_files,
-        log_level=common["log_level"],
-        log_level_transcript=log_level_transcript,
-        log_dir=common["log_dir"],
-        max_samples=max_samples,
-        max_tasks=max_tasks,
-        max_subprocesses=max_subprocesses,
-        max_sandboxes=max_sandboxes,
-        sandbox_cleanup=sandbox_cleanup,
-        trace=trace,
-        fail_on_error=fail_on_error,
-        continue_on_fail=continue_on_fail,
-        retry_on_error=retry_on_error,
-        score_on_error=score_on_error,
-        debug_errors=common["debug_errors"],
-        log_samples=log_samples,
-        log_realtime=log_realtime,
-        log_images=log_images,
-        log_model_api=log_model_api,
-        log_refusals=log_refusals,
-        log_buffer=log_buffer,
-        log_shared=log_shared,
-        score=score,
-        score_display=score_display,
-        acp_server=acp_server,
-        scanner=eval_scanner,
-        max_retries=max_retries,
-        timeout=timeout,
-        attempt_timeout=attempt_timeout,
-        max_connections=max_connections,
-        adaptive_connections=adaptive_connections_value,
-        checkpoint=parse_checkpoint(checkpoint),
-    )
+        # preserve scanner flags on any further `eval-retry` suggestion shown
+        # if this retry itself interrupts
+        set_retry_args_suffix(
+            serialize_scanner_cli_args(
+                scanner,
+                scanner_arg,
+                scans=scans,
+                scan_name=scan_name,
+                scan_tags=scan_tags,
+                scan_metadata=scan_metadata,
+                scan_filter=scan_filter,
+                scan_model=scan_model,
+                scan_model_base_url=scan_model_base_url,
+                scan_model_arg=scan_model_arg,
+                scan_model_config=scan_model_config,
+                scan_model_role=scan_model_role,
+                scan_generate_config=scan_generate_config,
+            )
+        )
+
+        # retry
+        def run_retry() -> list[EvalLog]:
+            return eval_retry(
+                retry_log_files,
+                log_level=common["log_level"],
+                log_level_transcript=log_level_transcript,
+                log_dir=common["log_dir"],
+                max_samples=max_samples,
+                max_tasks=max_tasks,
+                max_subprocesses=max_subprocesses,
+                max_sandboxes=max_sandboxes,
+                sandbox_cleanup=sandbox_cleanup,
+                trace=trace,
+                fail_on_error=fail_on_error,
+                continue_on_fail=continue_on_fail,
+                retry_on_error=retry_on_error,
+                score_on_error=score_on_error,
+                debug_errors=common["debug_errors"],
+                log_samples=log_samples,
+                log_realtime=log_realtime,
+                log_images=log_images,
+                log_model_api=log_model_api,
+                log_refusals=log_refusals,
+                log_buffer=log_buffer,
+                log_shared=log_shared,
+                score=score,
+                score_display=score_display,
+                acp_server=acp_server,
+                ctl_server=ctl_server,
+                scanner=eval_scanner,
+                max_retries=max_retries,
+                timeout=timeout,
+                attempt_timeout=attempt_timeout,
+                max_connections=max_connections,
+                adaptive_connections=adaptive_connections_value,
+                checkpoint=parse_checkpoint(checkpoint),
+            )
+
+        if json_output:
+            _eval_exec_json(lambda: (True, run_retry()))
+        else:
+            run_retry()

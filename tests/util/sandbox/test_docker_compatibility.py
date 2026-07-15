@@ -1,5 +1,7 @@
 """Tests for Docker compatibility functionality in sandbox environments."""
 
+from collections.abc import Iterator
+
 import pytest
 
 from inspect_ai.util._sandbox.compose import (
@@ -289,6 +291,19 @@ class TestIsDockerfileTypeGuard:
         assert is_dockerfile({"path": "Dockerfile"}) is False
 
 
+@pytest.fixture
+def _warn_once_messages() -> Iterator[list[str]]:
+    # warn_once dedupes via a module-level list; clear it and yield it so the
+    # test can assert on what was emitted (see test_anthropic.py's fixture of
+    # the same name -- caplog isn't reliable once some earlier test has
+    # triggered init_logger's propagate=False on the inspect_ai logger).
+    from inspect_ai._util import logger as _inspect_logger
+
+    _inspect_logger._warned.clear()
+    yield _inspect_logger._warned
+    _inspect_logger._warned.clear()
+
+
 # --- Integration tests for resolve_sandbox() ---
 
 
@@ -438,6 +453,51 @@ class TestResolveSandboxDockerCompatibility:
         assert result.type == "mock_docker_compatible"
         assert result.config == "task-config.yaml"
 
+    async def test_dropped_sample_config_warns(self, _warn_once_messages: list[str]):
+        """Dropping a docker-compatible sample config should log a warning."""
+        from inspect_ai._eval.task.sandbox import resolve_sandbox
+        from inspect_ai.dataset import Sample
+
+        task_sandbox = SandboxEnvironmentSpec(
+            "mock_not_docker_compatible", "task-config.yaml"
+        )
+        sample = Sample(
+            input="test",
+            sandbox=("docker", "compose.yaml"),
+        )
+
+        result = await resolve_sandbox(task_sandbox, sample, task_name="my_task")
+
+        assert result is not None
+        assert result.config == "task-config.yaml"
+        assert any(
+            "task 'my_task'" in message
+            and "mock_not_docker_compatible" in message
+            and "does not support" in message
+            for message in _warn_once_messages
+        )
+
+    async def test_same_type_config_forwarded_no_warning(
+        self, _warn_once_messages: list[str]
+    ):
+        """Forwarding config because types match should not warn."""
+        from inspect_ai._eval.task.sandbox import resolve_sandbox
+        from inspect_ai.dataset import Sample
+
+        task_sandbox = SandboxEnvironmentSpec(
+            "mock_not_docker_compatible", "task-config.yaml"
+        )
+        sample = Sample(
+            input="test",
+            sandbox=("mock_not_docker_compatible", "sample-config.yaml"),
+        )
+
+        result = await resolve_sandbox(task_sandbox, sample)
+
+        assert result is not None
+        assert result.config == "sample-config.yaml"
+        assert not _warn_once_messages
+
     async def test_no_task_sandbox_uses_sample_sandbox(self):
         """When task has no sandbox, sample sandbox should be used."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
@@ -523,6 +583,73 @@ class TestResolveTaskSandboxDockerCompatibility:
         assert result.type == "mock_not_docker_compatible"
         # Config should NOT be forwarded
         assert result.config is None
+
+    def test_task_compose_dropped_by_override_warns(
+        self, tmp_path, _warn_once_messages: list[str]
+    ):
+        """Dropping a task's compose.yaml on override should log a warning."""
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.task import Task
+
+        task = Task(
+            dataset=None,
+            sandbox=("docker", "compose.yaml"),
+        )
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        result = resolve_task_sandbox(task, "mock_not_docker_compatible")
+
+        assert result is not None
+        assert result.config is None
+        assert any(
+            "mock_not_docker_compatible" in message and "does not support" in message
+            for message in _warn_once_messages
+        )
+
+    def test_same_type_override_drop_warns(
+        self, tmp_path, _warn_once_messages: list[str]
+    ):
+        """A bare same-type override that strips the task's compose.yaml should warn."""
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.task import Task
+
+        task = Task(
+            dataset=None,
+            sandbox=("mock_not_docker_compatible", "compose.yaml"),
+        )
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        result = resolve_task_sandbox(task, "mock_not_docker_compatible")
+
+        assert result is not None
+        assert result.config is None
+        assert any(
+            "mock_not_docker_compatible" in message and "does not support" in message
+            for message in _warn_once_messages
+        )
+
+    def test_no_override_keeps_config_no_warning(
+        self, tmp_path, _warn_once_messages: list[str]
+    ):
+        """No eval-level override: task sandbox config is kept and no warning fires."""
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.task import Task
+
+        task = Task(
+            dataset=None,
+            sandbox=("mock_not_docker_compatible", "compose.yaml"),
+        )
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        result = resolve_task_sandbox(task, None)
+
+        assert result is not None
+        assert isinstance(result.config, str)
+        assert result.config.endswith("compose.yaml")
+        assert not _warn_once_messages
 
     def test_task_non_docker_config_not_forwarded(self, tmp_path):
         """Task's non-docker config should NOT be forwarded even to docker-compatible override."""
@@ -623,6 +750,64 @@ class TestResolveTaskSandboxDockerCompatibility:
         assert result.type == "mock_docker_compatible"
         assert result.config is not None
         assert "task-config.yaml" in result.config
+
+
+# --- Integration tests for resolve_sandbox_for_task_and_sample() (startup pass) ---
+
+
+class TestResolveSandboxForTaskAndSampleStartup:
+    """The sandbox-startup pass must collect the same spec a sample uses at runtime.
+
+    run.py::startup_sandbox_environments feeds each task's *already-resolved*
+    sandbox (ResolvedTask.sandbox, i.e. resolve_task_sandbox() output) into
+    resolve_sandbox_for_task_and_sample(), mirroring the execution path
+    (sandboxenv_context() -> resolve_sandbox()). These tests guard that an
+    eval-level override (`--sandbox <provider>`) preserves a docker-compatible
+    per-sample config and that the override's *type* wins. A regression to the
+    raw (unresolved) task sandbox would surface here as the wrong sandbox type.
+    """
+
+    async def test_override_preserves_per_sample_compose_config(self, tmp_path):
+        """An eval-level override keeps a docker-compatible per-sample ComposeConfig."""
+        from inspect_ai._eval.loader import resolve_task_sandbox
+        from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+        from inspect_ai._eval.task.sandbox import (
+            resolve_sandbox,
+            resolve_sandbox_for_task_and_sample,
+        )
+        from inspect_ai._eval.task.task import Task
+        from inspect_ai.dataset import Sample
+
+        # a per-sample docker-compatible config (the case the fix targets); the
+        # task itself has no sandbox, so the per-sample config is the only config
+        # in play and the override carries none of its own.
+        compose_config = ComposeConfig(
+            services={"default": ComposeService(image="python:3.11")},
+        )
+        sample = Sample(
+            input="test",
+            sandbox=SandboxEnvironmentSpec("docker", compose_config),
+        )
+        task = Task(dataset=[sample])
+        setattr(task, TASK_RUN_DIR_ATTR, str(tmp_path))
+
+        # reproduce what the loader stores as ResolvedTask.sandbox (loader.py):
+        # the eval-level `--sandbox` override baked in via resolve_task_sandbox().
+        resolved_task_sandbox = resolve_task_sandbox(task, "mock_docker_compatible")
+
+        result = await resolve_sandbox_for_task_and_sample(
+            resolved_task_sandbox, task, sample
+        )
+
+        # the override's type wins and the per-sample config survives (a revert to
+        # the raw task sandbox would yield type "docker" here instead)
+        assert result is not None
+        assert result.sandbox.type == "mock_docker_compatible"
+        assert result.sandbox.config == compose_config
+
+        # and the collected spec is exactly what the execution path resolves
+        execution = await resolve_sandbox(resolved_task_sandbox, sample)
+        assert result.sandbox == execution
 
 
 # --- Tests for deserialize_sandbox_specific_config() ---

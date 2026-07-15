@@ -39,6 +39,12 @@ from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.log._transcript import Transcript
 
+# Heavy socket-integration suite: real AF_UNIX round-trips + agent evals
+# (~1.3s+ per test). Marked slow to keep it off the per-PR CI critical path
+# (the slow suite runs in a separate environment); lighter ACP tests still run
+# on every PR.
+pytestmark = pytest.mark.slow
+
 # ---------------------------------------------------------------------------
 # Fixtures (mirror the patterns used in test_server_dispatch / forwarding)
 # ---------------------------------------------------------------------------
@@ -254,6 +260,11 @@ def _assert_no_inspect_meta(payload: Any, *, path: str = "$") -> None:
                     "inspect.message_id",
                     "inspect.message_role",
                     "inspect.user_source",
+                    # Binding-confirmation interactivity flag. A generic
+                    # client reads the "Observing" / "Bound to" text body
+                    # instead; the flag just lets Inspect-aware clients
+                    # gate their composer without parsing prose.
+                    "inspect.interactive",
                 }:
                     continue
                 pytest.fail(

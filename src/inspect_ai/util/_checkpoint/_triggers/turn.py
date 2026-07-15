@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .types import CheckpointTriggerKind
+from .types import TriggerFire
 
 
 class _TurnIntervalTrigger:
@@ -18,11 +18,11 @@ class _TurnIntervalTrigger:
         self._ticks = 0
         self._turns_since_fire = 0
 
-    def tick(self) -> CheckpointTriggerKind | None:
+    def tick(self) -> TriggerFire | None:
         self._ticks += 1
         if self._ticks > 1:
             self._turns_since_fire += 1
         if self._turns_since_fire >= self._every:
             self._turns_since_fire = 0
-            return "turn"
+            return TriggerFire("turn", {"every": self._every})
         return None

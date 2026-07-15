@@ -1,10 +1,13 @@
 """Tests for the inspect view server."""
 
 import asyncio
+import contextlib
 import json
+import logging
 import math
 import urllib.parse
 import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import IO, Any, ContextManager, Generator, TextIO, cast
 
@@ -21,10 +24,21 @@ import inspect_ai.dataset
 import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
+from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.json import to_json_safe
 from inspect_ai._view import fastapi_server
-from inspect_ai._view.common import get_direct_url
+from inspect_ai._view.common import (
+    get_direct_url,
+    list_eval_logs_async,
+    read_eval_set_info_async,
+)
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.model._generate_config import GenerateConfig
+
+FRONTEND_REQUEST_HEADERS = {
+    fastapi_server.VIEW_REQUEST_HEADER: fastapi_server.VIEW_REQUEST_HEADER_VALUE,
+    "Sec-Fetch-Dest": "empty",
+}
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Test client wrapper
@@ -75,6 +89,20 @@ class ViewTestClient:
             kwargs["json"] = json
         resp = self._tc.request(method, path, **kwargs)
         return SimpleResponse(resp.status_code, resp.content, dict(resp.headers))
+
+    def frontend_request(
+        self,
+        method: str,
+        path: str,
+        headers: dict[str, str] | None = None,
+        json: Any = None,
+    ) -> SimpleResponse:
+        return self.request(
+            method,
+            path,
+            headers={**FRONTEND_REQUEST_HEADERS, **(headers or {})},
+            json=json,
+        )
 
     def log_path(self, filename: str) -> str:
         return str(self.log_dir / filename)
@@ -323,6 +351,17 @@ def test_api_log(view_client: ViewTestClient) -> None:
     assert resp.json()["eval"]["task"] == "task"
 
 
+def test_api_app_config(view_client: ViewTestClient) -> None:
+    resp = view_client.request("GET", "/app-config")
+    resp.raise_for_status()
+    config = resp.json()
+    assert config["inspect_version"] == inspect_ai.__version__
+    # scout is an optional dependency: present as a string when installed,
+    # otherwise null.
+    assert "scout_version" in config
+    assert config["scout_version"] is None or isinstance(config["scout_version"], str)
+
+
 def test_api_log_info(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     write_eval_log(view_client.log_dir, fname)
@@ -337,9 +376,68 @@ def test_api_log_info(view_client: ViewTestClient) -> None:
 def test_api_log_delete(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request("GET", view_client.log_url("log-delete", fname))
+    resp = view_client.frontend_request(
+        "DELETE", view_client.log_url("log-delete", fname)
+    )
     resp.raise_for_status()
     assert not Path(full_path).exists()
+
+
+def test_api_log_delete_get_is_side_effect_free(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request("GET", view_client.log_url("log-delete", fname))
+    assert resp.status_code == 405
+    assert Path(full_path).exists()
+
+
+@pytest.mark.parametrize("fetch_dest", ["audio", "document", "image", "style", "video"])
+def test_api_log_delete_rejects_passive_fetch_destinations(
+    view_client: ViewTestClient, fetch_dest: str
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.frontend_request(
+        "DELETE",
+        view_client.log_url("log-delete", fname),
+        headers={"Sec-Fetch-Dest": fetch_dest},
+    )
+    assert resp.status_code == 403
+    assert Path(full_path).exists()
+
+
+def test_api_log_delete_cross_origin_metadata_still_requires_frontend_header(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "DELETE",
+        view_client.log_url("log-delete", fname),
+        headers={
+            "Origin": "https://example.com",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    assert resp.status_code == 403
+    assert Path(full_path).exists()
+
+
+def test_api_log_edit_requires_frontend_request(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        headers={"Sec-Fetch-Dest": "empty"},
+        json={
+            "edits": [{"type": "tags", "tags_add": ["x"], "tags_remove": []}],
+            "provenance": {"author": "alice"},
+        },
+    )
+    assert resp.status_code == 403
+    assert inspect_ai.log.read_eval_log(full_path, header_only=True).tags == []
 
 
 def test_api_log_edit_metadata_null_value_persists(
@@ -351,7 +449,7 @@ def test_api_log_edit_metadata_null_value_persists(
     # checks the key landed with value None.
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -388,7 +486,7 @@ def test_api_log_edit_returns_409_for_in_progress_log(
     # so the client can render the right message).
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname, status="started")
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -412,7 +510,7 @@ def test_api_log_edit_returns_409_for_in_progress_log(
 def test_api_log_edit_tags_roundtrip(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -436,7 +534,7 @@ def test_api_log_edit_tags_roundtrip(view_client: ViewTestClient) -> None:
 def test_api_log_edit_noop_returns_unchanged(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -456,7 +554,7 @@ def test_api_log_edit_noop_returns_unchanged(view_client: ViewTestClient) -> Non
 def test_api_log_edit_invalid_tag_returns_400(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -473,7 +571,7 @@ def test_api_log_edit_missing_provenance_returns_422(
 ) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={"edits": [{"type": "tags", "tags_add": ["x"]}]},
@@ -487,7 +585,7 @@ def test_api_log_edit_append_preserves_prior_updates(
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
 
-    first = view_client.request(
+    first = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -497,7 +595,7 @@ def test_api_log_edit_append_preserves_prior_updates(
     )
     first.raise_for_status()
 
-    second = view_client.request(
+    second = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -576,6 +674,22 @@ def test_api_logs_listing(view_client: ViewTestClient) -> None:
     assert tasks == {"t1", "t2"}
 
 
+def test_api_logs_listing_log_dir_uri(view_client: ViewTestClient) -> None:
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    resp = view_client.request(
+        "GET", f"/logs?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    # The canonical dir URI shares the file names' namespace, so names are
+    # dir-prefixed identities (what the viewer's cache scoping relies on).
+    assert body["log_dir_uri"]
+    for f in body["files"]:
+        assert f["name"].startswith(body["log_dir_uri"] + "/")
+
+
 def test_api_log_headers(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname, status="started")
@@ -621,14 +735,74 @@ def test_api_events_no_param(view_client: ViewTestClient) -> None:
     assert resp.json() == []
 
 
-def test_api_log_message(view_client: ViewTestClient) -> None:
+@pytest.fixture
+def client_log_messages(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    messages: list[str] = []
+    monkeypatch.setattr(
+        logging.getLogger(fastapi_server.__name__), "warning", messages.append
+    )
+    return messages
+
+
+def test_api_log_message(
+    view_client: ViewTestClient, client_log_messages: list[str]
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.frontend_request(
+        "POST",
+        f"/log-message?log_file={urllib.parse.quote_plus(full_path)}&message=hello",
+    )
+    assert resp.status_code == 204
+    assert any("[CLIENT MESSAGE]" in message for message in client_log_messages)
+
+
+def test_api_log_message_get_is_side_effect_free(
+    view_client: ViewTestClient, client_log_messages: list[str]
+) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
     resp = view_client.request(
         "GET",
         f"/log-message?log_file={urllib.parse.quote_plus(full_path)}&message=hello",
     )
-    assert resp.status_code == 204
+    assert resp.status_code == 405
+    assert client_log_messages == []
+
+
+@pytest.mark.parametrize("fetch_dest", ["audio", "document", "image", "style", "video"])
+def test_api_log_message_rejects_passive_fetch_destinations(
+    view_client: ViewTestClient,
+    client_log_messages: list[str],
+    fetch_dest: str,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.frontend_request(
+        "POST",
+        f"/log-message?log_file={urllib.parse.quote_plus(full_path)}&message=hello",
+        headers={"Sec-Fetch-Dest": fetch_dest},
+    )
+    assert resp.status_code == 403
+    assert client_log_messages == []
+
+
+def test_api_log_message_cross_origin_metadata_still_requires_frontend_header(
+    view_client: ViewTestClient, client_log_messages: list[str]
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "POST",
+        f"/log-message?log_file={urllib.parse.quote_plus(full_path)}&message=hello",
+        headers={
+            "Origin": "https://example.com",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    assert resp.status_code == 403
+    assert client_log_messages == []
 
 
 def test_api_log_files_full_listing(view_client: ViewTestClient) -> None:
@@ -814,6 +988,160 @@ def test_api_eval_set_missing(view_client: ViewTestClient) -> None:
     assert resp.json() is None
 
 
+def test_api_eval_set_uses_fs_options_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> None:
+        calls.append((log_dir, fs_options))
+        return None
+
+    monkeypatch.setattr(fastapi_server, "read_eval_set_info", fake_read_eval_set_info)
+    app = fastapi_server.view_server_app(fs_options={"anon": True})
+    with fastapi.testclient.TestClient(app) as client:
+        resp = client.request(
+            "GET",
+            f"/eval-set?dir={urllib.parse.quote_plus('s3://bucket/logs')}",
+        )
+
+    resp.raise_for_status()
+    assert resp.json() is None
+    assert calls == [("s3://bucket/logs", {"anon": True})]
+
+
+def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub common.filesystem so az:// paths don't construct a real adlfs fs."""
+    from inspect_ai._view import common
+
+    class FlatFileSystem:
+        sep = "/"
+
+    def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FlatFileSystem:
+        return FlatFileSystem()
+
+    monkeypatch.setattr(common, "filesystem", fake_filesystem)
+
+
+async def test_read_eval_set_info_async_suppresses_azure_auth_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    class AzureAuthErrorFilesystem:
+        async def exists(self, filename: str) -> bool:
+            raise Exception("Server failed to authenticate the request")
+
+    result = await read_eval_set_info_async(
+        "az://container/logs", cast(AsyncFilesystem, AzureAuthErrorFilesystem())
+    )
+    assert result is None
+
+
+async def test_read_eval_set_info_async_raises_non_auth_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    class BrokenFilesystem:
+        async def exists(self, filename: str) -> bool:
+            raise RuntimeError("connection reset by peer")
+
+    with pytest.raises(RuntimeError):
+        await read_eval_set_info_async(
+            "az://container/logs", cast(AsyncFilesystem, BrokenFilesystem())
+        )
+
+
+async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._util.file import FileInfo
+    from inspect_ai._view import common
+
+    filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+    async_filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+
+    class FakeFileSystem:
+        def is_s3(self) -> bool:
+            return True
+
+        def is_async(self) -> bool:
+            return True
+
+        def _file_info(self, info: dict[str, Any]) -> FileInfo:
+            return FileInfo(
+                name=info["name"],
+                type=info["type"],
+                size=info.get("size", 0),
+                mtime=info.get("mtime"),
+                etag=None,
+            )
+
+    class FakeAsyncFileSystem:
+        async def _exists(self, log_dir: str) -> bool:
+            return True
+
+        def invalidate_cache(self, log_dir: str) -> None:
+            pass
+
+        async def _ls(self, log_dir: str, detail: bool = True) -> list[dict[str, Any]]:
+            return [
+                {
+                    "name": f"{log_dir}/2026-01-01T00-00-00_task_id.eval",
+                    "type": "file",
+                    "size": 123,
+                    "mtime": 1710000000.0,
+                }
+            ]
+
+    def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FakeFileSystem:
+        filesystem_calls.append((path, fs_options))
+        return FakeFileSystem()
+
+    @contextlib.asynccontextmanager
+    async def fake_async_filesystem(
+        location: str, fs_options: dict[str, Any] = {}
+    ) -> Any:
+        async_filesystem_calls.append((location, fs_options))
+        yield FakeAsyncFileSystem()
+
+    class UnexpectedAsyncFilesystem:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("AsyncFilesystem fast path should not be used")
+
+    monkeypatch.setattr(common, "filesystem", fake_filesystem)
+    monkeypatch.setattr(common, "async_filesystem", fake_async_filesystem)
+    monkeypatch.setattr(common, "AsyncFilesystem", UnexpectedAsyncFilesystem)
+
+    logs = await list_eval_logs_async(
+        "s3://bucket/logs", recursive=False, fs_options={"anon": True}
+    )
+
+    assert filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    assert len(logs) == 1
+    assert logs[0].name == "s3://bucket/logs/2026-01-01T00-00-00_task_id.eval"
+    assert logs[0].task == "task"
+    assert logs[0].task_id == "id"
+
+
+async def test_list_eval_logs_async_s3_missing_bucket_returns_empty(
+    mock_s3: None,
+) -> None:
+    logs = await list_eval_logs_async("s3://no-such-bucket/logs")
+    assert logs == []
+
+
+async def test_list_eval_logs_async_s3_lists_logs(mock_s3: None) -> None:
+    s3_log = (
+        "s3://test-bucket/list-fast-path/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    )
+    await _write_eval_log_to_s3_async(s3_log)
+    logs = await list_eval_logs_async("s3://test-bucket/list-fast-path")
+    assert [log.name for log in logs] == [s3_log]
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Tests using memory:// + AccessPolicy / FileMappingPolicy
 # ═══════════════════════════════════════════════════════════════════════════
@@ -950,7 +1278,9 @@ def test_fastapi_log_delete_forbidden(
     test_client_with_restrictive_access: TestClient, mock_s3_eval_file: str
 ) -> None:
     response = test_client_with_restrictive_access.request(
-        "GET", f"/log-delete/{mock_s3_eval_file}"
+        "DELETE",
+        f"/log-delete/{mock_s3_eval_file}",
+        headers=FRONTEND_REQUEST_HEADERS,
     )
     assert response.status_code == 403
     assert inspect_ai._util.file.filesystem("memory://").exists(mock_s3_eval_file)
@@ -962,6 +1292,7 @@ def test_fastapi_log_edit_forbidden(
     response = test_client_with_restrictive_access.request(
         "POST",
         f"/log-edit/{mock_s3_eval_file}",
+        headers=FRONTEND_REQUEST_HEADERS,
         json={
             "edits": [{"type": "tags", "tags_add": ["x"], "tags_remove": []}],
             "provenance": {"author": "alice"},
@@ -1520,13 +1851,8 @@ def test_api_pending_sample_data_urls_tail_without_cap_returns_all(
     assert body["has_more"] is False
 
 
-def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
-    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket.
-
-    Defaults to a finished log (``status="success"``) so edit tests pass
-    the in-progress gate; override for tests that need a running log.
-    """
-    eval_log = inspect_ai.log.EvalLog(
+def _make_s3_eval_log(status: str = "success") -> inspect_ai.log.EvalLog:
+    return inspect_ai.log.EvalLog(
         status=status,  # type: ignore[arg-type]
         eval=inspect_ai.log.EvalSpec(
             created="2025-01-01T00:00:00Z",
@@ -1537,7 +1863,23 @@ def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
             config=inspect_ai.log.EvalConfig(),
         ),
     )
-    inspect_ai.log.write_eval_log(eval_log, s3_path, "eval")
+
+
+def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
+    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket.
+
+    Defaults to a finished log (``status="success"``) so edit tests pass
+    the in-progress gate; override for tests that need a running log.
+    """
+    inspect_ai.log.write_eval_log(_make_s3_eval_log(status), s3_path, "eval")
+
+
+async def _write_eval_log_to_s3_async(s3_path: str, status: str = "success") -> None:
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        zf.writestr("header.json", to_json_safe(_make_s3_eval_log(status), indent=None))
+    async with AsyncFilesystem() as fs:
+        await fs.write_file(s3_path, buffer.getvalue())
 
 
 def test_api_log_returns_etag_header_for_s3(mock_s3: None, tmp_path: Path) -> None:
@@ -1608,7 +1950,7 @@ def test_api_log_edit_s3_returns_new_etag(mock_s3: None, tmp_path: Path) -> None
         original_etag = read_resp.headers["etag"]
 
         # Edit with matching If-Match — should succeed and return a new ETag.
-        edit_resp = client.request(
+        edit_resp = client.frontend_request(
             "POST",
             f"/log-edit/{s3_log}",
             headers={"If-Match": original_etag},
@@ -1646,7 +1988,7 @@ def test_api_log_edit_s3_stale_if_match_returns_412(
         original_etag = read_resp.headers["etag"]
 
         # First edit succeeds (consumes the ETag).
-        first = client.request(
+        first = client.frontend_request(
             "POST",
             f"/log-edit/{s3_log}",
             headers={"If-Match": original_etag},
@@ -1658,7 +2000,7 @@ def test_api_log_edit_s3_stale_if_match_returns_412(
         first.raise_for_status()
 
         # Second edit with the now-stale ETag should 412.
-        second = client.request(
+        second = client.frontend_request(
             "POST",
             f"/log-edit/{s3_log}",
             headers={"If-Match": original_etag},
@@ -1689,7 +2031,7 @@ def test_api_log_edit_s3_without_if_match_succeeds(
 
     client = ViewTestClient(tmp_path)
     try:
-        resp = client.request(
+        resp = client.frontend_request(
             "POST",
             f"/log-edit/{s3_log}",
             json={

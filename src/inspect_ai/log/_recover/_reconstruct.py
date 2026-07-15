@@ -129,6 +129,11 @@ def reconstruct_eval_sample(
         attachments=attachments,
         model_usage=summary.model_usage,
         role_usage=summary.role_usage,
+        model_fallbacks=summary.model_fallbacks,
+        turn_count=summary.turn_count,
+        token_limit=summary.token_limit,
+        token_limit_type=summary.token_limit_type,
+        token_limit_usage=summary.token_limit_usage,
         started_at=summary.started_at,
         completed_at=summary.completed_at,
         total_time=summary.total_time,
@@ -213,6 +218,17 @@ class MessageAccumulator:
 
     Extracted from _extract_messages_from_events so that segments can be
     processed one at a time with bounded memory.
+
+    When a solver runs multiple agents concurrently (e.g. an auditor
+    driving a target), their ModelEvents interleave in the stream, each
+    carrying its own conversation. Accumulation follows the primary role
+    only (the role of the first ModelEvent, matching the conversation the
+    solver started with) so the reconstructed messages are deterministic
+    rather than whichever agent's event happened to fire last.
+
+    CompactionEvent carries its own role since it was added; a compaction
+    from an older log without the field falls back to the most recent
+    ModelEvent's role.
     """
 
     def __init__(self) -> None:
@@ -220,11 +236,21 @@ class MessageAccumulator:
         self._last_model_event: ModelEvent | None = None
         self._pending_trim_pre_input: list[ChatMessage] | None = None
         self._output: ModelOutput = ModelOutput()
+        self._primary_role: str | None = None
+        self._primary_role_set = False
+        self._last_event_role: str | None = None
 
     def process_events(self, events: list[Event]) -> None:
         """Feed a batch of deserialized events (typically one segment)."""
         for event in events:
             if isinstance(event, ModelEvent):
+                if not self._primary_role_set:
+                    self._primary_role = event.role
+                    self._primary_role_set = True
+                self._last_event_role = event.role
+                if event.role != self._primary_role:
+                    continue
+
                 if self._pending_trim_pre_input is not None:
                     prefix = _trim_prefix(
                         self._pending_trim_pre_input, list(event.input)
@@ -236,6 +262,14 @@ class MessageAccumulator:
                 self._output = event.output
 
             elif isinstance(event, CompactionEvent):
+                # older logs predate CompactionEvent.role; fall back to the
+                # most recent ModelEvent's role for those.
+                event_role = (
+                    event.role if event.role is not None else self._last_event_role
+                )
+                if event_role != self._primary_role:
+                    continue
+
                 if event.type == "summary":
                     if self._last_model_event is not None:
                         self._merged.extend(_segment_messages(self._last_model_event))

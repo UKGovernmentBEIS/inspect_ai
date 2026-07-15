@@ -1278,7 +1278,12 @@ def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
         assert id2_rows.iloc[0]["scan_error"]
         id3_rows = df[df["transcript_task_id"] == "3"]
         assert len(id3_rows) == 1
-        assert not id3_rows.iloc[0]["scan_error"]
+        # scan_error is null for a successful scan. Use pd.isna so this works
+        # under both pandas 2.x (object dtype, None) and pandas 3.0+ (str
+        # dtype, NaN sentinel) where `not <missing>` is no longer reliable.
+        import pandas as pd
+
+        assert pd.isna(id3_rows.iloc[0]["scan_error"])
 
 
 def test_eval_set_resume_scans_when_scanner_added_on_resume() -> None:

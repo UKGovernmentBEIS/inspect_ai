@@ -11,9 +11,6 @@ checkpoints dir under the eval checkpoints dir. The dir holds:
   ``sandboxes/<name>/`` (per-sandbox restic repos).
 - ``context/`` — restic backup source (host context JSON files).
 
-See ``design/plans/checkpointing-working.md`` §1 and
-``design/plans/checkpointing-hydration.md``.
-
 The optional ``_<retry>`` suffix on the dir name is omitted until
 ``ActiveSample`` exposes the attempt index — see the TODO at the
 ``Checkpointer.__aenter__`` identity capture.
@@ -97,6 +94,17 @@ async def _read_restic_config(sample_root: str) -> ResticConfig:
 async def scan_latest_committed_id(sample_checkpoints_dir: str) -> int | None:
     """Return the highest checkpoint id whose checkpoint file parses cleanly.
 
+    See :func:`scan_latest_committed_checkpoint` for the commit-point contract.
+    """
+    checkpoint = await scan_latest_committed_checkpoint(sample_checkpoints_dir)
+    return checkpoint.checkpoint_id if checkpoint is not None else None
+
+
+async def scan_latest_committed_checkpoint(
+    sample_checkpoints_dir: str,
+) -> Checkpoint | None:
+    """Return the highest checkpoint whose checkpoint file parses cleanly.
+
     Walks ``ckpt-NNNNN.json`` files in the sample dir from highest N
     to lowest; the first whose contents validate as a
     :class:`Checkpoint` is the commit point. A torn-write checkpoint
@@ -110,8 +118,7 @@ async def scan_latest_committed_id(sample_checkpoints_dir: str) -> int | None:
         path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
         try:
             raw = await async_fs.read_file(path)
-            Checkpoint.model_validate_json(raw)
-            return n
+            return Checkpoint.model_validate_json(raw)
         except Exception:
             continue
     return None
@@ -168,8 +175,10 @@ async def _load_model_json(path: str, model_cls: type[_M]) -> _M:
 async def _write_model_json(path: str, model: BaseModel) -> None:
     """Write a pydantic model to a JSON file via ``AsyncFilesystem``.
 
-    Pretty-printed (``indent=2``); non-atomic.
+    Pretty-printed (``indent=2``); non-atomic. ``exclude_none`` keeps
+    opt-in fields (e.g. ``SnapshotDetails.files``) out of the file when
+    unset — no other field is ever ``None``.
     """
     await get_async_filesystem().write_file(
-        path, model.model_dump_json(indent=2).encode()
+        path, model.model_dump_json(indent=2, exclude_none=True).encode()
     )

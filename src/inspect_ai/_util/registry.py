@@ -9,6 +9,7 @@ from typing import (
     Literal,
     TypeGuard,
     cast,
+    get_args,
     overload,
 )
 
@@ -47,6 +48,7 @@ RegistryType = Literal[
     "scorer",
     "solver",
     "task",
+    "task_source",
     "tool",
     "loader",
     "scanner",
@@ -59,6 +61,8 @@ registered using a decorator (e.g. `@task`, `@solver`).
 Registered objects can in turn be created dynamically using
 the `registry_create()` function.
 """
+
+_REGISTRY_TYPE_VALUES: frozenset[str] = frozenset(get_args(RegistryType))
 
 
 class RegistryInfo(BaseModel):
@@ -555,7 +559,16 @@ class RegistryDict(TypedDict):
 
 
 def is_registry_dict(o: object) -> TypeGuard[RegistryDict]:
-    return isinstance(o, dict) and "type" in o and "name" in o and "params" in o
+    if not isinstance(o, dict):
+        return False
+    registry_type = o.get("type")
+    if not isinstance(registry_type, str) or registry_type not in _REGISTRY_TYPE_VALUES:
+        return False
+    if not isinstance(o.get("name"), str):
+        return False
+    if not isinstance(o.get("params"), dict):
+        return False
+    return True
 
 
 def registry_value(o: object) -> Any:

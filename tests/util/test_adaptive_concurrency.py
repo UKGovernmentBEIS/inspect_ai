@@ -101,7 +101,11 @@ def test_aimd_after_first_retry() -> None:
     # trigger retry → drops to floor_to_nice(32) = 30
     c.notify_retry()
     assert c.concurrency == 30
-    assert c.history[-1][4] == "rate_limit"
+    # distinct locals per record: re-asserting on the c.history[-1][4]
+    # expression itself would trip mypy's comparison-overlap narrowing now
+    # that the reason slot is a Literal
+    cut = c.history[-1]
+    assert cut[4] == "rate_limit"
 
     # cooldown is 15s; immediate further retry is debounced (no-op)
     c.notify_retry()
@@ -113,7 +117,8 @@ def test_aimd_after_first_retry() -> None:
     # successful round: round_size = max(30, 4) = 30. +max(1, 30*0.05) = +2 → ceil_to_nice(32) = 35
     _saturated_successes(c, 30)
     assert c.concurrency == 35
-    assert c.history[-1][4] == "steady_state_up"
+    grow = c.history[-1]
+    assert grow[4] == "steady_state_up"
 
 
 def test_no_success_accounting_during_cooldown() -> None:
@@ -209,7 +214,7 @@ def test_history_bounded() -> None:
         "t", AdaptiveConcurrency(min=1, max=1000, start=10), visible=True
     )
     for _ in range(c.HISTORY_LIMIT + 50):
-        c._set_limit(c.concurrency + 1, "test")
+        c._set_limit(c.concurrency + 1, "manual")
     assert len(c.history) == c.HISTORY_LIMIT
 
 
@@ -345,11 +350,19 @@ async def test_serial_workload_at_low_limit_does_not_grow() -> None:
 
 
 def test_default_bounds() -> None:
-    """Defaults are min=4, start=20, max=100."""
+    """Defaults are min=10, start=20, max=100."""
     cfg = AdaptiveConcurrency()
-    assert cfg.min == 4
+    assert cfg.min == 10
     assert cfg.start == 20
     assert cfg.max == 100
+
+
+def test_small_max_clamps_implicit_min_and_start() -> None:
+    """AdaptiveConcurrency(max=N) with N below the default min just works."""
+    cfg = AdaptiveConcurrency(max=8)
+    assert cfg.min == 8
+    assert cfg.start == 8
+    assert cfg.max == 8
 
 
 def test_advanced_fields_default_to_documented_values() -> None:
@@ -534,13 +547,14 @@ def test_observer_called_on_scale_change() -> None:
     c = AdaptiveConcurrencyController(
         "t", AdaptiveConcurrency(min=1, max=200, start=10), visible=True
     )
-    events: list[tuple[int, int]] = []
-    events2: list[tuple[int, int]] = []
-    c.add_observer(lambda old, new: events.append((old, new)))
-    c.add_observer(lambda old, new: events2.append((old, new)))
+    # observers take no args — they read the controller's live state
+    events: list[int] = []
+    events2: list[int] = []
+    c.add_observer(lambda: events.append(c.concurrency))
+    c.add_observer(lambda: events2.append(c.concurrency))
     _saturated_successes(c, 10)
-    assert events == [(10, 20)]
-    assert events2 == [(10, 20)]
+    assert events == [20]
+    assert events2 == [20]
 
 
 @pytest.mark.anyio
@@ -566,14 +580,14 @@ def test_init_concurrency_clears_controller_created_observers() -> None:
 
 def test_dynamic_sample_limiter_initial_size() -> None:
     init_concurrency()
-    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=80, start=10))
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=80, start=10), "k")
     assert lim.total_tokens == 10 + DynamicSampleLimiter.BUFFER  # 15
 
 
 @pytest.mark.anyio
 async def test_dynamic_sample_limiter_picks_up_new_controller() -> None:
     init_concurrency()
-    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=80, start=10))
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=80, start=10), "k")
     # initially 15 (10 + 5)
     assert lim.total_tokens == 15
     # create a controller via the registry — limiter should be wired in immediately
@@ -587,7 +601,7 @@ async def test_dynamic_sample_limiter_picks_up_new_controller() -> None:
 @pytest.mark.anyio
 async def test_dynamic_sample_limiter_grows_with_controller() -> None:
     init_concurrency()
-    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=80, start=10))
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=80, start=10), "k")
     cfg = AdaptiveConcurrency(min=1, max=80, start=10)
     async with concurrency(name="m", concurrency=10, key="k", adaptive=cfg):
         pass
@@ -603,7 +617,7 @@ async def test_dynamic_sample_limiter_grows_with_controller() -> None:
 @pytest.mark.anyio
 async def test_dynamic_sample_limiter_shrinks_with_controller() -> None:
     init_concurrency()
-    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=40))
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=40), "k")
     cfg = AdaptiveConcurrency(min=1, max=200, start=40)
     async with concurrency(name="m", concurrency=40, key="k", adaptive=cfg):
         pass
@@ -620,7 +634,7 @@ async def test_dynamic_sample_limiter_shrinks_with_controller() -> None:
 async def test_dynamic_sample_limiter_recovers_after_shrinking_below_borrowed() -> None:
     """Shrinking below borrowed tokens should block new samples, not deadlock."""
     init_concurrency()
-    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=80, start=10))
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=80, start=10), "k")
     cfg = AdaptiveConcurrency(min=1, max=80, start=10)
     async with concurrency(name="m", concurrency=10, key="k", adaptive=cfg):
         pass
@@ -680,7 +694,7 @@ async def test_dynamic_sample_limiter_recovers_after_shrinking_below_borrowed() 
 @pytest.mark.anyio
 async def test_dynamic_sample_limiter_caps_at_adaptive_max_plus_buffer() -> None:
     init_concurrency()
-    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=20, start=10))
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=20, start=10), "k")
     cfg = AdaptiveConcurrency(min=1, max=20, start=10)
     async with concurrency(name="m", concurrency=10, key="k", adaptive=cfg):
         pass
@@ -692,6 +706,185 @@ async def test_dynamic_sample_limiter_caps_at_adaptive_max_plus_buffer() -> None
     # further successes don't grow ctrl past max, limiter stays at cap
     _saturated_successes(ctrls[0], 20)
     assert lim.total_tokens == 25
+
+
+@pytest.mark.anyio
+async def test_dynamic_sample_limiter_scoped_to_own_model() -> None:
+    """The limiter follows only its own model's controller.
+
+    Regression: it used to track the busiest controller in the whole process,
+    so a grader / eval-set-sibling model with a higher adaptive ceiling drove a
+    task's sample concurrency far past its own model's limit.
+    """
+    init_concurrency()
+    # scoped by the task model's connection-pool key ("k1"), not display name
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=10, start=4), "k1")
+    async with concurrency(
+        name="task/model",
+        concurrency=4,
+        key="k1",
+        adaptive=AdaptiveConcurrency(min=1, max=10, start=4),
+    ):
+        pass
+    async with concurrency(
+        name="grader/model",
+        concurrency=10,
+        key="k2",
+        adaptive=AdaptiveConcurrency(min=1, max=200, start=10),
+    ):
+        pass
+    ctrls = {c.name: c for c in adaptive_controllers()}
+    assert lim.total_tokens == 4 + DynamicSampleLimiter.BUFFER
+
+    # the grader's controller scaling up must not move the task's limiter
+    _saturated_successes(ctrls["grader/model"], 10)  # 10 -> 20
+    _saturated_successes(ctrls["grader/model"], 20)  # 20 -> 40
+    assert ctrls["grader/model"].concurrency == 40
+    assert lim.total_tokens == 4 + DynamicSampleLimiter.BUFFER
+
+    # the task's own controller still drives it...
+    _saturated_successes(ctrls["task/model"], 4)  # 4 -> 8 (slow start)
+    assert lim.total_tokens == 8 + DynamicSampleLimiter.BUFFER
+
+    # ...including past the original ceiling after a mid-flight set_max raise
+    ctrls["task/model"].set_max(50)
+    _saturated_successes(ctrls["task/model"], 8)  # 8 -> 16
+    assert ctrls["task/model"].concurrency == 16
+    assert lim.total_tokens == 16 + DynamicSampleLimiter.BUFFER
+
+
+def test_set_max_lower_clamps_current_limit() -> None:
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=100, start=50), visible=True
+    )
+    c.set_max(30)
+    assert c.max == 30
+    assert c.concurrency == 30  # clamped down immediately
+    _at, _name, old, new, reason = c.history[-1]
+    assert (old, new, reason) == (50, 30, "manual")
+
+
+def test_set_max_raise_lifts_ceiling_without_touching_current() -> None:
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=50, start=40), visible=True
+    )
+    c.set_max(120)
+    assert c.max == 120
+    assert c.concurrency == 40  # raise leaves the current limit alone
+    assert c.history == []  # no scale event recorded on a raise
+    # slow-start can now climb past the old max of 50
+    _saturated_successes(c, 40)
+    assert c.concurrency == 80  # 40 * 2; would have capped at 50 before
+
+
+def test_set_max_does_not_leak_through_shared_config() -> None:
+    """Controllers built from one AdaptiveConcurrency instance stay independent.
+
+    Regression: the controller used to store the passed config by reference, so
+    a --model-scoped set_max on one controller silently changed the ceiling of
+    every other controller sharing that config object.
+    """
+    shared = AdaptiveConcurrency(min=1, max=100, start=50)
+    a = AdaptiveConcurrencyController("openai/gpt-4", shared, visible=True)
+    b = AdaptiveConcurrencyController("anthropic/claude", shared, visible=True)
+
+    a.set_max(30)
+    assert a.max == 30
+    assert b.max == 100  # untouched — no aliasing through the shared config
+    assert shared.max == 100  # caller's object untouched too
+
+
+def test_set_max_rejects_below_one_without_mutating() -> None:
+    """set_max validates >= 1 before touching any state.
+
+    Regression: set_max delegated validation to the HTTP route, so a direct
+    Python call with 0 committed `_config.max = 0` before the limiter set
+    raised — torn state whose zero ceiling then made every clean-round
+    scale-up compute a 0 target and re-raise inside notify_success on the
+    generate completion path for the rest of the run.
+    """
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=100, start=50), visible=True
+    )
+    with pytest.raises(ValueError):
+        c.set_max(0)
+    assert (c.min, c.max, c.concurrency) == (1, 100, 50)  # nothing mutated
+    # scale-up still works (the ceiling was not poisoned)
+    _saturated_successes(c, 50)
+    assert c.concurrency == 100
+
+
+def test_set_max_pulls_min_down_when_needed() -> None:
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=20, max=100, start=50), visible=True
+    )
+    c.set_max(10)
+    assert c.max == 10
+    assert c.min == 10  # min pulled down to preserve min <= max
+    assert c.concurrency == 10
+
+
+def test_set_max_raise_restores_configured_min() -> None:
+    """Lifting a throttle restores the configured floor, not the collapsed one.
+
+    Regression: set_max pulled `min` down when lowering the ceiling below it
+    but never restored it on a later raise — so after a temporary
+    `--max-connections 5` / `--max-connections 200` round-trip, rate-limit
+    cuts floored at 5 instead of the configured 20 for the rest of the run.
+    """
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=20, max=100, start=50), visible=True
+    )
+    c.set_max(5)  # throttle below the configured floor
+    assert (c.min, c.max, c.concurrency) == (5, 5, 5)
+    c.set_max(200)  # lift the throttle
+    assert c.min == 20  # configured floor restored
+    assert c.max == 200
+    assert c.concurrency == 5  # raise still leaves the live limit alone
+    # a rate-limit cut now clamps to the configured floor again (notify_retry
+    # floors at max(cut, min), which from below the floor lifts to it)
+    c.notify_retry()
+    assert c.concurrency == 20
+
+
+@pytest.mark.anyio
+async def test_set_max_lower_shrinks_sample_limiter() -> None:
+    init_concurrency()
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=100, start=50), "k")
+    cfg = AdaptiveConcurrency(min=1, max=100, start=50)
+    async with concurrency(name="m", concurrency=50, key="k", adaptive=cfg):
+        pass
+    ctrl = adaptive_controllers()[0]
+    assert lim.total_tokens == 50 + DynamicSampleLimiter.BUFFER  # 55
+    ctrl.set_max(20)
+    assert ctrl.concurrency == 20
+    assert lim.total_tokens == 25  # followed down via the observer chain
+
+
+@pytest.mark.anyio
+async def test_set_max_raise_lets_sample_limiter_climb_past_old_max() -> None:
+    """Raising a controller's max lifts the sample limiter's cap too.
+
+    Regression: the limiter used to cap at its own snapshot of `adaptive.max`, so
+    a mid-flight raise was silently clamped. It now derives from the live
+    controllers, so the cap follows the raised ceiling.
+    """
+    init_concurrency()
+    # distinct config objects, as in production (controller vs sample limiter)
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=20, start=10), "k")
+    cfg = AdaptiveConcurrency(min=1, max=20, start=10)
+    async with concurrency(name="m", concurrency=10, key="k", adaptive=cfg):
+        pass
+    ctrl = adaptive_controllers()[0]
+    # scale to the old max (20) → limiter caps at 25
+    _saturated_successes(ctrl, 10)
+    assert ctrl.concurrency == 20
+    assert lim.total_tokens == 25
+    # raise the ceiling, then climb past the old max
+    ctrl.set_max(100)
+    _saturated_successes(ctrl, 20)
+    assert ctrl.concurrency == 40  # 20 * 2; was stuck at 20 before
+    assert lim.total_tokens == 45  # follows up (was stuck at 25 before the fix)
 
 
 @pytest.mark.anyio
@@ -708,7 +901,7 @@ async def test_dynamic_sample_limiter_catches_up_to_existing_controllers() -> No
     assert ctrls[0].concurrency == 20  # scaled up via slow-start
 
     # now create a DynamicSampleLimiter — it should catch up to 20 + buffer
-    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10))
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10), "k")
     assert lim.total_tokens == 20 + DynamicSampleLimiter.BUFFER  # 25, not 15
 
 
@@ -741,22 +934,19 @@ async def test_registry_separates_adaptive_and_static_storage() -> None:
 
 
 @pytest.mark.anyio
-async def test_dynamic_sample_limiter_multi_controller() -> None:
+async def test_dynamic_sample_limiter_never_matching_key_stays_at_initial() -> None:
+    """A key with no controller (e.g. the tests-only sentinel) never moves."""
     init_concurrency()
-    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10))
+    lim = DynamicSampleLimiter(
+        AdaptiveConcurrency(min=1, max=200, start=10), "<no-model>"
+    )
     cfg = AdaptiveConcurrency(min=1, max=200, start=10)
     async with concurrency(name="m1", concurrency=10, key="k1", adaptive=cfg):
         pass
-    async with concurrency(name="m2", concurrency=10, key="k2", adaptive=cfg):
-        pass
-    ctrls = adaptive_controllers()
-    assert len(ctrls) == 2
-    # scale m2 only
-    target = next(c for c in ctrls if c.name == "m2")
+    target = adaptive_controllers()[0]
     _saturated_successes(target, 10)
     assert target.concurrency == 20
-    # limiter tracks max across controllers (= 20)
-    assert lim.total_tokens == 25
+    assert lim.total_tokens == 10 + DynamicSampleLimiter.BUFFER  # untouched
 
 
 @pytest.mark.anyio
@@ -793,9 +983,11 @@ async def test_value_clamped_when_borrowed_exceeds_total() -> None:
     """After a cut, total_tokens may be below borrowed_tokens; value must be >= 0.
 
     notify_retry lowers total_tokens; CapacityLimiter accepts the inversion and
-    blocks future acquires until in-flight drains. Without clamping, `value`
-    would be negative and `concurrency_status_display`'s `concurrency - value`
-    would exceed `concurrency`, rendering as e.g. "10 / 6" in the UI.
+    blocks future acquires until in-flight drains. `value` clamps to 0 rather
+    than going negative, and the status display reports the exact borrowed
+    count — truthfully above the shrunk limit while holders drain (e.g. "8/5"),
+    never the garbage a negative `value` would produce in the
+    `concurrency - value` derivation (e.g. "13/5").
     """
     from inspect_ai.util._concurrency import concurrency_status_display
 
@@ -832,13 +1024,15 @@ async def test_value_clamped_when_borrowed_exceeds_total() -> None:
             assert c._limiter.borrowed_tokens == 8
             # value clamped to 0, not negative
             assert c.value == 0
-            # status display: used not exceeding total
+            # status display: the exact in-flight count (above the shrunk
+            # limit while holders drain), not the clamped derivation's 5
+            # and not the 13 a negative value would produce
             status = concurrency_status_display()
             entry = status.get("m-clamp") or next(
                 v for k, v in status.items() if "m-clamp" in k
             )
             used, total = entry
             assert total == 5
-            assert used == 5  # 5 - max(0, value) = 5 - 0 = 5, not 13
+            assert used == 8
         finally:
             release.set()

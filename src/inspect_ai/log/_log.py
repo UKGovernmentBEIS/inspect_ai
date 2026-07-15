@@ -29,11 +29,13 @@ from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEd
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
+    ModelFallback,
     ModelOutput,
     ModelUsage,
 )
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
+from inspect_ai.util._concurrency import LimitChangeReason
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
@@ -61,7 +63,6 @@ SCORER_PLACEHOLDER = "88F74D2C"
 
 class EvalConfigDefaults(TypedDict):
     epochs: int
-    epochs_reducer: list[str]
     fail_on_error: bool
     continue_on_fail: bool
     score_on_error: bool
@@ -75,7 +76,6 @@ class EvalConfigDefaults(TypedDict):
 def eval_config_defaults() -> EvalConfigDefaults:
     return {
         "epochs": 1,
-        "epochs_reducer": ["mean"],
         "fail_on_error": True,
         "continue_on_fail": False,
         "score_on_error": False,
@@ -149,6 +149,16 @@ class EvalConfig(BaseModel):
 
     token_limit: int | None = Field(default=None)
     """Maximum tokens usage per sample."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters (None indicates "all").
+
+    Either a keyword ("all" or "output") or an arithmetic formula over `input`
+    and `output` (see `TokenLimit`).
+    """
+
+    turn_limit: int | None = Field(default=None)
+    """Maximum turns (model generations) per sample."""
 
     time_limit: int | None = Field(default=None)
     """Maximum clock time per sample."""
@@ -234,7 +244,15 @@ class EvalConfig(BaseModel):
 
 
 EvalSampleLimitType = Literal[
-    "context", "time", "working", "message", "token", "cost", "operator", "custom"
+    "context",
+    "time",
+    "working",
+    "message",
+    "token",
+    "turn",
+    "cost",
+    "operator",
+    "custom",
 ]
 
 
@@ -278,6 +296,9 @@ class EvalSampleSummary(BaseModel):
     role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage by role for sample."""
 
+    model_fallbacks: list[ModelFallback] | None = Field(default=None)
+    """Model fallbacks that occurred during the sample (None if no fallbacks)."""
+
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
 
@@ -307,6 +328,18 @@ class EvalSampleSummary(BaseModel):
 
     message_count: int | None = Field(default=None)
     """Number of messages in the sample conversation."""
+
+    turn_count: int | None = Field(default=None)
+    """Number of turns (top-level model generations) in the sample."""
+
+    token_limit: int | None = Field(default=None)
+    """Configured token limit ceiling for the sample (None when no limit)."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
+
+    token_limit_usage: int | None = Field(default=None)
+    """Metered usage for the sample's token limit (respects the limit's type)."""
 
     @model_validator(mode="after")
     def thin_data(self) -> "EvalSampleSummary":
@@ -449,6 +482,13 @@ class EvalSample(BaseModel):
     role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage by role for sample."""
 
+    model_fallbacks: list[ModelFallback] | None = Field(default=None)
+    """Model fallbacks that occurred during the sample (None if no fallbacks).
+
+    Includes fallbacks from all generate calls in the sample (solvers,
+    subagents, and scorers alike), aggregated by (model, fallback_model).
+    """
+
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
 
@@ -486,6 +526,18 @@ class EvalSample(BaseModel):
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
 
+    turn_count: int | None = Field(default=None)
+    """Number of turns (top-level model generations) in the sample."""
+
+    token_limit: int | None = Field(default=None)
+    """Configured token limit ceiling for the sample (None when no limit)."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
+
+    token_limit_usage: int | None = Field(default=None)
+    """Metered usage for the sample's token limit (respects the limit's type)."""
+
     def summary(self) -> EvalSampleSummary:
         """Summary of sample.
 
@@ -508,6 +560,7 @@ class EvalSample(BaseModel):
             scores=self.scores,
             model_usage=self.model_usage,
             role_usage=self.role_usage,
+            model_fallbacks=self.model_fallbacks,
             started_at=self.started_at,
             completed_at=self.completed_at,
             total_time=self.total_time,
@@ -518,6 +571,10 @@ class EvalSample(BaseModel):
             retries=len(self.error_retries) if self.error_retries is not None else None,
             completed=True,
             message_count=len(self.messages),
+            turn_count=self.turn_count,
+            token_limit=self.token_limit,
+            token_limit_type=self.token_limit_type,
+            token_limit_usage=self.token_limit_usage,
         )
 
     # deprecated properties
@@ -650,6 +707,12 @@ class EvalMetric(BaseModel):
 
     name: str
     """Metric name."""
+
+    group: str | None = Field(default=None)
+    """Group name when this metric is one of several values produced by a
+    single metric function (e.g. one category from ``frequency()``). Metrics
+    sharing a ``group`` within an ``EvalScore`` should be displayed together;
+    ``name`` is then the leaf label within the group."""
 
     value: int | float
     """Metric value."""
@@ -1029,8 +1092,9 @@ class ConnectionLimitChange(BaseModel):
     new_limit: int
     """Concurrency limit after the change."""
 
-    reason: Literal["slow_start", "steady_state_up", "rate_limit"]
-    """Why the change occurred."""
+    reason: LimitChangeReason
+    """Why the change occurred: an adaptive-scaling decision (`slow_start` /
+    `steady_state_up` / `rate_limit`) or a `manual` control-channel retune."""
 
 
 class EvalStats(BaseModel):

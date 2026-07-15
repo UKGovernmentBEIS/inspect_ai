@@ -47,6 +47,7 @@ from shortuuid import uuid
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_CANCEL_SAMPLE_METHOD,
     INSPECT_CANCEL_TOOL_CALL_METHOD,
+    INTERACTIVE_META_KEY,
     PICKER_META_KEY,
     build_picker_notification,
     detect_capabilities,
@@ -55,6 +56,7 @@ from inspect_ai.agent._acp.inspect_ext import (
 )
 from inspect_ai.agent._acp.picker import (
     PickerTarget,
+    SampleListing,
     list_all_samples,
     list_picker_targets,
     resolve_selection,
@@ -113,10 +115,19 @@ class Bound:
     selection path the wire id is the synthetic control id and the
     target id is the chosen sample — the design contract is that the
     client's sessionId stays stable across a picker rebind.
+
+    ``interactive`` is the bind-time snapshot of the target's
+    :attr:`AcpTransport.is_interactive`: True when the bound session had
+    a live agent turn loop the client can drive (``session/prompt`` /
+    ``session/cancel``), False for an observe-only bind (custom solver
+    or other channel-less sample). Fixed for the binding's lifetime —
+    if the sample later becomes drivable the client reconnects (see the
+    "fixed for v1" decision in ``design/acp/agent-acp.md``).
     """
 
     wire_session_id: str
     target_session_id: str
+    interactive: bool = True
 
 
 # Tagged union of the connection's binding mode. Replaces three
@@ -274,10 +285,14 @@ class ConnectionHandler:
         specific session". If the id is unknown we return
         ``invalid_params`` rather than silently falling back to a
         picker — clients can call ``session/new`` for the picker.
+
+        Resolves against *all* attachable samples (not just drivable
+        ones), so a client that learned an observe-only sessionId from
+        ``inspect/list_samples`` can attach to watch it. The bind records
+        whether the target is interactive; write paths gate on it.
         """
-        targets = list_picker_targets()
-        match = next((t for t in targets if t.session_id == session_id), None)
-        if match is None:
+        resolved = _resolve_attachable_target_by_id(session_id)
+        if resolved is None:
             raise RequestError.invalid_params(
                 {
                     "reason": "unknown session_id",
@@ -285,6 +300,7 @@ class ConnectionHandler:
                     "hint": "call session/new for the picker flow",
                 }
             )
+        match, interactive = resolved
         # On a successful load the wire sessionId IS the target's id
         # (the client passed it in, we matched it, no rebind happens).
         # Binding-confirmation notification, title, and replay events
@@ -303,6 +319,7 @@ class ConnectionHandler:
             self.state.binding = Bound(
                 wire_session_id=match.session_id,
                 target_session_id=match.session_id,
+                interactive=interactive,
             )
         self._schedule_after_response(lambda: self._post_bind_setup(match, gen))
         return LoadSessionResponse()
@@ -345,7 +362,24 @@ class ConnectionHandler:
                 # Picker selection — first prompt in control mode
                 # resolves to a target and rebinds the connection.
                 return await self._handle_picker_selection(prompt)
-            case Bound(target_session_id=target_id):
+            case Bound(target_session_id=target_id, interactive=interactive):
+                # Observe-only bind: this connection attached to a sample
+                # with no agent turn loop to drive (a custom solver, or
+                # any sample bound while non-interactive). Interactivity
+                # is fixed for the binding's lifetime (the "fixed for v1"
+                # decision) — turn-loop input is rejected here regardless
+                # of the target's current live state. The client can
+                # still observe the stream and issue lifecycle controls
+                # (``inspect/cancel_sample`` / ``inspect/cancel_tool_call``).
+                if not interactive:
+                    raise RequestError.invalid_request(
+                        {
+                            "reason": (
+                                "session is not interactive (no agent turn loop bound)"
+                            ),
+                            "target_session_id": target_id,
+                        }
+                    )
                 # Bound mode. Forward to the bound target session's
                 # submit_user_message. Translates ACP content blocks to
                 # a ChatMessageUser; only text blocks are honored fully
@@ -363,7 +397,7 @@ class ConnectionHandler:
                             "target_session_id": target_id,
                         }
                     )
-                if not target.is_attachable:
+                if not target.is_interactive:
                     # The target's transport is alive but has no bound
                     # agent loop to receive this prompt. Two states
                     # collapse here:
@@ -420,14 +454,24 @@ class ConnectionHandler:
         cross-session interference.
         """
         match self.state.binding:
-            case Bound(wire_session_id=wire, target_session_id=target_id):
+            case Bound(
+                wire_session_id=wire,
+                target_session_id=target_id,
+                interactive=interactive,
+            ):
                 if session_id != wire:
+                    return None
+                if not interactive:
+                    # Observe-only bind — session/cancel targets the turn
+                    # loop, which this connection can't drive. Fixed for
+                    # the binding's lifetime; silently drop (notifications
+                    # can't return errors).
                     return None
                 target = _find_live_session(target_id)
                 if target is None:
                     # Bound target has already finished; nothing to cancel.
                     return None
-                if not target.is_attachable:
+                if not target.is_interactive:
                     # No bound agent loop right now (post-agent scoring
                     # window, or between consecutive react() invocations
                     # in the same sample). Recording an InterruptEvent
@@ -509,6 +553,11 @@ class ConnectionHandler:
         never silently fall through to the picker, which would mask an
         explicit-but-stale ask.
 
+        Resolves against *all* attachable samples (drivable and
+        observe-only), so a client can direct-attach to a custom-solver
+        sample to watch it. The bind records whether the target is
+        interactive.
+
         Returns a standard :class:`NewSessionResponse` so the client
         learns the canonical sessionId (the target's uuid) to use on
         subsequent requests.
@@ -525,24 +574,25 @@ class ConnectionHandler:
                 }
             )
         task, sample_id, epoch = parsed
-        targets = list_picker_targets()
-        match = next(
-            (
-                t
-                for t in targets
-                if t.task == task and t.sample_id == sample_id and t.epoch == epoch
-            ),
-            None,
-        )
-        if match is None:
+        resolved = _resolve_attachable_target_by_spec(task, sample_id, epoch)
+        if resolved is None:
+            # Diagnostic lists every attachable sample (drivable or
+            # observe-only) so an explicit-but-stale ask gets an accurate
+            # "did you mean" set.
+            available = [
+                f"{listing.task}/{listing.sample_id}/{listing.epoch}"
+                for listing in list_all_samples()
+                if listing.session_id is not None
+            ]
             raise RequestError.invalid_params(
                 {
                     "reason": "no active session matches the requested target",
                     "requested": target,
-                    "available": [f"{t.task}/{t.sample_id}/{t.epoch}" for t in targets],
+                    "available": available,
                 }
             )
-        return await self._auto_bind(match)
+        match, interactive = resolved
+        return await self._auto_bind(match, interactive=interactive)
 
     async def cancel_sample(
         self,
@@ -636,7 +686,13 @@ class ConnectionHandler:
         if sample is None:
             # Sample finished — nothing to cancel. Idempotent.
             return {"cancelled": False}
-        for event in sample.transcript.events:
+        # Scan pending events only (a pending ToolEvent is what we can
+        # cancel) rather than the full `events` history — scoped, and it
+        # avoids materializing / re-inflating evicted history on a bounded
+        # transcript. Pending events are never evicted, and nested
+        # sub-agent tool calls (task / as_tool / handoff) record into this
+        # same sample transcript, so they remain reachable here.
+        for event in sample.transcript.pending_events:
             if (
                 isinstance(event, ToolEvent)
                 and event.id == tool_call_id
@@ -728,12 +784,19 @@ class ConnectionHandler:
         )
         return NewSessionResponse(session_id=control_id)
 
-    async def _auto_bind(self, target: PickerTarget) -> NewSessionResponse:
+    async def _auto_bind(
+        self, target: PickerTarget, *, interactive: bool = True
+    ) -> NewSessionResponse:
         """Skip the picker for the single-target case; bind immediately.
 
         On the auto-bind path the wire sessionId IS the target's id
         (it's what we hand back in the NewSessionResponse), so the
         client and server agree on the same id.
+
+        ``interactive`` records whether the bound target had a live agent
+        turn loop. The ``session/new`` single-target path and picker
+        always pass drivable targets (default True); ``inspect/attach``
+        passes the resolved flag so observe-only binds are marked.
 
         The binding-confirmation notification, session_info title, and
         replay-on-attach events all flow as ``session/update`` for
@@ -754,6 +817,7 @@ class ConnectionHandler:
             self.state.binding = Bound(
                 wire_session_id=target.session_id,
                 target_session_id=target.session_id,
+                interactive=interactive,
             )
         self._schedule_after_response(lambda: self._post_bind_setup(target, gen))
         return NewSessionResponse(session_id=target.session_id)
@@ -862,27 +926,42 @@ class ConnectionHandler:
         The notification's sessionId is the connection's
         ``wire_session_id`` (NOT necessarily the target's id) so the
         client sees updates on the session id they already know. Target
-        details live in the structured ``_meta`` payload.
+        details live in the structured ``_meta`` payload, including the
+        ``inspect.interactive`` flag so Inspect-aware clients render the
+        observe-only state (disabled composer) from the bind onward.
         """
         wire = self.state.wire_session_id
         assert wire is not None
+        # Interactivity is the bind-time snapshot on the Bound state.
+        # Default True for the (not expected here) non-Bound case so the
+        # historical drivable wording/behavior is the fallback.
+        interactive = (
+            self.state.binding.interactive
+            if isinstance(self.state.binding, Bound)
+            else True
+        )
         notif = build_picker_notification(wire, [target])
         # Override the visible text so it reads as a confirmation
         # rather than a "pick one" prompt. We built this notification
         # from build_picker_notification which always returns an
         # AgentMessageChunk with a TextContentBlock — assert for mypy.
+        # "Observing" vs "Bound to" tells text-only editor clients
+        # whether they can drive the session.
         assert isinstance(notif.update, AgentMessageChunk)
+        verb = "Bound to" if interactive else "Observing"
         notif.update.content = TextContentBlock(
             type="text",
             text=(
-                f"Bound to {target.task} / sample {target.sample_id} / "
+                f"{verb} {target.task} / sample {target.sample_id} / "
                 f"epoch {target.epoch} [{target.session_id}]."
             ),
         )
         # Keep the structured target list under the same _meta key for
-        # consistency with the picker flow.
+        # consistency with the picker flow; add the interactivity flag so
+        # Inspect-aware clients gate their composer on it.
         assert notif.field_meta is not None
         notif.field_meta[PICKER_META_KEY] = [picker_target_meta_dict(target)]
+        notif.field_meta[INTERACTIVE_META_KEY] = interactive
         await self._send_session_update(notif)
 
     async def _send_session_update(self, notification: Any) -> None:
@@ -1395,6 +1474,78 @@ def _find_active_sample(session_id: str) -> "ActiveSample | None":
         sess = sample.acp_transport
         if sess is not None and sess.session_id == session_id:
             return sample
+    return None
+
+
+def _picker_target_from_listing(listing: SampleListing) -> PickerTarget:
+    """Build a :class:`PickerTarget` from an attachable :class:`SampleListing`.
+
+    Callers must pass a listing with a non-``None`` ``session_id`` (an
+    attachable sample). Used by the observe-only bind paths so a
+    channel-less sample can be bound the same way a drivable one is —
+    the resulting target feeds the binding-confirmation ``_meta`` and
+    title exactly as a picker target would.
+    """
+    assert listing.session_id is not None
+    return PickerTarget(
+        session_id=listing.session_id,
+        task=listing.task,
+        sample_id=listing.sample_id,
+        epoch=listing.epoch,
+        agent_name=listing.agent_name,
+        started_at=listing.started_at,
+        total_messages=listing.total_messages,
+        total_tokens=listing.total_tokens,
+        fails_on_error=listing.fails_on_error,
+    )
+
+
+def _resolve_attachable_target_by_id(
+    session_id: str,
+) -> tuple[PickerTarget, bool] | None:
+    """Resolve a bindable target by sessionId — interactive or observe-only.
+
+    Two-tier: try the interactive :func:`list_picker_targets` first
+    (drivable sessions — the pre-existing path, unchanged); on miss,
+    fall back to :func:`list_all_samples` (which also surfaces
+    observe-only attachable samples — see Phase 2). Returns
+    ``(target, interactive)`` or ``None`` when nothing attachable
+    matches (unknown id, noop, or finalized).
+    """
+    for target in list_picker_targets():
+        if target.session_id == session_id:
+            return target, True
+    for listing in list_all_samples():
+        if listing.session_id is not None and listing.session_id == session_id:
+            return _picker_target_from_listing(listing), listing.interactive
+    return None
+
+
+def _resolve_attachable_target_by_spec(
+    task: str, sample_id: str, epoch: int
+) -> tuple[PickerTarget, bool] | None:
+    """Resolve a bindable target by ``task/sample_id/epoch`` slash-spec.
+
+    Sibling of :func:`_resolve_attachable_target_by_id` for the
+    ``inspect/attach`` direct-bind path. Same two-tier resolution:
+    interactive picker targets first, then observe-only attachable
+    samples.
+    """
+    for target in list_picker_targets():
+        if (
+            target.task == task
+            and target.sample_id == sample_id
+            and target.epoch == epoch
+        ):
+            return target, True
+    for listing in list_all_samples():
+        if (
+            listing.session_id is not None
+            and listing.task == task
+            and listing.sample_id == sample_id
+            and listing.epoch == epoch
+        ):
+            return _picker_target_from_listing(listing), listing.interactive
     return None
 
 

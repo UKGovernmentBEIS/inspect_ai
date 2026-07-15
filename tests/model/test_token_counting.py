@@ -85,7 +85,7 @@ async def test_openai_count_tokens():
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens():
     """Test Anthropic token counting using native API."""
-    model = get_model("anthropic/claude-sonnet-4-20250514")
+    model = get_model("anthropic/claude-sonnet-4-5")
 
     token_count = await model.count_tokens(TEST_MESSAGE)
 
@@ -97,7 +97,7 @@ async def test_anthropic_count_tokens():
 @skip_if_no_anthropic
 async def test_anthropic_count_tool_tokens():
     """Test Anthropic tool token counting using native API."""
-    model = get_model("anthropic/claude-sonnet-4-20250514")
+    model = get_model("anthropic/claude-sonnet-4-5")
 
     tool_token_count = await model.count_tool_tokens([TEST_TOOL])
 
@@ -115,7 +115,7 @@ async def test_anthropic_count_tokens_consecutive_tool_messages():
     when an assistant message had multiple tool_calls and each tool response
     was in a separate ChatMessageTool.
     """
-    model = get_model("anthropic/claude-sonnet-4-20250514")
+    model = get_model("anthropic/claude-sonnet-4-5")
 
     # Create a conversation with an assistant message containing multiple tool calls
     # followed by separate tool response messages (as happens with CompactionTrim)
