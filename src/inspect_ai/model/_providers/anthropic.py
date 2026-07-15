@@ -149,7 +149,7 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._retry import model_retry_config
+from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -169,7 +169,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI, RetryDecision, log_model_retry
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
@@ -628,15 +628,12 @@ class AnthropicAPI(ModelAPI):
         # Pad with fake paired items to satisfy API validation.
         messages = pad_tool_messages_for_token_counting(messages)
 
-        # Enable thinking mode only when messages contain thinking blocks.
-        # The API requires thinking mode to be enabled when messages contain
-        # thinking or redacted_thinking blocks, even for token counting.
-        thinking_config: dict[str, Any] = {}
-        if self.is_thinking_model() and _messages_contain_thinking(messages):
-            if self.is_claude_frontier():
-                thinking_config["thinking"] = {"type": "adaptive"}
-            else:
-                thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
+        # count_tokens applies the same thinking-block validation as generate
+        # (non-empty thinking; signatures on the latest assistant message must be
+        # unmodified). Compaction counts message subsets, so an older assistant
+        # turn can become the "latest" one and trip those checks — neutralize
+        # thinking to plain text before counting (see the helper's docstring).
+        messages = neutralize_thinking_for_token_counting(messages)
 
         # Beta opt-ins required for special content in the history. The API
         # validates content block types for token counting too, so replayed
@@ -657,7 +654,6 @@ class AnthropicAPI(ModelAPI):
             model=self.service_model_name(),
             messages=messages,
             **request_extra,
-            **thinking_config,
         )
         return response.input_tokens
 
@@ -772,13 +768,8 @@ class AnthropicAPI(ModelAPI):
                     batch_config,
                     # TODO: In the future, we could pass max_retries and timeout
                     # from batch_config falling back to config
-                    model_retry_config(
-                        self.model_name,
-                        config.max_retries,
-                        config.timeout,
-                        self.should_retry,
-                        lambda ex: None,
-                        log_model_retry,
+                    batch_admin_retry_config(
+                        self.model_name, config, self.should_retry
                     ),
                 )
             head_message = await self._batcher.generate_for_request(request)
@@ -4224,6 +4215,72 @@ def pad_tool_messages_for_token_counting(
                         result.append(
                             MessageParam(role="user", content=fake_tool_results)
                         )
+
+    return result
+
+
+def neutralize_thinking_for_token_counting(
+    messages: list[MessageParam],
+) -> list[MessageParam]:
+    """Replace thinking/redacted_thinking blocks with text for token counting.
+
+    Anthropic's count_tokens API validates thinking blocks the same way generate
+    does, and a block whose signature is empty or altered is rejected several
+    ways depending on its text: empty text + empty signature -> "each thinking
+    block must contain thinking"; non-empty text + empty signature -> "Invalid
+    signature in thinking block"; and any thinking/redacted_thinking block in the
+    *latest* assistant message must match the original response's signature or it
+    "cannot be modified". An empty signature is the common thread across the
+    reported failures.
+
+    None of these invariants hold here. Compaction counts message *subsets*, so
+    an older assistant turn becomes the "latest" one and gets the strict signature
+    check it escaped in generate; and those blocks may carry empty summary text
+    (Claude 4.7+ default `display: "omitted"`) or be reconstructed on a fresh
+    process where the verbatim-replay cache is empty (leaving an empty signature).
+    For a token estimate we don't need valid signatures — replacing every thinking
+    block with equivalent text keeps the approximate token weight while sidestepping
+    all of these validations. Redacted blocks carry no readable text to substitute,
+    so they're dropped.
+
+    This can slightly undercount reasoning tokens (a summary is shorter than the
+    reasoning it stands in for; a dropped redacted block counts as zero), which is
+    acceptable: compaction calibrates against generate's real `usage.input_tokens`
+    baseline and this priced count typically covers only the delta since that
+    baseline, and the compaction threshold has iteration headroom.
+
+    Mirrors `pad_tool_messages_for_token_counting`: a count-time-only fixup for
+    Anthropic's message-structure validation.
+    """
+    result: list[MessageParam] = []
+    for msg in messages:
+        content = msg.get("content")
+        if msg["role"] != "assistant" or not isinstance(content, list):
+            result.append(msg)
+            continue
+
+        neutralized: list[Any] = []
+        changed = False
+        for block in content:
+            block_type = block.get("type") if isinstance(block, dict) else None
+            if block_type == "thinking":
+                changed = True
+                thinking = block.get("thinking") or ""
+                if thinking:
+                    neutralized.append(TextBlockParam(type="text", text=thinking))
+            elif block_type == "redacted_thinking":
+                changed = True
+            else:
+                neutralized.append(block)
+
+        if not changed:
+            result.append(msg)
+            continue
+
+        # never emit an empty assistant message (the API rejects it)
+        if not neutralized:
+            neutralized = [TextBlockParam(type="text", text=NO_CONTENT)]
+        result.append(MessageParam(role="assistant", content=neutralized))
 
     return result
 

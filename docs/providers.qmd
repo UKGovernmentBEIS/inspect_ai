@@ -39,7 +39,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
@@ -94,6 +94,17 @@ By default, Inspect's implementation of the Responses API does not store message
 ``` bash
 inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
+
+### Responses Metadata
+
+You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 \
+    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+```
+
+The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
 
 ### Flex Processing
 
@@ -905,6 +916,26 @@ eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remo
 ```
 
 The flag is applied to both the model and tokenizer `from_pretrained()` calls.
+
+### Model Class
+
+By default the Hugging Face provider loads models with `AutoModelForCausalLM`. Some architectures are not registered with that auto-class and must be loaded with a different one — for example the Mistral 3 series and other image-text-to-text models require `AutoModelForImageTextToText`. Use the `auto_model_class` model arg to name the `transformers` auto-class to use:
+
+``` bash
+inspect eval arc.py --model hf/mistralai/Ministral-3-8B-Instruct-2512 -M auto_model_class=AutoModelForImageTextToText
+```
+
+Or from Python:
+
+``` python
+eval(
+    "arc.py",
+    model="hf/mistralai/Ministral-3-8B-Instruct-2512",
+    model_args=dict(auto_model_class="AutoModelForImageTextToText"),
+)
+```
+
+The value must be the name of a class exported by `transformers`.
 
 ### Local Models
 
