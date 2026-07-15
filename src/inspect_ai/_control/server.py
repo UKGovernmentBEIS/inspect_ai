@@ -41,7 +41,7 @@ from inspect_ai._control import CONTROL_API_VERSION
 from inspect_ai._control.buffer import flush_task_samples
 from inspect_ai._control.cancel import cancel_sample, cancel_task
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
-from inspect_ai._control.events import sample_events
+from inspect_ai._control.events import DEFAULT_PAGE_LIMIT, sample_events
 from inspect_ai._control.limits import (
     UnknownConcurrencyKeyError,
     process_limits,
@@ -449,9 +449,10 @@ class ControlServer:
             return detail
 
         # Per-sample transcript events, cursored pull (phase 2). `type` is a
-        # comma-separated event-type filter (`*` = all; omitted = high-signal
-        # tier); `since` is an opaque cursor, `tail` an int, `full` a bool,
-        # `since_time`/`until` a wall-clock window.
+        # comma-separated event-type filter (`all` or `*` = everything;
+        # omitted = high-signal tier); `since` is an opaque cursor, `tail` an
+        # int, `full` a bool, `since_time`/`until` a wall-clock window,
+        # `limit` the page size (max events scanned per page).
         @app.get("/evals/{eval_id}/sample/events")
         async def get_sample_events(
             eval_id: str,
@@ -463,7 +464,15 @@ class ControlServer:
             full: bool = False,
             since_time: float | None = None,
             until: float | None = None,
+            limit: int = DEFAULT_PAGE_LIMIT,
         ) -> Any:
+            # a limit below 1 would serve an empty page whose unchanged `next`
+            # cursor loops a paging client forever
+            if limit < 1:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "limit must be at least 1"},
+                )
             # strip whitespace around the comma-separated members so natural
             # spellings like `--type "model, tool"` don't silently match
             # nothing
@@ -482,6 +491,7 @@ class ControlServer:
                 full=full,
                 since_time=since_time,
                 until=until,
+                limit=limit,
             )
             if page is None:
                 return JSONResponse(
