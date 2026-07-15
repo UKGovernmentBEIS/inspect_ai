@@ -5,25 +5,26 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 ``design/control-channel.md`` for the full design.
 """
 
-# Control-channel API version, for CLI <-> server skew gating. `inspect ctl`
-# talks to live eval processes that embed whatever inspect version they were
-# launched with, so a newer CLI can be pointed at an older process — rare,
-# but possible when the CLI is upgraded mid-eval. The server advertises this
-# single channel-wide integer (in its discovery file and on each `/tasks`
-# row); the CLI gates version-dependent knobs on it *before* sending a
-# mutation (see `_KNOB_SINCE` in `inspect_ai._cli.ctl`) — an older server's
-# PATCH handlers silently ignore unknown query params, so without the gate a
-# new knob would no-op behind a success-shaped response. A server that
-# predates this field implicitly reports version 0.
+# Control-channel API version, for CLI <-> server skew handling. `inspect
+# ctl` talks to live eval processes that embed whatever inspect version they
+# were launched with, so a newer CLI can be pointed at an older process —
+# rare, but possible when the CLI is upgraded mid-eval. The server advertises
+# this single channel-wide integer (in its discovery file and on each
+# `/tasks` row); the CLI's legacy `_KNOB_SINCE` gates (see
+# `inspect_ai._cli.ctl`) compare against it before sending a mutation. A
+# server that predates this field implicitly reports version 0.
 #
 # What needs a bump (and what doesn't), per kind of change:
 #
-# - New KNOB (query param an older PATCH handler would silently ignore):
-#   bump this in the SAME PR and record the new value as the knob's
-#   `_KNOB_SINCE` entry. Servers at version >= 3 reject unknown params
-#   server-side (`_control/strict.py`), but the gate is the only defense
-#   against a silent partial apply by pre-strict (version < 3) servers
-#   until they age out and the gate retires (issue #67).
+# - New MUTATION PARAM (a knob, or an action-style param on a POST route):
+#   no bump, no CLI gate. Every server in the field is strict (version >= 3):
+#   it rejects unknown query params on any non-GET route with a 400
+#   (`_control/strict.py`), so a mutation an older server can't honor fails
+#   loudly instead of silently no-opping. Pre-strict (version < 3) servers —
+#   whose mutation handlers silently ignored unknown params — are considered
+#   aged out (eval processes are short-lived). The remaining `_KNOB_SINCE`
+#   entries (`max_subprocesses` since 1, `key` since 2) predate strict
+#   mutations and retire with issue #67.
 # - New ENDPOINT: no bump. An older server answers a missing route with
 #   FastAPI's stock `{"detail": "Not Found"}` 404, which the CLI tells apart
 #   from a handler's `{"error": ...}` entity-not-found 404 — pass
