@@ -7,8 +7,13 @@ cancellation error. Those cancellations must not render as ``error`` — a
 sample that will be retried is ``pending``; one that won't is ``cancelled``.
 """
 
+from typing import TYPE_CHECKING, cast
+
 from inspect_ai._control.state import _summary_from_eval_sample_summary
 from inspect_ai.log import EvalSampleSummary
+
+if TYPE_CHECKING:
+    from inspect_ai._control.eval_state import LiveEvalData
 
 # How a cancelled sample's error is stored (eval_error -> repr of the backend
 # cancellation exception); see EvalSample.summary().
@@ -86,3 +91,147 @@ async def test_full_sample_from_missing_log_degrades_to_none(tmp_path) -> None:
         assert await _full_sample("e1", "1", 1) is None
     finally:
         clear_all_eval_states()
+
+
+# --- token-limit usage + turn count fields -----------------------------------
+#
+# The per-sample summary carries a metered token-limit usage/ceiling pair and a
+# turn count. Every builder (pending / terminal / running) must emit the same
+# keys so a `jq` consumer sees a stable shape across statuses; values are `None`
+# only where genuinely unavailable.
+
+_TOKEN_TURN_KEYS = {
+    "turn_count",
+    "token_limit_usage",
+    "token_limit_total",
+    "token_limit_type",
+}
+
+
+def test_pending_summary_carries_token_turn_keys() -> None:
+    from inspect_ai._control.state import _pending_summary
+
+    row = _pending_summary("s1", 1)
+    assert _TOKEN_TURN_KEYS <= row.keys()
+    # nothing is known for a not-yet-started sample
+    assert all(row[k] is None for k in _TOKEN_TURN_KEYS)
+
+
+def test_terminal_summary_copies_turn_and_usage() -> None:
+    summary = EvalSampleSummary(
+        id="s1",
+        epoch=1,
+        input="i",
+        target="t",
+        completed=True,
+        turn_count=4,
+        token_limit=5000,
+        token_limit_type="output",
+        token_limit_usage=1234,
+    )
+    row = _summary_from_eval_sample_summary(summary)
+    assert _TOKEN_TURN_KEYS <= row.keys()
+    assert row["turn_count"] == 4
+    assert row["token_limit_usage"] == 1234
+    assert row["token_limit_total"] == 5000
+    assert row["token_limit_type"] == "output"
+
+
+def test_terminal_summary_token_limit_none_when_unlimited() -> None:
+    # samples without a configured token limit (and pre-upgrade logs) carry
+    # None for the whole limit group
+    summary = EvalSampleSummary(id="s1", epoch=1, input="i", target="t", completed=True)
+    row = _summary_from_eval_sample_summary(summary)
+    assert row["token_limit_usage"] is None
+    assert row["token_limit_total"] is None
+    assert row["token_limit_type"] is None
+
+
+# --- errors-filtered listing ----------------------------------------------
+#
+# `sample_filter="errors"` is the eval-set triage read behind `ctl sample
+# errors`: it must return only errored/retried samples and must NOT
+# synthesize the pending dataset × epochs grid (which can never carry errors
+# and dominates the response on large evals).
+
+
+class _FakeLive:
+    """Minimal LiveEvalData stand-in serving canned sample summaries."""
+
+    def __init__(self, summaries: list[EvalSampleSummary]) -> None:
+        self._summaries = summaries
+
+    async def sample_summaries(self) -> list[EvalSampleSummary]:
+        return self._summaries
+
+
+async def test_errors_filter_filters_and_skips_pending_grid(monkeypatch) -> None:
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.state import current_sample_summaries
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+    completed = [
+        EvalSampleSummary(
+            id="ok", epoch=1, input="i", target="t", completed=True, retries=0
+        ),
+        EvalSampleSummary(id="bad", epoch=1, input="i", target="t", error=_GENUINE),
+        EvalSampleSummary(
+            id="retried", epoch=1, input="i", target="t", completed=True, retries=2
+        ),
+    ]
+    try:
+        register_eval(
+            "e-errs",
+            6,
+            live=cast("LiveEvalData", _FakeLive(completed)),
+            sample_ids=["ok", "bad", "retried"],
+            epochs=2,
+        )
+
+        rows = await current_sample_summaries("e-errs", sample_filter="errors")
+        assert {(r["sample_id"], r["status"]) for r in rows} == {
+            ("bad", "error"),
+            ("retried", "completed"),
+        }
+        assert all(r["status"] != "pending" for r in rows)
+
+        # the unfiltered read still builds the full grid (3 ids × 2 epochs)
+        full = await current_sample_summaries("e-errs")
+        assert len(full) == 6
+        assert sum(1 for r in full if r["status"] == "pending") == 3
+    finally:
+        clear_all_eval_states()
+
+
+def test_running_summary_reports_token_limit_and_turns(monkeypatch) -> None:
+    from unittest.mock import MagicMock
+
+    from inspect_ai._control.state import _sample_summaries_from_active
+
+    s = MagicMock()
+    s.eval_id = "e1"
+    s.completed = None
+    s.started = 100.0
+    s.sample.id = "s1"
+    s.epoch = 1
+    s.running_time = 5.0
+    s.total_tokens = 900
+    s.total_messages = 3
+    s.total_turns = 2
+    s.token_limit_usage = 42
+    s.token_limit = 5000
+    s.token_limit_type = "output"
+    s.transcript.history.last_event = None
+    s.transcript.history.event_count = 7
+    s.retries = 0
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [s])
+    rows = _sample_summaries_from_active("e1")
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["status"] == "running"
+    assert _TOKEN_TURN_KEYS <= row.keys()
+    assert row["turn_count"] == 2
+    assert row["token_limit_usage"] == 42
+    assert row["token_limit_total"] == 5000
+    assert row["token_limit_type"] == "output"
