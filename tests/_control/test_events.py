@@ -172,6 +172,14 @@ def test_filter_glob_includes_everything() -> None:
     assert len(_filter(events, frozenset({"*"}), None, None)) == 2
 
 
+def test_filter_all_includes_everything() -> None:
+    # `all` is the shell-safe synonym for `*` — same allow-everything filter,
+    # including as one member of a comma list
+    events: list[Event] = [_info_at("a", _now()), _error_event("boom")]
+    assert len(_filter(events, frozenset({"all"}), None, None)) == 2
+    assert len(_filter(events, frozenset({"model", "all"}), None, None)) == 2
+
+
 def test_filter_time_window() -> None:
     t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
     early = _info_at("early", t0)
