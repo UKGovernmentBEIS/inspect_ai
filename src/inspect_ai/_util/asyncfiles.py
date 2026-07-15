@@ -294,9 +294,18 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def read_file_bytes_fully(self, filename: str, start: int, end: int) -> bytes:
         """Read a byte range from a file and consume the stream fully into bytes."""
         stream = await self.read_file_bytes(filename, start, end)
-        chunks = []
-        async for chunk in stream:
-            chunks.append(chunk)
+        chunks: list[bytes] = []
+        try:
+            # Pull in large chunks rather than the stream's default
+            # iteration size — one thread/network hop per megabyte instead
+            # of per 64KB matters when reading tens of MB into memory.
+            while True:
+                try:
+                    chunks.append(await stream.receive(_READ_FULLY_CHUNK_SIZE))
+                except EndOfStream:
+                    break
+        finally:
+            await stream.aclose()
         return b"".join(chunks)
 
     async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
@@ -1006,3 +1015,7 @@ _FSSPEC_WRITE_BLOCK_SIZE = 8 * 1024 * 1024  # 8 MB
 # Size of chunks read from the source stream per iteration when
 # copying to local or fsspec-backed files via shutil.copyfileobj.
 _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
+
+# Granularity for `read_file_bytes_fully`: one read hop per chunk while
+# accumulating a range into memory.
+_READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
