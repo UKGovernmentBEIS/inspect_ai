@@ -15,6 +15,7 @@ from inspect_ai.log._edit import (
 )
 from inspect_ai.log._file import read_eval_log, write_eval_log
 from inspect_ai.log._log import EvalLog
+from inspect_ai.log._recorders.eval2 import convert_eval_logs_to_eval2
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 
@@ -128,6 +129,80 @@ def test_stream_convert_preserves_log_updates(
     assert "qa_reviewed" in raw.get("tags", [])
     assert raw.get("metadata", {}).get("reviewer") == "alice"
     assert len(raw.get("log_updates", [])) == 1
+
+
+def test_convert_eval2(tmp_path: pathlib.Path):
+    chunk_size = 3
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+
+    convert_eval_logs_to_eval2(str(input_file), str(tmp_path), chunk_size=chunk_size)
+
+    output_file = (tmp_path / input_file.name).with_suffix(".eval2")
+    assert output_file.exists()
+
+    with zipfile.ZipFile(output_file) as zf:
+        names = set(zf.namelist())
+        assert "header.json" in names
+        assert "summaries.json" in names
+
+        shell_entry = next(n for n in sorted(names) if n.endswith("/sample.json"))
+        sample_prefix = shell_entry.removesuffix("sample.json")
+        shell = json.loads(zf.read(shell_entry))
+
+        # chunked fields must not appear in the shell
+        for field in ("messages", "events", "attachments", "events_data"):
+            assert field not in shell
+
+        sequences = shell["sequences"]
+        assert sequences["chunk_size"] == chunk_size
+
+        def read_sequence(sequence: str) -> list:
+            entries = sorted(n for n in names if n.startswith(sample_prefix + sequence))
+            items: list = []
+            expected_start = 0
+            for entry in entries:
+                start, end_exclusive = (
+                    int(part)
+                    for part in entry.rsplit("/", 1)[1].removesuffix(".json").split("-")
+                )
+                assert start == expected_start
+                chunk = json.loads(zf.read(entry))
+                assert len(chunk) == end_exclusive - start
+                assert len(chunk) <= chunk_size
+                items += chunk
+                expected_start = end_exclusive
+            assert len(items) == sequences[sequence]["count"]
+            return items
+
+        messages = read_sequence("messages")
+        events = read_sequence("events")
+        calls = read_sequence("calls")
+
+        # attachments are fully resolved into content
+        assert "attachment://" not in json.dumps([shell, messages, events, calls])
+
+        # model event inputs/calls are condensed into sequence refs
+        model_events = [e for e in events if e["event"] == "model"]
+        assert any(e.get("input_refs") for e in model_events)
+        assert all(not e.get("input") for e in model_events)
+        assert any((e.get("call") or {}).get("call_refs") for e in model_events)
+
+        # the shell's message_refs reconstruct the final conversation
+        final = [
+            messages[i]
+            for start, end_exclusive in shell["message_refs"]
+            for i in range(start, end_exclusive)
+        ]
+        original = read_eval_log(str(input_file), resolve_attachments="full")
+        assert original.samples
+        original_messages = original.samples[0].messages
+        assert [m["role"] for m in final] == [m.role for m in original_messages]
+        assert [m["content"] for m in final if isinstance(m["content"], str)] == [
+            m.content for m in original_messages if isinstance(m.content, str)
+        ]
 
 
 @pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
