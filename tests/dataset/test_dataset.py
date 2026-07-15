@@ -1,3 +1,4 @@
+import csv as csv_module
 import json as json_module
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
 
 from inspect_ai._util.content import ContentImage
+from inspect_ai._util.file import file as open_file
 from inspect_ai.dataset import (
     Dataset,
     FieldSpec,
@@ -172,6 +174,48 @@ def test_dataset_image_paths() -> None:
     assert isinstance(sample.input[0].content[1], ContentImage)
     image = Path(sample.input[0].content[1].image)
     assert image.exists()
+
+
+def test_csv_dataset_relative_files_with_file_uri(tmp_path: Path) -> None:
+    asset = tmp_path / "asset.txt"
+    asset.write_text("asset", encoding="utf-8")
+    source = tmp_path / "dataset.csv"
+    with source.open("w", encoding="utf-8", newline="") as f:
+        writer = csv_module.DictWriter(f, fieldnames=["input", "target", "files"])
+        writer.writeheader()
+        writer.writerow(
+            {
+                "input": "question",
+                "target": "answer",
+                "files": json_module.dumps({"asset": "asset.txt"}),
+            }
+        )
+
+    dataset = csv_dataset(source.as_uri())
+
+    assert dataset.location == source.as_uri()
+    assert dataset[0].files == {"asset": asset.as_uri()}
+
+
+def test_json_dataset_relative_files_with_remote_uri(tmp_path: Path) -> None:
+    source = f"memory://{tmp_path.name}/dataset.json"
+    asset = f"memory://{tmp_path.name}/asset.txt"
+    with open_file(source, "w") as f:
+        json_module.dump(
+            {
+                "input": "question",
+                "target": "answer",
+                "files": {"asset": "asset.txt"},
+            },
+            f,
+        )
+    with open_file(asset, "w") as f:
+        f.write("asset")
+
+    dataset = json_dataset(source)
+
+    assert dataset.location == source
+    assert dataset[0].files == {"asset": asset}
 
 
 def test_dataset_auto_id() -> None:
