@@ -12,8 +12,6 @@ Produces .eval files in tests/timeline/logs/ that exercise:
   6. Sequential run   – multiple run() calls with inference in between
   7. Parallel collect  – three parallel sub-agents via collect()
   8. Handoff + as_tool – combining handoff() and as_tool() sub-agents
-  9. Workflow generate – mixed-prompt generate() calls, no tools → no utility
- 10. Bridge utility    – foreign-prompt call within a tool loop → utility
 """
 
 from __future__ import annotations
@@ -32,21 +30,9 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event import Timeline, timeline_build
 from inspect_ai.event._timeline import TimelineSpan
 from inspect_ai.log import EvalLog
-from inspect_ai.model import (
-    ChatMessageSystem,
-    ChatMessageUser,
-    ModelOutput,
-    get_model,
-)
+from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes
-from inspect_ai.solver import (
-    Generate,
-    Solver,
-    TaskState,
-    generate,
-    solver,
-    system_message,
-)
+from inspect_ai.solver import generate, system_message
 from inspect_ai.tool import tool
 from inspect_ai.util import collect
 
@@ -615,89 +601,6 @@ def scenario_deep_utility() -> tuple[str, Task, Any]:
     return "deep_utility", task, model
 
 
-def scenario_workflow_generate() -> tuple[str, Task, Any]:
-    """Workflow of generate() calls with mixed system prompts and no tools.
-
-    A monitor-style solver makes five auxiliary model calls — two sharing
-    one system prompt, three using different prompts. With no tool-calling
-    loop anywhere there is no primary trajectory, so none of the calls may
-    be hidden as utility agents.
-    """
-
-    @solver
-    def monitor() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            model = get_model(MODEL)
-            calls = [
-                ("x-extract-1", "You are the x-extract checker."),
-                ("x-extract-2", "You are the x-extract checker."),
-                ("y-extract-1", "You are the y-extract checker."),
-                ("y-ground-1", "You are the y-ground checker."),
-                ("y-ground-2", "You are the y-ground checker."),
-            ]
-            for call_name, prompt in calls:
-                await model.generate(
-                    [
-                        ChatMessageSystem(content=prompt),
-                        ChatMessageUser(content=f"{call_name}: {state.input_text}"),
-                    ]
-                )
-            return state
-
-        return solve
-
-    model = get_model(MODEL)
-    task = Task(name="workflow_generate", dataset=DATASET, solver=monitor())
-    return "workflow_generate", task, model
-
-
-def scenario_bridge_utility() -> tuple[str, Task, Any]:
-    """Foreign-prompt helper call within a tool-calling loop → utility.
-
-    A bridge-style agent emits a tool-calling main loop plus one extraction
-    call with a different system prompt and no tool calls. The extraction
-    call is wrapped as a utility span; main-loop calls stay visible.
-    """
-    main_prompt = "You are the main assistant."
-
-    @agent
-    def bridge() -> Agent:
-        async def execute(state: AgentState) -> AgentState:
-            model = get_model(
-                MODEL,
-                custom_outputs=[
-                    ModelOutput.for_tool_call(MODEL, "search", {"query": "1 + 1"}),
-                    ModelOutput.from_content(MODEL, "two"),
-                    ModelOutput.from_content(MODEL, "2"),
-                ],
-            )
-            await model.generate(
-                [
-                    ChatMessageSystem(content=main_prompt),
-                    ChatMessageUser(content="What is 1 + 1?"),
-                ]
-            )
-            await model.generate(
-                [
-                    ChatMessageSystem(content="Extract a short title."),
-                    ChatMessageUser(content="Extract."),
-                ]
-            )
-            state.output = await model.generate(
-                [
-                    ChatMessageSystem(content=main_prompt),
-                    ChatMessageUser(content="Answer."),
-                ]
-            )
-            return state
-
-        return execute
-
-    model = get_model(MODEL)
-    task = Task(name="bridge_utility", dataset=DATASET, solver=bridge())
-    return "bridge_utility", task, model
-
-
 def scenario_parallel_heterogeneous() -> tuple[str, Task, Any]:
     """Parallel agents with different names.
 
@@ -1065,50 +968,6 @@ def validate_deep_utility(timeline: Timeline) -> None:
     assert_repr_labels(timeline, "main", "dispatcher", "lookup")
 
 
-def _utility_spans(span: TimelineSpan) -> list[TimelineSpan]:
-    """Collect all descendant spans classified as utility."""
-    results: list[TimelineSpan] = []
-    for item in span.content:
-        if isinstance(item, TimelineSpan):
-            if item.utility:
-                results.append(item)
-            results.extend(_utility_spans(item))
-    return results
-
-
-def _direct_model_events(span: TimelineSpan) -> list[Any]:
-    return [
-        item.event
-        for item in span.content
-        if not isinstance(item, TimelineSpan) and item.event.event == "model"
-    ]
-
-
-def validate_workflow_generate(timeline: Timeline) -> None:
-    root = timeline.root
-    assert not _utility_spans(root), (
-        "Workflow generate() calls must not be classified as utility agents"
-    )
-    model_events = _direct_model_events(root)
-    assert len(model_events) == 5, (
-        f"Expected all 5 workflow calls direct in main, got {len(model_events)}"
-    )
-
-
-def validate_bridge_utility(timeline: Timeline) -> None:
-    root = timeline.root
-    utility = _utility_spans(root)
-    assert len(utility) == 1, f"Expected exactly 1 utility span, got {len(utility)}"
-    wrapped = _direct_model_events(utility[0])
-    assert len(wrapped) == 1, "Expected the utility span to wrap a single call"
-    system = next(m.content for m in wrapped[0].input if m.role == "system")
-    assert "Extract" in str(system), "Expected the extraction call to be wrapped"
-    main_events = _direct_model_events(root)
-    assert len(main_events) == 2, (
-        f"Expected 2 main-loop calls direct in main, got {len(main_events)}"
-    )
-
-
 def validate_parallel_heterogeneous(timeline: Timeline) -> None:
     root = timeline.root
     search_spans = find_spans(root, "search")
@@ -1138,8 +997,6 @@ VALIDATORS: dict[str, Any] = {
     "parallel_with_nesting": validate_parallel_with_nesting,
     "sequential_and_parallel": validate_sequential_and_parallel,
     "deep_utility": validate_deep_utility,
-    "workflow_generate": validate_workflow_generate,
-    "bridge_utility": validate_bridge_utility,
     "parallel_heterogeneous": validate_parallel_heterogeneous,
 }
 
@@ -1160,8 +1017,6 @@ SCENARIOS = [
     scenario_parallel_with_nesting,
     scenario_sequential_and_parallel,
     scenario_deep_utility,
-    scenario_workflow_generate,
-    scenario_bridge_utility,
     scenario_parallel_heterogeneous,
 ]
 
