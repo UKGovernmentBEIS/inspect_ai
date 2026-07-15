@@ -1179,6 +1179,7 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
                 break
 
     # --- Scan and wrap utility candidates ---
+    original_spans = [item for item in agent.content if isinstance(item, TimelineSpan)]
     new_content: list[TimelineEvent | TimelineSpan] = []
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
@@ -1194,31 +1195,28 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
                 new_content.append(wrapper)
                 continue
 
-            evt_prompt = _get_system_prompt_for_event(item.event)
-            if (
-                primary_prompt is not None
-                and evt_prompt is not None
-                and evt_prompt != primary_prompt
-                and not _has_tool_calls(item.event)
-            ):
-                # Wrap in a synthetic utility span
-                wrapper = TimelineSpan(
-                    id=f"utility-{item.event.uuid or id(item)}",
-                    name="utility",
-                    span_type="agent",
-                    content=[item],
-                )
-                wrapper.utility = True
-                new_content.append(wrapper)
-                continue
+            if primary_prompt is not None and not _has_tool_calls(item.event):
+                evt_prompt = _get_system_prompt_for_event(item.event)
+                if evt_prompt is not None and evt_prompt != primary_prompt:
+                    # Wrap in a synthetic utility span
+                    wrapper = TimelineSpan(
+                        id=f"utility-{item.event.uuid or id(item)}",
+                        name="utility",
+                        span_type="agent",
+                        content=[item],
+                    )
+                    wrapper.utility = True
+                    new_content.append(wrapper)
+                    continue
         new_content.append(item)
 
     agent.content = new_content
 
-    # --- Recurse into child spans and branches ---
-    for item in agent.content:
-        if isinstance(item, TimelineSpan):
-            _wrap_utility_events(item)
+    # Recurse into the span's original children only — not the synthetic
+    # wrappers created above: a wrapper holds a single already-processed
+    # event, and re-entering it would wrap a warmup call again, forever.
+    for item in original_spans:
+        _wrap_utility_events(item)
     for branch in agent.branches:
         for item in branch.content:
             if isinstance(item, TimelineSpan):
