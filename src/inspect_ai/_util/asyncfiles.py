@@ -48,12 +48,6 @@ from inspect_ai._util.file import FileInfo, file, filesystem, local_path
 
 logger = logging.getLogger(__name__)
 
-# Recreate the async S3 client when it is older than this so that externally
-# rotated static credentials (e.g. tooling that rewrites ~/.aws/credentials)
-# get picked up without a restart: botocore only auto-refreshes provider-based
-# credentials (STS/SSO/IMDS); static keys are pinned at client creation.
-S3_CLIENT_TTL_SECONDS = 15 * 60
-
 
 class _BytesByteReceiveStream(ByteReceiveStream):
     """
@@ -171,9 +165,29 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     not close it on exit (the original owner handles cleanup).
     """
 
-    def __init__(self, anonymous: bool = False, region_name: str | None = None) -> None:
+    def __init__(
+        self,
+        anonymous: bool = False,
+        region_name: str | None = None,
+        client_ttl: float | None = None,
+    ) -> None:
+        """Initialize the filesystem.
+
+        Args:
+            anonymous: Use unsigned (anonymous) S3 requests.
+            region_name: AWS region for the S3 client.
+            client_ttl: Recreate the cached async S3 client when it is older
+                than this many seconds, so that externally rotated static
+                credentials (e.g. tooling that rewrites ~/.aws/credentials)
+                get picked up without a restart — botocore only auto-refreshes
+                provider-based credentials (STS/SSO/IMDS); static keys are
+                pinned at client creation. None (the default) never recreates;
+                intended for long-lived instances such as the view server's
+                shared filesystem.
+        """
         self._anonymous = anonymous
         self._region_name = region_name
+        self._client_ttl = client_ttl
         self._s3_client: Any | None = None
         self._s3_client_async: Any | None = None
         self._s3_client_async_created: float = 0.0
@@ -619,10 +633,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
     async def s3_client_async(self) -> Any:
         def expired() -> bool:
+            if self._s3_client_async is None:
+                return True
             return (
-                self._s3_client_async is None
-                or time.monotonic() - self._s3_client_async_created
-                > S3_CLIENT_TTL_SECONDS
+                self._client_ttl is not None
+                and time.monotonic() - self._s3_client_async_created > self._client_ttl
             )
 
         if expired():

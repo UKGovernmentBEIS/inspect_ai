@@ -11,7 +11,6 @@ from botocore.exceptions import ClientError
 
 from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
-    S3_CLIENT_TTL_SECONDS,
     AsyncFilesystem,
     _current_async_fs,
     get_async_filesystem,
@@ -1060,7 +1059,7 @@ def _patch_client_factory(
 async def test_s3_client_async_reused_within_ttl(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fs = AsyncFilesystem()
+    fs = AsyncFilesystem(client_ttl=60)
     created = _patch_client_factory(monkeypatch, fs)
 
     client1 = await fs.s3_client_async()
@@ -1076,11 +1075,11 @@ async def test_s3_client_async_reused_within_ttl(
 async def test_s3_client_async_recreated_after_ttl(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fs = AsyncFilesystem()
+    fs = AsyncFilesystem(client_ttl=60)
     created = _patch_client_factory(monkeypatch, fs)
 
     client1 = await fs.s3_client_async()
-    fs._s3_client_async_created = time.monotonic() - S3_CLIENT_TTL_SECONDS - 1
+    fs._s3_client_async_created = time.monotonic() - 61
     client2 = await fs.s3_client_async()
 
     assert client2 is not client1
@@ -1091,6 +1090,23 @@ async def test_s3_client_async_recreated_after_ttl(
     await fs.close()
     assert client1.closed
     assert client2.closed
+
+
+async def test_s3_client_async_no_ttl_never_recreates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fs = AsyncFilesystem()
+    created = _patch_client_factory(monkeypatch, fs)
+
+    client1 = await fs.s3_client_async()
+    fs._s3_client_async_created = time.monotonic() - 24 * 60 * 60
+    client2 = await fs.s3_client_async()
+
+    assert client2 is client1
+    assert len(created) == 1
+
+    await fs.close()
+    assert client1.closed
 
 
 def test_run_coroutine_no_loop_uses_configured_backend(

@@ -81,6 +81,8 @@ logger = getLogger(__name__)
 VIEW_REQUEST_HEADER = "X-Inspect-View-Request"
 VIEW_REQUEST_HEADER_VALUE = "true"
 
+SHARED_FS_CLIENT_TTL_SECONDS = 15 * 60
+
 
 class AccessPolicy(Protocol):
     async def can_read(self, request: Request, file: str) -> bool: ...
@@ -754,8 +756,9 @@ def view_server(
     )
 
     # one server-lifetime async filesystem (shared client + connection pool)
-    # bound into every request by AsyncFilesystemMiddleware
-    shared_fs = AsyncFilesystem()
+    # bound into every request by AsyncFilesystemMiddleware; client_ttl so the
+    # long-running server picks up externally rotated static AWS credentials
+    shared_fs = AsyncFilesystem(client_ttl=SHARED_FS_CLIENT_TTL_SECONDS)
     app = AsyncFilesystemMiddleware(app, fs=shared_fs)
 
     # filter request log (remove /api/events)
