@@ -14,6 +14,7 @@
 - Bugfix: Several raised errors (unexpected Anthropic input block, unsupported image data type, missing sample-buffer database) now interpolate the offending value into the message instead of showing the literal placeholder text.
 - Bugfix: React agent compaction now works after a checkpoint resume — the restored conversation is no longer treated as an always-preserved prefix, so compaction shrinks the context again.
 - Viewer: log listing responses include the log dir's canonical URI (`log_dir_uri`) so the viewer can reliably scope its local cache to the directory.
+- Memory tool: Canonicalize `/memories` paths so equivalent spellings map to one file rather than several, and add an `instance` parameter to `memory()` for independent per-instance memory stores.
 
 ## 0.3.246 (10 July 2026)
 
@@ -130,7 +131,6 @@
 - Bugfix: Keep torn checkpoint files out of remote egress uploads and manifests so resumed runs can repair and ship reused checkpoint ids.
 - Bugfix: Make the no-op trailing-separator strip in `FileSystem.is_writeable()` actually take effect, avoiding a double-separator write-test path for direct callers.
 - Bugfix: Header-only reads of `.json` eval logs no longer parse the entire `samples` array, making header reads of large logs dramatically faster (e.g. a 29MB S3 log: ~47s -> ~0.4s).
-- Memory tool: Canonicalize `/memories` paths so equivalent spellings map to one file rather than several, and add an `instance` parameter to `memory()` for independent per-instance memory stores.
 
 
 ## 0.3.241 (22 June 2026)
