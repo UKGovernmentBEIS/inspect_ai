@@ -619,7 +619,11 @@ async def test_404_body_shape_distinguishes_missing_route(
     from inspect_ai._cli.ctl import _handler_404
     from inspect_ai._control import server as server_mod
 
-    monkeypatch.setattr(server_mod, "cancel_task", lambda task_id, dry_run=False: None)
+    monkeypatch.setattr(
+        server_mod,
+        "cancel_task",
+        lambda task_id, action="cancel", dry_run=False: None,
+    )
 
     app = server_mod.ControlServer(run_id="test")._build_app()
     transport = httpx.ASGITransport(app=app)

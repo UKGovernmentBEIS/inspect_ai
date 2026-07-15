@@ -496,7 +496,12 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     nonlocal cancel_type
                     cancel_type = type
                     tc.cancel_type = type
-                    if type:
+                    # only abort/retry tear the task's scope down. score/error
+                    # are graceful sample resolutions: the caller interrupts
+                    # in-flight samples, queued samples are abandoned (they
+                    # check the stamped cancel_type as they leave the queue),
+                    # and the task runs to natural completion.
+                    if type in ("abort", "retry"):
                         cancel_tg.cancel_scope.cancel()
 
                 task_cancel.cancel_task = cancel_task
@@ -773,6 +778,14 @@ async def run_task_retry_attempts(
                     elif run.cancel_type == "abort":
                         log.info(
                             f"Task '{options.task.name}' was cancelled with abort requested"
+                        )
+                    elif run.cancel_type is not None:
+                        # a graceful cancel resolution (score/error) — a user
+                        # cancel like abort, so never retried even when the
+                        # resolved log carries an error status
+                        log.info(
+                            f"Task '{options.task.name}' was cancelled with "
+                            f"sample resolution '{run.cancel_type}'"
                         )
                     elif result.status == "error":
                         retry = True

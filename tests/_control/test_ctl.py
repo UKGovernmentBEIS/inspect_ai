@@ -2970,6 +2970,43 @@ def test_task_cancel_handler_404_means_task_gone(
     assert "older inspect" not in result.stderr
 
 
+def test_task_cancel_action_sent_on_current_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--action score`/`--action error` ride as the `action` query param."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 1})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+
+    runner = cli_runner()
+    score = runner.invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--action", "score"]
+    )
+    assert score.exit_code == 0, score.output
+    error = runner.invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--action", "error", "--dry-run"]
+    )
+    assert error.exit_code == 0, error.output
+    assert spy.params == [
+        {"action": "score"},
+        {"action": "error", "dry_run": True},
+    ]
+
+
+def test_task_cancel_rejects_unknown_action() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--action", "explode"]
+    )
+    assert result.exit_code == 2
+    assert "explode" in result.stderr
+
+
 def test_sample_cancel_defaults_epoch_for_single_epoch_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3022,7 +3059,16 @@ def test_sample_cancel_error_flag_and_dry_run(
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(
         ctl_command,
-        ["sample", "cancel", "aaa111", "s1", "--error", "--dry-run", "--json"],
+        [
+            "sample",
+            "cancel",
+            "aaa111",
+            "s1",
+            "--action",
+            "error",
+            "--dry-run",
+            "--json",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert spy.params == [
@@ -3030,6 +3076,31 @@ def test_sample_cancel_error_flag_and_dry_run(
     ]
     payload = json.loads(result.stdout)
     assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_sample_cancel_cancel_action_sent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "cancel", "aaa111", "s1", "--action", "cancel", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "action": "cancel"}]
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_sample_cancel_rejects_unknown_action() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel", "aaa111", "s1", "--action", "explode"]
+    )
+    assert result.exit_code == 2
+    assert "explode" in result.stderr
 
 
 def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:

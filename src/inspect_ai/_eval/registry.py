@@ -8,6 +8,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     extract_named_params,
     registry_add,
     registry_create,
@@ -215,10 +216,7 @@ def task_source_create(name: str, **kwargs: Any) -> TaskSource:
             args[param] = kwargs[param]
         else:
             logger.warning(f"param '{param}' not used by task source '{name}'")
-    # call the registered wrapper directly (it tags the instance with registry
-    # info); registry_create only invokes factories whose return-type name
-    # matches the registry type, which "task_source" / TaskSource does not
-    return cast(Callable[..., TaskSource], source)(**args)
+    return cast(TaskSource, create_registry_object("task_source", name, args))
 
 
 @overload
