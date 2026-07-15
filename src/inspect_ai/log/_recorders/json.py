@@ -1,7 +1,7 @@
+from functools import partial
 from logging import getLogger
 from typing import IO, Any, get_args
 
-import anyio.to_thread
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
 from ijson.backends.python import UnexpectedSymbol  # type: ignore
@@ -35,7 +35,7 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
-from .file import FileRecorder
+from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
 
@@ -258,10 +258,9 @@ class JSONRecorder(FileRecorder):
         """Write the log, controlling durability of the local write.
 
         The public ``write_log`` always passes ``fsync=True`` (a caller
-        writing a log expects it durable). Intermediate ``flush()`` passes
-        ``fsync=False``: fsync of a large JSON log would stall for seconds
-        on every buffered flush, and crash-durability of intermediate
-        snapshots matches the pre-atomic-write behaviour (none).
+        writing a log expects it durable); intermediate ``flush()`` passes
+        ``fsync=False`` for a skippable snapshot (see
+        ``write_local_snapshot``).
         """
         from inspect_ai.log._file import eval_log_json
 
@@ -291,13 +290,12 @@ class JSONRecorder(FileRecorder):
 
             with trace_action(logger, "Log Write", location):
                 if fs.is_local():
-                    # Atomic write for local paths: temp file + fsync +
-                    # rename so an interrupted write can't corrupt the
-                    # existing log on disk (#2949). Offloaded to a worker
-                    # thread so the blocking copy/fsync doesn't stall the
-                    # event loop.
-                    await anyio.to_thread.run_sync(
-                        atomic_write_bytes, local_path(location), log_bytes, fsync
+                    await write_local_snapshot(
+                        location,
+                        fsync,
+                        partial(
+                            atomic_write_bytes, local_path(location), log_bytes, fsync
+                        ),
                     )
                 else:
                     with file(location, "wb") as f:

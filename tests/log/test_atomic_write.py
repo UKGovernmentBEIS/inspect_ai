@@ -10,7 +10,7 @@ from unittest import mock
 import pytest
 
 from inspect_ai._util.atomic_write import atomic_write, atomic_write_bytes
-from inspect_ai.log import EvalLog, read_eval_log, write_eval_log
+from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
 
 
 class TestAtomicWriteBasics:
@@ -304,6 +304,14 @@ class TestAtomicWriteSymlinks:
         assert not list(tmp_path.glob(".inspect_tmp_*"))
 
 
+@pytest.fixture
+def sample_log() -> EvalLog:
+    # sync fixture: read_eval_log's sync wrapper cannot be called inside an
+    # async (trio) test body, but fixtures run outside the async context
+    log_file = Path(__file__).parent / "test_eval_log" / "log_formats.json"
+    return read_eval_log(str(log_file))
+
+
 class TestRecorderIntegration:
     """Local recorder writes must route through the atomic-write path.
 
@@ -312,11 +320,6 @@ class TestRecorderIntegration:
     unit tests above silently. Spying on ``os.replace`` proves the local
     write actually went temp-file-then-rename.
     """
-
-    @pytest.fixture
-    def sample_log(self) -> EvalLog:
-        log_file = Path(__file__).parent / "test_eval_log" / "log_formats.json"
-        return read_eval_log(str(log_file))
 
     @pytest.mark.parametrize("format", ["eval", "json"])
     def test_local_write_is_atomic(
@@ -365,17 +368,79 @@ class TestFlushDurability:
             await log.flush(fsync=True)
         assert fsync_spy.called, "final flush must fsync"
 
-    async def test_json_write_fsync_flag(self, tmp_path: Path) -> None:
+    async def test_json_write_fsync_flag(
+        self, sample_log: EvalLog, tmp_path: Path
+    ) -> None:
         from inspect_ai.log._recorders.json import JSONRecorder
 
-        log_file = Path(__file__).parent / "test_eval_log" / "log_formats.json"
-        log = read_eval_log(str(log_file))
         target = str(tmp_path / "log.json")
 
         with mock.patch("os.fsync") as fsync_spy:
-            await JSONRecorder._write_log_impl(target, log, fsync=False)
+            await JSONRecorder._write_log_impl(target, sample_log, fsync=False)
         assert not fsync_spy.called, "intermediate flush must not fsync"
 
         with mock.patch("os.fsync") as fsync_spy:
-            await JSONRecorder.write_log(target, log)
+            await JSONRecorder.write_log(target, sample_log)
         assert fsync_spy.called, "public write_log must stay durable"
+
+
+class TestFlushPermissionError:
+    """PermissionError on the atomic rename skips intermediate flushes only.
+
+    On Windows os.replace() fails with PermissionError while a reader
+    (e.g. the viewer) holds the log open. An intermediate snapshot flush
+    (fsync=False) is skipped with a warning — the next flush retries
+    naturally — while a final write (fsync=True) still raises so a
+    broken log write never reports silent success.
+    """
+
+    async def test_zip_flush_permission_error(self, tmp_path: Path) -> None:
+        from inspect_ai.log._recorders.eval import ZipLogFile
+
+        target = tmp_path / "log.eval"
+        log = ZipLogFile(str(target))
+        await log.init(None, 0, [])
+
+        # a streaming sample retained for the control channel: it must
+        # survive a skipped flush (buffered_sample falls back to the
+        # on-disk log once cleared, which a skipped flush hasn't written)
+        sample = EvalSample(id="s1", epoch=1, input="x", target="y")
+        log._streaming_samples[("s1", 1)] = sample
+
+        locked = PermissionError(13, "The process cannot access the file")
+        with mock.patch("os.replace", side_effect=locked):
+            await log.flush(fsync=False)  # skipped, must not raise
+
+        # target untouched and no temp files leaked by the skipped write
+        assert not target.exists()
+        assert not list(tmp_path.glob(".inspect_tmp_*"))
+        assert await log.buffered_sample("s1", 1) is sample
+
+        with mock.patch("os.replace", side_effect=locked):
+            with pytest.raises(PermissionError):
+                await log.flush(fsync=True)
+
+        # a successful flush writes the log and releases the retained sample
+        await log.flush(fsync=False)
+        assert target.exists()
+        assert await log.buffered_sample("s1", 1) is None
+
+    async def test_json_write_permission_error(
+        self, sample_log: EvalLog, tmp_path: Path
+    ) -> None:
+        from inspect_ai.log._recorders.json import JSONRecorder
+
+        target = tmp_path / "log.json"
+
+        locked = PermissionError(13, "The process cannot access the file")
+        with mock.patch("os.replace", side_effect=locked):
+            await JSONRecorder._write_log_impl(
+                str(target), sample_log, fsync=False
+            )  # skipped, must not raise
+
+        assert not target.exists()
+        assert not list(tmp_path.glob(".inspect_tmp_*"))
+
+        with mock.patch("os.replace", side_effect=locked):
+            with pytest.raises(PermissionError):
+                await JSONRecorder.write_log(str(target), sample_log)

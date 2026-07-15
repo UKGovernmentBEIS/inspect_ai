@@ -24,10 +24,12 @@ Known trade-offs (accepted):
   target, which Windows denies while another process holds the file open
   without ``FILE_SHARE_DELETE`` (Python's ``open()`` does not request it).
   A viewer reading a log mid-flush can therefore cause ``PermissionError``
-  where the previous truncate-in-place write would have succeeded. Viewer
-  reads are short-lived so the window is small, and the failed flush
-  leaves the previous valid log intact; this is an accepted risk rather
-  than something we retry or fall back around.
+  where the previous truncate-in-place write would have succeeded. The
+  failed write leaves the previous valid log intact and the temp file is
+  cleaned up; this module raises the error as-is, and the log recorders
+  handle it by skipping intermediate snapshot flushes (with a warning —
+  the next flush retries naturally) while final writes still fail the
+  task.
 
 Scope: local filesystem only. Remote stores (S3, Azure, GCS) already
 provide atomic uploads at the provider level (S3 ``PutObject``, Azure

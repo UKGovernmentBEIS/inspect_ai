@@ -60,7 +60,7 @@ from .._log import (
     sort_samples,
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
-from .file import FileRecorder
+from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
 
@@ -860,13 +860,9 @@ class ZipLogFile:
         """Write the buffered zip out to the destination log file.
 
         Args:
-            fsync: Force physical writeback of the copied log before the
-                atomic rename (local paths only). The default keeps flushes
-                durable; the intermediate buffered-flush path passes False
-                since fsync of a large log would otherwise stall a worker
-                thread for seconds per flush, and crash-durability of
-                intermediate snapshots matches the pre-atomic-write
-                behaviour (none).
+            fsync: True for a durable final write; False for an intermediate
+                snapshot, which skips fsync and tolerates file-in-use (see
+                ``write_local_snapshot``). Local paths only.
         """
         async with self._lock:
             # close the zip file so it is flushed
@@ -874,23 +870,26 @@ class ZipLogFile:
                 self._zip.close()
 
             # Stream temp file to output using the appropriate backend
-            # (native S3 multipart upload, or chunked copy via fsspec).
-            # For local paths, use atomic write (temp file + fsync +
-            # rename) to prevent corruption on interrupted writes (#2949).
+            # (atomic local write, native S3 multipart upload, or chunked
+            # copy via fsspec).
+            written = True
             with trace_action(logger, "Log Write", self._file):
                 try:
-                    if filesystem(self._file).is_local():
-                        # Offload the blocking copy/fsync to a worker thread.
+                    if self._fs.is_local():
                         # Safe under self._lock: nothing else touches
-                        # _temp_file until we return. Do NOT abandon on
-                        # cancellation (the default): the finally below
-                        # reopens the zip on _temp_file, which must not race
-                        # the worker thread still reading it.
-                        await anyio.to_thread.run_sync(
-                            _copy_temp_to_local,
-                            self._temp_file,
-                            local_path(self._file),
+                        # _temp_file until we return, and the helper waits
+                        # for the thread on cancellation, so the finally
+                        # below never reopens the zip on _temp_file while
+                        # the thread is still reading it.
+                        written = await write_local_snapshot(
+                            self._file,
                             fsync,
+                            partial(
+                                _copy_temp_to_local,
+                                self._temp_file,
+                                local_path(self._file),
+                                fsync,
+                            ),
                         )
                     else:
                         self._temp_file.seek(0)
@@ -906,8 +905,11 @@ class ZipLogFile:
             # directory and readable from disk, so the streaming-path samples no
             # longer need their in-memory copy (the buffered ``_samples`` are
             # cleared by ``write_buffered_samples``, which the flush callers run
-            # first).
-            self._streaming_samples.clear()
+            # first). A skipped write must NOT clear: ``buffered_sample`` falls
+            # back to the on-disk log once cleared, which doesn't yet contain
+            # these samples.
+            if written:
+                self._streaming_samples.clear()
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
