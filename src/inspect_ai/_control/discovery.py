@@ -2,7 +2,7 @@
 
 Each running eval process writes a per-PID discovery JSON at
 ``<inspect_data_dir>/control/<pid>.json`` describing its AF_UNIX
-socket. CLI clients (``inspect ctl tasks``, etc.) read this directory to
+socket. CLI clients (``inspect ctl task list``, etc.) read this directory to
 enumerate live evals.
 
 The filesystem mechanics (PID-based JSON write with 0600, stale-PID
@@ -52,6 +52,14 @@ class DiscoveredControlServer:
     started_at: float
     run_id: str | None = None
     eval_set_id: str | None = None
+    api_version: int = 0
+    """The process's control-API version (``CONTROL_API_VERSION`` at launch).
+
+    ``0`` when the discovery file predates the field — the one-time bootstrap
+    default for servers launched before version reporting existed. The CLI
+    gates version-dependent knobs on this pre-flight (see ``_KNOB_SINCE`` in
+    ``inspect_ai._cli.ctl``).
+    """
 
 
 def list_discovered_servers() -> list[DiscoveredControlServer]:
@@ -75,6 +83,10 @@ def list_discovered_servers() -> list[DiscoveredControlServer]:
             started_at = 0.0
         run_id_raw = data.get("run_id")
         eval_set_id_raw = data.get("eval_set_id")
+        try:
+            api_version = int(data.get("api_version", 0))
+        except (TypeError, ValueError):
+            api_version = 0
         results.append(
             DiscoveredControlServer(
                 pid=pid,
@@ -82,6 +94,7 @@ def list_discovered_servers() -> list[DiscoveredControlServer]:
                 started_at=started_at,
                 run_id=str(run_id_raw) if run_id_raw else None,
                 eval_set_id=str(eval_set_id_raw) if eval_set_id_raw else None,
+                api_version=api_version,
             )
         )
     results.sort(key=lambda e: e.started_at, reverse=True)

@@ -1,16 +1,96 @@
 ## Unreleased
 
+- Eval: `EvalSample` and `EvalSampleSummary` now record `turn_count` and the sample's token limit (`token_limit`, `token_limit_type`, and metered `token_limit_usage`).
+- Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
+- Control Channel: `inspect ctl sample list` now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.
+- Control Channel: `inspect ctl sample errors` now filters errored/retried samples server-side, so triage polls of large evals no longer build and ship the full sample listing.
+- Control Channel: `inspect ctl` sample commands given an exact full task id now stop discovery at the process hosting it, skipping busy-retry delays from older sibling processes.
+- Control Channel: `inspect ctl config --key NAME LIMIT` retunes any named `concurrency()` limit mid-flight, without the registering code opting in; the config view lists the registered keys.
+- Control Channel: `inspect ctl config` can now retune `--timeout`, `--attempt-timeout` and `--max-retries` mid-flight, reaching even generate calls already retrying (pass `clear` to restore launch config).
+- Control Channel: `inspect ctl sample list` now caps its listing at the 100 most relevant rows by default (`--limit`/`--all` to adjust, `--status` to filter) and reports a complete status histogram plus a `truncated` flag in its envelope.
+- Model API: Fixed `max_retries` to permit N retries (N+1 total attempts); previously it counted total attempts, so e.g. `max_retries=1` never actually retried.
+- Bedrock: Assistant text and reasoning are now preserved alongside tool calls in the same turn instead of being dropped. (#4457)
+- Bugfix: Crash recovery now reconstructs `sample.messages` from the first model role's conversation when a solver runs multiple agents concurrently, instead of returning whichever agent's model call happened to fire last. (#4414)
+- Bugfix: Several raised errors (unexpected Anthropic input block, unsupported image data type, missing sample-buffer database) now interpolate the offending value into the message instead of showing the literal placeholder text.
+- Bugfix: React agent compaction now works after a checkpoint resume — the restored conversation is no longer treated as an always-preserved prefix, so compaction shrinks the context again.
+- Viewer: log listing responses include the log dir's canonical URI (`log_dir_uri`) so the viewer can reliably scope its local cache to the directory.
 - Scoring: Add `krippendorff_alpha()` metric for inter-rater agreement across multiple judges, with nominal / ordinal / interval measurement scales.
 - Scoring: Add `collect` score reducer that preserves each scorer's value as a list instead of aggregating.
 
-## 0.3.243 (30 June 2026)
+## 0.3.246 (10 July 2026)
 
+- Grok: Support for Grok 4.5 (model info database entry; accepts `reasoning_effort` with a documented default of `high`).
+- OpenAI: Support for GPT-5.6 (Sol, Terra, and Luna) — model info database entries and codename frontier aliasing now target `gpt-5.6`.
+- OpenAI: `reasoning_effort="max"` is now passed through natively for GPT-5.6+ models rather than being clamped to `xhigh`.
+- OpenAI: Compatibility with openai >= 2.45.0, which is now the minimum required version (usage conversion now populates the new required `cache_write_tokens` field).
+- Model API: New `reasoning_mode` generation option (`--reasoning-mode`) for GPT-5.6 pro mode; requesting "pro" defaults to background processing like the gpt-5-pro model line.
+- Checkpointing: `Task(checkpoint=False)` now vetoes checkpointing for that task, overriding an eval-set/CLI enable (previously a no-op).
+- Control Channel: Reorganized the `inspect ctl` CLI into resource-noun groups (`ctl task`, `ctl sample`, `ctl config`, `ctl process`); the old flat spellings remain as hidden deprecated aliases, except `ctl sample` which is now the group (use `ctl sample show`).
+- Control Channel: `inspect ctl` sample commands now warn and skip an eval that stays busy through the retries instead of failing outright, with stderr caveats (and an honest non-zero exit when no tasks remain visible) wherever the skip could mislead.
+- Control Channel: `inspect ctl sample show`/`sample events` payload reads and `process keep`/`release` now retry a busy eval with narrated attempts instead of failing after a single short attempt.
+- Control Channel: New `--json` flag for `inspect eval`, `inspect eval-set`, and `inspect eval-retry` emits machine-readable launch-handoff and `done` JSON lines on stdout, so agents can use `inspect ctl` immediately after launch instead of sleep-and-retrying.
+- CLI: `--debug` attach diagnostics ("Waiting for debugger attach") now print to stderr, keeping stdout clean for machine-readable output such as `--json`.
+- Control Channel: `inspect ctl config` now errors when the target process runs an inspect version too old to support a requested knob, instead of silently ignoring it.
+- Control Channel: `inspect ctl sample show` now reads the sample's summary and error detail in one atomic request, so its output can no longer mix data from different attempts.
+- Control Channel: `inspect ctl sample show` now reports a cancelled sample as `cancelled`/`pending` (matching `sample list`) instead of `error` with the cancellation as its error.
+- Control Channel: The control server's mutation endpoints (config PATCH, keep/release, log-flush) now reject unknown query parameters with a 400 error before applying anything, instead of silently ignoring them.
+- Control Channel: Added `inspect ctl task cancel` and `inspect ctl sample cancel` to cancel a running task or one running sample (idempotent, with `--dry-run`).
+- Control Channel: Failed `inspect ctl` `--json` invocations now emit a structured `{"error": {kind, exception, message, status}}` envelope on stdout (exit code still non-zero) instead of only stderr prose or a raw traceback; human output is unchanged.
+- Control Channel: `max_subprocesses` is now retunable mid-flight via `inspect ctl config --max-subprocesses` and the `PATCH /config` endpoints, alongside the other concurrency knobs.
+- Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
+- Eval: Task retries no longer fail when the prior attempt errored before writing its log file (e.g. a failed log start on unreachable storage).
+- Model Roles: `--model-role` roles that share the same model and config now report their token usage separately in `role_usage` instead of collapsing onto one role. (#4450)
+
+## 0.3.245 (08 July 2026)
+
+- Model API: New `openai-api-completions` provider for the legacy `/v1/completions` endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with `vllm-completions`.
+- Model API: `openai-api-completions` and `vllm-completions` accept pre-tokenized prompts via `ChatMessage.metadata["prompt_token_ids"]`.
+- Anthropic: Neutralize thinking blocks before `count_tokens` so compaction no longer hits 400 errors (thinking blocks "cannot be modified" / "each thinking block must contain thinking") when counting message subsets whose assistant turns contain reasoning blocks.
+- Agent Bridge: Sandbox model proxy now returns an HTTP 400 error for malformed requests (missing/empty `model`, missing `messages`/`input`, or a non-object body) instead of crashing the sample. (#4187)
+- Agent Bridge: Sandbox model proxy now streams Anthropic `compaction` and `fallback` content blocks (this handling was present only in the in-repo copy and missing from the injected proxy build).
+- Agent Bridge: Sandbox model proxy now forwards a failed generation to the proxied agent as a provider-dialect error response (preserving the original HTTP status where available).
+- Checkpointing: tasks can register `on_checkpoint`/`on_resume` callbacks; `on_resume` may return a `ResumeReport` surfaced to agents via `checkpointer().restored`.
+- Checkpointing: The restic binary download now retries transient network failures and verifies the binary against vendored checksums instead of fetching them at runtime.
+- Checkpointing: resume no longer hard-errors when a run contains a duplicate checkpoint span left by a tolerated (non-fatal) capture failure.
+- Control Channel: `inspect ctl tasks` now includes model and solver columns.
+- Control Channel: Added `inspect ctl limits` to view or retune a running eval's `max_samples` / `max_sandboxes` / `max_connections` concurrency limits mid-flight (with `--dry-run`).
+- Docker: Support the `devices` field on compose services (device mappings such as `/dev/kvm`), previously rejected as an unknown field.
+- Docker: Warn when a task or sample declares a Dockerfile/compose.yaml sandbox config that gets silently dropped because the effective sandbox type doesn't support Docker Compose configuration.
+- OpenAI: Surface OpenAI Responses API response `metadata` as `ModelOutput.metadata`.
+- Google: Include thinking tokens in reported `output_tokens` (matching the OpenAI/Anthropic convention where reasoning is a subset of output), so output-metered token limits and cost computations count Gemini thinking tokens.
+- Hugging Face: Add an `auto_model_class` model arg to select the `transformers` auto-class used to load the model, so architectures not registered with `AutoModelForCausalLM` (e.g. the Mistral 3 series and other image-text-to-text models) can be loaded with e.g. `AutoModelForImageTextToText`. (#4438)
+- Inspect View: Validate Host and browser origins, prevent framing, and require authorization or explicit acknowledgement for non-loopback binds.
+- Limits: Token limits can now meter only output tokens via `token_limit(n, type="output")`, `Task`/`eval()` `token_limit=TokenLimit(...)` values, or string forms like `--token-limit output:1m` (with `k`/`m`/`b` magnitude suffixes).
+- Performance: make `stable_message_ids()` linear per turn.
+- Performance: Reading `.eval` logs now looks up zip members via a cached O(1) name index instead of an O(members) scan per member, removing quadratic (O(members²)) overhead when loading logs with many samples (e.g. `read_eval_log`, `eval-retry`, `samples_df(full=True)`).
+- Sandbox: Validate sandbox-service names and request IDs, bind response paths to request filenames, and prevent queue filenames from being interpreted as shell commands.
+- Scoring: Fix edge case where `pattern` `match_all=True` could incorrectly return the target value when no matches were present.
+- Scoring: `model_graded_qa` / `model_graded_fact` now mark a sample unscored (instead of `INCORRECT`) when the judge's output does not match the grade regex, tagging `unscored_reason="grade_parse_failure"` so judge-parse failures leave the rate and stay visible rather than inflating the `INCORRECT` count.
+- Security: Constrain Docker sandbox `read_file()` staging to a generated regular file so container paths cannot copy outside the private host temporary directory.
+- vLLM: Keep the connection-pool/adaptive-concurrency scope stable across lazy server startup instead of splitting it on the first generate.
+- Bugfix: A failed log write escaping a task (e.g. the `log_start()` header flush when log storage is unreachable) now yields an errored `EvalLog` — re-queued by task retries and `eval_set()` — instead of tearing down the entire run and cancelling sibling tasks.
+- Bugfix `--score-on-error` and `--continue-on-fail` (when absent on the command line) silently overwriting a value set in a `@task`, a `--run-config` file, or a prior eval log being retried.
+- Bugfix: `mean()` and `bootstrap_stderr()` now return `0.0` for an empty score list instead of `nan` (with numpy empty-slice warnings), matching the empty-input handling of `accuracy()`/`std()`/`stderr()`/`var()`.
+- Bugfix: Sample concurrency now honors model-level `max_connections` / `adaptive_connections` settings instead of classifying the adaptive-vs-static path from task-level config alone.
+- Bugfix: Stale-signature (`RequestTimeTooSkewed`) retries of S3 log writes now always get their full 5 attempts instead of being cut short by a 60-second wall-clock stop.
+- Bugfix: `eval-retry --max-retries 0` now disables retries as documented instead of inheriting the original eval's retry policy.
+- Bugfix: Ordinary dicts shaped like `{type, name, params}` are no longer misidentified as encoded registry objects during `registry_kwargs()` round-trip. (#4374)
+- Bugfix: Link plain HTTP sandbox ports (e.g. 80, 8080) as `http://` instead of `https://` in the running-samples port-mappings panel.
+
+## 0.3.244 (01 July 2026)
+
+- Anthropic: Various changes related to [Sonnet 5](https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5).
 - Bugfix: Elapsed-time displays (e.g. the running-sample clock and timers) no longer render an impossible `:60` seconds when the elapsed time has a fractional second.
 - Bugfix: A `react` sub-agent nested inside another `react` (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.
+
+## 0.3.243 (30 June 2026)
+
 - Checkpointing: Run `restic backup` with `--quiet` so its progress output can't overflow the sandbox output cap on long backups.
 - Control Channel: Added `inspect ctl flush` (write a running eval's buffered samples to the log now, e.g. to make S3-backed results analyzable without waiting) and `inspect ctl buffer` (view or change the `--log-buffer` / `--log-shared` sample-buffer params of a running eval).
 - Control Channel: `inspect ctl tasks` no longer drops eval processes owned by another user, which were previously misreported as dead.
 - Eval Logs: Record the installed task package's git commit in `EvalSpec.revision`, resolving the actual distribution (namespace-package aware).
+- Bugfix: Elapsed-time displays (e.g. the running-sample clock and timers) no longer render an impossible `:60` seconds when the elapsed time has a fractional second.
+- Bugfix: A `react` sub-agent nested inside another `react` (as a tool, handoff, or deepagent task) no longer crashes under checkpointing.
 
 ## 0.3.242 (29 June 2026)
 
@@ -237,6 +317,7 @@
 - [Notifications](https://inspect.aisi.org.uk/intervention.html#notifications) via [Apprise](https://appriseit.com) (Slack, desktop, SMS, email, webhook, ~90 services).
 - [`request_input()`](https://inspect.aisi.org.uk/interactivity.html) public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as `ask_user()`.
 - Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
+- Reasoning: Correctly parse nested `<think>` blocks without exposing inner reasoning text as visible model output.
 
 ## 0.3.226 (25 May 2026)
 
