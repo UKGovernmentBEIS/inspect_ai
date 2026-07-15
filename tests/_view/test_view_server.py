@@ -1874,9 +1874,7 @@ def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
     inspect_ai.log.write_eval_log(_make_s3_eval_log(status), s3_path, "eval")
 
 
-async def _write_eval_log_to_s3_async(
-    s3_path: str, status: str = "success"
-) -> None:
+async def _write_eval_log_to_s3_async(s3_path: str, status: str = "success") -> None:
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w") as zf:
         zf.writestr("header.json", to_json_safe(_make_s3_eval_log(status), indent=None))
