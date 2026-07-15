@@ -14,6 +14,8 @@
 - Bugfix: Several raised errors (unexpected Anthropic input block, unsupported image data type, missing sample-buffer database) now interpolate the offending value into the message instead of showing the literal placeholder text.
 - Bugfix: React agent compaction now works after a checkpoint resume — the restored conversation is no longer treated as an always-preserved prefix, so compaction shrinks the context again.
 - Viewer: log listing responses include the log dir's canonical URI (`log_dir_uri`) so the viewer can reliably scope its local cache to the directory.
+- Scoring: Add `krippendorff_alpha()` metric for inter-rater agreement across multiple judges, with nominal / ordinal / interval measurement scales.
+- Scoring: Add `collect` score reducer that preserves each scorer's value as a list instead of aggregating.
 
 ## 0.3.246 (10 July 2026)
 
