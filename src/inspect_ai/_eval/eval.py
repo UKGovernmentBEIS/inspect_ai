@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._control.eval_state import clear_all_eval_states
+from inspect_ai._control.eval_state import reset_run_registries
 from inspect_ai._control.server import (
     control_server,
     keep_alive_intent,
@@ -1155,12 +1155,13 @@ async def _eval_async_inner(
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
-        # Clear the process-level EvalState registry at the run boundary
-        # (after any keep-alive park) — but only for a standalone eval.
-        # When nested in an eval-set (eval_set_id set) the eval-set owns
-        # this, clearing after its own park.
+        # Clear the process-level EvalState registry and the retry-loop
+        # config overrides at the run boundary (after any keep-alive park) —
+        # but only for a standalone eval. When nested in an eval-set
+        # (eval_set_id set) the eval-set owns this, clearing after its own
+        # park.
         if eval_set_id is None:
-            clear_all_eval_states()
+            reset_run_registries()
 
     # return logs
     return logs
