@@ -206,3 +206,20 @@ def test_var_keyword_args_round_trip_is_idempotent():
     replayed = solver_from_spec(as_solver_spec(original))
 
     assert registry_params(replayed) == registry_params(original)
+
+
+def test_var_keyword_name_kwarg_round_trip():
+    """A **kwargs key named `name` must round-trip (#4375).
+
+    Flattening (#4374) records such a key at the top level of args_passed, so
+    replaying via registry_create("solver", solver_name, **args_passed) would
+    bind it to registry_create's own positional `name` and raise TypeError: got
+    multiple values for argument 'name'. Replay goes through create_registry_object
+    (args as a dict) to avoid that collision.
+    """
+    original = solver_with_kwargs(base="hello", name="demo", max_tokens=123)
+
+    replayed = solver_from_spec(as_solver_spec(original))
+
+    assert registry_params(replayed) == registry_params(original)
+    assert registry_params(replayed)["name"] == "demo"
