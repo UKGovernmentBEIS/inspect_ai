@@ -7,6 +7,7 @@ import logging
 import math
 import urllib.parse
 import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import IO, Any, ContextManager, Generator, TextIO, cast
 
@@ -24,6 +25,7 @@ import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.json import to_json_safe
 from inspect_ai._view import fastapi_server
 from inspect_ai._view.common import (
     get_direct_url,
@@ -1135,7 +1137,7 @@ async def test_list_eval_logs_async_s3_lists_logs(mock_s3: None) -> None:
     s3_log = (
         "s3://test-bucket/list-fast-path/2025-01-01T00-00-00+00-00_task_taskid.eval"
     )
-    _write_eval_log_to_s3(s3_log)
+    await _write_eval_log_to_s3_async(s3_log)
     logs = await list_eval_logs_async("s3://test-bucket/list-fast-path")
     assert [log.name for log in logs] == [s3_log]
 
@@ -1849,13 +1851,8 @@ def test_api_pending_sample_data_urls_tail_without_cap_returns_all(
     assert body["has_more"] is False
 
 
-def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
-    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket.
-
-    Defaults to a finished log (``status="success"``) so edit tests pass
-    the in-progress gate; override for tests that need a running log.
-    """
-    eval_log = inspect_ai.log.EvalLog(
+def _make_s3_eval_log(status: str = "success") -> inspect_ai.log.EvalLog:
+    return inspect_ai.log.EvalLog(
         status=status,  # type: ignore[arg-type]
         eval=inspect_ai.log.EvalSpec(
             created="2025-01-01T00:00:00Z",
@@ -1866,7 +1863,25 @@ def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
             config=inspect_ai.log.EvalConfig(),
         ),
     )
-    inspect_ai.log.write_eval_log(eval_log, s3_path, "eval")
+
+
+def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
+    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket.
+
+    Defaults to a finished log (``status="success"``) so edit tests pass
+    the in-progress gate; override for tests that need a running log.
+    """
+    inspect_ai.log.write_eval_log(_make_s3_eval_log(status), s3_path, "eval")
+
+
+async def _write_eval_log_to_s3_async(
+    s3_path: str, status: str = "success"
+) -> None:
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        zf.writestr("header.json", to_json_safe(_make_s3_eval_log(status), indent=None))
+    async with AsyncFilesystem() as fs:
+        await fs.write_file(s3_path, buffer.getvalue())
 
 
 def test_api_log_returns_etag_header_for_s3(mock_s3: None, tmp_path: Path) -> None:
