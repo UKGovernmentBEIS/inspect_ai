@@ -68,7 +68,8 @@ class EventsSource(NamedTuple):
 
 # Default event-type filter: the "high-signal" tier a monitor cares about,
 # excluding the structural / high-volume tier (state / store / span / step / …)
-# which would drown the stream. ``--type '*'`` opts back into everything.
+# which would drown the stream. ``--type all`` (or the ``'*'`` synonym) opts
+# back into everything.
 HIGH_SIGNAL_EVENT_TYPES = frozenset(
     {
         "model",
@@ -139,8 +140,10 @@ async def sample_events(
         epoch: The sample epoch.
         since: Cursor token from a prior page (resume after it). Exclusive.
         tail: When ``since`` is absent, start ``tail`` events from the end.
-        types: Event-type filter; ``None`` = the high-signal tier, an empty-vs-
-            ``{"*"}`` set means "all". Applied after the cursor slice.
+        types: Event-type filter; ``None`` = the high-signal tier; a set
+            containing ``"all"`` or ``"*"`` means everything (safe magic
+            values — no event type carries either name). Applied after the
+            cursor slice.
         full: Raw serialized events instead of the compact projection.
         since_time: Optional lower bound (unix ts) — a wall-clock filter applied
             after the cursor slice, never a cursor.
@@ -369,7 +372,7 @@ def _filter(
     until: float | None,
 ) -> list["Event"]:
     """Apply the type filter (default = high-signal) and time window."""
-    allow_all = types is not None and "*" in types
+    allow_all = types is not None and bool(types & {"all", "*"})
     type_set = HIGH_SIGNAL_EVENT_TYPES if types is None else types
 
     out: list["Event"] = []
