@@ -1128,15 +1128,21 @@ def _get_system_prompt_for_event(event: ModelEvent) -> str | None:
         event: The ModelEvent to inspect.
 
     Returns:
-        The normalized system prompt text, or None if no system message found.
+        The normalized system prompt text, or None if no system message is
+        found or the prompt is empty after normalization (e.g. it consisted
+        only of the billing header). Returning None rather than "" keeps
+        empty prompts out of primary-trajectory comparisons and prompt
+        inheritance.
     """
     for msg in event.input:
         if isinstance(msg, ChatMessageSystem):
             if isinstance(msg.content, str):
-                return _normalize_system_prompt(msg.content)
-            parts = [c.text for c in msg.content if hasattr(c, "text")]
-            raw = "\n".join(parts) if parts else None
-            return _normalize_system_prompt(raw) if raw else None
+                raw = msg.content
+            else:
+                parts = [c.text for c in msg.content if hasattr(c, "text")]
+                raw = "\n".join(parts)
+            normalized = _normalize_system_prompt(raw)
+            return normalized if normalized else None
     return None
 
 
@@ -1178,35 +1184,32 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
                 primary_prompt = _get_system_prompt_for_event(item.event)
                 break
 
+    def utility_wrapper(item: TimelineEvent, index: int) -> TimelineSpan:
+        # Fall back to a position-derived id for uuid-less (legacy) events so
+        # ids stay unique and deterministic across rebuilds.
+        wrapper = TimelineSpan(
+            id=f"utility-{item.event.uuid or f'{agent.id}-{index}'}",
+            name="utility",
+            span_type="agent",
+            content=[item],
+        )
+        wrapper.utility = True
+        return wrapper
+
     # --- Scan and wrap utility candidates ---
     original_spans = [item for item in agent.content if isinstance(item, TimelineSpan)]
     new_content: list[TimelineEvent | TimelineSpan] = []
-    for item in agent.content:
+    for index, item in enumerate(agent.content):
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
             # Warmup/cache-priming call (max_tokens=1)
             if _is_warmup_call(item.event):
-                wrapper = TimelineSpan(
-                    id=f"utility-{item.event.uuid or id(item)}",
-                    name="utility",
-                    span_type="agent",
-                    content=[item],
-                )
-                wrapper.utility = True
-                new_content.append(wrapper)
+                new_content.append(utility_wrapper(item, index))
                 continue
 
             if primary_prompt is not None and not _has_tool_calls(item.event):
                 evt_prompt = _get_system_prompt_for_event(item.event)
                 if evt_prompt is not None and evt_prompt != primary_prompt:
-                    # Wrap in a synthetic utility span
-                    wrapper = TimelineSpan(
-                        id=f"utility-{item.event.uuid or id(item)}",
-                        name="utility",
-                        span_type="agent",
-                        content=[item],
-                    )
-                    wrapper.utility = True
-                    new_content.append(wrapper)
+                    new_content.append(utility_wrapper(item, index))
                     continue
         new_content.append(item)
 
@@ -1215,12 +1218,12 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     # Recurse into the span's original children only — not the synthetic
     # wrappers created above: a wrapper holds a single already-processed
     # event, and re-entering it would wrap a warmup call again, forever.
+    # Branches are trajectories like any span: process their own direct
+    # events too (mirrors the TS port), which also covers their children.
     for item in original_spans:
         _wrap_utility_events(item)
     for branch in agent.branches:
-        for item in branch.content:
-            if isinstance(item, TimelineSpan):
-                _wrap_utility_events(item)
+        _wrap_utility_events(branch)
 
 
 def _is_warmup_call(event: ModelEvent) -> bool:
@@ -1242,24 +1245,18 @@ def _is_warmup_call(event: ModelEvent) -> bool:
 
 
 def _get_system_prompt(agent: TimelineSpan) -> str | None:
-    """Extract system prompt from the first ModelEvent in agent's direct content.
+    """Extract the system prompt from the first ModelEvent in agent's direct content.
 
     Args:
         agent: The span node to extract the system prompt from.
 
     Returns:
-        The system prompt text, or None if no system message found.
+        The normalized system prompt text (see ``_get_system_prompt_for_event``),
+        or None if the span has no ModelEvent or it carries no system message.
     """
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            for msg in item.event.input:
-                if isinstance(msg, ChatMessageSystem):
-                    if isinstance(msg.content, str):
-                        return msg.content
-                    # Content is list of Content objects
-                    parts = [c.text for c in msg.content if hasattr(c, "text")]
-                    return "\n".join(parts) if parts else None
-            return None  # ModelEvent found but no system message
+            return _get_system_prompt_for_event(item.event)
     return None  # No ModelEvent found
 
 

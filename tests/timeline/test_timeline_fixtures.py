@@ -92,6 +92,29 @@ def _assert_span_matches(actual: TimelineSpan | None, expected: dict[str, Any]) 
         for child, expected_child in zip(children, expected["children"]):
             _assert_span_matches(child, expected_child)
 
+    if "branches" in expected:
+        _assert_branches_match(actual, expected["branches"])
+
+
+def _assert_branches_match(
+    actual: TimelineSpan, expected_branches: list[dict[str, Any]]
+) -> None:
+    assert len(actual.branches) == len(expected_branches), (
+        f"Expected {len(expected_branches)} branches of '{actual.name}', "
+        f"got {len(actual.branches)}"
+    )
+    for branch, expected in zip(actual.branches, expected_branches):
+        assert branch.branched_from == expected["branched_from"]
+        if "event_uuids" in expected:
+            assert _direct_event_uuids(branch) == expected["event_uuids"]
+        if "children" in expected:
+            children = _child_spans(branch)
+            assert len(children) == len(expected["children"])
+            for child, expected_child in zip(children, expected["children"]):
+                _assert_span_matches(child, expected_child)
+        if "branches" in expected:
+            _assert_branches_match(branch, expected["branches"])
+
 
 def _assert_section_matches(
     root: TimelineSpan, span_type: str, expected: dict[str, Any] | None
@@ -140,6 +163,9 @@ def _assert_timeline_matches(timeline: Timeline, expected: dict[str, Any]) -> No
         )
         for child, expected_child in zip(children, expected_agent["children"]):
             _assert_span_matches(child, expected_child)
+
+    if "branches" in expected_agent:
+        _assert_branches_match(root, expected_agent["branches"])
 
 
 # =============================================================================
