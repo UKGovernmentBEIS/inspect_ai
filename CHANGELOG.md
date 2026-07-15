@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Support strict tool use via `ToolInfo.options["strict"] = True` (sets `strict: true` on the tool definition, strips unsupported schema validation keywords, and adds the structured outputs beta header). (#4432)
 - Eval: `EvalSample` and `EvalSampleSummary` now record `turn_count` and the sample's token limit (`token_limit`, `token_limit_type`, and metered `token_limit_usage`).
 - Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
 - Control Channel: `inspect ctl sample list` now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.

@@ -500,6 +500,8 @@ class AnthropicAPI(ModelAPI):
                 tool.get("type", None) == "web_fetch_20250910" for tool in tools_param
             ):
                 betas.append("web-fetch-2025-09-10")
+            if any(tool.get("strict", None) is True for tool in tools_param):
+                betas.append("structured-outputs-2025-11-13")
 
             # extra_body
             if len(extra_body) > 0 or self.extra_body is not None:
@@ -1509,13 +1511,26 @@ class AnthropicAPI(ModelAPI):
     ) -> Sequence["ToolParamDef"]:
         # Use a native tool implementation when available. Otherwise, use the
         # standard tool implementation
-        return self.maybe_native_tool_params(tool, config) or [
-            ToolParam(
-                name=tool.name,
-                description=tool.description,
-                input_schema=json_schema_dump(tool.parameters),
-            )
-        ]
+        native_params = self.maybe_native_tool_params(tool, config)
+        if native_params:
+            return native_params
+
+        # strict tool use guarantees schema-conformant tool calls (and is the
+        # only way to do so alongside thinking, where tool_choice can't force
+        # a tool call). strict schemas reject extended validation keywords,
+        # so strip them as the response_schema path does.
+        strict = (tool.options or {}).get("strict") is True
+        param = ToolParam(
+            name=tool.name,
+            description=tool.description,
+            input_schema=json_schema_dump(
+                tool.parameters,
+                exclude=JSON_SCHEMA_EXTENDED_FIELDS if strict else None,
+            ),
+        )
+        if strict:
+            param["strict"] = True
+        return [param]
 
     def mcp_server_param(
         self, mcp_server: MCPServerConfigHTTP

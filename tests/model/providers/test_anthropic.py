@@ -1372,3 +1372,117 @@ def test_anthropic_max_tokens_xhigh_max_floor(
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     config = GenerateConfig(**config_kwargs)
     assert api.max_tokens_for_config(config) == expected
+
+
+def _emit_tool(strict: bool) -> ToolInfo:
+    from inspect_ai.tool import ToolParams
+    from inspect_ai.util import JSONSchema
+
+    return ToolInfo(
+        name="emit",
+        description="emit a value",
+        parameters=ToolParams(
+            properties={"x": JSONSchema(type="integer", minimum=0, maximum=10)},
+            required=["x"],
+        ),
+        options={"strict": True} if strict else None,
+    )
+
+
+def test_anthropic_tool_param_not_strict_by_default() -> None:
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    (param,) = api.tool_params_for_tool_info(_emit_tool(strict=False), GenerateConfig())
+    assert "strict" not in param
+    assert param["input_schema"]["properties"]["x"]["minimum"] == 0
+
+
+def test_anthropic_strict_tool_param_nested_additional_properties() -> None:
+    """Strict schemas require additionalProperties: false on all objects, nested included.
+
+    https://platform.claude.com/docs/en/build-with-claude/structured-outputs
+    (schema limitations: "additionalProperties (must be set to false for objects)").
+    The top level gets it from the ToolParams default; nested object schemas
+    must have it set explicitly, as set_additional_properties_false does for
+    the response_schema path.
+    """
+    from inspect_ai.tool import ToolParams
+    from inspect_ai.util import JSONSchema
+
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    tool = ToolInfo(
+        name="emit",
+        description="emit a value",
+        parameters=ToolParams(
+            properties={
+                "obj": JSONSchema(
+                    type="object",
+                    properties={"y": JSONSchema(type="integer")},
+                    required=["y"],
+                ),
+                "items": JSONSchema(
+                    type="array",
+                    items=JSONSchema(
+                        type="object",
+                        properties={"z": JSONSchema(type="string")},
+                        required=["z"],
+                    ),
+                ),
+            },
+            required=["obj", "items"],
+        ),
+        options={"strict": True},
+    )
+    from anthropic.types import ToolParam as SDKToolParam
+
+    (param,) = api.tool_params_for_tool_info(tool, GenerateConfig())
+    schema = cast("dict[str, Any]", cast("SDKToolParam", param)["input_schema"])
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["obj"]["additionalProperties"] is False
+    assert schema["properties"]["items"]["items"]["additionalProperties"] is False
+
+
+def test_anthropic_strict_tool_param() -> None:
+    """ToolInfo.options["strict"] sets strict and strips extended schema fields."""
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    (param,) = api.tool_params_for_tool_info(_emit_tool(strict=True), GenerateConfig())
+    assert param["strict"] is True
+    x_schema = param["input_schema"]["properties"]["x"]
+    assert "minimum" not in x_schema
+    assert "maximum" not in x_schema
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("strict", [True, False])
+async def test_anthropic_strict_tool_structured_outputs_beta(strict: bool) -> None:
+    """Strict tools add the structured outputs beta header (and only then)."""
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+
+    captured: dict[str, Any] = {}
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    api._perform_request_and_continuations = fake_perform  # type: ignore[method-assign]
+
+    await api.generate(
+        input=[ChatMessageUser(content="call emit with x=1")],
+        tools=[_emit_tool(strict=strict)],
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+
+    betas = captured.get("extra_headers", {}).get("anthropic-beta", "")
+    assert ("structured-outputs-2025-11-13" in betas) is strict
