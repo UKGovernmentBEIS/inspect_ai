@@ -3,9 +3,6 @@ from typing import TYPE_CHECKING, Awaitable, Callable
 from tenacity import (
     RetryCallState,
     retry_if_exception,
-    stop_after_attempt,
-    stop_after_delay,
-    stop_never,
     wait_exponential_jitter,
 )
 from tenacity.retry import RetryBaseT
@@ -13,7 +10,10 @@ from tenacity.stop import StopBaseT
 from tenacity.wait import WaitBaseT
 from typing_extensions import TypedDict
 
+from inspect_ai.model._generate_overrides import generate_config_override
+
 if TYPE_CHECKING:
+    from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model import RetryDecision
 
 
@@ -33,12 +33,23 @@ def model_retry_config(
     log_model_retry: Callable[[str, RetryCallState], Awaitable[None] | None],
     report_waiting_time: Callable[[float], None] | None = None,
     wait: WaitBaseT | None = None,
+    live_overrides: bool = True,
 ) -> ModelRetryConfig:
     # retry for transient http errors:
     # - use config.max_retries and config.timeout if specified, otherwise retry forever
     # - exponential backoff starting at 3 seconds (will wait 25 minutes
     #   on the 10th retry,then will wait no longer than 30 minutes on
     #   subsequent retries)
+    #
+    # `live_overrides` controls whether the stop condition reads the live
+    # `inspect ctl config` max_retries/timeout overrides (see the stop
+    # comment below). Batchers pass False for their admin-operation retry
+    # loops (batch create/poll): those run with the launch config only,
+    # because an exhausted admin-op retry fails every request riding the
+    # batch — a fail-fast retune aimed at stuck generate calls shouldn't
+    # convert one transient poll error into a whole-batch failure. The
+    # incident lever still reaches batch-mode generates: each request's
+    # retries run in `Model._generate`'s own (live) retry loop.
 
     async def on_before_sleep(rs: RetryCallState) -> None:
         # report the upcoming sleep as waiting time (that way the working time can't
@@ -90,17 +101,65 @@ def model_retry_config(
             return result.retry
         return bool(result)
 
+    # The stop condition reads the live `inspect ctl config` overrides on
+    # every post-attempt check (not just at decoration time) so a mid-flight
+    # retune of max_retries/timeout reaches generate calls already inside
+    # their retry loop — the provider-incident case — while an in-flight
+    # attempt always drains first. max_retries counts retries, as documented:
+    # N retries allow N+1 total attempts (0 = fail after the first attempt).
+    # Timeout semantics match tenacity's stop_after_delay.
+    def stop(retry_state: RetryCallState) -> bool:
+        if live_overrides:
+            effective_max_retries = generate_config_override("max_retries", max_retries)
+            effective_timeout = generate_config_override("timeout", timeout)
+        else:
+            effective_max_retries, effective_timeout = max_retries, timeout
+        if (
+            effective_max_retries is not None
+            and retry_state.attempt_number > effective_max_retries
+        ):
+            return True
+        if (
+            effective_timeout is not None
+            and retry_state.seconds_since_start is not None
+            and retry_state.seconds_since_start >= effective_timeout
+        ):
+            return True
+        return False
+
     return {
         "wait": wait,
         "retry": retry_if_exception(_retry_predicate),
         "before_sleep": on_before_sleep,
-        "stop": (
-            stop_after_attempt(max_retries) | stop_after_delay(timeout)
-            if max_retries is not None and timeout is not None
-            else stop_after_attempt(max_retries)
-            if max_retries is not None
-            else stop_after_delay(timeout)
-            if timeout is not None
-            else stop_never
-        ),
+        "stop": stop,
     }
+
+
+def batch_admin_retry_config(
+    model_name: str,
+    config: "GenerateConfig",
+    should_retry: "Callable[[BaseException], bool | RetryDecision]",
+) -> ModelRetryConfig:
+    """Retry config for a batcher's admin operations (batch create/poll).
+
+    Encodes the batcher opt-out from the live `inspect ctl config` retry
+    overrides (``live_overrides=False``): an exhausted admin-op retry fails
+    every request riding the batch, so a fail-fast retune aimed at stuck
+    generate calls must not convert one transient poll error into a
+    whole-batch failure. Batch-mode generates still take live overrides in
+    ``Model._generate``'s own retry loop. Batching providers must build their
+    admin-op retry config through this helper rather than calling
+    :func:`model_retry_config` directly, so a new batcher can't drop the
+    opt-out by copying a generate-path call site.
+    """
+    from inspect_ai.model._model import log_model_retry
+
+    return model_retry_config(
+        model_name,
+        config.max_retries,
+        config.timeout,
+        should_retry,
+        lambda ex: None,
+        log_model_retry,
+        live_overrides=False,
+    )

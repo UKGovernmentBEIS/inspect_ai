@@ -1,6 +1,6 @@
 """Per-sample transcript event pages for the control channel.
 
-Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl events``): a
+Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl sample events``): a
 **cursored-pull** window over one sample's events, read from its live
 ``Transcript`` while running, and once terminal from the recorder's
 sample, the realtime buffer (via the eval's events provider — the
@@ -227,20 +227,18 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> EventsSource | 
     evicted with no provider to recover it (a bounded transcript without
     realtime logging — not a production configuration).
     """
-    from inspect_ai.log._samples import active_samples
+    from inspect_ai._control.state import find_active_sample
 
-    for s in active_samples():
-        if s.eval_id == eval_id and str(s.sample.id) == sample_id and s.epoch == epoch:
-            history = s.transcript.history
-            return EventsSource(
-                nonce=_attempt_nonce(
-                    s.sample_uuid, s.sample.id, epoch, len(s.error_retries)
-                ),
-                fetch=history.events_from,
-                total=history.event_count,
-                done=s.completed is not None,
-            )
-    return None
+    s = find_active_sample(eval_id, sample_id, epoch)
+    if s is None:
+        return None
+    history = s.transcript.history
+    return EventsSource(
+        nonce=_attempt_nonce(s.sample_uuid, s.sample.id, epoch, len(s.error_retries)),
+        fetch=history.events_from,
+        total=history.event_count,
+        done=s.completed is not None,
+    )
 
 
 async def _logged_source(
@@ -340,10 +338,10 @@ def _events_provider(
 ) -> "TranscriptHistoryProvider | None":
     """The eval's buffer-backed history provider for one sample, or ``None``.
 
-    Resolved through ``EvalState.events_provider`` — the gap-free events
-    source for a streaming-path sample whose recorder copy is event-less
+    Resolved through ``EvalState.live.sample_events_provider`` — the gap-free
+    events source for a streaming-path sample whose recorder copy is event-less
     (its events live in the realtime buffer, the same one the view server
-    reads in-progress samples from). The TaskLogger registers a factory over
+    reads in-progress samples from). The TaskLogger builds the provider over
     its *own* buffer instance (see ``TaskLogger.sample_events_provider``), so
     this layer never knows where or what the buffer is, reads share the
     writer's connections, and the buffer's read leases apply. The provider
@@ -356,9 +354,9 @@ def _events_provider(
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-    if state is None or state.events_provider is None:
+    if state is None or state.live is None:
         return None
-    return state.events_provider(sample_id, epoch)
+    return state.live.sample_events_provider(sample_id, epoch)
 
 
 # --- filtering + projection ------------------------------------------------

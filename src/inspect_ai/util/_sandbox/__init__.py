@@ -30,7 +30,11 @@ from .exec_remote import (
     ExecStderr,
     ExecStdout,
 )
-from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
+from .limits import (
+    OutputLimitExceededError,
+    SandboxEnvironmentLimits,
+    override_sandbox_output_limit,
+)
 from .local import LocalSandboxEnvironment  # noqa: F401
 from .registry import sandboxenv
 from .service import sandbox_service
@@ -50,6 +54,7 @@ __all__ = [
     "is_compose_yaml",
     "is_dockerfile",
     "OutputLimitExceededError",
+    "override_sandbox_output_limit",
     "parse_compose_yaml",
     "SandboxEnvironment",
     "SandboxEnvironmentConfigType",
