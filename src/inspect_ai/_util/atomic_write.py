@@ -144,6 +144,11 @@ def atomic_write(
           rather than replacing the link with a regular file.
         - On any exception (including ``KeyboardInterrupt``), the temp file
           is unlinked and the exception re-raised; the target is untouched.
+          (CPython delivers ``KeyboardInterrupt`` to the main thread only,
+          so when this runs in a worker thread — as the log recorders do —
+          a Ctrl-C instead cancels the awaiting coroutine, which waits for
+          the thread; the write completes and ``os.replace`` consumes the
+          temp file.)
     """
     fs = filesystem(target_path)
     if not fs.is_local():

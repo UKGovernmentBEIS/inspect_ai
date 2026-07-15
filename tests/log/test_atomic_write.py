@@ -340,3 +340,42 @@ class TestRecorderIntegration:
             exclude={"location"}
         )
         assert not list(tmp_path.glob(".inspect_tmp_*"))
+
+
+class TestFlushDurability:
+    """Intermediate flushes skip fsync; final writes force it.
+
+    A full-file fsync on every buffered flush would stall the worker
+    thread for seconds on large logs, so only finalization pays for
+    crash-durability — intermediate snapshots keep the pre-atomic-write
+    guarantee (none). Atomicity (temp file + rename) holds either way.
+    """
+
+    async def test_zip_flush_fsync_flag(self, tmp_path: Path) -> None:
+        from inspect_ai.log._recorders.eval import ZipLogFile
+
+        log = ZipLogFile(str(tmp_path / "log.eval"))
+        await log.init(None, 0, [])
+
+        with mock.patch("os.fsync") as fsync_spy:
+            await log.flush(fsync=False)
+        assert not fsync_spy.called, "intermediate flush must not fsync"
+
+        with mock.patch("os.fsync") as fsync_spy:
+            await log.flush(fsync=True)
+        assert fsync_spy.called, "final flush must fsync"
+
+    async def test_json_write_fsync_flag(self, tmp_path: Path) -> None:
+        from inspect_ai.log._recorders.json import JSONRecorder
+
+        log_file = Path(__file__).parent / "test_eval_log" / "log_formats.json"
+        log = read_eval_log(str(log_file))
+        target = str(tmp_path / "log.json")
+
+        with mock.patch("os.fsync") as fsync_spy:
+            await JSONRecorder._write_log_impl(target, log, fsync=False)
+        assert not fsync_spy.called, "intermediate flush must not fsync"
+
+        with mock.patch("os.fsync") as fsync_spy:
+            await JSONRecorder.write_log(target, log)
+        assert fsync_spy.called, "public write_log must stay durable"

@@ -1,6 +1,7 @@
 from logging import getLogger
 from typing import IO, Any, get_args
 
+import anyio.to_thread
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
 from ijson.backends.python import UnexpectedSymbol  # type: ignore
@@ -177,7 +178,8 @@ class JSONRecorder(FileRecorder):
     @override
     async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
-        await self.write_log(log.file, log.data)
+        # intermediate snapshot: skip fsync (see _write_log_impl)
+        await self._write_log_impl(log.file, log.data, fsync=False)
 
     @override
     @classmethod
@@ -241,6 +243,26 @@ class JSONRecorder(FileRecorder):
         if_match_etag: str | None = None,
         header_only: bool = False,
     ) -> None:
+        await cls._write_log_impl(location, log, if_match_etag, header_only, fsync=True)
+
+    @classmethod
+    async def _write_log_impl(
+        cls,
+        location: str,
+        log: EvalLog,
+        if_match_etag: str | None = None,
+        header_only: bool = False,
+        *,
+        fsync: bool,
+    ) -> None:
+        """Write the log, controlling durability of the local write.
+
+        The public ``write_log`` always passes ``fsync=True`` (a caller
+        writing a log expects it durable). Intermediate ``flush()`` passes
+        ``fsync=False``: fsync of a large JSON log would stall for seconds
+        on every buffered flush, and crash-durability of intermediate
+        snapshots matches the pre-atomic-write behaviour (none).
+        """
         from inspect_ai.log._file import eval_log_json
 
         if header_only:
@@ -262,15 +284,21 @@ class JSONRecorder(FileRecorder):
             await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
             # Standard write
-            # get log as bytes
+            # get log as bytes (serialized on the event loop: the pydantic
+            # log object may be mutated by concurrent coroutines, whereas
+            # the resulting bytes are immutable and safe to hand to a thread)
             log_bytes = eval_log_json(log)
 
             with trace_action(logger, "Log Write", location):
                 if fs.is_local():
                     # Atomic write for local paths: temp file + fsync +
                     # rename so an interrupted write can't corrupt the
-                    # existing log on disk (#2949).
-                    atomic_write_bytes(local_path(location), log_bytes, fsync=True)
+                    # existing log on disk (#2949). Offloaded to a worker
+                    # thread so the blocking copy/fsync doesn't stall the
+                    # event loop.
+                    await anyio.to_thread.run_sync(
+                        atomic_write_bytes, local_path(location), log_bytes, fsync
+                    )
                 else:
                     with file(location, "wb") as f:
                         f.write(log_bytes)

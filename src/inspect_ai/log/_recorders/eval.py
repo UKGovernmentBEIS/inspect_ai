@@ -190,8 +190,8 @@ class EvalRecorder(FileRecorder):
         # write the buffered samples
         await log.write_buffered_samples()
 
-        # flush to underlying stream
-        await log.flush()
+        # flush to underlying stream (intermediate snapshot: skip fsync)
+        await log.flush(fsync=False)
 
     @override
     async def log_finish(
@@ -243,8 +243,8 @@ class EvalRecorder(FileRecorder):
         )
         await log.write(HEADER_JSON, eval_header)
 
-        # flush and write the results
-        await log.flush()
+        # flush and write the results (final write: make it crash-durable)
+        await log.flush(fsync=True)
         result = await log.close(header_only)
 
         # stop tracking this eval
@@ -696,6 +696,20 @@ async def _write_s3_conditional(
             raise
 
 
+def _copy_temp_to_local(temp_file: BinaryIO, dest: str, fsync: bool) -> None:
+    """Copy the zip temp file to its local destination via atomic write.
+
+    Blocking (full-file copy plus, when ``fsync`` is set, physical
+    writeback of the whole log) — callers on the event loop must run
+    this in a worker thread via ``anyio.to_thread.run_sync``. The rewind
+    lives here rather than at the call site so seek + read happen as one
+    unit inside the thread.
+    """
+    temp_file.seek(0)
+    with atomic_write(dest, fsync=fsync) as out:
+        shutil.copyfileobj(temp_file, out, length=1024 * 1024)
+
+
 class ZipLogFile:
     _zip: ZipFile | None
     _temp_file: BinaryIO
@@ -842,7 +856,18 @@ class ZipLogFile:
         async with self._lock:
             self._zip_writestr(filename, data)
 
-    async def flush(self) -> None:
+    async def flush(self, *, fsync: bool = True) -> None:
+        """Write the buffered zip out to the destination log file.
+
+        Args:
+            fsync: Force physical writeback of the copied log before the
+                atomic rename (local paths only). The default keeps flushes
+                durable; the intermediate buffered-flush path passes False
+                since fsync of a large log would otherwise stall a worker
+                thread for seconds per flush, and crash-durability of
+                intermediate snapshots matches the pre-atomic-write
+                behaviour (none).
+        """
         async with self._lock:
             # close the zip file so it is flushed
             if self._zip:
@@ -852,20 +877,23 @@ class ZipLogFile:
             # (native S3 multipart upload, or chunked copy via fsspec).
             # For local paths, use atomic write (temp file + fsync +
             # rename) to prevent corruption on interrupted writes (#2949).
-            self._temp_file.seek(0)
-
             with trace_action(logger, "Log Write", self._file):
                 try:
                     if filesystem(self._file).is_local():
-                        # Run the atomic copy inline (no thread offload).
-                        # The original local-path code in
-                        # AsyncFilesystem.write_file_streaming also calls
-                        # sync `shutil.copyfileobj` without yielding to
-                        # the event loop, so concurrent coroutines see
-                        # the same blocking semantics as before.
-                        with atomic_write(local_path(self._file), fsync=True) as out:
-                            shutil.copyfileobj(self._temp_file, out, length=1024 * 1024)
+                        # Offload the blocking copy/fsync to a worker thread.
+                        # Safe under self._lock: nothing else touches
+                        # _temp_file until we return. Do NOT abandon on
+                        # cancellation (the default): the finally below
+                        # reopens the zip on _temp_file, which must not race
+                        # the worker thread still reading it.
+                        await anyio.to_thread.run_sync(
+                            _copy_temp_to_local,
+                            self._temp_file,
+                            local_path(self._file),
+                            fsync,
+                        )
                     else:
+                        self._temp_file.seek(0)
                         async with AsyncFilesystem() as async_fs:
                             await async_fs.write_file_streaming(
                                 self._file, self._temp_file
