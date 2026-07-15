@@ -175,7 +175,6 @@ async def test_path_canonicalization_single_key() -> None:
     """`..` segments collapse so two spellings map to one stored file."""
     tool = memory()
     await tool(command="create", path="/memories/a/../b.txt", file_text="canon")
-    # the canonical spelling reads back the same file (un-fixed code 404s here)
     content = await tool(command="view", path="/memories/b.txt")
     assert isinstance(content, str) and "canon" in content
 
@@ -188,7 +187,6 @@ async def test_instance_isolates_memory_stores() -> None:
     b = await tool_b(command="view", path="/memories/b.txt")
     assert isinstance(a, str) and "A" in a
     assert isinstance(b, str) and "B" in b
-    # instance a does not see instance b's seeded file
     with pytest.raises(ToolError, match="does not exist"):
         await tool_a(command="view", path="/memories/b.txt")
 
