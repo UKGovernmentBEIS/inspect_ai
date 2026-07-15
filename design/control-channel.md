@@ -703,7 +703,7 @@ Completed samples have no live transcript — serve their events from the on-dis
 
 The per-sample `Event` union (each carries an `event:` discriminator, the filter key) splits into a **high-signal** tier (`model`, `tool`, `error`, `score`, `approval`, `input`, `sandbox`, `logger`, `info`, `sample_limit`, `interrupt`) and a **structural / high-volume** tier (`state`, `store`, `step`, `span_begin` / `span_end`, `sample_init`, `subtask`, `checkpoint`, `compaction`, `anchor`, `branch`, `score_edit`).
 
-Raw transcript events are large (a `ModelEvent` carries full input messages + output + logprobs) and the structural tier fires constantly, so — mirroring the `samples` / `sample` summary-vs-detail pattern — the default is a **compact projection** per type (`model` → model name + token usage + stop reason + truncated text; `tool` → function + truncated args/result; `error` → message), with `--full` / `?full=true` for raw events. Default `--type` set is the high-signal tier; `--type model,tool` narrows, `--type '*'` includes everything.
+Raw transcript events are large (a `ModelEvent` carries full input messages + output + logprobs) and the structural tier fires constantly, so — mirroring the `samples` / `sample` summary-vs-detail pattern — the default is a **compact projection** per type (`model` → model name + token usage + stop reason + truncated text; `tool` → function + truncated args/result; `error` → message; `info` → source + truncated data), with `--full` / `?full=true` for raw events. Default `--type` set is the high-signal tier; `--type model,tool` narrows, `--type '*'` includes everything.
 
 #### Cursor
 
