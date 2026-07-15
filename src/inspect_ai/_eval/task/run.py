@@ -819,9 +819,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
             # use the SampleErrorHandler's authoritative count (incremented in
             # handle_error() exactly once per sample after retries are
-            # exhausted). With score_on_error, errored samples now return a
-            # populated score dict instead of None, so counting via
-            # `result is None` would miss them.
+            # exhausted). With score_on_error, an errored sample that was still
+            # scored returns a populated score dict rather than None, so counting
+            # errors via `result is None` would miss them.
             sample_error_count = sample_error_handler.error_count
             mark_log_as_error = _should_eval_fail(
                 sample_error_count, profile.samples, config.fail_on_error
@@ -1898,6 +1898,11 @@ async def task_run_sample(
         record_sample_errored(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
+        # no sample_complete here even if the sample was scored: raising fails
+        # the whole eval, whose log finishes with results=None (metrics are
+        # never computed), so there is nothing for the scores to contribute
+        # to — and notifying early stopping/progress for a dying task would
+        # mislead. the scores are still in the sample log written above.
         raise raise_error
 
     # we have an error and should not raise it
@@ -1905,6 +1910,15 @@ async def task_run_sample(
         record_sample_errored(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
+        # the sample may have scores despite the error: score_on_error scoring
+        # of its partial state, scores a solver wrote to state.scores before a
+        # later error, or scores from scorers that completed before another
+        # raised. those scores are already in the sample log, so surface them
+        # here too — the log and metrics should never diverge (mirrors the
+        # `error is None` branch above and matches docs/handling-errors.qmd)
+        if results:
+            await sample_complete(state.sample_id, state.epoch, results)
+            return results
         return None
 
 
@@ -2126,8 +2140,10 @@ def eval_log_sample_source(
                     eval_log_info, id, epoch, reader=reader
                 )
             except (IndexError, FileNotFoundError):
-                # FileNotFoundError: the prior attempt may never have written
-                # its log at all (e.g. its log_start() header flush failed)
+                # IndexError: sample not present in the log. FileNotFoundError:
+                # the log file itself was never written (the prior attempt
+                # failed before its first flush, e.g. an errored log_start()).
+                # Either way there is no prior sample to reuse.
                 return await _resume_if_checkpointed(id, epoch)
             if sample.error is None and sample.invalidation is None:
                 return sample

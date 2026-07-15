@@ -44,4 +44,5 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       non-GET route (`_control/strict.py`), so `api_version >= 3` means a
 #       client can rely on the server to reject rather than partially apply
 #       an unsupported knob.
-CONTROL_API_VERSION: int = 3
+#   4 — retry override knobs (timeout / attempt_timeout / max_retries).
+CONTROL_API_VERSION: int = 4
