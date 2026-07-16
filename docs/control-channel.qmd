@@ -152,14 +152,16 @@ time      event  summary
 next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  (resume with --cursor)
 ```
 
-The first (unseeded) call returns the recent tail (the last 20 events; widen with `--tail N`). Reads are incremental: each page ends with a `next` cursor, and passing it back via `--cursor` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript. If the eval process is momentarily too busy to answer, the command fails (non-zero exit, message on stderr) rather than serving an empty page — treat that as "try again shortly", not as the sample or eval being gone.
+The first (unseeded) call returns the recent tail (the last 20 events; widen with `--tail N`, or start from the first event with `--from-start`). Reads are incremental: each page ends with a `next` cursor, and passing it back via `--cursor` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript. If the eval process is momentarily too busy to answer, the command fails (non-zero exit, message on stderr) rather than serving an empty page — treat that as "try again shortly", not as the sample or eval being gone.
 
 Other options:
 
 | Option | Description |
 |----|----|
-| `--tail N` | Start N events from the end (default 20 on a fully unseeded read — no `--cursor` and no `--since-time`/`--until` window). |
-| `--type model,tool` | Filter by event type (`*` for all). By default, high-volume structural events are excluded. |
+| `--tail N` | Start N events from the end (default 20 on a fully unseeded read — no `--cursor`, no `--since-time`/`--until` window, no `--from-start`). |
+| `--from-start` | Start from the first event and page through the full backlog (cannot be combined with `--cursor`, `--tail`, or `--since-time`). |
+| `--limit N` | Max events per page (default 500); combines with any start point (e.g. `--from-start --limit 15` for the first 15). Counted before the `--type` filter, so a filtered page may return fewer. |
+| `--type model,tool` | Filter by event type (`all` for everything). By default, high-volume structural events are excluded. |
 | `--full` | Return complete raw events instead of compact one-line summaries. |
 | `--since-time` / `--until` | Filter to a wall-clock window (unix timestamps). |
 
@@ -169,7 +171,7 @@ Note that `--cursor` takes the opaque `next` token, never a timestamp — for a 
 
 ## Cancellation
 
-`inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--error` to mark it errored instead (not permitted for samples configured to fail on errors). The rest of the task is unaffected.
+`inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--action error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--action cancel` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
 
 ```bash
 $ inspect ctl sample cancel gpqa 17
@@ -181,13 +183,19 @@ $ inspect ctl sample cancel gpqa 17
 $ inspect ctl sample cancel gpqa 17 3
 ```
 
-`inspect ctl task cancel` cancels a whole running task. In-flight samples are interrupted (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, and the task's log is finalized with an error status noting the cancel. An eval set does not retry a cancelled task, and its other tasks are unaffected. `TASK` is always required — there is no sole-task default for destructive commands.
+`inspect ctl task cancel` cancels a whole running task. By default it aborts: in-flight samples are interrupted (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, and the task's log is finalized with an error status noting the cancel. An eval set does not retry a cancelled task, and its other tasks are unaffected. `TASK` is always required — there is no sole-task default for destructive commands.
 
 ```bash
 $ inspect ctl task cancel gpqa
 ```
 
-Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.
+Pass `--action score` or `--action error` to resolve the task *gracefully* instead of aborting it: each in-flight sample is scored on the work done so far (or marked errored), still-queued samples are abandoned, and the task runs to natural completion — so the eval finishes with a completed status rather than an error. This is how to abandon a task's last few stragglers while still bringing the eval to a completed state. Note that a completed status doesn't mean every sample ran: abandoned samples are absent from the log (visible as `completed_samples < total_samples` in its results), and an eval set treats the log as complete rather than re-running them — an explicit `inspect eval-retry` on the log will run them later if you change your mind. `--action error` is not permitted when the task's samples are configured to fail on errors. If a graceful cancel stalls — say on a hung scorer — issuing a plain `inspect ctl task cancel` escalates it to an abort.
+
+```bash
+$ inspect ctl task cancel gpqa --action score
+```
+
+Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail, the abort escalation above being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.
 
 ## Configuration
 

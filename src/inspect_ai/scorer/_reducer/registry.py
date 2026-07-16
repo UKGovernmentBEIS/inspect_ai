@@ -4,8 +4,8 @@ from typing import Any, Callable, TypeVar, cast, overload
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     registry_add,
-    registry_create,
     registry_info,
     registry_log_name,
     registry_lookup,
@@ -152,8 +152,9 @@ def create_reducers(reducers: ScoreReducers | None) -> list[ScoreReducer] | None
                 params["k"] = int(match.group(2))
 
         return cast(
-            Callable[..., ScoreReducer], registry_create("score_reducer", name)
-        )(**params)
+            ScoreReducer,
+            create_registry_object("score_reducer", name, params),
+        )
 
     if isinstance(reducers, ScoreReducer):
         return [reducers]
