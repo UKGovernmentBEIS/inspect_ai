@@ -144,6 +144,12 @@ VERTEX_API_KEY = "VERTEX_API_KEY"
 GOOGLE_CLOUD_QUOTA_PROJECT = "GOOGLE_CLOUD_QUOTA_PROJECT"
 GOOGLE_USE_ADC = "GOOGLE_USE_ADC"
 
+
+def _is_truthy(value: Any) -> bool:
+    """Truthy check for boolean model args / env vars (repo convention)."""
+    return str(value).lower() in ("true", "1", "yes")
+
+
 # Google model-name tokens for non-generative / non-frontier models that must
 # never be treated as a "latest" frontier chat model by is_latest().
 _NON_GENERATIVE_TOKENS = (
@@ -280,7 +286,7 @@ class GoogleGenAIAPI(ModelAPI):
 
         # handle auth (vertex or standard google api key)
         if self.is_vertex():
-            if str(model_args.pop("use_adc", False)).lower() == "true":
+            if _is_truthy(model_args.pop("use_adc", False)):
                 raise PrerequisiteError(
                     "The `use_adc` model arg applies only to the Gemini Developer "
                     "API endpoint. Vertex AI authenticates with Application Default "
@@ -328,9 +334,9 @@ class GoogleGenAIAPI(ModelAPI):
             # commands).
             use_adc_arg = model_args.pop("use_adc", None)
             if use_adc_arg is not None:
-                use_adc = str(use_adc_arg).lower() == "true"
+                use_adc = _is_truthy(use_adc_arg)
             else:
-                use_adc = os.environ.get(GOOGLE_USE_ADC, "").lower() == "true"
+                use_adc = _is_truthy(os.environ.get(GOOGLE_USE_ADC, ""))
             scopes = model_args.pop("scopes", None)
             quota_project_id = model_args.pop("quota_project_id", None)
 
