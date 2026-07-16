@@ -18,6 +18,12 @@ from .chatapi import (
     classify_chat_api_error,
     should_retry_chat_api_error,
 )
+from .google_auth import (
+    DEFAULT_OAUTH_SCOPES,
+    OAUTH_PLACEHOLDER_API_KEY,
+    google_oauth_headers,
+    resolve_google_credentials,
+)
 from .hf_handler import HFHandler
 from .llama31 import Llama31Handler
 from .util import environment_prerequisite_error, model_base_url, resolve_api_key
@@ -25,6 +31,10 @@ from .util import environment_prerequisite_error, model_base_url, resolve_api_ke
 __all__ = [
     "environment_prerequisite_error",
     "as_stop_reason",
+    "DEFAULT_OAUTH_SCOPES",
+    "OAUTH_PLACEHOLDER_API_KEY",
+    "google_oauth_headers",
+    "resolve_google_credentials",
     "chat_api_request",
     "chat_api_input",
     "should_retry_chat_api_error",
