@@ -2,12 +2,14 @@ import functools
 import json
 import os
 import re
+import time
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Any,
+    Callable,
     Iterable,
     Literal,
     Sequence,
@@ -139,7 +141,11 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import (
+    STREAM_FLUSH_MIN_INTERVAL_S,
+    set_active_model_event_call,
+    update_active_model_event_output,
+)
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
@@ -741,12 +747,20 @@ class AnthropicAPI(ModelAPI):
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
+        _prior_partial_content: list[Content] | None = None,
+        _prior_partial_tool_calls: list[ToolCall] | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
 
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
+
+        ``_prior_partial_content`` / ``_prior_partial_tool_calls`` carry the
+        already-streamed content from earlier continuations into the tail's
+        partial-output flushes, so the live ``ModelEvent.output`` snapshot
+        stays a monotone-growing prefix of the final merged output across a
+        pause_turn boundary instead of resetting to tail-only content.
         """
         if pending_tool_uses is None:
             pending_tool_uses = dict()
@@ -774,8 +788,39 @@ class AnthropicAPI(ModelAPI):
                 )
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
+            model_name = self.service_model_name()
+            prior_content = _prior_partial_content or []
+            prior_tool_calls = _prior_partial_tool_calls or []
+
+            def _flush(snapshot: Message) -> None:
+                try:
+                    update_active_model_event_output(
+                        _partial_output_from_snapshot(
+                            snapshot,
+                            model_name,
+                            prior_content=prior_content,
+                            prior_tool_calls=prior_tool_calls,
+                        )
+                    )
+                except AssertionError:
+                    # the `assert event.pending` in the helper guards a
+                    # core invariant (ACP mapper depends on it) — surface
+                    # that, don't swallow it with the display-only catch
+                    raise
+                except Exception:
+                    # the partial-output flush is display-only — a failure
+                    # here must never abort the generate; the final
+                    # model_output_from_message() pass produces the
+                    # authoritative output regardless
+                    logger.warning(
+                        "anthropic: partial-output flush failed; continuing",
+                        exc_info=True,
+                    )
+
             async with self.client.messages.stream(**request) as stream:
-                head_message, _ = await _capture_compaction_from_stream(stream)
+                head_message, _ = await _capture_compaction_from_stream(
+                    stream, on_snapshot=_flush
+                )
         else:
             head_message = await self.client.messages.create(**request, stream=False)
 
@@ -807,6 +852,10 @@ class AnthropicAPI(ModelAPI):
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
+                _prior_partial_content=(_prior_partial_content or [])
+                + _content_list(head_model_output.message.content),
+                _prior_partial_tool_calls=(_prior_partial_tool_calls or [])
+                + (head_model_output.message.tool_calls or []),
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -3761,8 +3810,79 @@ def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
     return message.model_copy(update={"content": stripped})
 
 
+def _partial_output_from_snapshot(
+    snapshot: Message,
+    model: str,
+    *,
+    prior_content: list[Content] | None = None,
+    prior_tool_calls: list[ToolCall] | None = None,
+) -> ModelOutput:
+    """Cheap ``ModelOutput`` from an in-progress ``current_message_snapshot``.
+
+    Built per streaming flush, so this skips everything
+    :func:`model_output_from_message` does that is either expensive
+    (``count_tokens`` for reasoning), stateful (server-tool span recording),
+    or only meaningful on the final message (usage, stop reason,
+    pause-turn continuation). Block kinds that don't render usefully
+    mid-stream (server tool use/results, MCP, compaction, web search)
+    are dropped — the final ``model_output_from_message`` pass restores
+    them on completion.
+
+    ``prior_content`` / ``prior_tool_calls`` are prepended so that, across
+    pause_turn continuations, the partial remains a monotone-growing
+    prefix of the eventual merged output instead of resetting to the
+    current continuation's content only.
+
+    Each call constructs a fresh ``ChatMessageAssistant`` and so a fresh
+    message ``id`` — consumers must key on the stable ``ModelEvent.uuid``
+    rather than the message id, which differs between every partial and
+    the final.
+    """
+    content: list[Content] = list(prior_content or ())
+    tool_calls: list[ToolCall] = list(prior_tool_calls or ())
+    for block in snapshot.content:
+        if isinstance(block, TextBlock):
+            content.append(ContentText(text=block.text))
+        elif isinstance(block, ThinkingBlock):
+            content.append(
+                ContentReasoning(
+                    reasoning=block.thinking, signature=block.signature or None
+                )
+            )
+        elif isinstance(block, RedactedThinkingBlock):
+            content.append(ContentReasoning(reasoning="", redacted=True))
+        elif isinstance(block, ToolUseBlock):
+            tool_calls.append(
+                ToolCall(
+                    id=block.id,
+                    function=block.name,
+                    # the SDK incrementally parses input via jiter
+                    # partial-mode; for object-root schemas (which is all
+                    # Anthropic tools) it is always a dict, but guard
+                    # anyway so a malformed/array-root input never crashes
+                    # the display-only flush path
+                    arguments=block.input if isinstance(block.input, dict) else {},
+                )
+            )
+    return ModelOutput(
+        model=model,
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=content,
+                    tool_calls=tool_calls or None,
+                    model=model,
+                    source="generate",
+                ),
+                stop_reason="unknown",
+            )
+        ],
+    )
+
+
 async def _capture_compaction_from_stream(
     stream: AsyncMessageStream,
+    on_snapshot: Callable[[Message], None] | None = None,
 ) -> tuple[Message, str | None]:
     """Consume a streaming response and capture any compaction content.
 
@@ -3773,6 +3893,15 @@ async def _capture_compaction_from_stream(
 
     Args:
         stream: The Anthropic AsyncMessageStream from messages.stream().
+        on_snapshot: Called with ``stream.current_message_snapshot`` on
+            each ``content_block_*`` event. ``content_block_delta`` (and
+            text/thinking ``content_block_start``) calls are throttled to
+            at most once per ``STREAM_FLUSH_MIN_INTERVAL_S``; a
+            ``content_block_start`` for a ``tool_use`` block and every
+            ``content_block_stop`` bypass the throttle so each tool call
+            surfaces the moment the provider opens its block. Used to
+            publish partial output to the pending ``ModelEvent`` while
+            the response arrives; ``None`` disables the callback.
 
     Returns:
         A tuple of (message, compaction_content) where message is the final
@@ -3780,6 +3909,7 @@ async def _capture_compaction_from_stream(
         is the raw content captured from compaction_delta events (or None).
     """
     compaction_content: str | None = None
+    last_flush = 0.0
 
     # Iterate through all streaming events to capture compaction_delta content
     async for event in stream:
@@ -3788,6 +3918,24 @@ async def _capture_compaction_from_stream(
             and getattr(event.delta, "type", None) == "compaction_delta"
         ):
             compaction_content = getattr(event.delta, "content", None)
+        if on_snapshot is not None and (event_type := getattr(event, "type", None)) in (
+            "content_block_start",
+            "content_block_delta",
+            "content_block_stop",
+        ):
+            now = time.monotonic()
+            # bypass the throttle when a tool_use block opens (so each tool
+            # call surfaces the moment the provider starts it, even if
+            # several land within one flush window) and on every block
+            # close; text/thinking deltas stay throttled
+            force = event_type == "content_block_stop" or (
+                event_type == "content_block_start"
+                and getattr(getattr(event, "content_block", None), "type", None)
+                == "tool_use"
+            )
+            if force or now - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S:
+                last_flush = now
+                on_snapshot(stream.current_message_snapshot)
 
     # Get the final message snapshot
     message = stream.current_message_snapshot

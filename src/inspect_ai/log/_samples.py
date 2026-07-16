@@ -1,4 +1,5 @@
 import contextlib
+import os
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging import getLogger
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
     from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.log._log import EvalRetryError
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
+    from inspect_ai.model._model_output import ModelOutput
 
 import anyio
 from anyio.abc import TaskGroup
@@ -483,6 +485,64 @@ def set_active_model_event_call(
         event.call = model_call
         transcript()._event_updated(event)
     return model_call
+
+
+STREAM_FLUSH_MIN_INTERVAL_S = float(
+    os.environ.get("INSPECT_STREAM_FLUSH_INTERVAL", "0.1")
+)
+"""Minimum seconds between partial-output flushes to the transcript.
+
+Providers throttle their per-token SDK delta loop to this so
+``_event_updated`` subscribers (the live-view buffer, inspect-view's
+poll, workbench) are not spammed at token rate. The 10 Hz default keeps
+per-flush snapshot translation negligible under batch evals, where it
+runs once per *concurrent* in-flight model call. Live-view consumers
+that want perceptibly latency-free streaming (e.g. the workbench, which
+has at most a handful of in-flight calls) can lower this via the
+``INSPECT_STREAM_FLUSH_INTERVAL`` env var at the cost of more event
+churn. Shared across providers so they agree on cadence.
+"""
+
+
+def update_active_model_event_output(partial: "ModelOutput") -> None:
+    """Publish a partial output snapshot for the in-flight generate.
+
+    Called by providers from inside their SDK stream loop, once per
+    coalesced flush, while the response is still arriving. Mutates the
+    pending ``ModelEvent.output`` in place and notifies transcript
+    subscribers via ``_event_updated`` — the same path
+    :func:`set_active_model_event_call` uses for ``.call``.
+
+    The live-view buffer subscriber (``_eval/task/run.py``) consumes
+    these updates so inspect-view shows streaming output during a
+    running eval; out-of-eval consumers can ``Transcript._subscribe``
+    on an explicitly-owned transcript to receive them too.
+
+    A no-op when there is no active model event (e.g. providers driven
+    outside ``Model.generate``).
+
+    Invariant: ``event.pending`` is left untouched. Only the existing
+    ``complete()`` path in ``Model._generate`` clears it. A partial
+    flush that flipped ``pending`` off would cause the ACP event mapper
+    (``agent/_acp/event_mapping.py``) to de-dup and drop the real final
+    delivery — the ``assert`` here guards that.
+
+    Args:
+        partial: Accumulated-so-far output snapshot. Providers should
+            build this cheaply (content blocks only — no token
+            counting, no usage) since it runs at flush frequency.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    event = _active_model_event.get()
+    if event is None:
+        return
+    assert event.pending, (
+        "update_active_model_event_output called on a non-pending ModelEvent — "
+        "partial flushes must precede complete(); see docstring invariant"
+    )
+    event.output = partial
+    transcript()._event_updated(event)
 
 
 def report_active_sample_retry() -> None:

@@ -1,4 +1,5 @@
 import json
+import time
 from collections.abc import Callable
 from logging import getLogger
 from typing import Any
@@ -15,6 +16,13 @@ from openai._types import NOT_GIVEN
 from openai.types.responses import (
     Response,
     ResponseFormatTextJSONSchemaConfigParam,
+    ResponseFunctionCallArgumentsDeltaEvent,
+    ResponseFunctionToolCall,
+    ResponseOutputItemAddedEvent,
+    ResponseReasoningItem,
+    ResponseReasoningSummaryTextDeltaEvent,
+    ResponseStreamEvent,
+    ResponseTextDeltaEvent,
     ToolParam,
 )
 from tenacity import (
@@ -25,19 +33,24 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import (
+    STREAM_FLUSH_MIN_INTERVAL_S,
+    set_active_model_event_call,
+    update_active_model_event_output,
+)
 from inspect_ai.model._generate_config import has_image_output
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
-from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 from inspect_ai.util._json import json_schema_dump
 
-from .._chat_message import ChatMessage
+from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
 from .._model_call import ModelCall, as_error_response
-from .._model_output import ModelOutput, ModelUsage
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     openai_handle_bad_request,
@@ -95,6 +108,7 @@ async def generate_responses(
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
     | None = None,
     model_family: str | None = None,
+    streaming: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
@@ -165,13 +179,19 @@ async def generate_responses(
         filter=openai_media_filter,
     )
 
+    # streaming is only available on the live (non-batch, non-background)
+    # path; both batch and background return a completed Response without an
+    # SSE stream to flush partial output from.
+    use_streaming = streaming and batcher is None and not background
+
     try:
         # generate response
-        model_response: Response = await (
-            batcher.generate_for_request(request)
-            if batcher
-            else client.responses.create(**request)
-        )
+        if batcher:
+            model_response: Response = await batcher.generate_for_request(request)
+        elif use_streaming:
+            model_response = await _stream_response(client, model_name, request)
+        else:
+            model_response = await client.responses.create(**request)
         # model_response is `Response | Any`. The lazy type inference engine
         # threw up its hands because of the `**request`.
         assert isinstance(model_response, Response)
@@ -251,6 +271,176 @@ def model_usage_from_response(model_response: Response) -> ModelUsage | None:
         else None,
         total_tokens=model_response.usage.total_tokens,
     )
+
+
+class _ResponseSnapshot:
+    """Cheap accumulator of in-flight Responses output, keyed by output index.
+
+    Unlike the Anthropic SDK (which exposes ``stream.current_message_snapshot``
+    publicly), the OpenAI Responses SDK only accumulates a full snapshot in
+    name-mangled private state. Rather than reach into that, we hand-accumulate
+    the handful of output kinds that render usefully mid-stream — message text,
+    reasoning summaries, and function-call arguments — straight from the public
+    typed delta events. Server-tool blocks (web/file search, computer,
+    code interpreter, MCP, image generation) are ignored mid-stream; the final
+    :func:`openai_responses_chat_choices` pass restores them on completion.
+    """
+
+    def __init__(self) -> None:
+        # output_index -> ("text" | "reasoning", accumulated text)
+        self._text: dict[int, tuple[str, str]] = {}
+        # output_index -> (name, call_id, accumulated arguments json)
+        self._tool_calls: dict[int, tuple[str, str, str]] = {}
+
+    def handle_event(self, event: ResponseStreamEvent) -> bool:
+        """Fold one stream event into the snapshot.
+
+        Returns:
+            ``True`` if the event changed renderable partial state (so a
+            throttled flush is warranted), ``False`` otherwise.
+        """
+        if isinstance(event, ResponseOutputItemAddedEvent):
+            item = event.item
+            if isinstance(item, ResponseFunctionToolCall):
+                self._tool_calls[event.output_index] = (
+                    item.name,
+                    item.call_id,
+                    item.arguments or "",
+                )
+                return True
+            elif isinstance(item, ResponseReasoningItem):
+                # register a reasoning placeholder so the content order
+                # includes the reasoning block even when no summary text
+                # streams (e.g. minimal effort, or summaries disabled). The
+                # final output always carries the reasoning item, so this
+                # keeps the partial a type-prefix of the final.
+                self._text.setdefault(event.output_index, ("reasoning", ""))
+                return True
+            return False
+        elif isinstance(event, ResponseTextDeltaEvent):
+            prior = self._text.get(event.output_index, ("text", ""))[1]
+            self._text[event.output_index] = ("text", prior + event.delta)
+            return True
+        elif isinstance(event, ResponseReasoningSummaryTextDeltaEvent):
+            prior = self._text.get(event.output_index, ("reasoning", ""))[1]
+            self._text[event.output_index] = ("reasoning", prior + event.delta)
+            return True
+        elif isinstance(event, ResponseFunctionCallArgumentsDeltaEvent):
+            existing = self._tool_calls.get(event.output_index)
+            if existing is not None:
+                name, call_id, args = existing
+                self._tool_calls[event.output_index] = (
+                    name,
+                    call_id,
+                    args + event.delta,
+                )
+                return True
+            return False
+        return False
+
+    def partial_output(self, model: str) -> ModelOutput:
+        """Build a cheap ``ModelOutput`` from accumulated state.
+
+        Output items are emitted in ascending ``output_index`` order so the
+        content-block sequence stays a monotone-growing prefix of the final
+        output across the stream (matching the live-view invariant the
+        Anthropic provider upholds via ``current_message_snapshot``).
+        """
+        content: list[Content] = []
+        tool_calls: list[ToolCall] = []
+        for index in sorted(set(self._text) | set(self._tool_calls)):
+            if index in self._text:
+                kind, text = self._text[index]
+                if kind == "reasoning":
+                    content.append(ContentReasoning(reasoning=text))
+                else:
+                    content.append(ContentText(text=text))
+            if index in self._tool_calls:
+                name, call_id, args = self._tool_calls[index]
+                tool_calls.append(
+                    ToolCall(
+                        id=call_id,
+                        function=name,
+                        # arguments arrive as an incrementally-built JSON
+                        # string; parse what we have, tolerating the
+                        # not-yet-complete fragments common mid-stream
+                        arguments=_safe_parse_arguments(args),
+                    )
+                )
+        return ModelOutput(
+            model=model,
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=content,
+                        tool_calls=tool_calls or None,
+                        model=model,
+                        source="generate",
+                    ),
+                    stop_reason="unknown",
+                )
+            ],
+        )
+
+
+def _safe_parse_arguments(args: str) -> dict[str, Any]:
+    if not args:
+        return {}
+    try:
+        parsed = json.loads(args)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        # partial JSON fragment that isn't yet parseable — display-only, so
+        # fall back to empty until a later flush completes the object
+        return {}
+
+
+async def _stream_response(
+    client: AsyncAzureOpenAI | AsyncOpenAI,
+    model_name: str,
+    request: dict[str, Any],
+) -> Response:
+    """Stream a Responses request, flushing partial output as it arrives.
+
+    Iterates the SSE stream, folding events into a :class:`_ResponseSnapshot`
+    and publishing a throttled partial ``ModelOutput`` onto the pending
+    ``ModelEvent`` via :func:`update_active_model_event_output`. The
+    authoritative output is the stream's final ``Response`` (returned here and
+    parsed by the non-streaming path's ``openai_responses_chat_choices``), so a
+    failure inside the display-only flush must never abort the generate.
+    """
+    snapshot = _ResponseSnapshot()
+    last_flush = 0.0
+
+    def _flush() -> None:
+        try:
+            update_active_model_event_output(snapshot.partial_output(model_name))
+        except AssertionError:
+            raise  # the helper's `assert event.pending` guards a core invariant
+        except Exception:
+            # the partial-output flush is display-only — a failure here must
+            # never abort the generate; the final Response parse produces the
+            # authoritative output regardless
+            logger.warning(
+                "openai responses: partial-output flush failed; continuing",
+                exc_info=True,
+            )
+
+    async with client.responses.stream(**request) as stream:
+        async for event in stream:
+            if snapshot.handle_event(event):
+                now = time.monotonic()
+                # bypass the throttle when a function-call output item is
+                # added so each tool call surfaces the moment the provider
+                # opens it, even if several land within one flush window;
+                # text/reasoning/argument deltas stay throttled
+                force = isinstance(event, ResponseOutputItemAddedEvent) and isinstance(
+                    event.item, ResponseFunctionToolCall
+                )
+                if force or now - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S:
+                    last_flush = now
+                    _flush()
+        return await stream.get_final_response()
 
 
 async def wait_for_background_response(

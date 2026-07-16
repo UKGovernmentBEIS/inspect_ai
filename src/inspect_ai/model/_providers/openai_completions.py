@@ -1,3 +1,4 @@
+import time
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -12,7 +13,11 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 
 from inspect_ai._util.logger import warn_once
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import (
+    STREAM_FLUSH_MIN_INTERVAL_S,
+    set_active_model_event_call,
+    update_active_model_event_output,
+)
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -51,6 +56,7 @@ async def generate_completions(
     safety_identifier: str | NotGiven,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[ChatCompletion] | None,
+    streaming: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
@@ -94,12 +100,18 @@ async def generate_completions(
         filter=openai_media_filter,
     )
 
+    # streaming is only available on the live (non-batch) path
+    use_streaming = streaming and batcher is None
+
     try:
-        completion = await (
-            batcher.generate_for_request(request)
-            if batcher
-            else client.chat.completions.create(**request)
-        )
+        if batcher:
+            completion = await batcher.generate_for_request(request)
+        elif use_streaming:
+            completion = await _stream_completion(
+                client, openai_api.service_model_name(), request
+            )
+        else:
+            completion = await client.chat.completions.create(**request)
         # completion is `CharCompletion | Any`. The lazy type inference engine
         # threw up its hands because of the `**request`.
         assert isinstance(completion, ChatCompletion)
@@ -116,6 +128,66 @@ async def generate_completions(
             as_error_response(e.body), http_hooks.end_request(request_id)
         )
         return openai_handle_bad_request(openai_api.service_model_name(), e), model_call
+
+
+def _partial_output_from_completion_snapshot(
+    snapshot: ChatCompletion, model: str
+) -> ModelOutput:
+    """Cheap ``ModelOutput`` from an in-progress ``current_completion_snapshot``.
+
+    Built per streaming flush, so this skips the usage/stop-reason work that
+    :func:`model_output_from_openai` does on the final completion and reuses
+    only the (cheap) choice translation. ``chat_choices_from_openai`` tolerates
+    the partial message shapes the SDK accumulates mid-stream (empty content,
+    half-built tool-call argument strings).
+
+    Each call constructs fresh choices and so a fresh message ``id`` — consumers
+    must key on the stable ``ModelEvent.uuid`` rather than the message id, which
+    differs between every partial and the final.
+    """
+    choices = chat_choices_from_openai(snapshot, [])
+    return ModelOutput(model=model, choices=choices)
+
+
+async def _stream_completion(
+    client: AsyncAzureOpenAI | AsyncOpenAI,
+    model_name: str,
+    request: dict[str, Any],
+) -> ChatCompletion:
+    """Stream a chat-completions request, flushing partial output as it arrives.
+
+    Unlike the Responses path (whose SDK keeps the accumulated snapshot in
+    private state, forcing us to hand-accumulate), the chat-completions stream
+    exposes ``current_completion_snapshot`` publicly — exactly like Anthropic's
+    ``current_message_snapshot`` — so we translate that directly each flush. The
+    authoritative output is ``get_final_completion()``; a failure inside the
+    display-only flush must never abort the generate.
+    """
+    last_flush = 0.0
+
+    def _flush(snapshot: ChatCompletion) -> None:
+        try:
+            update_active_model_event_output(
+                _partial_output_from_completion_snapshot(snapshot, model_name)
+            )
+        except AssertionError:
+            raise  # the helper's `assert event.pending` guards a core invariant
+        except Exception:
+            # the partial-output flush is display-only — a failure here must
+            # never abort the generate; the final completion parse produces the
+            # authoritative output regardless
+            logger.warning(
+                "openai completions: partial-output flush failed; continuing",
+                exc_info=True,
+            )
+
+    async with client.chat.completions.stream(**request) as stream:
+        async for _event in stream:
+            now = time.monotonic()
+            if now - last_flush >= STREAM_FLUSH_MIN_INTERVAL_S:
+                last_flush = now
+                _flush(stream.current_completion_snapshot)
+        return await stream.get_final_completion()
 
 
 def completion_params_completions(

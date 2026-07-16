@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 from openai import (
@@ -105,6 +105,7 @@ class OpenAIAPI(ModelAPI):
         service_tier: str | None = None,
         client_timeout: float | None = None,
         background: bool | None = None,
+        streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ) -> None:
         # extract azure service prefix from model name (other providers
@@ -147,6 +148,10 @@ class OpenAIAPI(ModelAPI):
         if not isinstance(responses_phase, bool):
             raise ValueError("responses_phase must be a bool")
         self.responses_phase: bool = responses_phase
+
+        # record streaming preference (drives partial-output flushes onto the
+        # pending ModelEvent; see openai_responses.generate_responses)
+        self.streaming = streaming
 
         # call super
         super().__init__(
@@ -514,6 +519,14 @@ class OpenAIAPI(ModelAPI):
         )
         self._resolve_batcher(config, use_responses)
 
+        # resolve streaming preference. background requests poll for a
+        # completed Response rather than holding an SSE stream open, and batch
+        # mode submits to the batches API, so streaming is unavailable for
+        # both; partial-output flushes only apply to the live streamed path.
+        streaming = (
+            self.auto_streaming() if self.streaming == "auto" else self.streaming
+        )
+
         # if reasoning summaries are unset then try to auto-detect
         if config.reasoning_summary is None:
             if not await self.reasoning_summaries():
@@ -538,6 +551,7 @@ class OpenAIAPI(ModelAPI):
                 synthesize_phase=self.responses_phase,
                 model_info=self,
                 batcher=self._responses_batcher,
+                streaming=streaming,
             )
             if use_responses
             else generate_completions(
@@ -553,8 +567,20 @@ class OpenAIAPI(ModelAPI):
                 safety_identifier=self.safety_identifier,
                 openai_api=self,
                 batcher=self._completions_batcher,
+                streaming=streaming,
             )
         )
+
+    def auto_streaming(self) -> bool:
+        """Default streaming decision when ``streaming="auto"``.
+
+        Streaming drives partial-output flushes onto the pending
+        ``ModelEvent`` so inspect-view can show output as it arrives.
+        Disabled for background requests (they poll for a completed
+        ``Response`` rather than holding an SSE stream) since there is no
+        live stream to flush from; otherwise on.
+        """
+        return not self.background
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
