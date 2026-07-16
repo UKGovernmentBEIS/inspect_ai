@@ -149,7 +149,13 @@ Next, we'll take a look at the source code for a couple of the built in scorers 
 
 ## Models in Scorers
 
-You'll often want to use models in the implementation of scorers. Use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
+You'll often want to use models in the implementation of scorers. The best way of doing this is to specify the grader model using [model roles](models.qmd#model-roles), allowing them to be chosen at runtime. By default, model-graded scorers look for the `"grader"` model role:
+
+```python
+grader_model = get_model(role="grader")
+```
+
+You can also use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
 
 ``` python
 # use the model being evaluated for grading
