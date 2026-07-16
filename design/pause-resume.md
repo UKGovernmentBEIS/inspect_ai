@@ -58,7 +58,7 @@ Per the "three scopes, three roots" URL rule:
 - All accept `?dry_run=true` and return `changed` for the idempotent no-op, matching the cancel directives.
 - Task-keyed (not attempt-keyed), like `config` / `log-flush` / `cancel`: a pause handle must not dangle across a retry.
 - **No `CONTROL_API_VERSION` bump.** New *routes* fail loudly against an older server (stock `{"detail": "Not Found"}` 404), so the CLI passes `not_found_missing_route` and reports "older inspect — restart the eval", exactly the cancel-verbs precedent.
-- **Read-surface additions.** `GET /tasks` rows gain `paused` (`null` | `"task"` | `"process"` | `"both"` — which latch holds) and `quiesced` (paused **and** zero in-flight samples — the "safe to kill" signal for the durable-pause scenario). Purely additive response fields the CLI null-guards: no version bump, per conventions. `ctl task list` renders a paused marker in the human table so a paused run doesn't read as stalled; `ctl process list` reports the process latch.
+- **Read-surface additions.** `GET /tasks` rows gain `paused` (`null` | `"task"` | `"process"` | `"both"` — which latch holds) and `quiesced` (paused **and** zero dispatched samples — the "safe to kill" signal for the durable-pause scenario; a sample past the gate but still initializing its sandbox counts as dispatched, so the signal can't flip back to false while one materializes). Purely additive response fields the CLI null-guards: no version bump, per conventions. `ctl task list` renders a paused marker in the human table so a paused run doesn't read as stalled; `ctl process list` reports the process latch.
 
 ## Semantics in detail
 

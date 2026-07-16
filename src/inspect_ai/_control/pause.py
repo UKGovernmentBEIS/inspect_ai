@@ -30,7 +30,8 @@ resolution wakes gate waiters via :func:`wake_pause_waiters` so held samples
 proceed to the queue-exit abandon check rather than staying parked.
 
 Pause state is in-memory only — durability comes from quiesce (paused with
-zero in-flight samples, reported by ``GET /tasks``) plus the auto-flush in
+zero dispatched samples — in flight *or* still initializing — reported by
+``GET /tasks``) plus the auto-flush in
 :func:`flush_quiesced_tasks`, after which killing the process loses nothing
 that re-invoking ``eval-set`` on the same log dir can't recover.
 """
@@ -351,20 +352,28 @@ def _task_result(state: "EvalState", *, dry_run: bool) -> dict[str, Any]:
         "eval_id": state.eval_id,
         "paused": task_pause_scope(state.task_id),
         "dry_run": dry_run,
-        "in_flight": _in_flight_count(state.eval_id),
+        "in_flight": _dispatched_count(state.eval_id),
     }
 
 
-def _in_flight_count(eval_id: str) -> int:
-    """The eval's currently running (started, not completed) samples."""
+def _dispatched_count(eval_id: str) -> int:
+    """The eval's dispatched-and-not-completed samples.
+
+    Deliberately does *not* require ``started``: a sample past the pause
+    gate but still materializing (sandbox creation can take minutes) has
+    ``started=None`` yet will run to completion once its sandbox is up.
+    Requiring ``started`` would let ``quiesced`` read True — and the
+    auto-flush fire — during exactly that window, making the "safe to
+    kill" signal non-monotonic under a pause. A gate-held sample never
+    registers in ``active_samples`` (it parks before the semaphore), so
+    this count covers the materializing window exactly.
+    """
     from inspect_ai.log._samples import active_samples
 
     return sum(
         1
         for sample in active_samples()
-        if sample.eval_id == eval_id
-        and sample.started is not None
-        and sample.completed is None
+        if sample.eval_id == eval_id and sample.completed is None
     )
 
 
@@ -396,7 +405,7 @@ async def flush_quiesced_tasks() -> None:
             continue
         if task_pause_scope(state.task_id) is None:
             continue
-        if _in_flight_count(state.eval_id) > 0:
+        if _dispatched_count(state.eval_id) > 0:
             continue
         try:
             await state.live.flush_samples()

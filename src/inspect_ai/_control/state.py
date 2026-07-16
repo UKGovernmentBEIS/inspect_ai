@@ -934,11 +934,23 @@ def _build_summary(
     status = "completed" if completed_at is not None else "running"
 
     # which pause latch holds the task (None when dispatchable), and whether
-    # it has quiesced — paused with nothing in flight, the "safe to kill"
+    # it has quiesced — paused with nothing dispatched, the "safe to kill"
     # signal for the durable-pause workflow (design/pause-resume.md). A
-    # finished task reports neither (there is nothing left to hold).
-    paused = task_pause_scope(latest.task_id) if completed_at is None else None
-    quiesced = paused is not None and in_flight == 0
+    # finished task reports neither (there is nothing left to hold) — but a
+    # task *between attempts* (completed_at set, retry pending) is still
+    # holdable (the gate parks its queued retry, the same guard pause_task
+    # uses), so it keeps reporting its pause scope. quiesced counts
+    # dispatched (registered, not completed) samples rather than in_flight:
+    # a sample past the gate but still initializing has started=None yet
+    # will run once its sandbox is up, and "safe to kill" must not flip
+    # true→false in that window (see _dispatched_count in pause.py).
+    paused = (
+        task_pause_scope(latest.task_id)
+        if completed_at is None or latest.retry_pending
+        else None
+    )
+    dispatched = sum(1 for s in samples if s.completed is None)
+    quiesced = paused is not None and dispatched == 0
 
     # Usage = the accumulated total for terminal samples (survives them
     # leaving active_samples — "usage so far") plus the live usage of the

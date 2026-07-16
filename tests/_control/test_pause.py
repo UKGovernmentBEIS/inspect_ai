@@ -401,6 +401,29 @@ async def test_pause_with_in_flight_samples_defers_flush_to_quiesce(
     assert flushes
 
 
+async def test_pause_with_initializing_sample_defers_flush(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sample past the gate but still initializing (started=None) blocks quiesce.
+
+    Sandbox creation can take minutes; the sample will run once it's up, so
+    the auto-flush must not fire (and quiesced must not read True) until it
+    actually completes.
+    """
+    flushes: list[int] = []
+
+    async def flush() -> int:
+        flushes.append(1)
+        return 1
+
+    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=flush))
+    initializing = _FakeActiveSample(eval_id="e1", started=None)
+    _patch_active_samples(monkeypatch, [initializing])
+
+    await pause_task("t1")
+    assert not flushes  # still materializing — not safe to kill
+
+
 async def test_process_pause_flushes_idle_tasks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -529,6 +552,48 @@ async def test_tasks_listing_paused_with_in_flight_not_quiesced(
         rows = (await client.get("/tasks")).json()
         assert rows[0]["paused"] == "task"
         assert rows[0]["quiesced"] is False
+
+
+async def test_tasks_listing_initializing_sample_blocks_quiesced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The quiesced signal counts dispatched samples, not just started ones.
+
+    A sample past the gate but mid-sandbox-creation (started=None) will run
+    once its sandbox is up — reporting quiesced then would let the "safe to
+    kill" signal flip true→false while an operator acts on it.
+    """
+    register_eval("e1", 3, task_id="t1")
+    _patch_active_samples(monkeypatch, [_FakeActiveSample(eval_id="e1", started=None)])
+    await pause_task("t1")
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        rows = (await client.get("/tasks")).json()
+        assert rows[0]["paused"] == "task"
+        assert rows[0]["quiesced"] is False
+
+
+async def test_tasks_listing_reports_paused_between_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A paused between-attempts task stays visibly paused in the listing.
+
+    Its latest attempt has completed_at set (the attempt errored) with the
+    retry queued behind the gate — for as long as the pause holds, which is
+    indefinite — so the row must keep reporting the holding latch. Nothing
+    is dispatched and the errored attempt is fully logged, so it is also
+    quiesced (safe to kill).
+    """
+    register_eval("e1", 1, task_id="t1")
+    record_sample_errored("e1")
+    mark_eval_retry_pending("e1")
+    _patch_active_samples(monkeypatch, [])
+    await pause_task("t1")
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        rows = (await client.get("/tasks")).json()
+        assert rows[0]["paused"] == "task"
+        assert rows[0]["quiesced"] is True
 
 
 async def test_tasks_listing_finished_task_reports_unpaused() -> None:
