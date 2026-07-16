@@ -91,10 +91,11 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
       eval-set runs no eval, so nothing binds — unless an explicit
       ``--ctl-server=keep`` park does): the record is re-emitted and the
       launcher exits with the child's code.
-    - Ctrl+C or SIGTERM during the spawn or wait terminates the child (if
-      one was spawned), preserving the invariant that no emitted
-      ``launch`` record means no detached eval (exit 130/143
-      respectively).
+    - Ctrl+C or SIGTERM at any point before the launcher exits terminates
+      the child (if one was spawned), preserving the invariant that a
+      non-zero launcher exit leaves no detached eval behind (exit 130/143
+      respectively) — even when the signal lands after the ``launch``
+      record was already printed.
 
     There is deliberately no timeout: task imports can legitimately take
     minutes, and the contract is "returns when the handoff resolves".
@@ -122,10 +123,11 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
             subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         )
     # SIGTERM (e.g. `timeout … inspect eval --detach`, CI cancellation) must
-    # preserve the same no-third-state invariant as Ctrl+C: no emitted
-    # launch record means no detached eval left behind. Installed before the
-    # spawn so a signal landing between Popen returning and the wait cannot
-    # leak a recordless detached child.
+    # preserve the same no-third-state invariant as Ctrl+C: a non-zero exit
+    # means no detached eval left behind. The try covers everything from
+    # before the spawn through the verdict handling (each verdict path ends
+    # in a sys.exit, whose SystemExit is not caught here), so a signal
+    # cannot leak a running child at any point.
     child: subprocess.Popen[bytes] | None = None
     previous_sigterm = signal.signal(signal.SIGTERM, _raise_terminated)
     try:
@@ -140,6 +142,35 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
                 creationflags=creationflags,
             )
         record = _wait_for_record(child, output_file)
+
+        if record is not None and record.get("event") == "launch":
+            if record.get("control") is None:
+                # the control server failed to bind: the eval would run
+                # detached but could be neither observed nor cancelled while
+                # running — the exact state --detach exists to prevent — so
+                # treat the handoff as failed rather than exit 0 into an
+                # unmonitorable run
+                child.terminate()
+                child.wait()
+                print(
+                    f"Detached launch failed — the control endpoint did not "
+                    f"bind, so the eval could not be monitored; terminated "
+                    f"the eval process (pid {child.pid}). Its output (also "
+                    f"in {output_file}) follows.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                _exit_relaying_output(output_file, 1)
+            record["output_file"] = str(output_file)
+            print(json.dumps(record), flush=True)
+            sys.exit(0)
+
+        if record is not None:  # done without a prior launch
+            record["output_file"] = str(output_file)
+            print(json.dumps(record), flush=True)
+            sys.exit(child.wait())
+
+        _exit_relaying_output(output_file, child.wait())
     except (KeyboardInterrupt, _Terminated) as ex:
         if child is not None:
             child.terminate()
@@ -154,34 +185,6 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
     finally:
         if previous_sigterm is not None:
             signal.signal(signal.SIGTERM, previous_sigterm)
-
-    if record is not None and record.get("event") == "launch":
-        if record.get("control") is None:
-            # the control server failed to bind: the eval would run detached
-            # but could be neither observed nor cancelled while running — the
-            # exact state --detach exists to prevent — so treat the handoff
-            # as failed rather than exit 0 into an unmonitorable run
-            child.terminate()
-            child.wait()
-            print(
-                f"Detached launch failed — the control endpoint did not bind, "
-                f"so the eval could not be monitored; terminated the eval "
-                f"process (pid {child.pid}). Its output (also in "
-                f"{output_file}) follows.",
-                file=sys.stderr,
-                flush=True,
-            )
-            _exit_relaying_output(output_file, 1)
-        record["output_file"] = str(output_file)
-        print(json.dumps(record), flush=True)
-        sys.exit(0)
-
-    if record is not None:  # done without a prior launch
-        record["output_file"] = str(output_file)
-        print(json.dumps(record), flush=True)
-        sys.exit(child.wait())
-
-    _exit_relaying_output(output_file, child.wait())
 
 
 class _Terminated(BaseException):
