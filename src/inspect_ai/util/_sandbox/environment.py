@@ -148,9 +148,7 @@ class SandboxEnvironment(abc.ABC):
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream exceeds the limit
-            *and* the sandbox provider raises rather than pre-truncating
-            (see the note above — some providers, e.g. Docker, return the
-            truncated trailing output instead of raising).
+            and the sandbox provider does not pre-truncate it.
         """
         ...
 
