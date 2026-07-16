@@ -1,10 +1,13 @@
 import asyncio
 import base64
+import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
+import anyio
 import pytest
+from google.genai.errors import APIError
 from google.genai.types import (
     Blob,
     Candidate,
@@ -20,6 +23,7 @@ from google.genai.types import (
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.citation import Citation, UrlCitation
 from inspect_ai._util.content import (
     Content as InspectContent,
@@ -29,10 +33,12 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
+from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
@@ -43,6 +49,7 @@ from inspect_ai.model._providers.google import (
     completion_choice_from_candidate,
     content,
 )
+from inspect_ai.model._providers.util import OAUTH_PLACEHOLDER_API_KEY
 from inspect_ai.model._providers.util.hooks import HttpHooks
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
@@ -1367,3 +1374,369 @@ def test_usage_metadata_without_thoughts():
     assert usage is not None
     assert usage.output_tokens == 5
     assert usage.reasoning_tokens == 0
+
+
+# ---- OAuth / ADC credentials for the Gemini Developer API ----
+
+
+class _FakeCreds:
+    """Minimal google-auth credentials stand-in for OAuth tests.
+
+    Mirrors google-auth semantics: `valid` derives from the token and an
+    expired flag, so invalidating the token (as `initialize()` does) makes
+    the credentials refreshable.
+    """
+
+    def __init__(self, token: str = "tok-1", valid: bool = True) -> None:
+        self.token: str | None = token
+        self.expired = not valid
+        self.refresh_calls = 0
+
+    @property
+    def valid(self) -> bool:
+        return self.token is not None and not self.expired
+
+    def refresh(self, request: Any) -> None:
+        self.refresh_calls += 1
+        self.expired = False
+        self.token = f"tok-refreshed-{self.refresh_calls}"
+
+
+def _adc_api(fake: _FakeCreds, **model_args: Any) -> GoogleGenAIAPI:
+    """Construct a dev-endpoint OAuth model backed by `fake` ADC credentials."""
+    with patch("google.auth.default", return_value=(fake, None)):
+        return GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key=None,
+            use_adc=True,
+            **model_args,
+        )
+
+
+@pytest.mark.anyio
+async def test_google_oauth_headers_injected() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = _adc_api(_FakeCreds(token="tok-1"), quota_project_id="proj-x")
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-1"
+    assert headers["x-goog-user-project"] == "proj-x"
+    assert client.call_args.kwargs["api_key"] == OAUTH_PLACEHOLDER_API_KEY
+
+
+@pytest.mark.anyio
+async def test_google_oauth_quota_project_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GOOGLE_CLOUD_QUOTA_PROJECT", "proj-env")
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = _adc_api(_FakeCreds(token="tok-adc"))
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-adc"
+    assert headers["x-goog-user-project"] == "proj-env"
+
+
+@pytest.mark.anyio
+async def test_google_oauth_quota_header_omitted_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_CLOUD_QUOTA_PROJECT", raising=False)
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = _adc_api(_FakeCreds())
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert "x-goog-user-project" not in headers
+
+
+@pytest.mark.anyio
+async def test_google_oauth_refreshes_when_invalid() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    creds = _FakeCreds(valid=False)
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = _adc_api(creds)
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    assert creds.refresh_calls >= 1
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == f"Bearer tok-refreshed-{creds.refresh_calls}"
+
+
+@pytest.mark.anyio
+async def test_google_oauth_concurrent_refresh_single_flight() -> None:
+    creds = _FakeCreds(valid=False)
+    api = _adc_api(creds)
+    await tg_collect([api._ensure_oauth_token for _ in range(5)])
+    assert creds.refresh_calls == 1
+    assert creds.valid
+
+
+@pytest.mark.anyio
+async def test_google_oauth_refresh_cancellable() -> None:
+    """A cancelled waiter must not be shielded until the refresh thread finishes."""
+
+    class _SlowCreds(_FakeCreds):
+        def refresh(self, request: Any) -> None:
+            time.sleep(2)
+            super().refresh(request)
+
+    creds = _SlowCreds(valid=False)
+    api = _adc_api(creds)
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        with anyio.fail_after(0.1):
+            await api._ensure_oauth_token()
+    assert time.monotonic() - start < 1.0
+
+
+@pytest.mark.anyio
+async def test_google_use_adc_takes_precedence_over_api_key() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    fake = _FakeCreds(token="tok-adc")
+    with (
+        patch(
+            "inspect_ai.model._providers.google.Client", return_value=mock_client
+        ) as client,
+        patch("google.auth.default", return_value=(fake, None)),
+    ):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="explicit-key",
+            use_adc=True,
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    assert api._oauth is True
+    assert client.call_args.kwargs["api_key"] == OAUTH_PLACEHOLDER_API_KEY
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-adc"
+
+
+@pytest.mark.anyio
+async def test_google_use_adc_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    fake = _FakeCreds(token="tok-env")
+    with (
+        patch(
+            "inspect_ai.model._providers.google.Client", return_value=mock_client
+        ) as client,
+        patch("google.auth.default", return_value=(fake, None)),
+    ):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key=None,
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    assert api._oauth is True
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-env"
+    assert client.call_args.kwargs["api_key"] == OAUTH_PLACEHOLDER_API_KEY
+
+
+def test_google_use_adc_arg_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="test-key",
+        use_adc=False,
+    )
+    assert api._oauth is False
+
+
+def test_google_no_auth_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_USE_ADC", raising=False)
+    with pytest.raises(PrerequisiteError, match="GOOGLE_API_KEY"):
+        GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key=None,
+        )
+
+
+@pytest.mark.anyio
+async def test_google_oauth_args_not_forwarded_to_client() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = _adc_api(
+            _FakeCreds(),
+            quota_project_id="p",
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    for key in ("use_adc", "scopes", "quota_project_id"):
+        assert key not in client.call_args.kwargs
+        assert key not in api.model_args
+
+
+def test_google_oauth_initialize_invalidates_token() -> None:
+    creds = _FakeCreds(token="tok-0")
+    api = _adc_api(creds)
+    api.initialize()
+    assert creds.token is None
+    assert not creds.valid
+    assert creds.refresh_calls == 0
+
+
+@pytest.mark.anyio
+async def test_google_oauth_refresh_after_initialize() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    creds = _FakeCreds(token="tok-0")
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = _adc_api(creds)
+        # simulate the 401 backstop: before_retry() invalidates via initialize()
+        api.initialize()
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    assert creds.refresh_calls == 1
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-refreshed-1"
+
+
+def test_google_oauth_401_retry_classification() -> None:
+    err = APIError(401, {"error": {"message": "unauthorized", "code": 401}})
+    oauth_api = _adc_api(_FakeCreds())
+    decision = oauth_api.should_retry(err)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+
+    api_key_api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="explicit-key",
+    )
+    decision = api_key_api.should_retry(err)
+    assert isinstance(decision, RetryDecision)
+    assert not decision.retry
+
+
+def test_google_oauth_batch_raises() -> None:
+    api = _adc_api(_FakeCreds())
+    config = GenerateConfig(batch=BatchConfig(size=1))
+    with pytest.raises(NotImplementedError, match="OAuth"):
+        api._resolve_batcher(config, api._http_options(config))
+
+
+@pytest.mark.anyio
+async def test_google_oauth_count_tokens_headers() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = _adc_api(_FakeCreds(token="tok-ct"), quota_project_id="proj")
+        await api.count_tokens("Hello")
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-ct"
+    assert headers["x-goog-user-project"] == "proj"
+
+
+def test_google_oauth_headers_survive_real_client() -> None:
+    """Contract test against the real google-genai client (no mocking).
+
+    The OAuth approach relies on undocumented SDK behavior: the dev-endpoint
+    client accepts a placeholder api_key, and `patch_http_options` merges
+    caller-supplied headers with caller precedence, so `Authorization` survives
+    alongside the SDK-set `x-goog-api-key`. Guards against a google-genai
+    release changing that merge.
+    """
+    api = _adc_api(_FakeCreds(token="tok-real"), quota_project_id="proj-real")
+    client = api.model_client(api._http_options())
+    headers = client._api_client._http_options.headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-real"
+    assert headers["x-goog-user-project"] == "proj-real"
+    assert headers["x-goog-api-key"] == OAUTH_PLACEHOLDER_API_KEY
+
+
+def test_google_use_adc_rejected_on_vertex() -> None:
+    with pytest.raises(PrerequisiteError, match="use_adc"):
+        GoogleGenAIAPI(
+            model_name="vertex/gemini-2.0-flash",
+            base_url=None,
+            api_key=None,
+            use_adc=True,
+        )
+
+
+def test_google_credentials_arg_rejected() -> None:
+    with pytest.raises(PrerequisiteError, match="credentials"):
+        GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key=None,
+            credentials=object(),
+        )

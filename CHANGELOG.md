@@ -1,3 +1,8 @@
+## 0.3.247 (16 July 2026)
+
+- Google: The Gemini Developer API endpoint now supports OAuth/ADC authentication (`-M use_adc=true` or `GOOGLE_USE_ADC=true`) with automatic token refresh, for deployments reachable without an API key.
+- Google: Unknown (predeployment) model names are now treated as the latest Gemini model for context window (compaction) and capability detection.
+
 ## 0.3.246 (10 July 2026)
 
 - Grok: Support for Grok 4.5 (model info database entry; accepts `reasoning_effort` with a documented default of `high`).
