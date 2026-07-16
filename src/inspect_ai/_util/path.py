@@ -89,17 +89,18 @@ def cwd_relative_path(file: None, walk_up: bool = False) -> None: ...
 
 
 def cwd_relative_path(file: str | None, walk_up: bool = False) -> str | None:
-    if file:
-        cwd = PurePath(os.getcwd())
-        task_path = PurePath(file)
-        if task_path.is_relative_to(cwd):
-            return task_path.relative_to(cwd).as_posix()
-        elif walk_up:
-            return relative_walk(cwd, task_path)
-        else:
-            return file
-    else:
+    if file is None:
         return None
+    if file == "":
+        return ""
+    cwd = PurePath(os.getcwd())
+    task_path = PurePath(file)
+    if task_path.is_relative_to(cwd):
+        return task_path.relative_to(cwd).as_posix()
+    elif walk_up:
+        return relative_walk(cwd, task_path)
+    else:
+        return file
 
 
 def pretty_path(file: str) -> str:
