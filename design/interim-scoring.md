@@ -49,7 +49,7 @@ surface.
 A task-scoped directive, following the `ctl` noun-group conventions:
 
 ```
-inspect ctl task score [TASK] [--dry-run] [--no-wait] [--json]
+inspect ctl task score [TASK] [--dry-run] [--pause] [--no-wait] [--json]
 ```
 
 - `TASK` follows the mutation selector rule (sole running task is the
@@ -58,6 +58,10 @@ inspect ctl task score [TASK] [--dry-run] [--no-wait] [--json]
   sits with `log-flush` on the selector-optional side.
 - `--dry-run` reports what would be scored (counts by sample disposition —
   see "Which samples" below) without scoring anything.
+- `--pause` (maps to a `pause` query param) briefly pauses each in-flight
+  sample while its own scoring runs, trading sample wall-clock for a coherent
+  view of live state + sandbox — see shape 3 under "The context problem".
+  Off by default: the snapshot mode never delays the run.
 - The pass can take minutes (model-graded scorers over hundreds of samples),
   so the HTTP shape is **start + poll**, not one long request (see "Job
   model"); by default the CLI polls to completion and renders progress, and
@@ -77,7 +81,8 @@ A per-sample variant (`ctl sample score TASK SID [EPOCH]`, `POST
 /evals/<id>/sample/score?...`) is a natural later slice — same machinery,
 sample-scoped — and is deliberately deferred (the task-wide pass is the
 motivating ask, and one sample's interim score is obtainable today by reading
-its events after a task-wide pass).
+its events after a task-wide pass). Tracked as a follow-up in
+meridianlabs-ai/inspect_ai#102.
 
 ## Which samples
 
@@ -89,7 +94,7 @@ the result envelope and counted in `--dry-run`:
 | **In-flight** (started, not terminal) | scored on a **snapshot** of its work so far (the headline capability) |
 | **Completed, unscored** (the eval ran with `--no-score`, or a scorer previously errored) | scored from its serialized form — the `inspect score` recipe applied mid-run |
 | **Completed, scored** | *not* re-scored (the task's scorers are fixed at eval start, so re-running them buys nothing); its existing final scores are included in the interim metrics |
-| **Errored / cancelled** | skipped (matching the final-scoring gate: scored only if the task's `score_on_error` policy would score it) |
+| **Errored / cancelled** | follows the task's `score_on_error` policy — scored if final scoring would score them, otherwise skipped |
 | **Queued / pending** | skipped — nothing to score |
 
 "Partially completed" in the issue title is the in-flight row: a sample with
@@ -113,9 +118,9 @@ sample's task group, and the sample's *own* coroutine catches the
 cancellation, grabs `sample_state()` from within its context, and falls
 through to the ordinary scoring block (`_eval/task/run.py`).
 
-Two shapes can score an in-flight sample without ending it:
+Three shapes can score an in-flight sample without ending it:
 
-1. **In-context cooperative scoring (chosen).** Each running sample services
+1. **In-context cooperative scoring (chosen as the default mode).** Each running sample services
    score requests *from inside its own context*: the runner spawns a small
    companion task inside the sample's task group at sample start, parked on a
    request signal published via the `ActiveSample` (the same object the
@@ -140,6 +145,37 @@ Two shapes can score an in-flight sample without ending it:
    what events captured. It stays the right recipe for **completed** samples,
    where it is already proven — it's what `inspect score` does.
 
+3. **Cooperative pause-and-score (opt-in mode on 1, via `--pause`).** The
+   snapshot in (1) covers only in-memory state — the sandbox is shared, live,
+   and keeps moving under the still-running solver, so a sandbox-inspecting
+   scorer reads a sandbox that can drift from the `TaskState` snapshot it was
+   handed. This mode restores coherence by *pausing the solver* while its
+   scoring runs: a pause gate on the `ActiveSample`, awaited at the same
+   mutation chokepoints where the runner already polls `interrupt_action`
+   (model generate, tool calls, sandbox exec). A sample mutates its state
+   only from its own coroutine, so a solver parked at a gate — or awaiting a
+   gated operation whose *result* the gate holds — leaves the live
+   `TaskState` stable: no deep copy, no drift, sandbox reads coherent with
+   the message history. The build requirements: an ack protocol (requesting a
+   pause is not being paused — scoring waits for the solver to park; gating
+   operation *returns* makes this near-immediate); pause time excluded from
+   working limits (`report_sample_waiting_time` already walks the limit tree)
+   and added to wall-clock `time_limit` deadlines (anyio scope deadlines are
+   mutable — new surgery on the limit tree); gates never placed under a held
+   semaphore (a paused sample holding a model-connection slot the scorer
+   needs is a deadlock); and a pause timeout so a stuck scorer can't wedge
+   the sample. Each sample pauses only while *its own* scoring runs, not for
+   the whole pass. Opt-in rather than default because a pause steals the
+   scoring duration from every in-flight sample's wall-clock: fine for a
+   one-off "should I kill this run?" check, wrong for the recurring
+   watchdog/dashboard polling scenario, where it would turn periodic
+   monitoring into periodic eval-wide stalls that perturb the thing being
+   measured. Note the limit of what it buys: agent-launched *background*
+   processes in the sandbox keep running (a true sandbox freeze is
+   provider-specific — `docker pause` has no portable k8s/local equivalent),
+   so this reaches parity with task-authored `score()` consistency, not
+   absolute quiescence.
+
 The in-context shape buys full fidelity (real `TaskState`, live store, live
 sandbox), free log persistence (the transcript event flows through the
 realtime sample buffer into the final log), and semantic continuity with the
@@ -151,7 +187,10 @@ hazards named below.
 - **Snapshot first.** The solver keeps running while scoring proceeds, so the
   companion deep-copies the `TaskState` (messages / output / store) at
   request time and scores the copy. The scores are stamped with the snapshot
-  time (`ScoreEvent.timestamp` covers this).
+  time (`ScoreEvent.timestamp` covers this). The copy covers *in-memory*
+  state only — the sandbox is live and shared, so sandbox reads pair a
+  read-time sandbox with a snapshot-time message history; `--pause` (shape 3
+  above) is the coherence remedy when that matters.
 - **Never delay the sample.** The companion runs in its own cancel scope;
   sample completion (or interrupt, or limit) cancels any in-progress interim
   scoring rather than waiting for it. The pass reports that sample as
@@ -262,10 +301,13 @@ for the fire-and-poll agent loop.
   concurrency is capped (small default) so it contends gently.
 - **Sandbox perturbation.** An in-context scorer sees the sample's *live*
   sandbox. Scorers that mutate sandbox state (run cleanup scripts, write
-  marker files) can perturb the still-running agent. v1 documents the
+  marker files) can perturb the still-running agent — and the interference
+  runs both ways: an agent can *observe* concurrent scoring activity (a
+  stray grader artifact in its workspace is contamination). v1 documents the
   caveat — scorers must be read-only with respect to the environment to be
   safely interim-scorable; a per-task or per-scorer opt-out is an open
-  question below.
+  question below. (`--pause` narrows the window — the agent isn't executing
+  while its scorer runs — but doesn't remove the caveat.)
 - **Snapshot semantics.** An interim score describes a moment; by the time
   it's read the sample has moved on. The `as_of` stamps and the
   `intermediate` flag keep this honest everywhere the scores surface.
@@ -301,7 +343,8 @@ for the fire-and-poll agent loop.
    snapshot copy, cancel-on-completion, budget isolation),
    `ScoreEvent(intermediate=True)` recording, per-sample results into the
    pass. This is the headline capability.
-3. **Later.** `ctl sample score` (per-sample variant); surfacing the latest
+3. **Later.** `--pause` coherent-scoring mode (shape 3: pause gates, limit
+   compensation, ack protocol); `ctl sample score` (per-sample variant); surfacing the latest
    interim score in `ctl sample list` rows; recovery consuming intermediate
    scores (a recovered in-progress sample could carry its last interim score
    instead of no score — see open questions); scheduled/periodic passes
