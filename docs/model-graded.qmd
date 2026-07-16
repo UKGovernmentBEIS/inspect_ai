@@ -169,6 +169,8 @@ Grade extraction binds to the last grade. The default `grade_pattern` (`(?is).*(
 
 Structural delimiters are neutralized. The default templates wrap content in `[BEGIN DATA]` / `[END DATA]` markers. Before formatting the prompt, Inspect rewrites any `[BEGIN DATA]` / `[END DATA]` markers that appear in the model-controlled `answer`, the `question`, the `criterion`, and any `metadata` values (for example to `[END-DATA]`) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The `instructions` you provide are author-controlled and left untouched.
 
+When the grader's verdict still cannot be parsed after these precautions, that is a failure of the measurement instrument rather than a verdict on the model. See [Scoring Policy](scoring-policy.qmd#model-graded-scorers) for how to handle it (bounded grader-only retry, then `Score.unscored()`), and why it should not be scored `INCORRECT`.
+
 ## Reproducible Grading
 
 By default the grader model runs with the provider's default generation settings. In practice this often means a non-zero temperature (e.g. 1.0) and no fixed seed, so grades for borderline answers can change from run to run and across epochs.
