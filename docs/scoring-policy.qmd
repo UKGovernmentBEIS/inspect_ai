@@ -5,33 +5,28 @@ llms-description: How to route a sample-ending failure in a scorer to the right 
 
 ## Overview
 
-The point of a scorer is to assess the performance of a model under test (MUT) against the given task.
-When the MUT's response is assessed as correct, the outcome is straightforward: return `Score(value=CORRECT)`.
-However there are multiple reasons that the response passed to a scorer can fail to be correct, and distinguishing between the different cases has significant effects downstream on the MUT's metrics.
+A scorer's job is to turn what a model did on a sample into a verdict about the model's capability on the task, which Inspect then aggregates into the metrics that summarise the evaluation. In the clean case this is simple: the model under test (MUT) produced an answer, the scorer judges it correct or incorrect, and that verdict counts.
 
-The three main outcomes are:
+The complication is that not everything which ends a sample is a statement about the model. The model can genuinely fail, with a wrong answer or output that doesn't follow the requested format. But the *run machinery* can also break (an API error, a dead container, a bug in your own code), and where a grader model or other measurement instrument is involved, the *instrument itself* can fail to produce a reading. These are different in kind, and only the first is a verdict on the model.
 
-- return a `Score`
-  This is a verdict on the model, which counts in the denominator of the resultant metrics.
-- raise an error
-  This indicates a machinery malfunction, and will be retried if [`retry_on_error`](handling-errors.qmd#sample-retries) is set. It is counted against the `fail_on_error` [failure threshold](handling-errors.qmd#failure-threshold) and will only be scored if [`score_on_error`](handling-errors.qmd#scoring-errored-samples) is set.
-- return `Score.unscored()`
-  This indicates that the scorer was unable to render a verdict, typically because a grader model's response was a refusal or not in the correct format. The sample will be excluded from the resultant metrics.
-
-The organising question is "whose behaviour does the outcome reflect: the model under test, or the run machinery?" Note that a grader model is part of the *measurement instrument*, not the subject of measurement, so a grader failure reflects the machinery, not the MUT.
-
-Choosing the wrong outcome distorts the headline metric. Scoring an infrastructure failure `0.0` deflates accuracy and opts the sample out of retries; raising on a genuine model failure inflates accuracy by shrinking the denominator. The rest of this page matches each kind of failure to the right outcome.
+Distinguishing them matters because each affects the metric denominator differently, so conflating them distorts the headline number (see the [worked example](#the-three-outcomes) below). The organising question throughout is: **whose behaviour does the outcome reflect, the model under test or the run machinery?** A grader model counts as machinery here, because it is part of the measurement instrument, not the subject of measurement.
 
 ## The three outcomes
 
-Using `accuracy` as an example, an eval run with one correct answer, one incorrect answer, one sample that errored, and one sample that triggered a content filter on the grader model will report an accuracy of **0.5**:
+A scorer has three ways to record what happened on a sample, and each routes to different downstream handling:
 
-| Sample | Scorer outcome | Value | Counts in denominator? |
-|---|---|---|---|
-| 1 | `Score(CORRECT)` | `1.0` | yes |
-| 2 | `Score(INCORRECT)` | `0.0` | yes |
-| 3 | `raise` | n/a | no (errored) |
-| 4 | `Score.unscored()` | `NaN` | no (unscored) |
+- **Return a `Score`** is a verdict on the model. It counts in the denominator of the resultant metrics.
+- **Raise an error** signals a machinery malfunction. The sample is marked errored: excluded from metrics, retried if [`retry_on_error`](handling-errors.qmd#sample-retries) is set, counted against the [`fail_on_error`](handling-errors.qmd#failure-threshold) threshold, and scored only if [`score_on_error`](handling-errors.qmd#scoring-errored-samples) is set.
+- **Return `Score.unscored()`** records that the scorer could not render a verdict even though nothing malfunctioned. The sample is excluded from the metrics but counted separately.
+
+The choice has real consequences for the reported numbers. Using `accuracy` as an example, an eval run with one correct answer, one incorrect answer, one sample that errored, and one sample that triggered a content filter on the grader model will report an accuracy of **0.5**:
+
+| Sample | Scorer outcome     | Value | Counts in denominator? |
+|--------|--------------------|-------|------------------------|
+| 1      | `Score(CORRECT)`   | `1.0` | yes                    |
+| 2      | `Score(INCORRECT)` | `0.0` | yes                    |
+| 3      | `raise`            | n/a   | no (errored)           |
+| 4      | `Score.unscored()` | `NaN` | no (unscored)          |
 
 : {tbl-colwidths=[15,35,15,35]}
 
@@ -42,7 +37,9 @@ Only samples 1 and 2 are scored, so `accuracy = 1 / 2 = 0.5`, with `scored_sampl
 
 The [`score_on_error`](handling-errors.qmd#scoring-errored-samples) run option changes this picture for errors raised during *solving*: rather than dropping the sample, it runs the scorer on whatever partial state was reached and counts the result. If sample 3 had errored mid-solve and its partial state scored `INCORRECT`, it would enter the denominator and accuracy would read `1 / 3`. It does **not**, however, rescue a `raise` from the scorer itself (the scorer is the thing that failed), so it is not a substitute for returning a `Score` when you want a sample counted.
 
-A quick way to decide which outcome applies is to ask **what the correct remedial action is**:
+## Choosing an outcome
+
+If you are writing a scorer, the practical question is which of the three outcomes to return for a given failure. A quick test is to ask **what the correct remedial action would be**:
 
 | Correct remedy | Outcome |
 |---|---|
@@ -52,6 +49,8 @@ A quick way to decide which outcome applies is to ask **what the correct remedia
 | The model did this to itself | return a `Score` |
 
 : {tbl-colwidths=[60,40]}
+
+The sections below work through each outcome, and how to tell which applies when the cause is ambiguous.
 
 ### Verdicts on the model
 
@@ -73,7 +72,7 @@ Inspect provides two labels for model-fault outcomes. Both map to `0.0` by defau
 - **`NOANSWER`**: the model produced *nothing to grade*, such as an empty completion or a detected refusal.
 
 ::: {.callout-note appearance="simple"}
-If you intend to split on `NOANSWER` in a custom metric (for example to report an answer rate), be aware that the default `mean` epoch reducer collapses `NOANSWER` to `0.0` *before* metrics run, erasing the label. Use a value-preserving epoch reducer (see [Reducing Epochs](metrics.qmd)) if you need the distinction to survive.
+If you intend to split on `NOANSWER` in a custom metric (for example to report an answer rate), be aware that the default `mean` epoch reducer collapses `NOANSWER` to `0.0` *before* metrics run, erasing the label. Use a value-preserving epoch reducer (see [Reducing Epochs](metrics.qmd#reducing-epochs)) if you need the distinction to survive.
 :::
 
 Never let a model-fault outcome raise; raising removes the sample from the denominator and inflates accuracy.
@@ -97,7 +96,7 @@ Deterministic machinery should not get the unscored escape hatch. Sandbox execut
 
 Some failures tell you nothing about the model, yet nothing malfunctioned either: the run worked, but the measurement instrument could not render a verdict on this sample after reasonable due diligence. The canonical case is a probabilistic instrument such as a grader model, which has an inherent, irreducible per-sample failure rate. Sometimes it emits a parseable verdict; sometimes it refuses or produces an unparseable one, and no retry or code fix will change that for this sample.
 
-For these, return `Score.unscored()`. This produces a `Score` whose `value` is `NaN`, which Inspect excludes from metric computation and counts as `unscored_samples` on the `EvalScore`:
+For these, return `Score.unscored()`. This produces a `Score` whose `value` is `NaN`, which Inspect excludes from metric computation and counts as `unscored_samples` on the `EvalScore` (see [Unscored Samples](custom-scorers.qmd#unscored-samples) for the API details):
 
 ``` python
 return Score.unscored(
@@ -126,7 +125,7 @@ When a model grades the model under test, the grader is the *measurement instrum
 
 1. **Constrain the grader's output structurally** rather than regex-parsing free text; prefer a tool call with a schema-validated payload. This removes most format-failure ambiguity at the source.
 2. **Retry the grader only**, bounded, with the model's output held fixed. Note that `retry_on_error` re-runs the *whole sample* including model generation, which re-rolls the answer and can inflate scores, so grader-only retry is a separate loop inside the scorer.
-3. **Use a capable, pinned grader.** A grader too weak to follow its own output format is an eval-validity problem to flag, not something to charge to the model.
+3. **Use a capable, pinned grader.** A grader too weak to follow its own output format is an eval-validity problem to flag, not something to charge to the model. Pin its generation settings so grades are reproducible (see [Reproducible Grading](model-graded.qmd#reproducible-grading)).
 4. **Only then** return `Score.unscored()` for the residual, and report the grader-failure rate as a first-class number.
 
 The `raise` vs `unscored()` line still applies within grading: the grader *API call* raising or timing out is a malfunction → `raise` (the transport failed, not the verdict), whereas a well-formed-but-unparseable *verdict* after bounded retry is an instrument miss → `unscored()`.
