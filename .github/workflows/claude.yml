@@ -15,21 +15,35 @@
 
 name: Claude
 
+# `issue_comment: edited` is included so that ADDING @claude/@auto to an
+# existing comment (a common way people invoke the agent after the fact) fires
+# the workflow — GitHub only delivers the edited action when it's subscribed
+# here. The job `if:` below guards it to edits that newly introduce the phrase
+# (via github.event.changes.body.from), so re-editing a comment that already
+# mentioned the agent does NOT re-trigger it.
 on:
   issue_comment:
-    types: [created]
+    types: [created, edited]
   issues:
     types: [opened, labeled]
 
 jobs:
   claude:
     # Cheap gate to avoid spending runner minutes on unrelated events; the
-    # action does its own authoritative trigger check.
+    # action does its own authoritative trigger check. On an edited comment
+    # (the only `edited` action we subscribe to), fire only when the edit newly
+    # introduced @claude — comparing against the pre-edit body — so re-editing a
+    # comment that already mentioned @claude does not re-trigger a run.
     if: |
-      contains(github.event.comment.body, '@claude') ||
-      contains(github.event.issue.body, '@claude') ||
-      contains(github.event.issue.title, '@claude') ||
-      github.event.label.name == 'claude'
+      ( github.event.action == 'edited'
+        && contains(github.event.comment.body, '@claude')
+        && !contains(github.event.changes.body.from, '@claude') ) ||
+      ( github.event.action != 'edited' && (
+          contains(github.event.comment.body, '@claude') ||
+          contains(github.event.issue.body, '@claude') ||
+          contains(github.event.issue.title, '@claude') ||
+          github.event.label.name == 'claude'
+      ) )
     uses: meridianlabs-ai/agents/.github/workflows/claude.yml@main
     # Pass the machine-account PAT (MARVIN_TOKEN, an org secret) explicitly —
     # not via `secrets: inherit` — so the fork's other secrets (e.g. SYNC_TOKEN)
@@ -106,11 +120,20 @@ jobs:
   # — the action's trigger_phrase/label_trigger are single-valued, so `auto`
   # needs its own invocation. Needs MARVIN_TOKEN (the PR must trigger CI/@review).
   claude-auto:
+    # See the `claude` job's `if:` — same edited-comment guard, so adding @auto
+    # to an existing comment kicks off the autonomous loop but re-editing a
+    # comment that already mentioned @auto does not re-fire it (which could
+    # otherwise open a duplicate PR).
     if: |
-      contains(github.event.comment.body, '@auto') ||
-      contains(github.event.issue.body, '@auto') ||
-      contains(github.event.issue.title, '@auto') ||
-      github.event.label.name == 'auto'
+      ( github.event.action == 'edited'
+        && contains(github.event.comment.body, '@auto')
+        && !contains(github.event.changes.body.from, '@auto') ) ||
+      ( github.event.action != 'edited' && (
+          contains(github.event.comment.body, '@auto') ||
+          contains(github.event.issue.body, '@auto') ||
+          contains(github.event.issue.title, '@auto') ||
+          github.event.label.name == 'auto'
+      ) )
     uses: meridianlabs-ai/agents/.github/workflows/claude.yml@main
     secrets:
       MARVIN_TOKEN: ${{ secrets.MARVIN_TOKEN }}
