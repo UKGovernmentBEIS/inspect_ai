@@ -4,9 +4,10 @@ import time
 from datetime import datetime
 from json import dumps
 from pathlib import Path
-from typing import Callable
+from typing import Callable, NamedTuple
 
 import click
+from pydantic import JsonValue
 from pydantic_core import to_json
 from rich import print as r_print
 from rich.console import Console, RenderableType
@@ -111,25 +112,51 @@ def dump_command_impl(
     default=False,
     help="Show only failed HTTP requests (non-200 status)",
 )
-def http_command(trace_file: str | None, filter: str | None, failed: bool) -> None:
+@click.option(
+    "--json",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Output as JSON (a `{trace_file, as_of, requests}` envelope).",
+)
+def http_command(
+    trace_file: str | None, filter: str | None, failed: bool, json: bool
+) -> None:
     """View all HTTP requests in the trace log."""
-    http_command_impl(trace_file, filter, failed)
+    http_command_impl(trace_file, filter, failed, json)
 
 
 def http_command_impl(
     trace_file: str | None,
     filter: str | None,
     failed: bool,
+    json: bool = False,
     trace_dir: Path | None = None,
 ) -> None:
     """View all HTTP requests in the trace log."""
-    _, traces = _read_traces(trace_file, "HTTP", filter, trace_dir)
+    trace_file_path, traces = _read_traces(trace_file, "HTTP", filter, trace_dir)
+
+    requests = [trace for trace in traces if not (failed and "200 OK" in trace.message)]
+
+    if json:
+        print(
+            dumps(
+                {
+                    "trace_file": trace_file_path.as_posix(),
+                    "as_of": time.time(),
+                    "requests": [
+                        {"timestamp": trace.timestamp, "message": trace.message}
+                        for trace in requests
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return
 
     last_timestamp = ""
     table = Table(Column(), Column(), box=None)
-    for trace in traces:
-        if failed and "200 OK" in trace.message:
-            continue
+    for trace in requests:
         timestamp = trace.timestamp.split(".")[0]
         if timestamp == last_timestamp:
             timestamp = ""
@@ -142,30 +169,131 @@ def http_command_impl(
         r_print(table)
 
 
+def anomalies_options(func: Callable[..., None]) -> Callable[..., None]:
+    """Flags for anomaly-reading commands.
+
+    Single home for the options of `inspect trace anomalies` and the planned
+    `inspect ctl process anomalies` so the two entry points cannot drift as
+    flags are added (see "Trace-log anomalies for stall diagnosis" in
+    design/control-channel.md).
+    """
+    func = click.option(
+        "--json",
+        type=bool,
+        is_flag=True,
+        default=False,
+        help="Output as JSON (a `{trace_file, as_of, running, cancelled, errors, timeouts}` envelope).",
+    )(func)
+    func = click.option(
+        "--all",
+        is_flag=True,
+        default=False,
+        help="Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown).",
+    )(func)
+    func = click.option(
+        "--filter",
+        type=str,
+        help="Filter (applied to trace message field).",
+    )(func)
+    return func
+
+
 @trace_command.command("anomalies")
 @click.argument("trace-file", type=str, required=False)
-@click.option(
-    "--filter",
-    type=str,
-    help="Filter (applied to trace message field).",
-)
-@click.option(
-    "--all",
-    is_flag=True,
-    default=False,
-    help="Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown).",
-)
-def anomolies_command(trace_file: str | None, filter: str | None, all: bool) -> None:
+@anomalies_options
+def anomolies_command(
+    trace_file: str | None, filter: str | None, all: bool, json: bool
+) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
-    anomolies_command_impl(trace_file, filter, all)
+    anomolies_command_impl(trace_file, filter, all, json)
+
+
+class TraceAnomalies(NamedTuple):
+    """Anomalous actions from a trace file, bucketed by outcome.
+
+    Buckets are sorted most recently finished first (running actions by start
+    time). ``errors`` and ``timeouts`` are collected only when requested via
+    ``all`` (they are empty lists otherwise).
+    """
+
+    running: list[ActionTraceRecord]
+    cancelled: list[ActionTraceRecord]
+    errors: list[ActionTraceRecord]
+    timeouts: list[ActionTraceRecord]
 
 
 def anomolies_command_impl(
-    trace_file: str | None, filter: str | None, all: bool, trace_dir: Path | None = None
+    trace_file: str | None,
+    filter: str | None,
+    all: bool,
+    json: bool = False,
+    trace_dir: Path | None = None,
 ) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
     trace_file_path, traces = _read_traces(trace_file, None, filter, trace_dir)
+    anomalies = _trace_anomalies(traces, all)
 
+    if json:
+        # stamp as_of once and compute running durations against it so the
+        # envelope timestamp and the durations it dates are consistent
+        as_of = time.time()
+        print(
+            dumps(
+                {
+                    "trace_file": trace_file_path.as_posix(),
+                    "as_of": as_of,
+                    "running": [_anomaly_row(a, as_of) for a in anomalies.running],
+                    "cancelled": [_anomaly_row(a, as_of) for a in anomalies.cancelled],
+                    "errors": [_anomaly_row(a, as_of) for a in anomalies.errors],
+                    "timeouts": [_anomaly_row(a, as_of) for a in anomalies.timeouts],
+                },
+                indent=2,
+            )
+        )
+        return
+
+    # do we have any traces?
+    if (
+        len(anomalies.running)
+        + len(anomalies.cancelled)
+        + len(anomalies.errors)
+        + len(anomalies.timeouts)
+        == 0
+    ):
+        print(f"TRACE: {shlex.quote(trace_file_path.as_posix())}\n")
+        if all:
+            print("No anomalies found in trace log.")
+        else:
+            print(
+                "No running or cancelled actions found in trace log (pass --all to see errors and timeouts)."
+            )
+        return
+
+    with open(os.devnull, "w") as f:
+        # generate output
+        console = Console(record=True, file=f)
+
+        def print_fn(o: RenderableType) -> None:
+            console.print(o, highlight=False)
+
+        print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[/bold]")
+
+        _print_bucket(print_fn, "Running Actions", anomalies.running)
+        _print_bucket(print_fn, "Cancelled Actions", anomalies.cancelled)
+        _print_bucket(print_fn, "Error Actions", anomalies.errors)
+        _print_bucket(print_fn, "Timeout Actions", anomalies.timeouts)
+
+        # print
+        print(console.export_text(styles=True).strip())
+
+
+def _trace_anomalies(traces: list[TraceRecord], all: bool) -> TraceAnomalies:
+    """Reconstruct anomalous actions (never exited, cancelled, errored, timed out) from trace records.
+
+    Shared by the human and JSON renderings of `inspect trace anomalies` (and,
+    per the design, the planned `inspect ctl process anomalies`) so every entry
+    point derives the same answer from the same records.
+    """
     # Track started actions
     running_actions: dict[str, ActionTraceRecord] = {}
     canceled_actions: dict[str, ActionTraceRecord] = {}
@@ -224,39 +352,44 @@ def anomolies_command_impl(
                 case _:
                     print(f"Unknown event type: {trace.event}")
 
-    # do we have any traces?
-    if (
-        len(running_actions)
-        + len(canceled_actions)
-        + len(error_actions)
-        + len(timeout_actions)
-        == 0
-    ):
-        print(f"TRACE: {shlex.quote(trace_file_path.as_posix())}\n")
-        if all:
-            print("No anomalies found in trace log.")
-        else:
-            print(
-                "No running or cancelled actions found in trace log (pass --all to see errors and timeouts)."
-            )
-        return
+    return TraceAnomalies(
+        running=_sorted_actions(running_actions),
+        cancelled=_sorted_actions(canceled_actions),
+        errors=_sorted_actions(error_actions),
+        timeouts=_sorted_actions(timeout_actions),
+    )
 
-    with open(os.devnull, "w") as f:
-        # generate output
-        console = Console(record=True, file=f)
 
-        def print_fn(o: RenderableType) -> None:
-            console.print(o, highlight=False)
+def _sorted_actions(bucket: dict[str, ActionTraceRecord]) -> list[ActionTraceRecord]:
+    # Sort the items in chronological order of when
+    # they finished so the first finished item is at the top
+    return sorted(
+        bucket.values(),
+        key=lambda record: (record.start_time or 0) + (record.duration or 0),
+        reverse=True,
+    )
 
-        print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[/bold]")
 
-        _print_bucket(print_fn, "Running Actions", running_actions)
-        _print_bucket(print_fn, "Cancelled Actions", canceled_actions)
-        _print_bucket(print_fn, "Error Actions", error_actions)
-        _print_bucket(print_fn, "Timeout Actions", timeout_actions)
+def _action_duration(action: ActionTraceRecord, as_of: float) -> float:
+    """Duration of the action: the recorded duration for finished actions, time since start (as of `as_of`) for still-running ones."""
+    if action.duration is not None:
+        return action.duration
+    elif action.start_time is not None:
+        return as_of - action.start_time
+    else:
+        return 0.0
 
-        # print
-        print(console.export_text(styles=True).strip())
+
+def _anomaly_row(action: ActionTraceRecord, as_of: float) -> dict[str, JsonValue]:
+    row: dict[str, JsonValue] = {
+        "action": action.action,
+        "detail": action.detail or action.message,
+        "start_time": action.start_time,
+        "duration": _action_duration(action, as_of),
+    }
+    if action.error is not None:
+        row["error"] = action.error
+    return row
 
 
 def _read_traces(
@@ -281,17 +414,9 @@ def _read_traces(
 def _print_bucket(
     print_fn: Callable[[RenderableType], None],
     label: str,
-    bucket: dict[str, ActionTraceRecord],
+    sorted_actions: list[ActionTraceRecord],
 ) -> None:
-    if len(bucket) > 0:
-        # Sort the items in chronological order of when
-        # they finished so the first finished item is at the top
-        sorted_actions = sorted(
-            bucket.values(),
-            key=lambda record: (record.start_time or 0) + (record.duration or 0),
-            reverse=True,
-        )
-
+    if len(sorted_actions) > 0:
         # create table
         table = Table(
             Column(""),
@@ -306,15 +431,10 @@ def _print_bucket(
             padding=(0, 1),
         )
 
+        now = time.time()
         for action in sorted_actions:
             # Compute duration (use the event duration or time since started)
-            duration = (
-                action.duration
-                if action.duration is not None
-                else time.time() - action.start_time
-                if action.start_time is not None
-                else 0.0
-            )
+            duration = _action_duration(action, now)
 
             # The event start time
             start_time = formatTime(action.start_time) if action.start_time else "None"
