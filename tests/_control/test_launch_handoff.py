@@ -965,7 +965,11 @@ def test_eval_detach_rejects_ctl_server_false(
 
 
 def _wait_for_pid_exit(pid: int, timeout: float) -> bool:
-    """Poll until ``pid`` no longer exists; True when it exited in time."""
+    """Poll until ``pid`` no longer exists; True when it exited in time.
+
+    POSIX-only: on Windows ``os.kill(pid, 0)`` terminates the target
+    instead of probing it — callers need a win32 skipif marker.
+    """
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -976,6 +980,9 @@ def _wait_for_pid_exit(pid: int, timeout: float) -> bool:
     return False
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="os.kill(pid, 0) is not a liveness probe"
+)
 def test_eval_detach_hands_off_and_leaves_eval_running(
     short_data_dir: Path,
 ) -> None:

@@ -91,9 +91,10 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
       eval-set runs no eval, so nothing binds — unless an explicit
       ``--ctl-server=keep`` park does): the record is re-emitted and the
       launcher exits with the child's code.
-    - Ctrl+C or SIGTERM during the wait terminates the child, preserving
-      the invariant that no emitted ``launch`` record means no detached
-      eval (exit 130/143 respectively).
+    - Ctrl+C or SIGTERM during the spawn or wait terminates the child (if
+      one was spawned), preserving the invariant that no emitted
+      ``launch`` record means no detached eval (exit 130/143
+      respectively).
 
     There is deliberately no timeout: task imports can legitimately take
     minutes, and the contract is "returns when the handoff resolves".
@@ -120,31 +121,34 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
         creationflags = (
             subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         )
-    with open(output_file, "wb") as output:
-        child = subprocess.Popen(
-            argv,
-            stdin=subprocess.DEVNULL,
-            stdout=output,
-            stderr=subprocess.STDOUT,
-            env=env,
-            start_new_session=True,
-            creationflags=creationflags,
-        )
-
     # SIGTERM (e.g. `timeout … inspect eval --detach`, CI cancellation) must
     # preserve the same no-third-state invariant as Ctrl+C: no emitted
-    # launch record means no detached eval left behind
+    # launch record means no detached eval left behind. Installed before the
+    # spawn so a signal landing between Popen returning and the wait cannot
+    # leak a recordless detached child.
+    child: subprocess.Popen[bytes] | None = None
     previous_sigterm = signal.signal(signal.SIGTERM, _raise_terminated)
     try:
+        with open(output_file, "wb") as output:
+            child = subprocess.Popen(
+                argv,
+                stdin=subprocess.DEVNULL,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                env=env,
+                start_new_session=True,
+                creationflags=creationflags,
+            )
         record = _wait_for_record(child, output_file)
     except (KeyboardInterrupt, _Terminated) as ex:
-        child.terminate()
-        print(
-            f"\nDetached launch interrupted — terminated the eval process "
-            f"(pid {child.pid}). Its output so far is in {output_file}.",
-            file=sys.stderr,
-            flush=True,
-        )
+        if child is not None:
+            child.terminate()
+            print(
+                f"\nDetached launch interrupted — terminated the eval process "
+                f"(pid {child.pid}). Its output so far is in {output_file}.",
+                file=sys.stderr,
+                flush=True,
+            )
         interrupt = signal.SIGTERM if isinstance(ex, _Terminated) else signal.SIGINT
         sys.exit(128 + int(interrupt))
     finally:

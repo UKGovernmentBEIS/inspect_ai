@@ -82,6 +82,8 @@ The detached process's stdout and stderr go to a file under the Inspect data dir
 3. **Detect completion**: when the eval finishes the process exits (dropping out of the `inspect ctl` listings), leaving a `done` record — overall success plus each task's `status` and `log_location` — as the last line of `output_file`.
 4. **Detect a crash**: a process that is gone *without* a `done` record in its output file died mid-run; the same file holds its diagnostics (stray prints and stderr land there too). For an eval-set, re-running the same command retries the unfinished tasks.
 
+Inspect never deletes these output files: one accumulates per detached run under the data directory until you remove it. Since the file is the completion signal, remove it only after its `done` record has been read.
+
 To instead keep the process alive after the eval finishes — its state still queryable via `inspect ctl` until you `inspect ctl process release` it — pass `--ctl-server=keep` explicitly (or latch it onto an already-running detached eval with `inspect ctl process keep`). The `done` record is then written only when the process is released. Prefer the default exit-when-done unless whatever will issue the release is certain to outlive the eval: a long eval routinely outlives the shell or agent session that launched it, and an unreleased parked process lingers indefinitely.
 
 `--detach` works the same on `inspect eval-set` and `inspect eval-retry` (a multi-file retry hands off on its first `launch` record; later files' records go to the output file). Because a detached eval must be observable and cancellable while running, combining `--detach` with `--ctl-server=false` is an error.
