@@ -64,7 +64,7 @@ Per the "three scopes, three roots" URL rule:
 
 - **In-flight samples** run to completion — solving, scoring, log write — under their original limits. Pause never preempts (the same drain-don't-kill principle as every shipped config knob).
 - **Queued samples** hold at the gate, unstarted: no sandbox, no clocks running, status still `pending`/`queued` in `sample list`. They are exactly as resumable as they were before the pause.
-- **Task retries.** A task whose last attempt errored and has an in-run retry queued (`retry_immediate=True`, the `run_task_retry_attempts` loop in `run.py`) does not start the retry attempt while its task gate or the process latch is closed. This also softens an existing wart: `task cancel` currently rejects a between-attempts task with a 409 ("re-issue once the retry starts"); a paused task's retry is parked at a well-defined point, making the between-attempts window inspectable instead of a race.
+- **Task retries.** A task whose last attempt errored and has an in-run retry queued (`retry_immediate=True`, the `run_task_retry_attempts` loop in `_eval/run.py`) does not start the retry attempt while its task gate or the process latch is closed. This also softens an existing wart: `task cancel` currently rejects a between-attempts task with a 409 ("re-issue once the retry starts"); a paused task's retry is parked at a well-defined point, making the between-attempts window inspectable instead of a race.
 - **Eval-set task dispatch.** Under the process latch, the scheduler does not start not-yet-started tasks (and, once `run_single` is retired per the add-task plan, "the scheduler" is uniformly the `run_multiple` worker pool — workers check the latch before dequeuing). A task injected via the planned `ctl task add` while paused registers normally and simply holds at dispatch, no special case.
 - **Cancel escalates over pause.** `task cancel` / `sample cancel` work unchanged on a paused task — pause must never make teardown harder. A graceful cancel (`--action score|error`) of a paused task resolves in-flight samples as usual and abandons queued ones; the gate doesn't hold terminal transitions, only starts.
 - **Config retunes compose.** `ctl config` against a paused task works (retune `max_samples` while paused; the new value applies on resume). Lowering `--max-connections` to ride out an incident and pausing are independent levers.
@@ -79,7 +79,7 @@ Per the "three scopes, three roots" URL rule:
 "Resume an eval-set" has a second reading: the process is *gone* (finished with failures, crashed, or killed while paused) and the operator wants to continue it. That machinery **already exists** and this design deliberately builds on rather than duplicates it:
 
 - `inspect eval-set` re-invoked on the same `log_dir` re-runs only tasks without a complete success log (`list_latest_eval_logs` / `log_samples_complete` in `src/inspect_ai/_eval/evalset.py`) — cancelled, errored, and crashed (`started`) logs are all retry seeds.
-- Within a re-run task, `eval_log_sample_source` (`run.py`) reuses every prior sample with `error is None` verbatim, resumes checkpointed samples, and re-runs the rest; crashed logs get buffer-DB recovery first (`design/recover.md`).
+- Within a re-run task, `eval_log_sample_source` (`_eval/task/run.py`) reuses every prior sample with `error is None` verbatim, resumes checkpointed samples, and re-runs the rest; crashed logs get buffer-DB recovery first (`design/recover.md`).
 - `inspect eval-retry` does the same for a standalone eval log.
 
 So the cross-process resume command already has a spelling: *run the same `eval-set` again*. What this design adds to that story is (a) a **clean pause point** — quiesce + auto-flush means the kill loses zero completed work, where killing a busy run today abandons whatever the buffer hadn't flushed to in-flight-cancelled status — and (b) **visibility** (`quiesced` in `task list`) so the operator/agent knows when the kill is safe. A dedicated `inspect eval-set --resume` alias is out of scope: it would be a second name for the existing idempotent invocation.
@@ -87,16 +87,16 @@ So the cross-process resume command already has a spelling: *run the same `eval-
 ## Implementation sketch
 
 - **Gate primitive.** A small re-armable async gate (`anyio.Condition`-based — `anyio.Event` can't re-arm, and pause/resume is last-write-wins; precedent: the keep-alive `_park_cond` in `_control/server.py`). `await gate.wait_open()` parks while closed; `open()` / `close()` flip it and notify waiters.
-- **Task gates live in a task-id-keyed process-global registry**, parallel to the sample-semaphore registry (`task_sample_semaphore` in `run.py`) and reset at the same run boundary — so a pause survives in-run retry attempts of the same task, matching how a `max_samples` retune survives them. The **process latch** is one module-level gate, reset at the outermost run boundary like the keep-alive intent.
+- **Task gates live in a task-id-keyed process-global registry**, parallel to the sample-semaphore registry (`task_sample_semaphore` in `_eval/task/run.py`) and reset at the same run boundary — so a pause survives in-run retry attempts of the same task, matching how a `max_samples` retune survives them. The **process latch** is one module-level gate, reset at the outermost run boundary like the keep-alive intent.
 - **Dispatch hooks** (all on the eval's single loop, so no cross-thread concerns):
   1. `task_run_sample`: await both gates at the queue-exit boundary — before the sample-semaphore acquire (so held samples don't pin limiter slots), with a re-check after acquire (a pause landing while a coroutine was already blocked on the semaphore must not leak a start: on re-check failure, release the slot and re-await the gate). This is the same boundary the graceful-cancel `cancel_type` check occupies.
-  2. `run_task_retry_attempts`: await the gates before starting a retry attempt.
+  2. `run_task_retry_attempts` (`_eval/run.py`): await the gates before starting a retry attempt.
   3. The task scheduler's worker dequeue: await the process latch before picking up the next task.
 - **Routes** (`_control/server.py`) resolve the target via `latest_eval_for_task` exactly like cancel, flip the gate, and report `changed`. `EvalState` needs no new mutable state — the server reads pause state from the gate registry the same way `limits.py` reads the semaphore registry; `GET /tasks` derives `paused` / `quiesced` from it plus the existing in-flight sample count.
 - **Quiesce auto-flush**: when a paused task's in-flight count reaches zero, invoke the existing on-demand flush (`TaskLogger` flush path, already serialized by its lock).
 - **Display**: the task display shows a `paused` badge on affected tasks (nice-to-have; the ctl read surface is the primary reporting path).
 
-Estimated blast radius: one new module for the gate + registry, ~4 hook sites in `_eval/task/run.py` / the scheduler, two route pairs in `_control/server.py`, CLI verbs in `_cli/ctl.py`, and the `GET /tasks` row fields.
+Estimated blast radius: one new module for the gate + registry, ~4 hook sites in `_eval/task/run.py` and `_eval/run.py` (retry loop / scheduler), two route pairs in `_control/server.py`, CLI verbs in `_cli/ctl.py`, and the `GET /tasks` row fields.
 
 ## Alternatives considered
 
