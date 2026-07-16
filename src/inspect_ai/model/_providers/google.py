@@ -96,7 +96,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
-from inspect_ai.model._model import RetryDecision, log_model_retry
+from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import (
     StopCategory,
@@ -118,7 +118,7 @@ from inspect_ai.model._reasoning import (
     effort_to_reasoning_tokens,
     reasoning_to_think_tag,
 )
-from inspect_ai.model._retry import model_retry_config
+from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -1174,14 +1174,7 @@ class GoogleGenAIAPI(ModelAPI):
         self._batcher = GoogleBatcher(
             client,
             batch_config,
-            model_retry_config(
-                self.model_name,
-                config.max_retries,
-                config.timeout,
-                self.should_retry,
-                lambda ex: None,
-                log_model_retry,
-            ),
+            batch_admin_retry_config(self.model_name, config, self.should_retry),
             self.service_model_name(),
         )
 

@@ -346,37 +346,10 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         LookupError: If the named object was not found in the registry.
         TypeError: If the specified parameters are not valid for the object.
     """
-    return create_registry_object(type, name, kwargs)
-
-
-def create_registry_object(
-    type: RegistryType, name: str, args: dict[str, Any]
-) -> object:
-    """Create a registry object, passing creation arguments as a dict.
-
-    Equivalent to `registry_create()` but takes creation arguments as an explicit
-    dict, so it is safe when those arguments contain a key that would collide
-    with `registry_create()`'s own positional parameters (e.g. replaying a
-    factory such as `react` that has its own `name` parameter).
-    """
-    # lookup the object
     obj = registry_lookup(type, name)
 
-    # forward registry info to the instantiated object
-    def with_registry_info(o: object) -> object:
-        info = registry_info(obj)
-        # objects created by self-tagging factories (e.g. @agent / @solver) already
-        # carry their own (richer) metadata — preserve it rather than overwriting
-        # with the factory's. The factory's name (identity) is still used.
-        if is_registry_object(o) and registry_info(o).metadata:
-            info = info.model_copy(update={"metadata": registry_info(o).metadata})
-        return set_registry_info(o, info)
-
-    # instantiate registry and model objects
-    args = registry_kwargs(**args)
-
     if isclass(obj):
-        return with_registry_info(obj(**args))
+        return _instantiate_registry_object(obj, kwargs)
     elif callable(obj):
         return_type = get_annotations(obj, eval_str=True).get("return")
         # Until we remove the MetricDeprecated symbol we need this extra
@@ -386,11 +359,41 @@ def create_registry_object(
         else:
             return_type = getattr(return_type, "__name__", None)
         if return_type and return_type.lower() == type:
-            return with_registry_info(obj(**args))
+            return _instantiate_registry_object(obj, kwargs)
         else:
             return obj
     else:
         raise LookupError(f"{name} was not found in the registry")
+
+
+def create_registry_object(
+    type: RegistryType, name: str, args: dict[str, Any]
+) -> object:
+    """Restore a registry object, passing creation arguments as a dict.
+
+    Serialized registry arguments describe an instance, so registered classes
+    and factories are always instantiated. The explicit arguments dictionary
+    also avoids collisions with `registry_create()`'s positional parameters
+    (e.g. replaying a factory such as `react` that has its own `name` parameter).
+    """
+    obj = registry_lookup(type, name)
+
+    if isclass(obj) or callable(obj):
+        return _instantiate_registry_object(obj, args)
+    else:
+        raise LookupError(f"{name} was not found in the registry")
+
+
+def _instantiate_registry_object(
+    obj: Callable[..., object], args: dict[str, Any]
+) -> object:
+    instance = obj(**registry_kwargs(**args))
+    info = registry_info(obj)
+    # Objects created by self-tagging factories (e.g. @agent / @solver) already
+    # carry richer metadata. Preserve it while retaining the factory identity.
+    if is_registry_object(instance) and registry_info(instance).metadata:
+        info = info.model_copy(update={"metadata": registry_info(instance).metadata})
+    return set_registry_info(instance, info)
 
 
 def registry_info(o: object) -> RegistryInfo:

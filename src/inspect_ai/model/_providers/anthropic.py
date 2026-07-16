@@ -149,7 +149,7 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._retry import model_retry_config
+from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -169,7 +169,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI, RetryDecision, log_model_retry
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
@@ -768,13 +768,8 @@ class AnthropicAPI(ModelAPI):
                     batch_config,
                     # TODO: In the future, we could pass max_retries and timeout
                     # from batch_config falling back to config
-                    model_retry_config(
-                        self.model_name,
-                        config.max_retries,
-                        config.timeout,
-                        self.should_retry,
-                        lambda ex: None,
-                        log_model_retry,
+                    batch_admin_retry_config(
+                        self.model_name, config, self.should_retry
                     ),
                 )
             head_message = await self._batcher.generate_for_request(request)
