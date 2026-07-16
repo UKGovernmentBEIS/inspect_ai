@@ -211,7 +211,7 @@ def test_role_models_share_connection_concurrency_key() -> None:
 
 
 def test_resolve_model_roles_copies_model_objects() -> None:
-    """A Model passed by object gets a distinct, role-stamped copy per role (#4450).
+    """A Model passed by object gets a distinct, role-stamped copy per role (#4464).
 
     The CLI parser guards --model-role with memoize=False, but eval()/eval_set()
     hand model_roles values straight to resolve_model_roles, bypassing that guard.

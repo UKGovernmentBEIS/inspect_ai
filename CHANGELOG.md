@@ -30,6 +30,7 @@
 - Bugfix: Nested `score_reducer` and `task_source` values in serialized task args now restore as instances rather than their registered factories. (#4374)
 - Viewer: log listing responses include the log dir's canonical URI (`log_dir_uri`) so the viewer can reliably scope its local cache to the directory.
 - Inspect View: Reuse one warm async S3 client and connection pool across requests — for both log reads and directory listings — instead of creating one per operation, eliminating the per-request credential/connection cold-start (e.g. `/log-headers` ~3s -> ~0.3s, `/logs` ~1.5s -> ~0.06s).
+- Model Roles: `resolve_model_roles` now copies a `Model` passed by object (e.g. via `eval(model_roles=...)`) before stamping its role, so roles supplied through the Python API — not just `--model-role` — get a distinct instance and are not misattributed. (#4464)
 
 # 0.3.247 (16 July 2026)
 
@@ -53,7 +54,6 @@
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
 - Eval: Task retries no longer fail when the prior attempt errored before writing its log file (e.g. a failed log start on unreachable storage).
 - Model Roles: `--model-role` roles that share the same model and config now report their token usage separately in `role_usage` instead of collapsing onto one role. (#4450)
-- Model Roles: `resolve_model_roles` now copies a `Model` passed by object (e.g. via `eval(model_roles=...)`) before stamping its role, so roles supplied through the Python API — not just `--model-role` — get a distinct instance and are not misattributed. (#4464)
 
 ## 0.3.245 (08 July 2026)
 
