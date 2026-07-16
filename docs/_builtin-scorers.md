@@ -40,6 +40,18 @@ Inspect includes both text matching scorers as well as model graded scorers. Bel
 
 :::
 
+## When the output doesn't match
+
+These scorers use the `CORRECT` and `INCORRECT` constants, which the default metrics convert to `1.0` and `0.0` (see [Custom Scorers](custom-scorers.qmd#score) for the `Value` types and `value_to_float()`). They differ in how they treat output that does not match the target:
+
+`includes()`, `match()`, and `exact()`
+:   Score a non-matching output `INCORRECT`, so the sample stays in the denominator as a `0.0`.
+
+`pattern()` (and `answer()`, which builds on it)
+:   Score `INCORRECT` when the pattern matches but the captured value is wrong, and `NOANSWER` when the pattern does not match at all. `NOANSWER` also converts to `0.0` by default, so it does not change accuracy; it is a distinct label for "no answer was found in the expected form" rather than "the model answered incorrectly".
+
+Whether a failure to produce output in the expected format should count as a wrong answer (`INCORRECT`) or as no answer (`NOANSWER`) is a judgement call, since failing to follow the requested format is itself an instruction-following failure. See [Scoring Policy](scoring-policy.qmd#verdicts-on-the-model) for the distinction and how it interacts with metrics.
+
 ## Metrics
 
 Each scorer provides one or more built-in metrics. Most report `accuracy` and `stderr`; `exact()` and `f1()` report `mean` and `stderr`; and the perplexity scorers report `perplexity_per_token` and `perplexity_per_seq`. You can override these by passing your own `metrics` to the `Task`:
