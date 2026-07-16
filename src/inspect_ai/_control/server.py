@@ -33,15 +33,27 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, NamedTuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Literal,
+    NamedTuple,
+    cast,
+    get_args,
+)
 
 import anyio
 
 from inspect_ai._control import CONTROL_API_VERSION
 from inspect_ai._control.buffer import flush_task_samples
-from inspect_ai._control.cancel import cancel_sample, cancel_task
+from inspect_ai._control.cancel import (
+    TaskCancelAction,
+    cancel_sample,
+    cancel_task,
+)
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
-from inspect_ai._control.events import sample_events
+from inspect_ai._control.events import DEFAULT_PAGE_LIMIT, sample_events
 from inspect_ai._control.limits import (
     UnknownConcurrencyKeyError,
     process_limits,
@@ -449,9 +461,10 @@ class ControlServer:
             return detail
 
         # Per-sample transcript events, cursored pull (phase 2). `type` is a
-        # comma-separated event-type filter (`*` = all; omitted = high-signal
-        # tier); `since` is an opaque cursor, `tail` an int, `full` a bool,
-        # `since_time`/`until` a wall-clock window.
+        # comma-separated event-type filter (`all` or `*` = everything;
+        # omitted = high-signal tier); `since` is an opaque cursor, `tail` an
+        # int, `full` a bool, `since_time`/`until` a wall-clock window,
+        # `limit` the page size (max events scanned per page).
         @app.get("/evals/{eval_id}/sample/events")
         async def get_sample_events(
             eval_id: str,
@@ -463,7 +476,15 @@ class ControlServer:
             full: bool = False,
             since_time: float | None = None,
             until: float | None = None,
+            limit: int = DEFAULT_PAGE_LIMIT,
         ) -> Any:
+            # a limit below 1 would serve an empty page whose unchanged `next`
+            # cursor loops a paging client forever
+            if limit < 1:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "limit must be at least 1"},
+                )
             # strip whitespace around the comma-separated members so natural
             # spellings like `--type "model, tool"` don't silently match
             # nothing
@@ -482,6 +503,7 @@ class ControlServer:
                 full=full,
                 since_time=since_time,
                 until=until,
+                limit=limit,
             )
             if page is None:
                 return JSONResponse(
@@ -506,15 +528,35 @@ class ControlServer:
             return result
 
         # Cancel a running task (phase 3). Task-keyed like `config` and
-        # `log-flush` — the handle never dangles across a retry. Fires the
-        # latest attempt's TaskCancel with "abort" (the in-process display's
-        # user-cancel path): in-flight samples are interrupted, completed
-        # work is preserved, and the log finishes with an error status.
+        # `log-flush` — the handle never dangles across a retry. `action`
+        # selects how the task's samples resolve: "cancel" (the default)
+        # fires the latest attempt's TaskCancel with "abort" (the in-process
+        # display's user-cancel path — in-flight samples are interrupted,
+        # completed work is preserved, and the log finishes with an error
+        # status); "score"/"error" resolve gracefully — in-flight samples are
+        # interrupted with the matching action, queued samples are abandoned,
+        # and the task completes with its ordinary terminal status.
         # Idempotent (a repeat — or a cancel of a finished task — reports
         # `changed: false`); `dry_run=true` reports without acting.
         @app.post("/tasks/{task_id}/cancel")
-        async def task_cancel(task_id: str, dry_run: bool = False) -> Any:
-            result = cancel_task(task_id, dry_run=dry_run)
+        async def task_cancel(
+            task_id: str, action: str = "cancel", dry_run: bool = False
+        ) -> Any:
+            if action not in get_args(TaskCancelAction):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "action must be 'cancel', 'score' or "
+                            f"'error' (got '{action}')"
+                        )
+                    },
+                )
+            result = cancel_task(
+                task_id,
+                action=cast(TaskCancelAction, action),
+                dry_run=dry_run,
+            )
             if result is None:
                 return JSONResponse(
                     status_code=404,
@@ -532,7 +574,9 @@ class ControlServer:
         # default; see the selector conventions in
         # design/control-channel.md). `action` selects the outcome: "score"
         # completes the sample and scores the work done so far; "error"
-        # marks it errored (rejected for fail-on-error samples). Idempotent
+        # marks it errored (rejected for fail-on-error samples); "cancel"
+        # records it as cancelled (transcript preserved, no scoring, not
+        # counted as an error). Idempotent
         # — an already-terminal sample reports `changed: false`;
         # `dry_run=true` reports without acting.
         @app.post("/evals/{eval_id}/sample/cancel")
@@ -543,6 +587,11 @@ class ControlServer:
             action: str = "score",
             dry_run: bool = False,
         ) -> Any:
+            # Function-local: a module-level `inspect_ai.log` import from
+            # this module is circular (`inspect_ai` -> `_eval.eval` ->
+            # `_control.server`).
+            from inspect_ai.log._samples import SampleCancelAction
+
             if epoch is None:
                 return JSONResponse(
                     status_code=400,
@@ -554,18 +603,21 @@ class ControlServer:
                         )
                     },
                 )
-            if action not in ("score", "error"):
+            if action not in get_args(SampleCancelAction):
                 return JSONResponse(
                     status_code=400,
                     content={
-                        "error": f"action must be 'score' or 'error' (got '{action}')"
+                        "error": (
+                            "action must be 'score', 'error' or 'cancel' "
+                            f"(got '{action}')"
+                        )
                     },
                 )
             result = await cancel_sample(
                 eval_id,
                 sample_id,
                 epoch,
-                action=cast(Literal["score", "error"], action),
+                action=cast(SampleCancelAction, action),
                 dry_run=dry_run,
             )
             if result is None:
