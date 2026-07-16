@@ -114,9 +114,11 @@ Estimated blast radius: one new module for the gate + registry, ~4 hook sites in
 - **Auto-resume / pause timeout.** A paused-and-forgotten run lingers forever (same failure mode as a forgotten keep-alive park). A `--for DURATION` or watchdog-side timer could bound it; not v1.
 - **`ctl eval-set pause`** spelling once the eval-set noun group exists (semantics unchanged — aliases the process latch).
 
-## Open questions
+## Resolved questions
 
-1. **Should `process pause` also gate the batcher?** In-flight *batched* generate calls await provider batches for minutes-to-hours; quiesce semantics say let them finish (consistent with the batch exemptions in the retry-override knobs), but a paused run can then take hours to quiesce. Probably accept and report (the in-flight count makes it visible); an operator who can't wait has cancel.
-2. **Does pausing a task suppress its `retry_wait`-style backoff clocks**, or only the attempt start? (v1: only the start — the attempt begins when both the backoff has elapsed *and* the gate is open.)
-3. **Should `quiesced` trigger a notification shape** (beyond polling `task list`) for the pause-then-kill workflow? Phase-4 push could carry it; polling suffices meanwhile.
-4. **Permission asymmetry for agents.** Pause is reversible, so a Bash-allowlist policy might want to allow `ctl task pause*`/`resume*` while gating `cancel`. Worth a line in the agent-workflow docs once shipped.
+Decided for v1 (revisit only if usage argues otherwise):
+
+1. **`process pause` does not gate the batcher.** In-flight *batched* generate calls await provider batches for minutes-to-hours; quiesce semantics say let them finish (consistent with the batch exemptions in the retry-override knobs). A paused run can therefore take hours to quiesce — accept and report (the in-flight count makes it visible); an operator who can't wait has cancel.
+2. **Pause gates only the attempt start, not `retry_wait`-style backoff clocks.** Backoff timers keep running while paused; the attempt begins when both the backoff has elapsed *and* the gate is open.
+3. **No notification shape for `quiesced`** — polling `task list` suffices for the pause-then-kill workflow. Phase-4 push could carry it later if polling proves inadequate.
+4. **Permission asymmetry for agents is a docs note, not machinery.** Pause is reversible, so a Bash-allowlist policy might want to allow `ctl task pause*`/`resume*` while gating `cancel`. Add a line to the agent-workflow docs once shipped.
