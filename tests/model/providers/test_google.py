@@ -1599,6 +1599,33 @@ def test_google_use_adc_arg_overrides_env(monkeypatch: pytest.MonkeyPatch) -> No
     assert api._oauth is False
 
 
+@pytest.mark.parametrize("value", ["true", "True", "1", "yes"])
+def test_google_use_adc_env_var_truthy_values(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("GOOGLE_USE_ADC", value)
+    with patch("google.auth.default", return_value=(_FakeCreds(), None)):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key=None,
+        )
+    assert api._oauth is True
+
+
+@pytest.mark.parametrize("value", ["false", "False", "0", "no", ""])
+def test_google_use_adc_env_var_falsy_values(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("GOOGLE_USE_ADC", value)
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="test-key",
+    )
+    assert api._oauth is False
+
+
 def test_google_no_auth_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
