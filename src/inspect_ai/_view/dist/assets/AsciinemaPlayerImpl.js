@@ -1,4 +1,5 @@
-import { n as require_react, o as __toESM, t as require_jsx_runtime } from "./jsx-runtime.js";
+import { i as __toESM } from "./rolldown-runtime.js";
+import { n as require_react, t as require_jsx_runtime } from "./jsx-runtime.js";
 //#region ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/logging-DeB0koVt.js
 function parseNpt(time) {
 	if (typeof time === "number") return time;

@@ -1,4 +1,6 @@
-from typing import TypeAlias, Union
+from typing import Annotated, TypeAlias, Union
+
+from pydantic import Field
 
 from inspect_ai.event._score_edit import ScoreEditEvent
 
@@ -49,4 +51,26 @@ Event: TypeAlias = Union[
     StepEvent,
     SubtaskEvent,
 ]
-"""Event in a transcript."""
+"""Event in a transcript.
+
+When validating events from JSON or dicts (i.e. reading logs), validate against
+:data:`DiscriminatedEvent` below rather than this bare alias — it carries the
+pydantic discriminator that turns validation into a single keyed lookup. This
+plain alias is deliberately left un-annotated so ``get_args(Event)`` and other
+type introspection keep working (wrapping the public alias is what forced the
+revert of #2714)."""
+
+
+DiscriminatedEvent: TypeAlias = Annotated[Event, Field(discriminator="event")]
+"""`Event` tagged with a pydantic discriminator for fast validation.
+
+Every member carries a unique ``event`` Literal, so validating against this
+alias is a single keyed lookup instead of pydantic trying all 23 union
+members in turn (and re-running each candidate's validators — including the
+timestamp ``BeforeValidator`` — on every rejected branch).
+
+Use this in the ``list[Event]`` fields that are validated when reading logs.
+The plain :data:`Event` alias above is deliberately left un-annotated so
+``get_args(Event)`` and other type introspection keep working; wrapping the
+public alias itself is what forced the revert of #2714. Serialization is
+unaffected — the ``event`` tag is already emitted by every member."""
