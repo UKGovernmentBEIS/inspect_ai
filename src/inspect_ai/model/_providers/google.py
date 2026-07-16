@@ -129,8 +129,7 @@ from inspect_ai.util._json import json_schema_dump
 
 from .util import (
     OAUTH_PLACEHOLDER_API_KEY,
-    ensure_google_credentials_valid,
-    google_oauth_headers,
+    GoogleOAuthCredentials,
     model_base_url,
     resolve_google_credentials,
 )
@@ -258,8 +257,7 @@ class GoogleGenAIAPI(ModelAPI):
         # the standard-endpoint branch below). Initialized here so the vertex
         # path also carries these attributes.
         self._oauth = False
-        self._credentials: Any | None = None
-        self._credentials_refresh_lock = anyio.Lock()
+        self._credentials: GoogleOAuthCredentials | None = None
         self._quota_project_id: str | None = None
 
         # handle auth (vertex or standard google api key)
@@ -830,13 +828,11 @@ class GoogleGenAIAPI(ModelAPI):
         # the local token — no network I/O here — so the retried request mints
         # a fresh bearer via _ensure_oauth_token().
         if self._oauth and self._credentials is not None:
-            self._credentials.token = None
+            self._credentials.invalidate()
 
     async def _ensure_oauth_token(self) -> None:
         if self._oauth and self._credentials is not None:
-            await ensure_google_credentials_valid(
-                self._credentials, self._credentials_refresh_lock
-            )
+            await self._credentials.ensure_valid()
 
     def model_client(self, http_options: HttpOptions | None = None) -> Client:
         from inspect_ai._util._async import current_async_backend
@@ -852,7 +848,7 @@ class GoogleGenAIAPI(ModelAPI):
         ):
             http_options.httpx_async_client = httpx.AsyncClient()
         api_key = self.api_key
-        if self._oauth:
+        if self._oauth and self._credentials is not None:
             # The dev-endpoint client requires a non-empty api_key; pass a
             # placeholder and carry the OAuth bearer token in headers instead
             # (Authorization overrides the placeholder x-goog-api-key). Header
@@ -861,7 +857,7 @@ class GoogleGenAIAPI(ModelAPI):
             api_key = OAUTH_PLACEHOLDER_API_KEY
             http_options.headers = {
                 **(http_options.headers or {}),
-                **google_oauth_headers(self._credentials, self._quota_project_id),
+                **self._credentials.headers(self._quota_project_id),
             }
         return Client(
             vertexai=self.is_vertex(),

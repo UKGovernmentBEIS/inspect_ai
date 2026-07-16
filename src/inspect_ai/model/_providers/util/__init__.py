@@ -21,8 +21,7 @@ from .chatapi import (
 from .google_auth import (
     DEFAULT_OAUTH_SCOPES,
     OAUTH_PLACEHOLDER_API_KEY,
-    ensure_google_credentials_valid,
-    google_oauth_headers,
+    GoogleOAuthCredentials,
     resolve_google_credentials,
 )
 from .hf_handler import HFHandler
@@ -34,8 +33,7 @@ __all__ = [
     "as_stop_reason",
     "DEFAULT_OAUTH_SCOPES",
     "OAUTH_PLACEHOLDER_API_KEY",
-    "ensure_google_credentials_valid",
-    "google_oauth_headers",
+    "GoogleOAuthCredentials",
     "resolve_google_credentials",
     "chat_api_request",
     "chat_api_input",

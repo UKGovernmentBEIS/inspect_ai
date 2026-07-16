@@ -1,9 +1,11 @@
 import asyncio
 import base64
+import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
+import anyio
 import pytest
 from google.genai.errors import APIError
 from google.genai.types import (
@@ -1506,6 +1508,24 @@ async def test_google_oauth_concurrent_refresh_single_flight() -> None:
     await tg_collect([api._ensure_oauth_token for _ in range(5)])
     assert creds.refresh_calls == 1
     assert creds.valid
+
+
+@pytest.mark.anyio
+async def test_google_oauth_refresh_cancellable() -> None:
+    """A cancelled waiter must not be shielded until the refresh thread finishes."""
+
+    class _SlowCreds(_FakeCreds):
+        def refresh(self, request: Any) -> None:
+            time.sleep(2)
+            super().refresh(request)
+
+    creds = _SlowCreds(valid=False)
+    api = _adc_api(creds)
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        with anyio.fail_after(0.1):
+            await api._ensure_oauth_token()
+    assert time.monotonic() - start < 1.0
 
 
 @pytest.mark.anyio
