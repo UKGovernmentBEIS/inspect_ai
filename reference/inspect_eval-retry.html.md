@@ -12,6 +12,7 @@ inspect eval-retry [OPTIONS] LOG_FILES...
 
 | Name | Type | Description | Default |
 |----|----|----|----|
+| `--json` | boolean | Emit machine-readable launch output as JSON lines on stdout (implies –display none): a ‘launch’ record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path (‘control’ is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a ‘done’ record with each retried task’s log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one ‘launch’ record per file (sequentially — each supersedes the previous), and the ‘done’ record carries the last launch’s run_id. | `False` |
 | `--max-samples` | integer | Maximum number of samples to run in parallel (default is running all samples in parallel) | None |
 | `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set) | None |
 | `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is os.cpu_count()) | None |

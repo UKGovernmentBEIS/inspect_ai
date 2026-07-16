@@ -269,7 +269,7 @@ See the [Fallbacks](./fallbacks.html.md) article for complete documentation, inc
 
 #### Cache Diagnostics
 
-Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt cachijng. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
+Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis-2026-04-07
@@ -352,10 +352,28 @@ For the `google` provider, custom model args (`-M`) are forwarded to the `genai.
 
 The following environment variables are supported by the Google provider
 
-| Variable          | Description                      |
-|-------------------|----------------------------------|
-| `GOOGLE_API_KEY`  | API key credentials (required).  |
+| Variable | Description |
+|----|----|
+| `GOOGLE_API_KEY` | API key credentials (required unless using OAuth/ADC). |
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
+| `GOOGLE_USE_ADC` | Set to `true` to authenticate Gemini Developer API models with OAuth/ADC by default (optional). |
+| `GOOGLE_CLOUD_QUOTA_PROJECT` | Quota/billing project sent as `x-goog-user-project` when using OAuth/ADC (optional). |
+
+### Gemini Developer API with OAuth / ADC
+
+Some Gemini Developer API deployments (for example, partner-served models) are reachable only via an OAuth bearer token — Application Default Credentials (ADC) — plus a quota-project header, with no API key. Enable this **per model** (so a run can mix OAuth and API-key Google models) with `-M use_adc=true`:
+
+``` bash
+gcloud auth application-default login   # or an impersonated service account
+inspect eval task.py --model google/your-model \
+   -M use_adc=true -M quota_project_id=your-project
+```
+
+Alternatively, set `GOOGLE_USE_ADC=true` in the environment (e.g. in `.env`) to make OAuth the default for all Gemini Developer API models, so commands don’t need to differ between API-key and OAuth environments; `-M use_adc=false` overrides it per model, and Vertex models ignore it (Vertex uses ADC natively).
+
+ADC covers all the standard credential sources: user credentials from `gcloud auth application-default login` (optionally with `--impersonate-service-account`), a service-account key or workload identity federation config via `GOOGLE_APPLICATION_CREDENTIALS`, and attached service accounts on GCP compute.
+
+Supported custom model args (`-M`): `use_adc` (bool), `scopes` (list, defaults to `cloud-platform`), and `quota_project_id` (falls back to the `GOOGLE_CLOUD_QUOTA_PROJECT` environment variable). Auth precedence: `-M use_adc` (or, when unset, `GOOGLE_USE_ADC`) selects OAuth; otherwise an explicit API key, then `GOOGLE_API_KEY`, is used. Inspect refreshes the token as needed before each request, so long-running evals are supported. Batch inference is **not** supported in this mode (the batch client is long-lived and cannot refresh the token).
 
 ### Gemini on Vertex AI
 

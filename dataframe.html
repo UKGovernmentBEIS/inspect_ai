@@ -830,8 +830,8 @@ table a {
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples_df(<span class="st">"logs"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 408 entries, 0 to 407</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Columns: 14 entries, sample_id to fallbacks</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>By default, <code>sample_df()</code> reads all of the columns in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span> data structure (13 columns), along with the <code>eval_id</code> for linking back to the parent eval log file.</p>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Columns: 19 entries, sample_id to fallbacks</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>By default, <code>sample_df()</code> reads all of the columns in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span> data structure (18 columns), along with the <code>eval_id</code> for linking back to the parent eval log file.</p>
 </section>
 <section id="column-groups" class="level3">
 <h3 class="anchored" data-anchor-id="column-groups">Column Groups</h3>
@@ -994,7 +994,7 @@ table a {
 <h3 class="anchored" data-anchor-id="frontier">frontier()</h3>
 <p>Adds a “frontier” column to each task. The value of the “frontier” column will be <code>True</code> if for the task, the model was the top-scoring model among all models available at the moment the model was released; otherwise it will be <code>False</code>.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> requires scores and model release dates, so must be run after the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation.</p>
-<div id="3061d9a7" class="cell">
+<div id="ef391bbd" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    evals_df, frontier, log_viewer, model_info, prepare</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1010,7 +1010,7 @@ table a {
 <h3 class="anchored" data-anchor-id="score_to_float">score_to_float()</h3>
 <p>Converts one or more score columns to a float representation of the score.</p>
 <p>For each column specified, this operation will convert the values to floats using the provided <code>value_to_float</code> function. The column value will be replaced with the float value.</p>
-<div id="634e2bf5" class="cell">
+<div id="cb85be2c" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    samples_df, frontier, model_info, prepare, score_to_float</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1202,17 +1202,23 @@ table a {
 <span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"id"</span>, path<span class="op">=</span><span class="st">"id"</span>, required<span class="op">=</span><span class="va">True</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">str</span>),</span>
 <span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"epoch"</span>, path<span class="op">=</span><span class="st">"epoch"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
 <span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"input"</span>, path<span class="op">=</span>sample_input_as_str, required<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"target"</span>, path<span class="op">=</span><span class="st">"target"</span>, required<span class="op">=</span><span class="va">True</span>, value<span class="op">=</span>list_as_str),</span>
-<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>),</span>
-<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"score_*"</span>, path<span class="op">=</span><span class="st">"scores"</span>, value<span class="op">=</span>score_values),</span>
-<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"model_usage"</span>, path<span class="op">=</span><span class="st">"model_usage"</span>),</span>
-<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"total_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
-<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"working_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
-<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"error"</span>, path<span class="op">=</span><span class="st">"error"</span>),</span>
-<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"limit"</span>, path<span class="op">=</span><span class="st">"limit"</span>),</span>
-<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"retries"</span>, path<span class="op">=</span><span class="st">"retries"</span>),</span>
-<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"fallbacks"</span>, path<span class="op">=</span>sample_total_fallbacks),</span>
-<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"choices"</span>, path<span class="op">=</span><span class="st">"choices"</span>, full<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"target"</span>, path<span class="op">=</span><span class="st">"target"</span>, required<span class="op">=</span><span class="va">True</span>, value<span class="op">=</span>list_as_str),</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>),</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"score_*"</span>, path<span class="op">=</span><span class="st">"scores"</span>, value<span class="op">=</span>score_values),</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"model_usage"</span>, path<span class="op">=</span><span class="st">"model_usage"</span>),</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"total_tokens"</span>, path<span class="op">=</span>sample_total_tokens),</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"total_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"working_time"</span>, path<span class="op">=</span><span class="st">"working_time"</span>),</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"message_count"</span>, path<span class="op">=</span><span class="st">"message_count"</span>, default<span class="op">=</span><span class="va">None</span>),</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"turn_count"</span>, path<span class="op">=</span><span class="st">"turn_count"</span>, default<span class="op">=</span><span class="va">None</span>),</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"token_limit_usage"</span>, path<span class="op">=</span><span class="st">"token_limit_usage"</span>, default<span class="op">=</span><span class="va">None</span>),</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"error"</span>, path<span class="op">=</span><span class="st">"error"</span>, default<span class="op">=</span><span class="st">""</span>),</span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"limit"</span>, path<span class="op">=</span><span class="st">"limit"</span>),</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"retries"</span>, path<span class="op">=</span><span class="st">"retries"</span>),</span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"fallbacks"</span>, path<span class="op">=</span>sample_total_fallbacks),</span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <code>turn_count</code> column is the number of turns (top-level model generations) used by the sample, and <code>token_limit_usage</code> is the metered value of the sample’s token limit, respecting the limit’s type (<code>None</code> when no token limit was configured). Both are <code>None</code> for logs written by older versions of Inspect.</p>
 <p>The <code>fallbacks</code> column is the total number of generate calls served by a <a href="./providers.html#anthropic-refusal-fallback">fallback model</a> (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: <code>SampleColumn("model_fallbacks", path="model_fallbacks")</code>.</p>
 <p>The <code>eval_id</code> and <code>sample_id</code> fields are automatically included in all sample data frames. Additionally, a <code>log</code> field which includes the URI of the log file read from is included.</p>
 <p>By default, only score values are included in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span> columns. If you want to additional read the score answer, metadata, and explanation then use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplescores">SampleScores</a></span> column group. For example:</p>

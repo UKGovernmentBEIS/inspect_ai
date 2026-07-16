@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inspect.aisi.org.uk/dataframe.html</loc>
-    <lastmod>2026-06-26T11:57:43.102Z</lastmod>
+    <lastmod>2026-07-16T12:23:02.127Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/extensions-sandboxes.html</loc>
@@ -10,7 +10,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/control-channel.html</loc>
-    <lastmod>2026-07-10T23:55:19.659Z</lastmod>
+    <lastmod>2026-07-16T12:23:02.126Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_eval-set.html</loc>
@@ -94,7 +94,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/intervention.html</loc>
-    <lastmod>2026-06-03T22:55:45.520Z</lastmod>
+    <lastmod>2026-07-16T12:23:02.128Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/analysis.html</loc>
@@ -110,7 +110,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/providers.html</loc>
-    <lastmod>2026-07-10T23:55:19.660Z</lastmod>
+    <lastmod>2026-07-16T12:23:02.128Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/scanners.html</loc>
@@ -214,7 +214,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/CHANGELOG.html</loc>
-    <lastmod>2026-07-10T23:55:19.656Z</lastmod>
+    <lastmod>2026-07-16T12:23:05.331Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/custom-scorers.html</loc>
@@ -242,7 +242,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/setting-limits.html</loc>
-    <lastmod>2026-07-10T23:55:19.662Z</lastmod>
+    <lastmod>2026-07-16T12:23:02.129Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/human-agent.html</loc>

@@ -708,11 +708,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#launch-handoff" id="toc-launch-handoff" class="nav-link" data-scroll-target="#launch-handoff">Launch Handoff</a></li>
   <li><a href="#listing-tasks" id="toc-listing-tasks" class="nav-link" data-scroll-target="#listing-tasks">Listing Tasks</a></li>
   <li><a href="#selecting-a-task" id="toc-selecting-a-task" class="nav-link" data-scroll-target="#selecting-a-task">Selecting a Task</a></li>
   <li><a href="#sample-status" id="toc-sample-status" class="nav-link" data-scroll-target="#sample-status">Sample Status</a></li>
   <li><a href="#errors-and-retries" id="toc-errors-and-retries" class="nav-link" data-scroll-target="#errors-and-retries">Errors and Retries</a></li>
   <li><a href="#transcript-events" id="toc-transcript-events" class="nav-link" data-scroll-target="#transcript-events">Transcript Events</a></li>
+  <li><a href="#cancellation" id="toc-cancellation" class="nav-link" data-scroll-target="#cancellation">Cancellation</a></li>
   <li><a href="#configuration" id="toc-configuration" class="nav-link" data-scroll-target="#configuration">Configuration</a></li>
   <li><a href="#log-flushing" id="toc-log-flushing" class="nav-link" data-scroll-target="#log-flushing">Log Flushing</a></li>
   <li><a href="#processes-and-keep-alive" id="toc-processes-and-keep-alive" class="nav-link" data-scroll-target="#processes-and-keep-alive">Processes and Keep Alive</a></li>
@@ -744,7 +746,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Every <code>inspect eval</code> or <code>inspect eval-set</code> process binds a local control endpoint that exposes the live state of the run. The <code>inspect ctl</code> commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and adjust it — concurrency limits, log buffering — without interrupting it or parsing log files.</p>
+<p>Every <code>inspect eval</code> or <code>inspect eval-set</code> process binds a local control endpoint that exposes the live state of the run. The <code>inspect ctl</code> commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and direct it — cancel a stalled sample or a whole task, retune concurrency limits and log buffering — without parsing log files.</p>
 <p>Commands are grouped by resource noun (<code>task</code>, <code>sample</code>, <code>process</code>), plus a top-level <code>config</code> command:</p>
 <table class="caption-top table">
 <colgroup>
@@ -767,20 +769,28 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Write buffered completed samples to the log now.</td>
 </tr>
 <tr class="odd">
+<td><code>inspect ctl task cancel</code></td>
+<td>Cancel a running task.</td>
+</tr>
+<tr class="even">
 <td><code>inspect ctl sample list</code></td>
 <td>List samples (running, completed, and pending).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl sample errors</code></td>
 <td>List samples that errored or were retried.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl sample show</code></td>
 <td>Show one sample’s summary and error history.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl sample events</code></td>
 <td>Read one sample’s transcript events.</td>
+</tr>
+<tr class="even">
+<td><code>inspect ctl sample cancel</code></td>
+<td>Cancel one running sample.</td>
 </tr>
 <tr class="odd">
 <td><code>inspect ctl config</code></td>
@@ -800,7 +810,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>A bare noun implies <code>list</code>: <code>inspect ctl task</code> ≡ <code>inspect ctl task list</code>, and likewise for <code>sample</code> and <code>process</code>. All commands accept <code>--json</code> for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The <code>task list</code> / <code>sample *</code> / <code>process list</code> commands are read-only. The others adjust the run deliberately and conservatively: <code>config</code> retunes launch parameters (never interrupting in-flight work), <code>task log-flush</code> forces a log write that would happen anyway, and <code>process keep</code>/<code>release</code> only affect what happens after the eval finishes. Nothing on the control channel can cancel or modify samples.</p>
+<p>A bare noun implies <code>list</code>: <code>inspect ctl task</code> ≡ <code>inspect ctl task list</code>, and likewise for <code>sample</code> and <code>process</code>. All commands accept <code>--json</code> for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The <code>list</code> / <code>show</code> / <code>errors</code> / <code>events</code> commands are read-only. The others direct the run deliberately: <code>config</code> retunes launch parameters (never interrupting in-flight work), <code>task log-flush</code> forces a log write that would happen anyway, <code>process keep</code>/<code>release</code> only affect what happens after the eval finishes, and <code>task cancel</code> / <code>sample cancel</code> interrupt work explicitly (idempotently, with <code>--dry-run</code> support).</p>
 <p>The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -816,14 +826,27 @@ Note
 </div>
 </div>
 </section>
+<section id="launch-handoff" class="level2">
+<h2 class="anchored" data-anchor-id="launch-handoff">Launch Handoff</h2>
+<p>Right after launching an eval, an empty <code>inspect ctl task list</code> is ambiguous: the control endpoint may simply not be bound yet. A script or agent that launches an eval and then drives it with <code>inspect ctl</code> should launch with <code>--json</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--json</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This implies <code>--display none</code> and makes stdout machine-readable — the process emits JSON lines (and nothing else) on stdout:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">"event"</span><span class="fu">:</span> <span class="st">"launch"</span><span class="fu">,</span> <span class="dt">"run_id"</span><span class="fu">:</span> <span class="st">"Ngkz4viFYq…"</span><span class="fu">,</span> <span class="dt">"eval_set_id"</span><span class="fu">:</span> <span class="kw">null</span><span class="fu">,</span> <span class="dt">"pid"</span><span class="fu">:</span> <span class="dv">17146</span><span class="fu">,</span> <span class="dt">"log_dir"</span><span class="fu">:</span> <span class="st">"/…/logs"</span><span class="fu">,</span> <span class="dt">"control"</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">"socket_path"</span><span class="fu">:</span> <span class="st">"/…/control/17146.sock"</span><span class="fu">}}</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">"event"</span><span class="fu">:</span> <span class="st">"done"</span><span class="fu">,</span> <span class="dt">"run_id"</span><span class="fu">:</span> <span class="st">"Ngkz4viFYq…"</span><span class="fu">,</span> <span class="dt">"logs"</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span><span class="dt">"task"</span><span class="fu">:</span> <span class="st">"ctf"</span><span class="fu">,</span> <span class="dt">"task_id"</span><span class="fu">:</span> <span class="st">"…"</span><span class="fu">,</span> <span class="dt">"eval_id"</span><span class="fu">:</span> <span class="st">"…"</span><span class="fu">,</span> <span class="dt">"status"</span><span class="fu">:</span> <span class="st">"success"</span><span class="fu">,</span> <span class="dt">"location"</span><span class="fu">:</span> <span class="st">"/…/logs/…_ctf_….eval"</span><span class="fu">}</span><span class="ot">]</span><span class="fu">}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <code>launch</code> record is printed only once the control endpoint is bound (and before any task work begins), so reading it is a hard guarantee: from then on an empty <code>inspect ctl task list</code> means “no tasks registered yet”, never “no server”. <code>control</code> is <code>null</code> exactly when the control surface is definitively absent (disabled via <code>--ctl-server=false</code>, or the bind failed and the eval degraded to running without it). A process that exits without emitting a <code>launch</code> record failed before the control server came up — the reason is on stderr.</p>
+<p>The <code>done</code> record arrives when the eval finishes, with each task’s log location and status — the handoff from live observation to reading logs. A run that crashes (raises out of the eval) emits no <code>done</code> record and exits non-zero. Note that a task <em>error</em> is not a crash: like plain <code>inspect eval</code>, the process still emits <code>done</code> and exits 0 with that task’s <code>status</code> set to <code>"error"</code> — branch on the <code>status</code> fields in <code>logs</code>, not the exit code (or use <code>eval-set</code>, whose <code>success</code> field and exit code do reflect per-task outcomes).</p>
+<p>Stdout carries these records exclusively: the eval itself runs with stdout redirected to stderr (at the file-descriptor level, so even output from subprocesses spawned by task or solver code lands on stderr rather than corrupting the stream).</p>
+<p><code>inspect eval-set --json</code> follows the same contract, with eval-set specifics: the records also carry <code>eval_set_id</code>, and the <code>done</code> record adds an overall <code>success</code> field mirroring the exit code. Two deviations from “exactly one <code>launch</code>, then one <code>done</code>”: a set whose tasks are all already complete runs no eval, so stdout carries only the <code>done</code> record (don’t read the missing <code>launch</code> line as a failed launch once <code>done</code> arrived); and legacy batch-mode retries (<code>--no-retry-immediate</code>) emit a fresh <code>launch</code> record per retry batch, with the <code>done</code> record carrying the last launch’s <code>run_id</code> — the run that produced the final state.</p>
+<p><code>inspect eval-retry --json</code> follows the contract too, with one wrinkle: each retried log file runs as its own eval with its own <code>run_id</code>, so retrying multiple log files emits one <code>launch</code> record per file (sequentially — each supersedes the previous), and the single <code>done</code> record carries the last launch’s <code>run_id</code> with one <code>logs</code> entry per retried task.</p>
+</section>
 <section id="listing-tasks" class="level2">
 <h2 class="anchored" data-anchor-id="listing-tasks">Listing Tasks</h2>
 <p><code>inspect ctl task</code> lists the tasks of every running eval on the machine:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">task_id</span>       task                        model                      solver    samples             started</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------------</span>  <span class="at">--------------------------</span>  <span class="at">-------------------------</span>  <span class="at">--------</span>  <span class="at">------------------</span>  <span class="at">--------</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ZByxJpK4bKSz</span>  inspect_evals/gpqa_diamond  openai/gpt-5               react     12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span>   <span class="ex">14:02:11</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">fR8mWn2cQspD</span>  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 <span class="er">(</span><span class="bu">complete</span><span class="kw">)</span>  <span class="ex">13:58:40</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">task_id</span>       task                        model                      solver    samples             started</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------------</span>  <span class="at">--------------------------</span>  <span class="at">-------------------------</span>  <span class="at">--------</span>  <span class="at">------------------</span>  <span class="at">--------</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ZByxJpK4bKSz</span>  inspect_evals/gpqa_diamond  openai/gpt-5               react     12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span>   <span class="ex">14:02:11</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">fR8mWn2cQspD</span>  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 <span class="er">(</span><span class="bu">complete</span><span class="kw">)</span>  <span class="ex">13:58:40</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Each row is one task: retried tasks stay on a single row (with an <code>attempts</code> column showing how many attempts have run), and an <code>errors</code> column appears when any samples have errored. The <code>solver</code> column shows the plan’s terminal solver (the agent name, e.g.&nbsp;<code>react</code>, for an agentic task). With <code>--json</code>, the response is an <code>{as_of, tasks}</code> envelope and each task row also carries <code>pid</code>, <code>socket_path</code>, and <code>log_location</code> (where results are being written — the handle for reading logs after the run).</p>
 <p>A task is finished exactly when <code>completed_at</code> is non-null; <code>status</code> (<code>running</code> / <code>completed</code>) is derived from it. Don’t infer completion from sample counts — a cancelled or errored eval finishes with <code>completed &lt; total</code>.</p>
 </section>
@@ -831,48 +854,77 @@ Note
 <h2 class="anchored" data-anchor-id="selecting-a-task">Selecting a Task</h2>
 <p>Commands that operate on one task take a <code>TASK</code> argument that selects a task from this list. It matches a task id (or unique prefix) first, then a task name — anchored at the start of the name or after a <code>/</code>, so <code>gpqa</code> matches <code>inspect_evals/gpqa_diamond</code>. When only one task is running you can omit it entirely.</p>
 <p>Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don’t use them).</p>
-<p>On <em>reads</em> (<code>sample list</code>, <code>sample errors</code>) the selector is a filter: omitting it lists across <strong>all</strong> running tasks (each row carries its <code>task_id</code>), which makes “what’s erroring anywhere in this eval set?” the zero-argument spelling. On <em>mutations</em> (<code>task log-flush</code>, the task-scoped <code>config</code> knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out.</p>
+<p>On <em>reads</em> (<code>sample list</code>, <code>sample errors</code>) the selector is a filter: omitting it lists across <strong>all</strong> running tasks (each row carries its <code>task_id</code>), which makes “what’s erroring anywhere in this eval set?” the zero-argument spelling. On <em>mutations</em> (<code>task log-flush</code>, the task-scoped <code>config</code> knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (<code>task cancel</code>) require the selector outright.</p>
 </section>
 <section id="sample-status" class="level2">
 <h2 class="anchored" data-anchor-id="sample-status">Sample Status</h2>
 <p><code>inspect ctl sample list</code> lists samples with their live status:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample list gpqa</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-5  ·  running  ·  12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">sample</span>  epoch  status     time   idle  tokens  messages</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">------</span>  <span class="at">-----</span>  <span class="at">---------</span>  <span class="at">-----</span>  <span class="at">----</span>  <span class="at">------</span>  <span class="at">--------</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ex">14</span>      1      running    12:40  0:03  48210   22</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ex">17</span>      1      running    8:12   6:51  31055   14</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ex">21</span>      1      running    0:45   0:01  2150    3</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="ex">1</span>       1      completed  4:02         18021   9</span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="ex">...</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample list gpqa</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-5  ·  running  ·  12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">sample</span>  epoch  status     time   idle  tokens  messages  turns</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ex">------</span>  <span class="at">-----</span>  <span class="at">---------</span>  <span class="at">-----</span>  <span class="at">----</span>  <span class="at">------</span>  <span class="at">--------</span>  <span class="at">-----</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ex">14</span>      1      running    12:40  0:03  48210   22        11</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ex">17</span>      1      running    8:12   6:51  31055   14        7</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="ex">21</span>      1      running    0:45   0:01  2150    3         1</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="ex">1</span>       1      completed  4:02         18021   9         4</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="ex">...</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>idle</code> column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. (Note that a single in-flight model request produces no events until it returns, so idle time also accumulates during one long model call.)</p>
-<p>With <code>--json</code> the response is an <code>{as_of, samples}</code> envelope. Pass <code>--active-since &lt;timestamp&gt;</code> to get only the samples that started or changed since a previous poll — feed it the <code>as_of</code> from the prior response (rather than a locally minted timestamp) so nothing that changed mid-read is missed.</p>
+<p>The <code>turns</code> column counts top-level model generations (blank when unknown, e.g.&nbsp;for samples logged by older versions of Inspect). When any listed sample has a token limit configured, <code>limit usage</code> and <code>limit total</code> columns are also shown: the metered value for that limit — respecting its type (<code>all</code>, <code>output</code>, or a formula) — against the configured ceiling. The <code>--json</code> rows carry these as <code>turn_count</code>, <code>token_limit_usage</code>, <code>token_limit_total</code>, and <code>token_limit_type</code>.</p>
+<p>The listing is capped at 100 rows per task by default, keeping the head of the running → terminal → pending sort order (running samples sort first, any queued-but-not-started ones just after, then finished ones — completed, error, and cancelled alike — so the cap keeps the most relevant rows and errored samples survive it alongside completed ones). A capped listing says so — the human output prints a <code>listing capped: showing N of M samples</code> footer, and the JSON envelope sets <code>truncated: true</code> — and the aggregate answer stays complete regardless: the envelope’s <code>counts</code> is the status histogram over <em>all</em> of the task’s samples. Adjust with:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 35%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>--limit N</code></td>
+<td>Cap the listing at N rows per task instead of 100.</td>
+</tr>
+<tr class="even">
+<td><code>--all</code></td>
+<td>List every sample row (no cap).</td>
+</tr>
+<tr class="odd">
+<td><code>--status running,error</code></td>
+<td>Only samples with these statuses (<code>running</code>, <code>completed</code>, <code>error</code>, <code>cancelled</code>, <code>pending</code>, <code>queued</code>). Filters rows only — <code>counts</code> stays whole-task.</td>
+</tr>
+</tbody>
+</table>
+<p>With <code>--json</code> the response is an <code>{as_of, counts, samples, truncated}</code> envelope. Pass <code>--active-since &lt;timestamp&gt;</code> to get only the samples that started or changed since a previous poll — feed it the <code>as_of</code> from the prior response (rather than a locally minted timestamp) so nothing that changed mid-read is missed (<code>counts</code> remains the whole-task histogram on a delta poll, so progress tracking rides along for free). The row cap applies to delta polls too, and the rows it drops are typically the terminal ones (running rows sort first and survive the cap) — samples that completed or errored in the window and will never produce activity again, so they won’t match a later <code>--active-since</code>. If a delta poll comes back <code>truncated</code>, re-issue it with the same <code>--active-since</code> plus <code>--all</code> (or a higher <code>--limit</code>) before advancing to the new <code>as_of</code>; otherwise the dropped changes leave the feed permanently.</p>
+<p>The cap is enforced by the eval process’s control server, so an <code>inspect</code> CLI from before the cap (≤ 0.3.245) reading a newer eval will see the capped listing without the footer or the <code>truncated</code> flag. Keep the observing CLI at least as new as the eval it inspects (a newer CLI reading an older eval handles the difference automatically).</p>
 </section>
 <section id="errors-and-retries" class="level2">
 <h2 class="anchored" data-anchor-id="errors-and-retries">Errors and Retries</h2>
 <p><code>inspect ctl sample errors</code> is a triage view of the samples that errored or were retried (across all running tasks when <code>TASK</code> is omitted):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample errors gpqa</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">sample</span>  epoch  status   retries  error</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------</span>  <span class="at">-----</span>  <span class="at">-------</span>  <span class="at">-------</span>  <span class="at">----------------------------------</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ex">9</span>       1      error    2        RuntimeError: tool execution failed</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">17</span>      1      running  1</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample errors gpqa</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">sample</span>  epoch  status   retries  error</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------</span>  <span class="at">-----</span>  <span class="at">-------</span>  <span class="at">-------</span>  <span class="at">----------------------------------</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">9</span>       1      error    2        RuntimeError: tool execution failed</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">17</span>      1      running  1</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><code>inspect ctl sample show</code> drills into one sample: its status, timing, token usage, and score, plus its full error history — including errors from prior attempts (both task-level retries and sample-level <code>retry_on_error</code>). Pass <code>--traceback</code> for full tracebacks:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample show gpqa 9 <span class="at">--traceback</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample show gpqa 9 <span class="at">--traceback</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="transcript-events" class="level2">
 <h2 class="anchored" data-anchor-id="transcript-events">Transcript Events</h2>
 <p><code>inspect ctl sample events</code> reads a running sample’s transcript — the sequence of model calls, tool calls, errors, and scores it has produced so far:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample events gpqa 17</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">time</span>      event  summary</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">--------</span>  <span class="at">-----</span>  <span class="at">-------------------------------------------------</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">14:09:01</span>  model  openai/gpt-5 · 1840 tok · stop · The compound is...</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">14:09:04</span>  tool   bash<span class="er">(</span><span class="fu">ls</span> /data<span class="kw">)</span> <span class="ex">→</span> README.md results.csv</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="ex">14:09:11</span>  model  openai/gpt-5 · 2105 tok · stop · Based on the...</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span> events  ·  more</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="ex">next:</span> eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  <span class="er">(</span><span class="ex">resume</span> with <span class="at">--cursor</span><span class="kw">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The first (unseeded) call returns the recent tail (the last 20 events; widen with <code>--tail N</code>). Reads are incremental: each page ends with a <code>next</code> cursor, and passing it back via <code>--cursor</code> returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports <code>done</code> the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt’s transcript. If the eval process is momentarily too busy to answer, the command fails (non-zero exit, message on stderr) rather than serving an empty page — treat that as “try again shortly”, not as the sample or eval being gone.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample events gpqa 17</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">time</span>      event  summary</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">--------</span>  <span class="at">-----</span>  <span class="at">-------------------------------------------------</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="ex">14:09:01</span>  model  openai/gpt-5 · 1840 tok · stop · The compound is...</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="ex">14:09:04</span>  tool   bash<span class="er">(</span><span class="fu">ls</span> /data<span class="kw">)</span> <span class="ex">→</span> README.md results.csv</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="ex">14:09:11</span>  model  openai/gpt-5 · 2105 tok · stop · Based on the...</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span> events  ·  more</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="ex">next:</span> eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  <span class="er">(</span><span class="ex">resume</span> with <span class="at">--cursor</span><span class="kw">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The first (unseeded) call returns the recent tail (the last 20 events; widen with <code>--tail N</code>, or start from the first event with <code>--from-start</code>). Reads are incremental: each page ends with a <code>next</code> cursor, and passing it back via <code>--cursor</code> returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports <code>done</code> the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt’s transcript. If the eval process is momentarily too busy to answer, the command fails (non-zero exit, message on stderr) rather than serving an empty page — treat that as “try again shortly”, not as the sample or eval being gone.</p>
 <p>Other options:</p>
 <table class="caption-top table">
 <colgroup>
@@ -888,11 +940,19 @@ Note
 <tbody>
 <tr class="odd">
 <td><code>--tail N</code></td>
-<td>Start N events from the end (default 20 on a fully unseeded read — no <code>--cursor</code> and no <code>--since-time</code>/<code>--until</code> window).</td>
+<td>Start N events from the end (default 20 on a fully unseeded read — no <code>--cursor</code>, no <code>--since-time</code>/<code>--until</code> window, no <code>--from-start</code>).</td>
+</tr>
+<tr class="even">
+<td><code>--from-start</code></td>
+<td>Start from the first event and page through the full backlog (cannot be combined with <code>--cursor</code>, <code>--tail</code>, or <code>--since-time</code>).</td>
+</tr>
+<tr class="odd">
+<td><code>--limit N</code></td>
+<td>Max events per page (default 500); combines with any start point (e.g.&nbsp;<code>--from-start --limit 15</code> for the first 15). Counted before the <code>--type</code> filter, so a filtered page may return fewer.</td>
 </tr>
 <tr class="even">
 <td><code>--type model,tool</code></td>
-<td>Filter by event type (<code>*</code> for all). By default, high-volume structural events are excluded.</td>
+<td>Filter by event type (<code>all</code> for everything). By default, high-volume structural events are excluded.</td>
 </tr>
 <tr class="odd">
 <td><code>--full</code></td>
@@ -906,22 +966,34 @@ Note
 </table>
 <p>Note that <code>--cursor</code> takes the opaque <code>next</code> token, never a timestamp — for a wall-clock window use <code>--since-time</code>. Events for samples that have already completed are also readable — they are served from the eval’s log.</p>
 </section>
+<section id="cancellation" class="level2">
+<h2 class="anchored" data-anchor-id="cancellation">Cancellation</h2>
+<p><code>inspect ctl sample cancel</code> cancels one running sample — the typical move when a sample has stalled (high <code>idle</code> in <code>sample list</code>) or is burning tokens without progress. By default the sample completes and the scorer runs on the work done so far (it is recorded with an <code>operator</code> limit, like the in-process TUI’s cancel); pass <code>--action error</code> to mark it errored instead (not permitted for samples configured to fail on errors), or <code>--action cancel</code> to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel gpqa 17</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>EPOCH</code> defaults to 1 but is <em>required</em> whenever the task runs more than one epoch — a defaulted epoch would silently cancel the epoch-1 attempt rather than erroring:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel gpqa 17 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>inspect ctl task cancel</code> cancels a whole running task. By default it aborts: in-flight samples are interrupted (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, and the task’s log is finalized with an error status noting the cancel. An eval set does not retry a cancelled task, and its other tasks are unaffected. <code>TASK</code> is always required — there is no sole-task default for destructive commands.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task cancel gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Pass <code>--action score</code> or <code>--action error</code> to resolve the task <em>gracefully</em> instead of aborting it: each in-flight sample is scored on the work done so far (or marked errored), still-queued samples are abandoned, and the task runs to natural completion — so the eval finishes with a completed status rather than an error. This is how to abandon a task’s last few stragglers while still bringing the eval to a completed state. Note that a completed status doesn’t mean every sample ran: abandoned samples are absent from the log (visible as <code>completed_samples &lt; total_samples</code> in its results), and an eval set treats the log as complete rather than re-running them — an explicit <code>inspect eval-retry</code> on the log will run them later if you change your mind. <code>--action error</code> is not permitted when the task’s samples are configured to fail on errors. If a graceful cancel stalls — say on a hung scorer — issuing a plain <code>inspect ctl task cancel</code> escalates it to an abort.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task cancel gpqa <span class="at">--action</span> score</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as <code>changed: false</code> in the <code>--json</code> detail, the abort escalation above being the one exception — and both accept <code>--dry-run</code> to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task <em>between attempts</em>, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so <code>task cancel</code> errors and asks you to re-issue once the retry starts; and a sample that is still <em>queued</em> (it appears in <code>sample list</code> but has not started), which <code>sample cancel</code> rejects — only a running sample can be cancelled.</p>
+</section>
 <section id="configuration" class="level2">
 <h2 class="anchored" data-anchor-id="configuration">Configuration</h2>
 <p><code>inspect ctl config</code> shows a running eval’s retunable launch configuration, and can retune it mid-run — for example to throttle an eval that is hammering a provider or overloading a machine, or to open it up when more capacity becomes available. Any <code>inspect eval</code> launch flag that can be retuned mid-flight is settable here, under the same spelling:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-5  ·  running  ·  12/40</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="ex">config:</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> samples <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         tracks adaptive connections <span class="er">(</span><span class="ex">see</span> below<span class="kw">)</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> sandboxes <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:    docker 40 <span class="er">(</span><span class="ex">12</span> in use<span class="kw">)</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> subprocesses <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>: 16 <span class="er">(</span><span class="ex">9</span> in use<span class="kw">)</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  <span class="ex">adaptive</span> connections <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="ex">openai/gpt-5:</span> 45 <span class="er">(</span><span class="ex">38</span> in use<span class="kw">)</span><span class="ex">,</span> range 10–100, last: 40→45 steady_state_up</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> buffer <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:          10 samples <span class="er">(</span><span class="ex">2</span> pending<span class="kw">)</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">shared</span> sync <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         off</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-5  ·  running  ·  12/40</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="ex">config:</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> samples <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         tracks adaptive connections <span class="er">(</span><span class="ex">see</span> below<span class="kw">)</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> sandboxes <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:    docker 40 <span class="er">(</span><span class="ex">12</span> in use<span class="kw">)</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> subprocesses <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>: 16 <span class="er">(</span><span class="ex">9</span> in use<span class="kw">)</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  <span class="ex">adaptive</span> connections <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="ex">openai/gpt-5:</span> 45 <span class="er">(</span><span class="ex">38</span> in use<span class="kw">)</span><span class="ex">,</span> range 10–100, last: 40→45 steady_state_up</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> buffer <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:          10 samples <span class="er">(</span><span class="ex">2</span> pending<span class="kw">)</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">shared</span> sync <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         off</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Scope is a property of each knob, not of the command: task-scoped knobs apply to the selected task, process-scoped knobs apply to every task in the process. The output labels every knob with its scope (in <code>--json</code>, each knob carries <code>"scope": "task" | "process"</code>), and a <code>--dry-run</code> reports the blast radius of a process-scoped change.</p>
 <table class="caption-top table">
 <colgroup>
@@ -958,14 +1030,34 @@ Note
 <td>Adaptive connections scaling ceiling.</td>
 </tr>
 <tr class="odd">
+<td><code>--key NAME LIMIT</code></td>
+<td>process</td>
+<td>Set a named <a href="./parallelism.html#sec-parallel-solvers-and-scorers"><span class="element-type-name ref-interlink"><span>concurrency()</span></span></a> registry limit — any limit tools or task code register by name.</td>
+</tr>
+<tr class="even">
 <td><code>--log-buffer N</code></td>
 <td>task</td>
 <td>Completed samples buffered before a log write (lower it to write to S3 more often).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-shared S</code></td>
 <td>task</td>
 <td>Shared-log event sync interval in seconds.</td>
+</tr>
+<tr class="even">
+<td><code>--timeout S</code></td>
+<td>process</td>
+<td>Override the total retry budget per generate call, in seconds (<code>clear</code> restores launch config).</td>
+</tr>
+<tr class="odd">
+<td><code>--attempt-timeout S</code></td>
+<td>process</td>
+<td>Override the per-attempt API timeout, in seconds (<code>clear</code> restores launch config).</td>
+</tr>
+<tr class="even">
+<td><code>--max-retries N</code></td>
+<td>process</td>
+<td>Override the max retries per generate call (<code>0</code> fails after the first attempt; <code>clear</code> restores launch config).</td>
 </tr>
 <tr class="odd">
 <td><code>--model M</code></td>
@@ -980,27 +1072,29 @@ Note
 </tbody>
 </table>
 <p>Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/subprocesses/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model’s live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. <code>--log-buffer</code> affects future writes only — run <code>inspect ctl task log-flush</code> to write what is already pending.</p>
+<p><code>--timeout</code> / <code>--attempt-timeout</code> / <code>--max-retries</code> set live overrides of the corresponding generation config fields — the “stop retrying and fail fast” (or “raise retries to ride it out”) lever during a provider incident. The model retry loop reads the overrides at each point of use, so a change reaches even generate calls already inside a retry loop; an in-flight API request always drains first (its attempt timeout is not retroactively shortened), and timeouts a provider SDK bakes into its client at initialization are unaffected. Batch admin operations (creating a provider batch, polling its results) also keep their launch config — failing one of those would fail every request riding the batch — while batched generate requests themselves still honor the <code>--timeout</code> / <code>--max-retries</code> overrides through their own retry loops (<code>--attempt-timeout</code> does not apply to batched calls: an attempt there waits on an entire provider batch, and cancelling that wait would resubmit duplicate requests into a new batch). The overrides are consulted after each attempt completes, so a retune that lands while a call is sitting in an exponential-backoff sleep (which grows to as much as 30 minutes between attempts) takes effect only after that sleep finishes and one more attempt runs — when failing fast, lower <code>--attempt-timeout</code> in the same retune to bound that final attempt. An override applies process-wide until cleared (pass <code>clear</code>) or the run ends; the config view reports each field’s active override, with <code>launch config</code> meaning no override is in effect.</p>
+<p>Beyond the named flags, any limit registered through the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#concurrency">concurrency()</a></span> API — by built-in tools (for example the web search providers), model compaction, or your own solver and tool code — is settable with <code>--key NAME LIMIT</code>. The config output lists the registered keys under <code>concurrency keys</code>, exactly as addressable here; named limits are created lazily on first use, so a key that names no registered limit errors and lists the keys that do exist.</p>
 <p>Task-scoped knobs are keyed by the task (stable across retries): with eval sets’ default immediate retries, a retune survives a task retry rather than reverting to the launch configuration (legacy batch-mode retries — <code>retry_immediate=False</code> — run as separate calls and revert). With no <code>TASK</code> argument the command targets the sole running task; in a multi-task process the process-scoped knobs still work without a selector (they apply process-wide), while setting a task-scoped knob then requires the <code>TASK</code>.</p>
 </section>
 <section id="log-flushing" class="level2">
 <h2 class="anchored" data-anchor-id="log-flushing">Log Flushing</h2>
 <p>Completed samples are buffered and written to the (possibly remote, e.g.&nbsp;S3) log in batches (see <code>--log-buffer</code> above). <code>inspect ctl task log-flush</code> writes any buffered samples to the log immediately, so they become readable and analyzable without waiting for the buffer to fill. It is safe to repeat — a flush with nothing pending writes nothing.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task log-flush gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task log-flush gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="processes-and-keep-alive" class="level2">
 <h2 class="anchored" data-anchor-id="processes-and-keep-alive">Processes and Keep Alive</h2>
 <p><code>inspect ctl process</code> lists the running Inspect processes (their pids, keep-alive status, and hosted tasks). The pid is the selector <code>process keep</code> / <code>process release</code> take; with a single running process it can be omitted.</p>
 <p>A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The <code>--ctl-server</code> option controls this:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>keep</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>keep</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>With <code>keep</code>, the process stays running after the eval finishes — its state remains queryable via <code>inspect ctl</code> and its logs are fully written — until you release it:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl process release</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl process release</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also latch keep-alive onto an eval that is <em>already running</em> (launched without <code>--ctl-server=keep</code>) with <code>inspect ctl process keep</code>.</p>
 <p>If more than one process is parked, <code>release</code> lists their pids and you disambiguate by passing one (<code>inspect ctl process release &lt;pid&gt;</code>). Release also works ahead of time: issued while the eval is still running, it means “exit when done” — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). <code>keep</code> and <code>release</code> are last-write-wins, so a <code>keep</code> issued after a <code>release</code> (while the eval is still running) restores the park. From Python, pass <code>ctl_server="keep"</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>. For eval sets, keep-alive requires <code>retry_immediate=True</code> (the default).</p>
 </section>
 <section id="disabling-the-control-server" class="level2">
 <h2 class="anchored" data-anchor-id="disabling-the-control-server">Disabling the Control Server</h2>
 <p>The control server is on by default. To run an eval without it:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>INSPECT_EVAL_CTL_SERVER</code> environment variable mirrors the option (for example, set <code>INSPECT_EVAL_CTL_SERVER=false</code> to disable it across a CI job). If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.</p>
 
 

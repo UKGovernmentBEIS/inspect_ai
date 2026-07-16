@@ -12,6 +12,7 @@ inspect eval [OPTIONS] [TASKS]...
 
 | Name | Type | Description | Default |
 |----|----|----|----|
+| `--json` | boolean | Emit machine-readable launch output as JSON lines on stdout (implies –display none): a ‘launch’ record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path (‘control’ is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a ‘done’ record with each task’s log location and status when the eval finishes. | `False` |
 | `--model` | text | Model used to evaluate tasks. | None |
 | `--model-base-url` | text | Base URL for for model API | None |
 | `-M` | text | One or more native model arguments (e.g. -M arg=value) | None |

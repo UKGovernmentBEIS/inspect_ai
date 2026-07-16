@@ -3435,300 +3435,306 @@ ul.task-list li input[type="checkbox"] {
 </thead>
 <tbody>
 <tr class="odd">
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Emit machine-readable launch output as JSON lines on stdout (implies –display none): a ‘launch’ record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path (‘control’ is null when the server is disabled or failed to bind, so its presence guarantees <code>inspect ctl</code> is usable) — and a ‘done’ record with each retried task’s log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one ‘launch’ record per file (sequentially — each supersedes the previous), and the ‘done’ record carries the last launch’s run_id.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
 <td><code>--max-samples</code></td>
 <td>integer</td>
 <td>Maximum number of samples to run in parallel (default is running all samples in parallel)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-tasks</code></td>
 <td>integer</td>
 <td>Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-subprocesses</code></td>
 <td>integer</td>
 <td>Maximum number of subprocesses to run in parallel (default is os.cpu_count())</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-sandboxes</code></td>
 <td>integer</td>
 <td>Maximum number of sandboxes (per-provider) to run in parallel.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-sandbox-cleanup</code></td>
 <td>boolean</td>
 <td>Do not cleanup sandbox environments after task completes</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--fail-on-error</code></td>
 <td>float</td>
 <td>Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-fail-on-error</code></td>
 <td>boolean</td>
 <td>Do not fail the eval if errors occur within samples (instead, continue running other samples)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--continue-on-fail</code></td>
 <td>boolean</td>
 <td>Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--retry-on-error</code></td>
 <td>text</td>
 <td>Retry samples if they encounter errors (by default, no retries occur). Specify –retry-on-error to retry a single time, or specify e.g.&nbsp;<code>--retry-on-error=3</code> to retry multiple times.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--score-on-error</code></td>
 <td>boolean</td>
 <td>Score samples that error rather than failing the eval mid-run. Errors still count toward the –fail-on-error threshold for marking the log as ‘error’. Only fires after retries (if any) are exhausted.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-log-samples</code></td>
 <td>boolean</td>
 <td>Do not include samples in the log file.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-log-realtime</code></td>
 <td>boolean</td>
 <td>Do not log events in realtime (affects live viewing of samples in inspect view)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-images</code> / <code>--no-log-images</code></td>
 <td>boolean</td>
 <td>Include base64 encoded versions of filename or URL based images in the log file.</td>
 <td><code>True</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-model-api</code> / <code>--no-log-model-api</code></td>
 <td>boolean</td>
 <td>Log raw model api requests and responses. Note that error requests/responses are always logged.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-refusals</code> / <code>--no-log-refusals</code></td>
 <td>boolean</td>
 <td>Log warnings for model refusals.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-buffer</code></td>
 <td>integer</td>
 <td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-shared</code></td>
 <td>text</td>
 <td>Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every <code>n</code> seconds).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-score</code></td>
 <td>boolean</td>
 <td>Do not score model output (use the inspect score command to score output later)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-score-display</code></td>
 <td>boolean</td>
 <td>Do not display scoring metrics in realtime.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--acp-server</code></td>
 <td>text</td>
 <td>Override the original eval’s Agent Client Protocol server. Bare flag enables a default AF_UNIX socket; pass an integer to bind a TCP loopback port; pass <code>host:port</code> to bind on a specific interface (e.g.&nbsp;<code>0.0.0.0:4444</code>); pass a filesystem path for a custom UNIX socket; pass <code>false</code> to disable. Omit to replay whatever transport the original log used.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--ctl-server</code></td>
 <td>text</td>
 <td>Control-channel server for the retried eval’s process (default: enabled). Pass <code>false</code> to disable it; pass <code>keep</code> to keep the process running after the retried eval finishes so external clients (the <code>inspect ctl</code> CLI, scripted agents) can still query its state. Run <code>inspect ctl process release</code> to release.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-connections</code></td>
 <td>integer</td>
 <td>Maximum number of concurrent connections to Model API (defaults to 10)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--adaptive-connections</code></td>
 <td>text</td>
 <td>Adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback (default: enabled, with min=10, start=20, max=100). Pass <code>false</code> to opt out, an integer N for a custom max (e.g.&nbsp;<code>200</code>), or bounds as <code>min-max</code> (e.g.&nbsp;<code>4-80</code>) or <code>min-start-max</code> (e.g.&nbsp;<code>4-20-80</code>). Explicit <code>--max-connections</code> and <code>--batch</code> take precedence.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-retries</code></td>
 <td>integer</td>
 <td>Maximum number of times to retry model API requests (defaults to unlimited)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--timeout</code></td>
 <td>integer</td>
 <td>Model API request timeout in seconds (defaults to no timeout)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--attempt-timeout</code></td>
 <td>integer</td>
 <td>Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level-transcript</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
 <td>Set the log level of the transcript (defaults to ‘info’)</td>
 <td><code>info</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--checkpoint</code></td>
 <td>text</td>
 <td>Periodically checkpoint sample state so the eval can be resumed via <code>inspect eval retry</code>. Specify –checkpoint for the default (every 500k tokens), –checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / <a href="turn:N" class="uri">turn:N</a> / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig. For resume to find checkpoint files, pass the same <code>--checkpoint</code> value used on the original eval.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scanner</code></td>
 <td>text</td>
 <td>Scanner(s) to apply after each sample. Pass a YAML/JSON config file (ScannerConfig schema), a Python file with <span class="citation" data-cites="scanner">@scanner</span> functions (use <a href="mailto:file.py@func" class="email">file.py@func</a> to pick one), or a registry reference (pkg/name).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scanner-arg</code></td>
 <td>text</td>
 <td>One or more scanner arguments (e.g.&nbsp;–scanner-arg key=value).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scans</code></td>
 <td>text</td>
 <td>Location to write scan results to (defaults to <log-dir>/scans/).</log-dir></td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scan-name</code></td>
 <td>text</td>
 <td>Scan name written to _scan.json (defaults to “eval_set”).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scan-tags</code></td>
 <td>text</td>
 <td>Comma-separated tags written to the scan spec.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scan-metadata</code></td>
 <td>text</td>
 <td>Metadata written to the scan spec (e.g.&nbsp;–scan-metadata key=value).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>-F</code>, <code>--scan-filter</code></td>
 <td>text</td>
 <td>SQL WHERE clause(s) applied per-sample to skip transcripts that don’t match (e.g.&nbsp;-F “error = ’’”).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scan-model</code></td>
 <td>text</td>
 <td>Model used by scanners’ get_model() (overrides the eval model).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scan-model-base-url</code></td>
 <td>text</td>
 <td>Base URL for the scanner-side model API.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scan-model-arg</code></td>
 <td>text</td>
 <td>One or more scanner-side model arguments (e.g.&nbsp;–scan-model-arg key=value).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scan-model-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with scanner-side model arguments.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scan-model-role</code></td>
 <td>text</td>
 <td>Named scanner-side model role with model name or YAML/JSON config (e.g.&nbsp;–scan-model-role grader=mockllm/model).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scan-generate-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with GenerateConfig for scanner model calls.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-level</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
 <td>Set the log level (defaults to ‘warning’)</td>
 <td><code>warning</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-dir</code></td>
 <td>text</td>
 <td>Directory for log files.</td>
 <td><code>./logs</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--display</code></td>
 <td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>log</code> | <code>none</code>)</td>
 <td>Set the display type (defaults to ‘full’)</td>
 <td><code>full</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--traceback-locals</code></td>
 <td>boolean</td>
 <td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>

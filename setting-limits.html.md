@@ -281,6 +281,8 @@ print(f"{sample_time_limit.remaining:.0f} seconds remaining")
 
 Note that [sample_limits()](./reference/inspect_ai.util.html.md#sample_limits) only retrieves the sample-level limits, not [scoped limits](#scoped-limits) or [agent limits](#agent-limits).
 
+Sample limit usage is also recorded in the log: each [EvalSample](./reference/inspect_ai.log.html.md#evalsample) (and its summary) carries `turn_count` (number of top-level model generations) along with its token limit configuration and metered usage (`token_limit`, `token_limit_type`, and `token_limit_usage` — `None` when no token limit was configured). `turn_count` and `token_limit_usage` are default [samples_df()](./dataframe.html.md) columns (add e.g. `SampleColumn("token_limit", path="token_limit")` for the others), and all of them are shown live by [`inspect ctl sample list`](./control-channel.html.md#sample-status).
+
 ## Scoped Limits
 
 You can also apply limits at arbitrary scopes, independent of the sample or agent-scoped limits. For instance, applied to a specific block of code. For example:
