@@ -5,9 +5,10 @@ See ``format.py`` for the zip layout and
 """
 
 import os
+import re
 import shutil
 import tempfile
-from typing import Any, NamedTuple, Sequence
+from typing import Any, Callable, NamedTuple, Sequence
 from zipfile import ZipFile
 
 from pydantic import JsonValue
@@ -20,7 +21,6 @@ from inspect_ai._util.file import exists, file, filesystem
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.event._event import Event
-from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
     _build_call_index,
     _build_msg_index,
@@ -33,12 +33,9 @@ from inspect_ai.model._chat_message import ChatMessage
 
 from ..._condense import (
     WalkContext,
-    resolve_attachments_fn,
-    walk_chat_message,
+    events_attachment_fn,
     walk_chat_messages,
-    walk_events,
     walk_input,
-    walk_json_value,
 )
 from ..._file import log_files_from_ls
 from ..._log import EvalSample
@@ -49,13 +46,16 @@ from ..eval import (
     EvalRecorder,
 )
 from .format import (
+    ATTACHMENTS_SEQUENCE,
     CALLS_SEQUENCE,
+    DEFAULT_ATTACHMENTS_CHUNK_BYTES,
     DEFAULT_CHUNK_SIZE,
     EVAL2_LOG_FILE_EXTENSION,
     EVENTS_SEQUENCE,
     MESSAGES_SEQUENCE,
     chunk_entry_name,
     chunk_ranges,
+    metadata_entry_name,
     shell_entry_name,
 )
 
@@ -166,14 +166,15 @@ class Eval2Sample(NamedTuple):
     messages: list[ChatMessage]
     events: list[Event]
     calls: list[JsonValue]
+    attachments: list[str]
+    attachment_index: dict[str, int]
+    """Attachment hash -> sequence index (for renumbering refs)."""
+    attachment_boundaries: list[int]
 
 
 def eval2_sample(sample: EvalSample, chunk_size: int) -> Eval2Sample:
     """Restructure an `EvalSample` for the `.eval2` format.
 
-    - Attachments are resolved fully into content (`.eval2` has no
-      attachments entry); each message lives exactly once in the message
-      sequence, so resolution does not re-duplicate large content.
     - The message sequence is the `events_data` pool (indices preserved,
       so existing `input_refs` remain valid) extended with any
       final-conversation messages not already pooled. The shell's final
@@ -181,48 +182,35 @@ def eval2_sample(sample: EvalSample, chunk_size: int) -> Eval2Sample:
       sequence.
     - Inline `ModelEvent` inputs/calls (logs that predate pooling) are
       condensed into the sequences.
+    - Attachments become a fourth sequence (identity = sequence index;
+      refs are renumbered from `attachment://<hash>` to
+      `attachment://<index>` at serialization time). They stay extracted
+      because content dedups *across containers* (pooled message, wire
+      request/response, tool event, state delta, tool schema) — inlining
+      measured ~5x content growth on attachment-heavy logs.
     """
-    content_fn = resolve_attachments_fn(sample.attachments)
-    # a single shared cache is safe (unlike condense_sample) because every
-    # walk applies the same resolving content_fn
-    context = WalkContext(message_cache={}, only_core=False)
-
     events_data = sample.events_data
-    messages = [
-        walk_chat_message(message, content_fn, context)
-        for message in (events_data["messages"] if events_data else [])
-    ]
-    calls = [
-        walk_json_value(call, content_fn, context)
-        for call in (events_data["calls"] if events_data else [])
-    ]
-    events = walk_events(sample.events, content_fn, context)
-    # walk_model_output walks only choices, not the stored completion field,
-    # so refs written there by older inspect versions survive the events
-    # walk — resolve them here
-    events = [
-        event.model_copy(
-            update={
-                "output": event.output.model_copy(
-                    update={"completion": content_fn(event.output.completion)}
-                )
-            }
-        )
-        if isinstance(event, ModelEvent)
-        else event
-        for event in events
-    ]
-    final_messages = walk_chat_messages(sample.messages, content_fn, context)
-    input = walk_input(sample.input, content_fn, context)
+    messages = list(events_data["messages"]) if events_data else []
+    calls = list(events_data["calls"]) if events_data else []
 
     events, msg_index, new_msgs = condense_model_event_inputs(
-        events, len(messages), _build_msg_index(messages)
+        list(sample.events), len(messages), _build_msg_index(messages)
     )
     messages += [message for _, message in new_msgs]
     events, _, new_calls = condense_model_event_calls(
         events, len(calls), _build_call_index(calls)
     )
     calls += [call for _, call in new_calls]
+
+    # walk the final conversation and input with the events-flavored
+    # attachment extraction: sample.messages was written with the weaker
+    # messages-flavor walk (long text left inline), and content-hash dedup
+    # against the pool only merges identical bytes
+    attachments = dict(sample.attachments)
+    content_fn = events_attachment_fn(attachments, log_images=True)
+    context = WalkContext(message_cache={}, only_core=False)
+    final_messages = walk_chat_messages(sample.messages, content_fn, context)
+    input = walk_input(sample.input, content_fn, context)
 
     # extend the sequence with final-conversation messages not already pooled
     indices: list[int] = []
@@ -235,29 +223,106 @@ def eval2_sample(sample: EvalSample, chunk_size: int) -> Eval2Sample:
             messages.append(message)
         indices.append(index)
 
+    attachment_contents = list(attachments.values())
+    attachment_boundaries = _attachment_boundaries(
+        [len(content.encode()) for content in attachment_contents],
+        DEFAULT_ATTACHMENTS_CHUNK_BYTES,
+    )
+
     shell = sample.model_copy(update={"input": input}).model_dump(
         mode="json",
         exclude_none=True,
-        exclude={"messages", "events", "attachments", "events_data"},
+        exclude={"messages", "events", "attachments", "events_data", "metadata"},
     )
     shell["message_refs"] = _compress_refs(indices)
+    # cumulative end-exclusive chunk boundaries per sequence (the last
+    # element is the sequence's total count); mirrors the chunk entry names
     shell["sequences"] = {
-        "chunk_size": chunk_size,
-        "messages": {"count": len(messages)},
-        "events": {"count": len(events)},
-        "calls": {"count": len(calls)},
+        MESSAGES_SEQUENCE: _chunk_boundaries(len(messages), chunk_size),
+        EVENTS_SEQUENCE: _chunk_boundaries(len(events), chunk_size),
+        CALLS_SEQUENCE: _chunk_boundaries(len(calls), chunk_size),
+        ATTACHMENTS_SEQUENCE: attachment_boundaries,
     }
 
-    return Eval2Sample(shell=shell, messages=messages, events=events, calls=calls)
+    return Eval2Sample(
+        shell=shell,
+        messages=messages,
+        events=events,
+        calls=calls,
+        attachments=attachment_contents,
+        attachment_index={hash: i for i, hash in enumerate(attachments)},
+        attachment_boundaries=attachment_boundaries,
+    )
+
+
+def _chunk_boundaries(count: int, chunk_size: int) -> list[int]:
+    return [end_exclusive for _, end_exclusive in chunk_ranges(count, chunk_size)]
+
+
+def _attachment_boundaries(sizes: list[int], target_bytes: int) -> list[int]:
+    """Size-based chunk boundaries: pack items until ~target_bytes per chunk.
+
+    An item larger than target_bytes gets a chunk to itself. Returns
+    cumulative end-exclusive boundaries (same shape as `_chunk_boundaries`).
+    """
+    boundaries: list[int] = []
+    chunk_bytes = 0
+    for index, size in enumerate(sizes):
+        if chunk_bytes and chunk_bytes + size > target_bytes:
+            boundaries.append(index)
+            chunk_bytes = 0
+        chunk_bytes += size
+    if chunk_bytes:
+        boundaries.append(len(sizes))
+    return boundaries
+
+
+def _boundary_ranges(boundaries: list[int]) -> list[tuple[int, int]]:
+    """Cumulative end-exclusive boundaries -> (start, end_exclusive) ranges."""
+    return list(zip([0, *boundaries[:-1]], boundaries))
+
+
+_ATTACHMENT_REF_PATTERN = re.compile(rb"attachment://([0-9a-f]{32})")
+
+
+def _attachment_ref_renumberer(
+    attachment_index: dict[str, int],
+) -> Callable[[bytes], bytes]:
+    """Rewrite `attachment://<hash>` refs to `attachment://<index>` in JSON bytes.
+
+    Operates on serialized JSON so every ref site is covered uniformly
+    (including ones the typed walkers miss, e.g. `ModelOutput.completion`,
+    state-event deltas, and provider response payloads — the pattern's
+    characters are never escaped by JSON encoding). Unknown hashes are left
+    untouched, matching resolve_attachments_fn's fallback.
+    """
+    replacements = {
+        hash.encode(): b"attachment://%d" % index
+        for hash, index in attachment_index.items()
+    }
+
+    def renumber(data: bytes) -> bytes:
+        return _ATTACHMENT_REF_PATTERN.sub(
+            lambda m: replacements.get(m.group(1), m.group(0)), data
+        )
+
+    return renumber
 
 
 def _write_eval2_sample(zip: ZipFile, sample: EvalSample, chunk_size: int) -> None:
     converted = eval2_sample(sample, chunk_size)
+    renumber = _attachment_ref_renumberer(converted.attachment_index)
 
     zip.writestr(
         shell_entry_name(sample.id, sample.epoch),
-        to_json_safe(converted.shell, indent=None),
+        renumber(to_json_safe(converted.shell, indent=None)),
     )
+
+    if sample.metadata:
+        zip.writestr(
+            metadata_entry_name(sample.id, sample.epoch),
+            renumber(to_json_safe(sample.metadata, indent=None)),
+        )
 
     sequences: list[tuple[str, Sequence[Any]]] = [
         (MESSAGES_SEQUENCE, converted.messages),
@@ -267,8 +332,13 @@ def _write_eval2_sample(zip: ZipFile, sample: EvalSample, chunk_size: int) -> No
     for sequence, items in sequences:
         for start, end_exclusive in chunk_ranges(len(items), chunk_size):
             zip.writestr(
-                chunk_entry_name(
-                    sample.id, sample.epoch, sequence, start, end_exclusive
-                ),
-                to_json_safe(items[start:end_exclusive], indent=None),
+                chunk_entry_name(sample.id, sample.epoch, sequence, start),
+                renumber(to_json_safe(items[start:end_exclusive], indent=None)),
             )
+
+    # attachment contents are stored verbatim (no renumbering inside them)
+    for start, end_exclusive in _boundary_ranges(converted.attachment_boundaries):
+        zip.writestr(
+            chunk_entry_name(sample.id, sample.epoch, ATTACHMENTS_SEQUENCE, start),
+            to_json_safe(converted.attachments[start:end_exclusive], indent=None),
+        )

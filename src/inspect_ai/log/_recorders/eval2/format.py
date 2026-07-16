@@ -9,28 +9,43 @@ random access within a sample. See
 Layout (per sample)::
 
     samples/{id}_epoch_{epoch}/sample.json
-    samples/{id}_epoch_{epoch}/messages/{start}-{end_exclusive}.json
-    samples/{id}_epoch_{epoch}/events/{start}-{end_exclusive}.json
-    samples/{id}_epoch_{epoch}/calls/{start}-{end_exclusive}.json
+    samples/{id}_epoch_{epoch}/metadata.json
+    samples/{id}_epoch_{epoch}/messages/{start}.json
+    samples/{id}_epoch_{epoch}/events/{start}.json
+    samples/{id}_epoch_{epoch}/calls/{start}.json
+    samples/{id}_epoch_{epoch}/attachments/{start}.json
 
-Chunk names are zero-padded so a lexicographic sort of entry names is
-also an index sort (readers binary-search the central directory).
-Chunk size is writer policy, not format: readers derive index→chunk
-mapping purely from the range-encoded names.
+Chunks are named by the index of their first item only — filenames
+carry no range semantics (every range that appears in the data is
+half-open ``[start, end_exclusive)``, and a name like ``0-50`` invites
+inclusive misreading). Chunks are contiguous and complete, so the chunk
+holding index ``i`` is the one with the greatest start <= ``i``; a
+chunk's extent is the next chunk's start (the last chunk's end is the
+sequence count, from the shell's ``sequences`` boundaries). Chunk size
+is writer policy, not format: messages/events/calls chunk by item count,
+attachments chunk by target byte size (contents vary from ~100B to MBs).
+
+Attachments are a sequence of bare strings referenced from the other
+sequences as ``attachment://<index>``. Identity is the sequence index;
+content-hash dedup is a write-time policy, never persisted. Attachments
+stay extracted (rather than inlined) because content dedups *across
+containers* — the same text recurs in pooled messages, wire
+request/response payloads, tool events, state deltas, and tool schemas.
 """
 
 EVAL2_LOG_FILE_EXTENSION = ".eval2"
 
 DEFAULT_CHUNK_SIZE = 1000
+DEFAULT_ATTACHMENTS_CHUNK_BYTES = 2 * 1024 * 1024
 
 SAMPLES_DIR = "samples"
 SHELL_JSON = "sample.json"
+METADATA_JSON = "metadata.json"
 
 MESSAGES_SEQUENCE = "messages"
 EVENTS_SEQUENCE = "events"
 CALLS_SEQUENCE = "calls"
-
-_RANGE_DIGITS = 10
+ATTACHMENTS_SEQUENCE = "attachments"
 
 
 def sample_prefix(id: str | int, epoch: int) -> str:
@@ -42,13 +57,12 @@ def shell_entry_name(id: str | int, epoch: int) -> str:
     return f"{sample_prefix(id, epoch)}/{SHELL_JSON}"
 
 
-def chunk_entry_name(
-    id: str | int, epoch: int, sequence: str, start: int, end_exclusive: int
-) -> str:
-    return (
-        f"{sample_prefix(id, epoch)}/{sequence}/"
-        f"{start:0{_RANGE_DIGITS}d}-{end_exclusive:0{_RANGE_DIGITS}d}.json"
-    )
+def metadata_entry_name(id: str | int, epoch: int) -> str:
+    return f"{sample_prefix(id, epoch)}/{METADATA_JSON}"
+
+
+def chunk_entry_name(id: str | int, epoch: int, sequence: str, start: int) -> str:
+    return f"{sample_prefix(id, epoch)}/{sequence}/{start}.json"
 
 
 def chunk_ranges(count: int, chunk_size: int) -> list[tuple[int, int]]:

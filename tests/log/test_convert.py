@@ -1,5 +1,6 @@
 import json
 import pathlib
+import re
 import zipfile
 from typing import Literal
 
@@ -152,37 +153,48 @@ def test_convert_eval2(tmp_path: pathlib.Path):
         sample_prefix = shell_entry.removesuffix("sample.json")
         shell = json.loads(zf.read(shell_entry))
 
-        # chunked fields must not appear in the shell
-        for field in ("messages", "events", "attachments", "events_data"):
+        # chunked/relocated fields must not appear in the shell
+        for field in ("messages", "events", "attachments", "events_data", "metadata"):
             assert field not in shell
 
+        # sequences = cumulative end-exclusive chunk boundaries per sequence;
+        # chunks are named by their start index only
         sequences = shell["sequences"]
-        assert sequences["chunk_size"] == chunk_size
 
-        def read_sequence(sequence: str) -> list:
-            entries = sorted(n for n in names if n.startswith(sample_prefix + sequence))
+        def entry_start(entry: str) -> int:
+            return int(entry.rsplit("/", 1)[1].removesuffix(".json"))
+
+        def read_sequence(sequence: str, count_capped: bool = True) -> list:
+            entries = sorted(
+                (n for n in names if n.startswith(sample_prefix + sequence + "/")),
+                key=entry_start,
+            )
+            boundaries = sequences[sequence]
+            assert [entry_start(entry) for entry in entries] == [0, *boundaries[:-1]]
             items: list = []
-            expected_start = 0
-            for entry in entries:
-                start, end_exclusive = (
-                    int(part)
-                    for part in entry.rsplit("/", 1)[1].removesuffix(".json").split("-")
-                )
-                assert start == expected_start
+            for entry, start, end_exclusive in zip(
+                entries, [0, *boundaries[:-1]], boundaries
+            ):
                 chunk = json.loads(zf.read(entry))
                 assert len(chunk) == end_exclusive - start
-                assert len(chunk) <= chunk_size
+                if count_capped:
+                    assert len(chunk) <= chunk_size
                 items += chunk
-                expected_start = end_exclusive
-            assert len(items) == sequences[sequence]["count"]
             return items
 
         messages = read_sequence("messages")
         events = read_sequence("events")
         calls = read_sequence("calls")
+        attachments = read_sequence("attachments", count_capped=False)
 
-        # attachments are fully resolved into content
-        assert "attachment://" not in json.dumps([shell, messages, events, calls])
+        # every ref is renumbered to a valid attachment sequence index
+        # (no hash-form refs survive)
+        refs = re.findall(
+            r"attachment://([0-9a-f]{32}|\d+)",
+            json.dumps([shell, messages, events, calls]),
+        )
+        assert refs
+        assert all(ref.isdigit() and int(ref) < len(attachments) for ref in refs)
 
         # model event inputs/calls are condensed into sequence refs
         model_events = [e for e in events if e["event"] == "model"]
@@ -191,6 +203,11 @@ def test_convert_eval2(tmp_path: pathlib.Path):
         assert any((e.get("call") or {}).get("call_refs") for e in model_events)
 
         # the shell's message_refs reconstruct the final conversation
+        # (resolving numeric attachment refs through the sequence)
+        def resolve(text: str) -> str:
+            match = re.fullmatch(r"attachment://(\d+)", text)
+            return attachments[int(match.group(1))] if match else text
+
         final = [
             messages[i]
             for start, end_exclusive in shell["message_refs"]
@@ -200,9 +217,16 @@ def test_convert_eval2(tmp_path: pathlib.Path):
         assert original.samples
         original_messages = original.samples[0].messages
         assert [m["role"] for m in final] == [m.role for m in original_messages]
-        assert [m["content"] for m in final if isinstance(m["content"], str)] == [
-            m.content for m in original_messages if isinstance(m.content, str)
-        ]
+        assert [
+            resolve(m["content"]) for m in final if isinstance(m["content"], str)
+        ] == [m.content for m in original_messages if isinstance(m.content, str)]
+
+        # metadata lives in a sibling entry (written only when non-empty)
+        metadata_entry = sample_prefix + "metadata.json"
+        if original.samples[0].metadata:
+            assert json.loads(zf.read(metadata_entry)) == original.samples[0].metadata
+        else:
+            assert metadata_entry not in names
 
 
 @pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
