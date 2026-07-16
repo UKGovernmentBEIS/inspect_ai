@@ -31,6 +31,7 @@ from inspect_ai._control.pause import (
     resume_process,
     resume_task,
     task_dispatch_paused,
+    task_dispatched_count,
     task_pause_scope,
     wake_pause_waiters,
 )
@@ -50,7 +51,7 @@ def _clear_states():
 
 
 class _FakeActiveSample:
-    """The slice of ``ActiveSample`` the in-flight count and summaries read."""
+    """The slice of ``ActiveSample`` the summary rows read."""
 
     def __init__(
         self,
@@ -94,6 +95,7 @@ async def test_pause_task_closes_gate() -> None:
     assert result["ok"] is True and result["changed"] is True
     assert result["task_id"] == "t1" and result["eval_id"] == "e1"
     assert result["paused"] == "task"
+    assert result["dispatched"] == 0
     assert task_dispatch_paused("t1")
     assert task_pause_scope("t1") == "task"
 
@@ -308,8 +310,11 @@ async def test_gated_semaphore_recheck_releases_slot() -> None:
         async with sem:
             await release_holder.wait()
 
+    counts_inside: list[int] = []
+
     async def entrant() -> None:
         async with gated:
+            counts_inside.append(task_dispatched_count("t1"))
             entered.set()
 
     async with anyio.create_task_group() as tg:
@@ -322,9 +327,12 @@ async def test_gated_semaphore_recheck_releases_slot() -> None:
         await anyio.sleep(0.05)
         assert not entered.is_set()
         assert sem.value == 1  # the paused entrant pins no slot
+        assert task_dispatched_count("t1") == 0  # nor counts as dispatched
         await resume_task("t1")
         with anyio.fail_after(5):
             await entered.wait()
+    assert counts_inside == [1]  # dispatched exactly while inside the gate
+    assert task_dispatched_count("t1") == 0  # and released on exit
 
 
 async def test_gated_semaphore_stamped_cancel_escapes() -> None:
@@ -359,9 +367,7 @@ async def test_gated_semaphore_stamped_cancel_escapes() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_pause_of_idle_task_flushes_immediately(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_pause_of_idle_task_flushes_immediately() -> None:
     flushes: list[int] = []
 
     async def flush() -> int:
@@ -369,46 +375,23 @@ async def test_pause_of_idle_task_flushes_immediately(
         return 1
 
     register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=flush))
-    _patch_active_samples(monkeypatch, [])
 
     await pause_task("t1")
-    assert flushes  # nothing in flight → quiesced at the pause itself
+    assert flushes  # nothing dispatched → quiesced at the pause itself
 
 
-async def test_pause_with_in_flight_samples_defers_flush_to_quiesce(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    flushes: list[int] = []
+async def test_pause_with_dispatched_sample_defers_flush_to_quiesce() -> None:
+    """A dispatched sample blocks the auto-flush until it finishes.
 
-    async def flush() -> int:
-        flushes.append(1)
-        return 1
-
-    register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=flush))
-    in_flight = _FakeActiveSample(eval_id="e1")
-    _patch_active_samples(monkeypatch, [in_flight])
-
-    await pause_task("t1")
-    assert not flushes  # still draining
-
-    # the last in-flight sample completing is the quiesce transition: the
-    # gated semaphore's exit path runs the flush
-    in_flight.completed = 2.0
-    sem = anyio.Semaphore(1)
-    gated = PauseGatedSemaphore(sem, task_id="t1")
-    await sem.acquire()  # simulate the slot the finishing sample held
-    await gated.__aexit__(None, None, None)
-    assert flushes
-
-
-async def test_pause_with_initializing_sample_defers_flush(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A sample past the gate but still initializing (started=None) blocks quiesce.
-
-    Sandbox creation can take minutes; the sample will run once it's up, so
-    the auto-flush must not fire (and quiesced must not read True) until it
-    actually completes.
+    Dispatch is counted at the gate itself (``PauseGatedSemaphore``), so a
+    sample holds quiesce for its whole life past the gate — including the
+    windows where ``active_samples`` hasn't registered it yet (real await
+    points sit between the gate and registration) and where it is still
+    materializing its sandbox with ``started=None`` (minutes, potentially).
+    A pause landing anywhere in that span must not flush — the "safe to
+    kill" signal must not flip true→false. The last dispatched sample
+    completing is the quiesce transition: the gate's exit path runs the
+    flush.
     """
     flushes: list[int] = []
 
@@ -417,16 +400,17 @@ async def test_pause_with_initializing_sample_defers_flush(
         return 1
 
     register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=flush))
-    initializing = _FakeActiveSample(eval_id="e1", started=None)
-    _patch_active_samples(monkeypatch, [initializing])
+    gated = PauseGatedSemaphore(anyio.Semaphore(1), task_id="t1")
+    await gated.__aenter__()  # past the gate; not yet in active_samples
 
     await pause_task("t1")
-    assert not flushes  # still materializing — not safe to kill
+    assert not flushes  # still draining — not safe to kill
+
+    await gated.__aexit__(None, None, None)
+    assert flushes
 
 
-async def test_process_pause_flushes_idle_tasks(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_process_pause_flushes_idle_tasks() -> None:
     flushes: list[int] = []
 
     async def flush() -> int:
@@ -434,7 +418,6 @@ async def test_process_pause_flushes_idle_tasks(
         return 1
 
     register_eval("e1", 5, task_id="t1", live=FakeLiveEvalData(flush=flush))
-    _patch_active_samples(monkeypatch, [])
 
     await pause_process()
     assert flushes
@@ -546,31 +529,44 @@ async def test_tasks_listing_paused_with_in_flight_not_quiesced(
 ) -> None:
     register_eval("e1", 3, task_id="t1")
     _patch_active_samples(monkeypatch, [_FakeActiveSample(eval_id="e1")])
-    await pause_task("t1")
-    transport = httpx.ASGITransport(app=_app())
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        rows = (await client.get("/tasks")).json()
-        assert rows[0]["paused"] == "task"
-        assert rows[0]["quiesced"] is False
+    gated = PauseGatedSemaphore(anyio.Semaphore(1), task_id="t1")
+    await gated.__aenter__()  # the running sample's gate entry
+    try:
+        await pause_task("t1")
+        transport = httpx.ASGITransport(app=_app())
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            rows = (await client.get("/tasks")).json()
+            assert rows[0]["paused"] == "task"
+            assert rows[0]["quiesced"] is False
+    finally:
+        await gated.__aexit__(None, None, None)
 
 
-async def test_tasks_listing_initializing_sample_blocks_quiesced(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The quiesced signal counts dispatched samples, not just started ones.
+async def test_tasks_listing_initializing_sample_blocks_quiesced() -> None:
+    """The quiesced signal counts samples from the gate itself.
 
-    A sample past the gate but mid-sandbox-creation (started=None) will run
-    once its sandbox is up — reporting quiesced then would let the "safe to
-    kill" signal flip true→false while an operator acts on it.
+    A sample past the gate but mid-initialization — not yet registered in
+    active_samples at all, or registered but mid-sandbox-creation with
+    started=None — will run once its sandbox is up. Reporting quiesced then
+    would let the "safe to kill" signal flip true→false while an operator
+    acts on it.
     """
     register_eval("e1", 3, task_id="t1")
-    _patch_active_samples(monkeypatch, [_FakeActiveSample(eval_id="e1", started=None)])
-    await pause_task("t1")
-    transport = httpx.ASGITransport(app=_app())
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        rows = (await client.get("/tasks")).json()
-        assert rows[0]["paused"] == "task"
-        assert rows[0]["quiesced"] is False
+    gated = PauseGatedSemaphore(anyio.Semaphore(1), task_id="t1")
+    await gated.__aenter__()  # past the gate; nothing in active_samples yet
+    try:
+        await pause_task("t1")
+        transport = httpx.ASGITransport(app=_app())
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            rows = (await client.get("/tasks")).json()
+            assert rows[0]["paused"] == "task"
+            assert rows[0]["quiesced"] is False
+    finally:
+        await gated.__aexit__(None, None, None)
 
 
 async def test_tasks_listing_reports_paused_between_attempts(

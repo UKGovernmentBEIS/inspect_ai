@@ -137,6 +137,16 @@ _process_gate = PauseGate()
 # resume re-evaluates task dispatch without polling.
 _dispatch_wakers: list[Callable[[], None]] = []
 
+# Dispatched samples per task, maintained by PauseGatedSemaphore at the true
+# dispatch boundary (gate exit through semaphore release). Counts derived
+# from ``active_samples`` have a hole: a sample past the gate registers there
+# only after real await points (base64 content materialization, sandbox
+# connections), so a pause landing in that window would read quiesced — and
+# auto-flush — then flip back when the sample registers, the exact
+# non-monotonicity ``design/pause-resume.md`` rules out. Reset with the task
+# gates (samples never span an ``eval()`` call).
+_dispatch_counts: dict[str, int] = {}
+
 
 def _task_gate(task_id: str) -> PauseGate:
     gate = _task_gates.get(task_id)
@@ -167,6 +177,29 @@ def task_dispatch_paused(task_id: str) -> bool:
 def process_paused() -> bool:
     """Whether the process-level pause latch is closed."""
     return _process_gate.paused
+
+
+def task_dispatched_count(task_id: str) -> int:
+    """Samples of ``task_id`` past the pause gate and not yet finished.
+
+    Counted at the gate itself (:class:`PauseGatedSemaphore` increments on
+    entry, decrements on exit) rather than derived from ``active_samples``,
+    so a sample is dispatched from the instant it passes the gate — through
+    materialization and sandbox creation (minutes, with ``started=None``) —
+    until its semaphore slot is released. A gate-held sample never enters,
+    so under a pause this count is non-increasing by construction, keeping
+    ``quiesced`` (paused and zero dispatched) monotonic — the "safe to kill"
+    signal must not flip true→false while an operator acts on it.
+    """
+    return _dispatch_counts.get(task_id, 0)
+
+
+def _dispatch_entered(task_id: str) -> None:
+    _dispatch_counts[task_id] = _dispatch_counts.get(task_id, 0) + 1
+
+
+def _dispatch_exited(task_id: str) -> None:
+    _dispatch_counts[task_id] = max(0, _dispatch_counts.get(task_id, 0) - 1)
 
 
 async def wait_task_dispatch(
@@ -234,6 +267,7 @@ def reset_task_pause_gates() -> None:
     next batch attempt in that mode).
     """
     _task_gates.clear()
+    _dispatch_counts.clear()
 
 
 def reset_process_pause() -> None:
@@ -352,29 +386,11 @@ def _task_result(state: "EvalState", *, dry_run: bool) -> dict[str, Any]:
         "eval_id": state.eval_id,
         "paused": task_pause_scope(state.task_id),
         "dry_run": dry_run,
-        "in_flight": _dispatched_count(state.eval_id),
+        # named `dispatched`, not `in_flight`: it includes samples still
+        # initializing (started=None), which the /tasks listing's
+        # samples.in_flight counts as queued
+        "dispatched": task_dispatched_count(state.task_id),
     }
-
-
-def _dispatched_count(eval_id: str) -> int:
-    """The eval's dispatched-and-not-completed samples.
-
-    Deliberately does *not* require ``started``: a sample past the pause
-    gate but still materializing (sandbox creation can take minutes) has
-    ``started=None`` yet will run to completion once its sandbox is up.
-    Requiring ``started`` would let ``quiesced`` read True — and the
-    auto-flush fire — during exactly that window, making the "safe to
-    kill" signal non-monotonic under a pause. A gate-held sample never
-    registers in ``active_samples`` (it parks before the semaphore), so
-    this count covers the materializing window exactly.
-    """
-    from inspect_ai.log._samples import active_samples
-
-    return sum(
-        1
-        for sample in active_samples()
-        if sample.eval_id == eval_id and sample.completed is None
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -405,7 +421,7 @@ async def flush_quiesced_tasks() -> None:
             continue
         if task_pause_scope(state.task_id) is None:
             continue
-        if _dispatched_count(state.eval_id) > 0:
+        if task_dispatched_count(state.task_id) > 0:
             continue
         try:
             await state.live.flush_samples()
@@ -440,8 +456,14 @@ class PauseGatedSemaphore(AbstractAsyncContextManager[None]):
     to the queue-exit ``cancel_type`` abandon check rather than staying
     parked through teardown.
 
+    Entry and exit also maintain the task's dispatched-sample count
+    (:func:`task_dispatched_count`): the gate is the true dispatch boundary,
+    so counting here — rather than from ``active_samples`` registration,
+    which happens only after further await points — keeps ``quiesced``
+    monotonic under a pause.
+
     Exiting releases the slot and, when the task is paused, runs the quiesce
-    auto-flush — the last in-flight sample of a paused task completing is
+    auto-flush — the last dispatched sample of a paused task completing is
     exactly the quiesce transition ``design/pause-resume.md`` makes durable.
 
     Reusable and concurrency-safe like the limiter it wraps (no per-entry
@@ -467,10 +489,14 @@ class PauseGatedSemaphore(AbstractAsyncContextManager[None]):
             await wait_task_dispatch(self._task_id, self._escape)
             await self._semaphore.__aenter__()
             if not task_dispatch_paused(self._task_id) or self._escaped():
+                _dispatch_entered(self._task_id)
                 return None
             await self._semaphore.__aexit__(None, None, None)
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
+        # decrement before the first await so a teardown cancellation
+        # interrupting the semaphore release can't leave the count stuck
+        _dispatch_exited(self._task_id)
         result = await self._semaphore.__aexit__(exc_type, exc_val, exc_tb)
         # only on a clean sample exit: under an exception/cancellation the
         # task is tearing down and the flush would await inside a cancelled

@@ -19,8 +19,10 @@ status histogram and an ``active_since`` recency delta), ``GET
 /evals/{id}/sample`` (summary + error detail), and ``GET
 /evals/{id}/sample/events`` (cursored transcript
 pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
-and the first phase-3 directives: the config/log-flush mutations and
-``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
+and the first phase-3 directives: the config/log-flush mutations,
+``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``, and
+the pause/resume latches (``POST /tasks/{id}/pause`` / ``…/resume``,
+process-scoped ``POST /pause`` / ``POST /resume``).
 The remaining directives (drain / requeue / add-task) and SSE push land
 with the rest of phases 3-4.
 """

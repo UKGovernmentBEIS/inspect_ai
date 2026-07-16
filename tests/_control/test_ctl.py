@@ -3050,7 +3050,7 @@ def test_task_pause_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> N
             "task_id": "aaa111",
             "paused": "task",
             "changed": True,
-            "in_flight": 2,
+            "dispatched": 2,
         }
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
@@ -3061,7 +3061,7 @@ def test_task_pause_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> N
     payload = json.loads(result.stdout)
     assert payload["target"]["task_id"] == "aaa111"
     assert payload["applied"] is True and payload["dry_run"] is False
-    assert payload["detail"]["in_flight"] == 2
+    assert payload["detail"]["dispatched"] == 2
 
 
 def test_task_pause_resolves_sole_running_task(
@@ -3069,7 +3069,7 @@ def test_task_pause_resolves_sole_running_task(
 ) -> None:
     """Pause is reversible, so it gets the sole-task default (unlike cancel)."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 0})
+    spy = _RequestSpy({"ok": True, "changed": True, "dispatched": 0})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "pause", "--json"])
     assert result.exit_code == 0, result.output
@@ -3089,7 +3089,7 @@ def test_task_pause_multiple_tasks_requires_selector(
 
 def test_task_pause_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True, "in_flight": 1})
+    spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True, "dispatched": 1})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["task", "pause", "aaa111", "--dry-run", "--json"]
@@ -3102,12 +3102,12 @@ def test_task_pause_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_task_pause_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    spy = _RequestSpy({"ok": True, "paused": "task", "changed": True, "in_flight": 3})
+    spy = _RequestSpy({"ok": True, "paused": "task", "changed": True, "dispatched": 3})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111"])
     assert result.exit_code == 0, result.output
     assert "Pause requested" in result.output
-    assert "3 in-flight samples" in result.output
+    assert "3 dispatched samples" in result.output
 
 
 def test_task_resume_human_output_notes_process_latch(
@@ -3121,6 +3121,31 @@ def test_task_resume_human_output_notes_process_latch(
     assert result.exit_code == 0, result.output
     assert spy.paths == ["/tasks/aaa111/resume"]
     assert "Resume requested" in result.output
+    assert "process is paused" in result.output
+
+
+def test_task_resume_noop_notes_process_latch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resuming a task held only by the process latch points at the real hold.
+
+    The no-op reason ("task is not paused") is technically right — the task
+    gate is open — but an operator who saw the task listed as paused needs to
+    know a `process resume` is what un-holds it.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "paused": "process",
+            "changed": False,
+            "reason": "task is not paused",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert "Nothing to do: task is not paused." in result.output
     assert "process is paused" in result.output
 
 

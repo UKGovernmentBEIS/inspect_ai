@@ -919,7 +919,7 @@ def _build_summary(
         latest.started_at if latest.started_at is not None else started_at_fallback
     )
 
-    from inspect_ai._control.pause import task_pause_scope
+    from inspect_ai._control.pause import task_dispatched_count, task_pause_scope
 
     in_flight_samples = [
         s for s in samples if s.started is not None and s.completed is None
@@ -939,18 +939,18 @@ def _build_summary(
     # finished task reports neither (there is nothing left to hold) — but a
     # task *between attempts* (completed_at set, retry pending) is still
     # holdable (the gate parks its queued retry, the same guard pause_task
-    # uses), so it keeps reporting its pause scope. quiesced counts
-    # dispatched (registered, not completed) samples rather than in_flight:
-    # a sample past the gate but still initializing has started=None yet
-    # will run once its sandbox is up, and "safe to kill" must not flip
-    # true→false in that window (see _dispatched_count in pause.py).
+    # uses), so it keeps reporting its pause scope. quiesced uses the
+    # gate-boundary dispatched count rather than in_flight: a sample past
+    # the gate but still initializing (started=None, or not yet registered
+    # in active_samples at all) will run once its sandbox is up, and "safe
+    # to kill" must not flip true→false in that window (see
+    # task_dispatched_count in pause.py).
     paused = (
         task_pause_scope(latest.task_id)
         if completed_at is None or latest.retry_pending
         else None
     )
-    dispatched = sum(1 for s in samples if s.completed is None)
-    quiesced = paused is not None and dispatched == 0
+    quiesced = paused is not None and task_dispatched_count(latest.task_id) == 0
 
     # Usage = the accumulated total for terminal samples (survives them
     # leaving active_samples — "usage so far") plus the live usage of the

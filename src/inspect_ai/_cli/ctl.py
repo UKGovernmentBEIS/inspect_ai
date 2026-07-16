@@ -2388,9 +2388,11 @@ def _run_task_pause_resume(
     click.echo()
     if result.get("changed"):
         if verb == "pause":
-            in_flight = int(result.get("in_flight", 0) or 0)
+            # `dispatched` counts samples past the gate, including ones still
+            # initializing their sandbox (which the listing shows as queued)
+            dispatched = int(result.get("dispatched", 0) or 0)
             finishing = (
-                f"{in_flight} in-flight sample{'' if in_flight == 1 else 's'} "
+                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
                 f"{'would' if dry_run else 'will'} finish naturally"
             )
             if dry_run:
@@ -2417,6 +2419,14 @@ def _run_task_pause_resume(
     else:
         reason = str(result.get("reason") or "already in that state")
         click.echo(f"Nothing to do: {reason}.")
+        # "task is not paused" is technically right for a task held only by
+        # the process latch, but the operator wants it moving — point at the
+        # latch that actually holds it
+        if verb == "resume" and result.get("paused") in ("process", "both"):
+            click.echo(
+                "Note: the process is paused — samples stay held until "
+                "`inspect ctl process resume`."
+            )
 
 
 @_envelope_failures
