@@ -102,7 +102,10 @@ For these, return `Score.unscored()`. This produces a `Score` whose `value` is `
 return Score.unscored(
     answer=state.output.completion,
     explanation="Grader did not return a parseable verdict after 3 retries.",
-    metadata={"reason": "grader_parse_failure"},
+    metadata={
+        "reason": "grader_parse_failure",
+        "grader_payload": grader_output.message,
+    },
 )
 ```
 
@@ -137,6 +140,7 @@ Whatever the outcome, set `explanation` to a human-readable message, and record 
 ``` python
 return Score(
     value=INCORRECT,
+    answer=state.output.completion,
     explanation="Model response was not valid JSON.",
     metadata={"reason": "invalid_response_format"},
 )
