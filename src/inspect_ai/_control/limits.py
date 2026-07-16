@@ -40,6 +40,13 @@ exposes them without a task — the process-level ``GET``/``PATCH /config``
 endpoint — for the common case of viewing or throttling a whole process without
 naming one of its tasks.
 
+Both directives also carry the retry-loop overrides — ``timeout`` /
+``attempt_timeout`` / ``max_retries``, likewise process-global — backed by the
+live override layer in :mod:`inspect_ai.model._generate_overrides` rather than
+a limiter: the generate retry loop reads the overrides at each point of use,
+so a retune reaches calls already inside their retry loop (the keyword
+``clear`` removes an override, restoring launch config).
+
 Beyond the named knobs, any ``concurrency()`` registry entry — the public API
 tools and user code register named limits through (web-search providers, model
 compaction, sandbox-tools injection, arbitrary solver code) — can be retuned by
@@ -56,7 +63,7 @@ process-global, so the key knob rides both endpoints.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from inspect_ai._util.name_match import match_name_prefix
 
@@ -114,6 +121,9 @@ async def process_limits(
     max_subprocesses: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     key: str | None = None,
     key_limit: int | None = None,
     dry_run: bool = False,
@@ -123,8 +133,12 @@ async def process_limits(
     Covers the knobs that are shared across every task in the process:
     ``max_sandboxes`` (per-provider sandbox concurrency), ``max_subprocesses``
     (subprocess concurrency), ``max_connections`` (the adaptive controllers'
-    scaling ceiling), and ``key`` / ``key_limit`` (a named ``concurrency()``
-    registry entry — the registry is process-global). It carries no
+    scaling ceiling), ``key`` / ``key_limit`` (a named ``concurrency()``
+    registry entry — the registry is process-global), and the retry-loop
+    overrides (``timeout`` / ``attempt_timeout`` / ``max_retries`` — see the
+    ``retry`` view and :mod:`inspect_ai.model._generate_overrides`; the
+    keyword ``clear`` removes an override, restoring the launch
+    configuration). It carries no
     ``max_samples`` — that is per-task; use :func:`task_limits` when a
     specific task is in view.
 
@@ -142,6 +156,9 @@ async def process_limits(
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        timeout=timeout,
+        attempt_timeout=attempt_timeout,
+        max_retries=max_retries,
         key=key,
         key_limit=key_limit,
         dry_run=dry_run,
@@ -151,6 +168,7 @@ async def process_limits(
         "max_sandboxes": views.max_sandboxes,
         "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
+        "retry": views.retry,
         "concurrency": views.concurrency,
         "requested": views.requested or None,
         "warnings": views.warnings,
@@ -169,6 +187,9 @@ async def task_limits(
     key_limit: int | None = None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any] | None:
     """Read (and optionally retune) a task's retunable config.
@@ -213,6 +234,13 @@ async def task_limits(
         log_buffer: New completed-samples-per-log-write buffer threshold, or
             ``None`` to leave it.
         log_shared: New shared-log event sync interval (seconds), or ``None``.
+        timeout: New total retry budget per generate call (seconds) — a live
+            process-wide override (the keyword ``clear`` removes it,
+            restoring launch config), or ``None`` to leave it.
+        attempt_timeout: New per-attempt timeout (seconds) — same override
+            semantics as ``timeout``.
+        max_retries: New max retries per generate call (``0`` = fail after
+            the first attempt) — same override semantics as ``timeout``.
         dry_run: When set, validate and report the intended change without
             applying it.
     """
@@ -302,6 +330,9 @@ async def task_limits(
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        timeout=timeout,
+        attempt_timeout=attempt_timeout,
+        max_retries=max_retries,
         key=key,
         key_limit=key_limit,
         dry_run=dry_run,
@@ -333,6 +364,7 @@ async def task_limits(
         "max_sandboxes": views.max_sandboxes,
         "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
+        "retry": views.retry,
         "concurrency": views.concurrency,
         "buffer": buffer_view,
         "requested": requested or None,
@@ -359,8 +391,9 @@ class _ProcessKnobViews(NamedTuple):
     max_sandboxes: list[dict[str, Any]]
     max_subprocesses: dict[str, Any] | None
     adaptive: list[dict[str, Any]]
+    retry: dict[str, int | None]
     concurrency: list[dict[str, Any]]
-    requested: dict[str, int]
+    requested: dict[str, int | str]
     warnings: list[str]
 
 
@@ -389,6 +422,9 @@ def _apply_process_knobs(
     max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
     key: str | None = None,
     key_limit: int | None = None,
     dry_run: bool,
@@ -402,6 +438,13 @@ def _apply_process_knobs(
     ``max_connections`` and the reported view) to those matching it. ``key``
     must already have passed :func:`check_concurrency_key` (the caller
     rejects unknown keys before any knob applies).
+
+    ``timeout`` / ``attempt_timeout`` / ``max_retries`` set (or with the
+    keyword ``clear``, remove) the process-wide retry-loop overrides —
+    always adjustable, since the override layer exists regardless of what
+    any task's launch config specifies. The ``retry`` view reports the
+    active overrides (``None`` = no override; each generate call's own
+    config applies).
     """
     from inspect_ai.util._concurrency import (
         ResizableSemaphore,
@@ -410,7 +453,7 @@ def _apply_process_knobs(
         subprocess_limiter,
     )
 
-    requested: dict[str, int] = {}
+    requested: dict[str, int | str] = {}
     warnings: list[str] = []
 
     # max_sandboxes — the process-global sandbox limiters, one per sandbox type.
@@ -467,6 +510,30 @@ def _apply_process_knobs(
         elif controllers and not dry_run:
             for ctrl in controllers:
                 ctrl.set_max(max_connections)
+
+    # timeout / attempt_timeout / max_retries — the retry-loop override layer
+    # (process-wide, read live by the generate retry loop). "clear" removes an
+    # override; the store always exists, so these never warn as unadjustable.
+    from inspect_ai.model._generate_overrides import (
+        GENERATE_CONFIG_OVERRIDE_FIELDS,
+        GenerateConfigOverrideField,
+        generate_config_overrides,
+        set_generate_config_override,
+    )
+
+    retry_values: dict[GenerateConfigOverrideField, int | Literal["clear"] | None] = {
+        "timeout": timeout,
+        "attempt_timeout": attempt_timeout,
+        "max_retries": max_retries,
+    }
+    # a field added to the override Literal but missing here would be
+    # settable in the store yet silently not applied by this directive
+    assert set(retry_values) == set(GENERATE_CONFIG_OVERRIDE_FIELDS)
+    for field, value in retry_values.items():
+        if value is not None:
+            requested[field] = value
+            if not dry_run:
+                set_generate_config_override(field, None if value == "clear" else value)
 
     # key — a named concurrency() registry entry, matched by exact name (a
     # name can back several entries — e.g. one model on two accounts — and the
@@ -552,6 +619,7 @@ def _apply_process_knobs(
         max_sandboxes=max_sandboxes_view,
         max_subprocesses=max_subprocesses_view,
         adaptive=adaptive_view,
+        retry=generate_config_overrides(),
         concurrency=concurrency_view,
         requested=requested,
         warnings=warnings,

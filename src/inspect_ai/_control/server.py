@@ -14,9 +14,10 @@ channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
 Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
-summaries), ``GET /evals/{id}/samples`` (sample listing, with an
-``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
-detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
+summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
+status histogram and an ``active_since`` recency delta), ``GET
+/evals/{id}/sample`` (summary + error detail), and ``GET
+/evals/{id}/sample/events`` (cursored transcript
 pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations and
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
@@ -32,15 +33,27 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, Literal, NamedTuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Literal,
+    NamedTuple,
+    cast,
+    get_args,
+)
 
 import anyio
 
 from inspect_ai._control import CONTROL_API_VERSION
 from inspect_ai._control.buffer import flush_task_samples
-from inspect_ai._control.cancel import cancel_sample, cancel_task
+from inspect_ai._control.cancel import (
+    TaskCancelAction,
+    cancel_sample,
+    cancel_task,
+)
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
-from inspect_ai._control.events import sample_events
+from inspect_ai._control.events import DEFAULT_PAGE_LIMIT, sample_events
 from inspect_ai._control.limits import (
     UnknownConcurrencyKeyError,
     process_limits,
@@ -48,7 +61,9 @@ from inspect_ai._control.limits import (
 )
 from inspect_ai._control.state import (
     current_eval_summaries,
-    current_sample_summaries,
+    current_sample_listing,
+    effective_sample_limit,
+    parse_status_filter,
     sample_error_detail,
 )
 from inspect_ai._util.discovery import (
@@ -58,7 +73,17 @@ from inspect_ai._util.discovery import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.sockets import lock_socket_file, prepare_socket_path
 
+if TYPE_CHECKING:
+    from fastapi.responses import JSONResponse
+
 logger = getLogger(__name__)
+
+
+class _ParsedRetryKnobs(NamedTuple):
+    """Parsed retry-override knob values, or the 400 that rejects them."""
+
+    values: dict[str, "int | Literal['clear'] | None"]
+    error: "JSONResponse | None"
 
 
 # ---------------------------------------------------------------------------
@@ -277,8 +302,9 @@ class ControlServer:
         def _limits_below_one(*knobs: tuple[str, int | None]) -> JSONResponse | None:
             """400 for the first requested limit below 1, else None.
 
-            Shared by both PATCH limits routes so the knob validation can't
-            drift between them.
+            Shared by the routes that take integer knobs (both PATCH limits
+            routes and the samples listing) so the validation can't drift
+            between them.
             """
             for label, value in knobs:
                 if value is not None and value < 1:
@@ -287,6 +313,49 @@ class ControlServer:
                         content={"error": f"{label} must be >= 1 (got {value})"},
                     )
             return None
+
+        def _parse_retry_knobs(*knobs: tuple[str, str | None]) -> _ParsedRetryKnobs:
+            """Parse the retry-override knobs' raw query values.
+
+            Unlike the limits knobs these are declared ``str`` on the route:
+            every integer >= 0 is a real value (0 = fail after the first
+            attempt / a zero budget), so clearing an override is spelled with
+            the keyword ``clear`` rather than a sentinel integer. Values above
+            :data:`MAX_GENERATE_CONFIG_OVERRIDE` are rejected here too — the
+            store enforces the same bound, but a 400 at the wire beats a 500.
+            Returns the parsed values plus a 400 for the first invalid one
+            (a ``None`` passes through as "not requested").
+            """
+            from inspect_ai.model._generate_overrides import (
+                MAX_GENERATE_CONFIG_OVERRIDE,
+            )
+
+            parsed: dict[str, int | Literal["clear"] | None] = {}
+            for label, raw in knobs:
+                if raw is None:
+                    parsed[label] = None
+                elif raw == "clear":
+                    parsed[label] = "clear"
+                else:
+                    try:
+                        value = int(raw)
+                    except ValueError:
+                        value = -1
+                    if value < 0 or value > MAX_GENERATE_CONFIG_OVERRIDE:
+                        return _ParsedRetryKnobs(
+                            values=parsed,
+                            error=JSONResponse(
+                                status_code=400,
+                                content={
+                                    "error": f"{label} must be an integer "
+                                    f"between 0 and "
+                                    f"{MAX_GENERATE_CONFIG_OVERRIDE} or "
+                                    f"'clear' (got {raw!r})"
+                                },
+                            ),
+                        )
+                    parsed[label] = value
+            return _ParsedRetryKnobs(values=parsed, error=None)
 
         def _key_pair_error(
             key: str | None, key_limit: int | None
@@ -326,17 +395,53 @@ class ControlServer:
 
         @app.get("/evals/{eval_id}/samples")
         async def list_eval_samples(
-            eval_id: str, active_since: float | None = None
-        ) -> dict[str, Any]:
+            eval_id: str,
+            active_since: float | None = None,
+            status: str | None = None,
+            limit: int | None = None,
+            all: bool = False,
+            filter: Literal["errors"] | None = None,
+        ) -> Any:
             # `active_since` (unix ts) is the recency delta: only samples that
-            # started or updated since then. A filter, not a cursor. The
-            # response is an `{as_of, samples}` envelope — `as_of` is stamped
-            # BEFORE the listing is built, so a client feeding it back as the
-            # next `active_since` can't miss changes that land mid-read.
+            # started or updated since then. A filter, not a cursor. `status`
+            # is a comma-separated status filter; rows are capped at `limit`
+            # (default DEFAULT_SAMPLE_LIST_LIMIT) unless `all=true` asks for
+            # the full dump. `filter=errors` restricts to errored/retried
+            # samples and skips pending-row synthesis (the `sample errors`
+            # triage read); typed as a Literal so an unrecognized value is
+            # rejected (422) rather than silently answered with the full
+            # listing — the CLI trusts the filter was applied and keeps no
+            # client-side fallback. The response is an `{as_of, counts,
+            # samples, truncated}` envelope — `as_of` is stamped BEFORE the
+            # listing is built, so a client feeding it back as the next
+            # `active_since` can't miss changes that land mid-read; `counts`
+            # is the eval's status histogram over the (possibly
+            # `filter`-restricted) listing, complete even when rows are
+            # status-filtered or capped, and `truncated` reports a hit cap
+            # structurally.
+            if all and limit is not None:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "limit and all are mutually exclusive"},
+                )
+            if error := _limits_below_one(("limit", limit)):
+                return error
+            statuses, status_error = parse_status_filter(status)
+            if status_error is not None:
+                return JSONResponse(status_code=400, content={"error": status_error})
             as_of = time.time()
+            listing = await current_sample_listing(
+                eval_id,
+                active_since,
+                statuses=statuses,
+                limit=effective_sample_limit(limit, all),
+                sample_filter=filter,
+            )
             return {
                 "as_of": as_of,
-                "samples": await current_sample_summaries(eval_id, active_since),
+                "counts": listing.counts,
+                "samples": listing.samples,
+                "truncated": listing.truncated,
             }
 
         # `sample_id` is a query parameter (not a path segment) here and on
@@ -356,9 +461,10 @@ class ControlServer:
             return detail
 
         # Per-sample transcript events, cursored pull (phase 2). `type` is a
-        # comma-separated event-type filter (`*` = all; omitted = high-signal
-        # tier); `since` is an opaque cursor, `tail` an int, `full` a bool,
-        # `since_time`/`until` a wall-clock window.
+        # comma-separated event-type filter (`all` or `*` = everything;
+        # omitted = high-signal tier); `since` is an opaque cursor, `tail` an
+        # int, `full` a bool, `since_time`/`until` a wall-clock window,
+        # `limit` the page size (max events scanned per page).
         @app.get("/evals/{eval_id}/sample/events")
         async def get_sample_events(
             eval_id: str,
@@ -370,7 +476,15 @@ class ControlServer:
             full: bool = False,
             since_time: float | None = None,
             until: float | None = None,
+            limit: int = DEFAULT_PAGE_LIMIT,
         ) -> Any:
+            # a limit below 1 would serve an empty page whose unchanged `next`
+            # cursor loops a paging client forever
+            if limit < 1:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "limit must be at least 1"},
+                )
             # strip whitespace around the comma-separated members so natural
             # spellings like `--type "model, tool"` don't silently match
             # nothing
@@ -389,6 +503,7 @@ class ControlServer:
                 full=full,
                 since_time=since_time,
                 until=until,
+                limit=limit,
             )
             if page is None:
                 return JSONResponse(
@@ -413,15 +528,35 @@ class ControlServer:
             return result
 
         # Cancel a running task (phase 3). Task-keyed like `config` and
-        # `log-flush` — the handle never dangles across a retry. Fires the
-        # latest attempt's TaskCancel with "abort" (the in-process display's
-        # user-cancel path): in-flight samples are interrupted, completed
-        # work is preserved, and the log finishes with an error status.
+        # `log-flush` — the handle never dangles across a retry. `action`
+        # selects how the task's samples resolve: "cancel" (the default)
+        # fires the latest attempt's TaskCancel with "abort" (the in-process
+        # display's user-cancel path — in-flight samples are interrupted,
+        # completed work is preserved, and the log finishes with an error
+        # status); "score"/"error" resolve gracefully — in-flight samples are
+        # interrupted with the matching action, queued samples are abandoned,
+        # and the task completes with its ordinary terminal status.
         # Idempotent (a repeat — or a cancel of a finished task — reports
         # `changed: false`); `dry_run=true` reports without acting.
         @app.post("/tasks/{task_id}/cancel")
-        async def task_cancel(task_id: str, dry_run: bool = False) -> Any:
-            result = cancel_task(task_id, dry_run=dry_run)
+        async def task_cancel(
+            task_id: str, action: str = "cancel", dry_run: bool = False
+        ) -> Any:
+            if action not in get_args(TaskCancelAction):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "action must be 'cancel', 'score' or "
+                            f"'error' (got '{action}')"
+                        )
+                    },
+                )
+            result = cancel_task(
+                task_id,
+                action=cast(TaskCancelAction, action),
+                dry_run=dry_run,
+            )
             if result is None:
                 return JSONResponse(
                     status_code=404,
@@ -439,7 +574,9 @@ class ControlServer:
         # default; see the selector conventions in
         # design/control-channel.md). `action` selects the outcome: "score"
         # completes the sample and scores the work done so far; "error"
-        # marks it errored (rejected for fail-on-error samples). Idempotent
+        # marks it errored (rejected for fail-on-error samples); "cancel"
+        # records it as cancelled (transcript preserved, no scoring, not
+        # counted as an error). Idempotent
         # — an already-terminal sample reports `changed: false`;
         # `dry_run=true` reports without acting.
         @app.post("/evals/{eval_id}/sample/cancel")
@@ -450,6 +587,11 @@ class ControlServer:
             action: str = "score",
             dry_run: bool = False,
         ) -> Any:
+            # Function-local: a module-level `inspect_ai.log` import from
+            # this module is circular (`inspect_ai` -> `_eval.eval` ->
+            # `_control.server`).
+            from inspect_ai.log._samples import SampleCancelAction
+
             if epoch is None:
                 return JSONResponse(
                     status_code=400,
@@ -461,18 +603,21 @@ class ControlServer:
                         )
                     },
                 )
-            if action not in ("score", "error"):
+            if action not in get_args(SampleCancelAction):
                 return JSONResponse(
                     status_code=400,
                     content={
-                        "error": f"action must be 'score' or 'error' (got '{action}')"
+                        "error": (
+                            "action must be 'score', 'error' or 'cancel' "
+                            f"(got '{action}')"
+                        )
                     },
                 )
             result = await cancel_sample(
                 eval_id,
                 sample_id,
                 epoch,
-                action=cast(Literal["score", "error"], action),
+                action=cast(SampleCancelAction, action),
                 dry_run=dry_run,
             )
             if result is None:
@@ -496,8 +641,10 @@ class ControlServer:
         # read, like GET. `model` filters the adaptive controllers (name start or
         # after a `/`); `key`/`key_limit` retune a named concurrency() registry
         # entry by exact name (400 for a name with no entry — named limits are
-        # created lazily on first use). `dry_run=true` reports the intended
-        # change without applying it. Never 404s — a process always exists.
+        # created lazily on first use). The retry knobs (timeout /
+        # attempt_timeout / max_retries) set live overrides; the keyword
+        # `clear` removes one. `dry_run=true` reports the intended change
+        # without applying it. Never 404s — a process always exists.
         # Unknown query params 400 (fail closed) rather than partially applying.
         @app.patch("/config")
         async def patch_process_limits(
@@ -507,6 +654,9 @@ class ControlServer:
             model: str | None = None,
             key: str | None = None,
             key_limit: int | None = None,
+            timeout: str | None = None,
+            attempt_timeout: str | None = None,
+            max_retries: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -518,6 +668,13 @@ class ControlServer:
                 return error
             if error := _key_pair_error(key, key_limit):
                 return error
+            retry_knobs, retry_error = _parse_retry_knobs(
+                ("timeout", timeout),
+                ("attempt_timeout", attempt_timeout),
+                ("max_retries", max_retries),
+            )
+            if retry_error is not None:
+                return retry_error
             try:
                 return await process_limits(
                     max_sandboxes=max_sandboxes,
@@ -526,6 +683,9 @@ class ControlServer:
                     model=model,
                     key=key,
                     key_limit=key_limit,
+                    timeout=retry_knobs["timeout"],
+                    attempt_timeout=retry_knobs["attempt_timeout"],
+                    max_retries=retry_knobs["max_retries"],
                     dry_run=dry_run,
                 )
             except UnknownConcurrencyKeyError as exc:
@@ -568,6 +728,9 @@ class ControlServer:
             key_limit: int | None = None,
             log_buffer: int | None = None,
             log_shared: int | None = None,
+            timeout: str | None = None,
+            attempt_timeout: str | None = None,
+            max_retries: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -582,6 +745,13 @@ class ControlServer:
                 return error
             if error := _key_pair_error(key, key_limit):
                 return error
+            retry_knobs, retry_error = _parse_retry_knobs(
+                ("timeout", timeout),
+                ("attempt_timeout", attempt_timeout),
+                ("max_retries", max_retries),
+            )
+            if retry_error is not None:
+                return retry_error
             try:
                 result = await task_limits(
                     task_id,
@@ -594,6 +764,9 @@ class ControlServer:
                     key_limit=key_limit,
                     log_buffer=log_buffer,
                     log_shared=log_shared,
+                    timeout=retry_knobs["timeout"],
+                    attempt_timeout=retry_knobs["attempt_timeout"],
+                    max_retries=retry_knobs["max_retries"],
                     dry_run=dry_run,
                 )
             except UnknownConcurrencyKeyError as exc:
