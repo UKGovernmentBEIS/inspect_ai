@@ -195,6 +195,7 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#july-2026" id="toc-july-2026" class="nav-link" data-scroll-target="#july-2026">0.3.247 (16 July 2026)</a></li>
   <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.246 (10 July 2026)</a></li>
   <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.245 (08 July 2026)</a></li>
   <li><a href="#july-2026-3" id="toc-july-2026-3" class="nav-link" data-scroll-target="#july-2026-3">0.3.244 (01 July 2026)</a></li>
@@ -442,25 +443,9 @@ ul.task-list li input[type="checkbox"] {
 </nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content">
-
-<header id="title-block-header" class="quarto-title-block default">
-<div class="quarto-title">
-<h1 class="title">0.3.247 (16 July 2026)</h1>
-</div>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
 
 
-
-<div class="quarto-title-meta">
-
-    
-  
-    
-  </div>
-  
-
-
-</header>
 
 
 <section id="unreleased" class="level2">
@@ -497,6 +482,9 @@ ul.task-list li input[type="checkbox"] {
 <li>Viewer: log listing responses include the log dir’s canonical URI (<code>log_dir_uri</code>) so the viewer can reliably scope its local cache to the directory.</li>
 <li>Inspect View: Reuse one warm async S3 client and connection pool across requests — for both log reads and directory listings — instead of creating one per operation, eliminating the per-request credential/connection cold-start (e.g.&nbsp;<code>/log-headers</code> ~3s -&gt; ~0.3s, <code>/logs</code> ~1.5s -&gt; ~0.06s).</li>
 </ul>
+</section>
+<section id="july-2026" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026">0.3.247 (16 July 2026)</h2>
 <ul>
 <li>Google: The Gemini Developer API endpoint now supports OAuth/ADC authentication (<code>-M use_adc=true</code> or <code>GOOGLE_USE_ADC=true</code>) with automatic token refresh, for deployments reachable without an API key.</li>
 <li>Google: Unknown (predeployment) model names are now treated as the latest Gemini model for context window (compaction) and capability detection.</li>

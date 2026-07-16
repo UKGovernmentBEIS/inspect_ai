@@ -33,7 +33,7 @@
 - Viewer: log listing responses include the log dir’s canonical URI (`log_dir_uri`) so the viewer can reliably scope its local cache to the directory.
 - Inspect View: Reuse one warm async S3 client and connection pool across requests — for both log reads and directory listings — instead of creating one per operation, eliminating the per-request credential/connection cold-start (e.g. `/log-headers` ~3s -\> ~0.3s, `/logs` ~1.5s -\> ~0.06s).
 
-&nbsp;
+## 0.3.247 (16 July 2026)
 
 - Google: The Gemini Developer API endpoint now supports OAuth/ADC authentication (`-M use_adc=true` or `GOOGLE_USE_ADC=true`) with automatic token refresh, for deployments reachable without an API key.
 - Google: Unknown (predeployment) model names are now treated as the latest Gemini model for context window (compaction) and capability detection.
