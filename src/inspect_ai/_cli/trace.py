@@ -188,7 +188,7 @@ def anomalies_options(func: Callable[..., None]) -> Callable[..., None]:
         "--all",
         is_flag=True,
         default=False,
-        help="Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown).",
+        help="Show all anomalies including errors and timeouts (by default only still running and cancelled actions are shown; JSON output always includes all buckets).",
     )(func)
     func = click.option(
         "--filter",
@@ -201,19 +201,20 @@ def anomalies_options(func: Callable[..., None]) -> Callable[..., None]:
 @trace_command.command("anomalies")
 @click.argument("trace-file", type=str, required=False)
 @anomalies_options
-def anomolies_command(
+def anomalies_command(
     trace_file: str | None, filter: str | None, all: bool, json: bool
 ) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
-    anomolies_command_impl(trace_file, filter, all, json)
+    anomalies_command_impl(trace_file, filter, all, json)
 
 
 class TraceAnomalies(NamedTuple):
     """Anomalous actions from a trace file, bucketed by outcome.
 
     Buckets are sorted most recently finished first (running actions by start
-    time). ``errors`` and ``timeouts`` are collected only when requested via
-    ``all`` (they are empty lists otherwise).
+    time). All four buckets are always collected; whether ``errors`` and
+    ``timeouts`` are *shown* is a rendering concern (the human table gates
+    them behind ``--all``, the JSON envelope always carries them).
     """
 
     running: list[ActionTraceRecord]
@@ -222,7 +223,7 @@ class TraceAnomalies(NamedTuple):
     timeouts: list[ActionTraceRecord]
 
 
-def anomolies_command_impl(
+def anomalies_command_impl(
     trace_file: str | None,
     filter: str | None,
     all: bool,
@@ -231,7 +232,7 @@ def anomolies_command_impl(
 ) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
     trace_file_path, traces = _read_traces(trace_file, None, filter, trace_dir)
-    anomalies = _trace_anomalies(traces, all)
+    anomalies = _trace_anomalies(traces)
 
     if json:
         # stamp as_of once and compute running durations against it so the
@@ -252,14 +253,22 @@ def anomolies_command_impl(
         )
         return
 
+    # the buckets shown in the human rendering (--all gates errors/timeouts
+    # here only; the JSON envelope above always carries all four)
+    shown_buckets = [
+        ("Running Actions", anomalies.running),
+        ("Cancelled Actions", anomalies.cancelled),
+    ]
+    if all:
+        shown_buckets.extend(
+            [
+                ("Error Actions", anomalies.errors),
+                ("Timeout Actions", anomalies.timeouts),
+            ]
+        )
+
     # do we have any traces?
-    if (
-        len(anomalies.running)
-        + len(anomalies.cancelled)
-        + len(anomalies.errors)
-        + len(anomalies.timeouts)
-        == 0
-    ):
+    if sum(len(actions) for _, actions in shown_buckets) == 0:
         print(f"TRACE: {shlex.quote(trace_file_path.as_posix())}\n")
         if all:
             print("No anomalies found in trace log.")
@@ -278,85 +287,49 @@ def anomolies_command_impl(
 
         print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[/bold]")
 
-        _print_bucket(print_fn, "Running Actions", anomalies.running)
-        _print_bucket(print_fn, "Cancelled Actions", anomalies.cancelled)
-        _print_bucket(print_fn, "Error Actions", anomalies.errors)
-        _print_bucket(print_fn, "Timeout Actions", anomalies.timeouts)
+        for label, actions in shown_buckets:
+            _print_bucket(print_fn, label, actions)
 
         # print
         print(console.export_text(styles=True).strip())
 
 
-def _trace_anomalies(traces: list[TraceRecord], all: bool) -> TraceAnomalies:
+def _trace_anomalies(traces: list[TraceRecord]) -> TraceAnomalies:
     """Reconstruct anomalous actions (never exited, cancelled, errored, timed out) from trace records.
 
     Shared by the human and JSON renderings of `inspect trace anomalies` (and,
     per the design, the planned `inspect ctl process anomalies`) so every entry
-    point derives the same answer from the same records.
+    point derives the same answer from the same records. Exit-side records
+    with no matching enter record (e.g. `--filter` matched only the exit side,
+    or the log start was truncated) are still bucketed, without a
+    reconstructed start time.
     """
-    # Track started actions
     running_actions: dict[str, ActionTraceRecord] = {}
-    canceled_actions: dict[str, ActionTraceRecord] = {}
-    error_actions: dict[str, ActionTraceRecord] = {}
-    timeout_actions: dict[str, ActionTraceRecord] = {}
-    start_trace: ActionTraceRecord | None = None
-
-    def action_started(trace: ActionTraceRecord) -> None:
-        running_actions[trace.trace_id] = trace
-
-    def action_completed(trace: ActionTraceRecord) -> ActionTraceRecord:
-        nonlocal start_trace
-        start_trace = running_actions.get(trace.trace_id)
-        if start_trace:
-            del running_actions[trace.trace_id]
-            return start_trace
-        else:
-            raise RuntimeError(f"Expected {trace.trace_id} in action dictionary.")
-
-    def action_failed(trace: ActionTraceRecord) -> None:
-        nonlocal start_trace
-        if all:
-            assert start_trace
-            error_actions[start_trace.trace_id] = trace
-
-    def action_canceled(trace: ActionTraceRecord) -> None:
-        nonlocal start_trace
-        assert start_trace
-        canceled_actions[start_trace.trace_id] = trace
-
-    def action_timeout(trace: ActionTraceRecord) -> None:
-        nonlocal start_trace
-        if all:
-            assert start_trace
-            timeout_actions[start_trace.trace_id] = trace
+    finished_buckets: dict[str, dict[str, ActionTraceRecord]] = {
+        "cancel": {},
+        "error": {},
+        "timeout": {},
+    }
 
     for trace in traces:
         if isinstance(trace, ActionTraceRecord):
             match trace.event:
                 case "enter":
-                    action_started(trace)
-                case "exit":
-                    action_completed(trace)
-                case "cancel":
-                    start_trace = action_completed(trace)
-                    trace.start_time = start_trace.start_time
-                    action_canceled(trace)
-                case "error":
-                    start_trace = action_completed(trace)
-                    trace.start_time = start_trace.start_time
-                    action_failed(trace)
-                case "timeout":
-                    start_trace = action_completed(trace)
-                    trace.start_time = start_trace.start_time
-                    action_timeout(trace)
+                    running_actions[trace.trace_id] = trace
+                case "exit" | "cancel" | "error" | "timeout":
+                    start_trace = running_actions.pop(trace.trace_id, None)
+                    if trace.event != "exit":
+                        if start_trace is not None:
+                            trace.start_time = start_trace.start_time
+                        finished_buckets[trace.event][trace.trace_id] = trace
                 case _:
                     print(f"Unknown event type: {trace.event}")
 
     return TraceAnomalies(
         running=_sorted_actions(running_actions),
-        cancelled=_sorted_actions(canceled_actions),
-        errors=_sorted_actions(error_actions),
-        timeouts=_sorted_actions(timeout_actions),
+        cancelled=_sorted_actions(finished_buckets["cancel"]),
+        errors=_sorted_actions(finished_buckets["error"]),
+        timeouts=_sorted_actions(finished_buckets["timeout"]),
     )
 
 

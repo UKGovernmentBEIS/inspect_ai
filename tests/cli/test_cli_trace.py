@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from inspect_ai._cli.trace import anomolies_command_impl, http_command_impl
+from inspect_ai._cli.trace import anomalies_command_impl, http_command_impl
 
 
 def write_trace_log(file: Path, records: list[dict[str, Any]]) -> None:
@@ -79,7 +79,7 @@ def anomalies_trace_file(tmp_path: Path) -> Path:
 def test_trace_anomalies_json(
     anomalies_trace_file: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    anomolies_command_impl(
+    anomalies_command_impl(
         str(anomalies_trace_file),
         filter=None,
         all=False,
@@ -91,11 +91,12 @@ def test_trace_anomalies_json(
     assert envelope["trace_file"] == anomalies_trace_file.as_posix()
     assert isinstance(envelope["as_of"], float)
 
-    # all four bucket keys always present; errors/timeouts empty without --all
+    # all four buckets always populated, even without --all (which gates only
+    # the human rendering), so empty always means "none occurred"
     assert [row["action"] for row in envelope["running"]] == ["Model"]
     assert [row["action"] for row in envelope["cancelled"]] == ["Subprocess"]
-    assert envelope["errors"] == []
-    assert envelope["timeouts"] == []
+    assert [row["action"] for row in envelope["errors"]] == ["Sandbox"]
+    assert [row["action"] for row in envelope["timeouts"]] == ["Model"]
 
     # running rows compute duration as as_of - start_time
     running = envelope["running"][0]
@@ -114,7 +115,7 @@ def test_trace_anomalies_json(
 def test_trace_anomalies_json_all(
     anomalies_trace_file: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    anomolies_command_impl(
+    anomalies_command_impl(
         str(anomalies_trace_file),
         filter=None,
         all=True,
@@ -140,7 +141,7 @@ def test_trace_anomalies_json_empty(
             action_record("ok1", "Log", "exit", detail="write", duration=1.0),
         ],
     )
-    anomolies_command_impl(
+    anomalies_command_impl(
         str(trace_file), filter=None, all=False, json=True, trace_dir=tmp_path
     )
     envelope = json.loads(capsys.readouterr().out)
@@ -156,7 +157,7 @@ def test_trace_anomalies_json_empty(
 def test_trace_anomalies_human_output(
     anomalies_trace_file: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    anomolies_command_impl(
+    anomalies_command_impl(
         str(anomalies_trace_file),
         filter=None,
         all=False,
@@ -166,6 +167,41 @@ def test_trace_anomalies_human_output(
     out = capsys.readouterr().out
     assert "Running Actions" in out
     assert "Cancelled Actions" in out
+    # errors/timeouts are gated behind --all in the human rendering
+    assert "Error Actions" not in out
+    assert "Timeout Actions" not in out
+
+
+def test_trace_anomalies_human_output_all(
+    anomalies_trace_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    anomalies_command_impl(
+        str(anomalies_trace_file),
+        filter=None,
+        all=True,
+        json=False,
+        trace_dir=anomalies_trace_file.parent,
+    )
+    out = capsys.readouterr().out
+    assert "Error Actions" in out
+    assert "Timeout Actions" in out
+
+
+def test_trace_anomalies_filter_matches_only_exit_record(
+    anomalies_trace_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # "(error)" matches only the error (exit-side) record, not its enter
+    # record; the reconstruction must tolerate the missing enter, not crash
+    anomalies_command_impl(
+        str(anomalies_trace_file),
+        filter="(error)",
+        all=True,
+        json=True,
+        trace_dir=anomalies_trace_file.parent,
+    )
+    envelope = json.loads(capsys.readouterr().out)
+    assert [row["action"] for row in envelope["errors"]] == ["Sandbox"]
+    assert envelope["errors"][0]["start_time"] is None
 
 
 def http_record(timestamp: str, message: str) -> dict[str, Any]:
