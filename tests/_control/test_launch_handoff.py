@@ -26,14 +26,14 @@ import sys
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, cast
 
 import pytest
 
 import inspect_ai
 from _control.conftest import cli_runner
 from inspect_ai import Task, task
-from inspect_ai._cli.detach import _child_args, _handoff_record
+from inspect_ai._cli.detach import _child_args, _handoff_record, _wait_for_record
 from inspect_ai._cli.eval import (
     _json_prerequisite_errors_to_stderr,
     eval_command,
@@ -933,6 +933,40 @@ def test_detach_handoff_record_skips_diagnostics() -> None:
     assert _handoff_record('["launch"]') is None
     record = _handoff_record('{"event": "launch", "run_id": "r"}')
     assert record is not None and record["run_id"] == "r"
+
+
+def test_detach_wait_for_record_reassembles_split_multibyte(tmp_path: Path) -> None:
+    """A read boundary inside a multibyte character must not corrupt the record.
+
+    The tail's poll can land while the child is mid-write, splitting a
+    multibyte UTF-8 character (e.g. in a non-ASCII log_dir) across two
+    reads; decoding only complete lines reassembles it instead of tearing
+    it into replacement characters.
+    """
+    output_file = tmp_path / "child.out"
+    output_file.write_bytes(b"")
+    record_bytes = json.dumps(
+        {"event": "launch", "log_dir": "/tmp/évals"}, ensure_ascii=False
+    ).encode("utf-8")
+    split = record_bytes.index("é".encode()) + 1  # between the é's two bytes
+
+    class _ScriptedChild:
+        """Stub Popen whose poll() appends the next output chunk before each read."""
+
+        def __init__(self) -> None:
+            self._chunks = [record_bytes[:split], record_bytes[split:] + b"\n"]
+
+        def poll(self) -> int | None:
+            if self._chunks:
+                with open(output_file, "ab") as f:
+                    f.write(self._chunks.pop(0))
+                return None
+            return 0
+
+    record = _wait_for_record(
+        cast("subprocess.Popen[bytes]", _ScriptedChild()), output_file
+    )
+    assert record is not None and record["log_dir"] == "/tmp/évals"
 
 
 def test_eval_detach_rejects_ctl_server_false(

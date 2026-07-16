@@ -232,22 +232,28 @@ def _wait_for_record(
     Returns the first ``launch``/``done`` record, or ``None`` when the
     child exited without producing one. The exit check precedes each read,
     so the final iteration always drains output written before the exit.
+
+    The tail reads binary and decodes only complete lines: a text-mode
+    ``read()`` finalizes its decoder at each EOF, so a poll landing inside
+    a multibyte character would tear it into replacement characters;
+    keeping the partial line as bytes until its newline arrives reassembles
+    the character instead.
     """
-    partial = ""
-    with open(output_file, encoding="utf-8", errors="replace") as output:
+    partial = b""
+    with open(output_file, "rb") as output:
         while True:
             exited = child.poll() is not None
             partial += output.read()
-            lines = partial.split("\n")
+            lines = partial.split(b"\n")
             partial = lines.pop()
             for line in lines:
-                record = _handoff_record(line)
+                record = _handoff_record(line.decode("utf-8", errors="replace"))
                 if record is not None:
                     return record
             if exited:
                 # a crashed child can leave an unterminated trailing line;
                 # a complete record may still be sitting in it
-                return _handoff_record(partial)
+                return _handoff_record(partial.decode("utf-8", errors="replace"))
             time.sleep(0.1)
 
 
