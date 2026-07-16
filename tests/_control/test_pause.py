@@ -211,7 +211,15 @@ async def test_process_pause_resume_roundtrip() -> None:
 async def test_process_pause_dry_run_does_not_flip() -> None:
     result = await pause_process(dry_run=True)
     assert result["changed"] is True and result["dry_run"] is True
+    # `paused` reports the actual latch state (like the task envelope), not
+    # the would-be state
+    assert result["paused"] is False
     assert not process_paused()
+
+    await pause_process()
+    result = await resume_process(dry_run=True)
+    assert result["changed"] is True and result["paused"] is True
+    assert process_paused()
 
 
 async def test_process_latch_holds_every_task() -> None:

@@ -351,7 +351,9 @@ async def pause_process(*, dry_run: bool = False) -> dict[str, Any]:
         await flush_quiesced_tasks()
     return {
         "ok": True,
-        "paused": True,
+        # the actual latch state (read after the conditional flip), matching
+        # the task envelope — under dry_run the process is still unpaused
+        "paused": _process_gate.paused,
         "dry_run": dry_run,
         "changed": changed,
         **({} if changed else {"reason": "process already paused"}),
@@ -371,7 +373,7 @@ async def resume_process(*, dry_run: bool = False) -> dict[str, Any]:
         _fire_dispatch_wakers()
     return {
         "ok": True,
-        "paused": False,
+        "paused": _process_gate.paused,
         "dry_run": dry_run,
         "changed": changed,
         **({} if changed else {"reason": "process is not paused"}),

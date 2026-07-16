@@ -3210,7 +3210,8 @@ def test_process_pause_dry_run_rides_query_param(
     monkeypatch.setattr(
         "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
     )
-    spy = _RequestSpy({"ok": True, "paused": True, "changed": True, "dry_run": True})
+    # `paused` is the actual latch state, still False under a dry-run pause
+    spy = _RequestSpy({"ok": True, "paused": False, "changed": True, "dry_run": True})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["process", "pause", "--dry-run", "--json"]
