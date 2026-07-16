@@ -1443,7 +1443,7 @@ def eval_set_command(
     """
     with _json_prerequisite_errors_to_stderr(json_output or detach):
         if detach:
-            exec_detached(ctl_server=ctl_server, retry_immediate=retry_immediate)
+            exec_detached(ctl_server=ctl_server)
 
         # read config
         config = config_from_locals(dict(locals()))

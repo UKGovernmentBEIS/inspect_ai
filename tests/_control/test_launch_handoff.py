@@ -898,29 +898,27 @@ def test_launch_handoff_emitted_resets_with_listener() -> None:
 # --- inspect eval --detach ----------------------------------------------------
 
 
-def test_detach_child_args_strip_flag_and_force_json_keep() -> None:
-    """The child re-invocation drops --detach and forces --json --ctl-server=keep.
+def test_detach_child_args_strip_flag_and_force_json() -> None:
+    """The child re-invocation drops --detach and forces --json.
 
-    The forced values come after the user's options, so they win click's
-    last-occurrence resolution over anything the user passed (e.g.
-    --ctl-server=true).
+    The user's --ctl-server value — notably an explicit keep — must be
+    preserved verbatim: --detach no longer forces the keep-alive park.
     """
-    args = _child_args(["eval", "t.py", "--detach", "--ctl-server", "true"])
+    args = _child_args(["eval", "t.py", "--detach", "--ctl-server", "keep"])
     assert "--detach" not in args
-    assert args[-2:] == ["--json", "--ctl-server=keep"]
-    assert args[:4] == ["eval", "t.py", "--ctl-server", "true"]
+    assert args == ["eval", "t.py", "--ctl-server", "keep", "--json"]
 
 
 def test_detach_child_args_insert_before_separator() -> None:
-    """Forced flags go before a bare `--`, where click still parses options.
+    """The forced flag goes before a bare `--`, where click still parses options.
 
-    Appended after the separator they would be consumed as task names;
+    Appended after the separator it would be consumed as a task name;
     everything from the separator on must be preserved verbatim (including
     a literal `--detach` positional, which only counts as the flag before
     the separator).
     """
     args = _child_args(["eval", "--detach", "--", "t.py", "--detach"])
-    assert args == ["eval", "--json", "--ctl-server=keep", "--", "t.py", "--detach"]
+    assert args == ["eval", "--json", "--", "t.py", "--detach"]
 
 
 def test_detach_handoff_record_skips_diagnostics() -> None:
@@ -981,17 +979,17 @@ def _wait_for_pid_exit(pid: int, timeout: float) -> bool:
 def test_eval_detach_hands_off_and_leaves_eval_running(
     short_data_dir: Path,
 ) -> None:
-    """``inspect eval --detach`` end to end: handoff, detached run, release.
+    """``inspect eval --detach`` end to end: handoff, detached run, exit.
 
     The launcher must print the ``launch`` record (augmented with
     ``output_file``) and exit 0 while the eval continues in a detached
-    process; because ``--detach`` forces ``--ctl-server=keep``, the
-    detached process honors ``inspect ctl process release`` — issued right
-    after the handoff it means "exit when done" — and its ``done`` record
-    lands in the output file. Spawns the real CLI (a detached child cannot
-    be exercised in-process); sandboxed via ``XDG_DATA_HOME``, effective on
-    Linux (see ``test_eval_json_redirects_subprocess_stdout_to_stderr``
-    for the macOS caveat).
+    process; with no forced keep-alive the detached process exits on its
+    own when the eval finishes, leaving the ``done`` record in the output
+    file as the completion signal. Spawns the real CLI (a detached child
+    cannot be exercised in-process); sandboxed via ``XDG_DATA_HOME``,
+    effective on Linux (see
+    ``test_eval_json_redirects_subprocess_stdout_to_stderr`` for the
+    macOS caveat).
     """
     task_path = short_data_dir / "handoff_cli_task.py"
     task_path.write_text(TASK_FILE)
@@ -1030,26 +1028,8 @@ def test_eval_detach_hands_off_and_leaves_eval_running(
 
     pid = launch["pid"]
     try:
-        # the handoff guarantees the control surface is up: release is
-        # honored immediately ("exit when done" while the eval still runs)
-        release = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "inspect_ai._cli.main",
-                "ctl",
-                "process",
-                "release",
-                str(pid),
-            ],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        assert release.returncode == 0, release.stderr
         assert _wait_for_pid_exit(pid, timeout=240), (
-            "detached eval did not exit after release"
+            "detached eval did not exit when the eval finished"
         )
     finally:
         with contextlib.suppress(ProcessLookupError):
@@ -1076,47 +1056,16 @@ def _try_parse_json(line: str) -> dict | None:
     return record if isinstance(record, dict) else None
 
 
-def test_eval_set_detach_rejects_no_retry_immediate(
-    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
-) -> None:
-    """--detach --no-retry-immediate is refused up front, naming --detach.
-
-    The forced --ctl-server=keep is incompatible with the legacy batch-retry
-    mode; without this pre-check the child would die pre-flight with a
-    diagnostic naming a flag (--ctl-server=keep) the user never passed.
-    """
-    task_path = short_data_dir / "handoff_cli_task.py"
-    task_path.write_text(TASK_FILE)
-    monkeypatch.chdir(short_data_dir)
-
-    runner = cli_runner()
-    result = runner.invoke(
-        eval_set_command,
-        [
-            task_path.name,
-            "--model",
-            "mockllm/model",
-            "--log-dir",
-            "logs",
-            "--detach",
-            "--no-retry-immediate",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert result.stdout.strip() == ""
-    assert "--detach implies --ctl-server=keep" in result.stderr
-
-
 @pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX socket paths")
 def test_eval_detach_fails_when_control_bind_fails(short_data_dir: Path) -> None:
     """A launch record with control null is a failed handoff, not success.
 
-    When the forced --ctl-server=keep fails to bind (here: a data dir long
-    enough that the AF_UNIX socket path exceeds the OS limit), the detached
-    eval could be neither observed nor confirmed finished — so the launcher
-    must terminate it and exit non-zero instead of emitting the launch
-    record, preserving "exit 0 ⇔ eval running detached and monitorable".
+    When the control server fails to bind (here: a data dir long enough
+    that the AF_UNIX socket path exceeds the OS limit), the detached eval
+    could be neither observed nor cancelled while running — so the
+    launcher must terminate it and exit non-zero instead of emitting the
+    launch record, preserving "exit 0 ⇔ eval running detached and
+    monitorable".
     """
     task_path = short_data_dir / "handoff_cli_task.py"
     task_path.write_text(TASK_FILE)

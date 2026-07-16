@@ -1,11 +1,11 @@
 """Detached launch (``--detach``) for ``inspect eval`` / ``eval-set`` / ``eval-retry``.
 
 ``--detach`` turns the foreground command into a launcher: it re-invokes
-the same command as a session-detached child process (forcing ``--json
---ctl-server=keep``), blocks until the child's ``launch`` record appears,
-re-emits that record on its own stdout (augmented with the child's output
-file path), and exits 0 — leaving the eval running with `inspect ctl` as
-the monitoring surface. The point is the *synchronous handoff*, not the
+the same command as a session-detached child process (forcing ``--json``),
+blocks until the child's ``launch`` record appears, re-emits that record
+on its own stdout (augmented with the child's output file path), and
+exits 0 — leaving the eval running with `inspect ctl` as the live
+monitoring surface. The point is the *synchronous handoff*, not the
 daemonization: a consumer that has read the launch record can trust
 ``inspect ctl`` immediately (see ``design/control-channel.md`` → "The
 launch handoff is load-bearing"), while a launch that dies pre-flight
@@ -21,15 +21,22 @@ thread-spawning modules) started in its own session (POSIX ``setsid``; on
 Windows ``DETACHED_PROCESS``), so terminal hangups and Ctrl+C in the
 launching shell cannot reach it. Its stdout+stderr land in a file under
 the Inspect data dir — reported as ``output_file`` in the re-emitted
-launch record — which is where the eventual ``done`` record goes;
-``inspect ctl task list`` (terminal predicate: ``completed_at`` non-null)
-is the primary completion signal, and ``inspect ctl process release`` the
-teardown.
+launch record.
 
-``--ctl-server=keep`` is forced (not merely defaulted) because a detached
-process with no parked control surface is one the consumer can neither
-observe nor confirm finished; ``--ctl-server=false`` is rejected outright
-for the same reason.
+The child exits on its own when the eval finishes, and the ``done``
+record at the end of the output file is the completion signal: present →
+finished, with overall success and each task's status and log location;
+process gone without one → the run died mid-flight, with diagnostics in
+the same file. There is deliberately no forced ``--ctl-server=keep``: a
+long eval routinely outlives the agent session that launched it, and a
+park waiting for an ``inspect ctl process release`` from a consumer that
+no longer exists would leak an idle process per launch. The control
+server itself (on by default) is still required — ``--ctl-server=false``
+is rejected — so a detached eval is always observable and cancellable
+*while running*. A consumer that wants the process to stay queryable
+after the eval finishes passes ``--ctl-server=keep`` explicitly (the
+value is preserved, and the ``done`` record is then written only when
+the park is released).
 """
 
 import json
@@ -51,18 +58,19 @@ from inspect_ai._util.error import PrerequisiteError
 DETACH_HELP = (
     "Run the eval in the background: prints the launch record (implies --json) "
     "once the control endpoint is bound, then returns, leaving the eval running "
-    "detached from the terminal (implies --ctl-server=keep; the detached "
-    "process's output goes to a file reported as 'output_file' in the launch "
-    "record). Monitor with `inspect ctl task list` (finished when completed_at "
-    "is non-null), cancel with `inspect ctl task cancel`, read results from "
-    "each task's log_location, then release the process with `inspect ctl "
-    "process release`."
+    "detached from the terminal (the detached process's output goes to a file "
+    "reported as 'output_file' in the launch record). While it runs, monitor "
+    "with `inspect ctl task list` and cancel with `inspect ctl task cancel`. "
+    "The process exits when the eval finishes, leaving a 'done' record — "
+    "overall success plus each task's status and log_location — as the output "
+    "file's last line; a process that exited without one died mid-run, with "
+    "diagnostics in the same file. Pass --ctl-server=keep to instead keep the "
+    "process alive (and queryable via `inspect ctl`) after the eval finishes, "
+    "until `inspect ctl process release`."
 )
 
 
-def exec_detached(
-    ctl_server: bool | str | None, retry_immediate: bool | None = None
-) -> NoReturn:
+def exec_detached(ctl_server: bool | str | None) -> NoReturn:
     """Hand the current CLI command off to a detached child process and exit.
 
     Spawns the child, waits for its ``launch`` record (tailing the output
@@ -71,41 +79,30 @@ def exec_detached(
 
     - ``launch`` with a control endpoint → record (plus ``output_file``)
       on stdout, exit 0; the eval keeps running detached.
-    - ``launch`` with ``control: null`` (the forced keep bind failed) →
-      the child is terminated, its output relayed to stderr, and the
-      launcher exits non-zero: a detached eval with no control surface
-      could be neither observed nor confirmed finished — the same state
-      the ``--ctl-server=false`` rejection rules out.
+    - ``launch`` with ``control: null`` (the control server failed to
+      bind) → the child is terminated, its output relayed to stderr, and
+      the launcher exits non-zero: a detached eval with no control
+      surface could not be observed or cancelled while running — the
+      same state the ``--ctl-server=false`` rejection rules out.
     - child exited without a record → its output is relayed to stderr and
       the launcher exits non-zero (pre-flight failure).
     - ``done`` without a prior ``launch`` → the run finished during the
       handoff without ever binding a control surface (an all-reused
-      eval-set whose keep-alive park failed to bind): the record is
-      re-emitted and the launcher exits with the child's code.
+      eval-set runs no eval, so nothing binds — unless an explicit
+      ``--ctl-server=keep`` park does): the record is re-emitted and the
+      launcher exits with the child's code.
     - Ctrl+C or SIGTERM during the wait terminates the child, preserving
       the invariant that no emitted ``launch`` record means no detached
       eval (exit 130/143 respectively).
 
     There is deliberately no timeout: task imports can legitimately take
     minutes, and the contract is "returns when the handoff resolves".
-
-    ``retry_immediate`` is the eval-set batch-retry mode: ``False`` is
-    rejected up front because the forced ``--ctl-server=keep`` is
-    incompatible with it — the child would die pre-flight with a
-    diagnostic naming a flag the user never passed.
     """
     if ctl_server is False:
         raise PrerequisiteError(
             "--detach requires the control server (monitoring a detached eval "
             "goes through `inspect ctl`): remove --ctl-server=false or drop "
             "--detach."
-        )
-    if retry_immediate is False:
-        raise PrerequisiteError(
-            "--detach implies --ctl-server=keep, which is incompatible with "
-            "--no-retry-immediate (the legacy batch-retry mode tears down "
-            "the control surface between attempts): use --retry-immediate "
-            "(the default) or drop --detach."
         )
 
     output_file = _allocate_output_file()
@@ -156,10 +153,10 @@ def exec_detached(
 
     if record is not None and record.get("event") == "launch":
         if record.get("control") is None:
-            # the forced --ctl-server=keep failed to bind: the eval would run
-            # detached but could be neither observed nor confirmed finished —
-            # the exact state --detach exists to prevent — so treat the
-            # handoff as failed rather than exit 0 into an unmonitorable run
+            # the control server failed to bind: the eval would run detached
+            # but could be neither observed nor cancelled while running — the
+            # exact state --detach exists to prevent — so treat the handoff
+            # as failed rather than exit 0 into an unmonitorable run
             child.terminate()
             child.wait()
             print(
@@ -201,15 +198,14 @@ def _exit_relaying_output(output_file: Path, returncode: int) -> NoReturn:
 def _child_args(args: list[str]) -> list[str]:
     """Build the detached child's command arguments from this process's own.
 
-    Strips the ``--detach`` flag tokens and adds ``--json
-    --ctl-server=keep`` — click resolves repeated single-value options to
-    the last occurrence, so the forced keep wins over any ``--ctl-server``
-    value the user passed (a bare repeated ``--json`` flag is harmless).
-    The forced flags go before any bare ``--`` separator (click stops
+    Strips the ``--detach`` flag tokens and adds ``--json`` (a bare
+    repeated ``--json`` flag is harmless); any ``--ctl-server`` value the
+    user passed — notably an explicit ``keep`` — is preserved verbatim.
+    The forced flag goes before any bare ``--`` separator (click stops
     option parsing there, so tokens after it are positional); everything
     from the separator on is preserved verbatim.
     """
-    forced = ["--json", "--ctl-server=keep"]
+    forced = ["--json"]
     separator = args.index("--") if "--" in args else len(args)
     options = [arg for arg in args[:separator] if arg != "--detach"]
     return options + forced + args[separator:]
