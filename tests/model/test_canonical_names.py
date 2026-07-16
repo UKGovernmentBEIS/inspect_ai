@@ -416,14 +416,18 @@ class TestGoogleCanonicalName:
         """Test Google model canonical name includes google/ prefix."""
         from inspect_ai.model._providers.google import GoogleGenAIAPI
 
-        api = GoogleGenAIAPI(model_name="gemini-1.5-pro", base_url=None, api_key=None)
+        api = GoogleGenAIAPI(
+            model_name="gemini-1.5-pro", base_url=None, api_key="test-key"
+        )
         assert api.canonical_name() == "google/gemini-1.5-pro"
 
     def test_gemini_flash(self):
         """Test Gemini Flash model."""
         from inspect_ai.model._providers.google import GoogleGenAIAPI
 
-        api = GoogleGenAIAPI(model_name="gemini-2.0-flash", base_url=None, api_key=None)
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
         assert api.canonical_name() == "google/gemini-2.0-flash"
 
 

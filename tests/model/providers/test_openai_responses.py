@@ -338,7 +338,7 @@ def _completed_mock_response():
     )
 
 
-async def test_responses_api_pro_mode_defaults_to_background():
+async def test_responses_api_pro_mode_defaults_to_background() -> None:
     request: dict = {}
     await _generate_responses_with_mock(
         _completed_mock_response(),
@@ -348,7 +348,7 @@ async def test_responses_api_pro_mode_defaults_to_background():
     assert request["background"] is True
 
 
-async def test_responses_api_pro_mode_respects_explicit_background():
+async def test_responses_api_pro_mode_respects_explicit_background() -> None:
     request: dict = {}
     await _generate_responses_with_mock(
         _completed_mock_response(),
@@ -359,7 +359,7 @@ async def test_responses_api_pro_mode_respects_explicit_background():
     assert request["background"] is False
 
 
-async def test_responses_api_no_background_by_default():
+async def test_responses_api_no_background_by_default() -> None:
     request: dict = {}
     await _generate_responses_with_mock(
         _completed_mock_response(), capture_request=request

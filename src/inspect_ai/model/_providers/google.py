@@ -127,14 +127,40 @@ from inspect_ai.tool import (
 )
 from inspect_ai.util._json import json_schema_dump
 
-from .util import model_base_url
+from .util import (
+    OAUTH_PLACEHOLDER_API_KEY,
+    GoogleOAuthCredentials,
+    model_base_url,
+    resolve_google_credentials,
+)
 from .util.hooks import HttpHooks, HttpxHooks
 
 logger = getLogger(__name__)
 
 
 GOOGLE_API_KEY = "GOOGLE_API_KEY"
+GEMINI_API_KEY = "GEMINI_API_KEY"
 VERTEX_API_KEY = "VERTEX_API_KEY"
+GOOGLE_CLOUD_QUOTA_PROJECT = "GOOGLE_CLOUD_QUOTA_PROJECT"
+GOOGLE_USE_ADC = "GOOGLE_USE_ADC"
+
+
+def _is_truthy(value: Any) -> bool:
+    """Truthy check for boolean model args / env vars (repo convention)."""
+    return str(value).lower() in ("true", "1", "yes")
+
+
+# Google model-name tokens for non-generative / non-frontier models that must
+# never be treated as a "latest" frontier chat model by is_latest().
+_NON_GENERATIVE_TOKENS = (
+    "embedding",
+    "imagen",
+    "veo",
+    "gemma",
+    "aqa",
+    "learnlm",
+    "tts",
+)
 
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
@@ -182,6 +208,10 @@ class CategorizedTools(NamedTuple):
 
 
 class GoogleGenAIAPI(ModelAPI):
+    # Class-level default so should_retry() is safe on bare instances that
+    # bypass __init__ (tests probe retry classification via __new__).
+    _oauth = False
+
     def __init__(
         self,
         model_name: str,
@@ -247,8 +277,23 @@ class GoogleGenAIAPI(ModelAPI):
                 + "Currently 'vertex' is the only supported service."
             )
 
+        # OAuth / ADC state — only used on the Gemini Developer API path (set in
+        # the standard-endpoint branch below, along with the class-level _oauth
+        # default). Initialized here so the vertex path also carries these
+        # attributes.
+        self._credentials: GoogleOAuthCredentials | None = None
+        self._quota_project_id: str | None = None
+
         # handle auth (vertex or standard google api key)
         if self.is_vertex():
+            if _is_truthy(model_args.pop("use_adc", False)):
+                raise PrerequisiteError(
+                    "The `use_adc` model arg applies only to the Gemini Developer "
+                    "API endpoint. Vertex AI authenticates with Application Default "
+                    "Credentials natively (optionally pass `credentials` as a model "
+                    "arg to use an explicit credentials object)."
+                )
+
             # see if we are running in express mode (propagate api key if we are)
             # https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview
             vertex_api_key = os.environ.get(VERTEX_API_KEY, None)
@@ -280,11 +325,53 @@ class GoogleGenAIAPI(ModelAPI):
                 self.base_url, ["GOOGLE_VERTEX_BASE_URL", "VERTEX_BASE_URL"]
             )
 
-        # normal google endpoint
+        # normal google endpoint (Gemini Developer API)
         else:
-            # read api key from env
-            if not self.api_key:
+            # OAuth / ADC support for the dev endpoint. Opted into per-model
+            # via `-M use_adc` (so a run can mix OAuth and API-key models),
+            # with the GOOGLE_USE_ADC environment variable providing the
+            # default (so an environment can switch to OAuth without editing
+            # commands).
+            use_adc_arg = model_args.pop("use_adc", None)
+            if use_adc_arg is not None:
+                use_adc = _is_truthy(use_adc_arg)
+            else:
+                use_adc = _is_truthy(os.environ.get(GOOGLE_USE_ADC, ""))
+            scopes = model_args.pop("scopes", None)
+            quota_project_id = model_args.pop("quota_project_id", None)
+
+            # Explicit credentials objects are deliberately unsupported:
+            # get_model() memoization serializes object-valued model args as
+            # None in its cache key, so two models with different credentials
+            # would silently share one cached instance (and principal).
+            if "credentials" in model_args:
+                raise PrerequisiteError(
+                    "Explicit `credentials` objects are not supported for the "
+                    "Gemini Developer API endpoint. Use `-M use_adc=true` with "
+                    "Application Default Credentials instead (e.g. `gcloud auth "
+                    "application-default login` or GOOGLE_APPLICATION_CREDENTIALS)."
+                )
+
+            if use_adc:
+                # OAuth: load ADC and carry the bearer token + quota header
+                # ourselves (genai's dev client can't take credentials).
+                self._oauth = True
+                self._credentials = resolve_google_credentials(scopes)
+                self._quota_project_id = quota_project_id or os.environ.get(
+                    GOOGLE_CLOUD_QUOTA_PROJECT
+                )
+            elif not self.api_key:
+                # read api key from env
                 self.api_key = os.environ.get(GOOGLE_API_KEY, None)
+                # fail fast, with pointers to both auth paths, when there is no
+                # auth at all (GEMINI_API_KEY is honored by the genai SDK)
+                if not self.api_key and not os.environ.get(GEMINI_API_KEY, None):
+                    raise PrerequisiteError(
+                        "No authentication for the Google provider: set the "
+                        f"{GOOGLE_API_KEY} (or {GEMINI_API_KEY}) environment "
+                        "variable, or use OAuth / Application Default Credentials "
+                        f"via `-M use_adc=true` or {GOOGLE_USE_ADC}=true."
+                    )
 
             # custom base_url
             self.base_url = model_base_url(self.base_url, "GOOGLE_BASE_URL")
@@ -318,6 +405,8 @@ class GoogleGenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        await self._ensure_oauth_token()
+
         # http options
         http_options = self._http_options(config)
 
@@ -628,6 +717,7 @@ class GoogleGenAIAPI(ModelAPI):
         input: str | list[ChatMessage],
         config: GenerateConfig | None = None,
     ) -> int:
+        await self._ensure_oauth_token()
         client = self.model_client(self._http_options(config))
         async with client.aio:
             # normalize to messages
@@ -664,8 +754,38 @@ class GoogleGenAIAPI(ModelAPI):
         """Canonical model name for model info database lookup."""
         return f"google/{self.service_model_name()}"
 
+    @override
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens (context window)."""
+        from inspect_ai.model._model_info import _get_model_info_direct
+
+        # Codename/predeployment models (is_latest() folds into is_gemini())
+        # and gemini-named models not yet in the model-info database (future
+        # versions, unknown snapshots) alias to the current frontier so the
+        # context window / compaction match. Bump when a newer frontier ships.
+        # Mirrors OpenAI's and Anthropic's input_tokens_name() aliasing.
+        if self.is_gemini() and _get_model_info_direct(self.canonical_name()) is None:
+            return "google/gemini-3.5-flash"
+        return super().input_tokens_name()
+
+    def is_latest(self) -> bool:
+        # predeployment/codename models are treated as the current frontier;
+        # restricted to the dev endpoint (vertex custom endpoints/deployments
+        # have arbitrary names that say nothing about the model behind them).
+        # Mirrors OpenAI's is_latest_model() / Anthropic's is_claude_latest().
+        if self.is_vertex():
+            return False
+        name = self.model_family().lower()
+        if any(token in name for token in _NON_GENERATIVE_TOKENS):
+            return False
+        # known family naming — future gemini versions are already covered by
+        # is_gemini_3_plus() and the DB-miss branch of input_tokens_name()
+        if "gemini" in name:
+            return False
+        return True
+
     def is_gemini(self) -> bool:
-        return "gemini-" in self.model_family()
+        return "gemini-" in self.model_family() or self.is_latest()
 
     def is_gemini_flash(self) -> bool:
         return "flash" in self.model_family()
@@ -683,7 +803,7 @@ class GoogleGenAIAPI(ModelAPI):
         return "gemini-3" in self.model_family()
 
     def is_gemini_3_flash(self) -> bool:
-        return self.is_gemini_3() and self.is_gemini_flash()
+        return (self.is_gemini_3() or self.is_latest()) and self.is_gemini_flash()
 
     def is_gemini_3_plus(self) -> bool:
         return (
@@ -698,11 +818,18 @@ class GoogleGenAIAPI(ModelAPI):
 
     def is_gemini_thinking_only(self) -> bool:
         return (
-            self.is_gemini_2_5() or self.is_gemini_3()
+            self.is_gemini_2_5() or self.is_gemini_3() or self.is_latest()
         ) and "-pro" in self.model_family()
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        # An OAuth bearer token can be invalidated mid-flight; retrying routes
+        # through before_retry() -> initialize(), which invalidates the local
+        # token so the next attempt mints a fresh one. API-key 401s stay
+        # non-retryable here — they are retried only when an api-key override
+        # hook can rotate the key (see Model.should_retry).
+        if self._oauth and isinstance(ex, Exception) and self.is_auth_failure(ex):
+            return RetryDecision.transient()
         # HTTP 429 is always a rate-limit signal regardless of SDK status text.
         # 503 needs a guard: Google sometimes returns 503 RESOURCE_EXHAUSTED
         # for sustained capacity pressure on Gemini (rate-limit), while plain
@@ -762,6 +889,20 @@ class GoogleGenAIAPI(ModelAPI):
             return ex.code == 401
         return False
 
+    @override
+    def initialize(self) -> None:
+        super().initialize()
+        # Reactive backstop for the 401 -> aclose() -> initialize() -> retry
+        # loop (should_retry classifies OAuth 401s as retryable): invalidate
+        # the local token — no network I/O here — so the retried request mints
+        # a fresh bearer via _ensure_oauth_token().
+        if self._oauth and self._credentials is not None:
+            self._credentials.invalidate()
+
+    async def _ensure_oauth_token(self) -> None:
+        if self._oauth and self._credentials is not None:
+            await self._credentials.ensure_valid()
+
     def model_client(self, http_options: HttpOptions | None = None) -> Client:
         from inspect_ai._util._async import current_async_backend
 
@@ -775,9 +916,21 @@ class GoogleGenAIAPI(ModelAPI):
             and http_options.httpx_async_client is None
         ):
             http_options.httpx_async_client = httpx.AsyncClient()
+        api_key = self.api_key
+        if self._oauth and self._credentials is not None:
+            # The dev-endpoint client requires a non-empty api_key; pass a
+            # placeholder and carry the OAuth bearer token in headers instead
+            # (Authorization overrides the placeholder x-goog-api-key). Header
+            # building does no I/O — token freshness is ensured by the awaited
+            # _ensure_oauth_token() at the top of generate()/count_tokens().
+            api_key = OAUTH_PLACEHOLDER_API_KEY
+            http_options.headers = {
+                **(http_options.headers or {}),
+                **self._credentials.headers(self._quota_project_id),
+            }
         return Client(
             vertexai=self.is_vertex(),
-            api_key=self.api_key,
+            api_key=api_key,
             http_options=http_options,
             **self.model_args,
         )
@@ -998,6 +1151,16 @@ class GoogleGenAIAPI(ModelAPI):
         if self.is_vertex():
             raise NotImplementedError(
                 "Cannot use batch inference with Vertex AI (GCS-based batch jobs not supported)"
+            )
+
+        # OAuth/ADC is unsupported for batch: the batcher holds a single
+        # long-lived client across submit + poll, which cannot refresh the
+        # bearer token the way per-request client creation does.
+        if self._oauth:
+            raise NotImplementedError(
+                "Cannot use batch inference with OAuth/ADC credentials for the "
+                "Gemini Developer API (the long-lived batch client cannot refresh "
+                "the bearer token). Use an API key for batch inference."
             )
 
         # create a dedicated client instance for the batcher

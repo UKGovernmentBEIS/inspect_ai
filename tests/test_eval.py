@@ -103,7 +103,7 @@ def test_eval_sample_token_limit_fields_none_without_limit():
     assert sample.token_limit_usage is None
 
 
-def test_dynamic_token_limit_updates_active_sample():
+def test_dynamic_token_limit_updates_active_sample() -> None:
     from typing import Generator
 
     from inspect_ai.log._samples import sample_active
@@ -153,7 +153,7 @@ def test_dynamic_token_limit_updates_active_sample():
     ]
 
 
-def test_eval_sample_limit_values_reflect_final_retry_attempt():
+def test_eval_sample_limit_values_reflect_final_retry_attempt() -> None:
     from typing import Generator
 
     from inspect_ai.model import get_model
