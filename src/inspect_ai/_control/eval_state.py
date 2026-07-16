@@ -684,9 +684,15 @@ def reset_run_registries() -> None:
     one boundary and leak stale state through the other — add new resets
     here, not at the call sites.
     """
+    from inspect_ai._control.pause import (
+        reset_process_pause,
+        reset_task_pause_gates,
+    )
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
 
     clear_all_eval_states()
     reset_generate_config_overrides()
+    reset_task_pause_gates()
+    reset_process_pause()

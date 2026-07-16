@@ -20,6 +20,12 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import mark_eval_retry_pending
+from inspect_ai._control.pause import (
+    add_dispatch_waker,
+    remove_dispatch_waker,
+    task_dispatch_paused,
+    wake_pause_waiters,
+)
 from inspect_ai._display import display
 from inspect_ai._display.core.active import (
     clear_task_screen,
@@ -496,6 +502,11 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     nonlocal cancel_type
                     cancel_type = type
                     tc.cancel_type = type
+                    # samples parked at the pause gate observe the stamped
+                    # cancel through their escape predicate — wake them so a
+                    # graceful resolution reaches the queue-exit abandon
+                    # check (cancel escalates over pause)
+                    wake_pause_waiters()
                     # only abort/retry tear the task's scope down. score/error
                     # are graceful sample resolutions: the caller interrupts
                     # in-flight samples, queued samples are abandoned (they
@@ -583,9 +594,11 @@ async def run_multiple(
     cancelled = False
     source_done = False
 
-    # woken on each task completion and on each injection (enqueue)
+    # woken on each task completion, on each injection (enqueue), and on any
+    # pause-state change (a resume must re-evaluate dispatch)
     wake = _Wake()
     feed.set_wake(wake.set)
+    add_dispatch_waker(wake.set)
 
     def add(options: list[TaskRunOptions]) -> None:
         nonlocal next_index
@@ -594,12 +607,19 @@ async def run_multiple(
         next_index += len(options)
         display().update_task_count(len(options))
 
-    def pick_balanced() -> tuple[int, TaskRunOptions]:
-        # among models that have pending tasks, pick the least-used one (keeps as
-        # many different models running concurrently as possible)
-        models_with_pending = {opts.model for _, opts in pending}
+    def pick_balanced() -> tuple[int, TaskRunOptions] | None:
+        # among models that have dispatchable pending tasks (not held by a
+        # pause latch), pick the least-used one (keeps as many different
+        # models running concurrently as possible); None when every pending
+        # task is paused
+        candidates = [
+            p for p in pending if not task_dispatch_paused(p[1].logger.eval.task_id)
+        ]
+        if not candidates:
+            return None
+        models_with_pending = {opts.model for _, opts in candidates}
         model = min(models_with_pending, key=lambda m: model_counts[m])
-        item = next(p for p in pending if p[1].model is model)
+        item = next(p for p in candidates if p[1].model is model)
         pending.remove(item)
         return item
 
@@ -630,7 +650,12 @@ async def run_multiple(
 
                     # dispatch up to the concurrency cap (model-balanced)
                     while not cancelled and in_flight < parallel and pending:
-                        idx, options = pick_balanced()
+                        picked = pick_balanced()
+                        if picked is None:
+                            # everything pending is held by a pause latch —
+                            # a resume fires the dispatch waker (wake.set)
+                            break
+                        idx, options = picked
                         model_counts[options.model] += 1
                         in_flight += 1
                         tg.start_soon(run_one, idx, options)
@@ -662,6 +687,7 @@ async def run_multiple(
         except anyio.get_cancelled_exc_class():
             pass
         finally:
+            remove_dispatch_waker(wake.set)
             clear_task_screen()
 
     # sort results by index and return just the values
@@ -727,9 +753,11 @@ async def run_task_retry_attempts(
     cancelled = False
     source_done = False
 
-    # woken on each task completion and on each injection (enqueue)
+    # woken on each task completion, on each injection (enqueue), and on any
+    # pause-state change (a resume must re-evaluate dispatch)
     wake = _Wake()
     feed.set_wake(wake.set)
+    add_dispatch_waker(wake.set)
 
     def add(options: list[TaskRunOptions]) -> None:
         nonlocal next_index
@@ -743,12 +771,22 @@ async def run_task_retry_attempts(
         next_index += len(options)
         display().update_task_count(len(options))
 
-    def pick_balanced() -> PendingTask:
-        # among models that have pending tasks, pick the least-used one (keeps as
-        # many different models running concurrently as possible)
-        models_with_pending = {p.options.model for p in pending}
+    def pick_balanced() -> PendingTask | None:
+        # among models that have dispatchable pending tasks (not held by a
+        # pause latch — covering both not-yet-started tasks and queued retry
+        # attempts of a paused task), pick the least-used one (keeps as many
+        # different models running concurrently as possible); None when
+        # every pending task is paused
+        candidates = [
+            p
+            for p in pending
+            if not task_dispatch_paused(p.options.logger.eval.task_id)
+        ]
+        if not candidates:
+            return None
+        models_with_pending = {p.options.model for p in candidates}
         model = min(models_with_pending, key=lambda m: model_counts[m])
-        item = next(p for p in pending if p.options.model is model)
+        item = next(p for p in candidates if p.options.model is model)
         pending.remove(item)
         return item
 
@@ -866,6 +904,10 @@ async def run_task_retry_attempts(
                     # dispatch up to the concurrency cap (model-balanced)
                     while not cancelled and in_flight < parallel and pending:
                         item = pick_balanced()
+                        if item is None:
+                            # everything pending is held by a pause latch —
+                            # a resume fires the dispatch waker (wake.set)
+                            break
                         model_counts[item.options.model] += 1
                         in_flight += 1
                         tg.start_soon(run_one, item)
@@ -897,6 +939,7 @@ async def run_task_retry_attempts(
         except anyio.get_cancelled_exc_class():
             pass
         finally:
+            remove_dispatch_waker(wake.set)
             clear_task_screen()
 
     # sort results by index and return just the values

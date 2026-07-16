@@ -1,6 +1,6 @@
 # Pause / Resume for Running Evals and Eval-Sets
 
-> **Status: proposal** (nothing implemented). Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture this surface rides on; this doc owns the pause/resume semantics and implementation plan. Originating issue: meridianlabs-ai/inspect_ai#90.
+> **Status: implemented** (v1 quiesce semantics — the gate module lives in `src/inspect_ai/_control/pause.py`; Future work below remains open). Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture this surface rides on; this doc owns the pause/resume semantics and implementation plan. Originating issue: meridianlabs-ai/inspect_ai#90.
 
 `inspect ctl` can today observe a running eval, retune its config, and cancel it — but there is nothing between "running" and "cancelled". An operator (or watchdog agent) facing a provider incident, a cost overrun, or a suspicious-looking transcript has exactly two levers: throttle (`ctl config`) or kill (`ctl task cancel`). Killing forfeits the run's place in line — resuming means a fresh `eval-set` invocation, a new process, and re-running every sample that wasn't durably complete.
 

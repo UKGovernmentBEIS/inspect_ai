@@ -451,6 +451,50 @@ def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) ->
     )
 
 
+@task_group.command("pause")
+@click.argument("task", required=False)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be paused without doing it.",
+)
+@_json_option("the mutation result envelope")
+def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
+    """Pause a running task (stop starting new work).
+
+    In-flight samples finish naturally (with scoring and log writes); queued
+    samples and a queued retry attempt hold, unstarted — spending none of
+    their time limits — until `inspect ctl task resume`. Non-destructive,
+    idempotent, and reversible; cancel and config changes still work on a
+    paused task. To pause a whole eval-set (every task plus its task/retry
+    dispatch), use `inspect ctl process pause`. TASK (a task-id prefix or
+    name) is required when several tasks run.
+    """
+    _run_task_pause_resume(task, verb="pause", dry_run=dry_run, as_json=as_json)
+
+
+@task_group.command("resume")
+@click.argument("task", required=False)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be resumed without doing it.",
+)
+@_json_option("the mutation result envelope")
+def task_resume_command(task: str | None, dry_run: bool, as_json: bool) -> None:
+    """Resume a paused task (the inverse of `inspect ctl task pause`).
+
+    Queued samples dispatch again exactly as they would have before the
+    pause. Does not clear a process-level pause — a task also held by
+    `inspect ctl process pause` stays held until `inspect ctl process
+    resume`. Idempotent and last-write-wins. TASK (a task-id prefix or name)
+    is required when several tasks run.
+    """
+    _run_task_pause_resume(task, verb="resume", dry_run=dry_run, as_json=as_json)
+
+
 # ---------------------------------------------------------------------------
 # sample group
 # ---------------------------------------------------------------------------
@@ -1014,6 +1058,49 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
     the eval or affect in-flight samples.
     """
     _run_keep_alive(pid, keep=False, as_json=as_json)
+
+
+@process_group.command("pause")
+@click.argument("pid", required=False, type=int)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be paused without doing it.",
+)
+@_json_option("the mutation result envelope")
+def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
+    """Pause a whole running eval or eval-set (stop starting new work).
+
+    One process-scoped latch: no new eval-set tasks dispatch, no task
+    retries start, and no samples dispatch in any task; in-flight samples
+    finish naturally. The process, its queue, and this control surface stay
+    alive — watch `inspect ctl task list` for `quiesced` (paused with
+    nothing in flight), after which completed work is flushed and the
+    process can be killed cleanly if needed. Resume with `inspect ctl
+    process resume`. Idempotent and non-destructive.
+    """
+    _run_process_pause_resume(pid, verb="pause", dry_run=dry_run, as_json=as_json)
+
+
+@process_group.command("resume")
+@click.argument("pid", required=False, type=int)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be resumed without doing it.",
+)
+@_json_option("the mutation result envelope")
+def process_resume_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
+    """Resume a paused eval or eval-set (the inverse of `process pause`).
+
+    Dispatch picks up exactly where it left off. Task-level pauses (from
+    `inspect ctl task pause`) are deliberately left in place. Note the
+    distinction with `process release`: resume re-opens a *paused* run;
+    release ends a keep-alive *park* after the eval finishes.
+    """
+    _run_process_pause_resume(pid, verb="resume", dry_run=dry_run, as_json=as_json)
 
 
 # ---------------------------------------------------------------------------
@@ -2237,6 +2324,160 @@ def _run_task_cancel(
         click.echo(f"Nothing to do: {reason}.")
 
 
+_PAUSE_ROUTE_MISSING = (
+    "This process is running an older inspect without the pause/resume "
+    "endpoints; restart the eval to pick up the current version."
+)
+
+
+@_envelope_failures
+def _run_task_pause_resume(
+    task: str | None,
+    *,
+    verb: Literal["pause", "resume"],
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """Pause or resume one task (``POST /tasks/<task-id>/pause|resume``).
+
+    Follows the mutation selector rule with the sole-running-task default:
+    pause is non-destructive and trivially reversible, so it does not join
+    ``task cancel`` in the selector-always-required class (the same
+    reasoning that gives ``process keep`` / ``release`` the sole-target
+    default — the worst case of a wrongly targeted pause is a resume).
+    """
+    servers = list_discovered_servers()
+    summaries = _fetch_summaries(servers).summaries
+    scope = _resolve_scope(servers, summaries, task, per_task_option=f"task {verb}")
+    if scope is None:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+    assert scope.task_id is not None
+
+    params: dict[str, Any] = {}
+    if dry_run:
+        params["dry_run"] = True
+    # idempotent last-write-wins latch, so it may ride the narrated
+    # busy-retry policy like keep/release and cancel
+    result = _request_json(
+        scope.socket_path,
+        f"/tasks/{scope.task_id}/{verb}",
+        params=params,
+        what=f"{verb} of task {scope.task_id}",
+        not_found=(
+            f"Task '{scope.task_id}' not found in this process (it may have finished)."
+        ),
+        not_found_missing_route=_PAUSE_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+    )
+
+    if as_json:
+        target = {"task_id": scope.task_id, "task": scope.task}
+        click.echo(
+            json_lib.dumps(
+                _mutation_envelope(target, result, dry_run=dry_run), indent=2
+            )
+        )
+        return
+
+    click.echo(scope.header)
+    click.echo()
+    if result.get("changed"):
+        if verb == "pause":
+            in_flight = int(result.get("in_flight", 0) or 0)
+            finishing = (
+                f"{in_flight} in-flight sample{'' if in_flight == 1 else 's'} "
+                f"{'would' if dry_run else 'will'} finish naturally"
+            )
+            if dry_run:
+                click.echo(
+                    f"Would pause — {finishing}; no new samples or retry "
+                    "attempts would start."
+                )
+            else:
+                click.echo(
+                    f"Pause requested — {finishing}; no new samples or retry "
+                    "attempts will start. Resume with `inspect ctl task resume`."
+                )
+        elif dry_run:
+            click.echo("Would resume — queued samples would dispatch again.")
+        else:
+            click.echo("Resume requested — queued samples will dispatch again.")
+            # independent latches: a task resume does not clear a process
+            # pause, so say when the task is still held
+            if result.get("paused") == "process":
+                click.echo(
+                    "Note: the process is paused — samples stay held until "
+                    "`inspect ctl process resume`."
+                )
+    else:
+        reason = str(result.get("reason") or "already in that state")
+        click.echo(f"Nothing to do: {reason}.")
+
+
+@_envelope_failures
+def _run_process_pause_resume(
+    pid: int | None,
+    *,
+    verb: Literal["pause", "resume"],
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """Pause or resume a whole process (``POST /pause`` / ``POST /resume``)."""
+    target = _resolve_target_server(pid)
+    params: dict[str, Any] = {}
+    if dry_run:
+        params["dry_run"] = True
+    result = _request_json(
+        str(target.socket_path),
+        f"/{verb}",
+        params=params,
+        what=f"{verb} for pid {target.pid}",
+        not_found=_PAUSE_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+    )
+
+    if as_json:
+        click.echo(
+            json_lib.dumps(
+                _mutation_envelope({"pid": target.pid}, result, dry_run=dry_run),
+                indent=2,
+            )
+        )
+        return
+
+    if result.get("changed"):
+        if verb == "pause":
+            if dry_run:
+                click.echo(
+                    f"Would pause pid {target.pid} — in-flight samples would "
+                    "finish; no new samples, task retries, or eval-set tasks "
+                    "would start."
+                )
+            else:
+                click.echo(
+                    f"Pause requested for pid {target.pid} — in-flight samples "
+                    "will finish; no new samples, task retries, or eval-set "
+                    "tasks will start. Watch `inspect ctl task list` for "
+                    "quiesced; resume with `inspect ctl process resume`."
+                )
+        elif dry_run:
+            click.echo(f"Would resume pid {target.pid}.")
+        else:
+            click.echo(
+                f"Resume requested for pid {target.pid} — dispatch picks up "
+                "where it left off (task-level pauses, if any, stay in place)."
+            )
+    else:
+        reason = str(result.get("reason") or "already in that state")
+        click.echo(f"Nothing to do: {reason} (pid {target.pid}).")
+
+
 @_envelope_failures
 def _run_sample_cancel(
     task: str,
@@ -2339,14 +2580,22 @@ def _run_process_list(as_json: bool) -> None:
     for server in servers:
         hosted = [s for s in summaries if s.get("pid") == server.pid]
         # keep-alive is a process-level property every hosted task shares;
-        # unknown (None) when no task has registered yet.
+        # unknown (None) when no task has registered yet. The process pause
+        # latch is likewise process-level (also None against an older server
+        # that doesn't report it).
         keep_alive = bool(hosted[0].get("keep_alive")) if hosted else None
+        paused = (
+            bool(hosted[0].get("process_paused"))
+            if hosted and hosted[0].get("process_paused") is not None
+            else None
+        )
         rows.append(
             {
                 "pid": server.pid,
                 "socket_path": str(server.socket_path),
                 "started_at": server.started_at,
                 "keep_alive": keep_alive,
+                "paused": paused,
                 "tasks": [
                     {
                         "task_id": t.get("task_id"),
@@ -2369,16 +2618,18 @@ def _run_process_list(as_json: bool) -> None:
     table_rows: list[tuple[str, ...]] = []
     for row in rows:
         keep = row["keep_alive"]
+        paused = row["paused"]
         tasks = row["tasks"]
         table_rows.append(
             (
                 str(row["pid"]),
                 "?" if keep is None else ("on" if keep else "off"),
+                "?" if paused is None else ("yes" if paused else "no"),
                 ", ".join(str(t.get("task") or "?") for t in tasks) or "(starting)",
                 _format_started(row["started_at"]),
             )
         )
-    _render_table(("pid", "keep-alive", "tasks", "started"), table_rows)
+    _render_table(("pid", "keep-alive", "paused", "tasks", "started"), table_rows)
 
 
 def _applied_knob_names(
@@ -4092,6 +4343,10 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     any_errors = any((s.get("samples") or {}).get("errored", 0) > 0 for s in summaries)
     any_retries = any(int(s.get("attempts", 1) or 1) > 1 for s in summaries)
     any_solver = any(s.get("solver") for s in summaries)
+    # shown only when some task is paused, so a paused run doesn't read as
+    # stalled (the cell names the holding latch; `quiesced` = nothing left
+    # in flight — the safe-to-kill signal)
+    any_paused = any(s.get("paused") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -4108,6 +4363,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         cells.append(_format_samples(samples))
         if any_errors:
             cells.append(str(samples.get("errored", 0)))
+        if any_paused:
+            cells.append(_format_paused(s))
         cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
             cells.append(str(int(s.get("attempts", 1) or 1)))
@@ -4119,11 +4376,21 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     headers_list.append("samples")
     if any_errors:
         headers_list.append("errors")
+    if any_paused:
+        headers_list.append("paused")
     headers_list.append("started")
     if any_retries:
         headers_list.append("attempts")
 
     _render_table(tuple(headers_list), rows)
+
+
+def _format_paused(summary: dict[str, Any]) -> str:
+    """The task's paused cell: the holding latch, plus quiesced when idle."""
+    paused = summary.get("paused")
+    if not paused:
+        return ""
+    return f"{paused} (quiesced)" if summary.get("quiesced") else str(paused)
 
 
 def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
@@ -4143,6 +4410,28 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     else:
         on = sum(flags)
         click.echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
+
+    # flag paused work below the table (the per-row cell can scroll away and
+    # a paused run must not read as stalled). A paused run never finishes,
+    # so also surface the exit-when-done contradiction when keep-alive is
+    # off for a process-paused row.
+    paused = [s for s in summaries if s.get("paused")]
+    if paused:
+        quiesced = sum(1 for s in paused if s.get("quiesced"))
+        detail = f" ({quiesced} quiesced)" if quiesced else ""
+        click.echo(
+            f"paused: {len(paused)}/{len(summaries)} task"
+            f"{'' if len(summaries) == 1 else 's'}{detail}  ·  resume with "
+            "`inspect ctl task resume` / `inspect ctl process resume`"
+        )
+        if any(
+            s.get("paused") in ("process", "both") and not s.get("keep_alive")
+            for s in paused
+        ):
+            click.echo(
+                "note: a paused run never finishes — it will not exit until "
+                "resumed (or cancelled), despite keep-alive being off."
+            )
 
 
 def _task_header(target: dict[str, Any]) -> str:

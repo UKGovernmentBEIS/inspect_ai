@@ -59,6 +59,13 @@ from inspect_ai._control.limits import (
     process_limits,
     task_limits,
 )
+from inspect_ai._control.pause import (
+    pause_process,
+    pause_task,
+    process_paused,
+    resume_process,
+    resume_task,
+)
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_listing,
@@ -384,8 +391,12 @@ class ControlServer:
             # (which reflects a runtime `POST /keep` or `/release`, not just
             # the launch flag) so `inspect ctl task list` can report it.
             keep_alive = keep_alive_intent()
+            # the process pause latch is likewise process-level (each row also
+            # carries a per-task `paused` scope — see _build_summary)
+            paused = process_paused()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
+                summary["process_paused"] = paused
                 # Advertise the control-API version so HTTP consumers can
                 # gate version-dependent requests (the CLI reads it from the
                 # discovery file, which also covers the pre-registration
@@ -564,6 +575,33 @@ class ControlServer:
                 )
             if result.get("ok") is False:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # Pause / resume a running task (phase 3 — see design/pause-resume.md).
+        # Task-keyed like `config` / `log-flush` / `cancel` (a pause handle
+        # must not dangle across a retry). Quiesce semantics: pause stops new
+        # samples (and a queued in-run retry attempt) from starting while
+        # in-flight samples finish naturally; resume re-opens the gate.
+        # Idempotent (`changed: false` on a repeat or a finished task),
+        # last-write-wins, `dry_run=true` reports without acting.
+        @app.post("/tasks/{task_id}/pause")
+        async def task_pause(task_id: str, dry_run: bool = False) -> Any:
+            result = await pause_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            return result
+
+        @app.post("/tasks/{task_id}/resume")
+        async def task_resume(task_id: str, dry_run: bool = False) -> Any:
+            result = await resume_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
             return result
 
         # Cancel one running sample (phase 3). `sample_id` is a query param
@@ -805,6 +843,22 @@ class ControlServer:
             changed = not keep_alive_intent()
             request_keep_alive()
             return {"ok": True, "keep_alive": True, "changed": changed}
+
+        # Pause / resume the whole run (the eval-set spelling — one
+        # process-scoped latch every dispatch point checks, like keep-alive,
+        # NOT a fan-out over task pauses): under pause no new eval-set tasks
+        # dispatch, no task retry attempts start, and no samples dispatch in
+        # any task; in-flight samples finish naturally. `process resume` does
+        # not clear task-level pauses (independent latches). Never 404s — a
+        # process always exists. Note the state distinction with /release:
+        # resume re-opens a *paused* run; release ends a keep-alive *park*.
+        @app.post("/pause")
+        async def process_pause(dry_run: bool = False) -> Any:
+            return await pause_process(dry_run=dry_run)
+
+        @app.post("/resume")
+        async def process_resume(dry_run: bool = False) -> Any:
+            return await resume_process(dry_run=dry_run)
 
         return app
 

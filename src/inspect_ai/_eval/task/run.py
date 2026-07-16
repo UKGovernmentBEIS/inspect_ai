@@ -20,6 +20,7 @@ from inspect_ai._control.eval_state import (
     record_sample_errored,
     register_eval,
 )
+from inspect_ai._control.pause import PauseGatedSemaphore
 from inspect_ai._display import (
     TaskCancelled,
     TaskError,
@@ -519,6 +520,18 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 task_id=logger.eval.task_id,
             )
 
+            # sample dispatch goes through the pause gate wrapped around the
+            # semaphore (a stamped cancel escapes the gate so held samples
+            # reach the queue-exit abandon check); scan reuse below keeps the
+            # raw semaphore — reused samples aren't new work for the gate to
+            # hold
+            gated_sample_semaphore = PauseGatedSemaphore(
+                sample_semaphore,
+                task_id=logger.eval.task_id,
+                escape=lambda: task_cancel is not None
+                and task_cancel.cancel_type is not None,
+            )
+
             # Register this eval with the process-level state aggregate
             # so the control channel (and other readers) can answer
             # "how many samples queued / running / done?" without
@@ -765,7 +778,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         turn_limit=config.turn_limit,
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
-                        semaphore=sample_semaphore,
+                        semaphore=gated_sample_semaphore,
                         eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
