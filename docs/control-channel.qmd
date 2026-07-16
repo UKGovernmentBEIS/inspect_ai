@@ -73,7 +73,7 @@ This implies `--json` and `--ctl-server=keep`. The command blocks until the cont
 {"event": "launch", "run_id": "Ngkz4viFYq…", "eval_set_id": null, "pid": 17146, "log_dir": "/…/logs", "control": {"socket_path": "/…/control/17146.sock"}, "output_file": "/…/detach/20260716-141530-ab12cd34.out"}
 ```
 
-The launch-handoff guarantee carries over unchanged: a `--detach` command that exited 0 has emitted a `launch` record and the control surface exists; one that exited non-zero has not started a background eval, and the pre-flight diagnostic (bad task path, missing API key, ...) is on stderr. There is no third state to poll for.
+The launch-handoff guarantee carries over unchanged: a `--detach` command that exited 0 has emitted a `launch` record and the control surface exists; one that exited non-zero has not started a background eval, and the pre-flight diagnostic (bad task path, missing API key, ...) is on stderr. There is no third state to poll for: if the control endpoint fails to bind, the launcher terminates the eval and exits non-zero rather than leave an unmonitorable eval running, and interrupting the wait (Ctrl+C or SIGTERM) likewise terminates the eval before the launcher exits.
 
 After the handoff, the eval's terminal and results are read entirely through the surfaces this page documents:
 
@@ -84,7 +84,7 @@ After the handoff, the eval's terminal and results are read entirely through the
 
 The detached process's stdout and stderr go to a file under the Inspect data directory, reported as `output_file` in the launch record. The `done` record lands there rather than on your terminal (once the parked process is released), as do any stray prints and diagnostics — useful when diagnosing a run that misbehaved, but the `inspect ctl` reads above are the primary completion signal.
 
-`--detach` works the same on `inspect eval-set` and `inspect eval-retry` (a multi-file retry hands off on its first `launch` record; later files' records go to the output file). Because `--detach` requires the control surface, combining it with `--ctl-server=false` is an error.
+`--detach` works the same on `inspect eval-set` and `inspect eval-retry` (a multi-file retry hands off on its first `launch` record; later files' records go to the output file). Because `--detach` requires the control surface, combining it with `--ctl-server=false` is an error — as is `inspect eval-set --detach --no-retry-immediate`, since the legacy batch-retry mode is incompatible with the implied `--ctl-server=keep`.
 
 To make an agent (Claude Code or similar) use this workflow for long-running evals, paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md`:
 

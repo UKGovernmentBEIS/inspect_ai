@@ -19,6 +19,8 @@ halves of the guarantee:
 import contextlib
 import json
 import os
+import re
+import signal
 import subprocess
 import sys
 import time
@@ -1059,3 +1061,157 @@ def _try_parse_json(line: str) -> dict | None:
     except ValueError:
         return None
     return record if isinstance(record, dict) else None
+
+
+def test_eval_set_detach_rejects_no_retry_immediate(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """--detach --no-retry-immediate is refused up front, naming --detach.
+
+    The forced --ctl-server=keep is incompatible with the legacy batch-retry
+    mode; without this pre-check the child would die pre-flight with a
+    diagnostic naming a flag (--ctl-server=keep) the user never passed.
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+    monkeypatch.chdir(short_data_dir)
+
+    runner = cli_runner()
+    result = runner.invoke(
+        eval_set_command,
+        [
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            "logs",
+            "--detach",
+            "--no-retry-immediate",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert result.stdout.strip() == ""
+    assert "--detach implies --ctl-server=keep" in result.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX socket paths")
+def test_eval_detach_fails_when_control_bind_fails(short_data_dir: Path) -> None:
+    """A launch record with control null is a failed handoff, not success.
+
+    When the forced --ctl-server=keep fails to bind (here: a data dir long
+    enough that the AF_UNIX socket path exceeds the OS limit), the detached
+    eval could be neither observed nor confirmed finished — so the launcher
+    must terminate it and exit non-zero instead of emitting the launch
+    record, preserving "exit 0 ⇔ eval running detached and monitorable".
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+    # AF_UNIX socket paths are limited to ~104-108 bytes; a data dir this
+    # long makes the control-server bind fail while regular file paths
+    # (e.g. the detach output file) are unaffected
+    env = {**os.environ, "XDG_DATA_HOME": str(short_data_dir / ("x" * 150))}
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "inspect_ai._cli.main",
+            "eval",
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            str(short_data_dir / "logs"),
+            "--detach",
+        ],
+        cwd=short_data_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    assert result.returncode != 0
+    assert result.stdout.strip() == ""
+    assert "control endpoint did not bind" in result.stderr
+    # the terminated child's pid is reported so nothing dangles silently
+    pid_match = re.search(r"pid (\d+)", result.stderr)
+    assert pid_match is not None, result.stderr
+    assert _wait_for_pid_exit(int(pid_match.group(1)), timeout=60)
+
+
+SLOW_IMPORT_TASK_FILE = """
+import time
+
+time.sleep(60)
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import generate
+
+
+@task
+def handoff_cli_task():
+    return Task(dataset=[Sample(input="x", target="y")], solver=[generate()])
+"""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
+def test_eval_detach_sigterm_terminates_child(short_data_dir: Path) -> None:
+    """SIGTERM during the wait mirrors Ctrl+C: child terminated, exit 143.
+
+    ``timeout 10m inspect eval --detach …`` (or a CI cancellation) delivers
+    SIGTERM to the launcher mid-wait; without a handler the launcher would
+    die leaving the detached child running with no launch record emitted —
+    the third state the handoff contract rules out. The slow-import task
+    holds the child pre-launch-record so the wait window is wide.
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(SLOW_IMPORT_TASK_FILE)
+    xdg_dir = short_data_dir / "xdg"
+    env = {**os.environ, "XDG_DATA_HOME": str(xdg_dir)}
+
+    launcher = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "inspect_ai._cli.main",
+            "eval",
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            str(short_data_dir / "logs"),
+            "--detach",
+        ],
+        cwd=short_data_dir,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        # the launcher allocates the output file just before spawning the
+        # child and installs the SIGTERM handler right after; once the file
+        # exists (plus a grace period) the handler is reliably in place
+        detach_dir = xdg_dir / "inspect_ai" / "detach"
+        deadline = time.time() + 120
+        while time.time() < deadline and not list(detach_dir.glob("*.out")):
+            time.sleep(0.1)
+        assert list(detach_dir.glob("*.out")), "detach output file never appeared"
+        time.sleep(1.0)
+
+        launcher.send_signal(signal.SIGTERM)
+        stdout, stderr = launcher.communicate(timeout=60)
+    except BaseException:
+        launcher.kill()
+        raise
+
+    assert launcher.returncode == 143, stderr
+    assert stdout.strip() == ""
+    pid_match = re.search(r"pid (\d+)", stderr)
+    assert pid_match is not None, stderr
+    assert _wait_for_pid_exit(int(pid_match.group(1)), timeout=60), (
+        "detached child still running after SIGTERM to the launcher"
+    )

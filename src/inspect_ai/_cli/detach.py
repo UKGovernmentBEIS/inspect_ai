@@ -34,11 +34,13 @@ for the same reason.
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from types import FrameType
 from typing import Any, NoReturn
 
 from shortuuid import uuid
@@ -58,32 +60,52 @@ DETACH_HELP = (
 )
 
 
-def exec_detached(ctl_server: bool | str | None) -> NoReturn:
+def exec_detached(
+    ctl_server: bool | str | None, retry_immediate: bool | None = None
+) -> NoReturn:
     """Hand the current CLI command off to a detached child process and exit.
 
     Spawns the child, waits for its ``launch`` record (tailing the output
     file, so the child's stdout never depends on the launcher staying
     alive), re-emits the record, and exits with the handoff verdict:
 
-    - ``launch`` seen → record (plus ``output_file``) on stdout, exit 0;
-      the eval keeps running detached.
+    - ``launch`` with a control endpoint → record (plus ``output_file``)
+      on stdout, exit 0; the eval keeps running detached.
+    - ``launch`` with ``control: null`` (the forced keep bind failed) →
+      the child is terminated, its output relayed to stderr, and the
+      launcher exits non-zero: a detached eval with no control surface
+      could be neither observed nor confirmed finished — the same state
+      the ``--ctl-server=false`` rejection rules out.
     - child exited without a record → its output is relayed to stderr and
       the launcher exits non-zero (pre-flight failure).
     - ``done`` without a prior ``launch`` → the run finished during the
       handoff without ever binding a control surface (an all-reused
       eval-set whose keep-alive park failed to bind): the record is
       re-emitted and the launcher exits with the child's code.
-    - Ctrl+C during the wait terminates the child, preserving the
-      invariant that no emitted ``launch`` record means no detached eval.
+    - Ctrl+C or SIGTERM during the wait terminates the child, preserving
+      the invariant that no emitted ``launch`` record means no detached
+      eval (exit 130/143 respectively).
 
     There is deliberately no timeout: task imports can legitimately take
     minutes, and the contract is "returns when the handoff resolves".
+
+    ``retry_immediate`` is the eval-set batch-retry mode: ``False`` is
+    rejected up front because the forced ``--ctl-server=keep`` is
+    incompatible with it — the child would die pre-flight with a
+    diagnostic naming a flag the user never passed.
     """
     if ctl_server is False:
         raise PrerequisiteError(
             "--detach requires the control server (monitoring a detached eval "
             "goes through `inspect ctl`): remove --ctl-server=false or drop "
             "--detach."
+        )
+    if retry_immediate is False:
+        raise PrerequisiteError(
+            "--detach implies --ctl-server=keep, which is incompatible with "
+            "--no-retry-immediate (the legacy batch-retry mode tears down "
+            "the control surface between attempts): use --retry-immediate "
+            "(the default) or drop --detach."
         )
 
     output_file = _allocate_output_file()
@@ -112,9 +134,13 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
             creationflags=creationflags,
         )
 
+    # SIGTERM (e.g. `timeout … inspect eval --detach`, CI cancellation) must
+    # preserve the same no-third-state invariant as Ctrl+C: no emitted
+    # launch record means no detached eval left behind
+    previous_sigterm = signal.signal(signal.SIGTERM, _raise_terminated)
     try:
         record = _wait_for_record(child, output_file)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, _Terminated) as ex:
         child.terminate()
         print(
             f"\nDetached launch interrupted — terminated the eval process "
@@ -122,16 +148,53 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
             file=sys.stderr,
             flush=True,
         )
-        sys.exit(130)
+        interrupt = signal.SIGTERM if isinstance(ex, _Terminated) else signal.SIGINT
+        sys.exit(128 + int(interrupt))
+    finally:
+        if previous_sigterm is not None:
+            signal.signal(signal.SIGTERM, previous_sigterm)
 
-    if record is not None:
+    if record is not None and record.get("event") == "launch":
+        if record.get("control") is None:
+            # the forced --ctl-server=keep failed to bind: the eval would run
+            # detached but could be neither observed nor confirmed finished —
+            # the exact state --detach exists to prevent — so treat the
+            # handoff as failed rather than exit 0 into an unmonitorable run
+            child.terminate()
+            child.wait()
+            print(
+                f"Detached launch failed — the control endpoint did not bind, "
+                f"so the eval could not be monitored; terminated the eval "
+                f"process (pid {child.pid}). Its output (also in "
+                f"{output_file}) follows.",
+                file=sys.stderr,
+                flush=True,
+            )
+            _exit_relaying_output(output_file, 1)
         record["output_file"] = str(output_file)
         print(json.dumps(record), flush=True)
-        sys.exit(0 if record.get("event") == "launch" else child.wait())
+        sys.exit(0)
 
+    if record is not None:  # done without a prior launch
+        record["output_file"] = str(output_file)
+        print(json.dumps(record), flush=True)
+        sys.exit(child.wait())
+
+    _exit_relaying_output(output_file, child.wait())
+
+
+class _Terminated(BaseException):
+    """SIGTERM arrived during the handoff wait (mirrors KeyboardInterrupt)."""
+
+
+def _raise_terminated(signum: int, frame: FrameType | None) -> NoReturn:
+    raise _Terminated()
+
+
+def _exit_relaying_output(output_file: Path, returncode: int) -> NoReturn:
+    """Relay the child's output to stderr and exit non-zero (failed handoff)."""
     sys.stderr.write(output_file.read_text(encoding="utf-8", errors="replace"))
     sys.stderr.flush()
-    returncode = child.wait()
     sys.exit(returncode if returncode != 0 else 1)
 
 
