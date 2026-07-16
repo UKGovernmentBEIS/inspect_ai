@@ -144,6 +144,18 @@ VERTEX_API_KEY = "VERTEX_API_KEY"
 GOOGLE_CLOUD_QUOTA_PROJECT = "GOOGLE_CLOUD_QUOTA_PROJECT"
 GOOGLE_USE_ADC = "GOOGLE_USE_ADC"
 
+# Google model-name tokens for non-generative / non-frontier models that must
+# never be treated as a "latest" frontier chat model by is_latest().
+_NON_GENERATIVE_TOKENS = (
+    "embedding",
+    "imagen",
+    "veo",
+    "gemma",
+    "aqa",
+    "learnlm",
+    "tts",
+)
+
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
 
@@ -736,8 +748,38 @@ class GoogleGenAIAPI(ModelAPI):
         """Canonical model name for model info database lookup."""
         return f"google/{self.service_model_name()}"
 
+    @override
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens (context window)."""
+        from inspect_ai.model._model_info import _get_model_info_direct
+
+        # Codename/predeployment models (is_latest() folds into is_gemini())
+        # and gemini-named models not yet in the model-info database (future
+        # versions, unknown snapshots) alias to the current frontier so the
+        # context window / compaction match. Bump when a newer frontier ships.
+        # Mirrors OpenAI's and Anthropic's input_tokens_name() aliasing.
+        if self.is_gemini() and _get_model_info_direct(self.canonical_name()) is None:
+            return "google/gemini-3.5-flash"
+        return super().input_tokens_name()
+
+    def is_latest(self) -> bool:
+        # predeployment/codename models are treated as the current frontier;
+        # restricted to the dev endpoint (vertex custom endpoints/deployments
+        # have arbitrary names that say nothing about the model behind them).
+        # Mirrors OpenAI's is_latest_model() / Anthropic's is_claude_latest().
+        if self.is_vertex():
+            return False
+        name = self.model_family().lower()
+        if any(token in name for token in _NON_GENERATIVE_TOKENS):
+            return False
+        # known family naming — future gemini versions are already covered by
+        # is_gemini_3_plus() and the DB-miss branch of input_tokens_name()
+        if "gemini" in name:
+            return False
+        return True
+
     def is_gemini(self) -> bool:
-        return "gemini-" in self.model_family()
+        return "gemini-" in self.model_family() or self.is_latest()
 
     def is_gemini_flash(self) -> bool:
         return "flash" in self.model_family()
@@ -755,7 +797,7 @@ class GoogleGenAIAPI(ModelAPI):
         return "gemini-3" in self.model_family()
 
     def is_gemini_3_flash(self) -> bool:
-        return self.is_gemini_3() and self.is_gemini_flash()
+        return (self.is_gemini_3() or self.is_latest()) and self.is_gemini_flash()
 
     def is_gemini_3_plus(self) -> bool:
         return (
@@ -770,7 +812,7 @@ class GoogleGenAIAPI(ModelAPI):
 
     def is_gemini_thinking_only(self) -> bool:
         return (
-            self.is_gemini_2_5() or self.is_gemini_3()
+            self.is_gemini_2_5() or self.is_gemini_3() or self.is_latest()
         ) and "-pro" in self.model_family()
 
     @override

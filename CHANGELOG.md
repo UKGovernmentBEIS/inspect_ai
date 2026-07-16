@@ -23,6 +23,7 @@
 - Model API: Fixed `max_retries` to permit N retries (N+1 total attempts); previously it counted total attempts, so e.g. `max_retries=1` never actually retried.
 - Bedrock: Assistant text and reasoning are now preserved alongside tool calls in the same turn instead of being dropped. (#4457)
 - Google: The Gemini Developer API endpoint now supports OAuth/ADC authentication (`-M use_adc=true` or `GOOGLE_USE_ADC=true`) with automatic token refresh, for deployments reachable without an API key.
+- Google: Unknown (predeployment) model names are now treated as the latest Gemini model for context window (compaction) and capability detection.
 - Bugfix: With checkpoints stored on S3, a resumed sample can now itself be resumed — previously a crash after resume lost the checkpoint chain and the next retry restarted the sample from scratch.
 - Bugfix: Crash recovery now reconstructs `sample.messages` from the first model role's conversation when a solver runs multiple agents concurrently, instead of returning whichever agent's model call happened to fire last. (#4414)
 - Bugfix: Errored samples that were scored (e.g. via `score_on_error`) now contribute their scores to metrics and `scored_samples`, matching what the sample log shows. (#4412)
