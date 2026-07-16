@@ -1864,6 +1864,28 @@ async def task_run_sample(
             sample_uuid=state.uuid,
         )
 
+    # an interrupt (task-cancel sweep or per-sample cancel) landed in the
+    # drain window between this attempt's task-group exit and the retry
+    # decision above: its cancel-scope fire was a no-op (the group had
+    # already exited), so it only stamped `interrupt_action`, rightly
+    # suppressing the retry. The sample was never logged (the logging block
+    # skips errored samples with retries remaining), so counting it errored
+    # would leave an errored count with no log record and leak its buffered
+    # events — resolve it instead exactly as the interrupt landing a moment
+    # later (at the retry recursion's queue check) would: abandoned as
+    # cancelled, absent from the log, buffered events removed.
+    elif error and retry_on_error > 0 and cancelled_error is None:
+        await emit_attempt_end(will_retry=False)
+
+        # remove any buffered sample events
+        if logger is not None:
+            logger.remove_sample(state.sample_id, state.epoch)
+
+        record_sample_cancelled(
+            task_id, started=_sample_started(), **_sample_usage(state)
+        )
+        return None
+
     # re-raise cancellation after logging to preserve structured concurrency
     elif cancelled_error is not None:
         # a cancelled sample is terminal but not a genuine error — count it so
