@@ -39,12 +39,22 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, NoReturn, ParamSpec, Protocol
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    NamedTuple,
+    NoReturn,
+    ParamSpec,
+    Protocol,
+    cast,
+)
 
 import click
 import httpx
 from click.core import ParameterSource
 
+from inspect_ai._control.cancel import TaskCancelAction
 from inspect_ai._control.discovery import (
     DiscoveredControlServer,
     discovery_dir,
@@ -57,6 +67,11 @@ from inspect_ai._control.state import (
     parse_status_filter,
 )
 from inspect_ai._util.name_match import match_name_prefix
+
+if TYPE_CHECKING:
+    # TYPE_CHECKING to keep the CLI import-light: `inspect_ai.log._samples`
+    # pulls in a chunk of the core package this thin HTTP client never needs.
+    from inspect_ai.log._samples import SampleCancelAction
 
 # Events shown on an unseeded `sample events` read (no --cursor / --tail /
 # --since-time / --until / --from-start): a recent tail rather than the full
@@ -84,14 +99,15 @@ _KNOB_SCOPE: dict[str, str] = {
 # Minimum control-API version each knob requires of the *server* process (the
 # `CONTROL_API_VERSION` from `inspect_ai._control` that its inspect embedded
 # at launch). Parallel to `_KNOB_SCOPE`: every knob needs an entry (key-set
-# parity is asserted in `_exec_limits` and pinned by a test), so a new knob
-# can't silently default to "understood by every server". Since-0 knobs
-# predate version reporting and are never gated. A PR that adds a knob older
-# servers' PATCH handlers would silently ignore must bump
-# `CONTROL_API_VERSION` and record the new value here; `_gate_knob_support`
-# then hard-errors the request against an older process *before* the
-# mutation, instead of letting it partially apply behind a success-shaped
-# response.
+# parity is asserted in `_exec_limits` and pinned by a test). Since-0 knobs
+# are never gated — and every *new* knob is since-0: strict servers
+# (version >= 3, the only ones left in the field) reject unknown mutation
+# params with a 400, so no pre-send gate is needed (see the skew-policy
+# comment in `inspect_ai._control`). The nonzero entries predate strict
+# mutations, when an older server's PATCH handler would silently ignore an
+# unknown knob while applying the rest; `_gate_knob_support` hard-errors
+# those against a pre-strict process before sending, and retires with
+# issue #67.
 _KNOB_SINCE: dict[str, int] = {
     "max_samples": 0,
     "max_sandboxes": 0,
@@ -390,6 +406,18 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
 @task_group.command("cancel")
 @click.argument("task")
 @click.option(
+    "--action",
+    type=click.Choice(["cancel", "score", "error"]),
+    default="cancel",
+    show_default=True,
+    help=(
+        "How in-flight samples are resolved: 'cancel' interrupts them and "
+        "finalizes the log with an error status; 'score' scores them on the "
+        "work done so far; 'error' marks them errored. With score/error, "
+        "queued samples are abandoned and the task completes normally."
+    ),
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -402,21 +430,25 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     default=False,
     help="Output as JSON (the mutation result envelope).",
 )
-def task_cancel_command(task: str, dry_run: bool, as_json: bool) -> None:
+def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) -> None:
     """Cancel a running task.
 
-    In-flight samples are interrupted (their transcripts so far are
-    preserved in the log as cancelled samples), completed samples are kept,
-    and the task's log is finalized with an error status noting the cancel;
-    an eval-set will not retry a cancelled task. Idempotent — cancelling a
-    finished (or already-cancelling) task is a clean no-op. A task between
-    attempts (its last attempt errored and the eval-set has a retry queued)
-    is rejected rather than no-opped: nothing is running to cancel yet, so
-    re-issue the cancel once the retry starts. To cancel a single sample
-    instead, use `inspect ctl sample cancel`. TASK (a task-id prefix or
-    name) is always required.
+    In-flight samples are resolved per `--action`; completed samples are
+    always kept, and an eval-set will not retry a cancelled task.
+    Idempotent — cancelling a finished or already-cancelling task is a
+    clean no-op (a plain cancel does escalate over a pending score/error
+    resolution, so a stalled graceful cancel can still be torn down). A
+    task between attempts (last attempt errored, retry queued but not
+    started) is rejected — re-issue once the retry starts. To cancel a
+    single sample, use `inspect ctl sample cancel`. TASK (a task-id prefix
+    or name) is always required.
     """
-    _run_task_cancel(task, dry_run=dry_run, as_json=as_json)
+    _run_task_cancel(
+        task,
+        action=cast(TaskCancelAction, action),
+        dry_run=dry_run,
+        as_json=as_json,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -688,13 +720,14 @@ def sample_events_command(
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=None)
 @click.option(
-    "--error",
-    "as_error",
-    is_flag=True,
-    default=False,
+    "--action",
+    type=click.Choice(["score", "error", "cancel"]),
+    default="score",
+    show_default=True,
     help=(
-        "Mark the sample errored instead of scoring the work done so far "
-        "(not permitted for samples configured to fail on errors)."
+        "Outcome for the sample: 'score' runs the scorer on the work done "
+        "so far; 'error' marks it errored; 'cancel' records it as cancelled "
+        "(no scoring, not counted as an error)."
     ),
 )
 @click.option(
@@ -714,24 +747,23 @@ def sample_cancel_command(
     task: str,
     sample_id: str,
     epoch: int | None,
-    as_error: bool,
+    action: str,
     dry_run: bool,
     as_json: bool,
 ) -> None:
     """Cancel one running sample.
 
-    By default the sample completes and the scorer runs on the work done so
-    far; pass `--error` to mark it errored instead. The rest of the task is
+    The sample is resolved per `--action`; the rest of the task is
     unaffected. Idempotent — cancelling a sample that has already finished
-    is a clean no-op. EPOCH defaults to 1 but is required whenever the task
-    runs more than one epoch (a defaulted epoch would silently cancel a
-    different attempt).
+    is a clean no-op. EPOCH defaults to 1 but is required whenever the
+    task runs more than one epoch (a defaulted epoch would silently cancel
+    a different attempt).
     """
     _run_sample_cancel(
         task,
         sample_id,
         epoch,
-        action="error" if as_error else "score",
+        action=cast("SampleCancelAction", action),
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -2122,7 +2154,13 @@ _CANCEL_ROUTE_MISSING = (
 
 
 @_envelope_failures
-def _run_task_cancel(task: str, *, dry_run: bool, as_json: bool) -> None:
+def _run_task_cancel(
+    task: str,
+    *,
+    action: TaskCancelAction = "cancel",
+    dry_run: bool,
+    as_json: bool,
+) -> None:
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers).summaries
     scope = _resolve_scope(servers, summaries, task, per_task_option="task cancel")
@@ -2135,6 +2173,13 @@ def _run_task_cancel(task: str, *, dry_run: bool, as_json: bool) -> None:
     assert scope.task_id is not None
 
     params: dict[str, Any] = {}
+    if action != "cancel":
+        # omit the param when it's the default: a strict server that
+        # predates `action` 400s on unknown mutation params, and a plain
+        # cancel must keep working against any server with the route
+        # (abort is what those servers do anyway). An explicit
+        # score/error against such a server *should* fail loudly.
+        params["action"] = action
     if dry_run:
         params["dry_run"] = True
     # idempotent (a repeat cancel is a clean no-op), so it may ride the
@@ -2165,14 +2210,28 @@ def _run_task_cancel(task: str, *, dry_run: bool, as_json: bool) -> None:
     click.echo()
     if result.get("changed"):
         in_flight = int(result.get("in_flight", 0) or 0)
+        outcome = {
+            "cancel": "interrupted",
+            "score": "scored on the work done so far",
+            "error": "marked as errored",
+        }[action]
         interrupted = (
             f"{in_flight} in-flight sample{'' if in_flight == 1 else 's'} "
-            f"{'would be' if dry_run else 'will be'} interrupted"
+            f"{'would be' if dry_run else 'will be'} {outcome}"
+        )
+        suffix = (
+            "completed samples are kept"
+            if action == "cancel"
+            else (
+                "queued samples would be abandoned and the task would complete"
+                if dry_run
+                else "queued samples are abandoned and the task will complete"
+            )
         )
         if dry_run:
-            click.echo(f"Would cancel — {interrupted}; completed samples are kept.")
+            click.echo(f"Would cancel — {interrupted}; {suffix}.")
         else:
-            click.echo(f"Cancel requested — {interrupted}; completed samples are kept.")
+            click.echo(f"Cancel requested — {interrupted}; {suffix}.")
     else:
         reason = str(result.get("reason") or "already in that state")
         click.echo(f"Nothing to do: {reason}.")
@@ -2184,7 +2243,7 @@ def _run_sample_cancel(
     sample_id: str,
     epoch: int | None,
     *,
-    action: Literal["score", "error"],
+    action: SampleCancelAction,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -2255,11 +2314,11 @@ def _run_sample_cancel(
     click.echo()
     label = f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
     if result.get("changed"):
-        outcome = (
-            "scored on the work done so far"
-            if action == "score"
-            else "marked as errored"
-        )
+        outcome = {
+            "score": "scored on the work done so far",
+            "error": "marked as errored",
+            "cancel": "recorded as cancelled",
+        }[action]
         if dry_run:
             click.echo(f"Would cancel {label} — it would be {outcome}.")
         else:
@@ -3932,7 +3991,8 @@ def _event_summary(e: dict[str, Any]) -> str:
     if t == "error":
         return _truncate(str(e.get("error") or ""), 80)
     if t == "info":
-        return str(e.get("source") or "")
+        bits = [str(e.get("source") or ""), str(e.get("data") or "")]
+        return _truncate(" · ".join(b for b in bits if b), 80)
     return ""
 
 

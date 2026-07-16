@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import os
+import shutil
 import tempfile
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
@@ -31,6 +32,7 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
     get_deserializing_context,
@@ -58,7 +60,7 @@ from .._log import (
     sort_samples,
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
-from .file import FileRecorder
+from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
 
@@ -188,8 +190,8 @@ class EvalRecorder(FileRecorder):
         # write the buffered samples
         await log.write_buffered_samples()
 
-        # flush to underlying stream
-        await log.flush()
+        # flush to underlying stream (intermediate snapshot: skip fsync)
+        await log.flush(fsync=False)
 
     @override
     async def log_finish(
@@ -241,8 +243,8 @@ class EvalRecorder(FileRecorder):
         )
         await log.write(HEADER_JSON, eval_header)
 
-        # flush and write the results
-        await log.flush()
+        # flush and write the results (final write: make it crash-durable)
+        await log.flush(fsync=True)
         result = await log.close(header_only)
 
         # stop tracking this eval
@@ -445,6 +447,14 @@ def _replace_eval_header_in_place(zip_path: str, log: EvalLog) -> None:
     become unreferenced — a small size leak that's acceptable for local
     files since we're not paying for a re-upload on every edit. Sample
     entries are untouched.
+
+    Note: unlike the flush/finalization writes (which go through
+    :func:`inspect_ai._util.atomic_write.atomic_write`), this in-place
+    header edit is not atomic — an interruption here can leave the zip's
+    central directory inconsistent. It's an intentional trade-off: header
+    edits (viewer score edits) are infrequent and rewriting a potentially
+    large `.eval` just to change the header isn't worth it. Callers that
+    need atomicity should rewrite the whole file.
     """
     eval_header = _eval_log_header(log)
     with ZipFile(zip_path, "a", **zipfile_compress_kwargs) as zf:
@@ -686,6 +696,20 @@ async def _write_s3_conditional(
             raise
 
 
+def _copy_temp_to_local(temp_file: BinaryIO, dest: str, fsync: bool) -> None:
+    """Copy the zip temp file to its local destination via atomic write.
+
+    Blocking (full-file copy plus, when ``fsync`` is set, physical
+    writeback of the whole log) — callers on the event loop must run
+    this in a worker thread via ``anyio.to_thread.run_sync``. The rewind
+    lives here rather than at the call site so seek + read happen as one
+    unit inside the thread.
+    """
+    temp_file.seek(0)
+    with atomic_write(dest, fsync=fsync) as out:
+        shutil.copyfileobj(temp_file, out, length=1024 * 1024)
+
+
 class ZipLogFile:
     _zip: ZipFile | None
     _temp_file: BinaryIO
@@ -835,20 +859,47 @@ class ZipLogFile:
         async with self._lock:
             self._zip_writestr(filename, data)
 
-    async def flush(self) -> None:
+    async def flush(self, *, fsync: bool = True) -> None:
+        """Write the buffered zip out to the destination log file.
+
+        Args:
+            fsync: True for a durable final write; False for an intermediate
+                snapshot, which skips fsync and tolerates file-in-use (see
+                ``write_local_snapshot``). Local paths only.
+        """
         async with self._lock:
             # close the zip file so it is flushed
             if self._zip:
                 self._zip.close()
 
             # Stream temp file to output using the appropriate backend
-            # (native S3 multipart upload, or chunked copy via fsspec)
-            self._temp_file.seek(0)
-
+            # (atomic local write, native S3 multipart upload, or chunked
+            # copy via fsspec).
+            written = True
             with trace_action(logger, "Log Write", self._file):
                 try:
-                    async with AsyncFilesystem() as async_fs:
-                        await async_fs.write_file_streaming(self._file, self._temp_file)
+                    if self._fs.is_local():
+                        # Safe under self._lock: nothing else touches
+                        # _temp_file until we return, and the helper waits
+                        # for the thread on cancellation, so the finally
+                        # below never reopens the zip on _temp_file while
+                        # the thread is still reading it.
+                        written = await write_local_snapshot(
+                            self._file,
+                            fsync,
+                            partial(
+                                _copy_temp_to_local,
+                                self._temp_file,
+                                local_path(self._file),
+                                fsync,
+                            ),
+                        )
+                    else:
+                        self._temp_file.seek(0)
+                        async with AsyncFilesystem() as async_fs:
+                            await async_fs.write_file_streaming(
+                                self._file, self._temp_file
+                            )
                 finally:
                     # re-open zip file w/ self.temp_file pointer at end
                     self._open()
@@ -857,8 +908,11 @@ class ZipLogFile:
             # directory and readable from disk, so the streaming-path samples no
             # longer need their in-memory copy (the buffered ``_samples`` are
             # cleared by ``write_buffered_samples``, which the flush callers run
-            # first).
-            self._streaming_samples.clear()
+            # first). A skipped write must NOT clear: ``buffered_sample`` falls
+            # back to the on-disk log once cleared, which doesn't yet contain
+            # these samples.
+            if written:
+                self._streaming_samples.clear()
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
