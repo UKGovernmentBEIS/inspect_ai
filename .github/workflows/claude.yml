@@ -34,6 +34,12 @@ jobs:
     # (the only `edited` action we subscribe to), fire only when the edit newly
     # introduced @claude — comparing against the pre-edit body — so re-editing a
     # comment that already mentioned @claude does not re-trigger a run.
+    # Known limitation: contains() is a substring test, looser than the action's
+    # word-boundary trigger. A pre-edit body that held @claude only as a
+    # NON-triggering substring (in backticks, or a token like foo@claude) blocks
+    # the edit path — adding a real @claude later still sees the old substring.
+    # Acceptable for a cheap gate (workflow expressions have no regex); the
+    # action remains the authoritative check on whatever does fire.
     if: |
       ( github.event.action == 'edited'
         && contains(github.event.comment.body, '@claude')
