@@ -1,4 +1,5 @@
 import sqlite3
+from collections.abc import Iterator
 
 import pytest
 
@@ -741,3 +742,52 @@ def test_provider_translates_store_failures_to_domain_error(tmp_path):
     racing._close_all_connections()
     with pytest.raises(TranscriptHistoryUnavailableError):
         provider.events_from(0, 10)
+
+
+def test_pool_ref_registry_covers_all_ref_fields():
+    """``POOL_REF_FIELDS`` must register every ``*_refs`` field on event models.
+
+    Page-scoped buffer reads load only the pool positions collected via the
+    registry; a pool-ref field missing from it would make those reads silently
+    drop the entries it references (``_expand_refs`` skips absent positions).
+    This walks every pydantic model reachable from the ``Event`` union and
+    fails when the ``*_refs`` fields found don't match the registry exactly.
+    """
+    from typing import get_args
+
+    from pydantic import BaseModel
+
+    from inspect_ai.event._event import Event
+    from inspect_ai.event._pool import POOL_REF_FIELDS
+
+    def nested_models(annotation: object) -> Iterator[type[BaseModel]]:
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            yield annotation
+        for arg in get_args(annotation):
+            yield from nested_models(arg)
+
+    found: set[tuple[str, ...]] = set()
+
+    def walk(
+        model: type[BaseModel], path: tuple[str, ...], seen: frozenset[type]
+    ) -> None:
+        if model in seen:
+            return
+        seen |= {model}
+        for name, field in model.model_fields.items():
+            if name.endswith("_refs"):
+                found.add(path + (name,))
+            for nested in nested_models(field.annotation):
+                walk(nested, path + (name,), seen)
+
+    for event_type in get_args(Event):
+        walk(event_type, (), frozenset())
+
+    registered = {field.path for field in POOL_REF_FIELDS}
+    assert found == registered, (
+        "Pool-ref fields on the event models don't match POOL_REF_FIELDS in "
+        "inspect_ai.event._pool. Register new *_refs fields there (with "
+        "condense/resolve support) so page-scoped buffer reads load their "
+        f"pool entries. Found on models: {sorted(found)}; "
+        f"registered: {sorted(registered)}"
+    )

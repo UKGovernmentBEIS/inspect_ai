@@ -26,7 +26,7 @@ and hash only genuinely new content.
 import dataclasses
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Final, TypeVar, cast
+from typing import Final, Literal, NamedTuple, TypeVar, cast
 
 from pydantic import BaseModel, JsonValue
 from pydantic_core import to_jsonable_python
@@ -261,6 +261,80 @@ def _expand_refs(
         for start, end_exclusive in refs:
             result.extend(pool[start:end_exclusive])
     return result
+
+
+class PoolRefField(NamedTuple):
+    """Location of a range-encoded pool-ref field on a condensed event."""
+
+    pool: Literal["message", "call"]
+    """Which pool the refs index into."""
+
+    path: tuple[str, ...]
+    """Key path from the event root to the refs list, in raw JSON form."""
+
+
+POOL_REF_FIELDS: Final[tuple[PoolRefField, ...]] = (
+    PoolRefField(pool="message", path=("input_refs",)),
+    PoolRefField(pool="call", path=("call", "call_refs")),
+)
+"""Registry of every event field that carries range-encoded pool refs.
+
+Three places must agree on which event fields hold pool refs, and this
+registry is their single source of truth:
+
+- the condense/resolve functions in this module, which write and read the
+  typed fields;
+- :func:`collect_pool_ref_positions`, which the buffer's page-scoped reads
+  use to load only the pool entries a page's events reference;
+- ``test_pool_ref_registry_covers_all_ref_fields`` (in
+  ``tests/log/test_sample_history.py``), which introspects the event models
+  for ``*_refs`` fields and fails when one is missing here.
+
+A pool-ref field that isn't registered here would make page-scoped reads
+silently drop the entries it references (:func:`_expand_refs` skips absent
+positions), so any new ``*_refs`` field MUST be added here alongside its
+condense/resolve support — the test enforces registration.
+"""
+
+
+class PoolRefPositions(NamedTuple):
+    message_positions: set[int]
+    call_positions: set[int]
+
+
+def collect_pool_ref_positions(
+    events: Iterable[Mapping[str, JsonValue]],
+) -> PoolRefPositions:
+    """Pool positions referenced by condensed events in raw JSON form.
+
+    Walks :data:`POOL_REF_FIELDS` so callers that load partial pools (the
+    buffer's page-scoped reads) stay in sync with the condense/resolve
+    functions in this module.
+    """
+    positions = PoolRefPositions(message_positions=set(), call_positions=set())
+    pool_positions: dict[str, set[int]] = {
+        "message": positions.message_positions,
+        "call": positions.call_positions,
+    }
+    for event in events:
+        for field in POOL_REF_FIELDS:
+            value: object = event
+            for key in field.path:
+                value = value.get(key) if isinstance(value, Mapping) else None
+            _accumulate_ref_positions(value, pool_positions[field.pool])
+    return positions
+
+
+def _accumulate_ref_positions(refs: object, positions: set[int]) -> None:
+    """Accumulate positions covered by range-encoded ``(start, end)`` refs."""
+    if not isinstance(refs, list):
+        return
+    for ref in refs:
+        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
+            continue
+        start, end = ref
+        if isinstance(start, int) and isinstance(end, int):
+            positions.update(range(start, end))
 
 
 def condense_model_event_calls(

@@ -43,11 +43,13 @@ class SampleHistory:
         validated_messages = validate_chat_messages(
             list(self.message_pool.values()), context={"deserializing": True}
         )
-        self.message_pool = dict(zip(self.message_pool, validated_messages))
+        self.message_pool = dict(
+            zip(self.message_pool, validated_messages, strict=True)
+        )
         validated_calls = _json_value_list_adapter.validate_python(
             list(self.call_pool.values())
         )
-        self.call_pool = dict(zip(self.call_pool, validated_calls))
+        self.call_pool = dict(zip(self.call_pool, validated_calls, strict=True))
 
     @property
     def events_data(self) -> EventsData:

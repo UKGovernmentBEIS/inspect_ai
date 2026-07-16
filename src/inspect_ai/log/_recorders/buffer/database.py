@@ -16,7 +16,6 @@ from typing import (
     Iterable,
     Iterator,
     Literal,
-    NamedTuple,
     TypeVar,
     cast,
 )
@@ -42,6 +41,7 @@ from inspect_ai.event._pool import (
     _compress_refs,
     _msg_pool_json,
     _msg_pool_jsonable,
+    collect_pool_ref_positions,
 )
 from inspect_ai.event._pool_index import (
     CallPoolIndex,
@@ -796,7 +796,7 @@ class SampleBufferDatabase(SampleBuffer):
         """
         event_rows = list(events)
         if page_scoped:
-            positions = _event_pool_positions(event_rows)
+            positions = collect_pool_ref_positions(row.event for row in event_rows)
             message_pool = {
                 pos: json.loads(data)
                 for pos, data in self._get_pool_entries_at(
@@ -1844,37 +1844,6 @@ _T = TypeVar("_T")
 def _chunked(items: list[_T], size: int) -> Iterator[list[_T]]:
     for i in range(0, len(items), size):
         yield items[i : i + size]
-
-
-class _PagePoolPositions(NamedTuple):
-    message_positions: set[int]
-    call_positions: set[int]
-
-
-def _event_pool_positions(event_rows: list[EventData]) -> _PagePoolPositions:
-    """Positional pool indices referenced by a page of condensed event rows."""
-    message_positions: set[int] = set()
-    call_positions: set[int] = set()
-    for row in event_rows:
-        _ref_positions(row.event.get("input_refs"), message_positions)
-        call = row.event.get("call")
-        if isinstance(call, dict):
-            _ref_positions(call.get("call_refs"), call_positions)
-    return _PagePoolPositions(
-        message_positions=message_positions, call_positions=call_positions
-    )
-
-
-def _ref_positions(refs: object, positions: set[int]) -> None:
-    """Accumulate positions covered by range-encoded ``(start, end)`` refs."""
-    if not isinstance(refs, list):
-        return
-    for ref in refs:
-        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
-            continue
-        start, end = ref
-        if isinstance(start, int) and isinstance(end, int):
-            positions.update(range(start, end))
 
 
 def _remap_refs(
