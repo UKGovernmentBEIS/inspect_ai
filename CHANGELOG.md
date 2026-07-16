@@ -398,6 +398,7 @@
 - Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
 - Limits: Added `suspend_token_limit()` context manager for suspending token tracking and limit enforcement within a scope.
 - Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
+- Datasets: `csv_dataset` and `json_dataset` retry transient HTTP/connection failures (rate limits, timeouts, transient 5xx) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
 - Datasets: Reject sample ids that collide under `str()` coercion.
 - Datasets: Treat NaN from HuggingFace dataset as `None` is treated (converted to `""`).
 - Datasets: Use HuggingFace revision in cache key for downloaded datasets.
