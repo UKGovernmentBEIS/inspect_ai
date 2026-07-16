@@ -6,13 +6,19 @@ import pytest
 from test_helpers.checkpoint import RecordingCheckpointer
 
 from inspect_ai._util.citation import UrlCitation
-from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
+    GenerateConfig,
 )
 from inspect_ai.model._compaction._compaction import _CompactionState, compaction
 from inspect_ai.model._compaction.edit import CompactionEdit
@@ -1504,3 +1510,245 @@ async def test_summary_truncates_oversized_tool_output(
     assert summary is not None
     assert "GOOD SUMMARY" in summary.text
     assert received["oversized"] is False  # the oversized middle was truncated away
+
+
+async def test_summary_elides_media_tool_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Media-only tool output is elided so summarization fits the window (#3600)."""
+    import inspect_ai.model._model_info as _model_info
+    from inspect_ai.model import ModelInfo
+
+    received_has_image: list[bool] = []
+    received_tool_texts: list[str] = []
+
+    def summarizer(
+        input: list[ChatMessage], tools: object, tool_choice: object, config: object
+    ) -> ModelOutput:
+        has_image = any(
+            isinstance(part, ContentImage) for m in input for part in m.content_list
+        )
+        received_has_image.append(has_image)
+        received_tool_texts.extend(
+            m.text for m in input if isinstance(m, ChatMessageTool)
+        )
+        if has_image:
+            return ModelOutput.from_content(
+                "mockllm/media-test",
+                "ERROR: exceeds context window",
+                stop_reason="model_length",
+            )
+        return ModelOutput.from_content("mockllm/media-test", "GOOD SUMMARY")
+
+    model = get_model("mockllm/media-test", custom_outputs=summarizer)
+    monkeypatch.setitem(
+        _model_info._custom_models, str(model), ModelInfo(_input_tokens=2000)
+    )
+
+    strategy = CompactionSummary()
+    image = ContentImage(image="data:image/png;base64," + "A" * 400)
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("do the task " * 30, "u1", source="input"),
+        ChatMessageTool(
+            content=[image], tool_call_id="t1", function="screenshot", id="tool1"
+        ),
+    ]
+
+    _, summary = await strategy.compact(model, messages, tools=[])
+
+    assert summary is not None
+    assert "GOOD SUMMARY" in summary.text
+    assert received_has_image[-1] is False
+    assert "[image elided for summarization]" in received_tool_texts[-1]
+    # the live transcript message is untouched
+    assert isinstance(messages[2].content, list)
+    assert isinstance(messages[2].content[0], ContentImage)
+
+
+async def test_summary_truncation_preserves_content_structure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Part-level truncation preserves content order and untouched parts (#3600)."""
+    import inspect_ai.model._model_info as _model_info
+    from inspect_ai.model import ModelInfo
+
+    received_content: list[list[Content]] = []
+
+    def summarizer(
+        input: list[ChatMessage], tools: object, tool_choice: object, config: object
+    ) -> ModelOutput:
+        received_content.extend(
+            list(m.content)
+            for m in input
+            if isinstance(m, ChatMessageTool) and isinstance(m.content, list)
+        )
+        return ModelOutput.from_content("mockllm/structure-test", "GOOD SUMMARY")
+
+    model = get_model("mockllm/structure-test", custom_outputs=summarizer)
+    monkeypatch.setitem(
+        _model_info._custom_models, str(model), ModelInfo(_input_tokens=2000)
+    )
+
+    strategy = CompactionSummary()
+    big_text = " ".join(f"word{i}" for i in range(1200))
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("do the task", "u1", source="input"),
+        ChatMessageTool(
+            content=[
+                ContentText(text=big_text),
+                ContentImage(image="data:image/png;base64," + "A" * 400),
+                ContentText(text="TAIL_SENTINEL"),
+            ],
+            tool_call_id="t1",
+            function="browse",
+            id="tool1",
+        ),
+    ]
+
+    _, summary = await strategy.compact(model, messages, tools=[])
+
+    assert summary is not None
+    assert "GOOD SUMMARY" in summary.text
+    content = received_content[-1]
+    assert len(content) == 3
+    # the large text part was truncated in place at its index
+    assert isinstance(content[0], ContentText)
+    assert content[0].text.startswith(big_text[:50])
+    assert "truncated for summarization" in content[0].text
+    # the media part was replaced with a placeholder at its index
+    assert isinstance(content[1], ContentText)
+    assert content[1].text == "[image elided for summarization]"
+    # the small trailing part is untouched
+    assert isinstance(content[2], ContentText)
+    assert content[2].text == "TAIL_SENTINEL"
+
+
+async def test_summary_content_filter_not_misdiagnosed_as_overflow() -> None:
+    """A content-moderation refusal is not misreported as context overflow."""
+    model = get_model(
+        "mockllm/filter-test",
+        custom_outputs=[
+            ModelOutput.from_content(
+                "mockllm/filter-test",
+                "Sorry, but I am unable to help with that request.",
+                stop_reason="content_filter",
+                error="content filtering",
+            )
+        ],
+    )
+    strategy = CompactionSummary()
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("do the task", "u1", source="input"),
+        assistant_msg("working on it", "a1"),
+    ]
+
+    _, summary = await strategy.compact(model, messages, tools=[])
+
+    assert summary is not None
+    assert "Sorry, but I am unable to help" in summary.text
+
+
+async def test_summary_truncation_stops_when_no_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fitting breaks immediately when no tool output can be shrunk (#3600)."""
+    import inspect_ai.model._model_info as _model_info
+    from inspect_ai.model import ModelInfo
+
+    def summarizer(
+        input: list[ChatMessage], tools: object, tool_choice: object, config: object
+    ) -> ModelOutput:
+        return ModelOutput.from_content("mockllm/no-progress-test", "GOOD SUMMARY")
+
+    model = get_model("mockllm/no-progress-test", custom_outputs=summarizer)
+    monkeypatch.setitem(
+        _model_info._custom_models, str(model), ModelInfo(_input_tokens=200)
+    )
+
+    count_calls = 0
+    original_count_tokens = model.count_tokens
+
+    async def counting_count_tokens(
+        input: str | list[ChatMessage], config: GenerateConfig | None = None
+    ) -> int:
+        nonlocal count_calls
+        count_calls += 1
+        return await original_count_tokens(input, config)
+
+    monkeypatch.setattr(model, "count_tokens", counting_count_tokens)
+
+    strategy = CompactionSummary()
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("do the task " * 40, "u1", source="input"),
+        ChatMessageTool(
+            content="small", tool_call_id="t1", function="bash", id="tool1"
+        ),
+    ]
+
+    _, summary = await strategy.compact(model, messages, tools=[])
+
+    assert summary is not None
+    assert "GOOD SUMMARY" in summary.text
+    # only the initial count: the tool output is too small to shrink further
+    assert count_calls == 1
+
+
+async def test_summary_fit_reserves_output_headroom(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Input that fits the window but not the output reserve is truncated (#3600)."""
+    import inspect_ai.model._model_info as _model_info
+    from inspect_ai.model import ModelInfo
+
+    received_tool_texts: list[str] = []
+
+    def summarizer(
+        input: list[ChatMessage], tools: object, tool_choice: object, config: object
+    ) -> ModelOutput:
+        received_tool_texts.extend(
+            m.text for m in input if isinstance(m, ChatMessageTool)
+        )
+        return ModelOutput.from_content("mockllm/headroom-test", "GOOD SUMMARY")
+
+    model = get_model("mockllm/headroom-test", custom_outputs=summarizer)
+    monkeypatch.setitem(
+        _model_info._custom_models, str(model), ModelInfo(_input_tokens=2000)
+    )
+
+    strategy = CompactionSummary()
+    # sized to fit the 2000-token window but not the 1000-token fit target
+    # that remains once output headroom is reserved
+    big = " ".join(f"word{i}" for i in range(400))
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("do the task", "u1", source="input"),
+        ChatMessageTool(content=big, tool_call_id="t1", function="bash", id="tool1"),
+    ]
+
+    _, summary = await strategy.compact(model, messages, tools=[])
+
+    assert summary is not None
+    assert "GOOD SUMMARY" in summary.text
+    assert "truncated for summarization" in received_tool_texts[-1]
+
+
+def test_truncate_middle_marker_at_seam() -> None:
+    """The truncation marker sits exactly at the elision seam for non-ASCII text."""
+    from inspect_ai.model._compaction.summary import (
+        _TRUNCATION_MARKER,
+        _truncate_middle,
+    )
+
+    # 200 one-byte chars then 200 three-byte chars (U+20AC EURO SIGN)
+    text = "a" * 200 + "\u20ac" * 200
+    result = _truncate_middle(text, 202)
+
+    front, back = result.split(_TRUNCATION_MARKER)
+    assert front and text.startswith(front)
+    # a multibyte char split at the seam decodes as U+FFFD (replacement char)
+    trimmed_back = back.lstrip("\ufffd")
+    assert trimmed_back and text.endswith(trimmed_back)
