@@ -43,6 +43,7 @@ from inspect_ai.model._providers.google import (
     completion_choice_from_candidate,
     content,
 )
+from inspect_ai.model._providers.util import OAUTH_PLACEHOLDER_API_KEY
 from inspect_ai.model._providers.util.hooks import HttpHooks
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
@@ -1367,3 +1368,243 @@ def test_usage_metadata_without_thoughts():
     assert usage is not None
     assert usage.output_tokens == 5
     assert usage.reasoning_tokens == 0
+
+
+# ---- OAuth / ADC credentials for the Gemini Developer API ----
+
+
+class _FakeCreds:
+    """Minimal google-auth credentials stand-in for OAuth tests."""
+
+    def __init__(self, token: str = "tok-1", valid: bool = True) -> None:
+        self.token = token
+        self.valid = valid
+        self.refresh_calls = 0
+
+    def refresh(self, request: Any) -> None:
+        self.refresh_calls += 1
+        self.valid = True
+        self.token = f"tok-refreshed-{self.refresh_calls}"
+
+
+@pytest.mark.anyio
+async def test_google_oauth_headers_injected() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="cys-finding-lc",
+            base_url=None,
+            api_key=None,
+            credentials=_FakeCreds(token="tok-1"),
+            quota_project_id="proj-x",
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-1"
+    assert headers["x-goog-user-project"] == "proj-x"
+    assert client.call_args.kwargs["api_key"] == OAUTH_PLACEHOLDER_API_KEY
+
+
+@pytest.mark.anyio
+async def test_google_oauth_via_use_adc_model_arg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GOOGLE_CLOUD_QUOTA_PROJECT", "proj-env")
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    fake = _FakeCreds(token="tok-adc")
+    with (
+        patch(
+            "inspect_ai.model._providers.google.Client", return_value=mock_client
+        ) as client,
+        patch("google.auth.default", return_value=(fake, "proj-env")),
+    ):
+        api = GoogleGenAIAPI(
+            model_name="cys-finding-lc",
+            base_url=None,
+            api_key=None,
+            use_adc=True,
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-adc"
+    assert headers["x-goog-user-project"] == "proj-env"
+
+
+@pytest.mark.anyio
+async def test_google_oauth_quota_header_omitted_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_CLOUD_QUOTA_PROJECT", raising=False)
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="cys-finding-lc",
+            base_url=None,
+            api_key=None,
+            credentials=_FakeCreds(),
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert "x-goog-user-project" not in headers
+
+
+@pytest.mark.anyio
+async def test_google_oauth_refreshes_when_invalid() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    creds = _FakeCreds(valid=False)
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="cys-finding-lc",
+            base_url=None,
+            api_key=None,
+            credentials=creds,
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    assert creds.refresh_calls >= 1
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == f"Bearer tok-refreshed-{creds.refresh_calls}"
+
+
+@pytest.mark.anyio
+async def test_google_use_adc_takes_precedence_over_api_key() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    fake = _FakeCreds(token="tok-adc")
+    with (
+        patch(
+            "inspect_ai.model._providers.google.Client", return_value=mock_client
+        ) as client,
+        patch("google.auth.default", return_value=(fake, None)),
+    ):
+        api = GoogleGenAIAPI(
+            model_name="cys-finding-lc",
+            base_url=None,
+            api_key="explicit-key",
+            use_adc=True,
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    assert api._oauth is True
+    assert client.call_args.kwargs["api_key"] == OAUTH_PLACEHOLDER_API_KEY
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-adc"
+
+
+@pytest.mark.anyio
+async def test_google_oauth_args_not_forwarded_to_client() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="cys-finding-lc",
+            base_url=None,
+            api_key=None,
+            credentials=_FakeCreds(),
+            quota_project_id="p",
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    for key in ("credentials", "use_adc", "scopes", "quota_project_id"):
+        assert key not in client.call_args.kwargs
+        assert key not in api.model_args
+
+
+@pytest.mark.anyio
+async def test_google_oauth_initialize_refreshes() -> None:
+    creds = _FakeCreds()
+    with patch(
+        "inspect_ai.model._providers.google.Client",
+        return_value=_create_mock_google_client(AsyncMock()),
+    ):
+        api = GoogleGenAIAPI(
+            model_name="cys-finding-lc",
+            base_url=None,
+            api_key=None,
+            credentials=creds,
+        )
+    before = creds.refresh_calls
+    api.initialize()
+    assert creds.refresh_calls == before + 1
+
+
+@pytest.mark.anyio
+async def test_google_oauth_batch_raises() -> None:
+    mock_client = _create_mock_google_client(
+        AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    )
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="cys-finding-lc",
+            base_url=None,
+            api_key=None,
+            credentials=_FakeCreds(),
+        )
+        config = GenerateConfig(batch=BatchConfig(size=1))
+        with pytest.raises(NotImplementedError, match="OAuth"):
+            api._resolve_batcher(config, api._http_options(config))
+
+
+@pytest.mark.anyio
+async def test_google_oauth_count_tokens_headers() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="cys-finding-lc",
+            base_url=None,
+            api_key=None,
+            credentials=_FakeCreds(token="tok-ct"),
+            quota_project_id="proj",
+        )
+        await api.count_tokens("Hello")
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-ct"
+    assert headers["x-goog-user-project"] == "proj"
