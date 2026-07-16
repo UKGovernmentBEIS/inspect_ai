@@ -363,22 +363,17 @@ inspect eval task.py --model google/your-model \
    -M use_adc=true -M quota_project_id=your-project
 ```
 
-Alternatively, pass credentials programmatically with `get_model()`:
+ADC covers all the standard credential sources: user credentials from
+`gcloud auth application-default login` (optionally with
+`--impersonate-service-account`), a service-account key or workload identity
+federation config via `GOOGLE_APPLICATION_CREDENTIALS`, and attached service
+accounts on GCP compute.
 
-``` python
-import google.auth
-from inspect_ai.model import get_model
-
-creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-model = get_model("google/your-model", credentials=creds, quota_project_id="your-project")
-```
-
-Supported custom model args (`-M`): `use_adc` (bool), `credentials` (a
-`google.auth.credentials.Credentials` object, programmatic only), `scopes` (list,
-defaults to `cloud-platform`), and `quota_project_id` (falls back to the
-`GOOGLE_CLOUD_QUOTA_PROJECT` environment variable). Auth precedence: an explicit
-`credentials` object or `use_adc=true` selects OAuth; otherwise an explicit API
-key, then `GOOGLE_API_KEY`, is used. Inspect refreshes the token before each
+Supported custom model args (`-M`): `use_adc` (bool), `scopes` (list, defaults
+to `cloud-platform`), and `quota_project_id` (falls back to the
+`GOOGLE_CLOUD_QUOTA_PROJECT` environment variable). Auth precedence:
+`use_adc=true` selects OAuth; otherwise an explicit API key, then
+`GOOGLE_API_KEY`, is used. Inspect refreshes the token as needed before each
 request, so long-running evals are supported. Batch inference is **not** supported
 in this mode (the batch client is long-lived and cannot refresh the token).
 

@@ -129,6 +129,7 @@ from inspect_ai.util._json import json_schema_dump
 
 from .util import (
     OAUTH_PLACEHOLDER_API_KEY,
+    ensure_google_credentials_valid,
     google_oauth_headers,
     model_base_url,
     resolve_google_credentials,
@@ -258,10 +259,19 @@ class GoogleGenAIAPI(ModelAPI):
         # path also carries these attributes.
         self._oauth = False
         self._credentials: Any | None = None
+        self._credentials_refresh_lock = anyio.Lock()
         self._quota_project_id: str | None = None
 
         # handle auth (vertex or standard google api key)
         if self.is_vertex():
+            if str(model_args.pop("use_adc", False)).lower() == "true":
+                raise PrerequisiteError(
+                    "The `use_adc` model arg applies only to the Gemini Developer "
+                    "API endpoint. Vertex AI authenticates with Application Default "
+                    "Credentials natively (optionally pass `credentials` as a model "
+                    "arg to use an explicit credentials object)."
+                )
+
             # see if we are running in express mode (propagate api key if we are)
             # https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview
             vertex_api_key = os.environ.get(VERTEX_API_KEY, None)
@@ -296,19 +306,29 @@ class GoogleGenAIAPI(ModelAPI):
         # normal google endpoint (Gemini Developer API)
         else:
             # OAuth / ADC support for the dev endpoint. Opted into per-model via
-            # an explicit `credentials` object or `-M use_adc=true` (NOT a
-            # process-global toggle, so a run can mix OAuth and API-key models).
-            credentials = model_args.pop("credentials", None)
+            # `-M use_adc=true` (NOT a process-global toggle, so a run can mix
+            # OAuth and API-key models).
             use_adc = str(model_args.pop("use_adc", False)).lower() == "true"
             scopes = model_args.pop("scopes", None)
             quota_project_id = model_args.pop("quota_project_id", None)
 
-            if credentials is not None or use_adc:
-                # OAuth: resolve credentials (explicit object or ADC) and carry
-                # the bearer token + quota header ourselves (genai's dev client
-                # can't take credentials).
+            # Explicit credentials objects are deliberately unsupported:
+            # get_model() memoization serializes object-valued model args as
+            # None in its cache key, so two models with different credentials
+            # would silently share one cached instance (and principal).
+            if "credentials" in model_args:
+                raise PrerequisiteError(
+                    "Explicit `credentials` objects are not supported for the "
+                    "Gemini Developer API endpoint. Use `-M use_adc=true` with "
+                    "Application Default Credentials instead (e.g. `gcloud auth "
+                    "application-default login` or GOOGLE_APPLICATION_CREDENTIALS)."
+                )
+
+            if use_adc:
+                # OAuth: load ADC and carry the bearer token + quota header
+                # ourselves (genai's dev client can't take credentials).
                 self._oauth = True
-                self._credentials = resolve_google_credentials(credentials, scopes)
+                self._credentials = resolve_google_credentials(scopes)
                 self._quota_project_id = quota_project_id or os.environ.get(
                     GOOGLE_CLOUD_QUOTA_PROJECT
                 )
@@ -348,6 +368,8 @@ class GoogleGenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        await self._ensure_oauth_token()
+
         # http options
         http_options = self._http_options(config)
 
@@ -658,6 +680,7 @@ class GoogleGenAIAPI(ModelAPI):
         input: str | list[ChatMessage],
         config: GenerateConfig | None = None,
     ) -> int:
+        await self._ensure_oauth_token()
         client = self.model_client(self._http_options(config))
         async with client.aio:
             # normalize to messages
@@ -733,6 +756,13 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        # An OAuth bearer token can be invalidated mid-flight; retrying routes
+        # through before_retry() -> initialize(), which invalidates the local
+        # token so the next attempt mints a fresh one. API-key 401s stay
+        # non-retryable here — they are retried only when an api-key override
+        # hook can rotate the key (see Model.should_retry).
+        if self._oauth and isinstance(ex, Exception) and self.is_auth_failure(ex):
+            return RetryDecision.transient()
         # HTTP 429 is always a rate-limit signal regardless of SDK status text.
         # 503 needs a guard: Google sometimes returns 503 RESOURCE_EXHAUSTED
         # for sustained capacity pressure on Gemini (rate-limit), while plain
@@ -796,13 +826,17 @@ class GoogleGenAIAPI(ModelAPI):
     def initialize(self) -> None:
         super().initialize()
         # Reactive backstop for the 401 -> aclose() -> initialize() -> retry
-        # loop: force a token refresh so the next client construction mints a
-        # fresh bearer. Proactive per-request minting in model_client() handles
-        # ordinary expiry; this covers a token invalidated mid-flight.
+        # loop (should_retry classifies OAuth 401s as retryable): invalidate
+        # the local token — no network I/O here — so the retried request mints
+        # a fresh bearer via _ensure_oauth_token().
         if self._oauth and self._credentials is not None:
-            from google.auth.transport.requests import Request
+            self._credentials.token = None
 
-            self._credentials.refresh(Request())
+    async def _ensure_oauth_token(self) -> None:
+        if self._oauth and self._credentials is not None:
+            await ensure_google_credentials_valid(
+                self._credentials, self._credentials_refresh_lock
+            )
 
     def model_client(self, http_options: HttpOptions | None = None) -> Client:
         from inspect_ai._util._async import current_async_backend
@@ -821,9 +855,9 @@ class GoogleGenAIAPI(ModelAPI):
         if self._oauth:
             # The dev-endpoint client requires a non-empty api_key; pass a
             # placeholder and carry the OAuth bearer token in headers instead
-            # (Authorization overrides the placeholder x-goog-api-key). Building
-            # the headers here — per client construction, i.e. per generate —
-            # refreshes the token when it nears expiry, so long runs Just Work.
+            # (Authorization overrides the placeholder x-goog-api-key). Header
+            # building does no I/O — token freshness is ensured by the awaited
+            # _ensure_oauth_token() at the top of generate()/count_tokens().
             api_key = OAUTH_PLACEHOLDER_API_KEY
             http_options.headers = {
                 **(http_options.headers or {}),
