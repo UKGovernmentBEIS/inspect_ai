@@ -901,13 +901,26 @@ def test_launch_handoff_emitted_resets_with_listener() -> None:
 def test_detach_child_args_strip_flag_and_force_json_keep() -> None:
     """The child re-invocation drops --detach and forces --json --ctl-server=keep.
 
-    The forced values are appended, so they win click's last-occurrence
-    resolution over anything the user passed (e.g. --ctl-server=true).
+    The forced values come after the user's options, so they win click's
+    last-occurrence resolution over anything the user passed (e.g.
+    --ctl-server=true).
     """
     args = _child_args(["eval", "t.py", "--detach", "--ctl-server", "true"])
     assert "--detach" not in args
     assert args[-2:] == ["--json", "--ctl-server=keep"]
     assert args[:4] == ["eval", "t.py", "--ctl-server", "true"]
+
+
+def test_detach_child_args_insert_before_separator() -> None:
+    """Forced flags go before a bare `--`, where click still parses options.
+
+    Appended after the separator they would be consumed as task names;
+    everything from the separator on must be preserved verbatim (including
+    a literal `--detach` positional, which only counts as the flag before
+    the separator).
+    """
+    args = _child_args(["eval", "--detach", "--", "t.py", "--detach"])
+    assert args == ["eval", "--json", "--ctl-server=keep", "--", "t.py", "--detach"]
 
 
 def test_detach_handoff_record_skips_diagnostics() -> None:

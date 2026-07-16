@@ -201,12 +201,18 @@ def _exit_relaying_output(output_file: Path, returncode: int) -> NoReturn:
 def _child_args(args: list[str]) -> list[str]:
     """Build the detached child's command arguments from this process's own.
 
-    Strips the ``--detach`` flag tokens and appends ``--json
+    Strips the ``--detach`` flag tokens and adds ``--json
     --ctl-server=keep`` — click resolves repeated single-value options to
-    the last occurrence, so the appended keep wins over any ``--ctl-server``
+    the last occurrence, so the forced keep wins over any ``--ctl-server``
     value the user passed (a bare repeated ``--json`` flag is harmless).
+    The forced flags go before any bare ``--`` separator (click stops
+    option parsing there, so tokens after it are positional); everything
+    from the separator on is preserved verbatim.
     """
-    return [arg for arg in args if arg != "--detach"] + ["--json", "--ctl-server=keep"]
+    forced = ["--json", "--ctl-server=keep"]
+    separator = args.index("--") if "--" in args else len(args)
+    options = [arg for arg in args[:separator] if arg != "--detach"]
+    return options + forced + args[separator:]
 
 
 def _allocate_output_file() -> Path:
