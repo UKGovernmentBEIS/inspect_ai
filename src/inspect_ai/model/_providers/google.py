@@ -127,7 +127,12 @@ from inspect_ai.tool import (
 )
 from inspect_ai.util._json import json_schema_dump
 
-from .util import model_base_url
+from .util import (
+    OAUTH_PLACEHOLDER_API_KEY,
+    google_oauth_headers,
+    model_base_url,
+    resolve_google_credentials,
+)
 from .util.hooks import HttpHooks, HttpxHooks
 
 logger = getLogger(__name__)
@@ -135,6 +140,7 @@ logger = getLogger(__name__)
 
 GOOGLE_API_KEY = "GOOGLE_API_KEY"
 VERTEX_API_KEY = "VERTEX_API_KEY"
+GOOGLE_CLOUD_QUOTA_PROJECT = "GOOGLE_CLOUD_QUOTA_PROJECT"
 
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
@@ -247,6 +253,13 @@ class GoogleGenAIAPI(ModelAPI):
                 + "Currently 'vertex' is the only supported service."
             )
 
+        # OAuth / ADC state — only used on the Gemini Developer API path (set in
+        # the standard-endpoint branch below). Initialized here so the vertex
+        # path also carries these attributes.
+        self._oauth = False
+        self._credentials: Any | None = None
+        self._quota_project_id: str | None = None
+
         # handle auth (vertex or standard google api key)
         if self.is_vertex():
             # see if we are running in express mode (propagate api key if we are)
@@ -280,10 +293,27 @@ class GoogleGenAIAPI(ModelAPI):
                 self.base_url, ["GOOGLE_VERTEX_BASE_URL", "VERTEX_BASE_URL"]
             )
 
-        # normal google endpoint
+        # normal google endpoint (Gemini Developer API)
         else:
-            # read api key from env
-            if not self.api_key:
+            # OAuth / ADC support for the dev endpoint. Opted into per-model via
+            # an explicit `credentials` object or `-M use_adc=true` (NOT a
+            # process-global toggle, so a run can mix OAuth and API-key models).
+            credentials = model_args.pop("credentials", None)
+            use_adc = str(model_args.pop("use_adc", False)).lower() == "true"
+            scopes = model_args.pop("scopes", None)
+            quota_project_id = model_args.pop("quota_project_id", None)
+
+            if credentials is not None or use_adc:
+                # OAuth: resolve credentials (explicit object or ADC) and carry
+                # the bearer token + quota header ourselves (genai's dev client
+                # can't take credentials).
+                self._oauth = True
+                self._credentials = resolve_google_credentials(credentials, scopes)
+                self._quota_project_id = quota_project_id or os.environ.get(
+                    GOOGLE_CLOUD_QUOTA_PROJECT
+                )
+            elif not self.api_key:
+                # read api key from env
                 self.api_key = os.environ.get(GOOGLE_API_KEY, None)
 
             # custom base_url
@@ -762,6 +792,18 @@ class GoogleGenAIAPI(ModelAPI):
             return ex.code == 401
         return False
 
+    @override
+    def initialize(self) -> None:
+        super().initialize()
+        # Reactive backstop for the 401 -> aclose() -> initialize() -> retry
+        # loop: force a token refresh so the next client construction mints a
+        # fresh bearer. Proactive per-request minting in model_client() handles
+        # ordinary expiry; this covers a token invalidated mid-flight.
+        if self._oauth and self._credentials is not None:
+            from google.auth.transport.requests import Request
+
+            self._credentials.refresh(Request())
+
     def model_client(self, http_options: HttpOptions | None = None) -> Client:
         from inspect_ai._util._async import current_async_backend
 
@@ -775,9 +817,21 @@ class GoogleGenAIAPI(ModelAPI):
             and http_options.httpx_async_client is None
         ):
             http_options.httpx_async_client = httpx.AsyncClient()
+        api_key = self.api_key
+        if self._oauth:
+            # The dev-endpoint client requires a non-empty api_key; pass a
+            # placeholder and carry the OAuth bearer token in headers instead
+            # (Authorization overrides the placeholder x-goog-api-key). Building
+            # the headers here — per client construction, i.e. per generate —
+            # refreshes the token when it nears expiry, so long runs Just Work.
+            api_key = OAUTH_PLACEHOLDER_API_KEY
+            http_options.headers = {
+                **(http_options.headers or {}),
+                **google_oauth_headers(self._credentials, self._quota_project_id),
+            }
         return Client(
             vertexai=self.is_vertex(),
-            api_key=self.api_key,
+            api_key=api_key,
             http_options=http_options,
             **self.model_args,
         )
@@ -998,6 +1052,16 @@ class GoogleGenAIAPI(ModelAPI):
         if self.is_vertex():
             raise NotImplementedError(
                 "Cannot use batch inference with Vertex AI (GCS-based batch jobs not supported)"
+            )
+
+        # OAuth/ADC is unsupported for batch: the batcher holds a single
+        # long-lived client across submit + poll, which cannot refresh the
+        # bearer token the way per-request client creation does.
+        if self._oauth:
+            raise NotImplementedError(
+                "Cannot use batch inference with OAuth/ADC credentials for the "
+                "Gemini Developer API (the long-lived batch client cannot refresh "
+                "the bearer token). Use an API key for batch inference."
             )
 
         # create a dedicated client instance for the batcher
