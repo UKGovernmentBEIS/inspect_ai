@@ -82,12 +82,14 @@ def peer_uid(sock: socket.socket) -> int | None:
         return None
     try:
         if sys.platform == "linux":
-            # struct ucred { pid_t pid; uid_t uid; gid_t gid; } — three
-            # native 32-bit ints.
+            # struct ucred { pid_t pid; uid_t uid; gid_t gid; } — pid_t is
+            # signed but uid_t/gid_t are unsigned; unpacking uid as signed
+            # would mangle uids >= 2**31 (eg. nfsnobody 4294967294) and
+            # wrongly reject that user's own connection.
             data = sock.getsockopt(
-                socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")
+                socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("iII")
             )
-            _pid, uid, _gid = struct.unpack("3i", data)
+            _pid, uid, _gid = struct.unpack("iII", data)
             return int(uid)
         elif sys.platform == "darwin" or sys.platform.startswith("freebsd"):
             data = sock.getsockopt(_SOL_LOCAL, _LOCAL_PEERCRED, _XUCRED_SIZE)
