@@ -3,12 +3,15 @@ from pydantic import TypeAdapter
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.model._chat_message import ChatMessage
 
-from ._event import Event
+from ._event import DiscriminatedEvent, Event
 
 _chat_message_list_adapter: TypeAdapter[list[ChatMessage]] = TypeAdapter(
     list[ChatMessage]
 )
-_event_list_adapter: TypeAdapter[list[Event]] = TypeAdapter(list[Event])
+# Validate against the discriminated alias so reading logs (condense, the
+# streaming recorder and the live-view buffer all go through validate_events)
+# routes by the `event` tag instead of trying all 23 union members in turn.
+_event_list_adapter: TypeAdapter[list[Event]] = TypeAdapter(list[DiscriminatedEvent])
 
 
 def validate_chat_messages(
