@@ -188,6 +188,10 @@ class CategorizedTools(NamedTuple):
 
 
 class GoogleGenAIAPI(ModelAPI):
+    # Class-level default so should_retry() is safe on bare instances that
+    # bypass __init__ (tests probe retry classification via __new__).
+    _oauth = False
+
     def __init__(
         self,
         model_name: str,
@@ -254,9 +258,9 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
         # OAuth / ADC state — only used on the Gemini Developer API path (set in
-        # the standard-endpoint branch below). Initialized here so the vertex
-        # path also carries these attributes.
-        self._oauth = False
+        # the standard-endpoint branch below, along with the class-level _oauth
+        # default). Initialized here so the vertex path also carries these
+        # attributes.
         self._credentials: GoogleOAuthCredentials | None = None
         self._quota_project_id: str | None = None
 
