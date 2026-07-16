@@ -139,8 +139,10 @@ logger = getLogger(__name__)
 
 
 GOOGLE_API_KEY = "GOOGLE_API_KEY"
+GEMINI_API_KEY = "GEMINI_API_KEY"
 VERTEX_API_KEY = "VERTEX_API_KEY"
 GOOGLE_CLOUD_QUOTA_PROJECT = "GOOGLE_CLOUD_QUOTA_PROJECT"
+GOOGLE_USE_ADC = "GOOGLE_USE_ADC"
 
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
@@ -307,10 +309,16 @@ class GoogleGenAIAPI(ModelAPI):
 
         # normal google endpoint (Gemini Developer API)
         else:
-            # OAuth / ADC support for the dev endpoint. Opted into per-model via
-            # `-M use_adc=true` (NOT a process-global toggle, so a run can mix
-            # OAuth and API-key models).
-            use_adc = str(model_args.pop("use_adc", False)).lower() == "true"
+            # OAuth / ADC support for the dev endpoint. Opted into per-model
+            # via `-M use_adc` (so a run can mix OAuth and API-key models),
+            # with the GOOGLE_USE_ADC environment variable providing the
+            # default (so an environment can switch to OAuth without editing
+            # commands).
+            use_adc_arg = model_args.pop("use_adc", None)
+            if use_adc_arg is not None:
+                use_adc = str(use_adc_arg).lower() == "true"
+            else:
+                use_adc = os.environ.get(GOOGLE_USE_ADC, "").lower() == "true"
             scopes = model_args.pop("scopes", None)
             quota_project_id = model_args.pop("quota_project_id", None)
 
@@ -337,6 +345,15 @@ class GoogleGenAIAPI(ModelAPI):
             elif not self.api_key:
                 # read api key from env
                 self.api_key = os.environ.get(GOOGLE_API_KEY, None)
+                # fail fast, with pointers to both auth paths, when there is no
+                # auth at all (GEMINI_API_KEY is honored by the genai SDK)
+                if not self.api_key and not os.environ.get(GEMINI_API_KEY, None):
+                    raise PrerequisiteError(
+                        "No authentication for the Google provider: set the "
+                        f"{GOOGLE_API_KEY} (or {GEMINI_API_KEY}) environment "
+                        "variable, or use OAuth / Application Default Credentials "
+                        f"via `-M use_adc=true` or {GOOGLE_USE_ADC}=true."
+                    )
 
             # custom base_url
             self.base_url = model_base_url(self.base_url, "GOOGLE_BASE_URL")

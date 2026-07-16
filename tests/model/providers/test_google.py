@@ -1559,6 +1559,59 @@ async def test_google_use_adc_takes_precedence_over_api_key() -> None:
 
 
 @pytest.mark.anyio
+async def test_google_use_adc_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+    fake = _FakeCreds(token="tok-env")
+    with (
+        patch(
+            "inspect_ai.model._providers.google.Client", return_value=mock_client
+        ) as client,
+        patch("google.auth.default", return_value=(fake, None)),
+    ):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key=None,
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    assert api._oauth is True
+    headers = _client_http_options(client).headers
+    assert headers is not None
+    assert headers["Authorization"] == "Bearer tok-env"
+    assert client.call_args.kwargs["api_key"] == OAUTH_PLACEHOLDER_API_KEY
+
+
+def test_google_use_adc_arg_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="test-key",
+        use_adc=False,
+    )
+    assert api._oauth is False
+
+
+def test_google_no_auth_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_USE_ADC", raising=False)
+    with pytest.raises(PrerequisiteError, match="GOOGLE_API_KEY"):
+        GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key=None,
+        )
+
+
+@pytest.mark.anyio
 async def test_google_oauth_args_not_forwarded_to_client() -> None:
     mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
     mock_client = _create_mock_google_client(mock_generate)
