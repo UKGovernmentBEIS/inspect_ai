@@ -5,7 +5,6 @@ import os
 import sqlite3
 import threading
 import time
-from collections.abc import Sequence
 from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
@@ -17,7 +16,6 @@ from typing import (
     Iterator,
     Literal,
     TypeVar,
-    cast,
 )
 
 import psutil
@@ -38,10 +36,10 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
     _call_pool_json,
-    _compress_refs,
     _msg_pool_json,
     _msg_pool_jsonable,
     collect_pool_ref_positions,
+    remap_pool_refs,
 )
 from inspect_ai.event._pool_index import (
     CallPoolIndex,
@@ -680,9 +678,7 @@ class SampleBufferDatabase(SampleBuffer):
                     for row in self._get_events(conn, id, epoch, latest_only=True):
                         transcript_store.merge_condensed_event(
                             row.event_id,
-                            self._remap_pool_refs(
-                                row.event, message_pos_map, call_pos_map
-                            ),
+                            remap_pool_refs(row.event, message_pos_map, call_pos_map),
                             attachment_lookup,
                         )
                         seed_count += 1
@@ -691,27 +687,6 @@ class SampleBufferDatabase(SampleBuffer):
                 except Exception:
                     conn.rollback()
                     raise
-
-    @staticmethod
-    def _remap_pool_refs(
-        event: JsonData, message_pos_map: dict[int, int], call_pos_map: dict[int, int]
-    ) -> JsonData:
-        """Rewrite a condensed event's pool refs after exporting its pool entries."""
-        remapped = dict(event)
-        input_refs = remapped.get("input_refs")
-        if isinstance(input_refs, list):
-            remapped["input_refs"] = cast(
-                JsonValue, _remap_refs(input_refs, message_pos_map)
-            )
-        call = remapped.get("call")
-        if isinstance(call, dict):
-            call_refs = call.get("call_refs")
-            if isinstance(call_refs, list):
-                remapped["call"] = {
-                    **call,
-                    "call_refs": cast(JsonValue, _remap_refs(call_refs, call_pos_map)),
-                }
-        return remapped
 
     @contextmanager
     def open_sample_history_tail(
@@ -1844,21 +1819,6 @@ _T = TypeVar("_T")
 def _chunked(items: list[_T], size: int) -> Iterator[list[_T]]:
     for i in range(0, len(items), size):
         yield items[i : i + size]
-
-
-def _remap_refs(
-    refs: Sequence[object], pos_map: dict[int, int]
-) -> list[tuple[int, int]]:
-    """Translate pooled ref ranges after exporting pool entries into a new store."""
-    indices: list[int] = []
-    for ref in refs:
-        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
-            continue
-        start, end = ref
-        if not isinstance(start, int) or not isinstance(end, int):
-            continue
-        indices.extend(pos_map[index] for index in range(start, end))
-    return _compress_refs(indices)
 
 
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:

@@ -279,13 +279,15 @@ POOL_REF_FIELDS: Final[tuple[PoolRefField, ...]] = (
 )
 """Registry of every event field that carries range-encoded pool refs.
 
-Three places must agree on which event fields hold pool refs, and this
-registry is their single source of truth:
+Everything that reads or rewrites pool refs must agree on which event
+fields hold them, and this registry is their single source of truth:
 
 - the condense/resolve functions in this module, which write and read the
   typed fields;
 - :func:`collect_pool_ref_positions`, which the buffer's page-scoped reads
   use to load only the pool entries a page's events reference;
+- :func:`remap_pool_refs`, which export paths use to translate refs after
+  pool entries are assigned new positions in a destination store;
 - ``test_pool_ref_registry_covers_all_ref_fields`` (in
   ``tests/log/test_sample_history.py``), which introspects the event models
   for ``*_refs`` fields and fails when one is missing here.
@@ -335,6 +337,58 @@ def _accumulate_ref_positions(refs: object, positions: set[int]) -> None:
         start, end = ref
         if isinstance(start, int) and isinstance(end, int):
             positions.update(range(start, end))
+
+
+def remap_pool_refs(
+    event: Mapping[str, JsonValue],
+    message_pos_map: Mapping[int, int],
+    call_pos_map: Mapping[int, int],
+) -> dict[str, JsonValue]:
+    """Rewrite a condensed event's pool refs through position maps.
+
+    Used when a sample's pool entries are exported into another store and
+    assigned new positions there. Walks :data:`POOL_REF_FIELDS` so exporters
+    stay in sync with the condense/resolve functions in this module.
+    """
+    pos_maps: dict[str, Mapping[int, int]] = {
+        "message": message_pos_map,
+        "call": call_pos_map,
+    }
+    remapped: dict[str, JsonValue] = dict(event)
+    for field in POOL_REF_FIELDS:
+        remapped = _remap_refs_at_path(remapped, field.path, pos_maps[field.pool])
+    return remapped
+
+
+def _remap_refs_at_path(
+    node: dict[str, JsonValue], path: tuple[str, ...], pos_map: Mapping[int, int]
+) -> dict[str, JsonValue]:
+    """Return ``node`` with the refs at ``path`` remapped, copying dicts on the path."""
+    key, rest = path[0], path[1:]
+    child = node.get(key)
+    if rest:
+        if not isinstance(child, dict):
+            return node
+        new_child = _remap_refs_at_path(child, rest, pos_map)
+        return node if new_child is child else {**node, key: new_child}
+    if not isinstance(child, list):
+        return node
+    return {**node, key: cast(JsonValue, _remap_refs(child, pos_map))}
+
+
+def _remap_refs(
+    refs: Sequence[object], pos_map: Mapping[int, int]
+) -> list[tuple[int, int]]:
+    """Translate range-encoded refs through a position map and re-compress."""
+    indices: list[int] = []
+    for ref in refs:
+        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
+            continue
+        start, end = ref
+        if not isinstance(start, int) or not isinstance(end, int):
+            continue
+        indices.extend(pos_map[index] for index in range(start, end))
+    return _compress_refs(indices)
 
 
 def condense_model_event_calls(
