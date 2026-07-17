@@ -820,7 +820,7 @@ def test_eval_set_park_skipped_when_intent_off() -> None:
     reset_keep_alive()
     try:
         request_release()  # intent off
-        asyncio.run(asyncio.wait_for(_keep_alive_park("set-1"), timeout=5))
+        asyncio.run(asyncio.wait_for(_keep_alive_park("set-1", "/logs"), timeout=5))
     finally:
         reset_keep_alive()
 
