@@ -519,6 +519,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 task_id=logger.eval.task_id,
             )
 
+            # must run immediately before register_eval (see its docstring):
+            # catches up on ctl retunes applied while this task sat queued
+            # between its up-front logger init and starting here
+            await logger.record_inherited_config_updates()
+
             # Register this eval with the process-level state aggregate
             # so the control channel (and other readers) can answer
             # "how many samples queued / running / done?" without

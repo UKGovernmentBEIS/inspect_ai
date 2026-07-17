@@ -17,6 +17,7 @@ from inspect_ai._control.eval_state import (
     register_eval,
 )
 from inspect_ai._control.limits import task_limits
+from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai.model._generate_overrides import (
     MAX_GENERATE_CONFIG_OVERRIDE,
     generate_config_override,
@@ -1425,6 +1426,74 @@ async def test_config_update_inheritance_snapshot() -> None:
     # run-boundary reset clears the accumulator
     reset_run_registries()
     assert inherited_config_updates() == []
+
+
+class _QueuedTaskLogger(TaskLogger):
+    """Just the recording slice of TaskLogger (bypasses its heavy __init__)."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.updates: list[Any] = []
+        self.fail = fail
+        self._location = "mock://log"
+        self._process_updates_recorded = 0
+
+    async def log_config_update(self, update: Any) -> bool:
+        if self.fail:
+            raise RuntimeError("boom")
+        self.updates.append(update)
+        return True
+
+
+async def test_config_update_catch_up_for_task_queued_at_retune_time() -> None:
+    """A logger inited before a process retune catches up at task start.
+
+    A run's initial loggers are all init()ed up front while retunes fan out
+    only to registered evals, so a task queued behind --max-tasks records a
+    retune applied while it waited via the watermark catch-up that task_run
+    invokes just before register_eval.
+    """
+    from inspect_ai._control.limits import process_limits
+
+    queued = _QueuedTaskLogger()
+    # init-time snapshot: no retunes yet
+    await queued.record_inherited_config_updates()
+    assert queued.updates == []
+
+    # a retune lands while the task waits: it fans out to the running
+    # task's registered log, but `queued` is not yet a fan-out target
+    running = _RecordingLive()
+    _register_with_live("e1", "t1", running)
+    result = await process_limits(timeout=120)
+    assert result["persisted"] == {"timeout": True}
+    assert len(running.updates) == 1
+    assert queued.updates == []
+
+    # at task start (immediately before register_eval) the queued logger
+    # catches up; the copy is marked inherited with original provenance
+    await queued.record_inherited_config_updates()
+    assert len(queued.updates) == 1
+    assert queued.updates[0].scope == "process"
+    assert queued.updates[0].provenance.metadata == {"inherited": True}
+
+    # the watermark makes the catch-up idempotent
+    await queued.record_inherited_config_updates()
+    assert len(queued.updates) == 1
+
+
+async def test_config_update_catch_up_failure_degrades_to_warning() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    await process_limits(timeout=120)
+
+    failing = _QueuedTaskLogger(fail=True)
+    # recording is bookkeeping, never control: the failure must not raise
+    await failing.record_inherited_config_updates()
+    assert failing.updates == []
+
+    # the watermark advanced past the failed update — no retry loop
+    failing.fail = False
+    await failing.record_inherited_config_updates()
+    assert failing.updates == []
 
 
 async def test_config_update_default_author_falls_back_to_os_user() -> None:

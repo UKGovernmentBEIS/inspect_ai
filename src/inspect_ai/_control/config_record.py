@@ -12,10 +12,13 @@ still succeeds.
 
 Process-scoped state outlives individual attempts and eval-set children, so
 the run's accumulated process-scoped updates are also kept here (run-scoped,
-reset by ``reset_run_registries()``): a ``TaskLogger`` initializing after a
-retune snapshots them into its fresh log (original provenance/timestamps
-preserved, marked ``inherited`` via ``provenance.metadata``), so a retry
-attempt or a later eval-set child still records the overrides it runs under.
+reset by ``reset_run_registries()``): each ``TaskLogger`` records them into
+its log (original provenance/timestamps preserved, marked ``inherited`` via
+``provenance.metadata``) via a watermark it advances as it records — at
+``init()`` for retunes that predate the log (a retry attempt or a later
+eval-set child), and again at task start for retunes applied while the task
+sat queued between its up-front init and ``register_eval`` (see
+``TaskLogger.record_inherited_config_updates``).
 
 No lock: everything here runs on the eval's single event loop thread (the
 control-server handlers and ``TaskLogger.init`` alike), and each accessor is
@@ -39,20 +42,33 @@ logger = getLogger(__name__)
 _process_updates: list["ConfigUpdate"] = []
 
 
-def inherited_config_updates() -> list["ConfigUpdate"]:
-    """Copies of the run's process-scoped updates for a newly-initializing log.
+def inherited_config_updates(start: int = 0) -> list["ConfigUpdate"]:
+    """Copies of the run's process-scoped updates from ``start`` onward.
 
     Original provenance and timestamps are preserved — the records say when
-    the change really happened, which predates the new log's start — and each
-    copy is marked ``inherited: true`` in ``provenance.metadata`` so a reader
-    can tell "inherited at log start" from "applied while this log was live".
+    the change really happened, which predates the receiving log's own record
+    of it — and each copy is marked ``inherited: true`` in
+    ``provenance.metadata`` so a reader can tell "recorded after the fact"
+    from "applied while this log was a live fan-out target". ``start`` is the
+    caller's watermark (how many it has already recorded), so a catch-up
+    doesn't duplicate earlier records.
     """
     copies: list["ConfigUpdate"] = []
-    for update in _process_updates:
+    for update in _process_updates[start:]:
         copy = update.model_copy(deep=True)
         copy.provenance.metadata = {**copy.provenance.metadata, "inherited": True}
         copies.append(copy)
     return copies
+
+
+def process_config_update_count() -> int:
+    """Number of process-scoped updates accumulated so far this run.
+
+    The counterpart to :func:`inherited_config_updates`'s ``start`` — a
+    ``TaskLogger`` compares its watermark to this to see whether it has
+    updates to catch up on.
+    """
+    return len(_process_updates)
 
 
 def reset_process_config_updates() -> None:
