@@ -1,9 +1,11 @@
 ## Unreleased
 
+- Logging: Local eval (`.eval`) and JSON (`.json`) log files are now written atomically (temp file + `fsync` + rename), preventing corruption from interrupted writes such as disk-full or process crash. (#2949)
 - Checkpointing: In-sandbox restic artifacts moved from the world-listable `/opt/inspect-restic` to root-only `/root/.cache/inspect`, and egress scratch files no longer land in `/tmp`, so agents no longer see evidence of checkpointing.
 - Eval: `EvalSample` and `EvalSampleSummary` now record `turn_count` and the sample's token limit (`token_limit`, `token_limit_type`, and metered `token_limit_usage`).
 - Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
 - Control Channel: `inspect ctl sample list` now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.
+- Control Channel: `inspect ctl task cancel` and `inspect ctl sample cancel` gain an `--action` option (`score`/`error`/`cancel`) selecting how samples are resolved, so a cancelled eval can still complete (replaces `inspect ctl sample cancel --error`).
 - Control Channel: `inspect ctl sample errors` now filters errored/retried samples server-side, so triage polls of large evals no longer build and ship the full sample listing.
 - Control Channel: `inspect ctl` sample commands given an exact full task id now stop discovery at the process hosting it, skipping busy-retry delays from older sibling processes.
 - Control Channel: `inspect ctl config --key NAME LIMIT` retunes any named `concurrency()` limit mid-flight, without the registering code opting in; the config view lists the registered keys.
@@ -20,13 +22,22 @@
 - Control Channel: Added `inspect ctl task cancel` and `inspect ctl sample cancel` to cancel a running task or one running sample (idempotent, with `--dry-run`).
 - Model API: Fixed `max_retries` to permit N retries (N+1 total attempts); previously it counted total attempts, so e.g. `max_retries=1` never actually retried.
 - Scoring: `math()` now tags answer-extraction failures with `metadata={"reason": "invalid_response_format"}` and no longer records the literal answer `"None"`. (#4026)
+- Performance: Transcript events are now validated through a pydantic discriminator when reading logs (`read_eval_log`, `eval-retry`, `events_df`/`messages_df`), a single keyed lookup instead of trying all 23 `Event` union members in turn; ~6.4x faster per-event validation on large logs, with no change to the log format. (#4445)
 - Bedrock: Assistant text and reasoning are now preserved alongside tool calls in the same turn instead of being dropped. (#4457)
 - Bugfix: With checkpoints stored on S3, a resumed sample can now itself be resumed — previously a crash after resume lost the checkpoint chain and the next retry restarted the sample from scratch.
 - Bugfix: Crash recovery now reconstructs `sample.messages` from the first model role's conversation when a solver runs multiple agents concurrently, instead of returning whichever agent's model call happened to fire last. (#4414)
+- Bugfix: Errored samples that were scored (e.g. via `score_on_error`) now contribute their scores to metrics and `scored_samples`, matching what the sample log shows. (#4412)
 - Bugfix: Several raised errors (unexpected Anthropic input block, unsupported image data type, missing sample-buffer database) now interpolate the offending value into the message instead of showing the literal placeholder text.
+- Bugfix: Native compaction now truncates an oversized tool output before summarizing instead of crashing or silently summarizing an error when it would exceed the model's context window. (#3600)
 - Bugfix: React agent compaction now works after a checkpoint resume — the restored conversation is no longer treated as an always-preserved prefix, so compaction shrinks the context again.
+- Bugfix: Nested `score_reducer` and `task_source` values in serialized task args now restore as instances rather than their registered factories. (#4374)
 - Viewer: log listing responses include the log dir's canonical URI (`log_dir_uri`) so the viewer can reliably scope its local cache to the directory.
 - Inspect View: Reuse one warm async S3 client and connection pool across requests — for both log reads and directory listings — instead of creating one per operation, eliminating the per-request credential/connection cold-start (e.g. `/log-headers` ~3s -> ~0.3s, `/logs` ~1.5s -> ~0.06s).
+
+## 0.3.247 (16 July 2026)
+
+- Google: The Gemini Developer API endpoint now supports OAuth/ADC authentication (`-M use_adc=true` or `GOOGLE_USE_ADC=true`) with automatic token refresh, for deployments reachable without an API key.
+- Google: Unknown (predeployment) model names are now treated as the latest Gemini model for context window (compaction) and capability detection.
 
 ## 0.3.246 (10 July 2026)
 
