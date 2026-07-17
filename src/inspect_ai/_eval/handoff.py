@@ -27,8 +27,14 @@ from typing import Callable, NamedTuple
 class LaunchHandoff(NamedTuple):
     """Where a just-launched eval run can be reached."""
 
-    run_id: str
-    """Unique id of the run."""
+    run_id: str | None
+    """Unique id of the run.
+
+    ``None`` for the handoff emitted by an all-reused eval-set's
+    keep-alive park: every task was reused from prior logs, so no eval
+    ran — the record exists to report the parked process's control
+    surface (see :func:`launch_handoff_emitted`).
+    """
 
     pid: int
     """Process id hosting the run (the ``inspect ctl process`` selector)."""
@@ -52,15 +58,46 @@ class LaunchHandoff(NamedTuple):
 LaunchHandoffListener = Callable[[LaunchHandoff], None]
 
 _listener: LaunchHandoffListener | None = None
+_emitted = False
 
 
 def set_launch_handoff_listener(listener: LaunchHandoffListener | None) -> None:
     """Register (or, with ``None``, clear) the process-wide handoff listener."""
-    global _listener
+    global _listener, _emitted
     _listener = listener
+    _emitted = False
 
 
 def emit_launch_handoff(handoff: LaunchHandoff) -> None:
     """Notify the registered listener (no-op when none is registered)."""
+    global _emitted
     if _listener is not None:
+        _emitted = True
         _listener(handoff)
+
+
+def reset_launch_handoff_emitted() -> None:
+    """Reset the per-run emitted flag at a run boundary.
+
+    Called by ``eval_set`` at run start (alongside ``reset_keep_alive``)
+    so a listener that stays registered across successive runs in one
+    process doesn't carry a prior run's emission into this run's
+    :func:`launch_handoff_emitted` check.
+    """
+    global _emitted
+    _emitted = False
+
+
+def launch_handoff_emitted() -> bool:
+    """Whether a handoff was delivered to the currently registered listener.
+
+    Lets the eval-set keep-alive park close the one hole in the launch
+    contract: a set whose tasks are all already complete runs no eval, so
+    nothing emits a handoff — yet with keep-alive the park still binds a
+    control server the consumer should hear about (a ``--detach``
+    launcher blocks on the ``launch`` record and would otherwise wait on
+    a parked process forever). The park emits a handoff only when the
+    run itself emitted none, keeping "exactly one ``launch`` record" true
+    for every keep-alive run.
+    """
+    return _emitted
