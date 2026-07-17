@@ -36,7 +36,7 @@ jobs:
           python-version: 3.11
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
+        uses: astral-sh/setup-uv@v8.3.2
         with:
           enable-cache: true
           version: "${{ env.UV_VERSION }}"
@@ -48,7 +48,7 @@ jobs:
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           cache: pnpm
@@ -133,7 +133,7 @@ jobs:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           cache: pnpm

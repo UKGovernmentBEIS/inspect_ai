@@ -103,7 +103,7 @@ def test_eval_sample_token_limit_fields_none_without_limit():
     assert sample.token_limit_usage is None
 
 
-def test_dynamic_token_limit_updates_active_sample():
+def test_dynamic_token_limit_updates_active_sample() -> None:
     from typing import Generator
 
     from inspect_ai.log._samples import sample_active
@@ -153,7 +153,7 @@ def test_dynamic_token_limit_updates_active_sample():
     ]
 
 
-def test_eval_sample_limit_values_reflect_final_retry_attempt():
+def test_eval_sample_limit_values_reflect_final_retry_attempt() -> None:
     from typing import Generator
 
     from inspect_ai.model import get_model
@@ -215,8 +215,6 @@ def _peak_model_concurrency(max_tasks: int | None) -> int:
     A `record` solver brackets its work with enter/exit markers; the peak depth
     of overlapping enter/exit pairs is how many models ran at once.
     """
-    import anyio
-
     from inspect_ai.solver import Generate, TaskState, solver
 
     events: list[str] = []
@@ -544,3 +542,46 @@ def test_failed_log_start_is_retried(
     assert len(logs) == 1
     assert logs[0].status == "success"
     assert calls["n"] == 2
+
+
+async def test_retry_sample_source_tolerates_missing_log_file(tmp_path: Path) -> None:
+    """A retry whose prior log was never written yields no reusable samples.
+
+    When a task fails in log_start() its log file never reaches disk, but the
+    errored EvalLog still carries the destination path as its location. The
+    retry's sample source must treat the missing file as "no prior sample"
+    rather than propagating FileNotFoundError (which would error the retry).
+    """
+    from inspect_ai._eval.task.run import eval_log_sample_source
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.dataset import MemoryDataset
+    from inspect_ai.log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+    from inspect_ai.log._file import EvalLogInfo
+
+    missing_log = str(tmp_path / "never-written.eval")
+    eval_log = EvalLog(
+        status="error",
+        eval=EvalSpec(
+            created="2026-07-10T00:00:00+00:00",
+            task="log_write_failure_task",
+            dataset=EvalDataset(samples=1),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        location=missing_log,
+    )
+    log_info = EvalLogInfo(
+        name=missing_log,
+        type="file",
+        size=0,
+        mtime=None,
+        task="log_write_failure_task",
+        task_id="task-id",
+        suffix=None,
+    )
+    source = eval_log_sample_source(
+        eval_log, log_info, MemoryDataset([Sample(id=1, input="x", target="y")])
+    )
+
+    async with AsyncFilesystem():
+        assert await source.lookup(1, 1) is None
