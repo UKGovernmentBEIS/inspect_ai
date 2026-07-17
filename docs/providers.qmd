@@ -534,7 +534,7 @@ The following environment variables are supported by the Moonshot AI provider
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `MOONSHOT_API_KEY` | API key credentials (required). |
-| `MOONSHOT_BASE_URL` | Base URL for requests (optional, defaults to `https://api.moonshot.ai/v1`) |
+| `MOONSHOT_BASE_URL` | Base URL for requests (optional, defaults to `https://api.moonshot.ai/v1`). |
 
 ## Grok {#grok}
 
