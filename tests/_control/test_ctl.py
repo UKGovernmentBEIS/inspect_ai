@@ -3758,6 +3758,49 @@ def test_process_anomalies_widen_skips_missing_trace_file(
     assert "no trace file found for pid 7" in result.stderr
 
 
+def test_process_anomalies_tolerates_truncated_final_line(trace_dir: Path) -> None:
+    """A truncated final line (hard kill, or caught mid-write) is skipped.
+
+    The intact prefix holds the answer the read exists for — the verb must
+    report it rather than fail on the partial record.
+    """
+    trace_file = trace_dir / "trace-123.log"
+    write_trace_log(trace_file, _anomalous_records())
+    with open(trace_file, "a") as f:
+        f.write('{"timestamp": "2026-07-16T12:0')
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    assert result.exit_code == 0
+    (section,) = json.loads(result.stdout)["processes"]
+    assert [row["action"] for row in section["running"]] == ["Model"]
+
+
+def test_process_anomalies_widen_skips_unreadable_trace_file(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One pid's unreadable trace file doesn't abort the other sections."""
+    (trace_dir / "trace-7.log.gz").write_bytes(b"not gzip")
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert [p["pid"] for p in json.loads(result.stdout)["processes"]] == [8]
+    assert "could not read" in result.stderr
+
+
+def test_process_anomalies_explicit_pid_read_failure_errors(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An explicit pid whose file is unreadable fails loudly, not silently empty."""
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    (trace_dir / "trace-124.log.gz").write_bytes(b"not gzip")
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124", "--json"])
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["error"]["kind"] == "internal"
+
+
 def test_process_anomalies_human_gates_errors_behind_all(trace_dir: Path) -> None:
     write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
     result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123"])

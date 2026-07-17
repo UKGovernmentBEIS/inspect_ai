@@ -268,10 +268,19 @@ def list_trace_files(trace_dir: Path | None = None) -> list[TraceFile]:
 
 
 def read_trace_file(file: Path) -> list[TraceRecord]:
+    """Read the trace records from ``file`` (transparently handling ``.gz``).
+
+    Invalid lines are skipped rather than failing the read: trace files are
+    read live (a reader can catch the writer between ``write()`` syscalls,
+    seeing a partial final line) and post-mortem (a hard kill or full disk
+    truncates the final line), and in both cases the intact records hold
+    the answer the reader needs.
+    """
+
     def read_file(f: TextIO) -> list[TraceRecord]:
         jsonlines_reader = jsonlines.Reader(f)
         trace_records: list[TraceRecord] = []
-        for trace in jsonlines_reader.iter(type=dict):
+        for trace in jsonlines_reader.iter(type=dict, skip_invalid=True):
             if "action" in trace:
                 trace_records.append(ActionTraceRecord(**trace))
             else:

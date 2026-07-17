@@ -171,6 +171,27 @@ def test_trace_anomalies_filter_matches_only_exit_record(
     assert envelope["errors"][0]["start_time"] is None
 
 
+def test_trace_anomalies_tolerates_truncated_final_line(
+    anomalies_trace_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A truncated final line (hard kill, or read mid-write) is skipped.
+
+    `read_trace_file` must report the intact records rather than fail the
+    whole read on the partial one.
+    """
+    with open(anomalies_trace_file, "a") as f:
+        f.write('{"timestamp": "2026-07-16T12:0')
+    anomalies_command_impl(
+        str(anomalies_trace_file),
+        filter=None,
+        all=False,
+        json=True,
+        trace_dir=anomalies_trace_file.parent,
+    )
+    envelope = json.loads(capsys.readouterr().out)
+    assert [row["action"] for row in envelope["running"]] == ["Model"]
+
+
 def test_trace_anomalies_unknown_event_goes_to_stderr(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -2527,7 +2527,21 @@ def _run_process_anomalies(
 
     sections: list[_PidAnomalies] = []
     for target_pid, target_file, target_post_mortem_as_of in targets:
-        anomalies = trace_anomalies(filter_traces(read_trace_file(target_file), filter))
+        try:
+            records = read_trace_file(target_file)
+        except (OSError, ValueError) as ex:
+            # explicit-pid reads fail loudly (the caller asked for exactly
+            # this pid); the widened fan-out warns-and-skips like the
+            # missing-trace-file case, keeping the other sections readable
+            if pid is not None:
+                raise
+            click.echo(
+                f"note: could not read {target_file} for pid {target_pid} "
+                f"({ex}) — skipped.",
+                err=True,
+            )
+            continue
+        anomalies = trace_anomalies(filter_traces(records, filter))
         sections.append(
             _PidAnomalies(
                 pid=target_pid,
@@ -2560,7 +2574,8 @@ def _run_process_anomalies(
     if not sections:
         if servers:
             click.echo(
-                "No trace files found for the running processes (see notes above)."
+                "No readable trace files found for the running processes "
+                "(see notes above)."
             )
         else:
             click.echo(

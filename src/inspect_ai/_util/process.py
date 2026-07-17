@@ -7,6 +7,25 @@ import sys
 
 if sys.platform == "win32":
     import ctypes
+    from ctypes import wintypes
+
+    _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    _ERROR_ACCESS_DENIED = 5
+    _STILL_ACTIVE = 259
+
+    # module-level: discovery sweeps call pid_alive once per registry entry.
+    # Explicit prototypes keep HANDLE handling exact (the default c_int
+    # restype would truncate a handle to 32 bits).
+    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    _kernel32.OpenProcess.restype = wintypes.HANDLE
+    _kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    _kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+    _kernel32.GetExitCodeProcess.argtypes = (
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.DWORD),
+    )
+    _kernel32.CloseHandle.restype = wintypes.BOOL
+    _kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
 
     def _pid_alive_windows(pid: int) -> bool:
         """Signal-free liveness check via ``OpenProcess``.
@@ -17,25 +36,20 @@ if sys.platform == "win32":
         interrupting the very process being probed — and raises ``OSError``
         (misread as dead) for a live process that doesn't.
         """
-        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-        ERROR_ACCESS_DENIED = 5
-        STILL_ACTIVE = 259
-
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
         if not handle:
             # access denied means the process exists but we can't query it
             # (mirrors the POSIX PermissionError-means-alive case)
-            return ctypes.get_last_error() == ERROR_ACCESS_DENIED
+            return ctypes.get_last_error() == _ERROR_ACCESS_DENIED
         try:
             # OpenProcess also succeeds for an exited process whose handles
             # are still held open; the exit code distinguishes the two.
-            exit_code = ctypes.c_ulong()
-            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            exit_code = wintypes.DWORD()
+            if not _kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
                 return True
-            return exit_code.value == STILL_ACTIVE
+            return exit_code.value == _STILL_ACTIVE
         finally:
-            kernel32.CloseHandle(handle)
+            _kernel32.CloseHandle(handle)
 
 
 def pid_alive(pid: int) -> bool:
