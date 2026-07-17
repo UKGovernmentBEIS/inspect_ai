@@ -10,7 +10,7 @@ valid restic repo on extraction.
 Ingress is the inverse: on resume, copy a host-side repo back into the
 sandbox and restic-restore the files at their original absolute paths.
 
-Layout under the same ``/opt/inspect-restic/`` root as :mod:`.repo`:
+Layout under the same ``/root/.cache/inspect/`` root as :mod:`.repo`:
 - ``./egress-manifest.txt`` — sorted list of files already shipped
 - ``./staging/`` — per-cycle tarballs awaiting host-side extraction
 """
@@ -47,7 +47,7 @@ async def ingress_sandbox(
        the prior eval's host side just before this call).
     2. Stream the tarball into the sandbox via root ``sh`` so the agent
        never sees the bytes in flight, extracting into the standard
-       in-sandbox repo location (``/opt/inspect-restic/repo``).
+       in-sandbox repo location (``/root/.cache/inspect/repo``).
     3. Run ``restic restore latest --target /`` inside the sandbox so
        restored files land at their original absolute paths, replacing
        whatever the fresh sandbox came up with.
@@ -158,6 +158,10 @@ async def _build_egress_tar(env: SandboxEnvironment, tag: str) -> list[str]:
 
     Returns the list of newly-staged file paths (relative to the repo
     root). Empty list ⇒ nothing new this cycle, no tar produced.
+
+    The scratch listings live in the root-only staging dir rather than
+    ``/tmp``, where they would be world-readable and advertise the
+    repo's existence to the agent.
     """
     # `comm -23` requires both inputs sorted; `find` output is sorted via
     # `LC_ALL=C sort`. `tar -T -` reads the file list from stdin in the
@@ -180,11 +184,11 @@ rm -f {_EGRESS_STAGING}/egress-*.tar
   find data -type f 2>/dev/null
   find index -type f 2>/dev/null
   find snapshots -type f 2>/dev/null
-}} | LC_ALL=C sort > /tmp/egress-current.txt
-LC_ALL=C comm -23 /tmp/egress-current.txt {_EGRESS_MANIFEST} > /tmp/egress-new.txt
-if [ ! -s /tmp/egress-new.txt ]; then exit 0; fi
-tar -cf {_EGRESS_STAGING}/egress-{tag}.tar -T /tmp/egress-new.txt
-cat /tmp/egress-new.txt
+}} | LC_ALL=C sort > {_EGRESS_STAGING}/current.txt
+LC_ALL=C comm -23 {_EGRESS_STAGING}/current.txt {_EGRESS_MANIFEST} > {_EGRESS_STAGING}/new.txt
+if [ ! -s {_EGRESS_STAGING}/new.txt ]; then exit 0; fi
+tar -cf {_EGRESS_STAGING}/egress-{tag}.tar -T {_EGRESS_STAGING}/new.txt
+cat {_EGRESS_STAGING}/new.txt
 """
     result = await env.exec(["sh", "-c", script], user="root")
     if not result.success:
