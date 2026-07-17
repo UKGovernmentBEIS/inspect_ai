@@ -17,7 +17,7 @@ eval-set --json``, which print the record as a JSON line on stdout. The
 listener is a process-wide module-level slot (not a parameter threaded
 through ``eval()``) because the handoff is a launch concern of the CLI
 process, not part of the public ``eval()`` surface. See
-``design/control-channel.md`` → "Agent output contract" → "The launch
+``design/ctl/control-channel.md`` → "Agent output contract" → "The launch
 handoff is load-bearing".
 """
 

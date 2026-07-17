@@ -363,7 +363,7 @@ def eval_set(
     # via tenacity, each with its own short-lived control server —
     # the keep-alive park would need to live OUTSIDE any single
     # eval() call, which is exactly the multi-loop bridging problem
-    # we deliberately avoid (see design/control-channel.md "Server
+    # we deliberately avoid (see design/ctl/control-channel.md "Server
     # lifecycle aligned with eval()"). Refuse the combination
     # explicitly rather than silently giving a broken keep-alive
     # experience.

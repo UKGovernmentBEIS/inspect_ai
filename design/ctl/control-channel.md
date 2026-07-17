@@ -4,7 +4,7 @@ Part of a broader effort to make Inspect a first-class platform for **LLM-agent-
 
 Within that scope, this doc covers the **control plane for live evals and eval-sets**: external processes (LLM agents, scripted watchdogs, TUIs, CLI commands) connecting to a running Inspect process to **observe** its state and **direct** it (cancel, modify config, drain, requeue, ...).
 
-This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though some plumbing overlaps. ACP is for per-sample agent conversation (sessions, prompts, cancels, updates). The control channel is for eval and eval-set management — a different shape that doesn't fit ACP's conversational vocabulary. The two coexist: the ACP server handles `session/prompt` and the existing per-sample `inspect/*` extensions (`inspect/cancel_sample`, `inspect/cancel_tool_call`, etc.); the control channel handles eval-level operations.
+This is **separate from** the [`agent-acp`](../acp/agent-acp.md) work, even though some plumbing overlaps. ACP is for per-sample agent conversation (sessions, prompts, cancels, updates). The control channel is for eval and eval-set management — a different shape that doesn't fit ACP's conversational vocabulary. The two coexist: the ACP server handles `session/prompt` and the existing per-sample `inspect/*` extensions (`inspect/cancel_sample`, `inspect/cancel_tool_call`, etc.); the control channel handles eval-level operations.
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
@@ -248,7 +248,7 @@ The TUI observes eval / eval-set state, sample queue, in-flight samples, model u
 
 ## What exists today
 
-Concentrated in `src/inspect_ai/agent/_acp/` and detailed in [`agent-acp.md`](acp/agent-acp.md):
+Concentrated in `src/inspect_ai/agent/_acp/` and detailed in [`agent-acp.md`](../acp/agent-acp.md):
 
 | Piece | What it does |
 |---|---|

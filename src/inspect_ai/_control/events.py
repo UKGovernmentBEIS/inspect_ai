@@ -20,7 +20,7 @@ stale and restarting. A retry runs on a fresh transcript, so its nonce differs
 in-process ``retry_on_error``); a cursor carried across one no longer matches
 and correctly restarts from the beginning instead of serving a stale position.
 
-See ``design/control-channel.md`` (phase 2) for the full rationale.
+See ``design/ctl/control-channel.md`` (phase 2) for the full rationale.
 """
 
 from __future__ import annotations
