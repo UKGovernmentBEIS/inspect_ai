@@ -55,6 +55,25 @@ async def test_read_local_zip_member(test_zip_file: Path) -> None:
         assert parsed["message"] == "hello world"
 
 
+async def test_read_zip_with_maximum_comment(tmp_path: Path) -> None:
+    """Test reading a ZIP file with the maximum-length archive comment."""
+    zip_path = tmp_path / "max_comment.zip"
+    content = b"payload"
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("member.txt", content)
+        zf.comment = b"x" * 65535
+
+    with zipfile.ZipFile(zip_path) as zf:
+        assert zf.read("member.txt") == content
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        entries = await reader.entries()
+        assert [entry.filename for entry in entries.entries] == ["member.txt"]
+        assert await reader.read_member_fully("member.txt") == content
+
+
 async def test_read_nested_member(test_zip_file: Path) -> None:
     """Test reading a nested member from a local ZIP file."""
     zip_path = str(test_zip_file)
