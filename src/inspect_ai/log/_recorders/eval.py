@@ -134,9 +134,10 @@ class EvalRecorder(FileRecorder):
                 reader = AsyncZipReader(fs, location)
                 log_start = await _read_start_async(reader)
                 summaries, summary_counter = await _read_all_summaries_async(reader)
-                config_updates, config_update_counter = (
-                    await _read_config_updates_async(reader)
-                )
+                (
+                    config_updates,
+                    config_update_counter,
+                ) = await _read_config_updates_async(reader)
         else:
             log_start = None
             summary_counter = 0
