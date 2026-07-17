@@ -63,6 +63,30 @@ class TestGetModelInfo:
         assert info.context_length is not None
         assert info.organization == "OpenAI"
 
+    def test_known_kimi_model(self):
+        """Test lookup of a known Moonshot AI Kimi model."""
+        info = get_model_info("moonshotai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+        assert info.output_tokens == 1048576
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "max"
+
+    def test_kimi_via_moonshot_provider(self):
+        """Test lookup via the moonshot provider prefix."""
+        info = get_model_info("moonshot/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+
+    def test_kimi_org_detection_on_hosting_provider(self):
+        """Test kimi-* org detection for hosting providers (e.g. azureai)."""
+        info = get_model_info("azureai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+
     def test_unknown_model_returns_none(self):
         """Test that unknown models return None."""
         info = get_model_info("unknown-provider/unknown-model-xyz")
