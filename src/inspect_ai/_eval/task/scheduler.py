@@ -183,7 +183,7 @@ class SampleRequeue:
         sample_error: "SampleErrorHandler",
         sample_indexes: dict[str, int],
         checkpoints_dir: str | None,
-        on_accept: Callable[[], None],
+        on_accept: Callable[[str | int, int], None],
     ) -> None:
         self._eval_id = eval_id
         self._scheduler = scheduler
@@ -244,9 +244,11 @@ class SampleRequeue:
         requires the previous re-run to have reached a terminal outcome
         *and been re-read* first. Reconciliation: the prior terminal bucket is decremented
         (usage is kept — the prior spend was real; the re-run bumps a bucket
-        again at its own terminal outcome) and an errored prior's
+        again at its own terminal outcome), an errored prior's
         ``SampleErrorHandler.error_count`` is un-counted so end-of-task
-        ``fail_on_error`` reflects final outcomes.
+        ``fail_on_error`` reflects final outcomes, and ``on_accept`` receives
+        the prior's ``(id, epoch)`` so the runner can retract its superseded
+        progress and score.
         """
         from inspect_ai._control.eval_state import record_sample_requeued
 
@@ -275,5 +277,5 @@ class SampleRequeue:
         record_sample_requeued(self._eval_id, prior_status)
         if prior_status == "error":
             self._sample_error.error_count -= 1
-        self._on_accept()
+        self._on_accept(prior.id, prior.epoch)
         return "accepted"

@@ -337,15 +337,21 @@ async def current_sample_summaries(
 
     # Running first (the freshest source for in-flight samples), then the
     # completed records (which supersede any now-finished running entry).
+    for summary in _sample_summaries_from_active(eval_id):
+        _merge(summary)
+    completed = await _completed_sample_summaries(eval_id)
     # A terminal record whose (id, epoch) has a requeue pending is
     # superseded-in-waiting: the re-run is scheduled but may have no
     # ActiveSample yet (parked behind the sample semaphore) — render it
     # `queued` so it surfaces in the head sort tiers instead of hiding as
     # a terminal row, and never let it supersede the re-run's live row.
+    # Snapshot the pending keys *after* the summaries await (matching
+    # sample_error_detail): a re-run going terminal during that await clears
+    # its key on the same loop and its fresh record is in `completed` — a
+    # pre-await snapshot would render that finished sample as a phantom
+    # `queued` row for one response.
     requeue_pending = _pending_requeue_keys(eval_id)
-    for summary in _sample_summaries_from_active(eval_id):
-        _merge(summary)
-    for summary in await _completed_sample_summaries(eval_id):
+    for summary in completed:
         key = (summary["sample_id"], summary["epoch"])
         if (str(summary["sample_id"]), summary["epoch"]) in requeue_pending:
             if key not in by_key:

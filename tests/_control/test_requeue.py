@@ -630,14 +630,14 @@ async def test_sample_requeue_accept_reconciles_counters() -> None:
     handler.error_count = 1
 
     scheduler = SampleScheduler()
-    progress_regressions: list[int] = []
+    accepted_keys: list[tuple[str | int, int]] = []
     handle = SampleRequeue(
         eval_id="e1",
         scheduler=scheduler,
         sample_error=handler,
         sample_indexes={"s1": 0, "s2": 1},
         checkpoints_dir=None,
-        on_accept=lambda: progress_regressions.append(1),
+        on_accept=lambda sample_id, epoch: accepted_keys.append((sample_id, epoch)),
     )
     prior = _errored_sample()
 
@@ -675,7 +675,9 @@ async def test_sample_requeue_accept_reconciles_counters() -> None:
         state = get_eval_state("e1")
         assert state is not None and state.errored == 0
         assert handler.error_count == 0
-        assert progress_regressions == [1]
+        # on_accept fired once, with the prior's key (the runner uses it to
+        # retract the superseded progress tick and score)
+        assert accepted_keys == [("s1", 1)]
 
         # the pending key clears when the re-run reaches a terminal outcome
         with anyio.fail_after(30):
@@ -707,7 +709,7 @@ async def test_sample_requeue_accept_stale_prior_refused() -> None:
         sample_error=handler,
         sample_indexes={"s1": 0, "s2": 1},
         checkpoints_dir=None,
-        on_accept=lambda: None,
+        on_accept=lambda sample_id, epoch: None,
     )
     prior = EvalSample(
         id="s1", epoch=1, input="q", target="a", error=_error(), uuid="prior-attempt"
@@ -768,7 +770,7 @@ async def test_sample_requeue_accept_unknown_sample() -> None:
         sample_error=SampleErrorHandler(False, 1),
         sample_indexes={"s1": 0},
         checkpoints_dir=None,
-        on_accept=lambda: None,
+        on_accept=lambda sample_id, epoch: None,
     )
     assert handle.accept(_errored_sample("not-planned"), "error") == "unknown"
 
@@ -782,7 +784,7 @@ async def test_sample_requeue_accept_closed_scheduler() -> None:
         sample_error=SampleErrorHandler(False, 1),
         sample_indexes={"s1": 0},
         checkpoints_dir=None,
-        on_accept=lambda: None,
+        on_accept=lambda sample_id, epoch: None,
     )
     assert handle.accept(_errored_sample(), "error") == "closed"
     # nothing was reconciled and no pending key leaked
@@ -835,6 +837,48 @@ async def test_listing_renders_pending_requeue_as_queued(
     assert row["error"] is None and row["completed_at"] is None
     assert row["retries"] == 2
     assert listing.counts["queued"] == 1 and listing.counts["error"] == 0
+
+
+async def test_listing_pending_snapshot_taken_after_summaries_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A re-run going terminal during the summaries read renders terminal.
+
+    The pending key clears on the same loop as the read, and the fresh
+    terminal record is in the returned summaries — a pre-await snapshot
+    would render that finished sample as a phantom `queued` row for one
+    response.
+    """
+    _patch_active_samples(monkeypatch, [])
+    handle = _FakeRequeueHandle(pending={("s1", 1)})
+
+    async def _summaries() -> list[EvalSampleSummary]:
+        # the re-run reaches its terminal outcome mid-read: its pending key
+        # clears and its fresh record is what this read returns
+        handle._pending.clear()
+        return [
+            EvalSampleSummary(
+                id="s1",
+                epoch=1,
+                input="q",
+                target="a",
+                completed=True,
+            )
+        ]
+
+    register_eval(
+        "e1",
+        2,
+        task_id="t1",
+        live=FakeLiveEvalData(summaries=_summaries),
+        sample_ids=["s1", "s2"],
+    )
+    set_sample_requeue("e1", cast(SampleRequeue, handle))
+
+    listing = await current_sample_listing("e1")
+    row = next(r for r in listing.samples if r["sample_id"] == "s1" and r["epoch"] == 1)
+    assert row["status"] == "completed"
+    assert listing.counts["queued"] == 0 and listing.counts["completed"] == 1
 
 
 async def test_sample_show_renders_pending_requeue_as_queued(

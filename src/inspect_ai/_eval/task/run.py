@@ -816,6 +816,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # one-shot tg_collect, so the control channel's requeue
                 # directive can re-add an errored/cancelled sample to the
                 # live run (design/sample-requeue.md)
+                def on_requeue_accept(sample_id: int | str, epoch: int) -> None:
+                    # un-tick the prior terminal outcome's progress and drop
+                    # its superseded score from the live results so the bar
+                    # and metrics reflect the re-opened work (a re-run that
+                    # scores re-adds it via sample_complete; a re-run that
+                    # ends unscored — e.g. a task cancel — must not leave the
+                    # stale score in the metrics display or the cancellation
+                    # path's partial eval_results)
+                    progress(-SAMPLE_TOTAL_PROGRESS_UNITS)
+                    progress_results.pop((sample_id, epoch), None)
+
                 sample_scheduler = SampleScheduler()
                 set_sample_requeue(
                     logger.eval.eval_id,
@@ -825,9 +836,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sample_error=sample_error_handler,
                         sample_indexes=sample_indexes,
                         checkpoints_dir=requeue_checkpoints_dir,
-                        # un-tick the prior terminal outcome's progress so
-                        # the bar reflects the re-opened work
-                        on_accept=lambda: progress(-SAMPLE_TOTAL_PROGRESS_UNITS),
+                        on_accept=on_requeue_accept,
                     ),
                 )
                 keyed_results = await sample_scheduler.run(
