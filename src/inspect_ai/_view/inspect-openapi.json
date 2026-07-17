@@ -1486,6 +1486,73 @@
         "title": "CompactionEvent",
         "type": "object"
       },
+      "ConfigUpdate": {
+        "description": "A group of config changes applied together, sharing provenance.",
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigValueChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ProvenanceData"
+          },
+          "scope": {
+            "enum": [
+              "task",
+              "process"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "changes",
+          "scope",
+          "provenance"
+        ],
+        "title": "ConfigUpdate",
+        "type": "object"
+      },
+      "ConfigValueChange": {
+        "description": "One knob's value change within a config update.",
+        "properties": {
+          "cleared": {
+            "default": false,
+            "title": "Cleared",
+            "type": "boolean"
+          },
+          "config": {
+            "enum": [
+              "eval",
+              "generate"
+            ],
+            "title": "Config",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonValue"
+          }
+        },
+        "required": [
+          "config",
+          "name",
+          "value",
+          "cleared",
+          "previous"
+        ],
+        "title": "ConfigValueChange",
+        "type": "object"
+      },
       "ConnectionLimitChange": {
         "description": "Record of an adaptive-connections controller scale change.",
         "properties": {
@@ -2829,6 +2896,20 @@
       "EvalLog": {
         "description": "Evaluation log.",
         "properties": {
+          "config_updates": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ConfigUpdate"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Updates"
+          },
           "error": {
             "anyOf": [
               {
