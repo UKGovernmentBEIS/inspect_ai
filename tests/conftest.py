@@ -94,6 +94,33 @@ def fast_retry_waits(request):
         yield
 
 
+@pytest.fixture
+def no_model_copyreg_reducer():
+    """Suspend any copyreg reducer registered for Model for the test's duration.
+
+    Importing inspect_scout registers ``copyreg.pickle(Model, ...)`` (so Models
+    can cross multiprocessing boundaries), but ``copyreg.dispatch_table`` is
+    also consulted by ``copy.copy()``, which then reconstructs through memoized
+    ``get_model()`` and returns a shared instance instead of a copy. Tests that
+    assert ``copy()``-produces-a-distinct-``Model`` semantics (role stamping)
+    fail whenever an earlier test in the same worker imported inspect_scout.
+    Remove the entry for the test and restore it after, since inspect_scout's
+    own pickling still needs it. Workaround until
+    https://github.com/meridianlabs-ai/inspect_scout/issues/537 scopes the
+    reducer to pickling.
+    """
+    import copyreg
+
+    from inspect_ai.model._model import Model
+
+    saved = copyreg.dispatch_table.pop(Model, None)
+    try:
+        yield
+    finally:
+        if saved is not None:
+            copyreg.dispatch_table[Model] = saved
+
+
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
