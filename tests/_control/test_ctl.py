@@ -2140,9 +2140,13 @@ def test_knob_since_table_is_consistent() -> None:
     assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
     assert max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION
     # the provenance params' gate must not outrun the constant either
-    from inspect_ai._cli.ctl import _PROVENANCE_SINCE
+    from inspect_ai._cli.ctl import _PROVENANCE_SINCE, _RECORDLESS_KNOBS
 
     assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
+    # a recordless-knob spelling that drifts from _KNOB_SCOPE (e.g. on a
+    # rename) would silently count as recorded again in `_run_config`,
+    # reopening the silent provenance drop the recorded-knob gate closes
+    assert _RECORDLESS_KNOBS <= _KNOB_SCOPE.keys()
 
 
 def test_config_provenance_sent_with_mutations_on_current_server(
