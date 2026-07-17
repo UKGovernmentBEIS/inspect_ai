@@ -662,12 +662,15 @@ class TestBatcher:
 
         async def test_logic():
             # Create a batcher that will fail initially then succeed
+            # Use a high failure ceiling so a slow test runner can't push the
+            # batch into permanent failure before the failure condition is
+            # cleared below.
             batcher = FakeBatcher(
                 config=BatchConfig(
                     size=1,
                     send_delay=0.01,
                     tick=0.001,
-                    max_consecutive_check_failures=5,
+                    max_consecutive_check_failures=10_000,
                 ),
                 fail_batch_ids={"batch-0"},
             )
@@ -682,12 +685,14 @@ class TestBatcher:
 
                 tg.start_soon(run_request)
 
-                # Let it fail a few times
-                await anyio.sleep(0.01)
-
-                # Get the batch and verify it has some failures
-                batch = next(iter(batcher._inflight_batches.values()))
-                assert batch.consecutive_check_failure_count > 0
+                # Wait until the batch has recorded at least one check failure
+                # (a fixed sleep races with the batch worker on slow runners)
+                with anyio.fail_after(10):
+                    while not any(
+                        batch.consecutive_check_failure_count > 0
+                        for batch in batcher._inflight_batches.values()
+                    ):
+                        await anyio.sleep(0.001)
 
                 # Remove the failure condition to allow success
                 batcher._fail_batch_ids.clear()
