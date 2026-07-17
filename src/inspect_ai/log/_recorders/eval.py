@@ -477,7 +477,12 @@ def _rewrite_eval_zip_with_new_header(zip_bytes: bytes, log: EvalLog) -> bytes:
         ZipFile(BytesIO(zip_bytes), "r") as src,
         ZipFile(out, "w", **zipfile_compress_kwargs) as dst,
     ):
-        for info in src.infolist():
+        # Dedupe by member name, last entry winning — a requeued sample's
+        # fresh record supersedes the prior one as a duplicate zip member
+        # (see _zip_writestr), and read-by-name resolves to the last entry;
+        # copying every info would write those superseded bytes twice.
+        infos = {info.filename: info for info in src.infolist()}
+        for info in infos.values():
             if info.filename == HEADER_JSON:
                 continue
             # writestr with a ZipInfo preserves the original compression

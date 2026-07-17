@@ -28,7 +28,11 @@ from inspect_ai._control.eval_state import (
     set_sample_requeue,
 )
 from inspect_ai._control.requeue import requeue_sample
-from inspect_ai._control.state import _full_sample, current_sample_listing
+from inspect_ai._control.state import (
+    _full_sample,
+    current_sample_listing,
+    sample_error_detail,
+)
 from inspect_ai._display.core.display import TaskCancel
 from inspect_ai._eval.task.error import SampleErrorHandler
 from inspect_ai._eval.task.scheduler import (
@@ -38,7 +42,7 @@ from inspect_ai._eval.task.scheduler import (
 )
 from inspect_ai._util.error import EvalError
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog
+from inspect_ai.log import EvalLog, read_eval_log_async
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.scorer import CORRECT, Score, Target, accuracy, scorer
 from inspect_ai.solver import Generate, TaskState, solver
@@ -287,6 +291,24 @@ async def test_requeue_pending_requeue_is_noop(
     assert handle.accepts == []
 
 
+async def test_requeue_running_rerun_reports_running(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A repeat requeue while the re-run is live reports its true status.
+
+    The pending key stays set until the re-run goes terminal, so the
+    active-sample row must win over it — otherwise a running re-run would
+    read `queued`.
+    """
+    _patch_active_samples(monkeypatch, [_FakeActiveSample()])
+    handle = _register_requeueable(handle=_FakeRequeueHandle(pending={("s1", 1)}))
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["changed"] is False and result["status"] == "running"
+    assert handle.accepts == []
+
+
 async def test_requeue_finished_task_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -381,6 +403,35 @@ async def test_requeue_accept_race_lands_on_pending_set(
     result = await requeue_sample("e1", "s1", 1)
     assert result is not None
     assert result["changed"] is False and "already pending" in result["reason"]
+
+
+async def test_requeue_finished_during_resolver_reads_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The task-level gates are re-checked synchronously before accept.
+
+    The resolver awaits between its first task-level pass and the accept;
+    if the last sibling's terminal recording stamps ``completed_at`` during
+    those awaits, the requeue must reject rather than start a re-run inside
+    an eval that already reads finished.
+    """
+    import inspect_ai._control.state as control_state
+
+    _patch_active_samples(monkeypatch, [])
+    handle = _register_requeueable(total=1, prior=_errored_sample())
+
+    orig_full_sample = control_state._full_sample
+
+    async def finish_then_read(*args: Any, **kwargs: Any) -> Any:
+        record_sample_errored("e1")  # terminal == total → completed_at stamped
+        return await orig_full_sample(*args, **kwargs)
+
+    monkeypatch.setattr(control_state, "_full_sample", finish_then_read)
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is False and "eval-retry" in result["error"]
+    assert handle.accepts == []
 
 
 async def test_requeue_detached_on_retry(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -490,6 +541,41 @@ async def test_scheduler_rerun_replaces_result_and_closes() -> None:
 
     assert results == {(0, 1): "fresh", (1, 1): "waited"}
     assert rerun_priors == [prior]
+    assert not scheduler.open
+
+
+async def test_scheduler_teardown_drains_undispatched_reruns() -> None:
+    """A teardown with an undispatched re-run still fires its terminal callback.
+
+    Otherwise the pending-requeue key would outlive the task, rendering the
+    sample `queued` on a finished eval.
+    """
+    scheduler = SampleScheduler()
+    terminal: list[bool] = []
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior: EvalSample | None
+    ) -> str:
+        if prior is not None:
+            return "fresh"
+        # accept a re-run, then fail the task: the group tears down before
+        # the dispatcher (parked at its wake, cancelled with it) can start
+        # the re-run
+        accepted = scheduler.requeue(
+            _ScheduledRerun(
+                sample_index=0,
+                epoch=1,
+                prior=_errored_sample(),
+                on_terminal=lambda: terminal.append(True),
+            )
+        )
+        assert accepted is True
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await scheduler.run([(0, 1)], run_sample)
+
+    assert terminal == [True]
     assert not scheduler.open
 
 
@@ -625,11 +711,66 @@ async def test_listing_renders_pending_requeue_as_queued(
     rows = {(r["sample_id"], r["epoch"]): r for r in listing.samples}
     row = rows[("s1", 1)]
     # the terminal record is superseded-in-waiting: it renders as the
-    # scheduled re-run (queued, no error), keeping its retry history
+    # scheduled re-run (queued, no error), with `retries` counting what the
+    # re-run will seed (the prior retry plus the genuine terminal error)
     assert row["status"] == "queued"
     assert row["error"] is None and row["completed_at"] is None
-    assert row["retries"] == 1
+    assert row["retries"] == 2
     assert listing.counts["queued"] == 1 and listing.counts["error"] == 0
+
+
+async def test_sample_show_renders_pending_requeue_as_queued(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`sample show` mirrors the listing during the pending window.
+
+    The re-opened outcome reads `queued` with no current error, and the
+    prior terminal error is echoed as the retry history the re-run will
+    seed — so a wrongly-targeted requeue stays visible.
+    """
+    _patch_active_samples(monkeypatch, [])
+    prior = _errored_sample()
+
+    async def _summaries() -> list[EvalSampleSummary]:
+        return [
+            EvalSampleSummary(
+                id="s1",
+                epoch=1,
+                input="q",
+                target="a",
+                error="RuntimeError('boom')",
+                retries=0,
+                completed=True,
+            )
+        ]
+
+    async def _read(
+        id: str | int, epoch: int, *, exclude_fields: set[str] | None = None
+    ) -> EvalSample | None:
+        return prior if str(id) == "s1" and epoch == 1 else None
+
+    register_eval(
+        "e1",
+        2,
+        task_id="t1",
+        live=FakeLiveEvalData(summaries=_summaries, sample=_read),
+        sample_ids=["s1", "s2"],
+    )
+    set_sample_requeue(
+        "e1", cast(SampleRequeue, _FakeRequeueHandle(pending={("s1", 1)}))
+    )
+
+    detail = await sample_error_detail("e1", "s1", 1)
+    assert detail is not None
+    assert detail["status"] == "queued"
+    assert detail["error"] is None and detail["completed_at"] is None
+    assert detail["retries"] == 1
+    assert [e["message"] for e in detail["error_retries"]] == ["boom"]
+
+    # coherent with the listing's row for the same key
+    listing = await current_sample_listing("e1")
+    row = next(r for r in listing.samples if r["sample_id"] == "s1" and r["epoch"] == 1)
+    assert row["status"] == "queued" and row["retries"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -825,6 +966,9 @@ async def test_requeue_end_to_end() -> None:
 
     (log,) = logs
     assert log.status == "success"
+    # read the samples back through the async reader: the returned log's
+    # lazy sample list loads via the sync reader, which trio refuses
+    log = await read_eval_log_async(log.location)
     assert log.samples is not None
     flaky = next(s for s in log.samples if s.id == "flaky")
     # the fresh outcome superseded the (id, epoch) record: no error, the

@@ -481,15 +481,20 @@ def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
 def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
     """A requeue-pending terminal record, rendered as the scheduled re-run.
 
-    Keeps the row's identity and its `retries` count (the prior attempts
-    ride into the re-run's history) but clears the terminal fields: the
-    prior outcome has been re-opened, and the fresh run hasn't started.
-    ``last_activity_at`` keeps the prior completion time so an
-    ``active_since`` delta still surfaces the row.
+    Keeps the row's identity but clears the terminal fields: the prior
+    outcome has been re-opened, and the fresh run hasn't started.
+    ``retries`` counts what the re-run will seed — the prior retries plus
+    the terminal error when genuine (a ``status == "error"`` row; a
+    cancellation isn't seeded) — so the count doesn't dip when the re-run's
+    ``ActiveSample`` takes over the row. ``last_activity_at`` keeps the
+    prior completion time so an ``active_since`` delta still surfaces the
+    row.
     """
     return {
         **summary,
         "status": "queued",
+        "retries": (summary["retries"] or 0)
+        + (1 if summary["status"] == "error" else 0),
         "started_at": None,
         "completed_at": None,
         "total_time": None,
@@ -702,6 +707,29 @@ async def sample_error_detail(
         ),
         None,
     )
+
+    # A pending requeue re-opens the terminal outcome: mirror the listing's
+    # rendering (the scheduled re-run — `queued`, terminal fields cleared)
+    # and echo the requeue in the error history the way the re-run will seed
+    # it: prior retries plus the terminal error when genuine (a cancellation
+    # isn't seeded — see `_seed_error_retries`). Same rule as the listing,
+    # so the two views can't drift during the pending window.
+    if (str(sample.id), sample.epoch) in _pending_requeue_keys(eval_id):
+        seeded = list(sample.error_retries or [])
+        if sample.error is not None and not is_cancellation_message(
+            sample.error.message
+        ):
+            seeded.append(sample.error)
+        return {
+            **(_requeued_summary(row) if row is not None else {}),
+            "sample_id": sample.id,
+            "epoch": sample.epoch,
+            "status": "queued",
+            "retries": len(seeded),
+            "error": None,
+            "error_retries": [_error_dict(e) for e in seeded],
+            "scores": {},
+        }
 
     # status/error apply the listing's classification
     # (_summary_from_eval_sample_summary reads the same error message), so the

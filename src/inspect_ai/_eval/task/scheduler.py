@@ -148,6 +148,12 @@ class SampleScheduler:
             raise ex.exceptions[0] from None
         finally:
             self._running = False
+            # A teardown (fail_on_error threshold, task cancel) can leave
+            # accepted re-runs the dispatcher never started; fire their
+            # terminal callbacks so pending-requeue keys don't outlive the
+            # task (a leaked key renders the sample `queued` forever).
+            while self._pending:
+                self._pending.pop().on_terminal()
         return results
 
 

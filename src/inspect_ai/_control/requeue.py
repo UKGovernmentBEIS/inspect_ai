@@ -35,8 +35,9 @@ async def requeue_sample(
     cancelled sample with a task retry pending therefore gets the
     between-attempts rejection, not the terminal-cancelled accept.
 
-    Idempotence: a repeat requeue lands in the pending-requeue set or the
-    already-queued/running rows (``changed: False``). The set is checked
+    Idempotence: a repeat requeue lands in the already-queued/running rows
+    or the pending-requeue set — in that order, so once the re-run is live
+    the response reports its true status (``changed: False``). The set is checked
     again, synchronously, inside the handle's ``accept`` — the check here is
     a fast path, but two directives racing past this resolver's async reads
     still can't double-queue. After the re-run reaches a terminal outcome
@@ -56,25 +57,9 @@ async def requeue_sample(
     if state is None:
         return None
 
-    if state.completed_at is not None:
-        if state.retry_pending:
-            return _reject(
-                "task is between attempts — the last attempt errored and a "
-                "retry is queued, which will re-run its failed samples when "
-                "it starts"
-            )
-        return _reject(
-            "task already finished — re-run failures with `inspect "
-            "eval-retry` (or re-invoke `inspect eval-set`)"
-        )
-    pending_cancel = (
-        state.task_cancel.cancel_type if state.task_cancel is not None else None
-    )
-    if pending_cancel is not None:
-        return _reject(
-            f"a task cancel is in flight ({pending_cancel}) — the re-run "
-            "would be abandoned as it left the queue"
-        )
+    rejected = _task_level_reject(state)
+    if rejected is not None:
+        return rejected
     handle = state.sample_requeue
     if handle is None or not handle.open:
         return _reject(
@@ -90,16 +75,11 @@ async def requeue_sample(
         "dry_run": dry_run,
     }
 
-    if handle.is_pending(sample_id, epoch):
-        return {
-            **base,
-            "changed": False,
-            "status": "queued",
-            "reason": "a requeue of this sample is already pending",
-        }
-
     # already scheduled or in progress: the desired end state — "this sample
-    # runs (again) to a fresh outcome" — is already coming
+    # runs (again) to a fresh outcome" — is already coming. The active check
+    # runs first: a pending-requeue key stays set until the re-run goes
+    # terminal, so once the re-run is live only the ActiveSample knows
+    # whether it is queued or running.
     active = find_active_sample(eval_id, sample_id, epoch)
     if active is not None and active.completed is None:
         status = "running" if active.started is not None else "queued"
@@ -109,6 +89,14 @@ async def requeue_sample(
             "changed": False,
             "status": status,
             "reason": f"sample is already {status}",
+        }
+
+    if handle.is_pending(sample_id, epoch):
+        return {
+            **base,
+            "changed": False,
+            "status": "queued",
+            "reason": "a requeue of this sample is already pending",
         }
 
     # terminal read: the live recorder, then the on-disk log — the full
@@ -153,6 +141,17 @@ async def requeue_sample(
     if dry_run:
         return {**detail, "changed": True}
 
+    # Re-check the task-level gates synchronously before accepting: the
+    # awaits above (`_full_sample`, `checkpoint_available`) can span the last
+    # sibling's terminal recording, which stamps `completed_at` while the
+    # fanout's `outstanding` count (and thus `handle.open`) hasn't caught up
+    # — accepting then would start a re-run inside an eval that already
+    # reads finished. No await separates this check from `accept`, and both
+    # run on the eval's loop, so the gate can't move in between.
+    rejected = _task_level_reject(state)
+    if rejected is not None:
+        return rejected
+
     outcome = handle.accept(prior, prior_status)
     if outcome == "already_pending":
         return {
@@ -174,6 +173,35 @@ async def requeue_sample(
 
 def _reject(error: str) -> dict[str, Any]:
     return {"ok": False, "error": error}
+
+
+def _task_level_reject(state: "EvalState") -> dict[str, Any] | None:
+    """The task-level rejection rows (finished / between attempts / cancelling).
+
+    Checked before the sample-status rows, and again — synchronously — right
+    before ``accept``: the resolver awaits between the two, and a task-level
+    gate closing during those awaits must win.
+    """
+    if state.completed_at is not None:
+        if state.retry_pending:
+            return _reject(
+                "task is between attempts — the last attempt errored and a "
+                "retry is queued, which will re-run its failed samples when "
+                "it starts"
+            )
+        return _reject(
+            "task already finished — re-run failures with `inspect "
+            "eval-retry` (or re-invoke `inspect eval-set`)"
+        )
+    pending_cancel = (
+        state.task_cancel.cancel_type if state.task_cancel is not None else None
+    )
+    if pending_cancel is not None:
+        return _reject(
+            f"a task cancel is in flight ({pending_cancel}) — the re-run "
+            "would be abandoned as it left the queue"
+        )
+    return None
 
 
 def _is_planned(state: "EvalState", sample_id: str, epoch: int) -> bool:

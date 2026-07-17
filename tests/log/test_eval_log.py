@@ -387,6 +387,39 @@ def test_read_bytes_format(format):
     assert log2.samples
 
 
+def test_rewrite_eval_zip_dedupes_duplicate_members():
+    """A header rewrite keeps one entry per duplicate member name.
+
+    A requeued sample's fresh record supersedes the prior one as a duplicate
+    zip member (last entry wins on read); the rewrite must copy only that
+    winning entry — not double it — and must not emit zipfile's
+    duplicate-name warning.
+    """
+    import warnings
+    from zipfile import ZipFile
+
+    from inspect_ai.log._recorders.eval import _rewrite_eval_zip_with_new_header
+
+    file_path = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    log = read_eval_log(file_path)
+    with open(file_path, "rb") as f:
+        buf = io.BytesIO(f.read())
+
+    member = "samples/1_epoch_1.json"
+    superseding = b'{"superseding": true}'
+    with warnings.catch_warnings(), ZipFile(buf, "a") as zf:
+        warnings.filterwarnings("ignore", message="Duplicate name:")
+        zf.writestr(member, superseding)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Duplicate name:")
+        rewritten = _rewrite_eval_zip_with_new_header(buf.getvalue(), log)
+
+    with ZipFile(io.BytesIO(rewritten)) as result:
+        assert result.namelist().count(member) == 1
+        assert result.read(member) == superseding
+
+
 @pytest.mark.parametrize("format", ["json", "eval"])
 def test_read_bytes_format_detection(format):
     file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
