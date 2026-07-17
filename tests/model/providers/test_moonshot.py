@@ -67,6 +67,36 @@ def test_moonshot_kimi_k3_no_warning_when_params_unset(
     assert not any("fixed sampling" in m for m in _warn_once_messages)
 
 
+def test_moonshot_kimi_k3_coerces_reasoning_effort(
+    mock_moonshot_env, _warn_once_messages
+):
+    """K3 thinking effort only accepts "max" — other values are coerced, with a warning."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k3")
+    params = api.completion_params(
+        config=GenerateConfig(reasoning_effort="high"), tools=False
+    )
+    assert params["reasoning_effort"] == "max"
+    assert any("reasoning_effort" in m and "kimi-k3" in m for m in _warn_once_messages)
+
+    # "max" passes through without warning
+    _warn_once_messages.clear()
+    params = api.completion_params(
+        config=GenerateConfig(reasoning_effort="max"), tools=False
+    )
+    assert params["reasoning_effort"] == "max"
+    assert not _warn_once_messages
+
+
+def test_moonshot_forwards_model_args(mock_moonshot_env):
+    """Custom model args must reach the AsyncOpenAI client constructor."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k3", default_headers={"X-Test": "yes"})
+    assert api.client.default_headers.get("X-Test") == "yes"
+
+
 def test_moonshot_non_k3_preserves_sampling_params(mock_moonshot_env):
     """Non-K3 Kimi models accept sampling params as usual."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
@@ -100,7 +130,7 @@ async def test_moonshot_compatible() -> None:
 
 @skip_if_no_moonshot
 async def test_moonshot_kimi_k3_fixed_sampling_live() -> None:
-    """Sampling params must be stripped before hitting the API (K3 rejects them)."""
+    """Unsupported params must be stripped/coerced before hitting the API (K3 rejects them)."""
     model = get_model(
         "moonshot/kimi-k3",
         config=GenerateConfig(
@@ -108,6 +138,7 @@ async def test_moonshot_kimi_k3_fixed_sampling_live() -> None:
             top_p=0.9,
             frequency_penalty=0.5,
             presence_penalty=0.5,
+            reasoning_effort="high",
             max_tokens=2048,
         ),
     )

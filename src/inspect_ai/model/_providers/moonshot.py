@@ -25,6 +25,11 @@ K3_FIXED_SAMPLING_WARNING = (
     "fixed sampling) and will be ignored."
 )
 
+K3_REASONING_EFFORT_WARNING = (
+    'reasoning_effort "{value}" is not supported by {model} (Kimi K3 thinking '
+    'effort currently only accepts "max") and will be submitted as "max".'
+)
+
 
 class MoonshotAPI(OpenAICompatibleAPI):
     def __init__(
@@ -34,6 +39,7 @@ class MoonshotAPI(OpenAICompatibleAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         emulate_tools: bool = False,
+        **model_args: Any,
     ) -> None:
         super().__init__(
             model_name=model_name,
@@ -43,6 +49,7 @@ class MoonshotAPI(OpenAICompatibleAPI):
             service="Moonshot",
             service_base_url="https://api.moonshot.ai/v1",
             emulate_tools=emulate_tools,
+            **model_args,
         )
 
     def is_kimi_k3(self) -> bool:
@@ -70,4 +77,13 @@ class MoonshotAPI(OpenAICompatibleAPI):
                             parameter=param, model=self.service_model_name()
                         ),
                     )
+            effort = params.get("reasoning_effort")
+            if effort is not None and effort != "max":
+                params["reasoning_effort"] = "max"
+                warn_once(
+                    logger,
+                    K3_REASONING_EFFORT_WARNING.format(
+                        value=effort, model=self.service_model_name()
+                    ),
+                )
         return params
