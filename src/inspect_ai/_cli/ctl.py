@@ -291,6 +291,10 @@ def ctl_command() -> None:
     A process exits when its eval finishes; launch with `inspect eval
     --ctl-server=keep` to keep it inspectable here until you run
     `inspect ctl process release`.
+
+    To launch an eval in the background — one that outlives your
+    terminal and is driven entirely from here — use `inspect eval
+    --detach` (see `inspect eval --help`).
     """
     return None
 
