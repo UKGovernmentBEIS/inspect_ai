@@ -688,9 +688,12 @@ class TestBatcher:
                 # Wait until the batch has recorded at least one check failure
                 # (a fixed sleep races with the batch worker on slow runners)
                 with anyio.fail_after(10):
-                    while not any(
-                        batch.consecutive_check_failure_count > 0
-                        for batch in batcher._inflight_batches.values()
+                    while not (
+                        failed := [
+                            batch
+                            for batch in batcher._inflight_batches.values()
+                            if batch.consecutive_check_failure_count > 0
+                        ]
                     ):
                         await anyio.sleep(0.001)
 
@@ -700,6 +703,9 @@ class TestBatcher:
             # The request should eventually succeed
             assert result is not None
             assert result.startswith("result-for-")
+
+            # The successful check reset the failure count before completion
+            assert failed[0].consecutive_check_failure_count == 0
 
         await self._run_with_task_group(test_logic)
 
