@@ -573,14 +573,26 @@ def record_sample_requeued(
     prior attempt's spend was real. Called synchronously in the requeue
     accept path (see ``design/sample-requeue.md``). Silently no-ops if the
     eval isn't registered.
+
+    Guarded against decrementing a bucket below zero: that would mean the
+    caller's message-based classification of the prior record diverged from
+    the bucket its terminal recording actually bumped, so fail loudly (a
+    warning naming the divergence) rather than corrupting the counters.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
-            if prior_status == "error":
-                state.errored -= 1
+            bucket = "errored" if prior_status == "error" else "cancelled"
+            count = getattr(state, bucket)
+            if count <= 0:
+                logger.warning(
+                    f"requeue accepted a prior with status '{prior_status}' "
+                    f"but the eval's {bucket} count is {count} (eval "
+                    f"{eval_id}) — classification/bucket divergence; not "
+                    "decremented"
+                )
             else:
-                state.cancelled -= 1
+                setattr(state, bucket, count - 1)
 
 
 def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:

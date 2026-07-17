@@ -16,6 +16,7 @@ import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai import Task, eval_async
+from inspect_ai._control.cancel import cancel_sample
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     detach_eval_live,
@@ -31,6 +32,7 @@ from inspect_ai._control.requeue import requeue_sample
 from inspect_ai._control.state import (
     _full_sample,
     current_sample_listing,
+    find_active_sample,
     sample_error_detail,
 )
 from inspect_ai._display.core.display import TaskCancel
@@ -40,7 +42,7 @@ from inspect_ai._eval.task.scheduler import (
     SampleScheduler,
     _ScheduledRerun,
 )
-from inspect_ai._util.error import EvalError
+from inspect_ai._util.error import EvalError, is_cancellation_message
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, read_eval_log_async
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
@@ -475,6 +477,19 @@ def test_record_sample_requeued_decrements_buckets() -> None:
     assert state.cancelled == 0
 
     record_sample_requeued("nope", "error")  # must not raise
+
+
+def test_record_sample_requeued_never_goes_negative() -> None:
+    """A classification/bucket divergence warns instead of corrupting counters."""
+    register_eval("e1", 3, task_id="t1")
+    record_sample_errored("e1")
+    # prior counted as errored but (wrongly) classified cancelled: the
+    # cancelled bucket is 0 and must stay 0
+    record_sample_requeued("e1", "cancelled")
+    state = get_eval_state("e1")
+    assert state is not None
+    assert state.cancelled == 0
+    assert state.errored == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1143,3 +1158,215 @@ async def test_requeue_end_to_end() -> None:
     # metrics computed from the fresh score
     assert log.results is not None
     assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+_E2E_TWICE_ATTEMPTS: dict[str, int] = {}
+_E2E_TWICE_RELEASE: anyio.Event | None = None
+
+
+@solver
+def _requeue_twice_probe():
+    """Errors flaky's first two attempts; parks everything else until released."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == "flaky":
+            _E2E_TWICE_ATTEMPTS["flaky"] = _E2E_TWICE_ATTEMPTS.get("flaky", 0) + 1
+            if _E2E_TWICE_ATTEMPTS["flaky"] <= 2:
+                raise RuntimeError(f"transient boom {_E2E_TWICE_ATTEMPTS['flaky']}")
+        assert _E2E_TWICE_RELEASE is not None
+        with anyio.fail_after(60):
+            await _E2E_TWICE_RELEASE.wait()
+        return state
+
+    return solve
+
+
+async def test_requeue_second_requeue_with_buffered_records() -> None:
+    """A second requeue after a second failure passes with unflushed records.
+
+    With a log buffer large enough that neither terminal record flushes, the
+    directive reads the prior through the recorder's flush buffer: the
+    re-run's fresh failure must supersede the prior attempt there, so the
+    second requeue reads the fresh uuid and is accepted — not 409'd as stale
+    against the first accept — and the finished log carries one record for
+    the key with the full retry history.
+    """
+    global _E2E_TWICE_RELEASE
+    _E2E_TWICE_ATTEMPTS.clear()
+    _E2E_TWICE_RELEASE = anyio.Event()
+
+    task = Task(
+        dataset=[
+            Sample(id="flaky", input="x", target="y"),
+            Sample(id="waiter", input="x", target="y"),
+        ],
+        solver=_requeue_twice_probe(),
+        scorer=_always_correct(),
+        name="requeue_twice_e2e",
+    )
+
+    init_display_type("none")
+    logs: list[EvalLog] = []
+
+    async with anyio.create_task_group() as tg:
+
+        async def run_eval() -> None:
+            logs.extend(
+                await eval_async(
+                    task,
+                    model="mockllm/model",
+                    fail_on_error=False,
+                    ctl_server=False,
+                    max_samples=2,
+                    log_buffer=10,
+                )
+            )
+
+        tg.start_soon(run_eval)
+
+        async def wait_for_errored() -> Any:
+            with anyio.fail_after(60):
+                while True:
+                    states = get_eval_states()
+                    if states and states[0].errored == 1:
+                        return states[0]
+                    await anyio.sleep(0.01)
+
+        state = await wait_for_errored()
+        eval_id = state.eval_id
+
+        first = await requeue_sample(eval_id, "flaky", 1)
+        assert first is not None
+        assert first.get("ok") is True and first["changed"] is True
+        assert first["attempt"] == 2
+
+        # the re-run fails again; its record supersedes the prior in the
+        # (unflushed) buffer, so this second requeue reads the fresh uuid
+        await wait_for_errored()
+        second = await requeue_sample(eval_id, "flaky", 1)
+        assert second is not None
+        assert second.get("ok") is True, f"second requeue rejected: {second}"
+        assert second["changed"] is True
+        assert second["attempt"] == 3
+
+        _E2E_TWICE_RELEASE.set()
+
+    assert _E2E_TWICE_ATTEMPTS["flaky"] == 3
+
+    (log,) = logs
+    assert log.status == "success"
+    log = await read_eval_log_async(log.location)
+    assert log.samples is not None
+    flaky_records = [s for s in log.samples if s.id == "flaky"]
+    assert len(flaky_records) == 1
+    assert flaky_records[0].error is None
+    assert flaky_records[0].error_retries is not None
+    assert len(flaky_records[0].error_retries) == 2
+
+
+_E2E_OP_RELEASE: anyio.Event | None = None
+
+
+@solver
+def _park_probe():
+    """Parks every sample until released."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        assert _E2E_OP_RELEASE is not None
+        with anyio.fail_after(60):
+            await _E2E_OP_RELEASE.wait()
+        return state
+
+    return solve
+
+
+async def test_requeue_after_operator_errored_sample() -> None:
+    """A `sample cancel --action error` prior requeues out of the errored bucket.
+
+    The runner records that terminal with a distinct operator-error message
+    (not the cancellation exception's repr), so the requeue's message-based
+    classification matches the bucket the recording bumped: accept decrements
+    `errored` (never `cancelled` to -1), un-counts the error toward
+    fail-on-error, and the re-run seeds the operator-errored attempt as retry
+    history.
+    """
+    global _E2E_OP_RELEASE
+    _E2E_OP_RELEASE = anyio.Event()
+
+    task = Task(
+        dataset=[
+            Sample(id="victim", input="x", target="y"),
+            Sample(id="waiter", input="x", target="y"),
+        ],
+        solver=_park_probe(),
+        scorer=_always_correct(),
+        name="requeue_operator_error_e2e",
+    )
+
+    init_display_type("none")
+    logs: list[EvalLog] = []
+
+    async with anyio.create_task_group() as tg:
+
+        async def run_eval() -> None:
+            logs.extend(
+                await eval_async(
+                    task,
+                    model="mockllm/model",
+                    fail_on_error=False,
+                    ctl_server=False,
+                    max_samples=2,
+                )
+            )
+
+        tg.start_soon(run_eval)
+
+        # wait for the victim sample to be running, then error it via the
+        # operator cancel directive
+        with anyio.fail_after(60):
+            while True:
+                states = get_eval_states()
+                if states:
+                    active = find_active_sample(states[0].eval_id, "victim", 1)
+                    if active is not None and active.started is not None:
+                        break
+                await anyio.sleep(0.01)
+        eval_id = states[0].eval_id
+
+        cancelled = await cancel_sample(eval_id, "victim", 1, action="error")
+        assert cancelled is not None and cancelled["changed"] is True
+
+        with anyio.fail_after(60):
+            while True:
+                state = get_eval_state(eval_id)
+                if state is not None and state.errored == 1:
+                    break
+                await anyio.sleep(0.01)
+
+        # recorded as a genuine (non-cancellation) error, consistent with
+        # the errored bucket its terminal recording bumped
+        prior = await _full_sample(eval_id, "victim", 1)
+        assert prior is not None and prior.error is not None
+        assert not is_cancellation_message(prior.error.message)
+
+        result = await requeue_sample(eval_id, "victim", 1)
+        assert result is not None
+        assert result.get("ok") is True and result["changed"] is True
+        assert result["status"] == "error"
+        assert result["attempt"] == 2
+
+        state = get_eval_state(eval_id)
+        assert state is not None
+        assert state.errored == 0
+        assert state.cancelled == 0
+
+        _E2E_OP_RELEASE.set()
+
+    (log,) = logs
+    assert log.status == "success"
+    log = await read_eval_log_async(log.location)
+    assert log.samples is not None
+    victim = next(s for s in log.samples if s.id == "victim")
+    assert victim.error is None
+    assert victim.error_retries is not None and len(victim.error_retries) == 1
+    assert "interrupted by operator" in victim.error_retries[0].message

@@ -23,6 +23,15 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
 
+# One string for both drained-fanout rejections (the fast path's handle
+# check and ``accept``'s authoritative ``closed`` outcome) so they can't
+# drift.
+_FANOUT_DRAINED = (
+    "task is no longer accepting samples (the sample fanout has "
+    "drained) — re-run failures with `inspect eval-retry` (or "
+    "re-invoke `inspect eval-set`)"
+)
+
 
 async def requeue_sample(
     eval_id: str, sample_id: str, epoch: int, *, dry_run: bool = False
@@ -66,11 +75,7 @@ async def requeue_sample(
         return rejected
     handle = state.sample_requeue
     if handle is None or not handle.open:
-        return _reject(
-            "task is no longer accepting samples (the sample fanout has "
-            "drained) — re-run failures with `inspect eval-retry` (or "
-            "re-invoke `inspect eval-set`)"
-        )
+        return _reject(_FANOUT_DRAINED)
 
     base: dict[str, Any] = {
         "ok": True,
@@ -172,11 +177,7 @@ async def requeue_sample(
             "status"
         )
     if outcome == "closed":
-        return _reject(
-            "task is no longer accepting samples (the sample fanout has "
-            "drained) — re-run failures with `inspect eval-retry` (or "
-            "re-invoke `inspect eval-set`)"
-        )
+        return _reject(_FANOUT_DRAINED)
     if outcome == "unknown":
         return None
     return {**detail, "changed": True}

@@ -1502,8 +1502,24 @@ async def task_run_sample(
                                                     type="operator", limit=1
                                                 )
                                             case "error":
-                                                # default error handling
-                                                error, raise_error = handle_error(ex)
+                                                # default error handling — but
+                                                # with a distinct exception:
+                                                # this terminal is counted in
+                                                # the *errored* bucket, and
+                                                # recording the cancellation
+                                                # exception's repr would make
+                                                # message-based classification
+                                                # (sample show/list, requeue
+                                                # reconciliation, retry
+                                                # seeding) treat it as
+                                                # cancelled
+                                                operator_error = RuntimeError(
+                                                    "Sample errored: interrupted by operator"
+                                                )
+                                                operator_error.__cause__ = ex
+                                                error, raise_error = handle_error(
+                                                    operator_error
+                                                )
                                             case "cancel":
                                                 # resolve as an external cancel
                                                 # would: transcript preserved,

@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import warnings
-from collections.abc import Generator, Sequence
+from collections.abc import Generator, Iterable, Sequence
 from contextlib import contextmanager
 from functools import partial
 from io import BytesIO
@@ -756,6 +756,16 @@ class ZipLogFile:
 
     async def buffer_sample(self, sample: EvalSample) -> None:
         async with self._lock:
+            # supersede any not-yet-flushed prior record for the same
+            # (id, epoch) — e.g. a requeued sample's re-run going terminal
+            # before the prior attempt's flush. Keeping both would journal
+            # duplicate summaries, serve the stale record from
+            # ``buffered_sample``, and (when the prior arrived via the
+            # streaming path, whose member is already zip-written) leave a
+            # stale event-less fallback in ``_streaming_samples``.
+            key = (sample.id, sample.epoch)
+            self._samples = [s for s in self._samples if (s.id, s.epoch) != key]
+            self._streaming_samples.pop(key, None)
             self._samples.append(sample)
 
     async def buffer_sample_streaming(
@@ -781,6 +791,14 @@ class ZipLogFile:
             )
 
             self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
+
+            # evict a buffered prior record for the same (id, epoch): its
+            # member would otherwise be flush-written *after* the streaming
+            # write above, and the readers' name-based last-entry-wins rule
+            # would resolve the log to the stale prior
+            self._samples = [
+                s for s in self._samples if (s.id, s.epoch) != (sample.id, sample.epoch)
+            ]
 
             # Retain the event-less sample so the control channel can read its
             # error detail before the next flush makes it on-disk-readable
@@ -833,9 +851,15 @@ class ZipLogFile:
 
         Unions ``_summaries`` (already journalled) with the not-yet-flushed
         ``_samples`` so a just-completed sample isn't missed between flushes.
+        A buffered sample supersedes a journalled row for the same
+        ``(id, epoch)`` (a requeued sample's re-run ahead of its flush), so
+        consumers see one row per key with the freshest outcome.
         """
         async with self._lock:
-            return [*self._summaries, *(sample.summary() for sample in self._samples)]
+            by_key = {(s.id, s.epoch): s for s in self._summaries}
+            for sample in self._samples:
+                by_key[(sample.id, sample.epoch)] = sample.summary()
+            return list(by_key.values())
 
     async def buffered_sample(self, id: str | int, epoch: int) -> EvalSample | None:
         """A not-yet-flushed full sample by ``(id, epoch)``, or None.
@@ -1168,6 +1192,21 @@ def _parse_summaries(data: Any, source: str) -> list[EvalSampleSummary]:
         raise ValueError(f"Expected a list of summaries when reading {source}")
 
 
+def _dedupe_summaries(
+    summaries: Iterable[EvalSampleSummary],
+) -> list[EvalSampleSummary]:
+    """Keep the last row per ``(id, epoch)``.
+
+    The same last-entry-wins rule the zip sample readers apply: a requeued
+    sample's re-run is recorded after its superseded prior attempt, so the
+    later row is the current one.
+    """
+    by_key: dict[tuple[int | str, int], EvalSampleSummary] = {}
+    for summary in summaries:
+        by_key[(summary.id, summary.epoch)] = summary
+    return list(by_key.values())
+
+
 async def _read_all_summaries_async(
     reader: AsyncZipReader,
 ) -> tuple[list[EvalSampleSummary], int]:
@@ -1175,8 +1214,13 @@ async def _read_all_summaries_async(
     entry_names = {e.filename for e in cd.entries}
     count = await _read_summary_counter(reader)
     if SUMMARIES_JSON in entry_names:
-        return _parse_summaries(
-            await _read_member_json(reader, SUMMARIES_JSON), SUMMARIES_JSON
+        # deduped defensively: the writer's in-memory list is keyed unique,
+        # but a log written before superseding-on-buffer existed can carry
+        # both a requeued sample's rows
+        return _dedupe_summaries(
+            _parse_summaries(
+                await _read_member_json(reader, SUMMARIES_JSON), SUMMARIES_JSON
+            )
         ), count
     else:
         # An in-progress log has no consolidated summaries.json; it stores one journal
@@ -1194,15 +1238,11 @@ async def _read_all_summaries_async(
         per_file = await tg_collect(
             [partial(read_summary_file, i) for i in range(1, count + 1)]
         )
-        # a requeued sample's re-run is journalled in a later summary file
-        # than its superseded prior attempt; tg_collect preserves the 1..count
-        # file order, so keeping the last row per (id, epoch) applies the same
-        # last-entry-wins rule as the zip sample readers
-        by_key: dict[tuple[int | str, int], EvalSampleSummary] = {}
-        for file_summaries in per_file:
-            for summary in file_summaries:
-                by_key[(summary.id, summary.epoch)] = summary
-        return list(by_key.values()), count
+        # tg_collect preserves the 1..count journal-file order, so the
+        # superseded prior attempt's row precedes its re-run's
+        return _dedupe_summaries(
+            summary for file_summaries in per_file for summary in file_summaries
+        ), count
 
 
 def _read_header(zip: ZipFile, location: str) -> EvalLog:
