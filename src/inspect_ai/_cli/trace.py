@@ -285,14 +285,20 @@ def rendered_anomalies(
     all: bool,
     *,
     pid: int | None = None,
+    as_of: float | None = None,
 ) -> str:
     """Human rendering of an anomalies read: a header, then one table per shown bucket.
 
     Shared by `inspect trace anomalies` and `inspect ctl process anomalies`
     (which passes ``pid`` to label the section it reports on). Only running
     and cancelled actions are shown by default; ``all`` adds the error and
-    timeout buckets (the JSON envelope always carries all four).
+    timeout buckets (the JSON envelope always carries all four). Running
+    durations are computed as of ``as_of`` (default: now) — `ctl` passes the
+    trace file's last write for a dead pid's post-mortem read, so actions in
+    flight at death don't accrue wall-clock time since.
     """
+    if as_of is None:
+        as_of = time.time()
     header = f"TRACE: {shlex.quote(trace_file_path.as_posix())}"
     if pid is not None:
         header = f"pid {pid} — {header}"
@@ -325,7 +331,7 @@ def rendered_anomalies(
         print_fn(f"[bold]{header}[/bold]")
 
         for label, actions in shown_buckets:
-            _print_bucket(print_fn, label, actions)
+            _print_bucket(print_fn, label, actions, as_of)
 
         return console.export_text(styles=True).strip()
 
@@ -359,7 +365,10 @@ def trace_anomalies(traces: list[TraceRecord]) -> TraceAnomalies:
                             trace.start_time = start_trace.start_time
                         finished_buckets[trace.event][trace.trace_id] = trace
                 case _:
-                    print(f"Unknown event type: {trace.event}")
+                    # stderr so an unrecognized record (e.g. a trace file
+                    # written by a newer inspect) can't corrupt the --json
+                    # envelope on stdout
+                    click.echo(f"Unknown event type: {trace.event}", err=True)
 
     return TraceAnomalies(
         running=_sorted_actions(running_actions),
@@ -432,6 +441,7 @@ def _print_bucket(
     print_fn: Callable[[RenderableType], None],
     label: str,
     sorted_actions: list[ActionTraceRecord],
+    as_of: float,
 ) -> None:
     if len(sorted_actions) > 0:
         # create table
@@ -448,10 +458,9 @@ def _print_bucket(
             padding=(0, 1),
         )
 
-        now = time.time()
         for action in sorted_actions:
             # Compute duration (use the event duration or time since started)
-            duration = _action_duration(action, now)
+            duration = _action_duration(action, as_of)
 
             # The event start time
             start_time = formatTime(action.start_time) if action.start_time else "None"

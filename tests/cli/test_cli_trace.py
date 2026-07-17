@@ -4,42 +4,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from test_helpers.trace import action_record, write_trace_log
 
 from inspect_ai._cli.trace import anomalies_command_impl, http_command_impl
-
-
-def write_trace_log(file: Path, records: list[dict[str, Any]]) -> None:
-    with open(file, "w") as f:
-        for record in records:
-            f.write(json.dumps(record) + "\n")
-
-
-def action_record(
-    trace_id: str,
-    action: str,
-    event: str,
-    *,
-    detail: str = "",
-    start_time: float | None = None,
-    duration: float | None = None,
-    error: str | None = None,
-) -> dict[str, Any]:
-    record: dict[str, Any] = {
-        "timestamp": "2026-07-16T12:00:00+00:00",
-        "level": "TRACE",
-        "message": f"{action}: {detail} ({event})",
-        "action": action,
-        "detail": detail,
-        "event": event,
-        "trace_id": trace_id,
-    }
-    if start_time is not None:
-        record["start_time"] = start_time
-    if duration is not None:
-        record["duration"] = duration
-    if error is not None:
-        record["error"] = error
-    return record
 
 
 @pytest.fixture
@@ -202,6 +169,34 @@ def test_trace_anomalies_filter_matches_only_exit_record(
     envelope = json.loads(capsys.readouterr().out)
     assert [row["action"] for row in envelope["errors"]] == ["Sandbox"]
     assert envelope["errors"][0]["start_time"] is None
+
+
+def test_trace_anomalies_unknown_event_goes_to_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unrecognized action event warns on stderr, keeping stdout envelope-safe.
+
+    Not reachable through `read_trace_file` today (its parse rejects unknown
+    events), so construct the record directly; the contract under test is
+    that `trace_anomalies` never writes prose to stdout, where it would
+    corrupt a `--json` envelope.
+    """
+    from inspect_ai._cli.trace import trace_anomalies
+    from inspect_ai._util.trace import ActionTraceRecord
+
+    record = ActionTraceRecord.model_construct(
+        timestamp="2026-07-16T12:00:00+00:00",
+        level="TRACE",
+        message="Model: generate (frobnicate)",
+        action="Model",
+        event="frobnicate",
+        trace_id="x1",
+    )
+    anomalies = trace_anomalies([record])
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Unknown event type: frobnicate" in captured.err
+    assert anomalies == ([], [], [], [])
 
 
 def http_record(timestamp: str, message: str) -> dict[str, Any]:

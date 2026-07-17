@@ -75,6 +75,7 @@ from inspect_ai._control.state import (
     parse_status_filter,
 )
 from inspect_ai._util.name_match import match_name_prefix
+from inspect_ai._util.process import pid_alive
 from inspect_ai._util.trace import inspect_trace_dir, read_trace_file
 
 if TYPE_CHECKING:
@@ -1035,7 +1036,9 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
 @click.argument("pid", required=False, type=int)
 @anomalies_options(
     "an `{as_of, processes}` envelope; each process entry carries `pid`, "
-    "`trace_file`, and the `running`/`cancelled`/`errors`/`timeouts` buckets"
+    "`trace_file`, its own `as_of` (the timestamp running durations are "
+    "computed against), and the `running`/`cancelled`/`errors`/`timeouts` "
+    "buckets"
 )
 def process_anomalies_command(
     pid: int | None, filter: str | None, all: bool, as_json: bool
@@ -1053,9 +1056,11 @@ def process_anomalies_command(
     this works against a busy or hung process — the escalation path when
     another read reports "busy" — and even post-mortem: a PID with no live
     process falls back to its trace file (`trace-<pid>.log`, or `.log.gz`
-    after a clean exit) while one still exists. No PID reads every running
-    process, one section per pid. The analysis is shared with `inspect
-    trace anomalies`, which reads any trace file by path.
+    after a clean exit) while one still exists, with running durations dated
+    to the file's last write (approximately the time of death) rather than
+    now. No PID reads every running process, one section per pid. The
+    analysis is shared with `inspect trace anomalies`, which reads any trace
+    file by path.
     """
     _run_process_anomalies(pid, filter=filter, all=all, as_json=as_json)
 
@@ -2426,11 +2431,17 @@ def _run_process_list(as_json: bool) -> None:
 
 
 class _PidAnomalies(NamedTuple):
-    """One `process anomalies` section: a pid, its trace file, and the reconstruction."""
+    """One `process anomalies` section: a pid, its trace file, and the reconstruction.
+
+    ``as_of`` is the timestamp the section's running durations are computed
+    against: the read time for a live pid, the trace file's last write (a
+    proxy for time of death) for a dead pid's post-mortem read.
+    """
 
     pid: int
     trace_file: Path
     anomalies: TraceAnomalies
+    as_of: float
 
 
 def _trace_file_for_pid(pid: int) -> Path | None:
@@ -2459,8 +2470,10 @@ def _run_process_anomalies(
     anomalies for stall diagnosis" in design/ctl/control-channel.md).
     """
     # Stamp as_of before the reads (same rationale as the other read
-    # envelopes) and compute running durations against it so the envelope
-    # timestamp and the durations it dates are consistent.
+    # envelopes). Each section computes running durations against its own
+    # as_of — this read time for live pids, the trace file's last write for
+    # a dead pid's post-mortem read — so the timestamp and the durations it
+    # dates stay consistent.
     as_of = time.time()
 
     servers: list[DiscoveredControlServer] = []
@@ -2478,7 +2491,21 @@ def _run_process_anomalies(
                 "files). If you have a copy elsewhere, read it with "
                 "`inspect trace anomalies <file>`.",
             )
-        targets = [(pid, trace_file)]
+        if pid_alive(pid):
+            section_as_of = as_of
+        else:
+            # Post-mortem read: date running durations to the trace file's
+            # last write — a proxy for the time of death — so an action in
+            # flight when the process died doesn't accrue wall-clock time
+            # since (an overnight death would otherwise show it "running"
+            # for hours).
+            section_as_of = trace_file.stat().st_mtime
+            click.echo(
+                f"note: pid {pid} is not running — durations are as of the "
+                "trace file's last write.",
+                err=True,
+            )
+        targets = [(pid, trace_file, section_as_of)]
     else:
         servers = list_discovered_servers()
         targets = []
@@ -2492,7 +2519,8 @@ def _run_process_anomalies(
                     err=True,
                 )
                 continue
-            targets.append((server.pid, server_trace))
+            # discovery only lists live pids, so durations date to the read
+            targets.append((server.pid, server_trace, as_of))
 
     sections = [
         _PidAnomalies(
@@ -2501,8 +2529,9 @@ def _run_process_anomalies(
             anomalies=trace_anomalies(
                 filter_traces(read_trace_file(target_file), filter)
             ),
+            as_of=target_as_of,
         )
-        for target_pid, target_file in targets
+        for target_pid, target_file, target_as_of in targets
     ]
 
     if as_json:
@@ -2512,7 +2541,8 @@ def _run_process_anomalies(
                 {
                     "pid": section.pid,
                     "trace_file": section.trace_file.as_posix(),
-                    **anomaly_buckets_json(section.anomalies, as_of),
+                    "as_of": section.as_of,
+                    **anomaly_buckets_json(section.anomalies, section.as_of),
                 }
                 for section in sections
             ],
@@ -2536,7 +2566,11 @@ def _run_process_anomalies(
     click.echo(
         "\n\n".join(
             rendered_anomalies(
-                section.trace_file, section.anomalies, all, pid=section.pid
+                section.trace_file,
+                section.anomalies,
+                all,
+                pid=section.pid,
+                as_of=section.as_of,
             )
             for section in sections
         )
