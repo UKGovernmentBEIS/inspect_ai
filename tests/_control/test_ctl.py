@@ -3649,10 +3649,13 @@ def test_process_anomalies_explicit_pid_json(trace_dir: Path) -> None:
     assert section["timeouts"] == []
 
 
-def test_process_anomalies_dead_pid_reads_gz(trace_dir: Path) -> None:
+def test_process_anomalies_dead_pid_reads_gz(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A pid with no live process still resolves via the gzipped post-mortem file."""
     import gzip
 
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
     with gzip.open(trace_dir / "trace-124.log.gz", "wt") as f:
         for record in _anomalous_records():
             f.write(json.dumps(record) + "\n")
@@ -3693,14 +3696,19 @@ def test_process_anomalies_dead_pid_durations_date_to_last_write(
 def test_process_anomalies_live_pid_durations_date_to_read(
     trace_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A live pid's running durations date to the read (the envelope as_of)."""
+    """A live pid's running durations date to when its file was read.
+
+    The section as_of is stamped after the read (so an ``enter`` record that
+    lands mid-read can't yield a negative duration); the envelope as_of is
+    stamped before the reads (cursor semantics), so section >= envelope.
+    """
     monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: True)
     write_trace_log(trace_dir / "trace-126.log", _anomalous_records())
     result = cli_runner().invoke(ctl_command, ["process", "anomalies", "126", "--json"])
     assert result.exit_code == 0
     envelope = json.loads(result.stdout)
     (section,) = envelope["processes"]
-    assert section["as_of"] == envelope["as_of"]
+    assert section["as_of"] >= envelope["as_of"]
     assert section["running"][0]["duration"] == pytest.approx(section["as_of"] - 1000.0)
 
 

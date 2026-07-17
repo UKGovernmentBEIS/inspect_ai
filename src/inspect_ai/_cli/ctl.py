@@ -2434,8 +2434,10 @@ class _PidAnomalies(NamedTuple):
     """One `process anomalies` section: a pid, its trace file, and the reconstruction.
 
     ``as_of`` is the timestamp the section's running durations are computed
-    against: the read time for a live pid, the trace file's last write (a
-    proxy for time of death) for a dead pid's post-mortem read.
+    against: for a live pid, stamped just after its file is read (stamping
+    before could date an ``enter`` record that lands mid-read to the future,
+    i.e. a negative duration); for a dead pid's post-mortem read, the trace
+    file's last write (a proxy for time of death).
     """
 
     pid: int
@@ -2469,11 +2471,12 @@ def _run_process_anomalies(
     server (which shares the eval's loop) can't answer (see "Trace-log
     anomalies for stall diagnosis" in design/ctl/control-channel.md).
     """
-    # Stamp as_of before the reads (same rationale as the other read
-    # envelopes). Each section computes running durations against its own
-    # as_of — this read time for live pids, the trace file's last write for
-    # a dead pid's post-mortem read — so the timestamp and the durations it
-    # dates stay consistent.
+    # Stamp the envelope as_of before the reads (same cursor rationale as the
+    # other read envelopes: anything that changes during them has a timestamp
+    # >= as_of and is caught by the next poll). Sections date their running
+    # durations to their own as_of instead (see _PidAnomalies), where
+    # stamp-after-read is the consistent choice — matching `inspect trace
+    # anomalies`, which cannot produce negative durations.
     as_of = time.time()
 
     servers: list[DiscoveredControlServer] = []
@@ -2492,20 +2495,20 @@ def _run_process_anomalies(
                 "`inspect trace anomalies <file>`.",
             )
         if pid_alive(pid):
-            section_as_of = as_of
+            post_mortem_as_of: float | None = None
         else:
             # Post-mortem read: date running durations to the trace file's
             # last write — a proxy for the time of death — so an action in
             # flight when the process died doesn't accrue wall-clock time
             # since (an overnight death would otherwise show it "running"
             # for hours).
-            section_as_of = trace_file.stat().st_mtime
+            post_mortem_as_of = trace_file.stat().st_mtime
             click.echo(
                 f"note: pid {pid} is not running — durations are as of the "
                 "trace file's last write.",
                 err=True,
             )
-        targets = [(pid, trace_file, section_as_of)]
+        targets = [(pid, trace_file, post_mortem_as_of)]
     else:
         servers = list_discovered_servers()
         targets = []
@@ -2520,19 +2523,23 @@ def _run_process_anomalies(
                 )
                 continue
             # discovery only lists live pids, so durations date to the read
-            targets.append((server.pid, server_trace, as_of))
+            targets.append((server.pid, server_trace, None))
 
-    sections = [
-        _PidAnomalies(
-            pid=target_pid,
-            trace_file=target_file,
-            anomalies=trace_anomalies(
-                filter_traces(read_trace_file(target_file), filter)
-            ),
-            as_of=target_as_of,
+    sections: list[_PidAnomalies] = []
+    for target_pid, target_file, target_post_mortem_as_of in targets:
+        anomalies = trace_anomalies(filter_traces(read_trace_file(target_file), filter))
+        sections.append(
+            _PidAnomalies(
+                pid=target_pid,
+                trace_file=target_file,
+                anomalies=anomalies,
+                as_of=(
+                    time.time()
+                    if target_post_mortem_as_of is None
+                    else target_post_mortem_as_of
+                ),
+            )
         )
-        for target_pid, target_file, target_as_of in targets
-    ]
 
     if as_json:
         envelope = {
