@@ -258,9 +258,10 @@ async def test_parse_failure_tags_reason_metadata(output):
 
     assert result.value == INCORRECT
     assert result.metadata == {"reason": "invalid_response_format"}
-    # No extracted answer — not the literal string "None" the prior code
-    # recorded via str(result).
-    assert result.answer is None
+    # The full completion is surfaced as the answer (per the scorer docs:
+    # always return an answer when extracting from a completion) — not the
+    # literal string "None" the prior code recorded via str(result).
+    assert result.answer == output
     assert result.explanation is not None
 
 

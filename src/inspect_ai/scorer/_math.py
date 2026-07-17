@@ -978,9 +978,8 @@ def math() -> Scorer:
         if result is None:
             return Score(
                 value=INCORRECT,
-                answer=None,
-                explanation="No mathematical expression could be extracted "
-                + f"from the model output: {state.output.completion}",
+                answer=state.output.completion,
+                explanation="No mathematical expression could be extracted from the model output",
                 metadata={"reason": "invalid_response_format"},
             )
 
