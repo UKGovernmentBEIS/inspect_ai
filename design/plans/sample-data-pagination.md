@@ -13,6 +13,7 @@ Principles:
 - **Scale target**: samples with 10M+ messages must be tractable.
 - **Single portable `.zip`** containing everything remains the format.
 - **Viewer access model**: paginated, filtered, index-based queries only — there is no "get all events" access pattern in the new design (sorting is unused). The one whole-sample summary any view reads is the structural skeleton (span-proportional, see Confounder 2), consumed by the outline. Full-fidelity reads (export, Python `read_eval_log`) remain as explicit bulk operations.
+- **Persisted data is unopinionated**: the format stores structural and semantic facts (ids, ordinals, nesting, event types, names, counters) — never transformed output. Every interpretation — event-type filtering, turn synthesis, scoring collapse, labels, iconography, collapse defaults — is viewer-side policy, applied at read time. Nothing persisted may bake in a presentation decision; policy evolves faster than stored logs. (Restated for the skeleton specifically in Confounder 2.)
 - **Data comes straight from the eval file** even when a server is present — the server just serves bytes.
 
 Decided (implemented in the converter, `src/inspect_ai/log/_recorders/eval2/`): four flat chunked sequences per sample (messages, events, calls, attachments) as zip entries with client-driven random access; chunk names carry the start index only; count-based chunking for item sequences and size-based for attachments (both writer policy); JSON-array chunk encoding; stable per-sample indexes with range-encoded references, half-open `[start, end_exclusive)` everywhere ranges appear in data; rehydration external to the format. Still open: structural-skeleton details (location, counter set — see Confounder 2).
@@ -38,7 +39,7 @@ Inspired by parquet row groups.
 Terminology: a **sequence** is an ordered, homogeneous, index-addressed set of items (messages, events, calls), append-only during the run, physically stored as N chunk entries. (Deliberately not "stream" — that term is reserved for the live streaming/cursor path.)
 
 - **Per-sample TOC** plus, for each high-scale sequence (messages, events, calls, attachments), a set of **chunk files** as sibling zip entries.
-- **The TOC is a structural skeleton, not a rendered artifact.** The outline (`TranscriptOutline`) is the only view that needs a summary of *all* events; every other view reads detail via paginated index-window queries. The skeleton persists raw structure — the span tree plus per-span counters — never transformed output: the viewer's transformations (span unwrapping, turn synthesis, scoring collapse — `transform.ts`, `tree-visitors.ts`) are client policy that evolves faster than stored logs. Size invariant: skeleton size is proportional to *structural* span count (fixed-size counters per span; leaf tool spans are summarized by counters, not stored — see appendix), never to event count — readable in full even for 100M-event samples. The likely producer is the Python timeline code (`src/inspect_ai/event/_timeline.py`; a TS twin in `inspect-components/src/transcript/timeline/` is kept in sync via a shared JSON test suite); computation is cheap (type comparisons, no content introspection) and the event sequence is append-only, so it's rewritten (or incrementally updated) at sample boundaries. Index→chunk mapping stays in chunk filenames — the skeleton is not needed for that. Details in Confounder 2.
+- **The TOC is a structural skeleton, not a rendered artifact.** The outline (`TranscriptOutline`) is the only view that needs a summary of *all* events; every other view reads detail via paginated index-window queries. The skeleton persists raw structure — the span tree plus per-span counters — never transformed output: the viewer's transformations (span unwrapping, turn synthesis, scoring collapse — `transform.ts`, `tree-visitors.ts`) are client policy that evolves faster than stored logs. Size invariant: skeleton size is proportional to *structural* span count (fixed-size counters per span; leaf tool spans are summarized by counters, not stored — see "Structural skeleton (draft)"), never to event count — readable in full even for 100M-event samples. The likely producer is the Python timeline code (`src/inspect_ai/event/_timeline.py`; a TS twin in `inspect-components/src/transcript/timeline/` is kept in sync via a shared JSON test suite); computation is cheap (type comparisons, no content introspection) and the event sequence is append-only, so it's rewritten (or incrementally updated) at sample boundaries. Index→chunk mapping stays in chunk filenames — the skeleton is not needed for that. Details in Confounder 2.
 - **Chunk names carry the start index only** (`{start}.json`, no zero-padding). Filenames have no range semantics: every range that appears in the *data* is half-open `[start, end_exclusive)` (matching Python/TS slicing and the `input_refs` convention), and a filename like `0-50` invites inclusive misreading. Chunks are contiguous and complete, so the chunk holding index `i` is the one with the greatest start ≤ `i`; a chunk's extent is the next chunk's start, and the last chunk's end is the sequence count from the shell's `sequences` boundaries. Every reader must fetch the zip central directory anyway (byte offsets), so index→chunk is a binary search over numerically-sorted entry names. This makes the format **agnostic to chunking policy**: count-based (item sequences, default 1000), size-based (attachments, ~2MiB target), or adaptive chunking all read identically — chunking is a writer-side tuning knob, not a format property. Per-chunk metadata (type counts, span/time ranges), if needed, is its own concern — not index mapping.
 - **Chunks as zip entries preserves the architecture**: clients keep doing byte-range + central-directory reads; no new server endpoints required for completed logs.
 - **Events reference messages by stable per-sample indexes, range-encoded** as half-open `[start, end_exclusive)` pairs (e.g. `[[0, 9874], [9875, 9876]]`), never flat lists — model-event inputs are prefixes-plus-delta, and flat lists are O(N²) across a transcript. (`ModelEvent.input_refs` uses exactly this encoding into the pool; `.eval2` keeps it unchanged.)
@@ -165,18 +166,87 @@ The skeleton stores *raw* structure, and the transformations remain client-side 
 
 **Event-type filtering (pattern 8) is the casualty**: exact filtered row counts need per-event types. Options: per-chunk type counts (approximate scrollbar, exact after fetch) or degrading the feature — stance open.
 
-Field-level inputs of every viewer transformation and an illustrative skeleton structure: see the appendix.
+Field-level inputs of every viewer transformation: see the appendix. Draft structure: see "Structural skeleton (draft)".
 
 ### Confounder 3: jump-to-end with variable-height rows
 
 Ctrl+End / follow-output must position a scrollbar in a virtualized list whose row heights are unknowable without rendering. Today's approach — estimated heights cached and refined as rows render, error shrinking with row count — carries over; heuristics are unavoidable. Pagination doesn't make this worse (the shell's counts give the estimator its denominator with zero chunk fetches), but research is needed on how best-in-class virtualizers handle it.
+
+## Structural skeleton (draft)
+
+Draft spec for the Confounder 2 resolution — stances proposed, not decided. Everything here is bounded by the invariant **skeleton ∝ structural span count (+ sparse notables)**, never event count: no per-event entry of any width exists (at 100M events even one packed word per event is 800MB — the fix is asymptotic class, not bit-packing).
+
+### Entry & lifecycle
+
+- **Sibling entry** `skeleton.json` under the sample prefix, not a shell field: the shell stays cheap-by-construction and schema-stable while the skeleton iterates under its own `version`; the two fetch in parallel at sample open. Monolithic small samples (below the small-sample threshold) carry no skeleton — the viewer derives structure in memory as today.
+- **Derived data.** The skeleton is a deterministic function of the events sequence (producer: the Python timeline code with its TS twin — see Proposed direction). Recovery from corruption or version skew is regeneration, never migration; the converter backfills it for converted logs. Written at sample finalize; the append-only event sequence permits incremental update if the live-write path wants it.
+
+### Structure
+
+Three parts: sample totals, the span table, the notables table.
+
+```jsonc
+{
+  "version": 1,
+  "counts": { "events": 250000, "models": 3400 },   // sample totals
+  "spans": [
+    {
+      "id": "aB3x…",               // span_id (identity for span rows / collapse keys)
+      "parent": null,               // index into this array
+      "name": "react",
+      "type": "agent",             // solver | agent | subtask | handoff | scorer | …
+      "begin": 1042,                // sequence index of the span_begin event
+      "extent": [1042, 15200],      // [first, last] descendant event index (fetch elision;
+                                    //   parallel spans may overlap — tolerated, correctness
+                                    //   comes from span_id on fetched events)
+      "t": ["2026-07-01T10:00:02Z", "2026-07-01T10:41:17Z"],  // timeline extents
+      "working": [12.5, 340.2],
+      "events": 14158,              // descendant event count (incl. nested spans)
+      "models": 212,                // descendant model-event count
+      "gap_models": [5, 190, 0, 17],// see "Turn placement" below
+      "children": { "state": 1 },   // direct-child event-type counts, sparse —
+                                    //   feeds child-shape transformer matches
+      "flags": ["failed_tool"]      // collapse-relevant booleans, sparse
+    }
+  ],
+  "notables": [
+    { "i": 9120, "span": 0, "type": "score" },
+    { "i": 249995, "span": 0, "type": "checkpoint", "checkpoint_id": 3 }
+  ]
+}
+```
+
+**Turn placement (`gap_models`) — the load-bearing counter.** Define a span's *items* as its direct-child structural spans and its notables, merged in sequence order. `gap_models[k]` = model-event count strictly between item `k-1` and item `k` (bounded by the span's begin/end), so `len == items + 1`. This is exactly the outline's row layout for the span: walk gaps and items in order, emitting one "N turns" row per nonzero gap. Splitting between items matters because today's turn synthesis flushes a run at every intervening row — a score or child span between model events splits the run — and gap counters reproduce that without per-turn entries. A gap row's anchor ordinal (scroll sync, deep links, collapse key) is the gap's lower bound.
+
+**Notables table** — positions of genuinely sparse event types the outline renders as rows: `score`, `error`, `sample_limit`, `compaction`, `checkpoint` (with the minimal per-type extra a label needs, e.g. `checkpoint_id`). `span` is the owning span (extent containment is ambiguous under interleaving). Trap: score events are *not* guaranteed sparse — intermediate scoring can emit one per turn, which is event-proportional. Writer caps the table (policy, e.g. 10k) and sets an `overflow` flag; overflow degrades scoring rows in the outline, never counters or correctness. Cap policy open.
+
+**Leaf-tool exclusion rule.** Every tool call gets a `type: "tool"` span, so raw span count is a constant fraction of event count (~1/10–1/30) — event-proportional in disguise. A tool span with no child spans, no model events, and no notables is excluded and summarized in its parent's counters (`events`, `children`). Tool spans containing structure (agent-as-tool, handoff subtrees, model calls) stay. "Structural span" means: a span that can produce an outline row.
+
+### Consumer contracts
+
+- **Outline**: rows synthesized per span from items + `gap_models` (document order falls out); labels/icons/tooltips are viewer policy over `name`/`type`/notable type. Row identity: `span_id` for spans, anchor ordinal for gap/notable rows.
+- **Scroll sync**: coordinate system is the sequence index. The main list reports its topmost visible ordinal; current outline row = binary search over row anchor ordinals. No id enumeration anywhere (today's O(events) `elementIds` surface dies).
+- **Main transcript**: `events` counters give scrollbar extent under collapse; `extent` gives fetch elision; cumulative `models`/`gap_models` give "turn N of M" numbering window-locally.
+- **Timeline/swimlanes**: `t`/`working` extents.
+
+### Fidelity: parity oracle & signed-off divergences
+
+Acceptance is differential: the legacy in-memory pipeline (frozen as an oracle) vs the skeleton-fed pipeline, compared row-for-row (label, depth, icon, collapsibility) across converted real logs and synthetic fixtures × collapse states (none / each collapsible row / all). Gap-based turns reproduce today's collapse interaction exactly — collapse hides whole subtrees while the collapsed row itself stays visible, so runs never merge or split across a toggle. Known divergence classes, each rare and to be signed off (or rejected) explicitly rather than discovered:
+
+1. **Models nested directly under tool events** (no intervening span): the legacy flat-list synthesis emits a depth-anomalous extra turn row; the skeleton yields the structurally-nested row.
+2. **Cross-span consecutive score merging**: legacy merges adjacent score rows into one "scoring" row even across a span boundary; per-span notables yield two.
+3. **"N turns" click anchor**: gap lower bound vs legacy's first model event — may differ by leading tool events in the gap.
+
+### Sizing
+
+Structural spans are typically 10s–1000s per sample; ~100B/span raw JSON + small-int gap arrays + a capped notables table → well under 1MB uncompressed even for pathological samples, independent of event count. Object-per-span shown for readability; columnar parallel arrays (`names: […], types: […]`) are the fallback encoding if measurement demands it (RLE/zstd-friendly).
 
 ## Open questions
 
 (Decided items listed up top in Principles.)
 
 - Mid-sequence state reconstruction (`StateEvent`/`StoreEvent` JSON Patch deltas are hostile to random access; keyframe snapshots are the classic fix; the converter leaves deltas as-is).
-- Skeleton details: location (inside the sample shell entry vs a sibling `skeleton.json`), exact counter/flag set per span, the leaf-tool-span exclusion rule (see appendix), extent encoding for interleaved spans (`[first, last]` with overlap vs ranges-with-holes), whether per-chunk type counts ride along (serves pattern 8 filtering and turn numbering).
+- Skeleton (draft spec in "Structural skeleton (draft)"; stances there proposed, not decided). Still genuinely open beyond ratifying those stances: notables cap/degrade policy (intermediate scoring makes score events event-proportional), the exact `flags` set, whether agent spans carry a `desc` for outline tooltips, legacy step-only logs (do step begin/end markers map to span-table entries in the producer?), the columnar-encoding trigger, whether per-chunk type counts ride along (serves pattern 8 filtering).
 - Event-type filtering stance: per-chunk type counts (approximate-then-exact scrollbar) vs degrade the feature.
 - In-sample search: allowed to become progressive or server-side (scout)?
 - Chunk encoding (current: JSON array per chunk; protobuf deferred — the measured +36% per-entry compression toll is the standing pressure). JSONL was considered and set aside: its append-only strength doesn't apply (chunks are sealed write-once zip entries), and it trades away the single-call parse/validate fast path on the common whole-chunk case to buy partial parsing of overreads. Reconsider JSONL's complexity only if parsing of overread chunks proves material.
@@ -190,9 +260,7 @@ Ctrl+End / follow-output must position a scrollbar in a virtualized list whose r
 1. **Render** (current goal): prove the browser client can consume paginated `.eval2` files — get real converted logs rendering — before investing in the live-write path. Requires the structural skeleton for the outline (Confounder 2).
 2. Add a CLAUDE.md rule: any timeline code change must update both the Python and TypeScript implementations and their shared JSON test suite (sync has slipped before).
 
-## Appendix: transformation audit & skeleton sketch
-
-### Transformation audit
+## Appendix: transformation audit
 
 Every transformation the viewer applies to the event stream, the fields it reads, and where it runs against the skeleton + windowed fetches:
 
@@ -209,45 +277,9 @@ Every transformation the viewer applies to the event stream, the fields it reads
 | `collapseFilters` default-collapse (useEventNodes) | span/step name+type, tool `agent`/`failed`, subtask | skeleton flags for spans; tool/subtask rows evaluated from fetched bodies |
 | `filterEmpty` (useEventNodes) | children counts | skeleton counters |
 | `removeNodeVisitor` × logger/info/state/store/approval/input/sandbox, `removeStepSpanNameVisitor`, `noScorerChildren` (tree-visitors.ts) | event type, span name/type | outline: implicit (skeleton carries no such events); transcript: window-local |
-| `makeTurns` / `collapseTurns` (tree-visitors.ts) | event type sequence (model/tool/logger/info), depth | skeleton model-event gap counters (see sketch) — synthesize "N turns" rows without per-turn entries |
+| `makeTurns` / `collapseTurns` (tree-visitors.ts) | event type sequence (model/tool/logger/info), depth | skeleton `gap_models` counters (see "Structural skeleton (draft)") — synthesize "N turns" rows without per-turn entries |
 | `collapseScoring` (tree-visitors.ts) | event type == score | skeleton sparse score positions |
 | `computeTurnMap` (tree-visitors.ts) | model-event positions | skeleton cumulative model counters |
 | `pairToolApprovals` (toolApprovals.ts) | approval `call.id`/`approver`/`decision` ↔ tool `id` | window-local with margin (pairs are adjacent) |
 | `flatTree` row math (flatten.ts) | tree + collapse state | skeleton descendant counts (scrollbar extent), extents (fetch elision) |
 
-### Skeleton sketch (illustrative)
-
-```jsonc
-{
-  "version": 1,
-  "counts": { "events": 250000, "models": 3400, "scores": 4 },  // sample totals
-  "spans": [
-    {
-      "id": "aB3x…",               // span_id (identity for outline rows / collapse keys)
-      "parent": null,               // index into this array
-      "name": "react",
-      "type": "agent",             // solver | agent | subtask | handoff | scorer | …
-      "begin": 1042,                // sequence index of the span_begin event
-      "extent": [1042, 15200],      // [first, last] descendant event index (elision;
-                                    //   parallel spans may overlap — tolerated)
-      "t": ["2026-07-01T10:00:02Z", "2026-07-01T10:41:17Z"],  // timeline extents
-      "working": [12.5, 340.2],
-      "events": 14158,              // descendant event count (incl. nested spans)
-      "models": 212,                // descendant model-event count
-      "gap_models": [5, 190, 17],   // model events between consecutive direct-child
-                                    //   spans (len = child spans + 1) — places
-                                    //   "N turns" outline rows in document order
-      "children": { "state": 1, "store": 1 },  // direct-child event-type counts,
-                                    //   sparse — feeds child-shape transformer matches
-      "flags": ["failed_tool"]      // collapse-relevant booleans, sparse
-    }
-  ],
-  "scores": [249992, 249995]        // sparse notable positions (score events only)
-}
-```
-
-Notes:
-
-- **Leaf tool spans are omitted.** Every tool call gets a `type: "tool"` span, so raw span count is a constant fraction of event count (~1/10–1/30) — event-proportional in disguise, and millions of entries at the 100M-event scale. The outline never renders individual tools (`makeTurns` absorbs tool events into turn rows), so a tool span with no child spans and no model events is excluded and summarized in its parent's counters. Tool spans that contain structure (agent-as-tool, handoff subtrees, model calls) stay. The invariant is therefore: **skeleton ∝ structural span count** — spans that can produce an outline row.
-- Object-per-span shown for readability; columnar parallel arrays (`names: […], types: […], …`) are the likely encoding if measurement demands it (RLE/zstd-friendly).
-- Sizing: structural spans are typically 10s–1000s per sample; ~100B/span raw JSON → even pathological samples stay well under a MB uncompressed, independent of event count.
