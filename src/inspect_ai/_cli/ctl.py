@@ -2552,10 +2552,24 @@ def _run_config(
 
     # provenance rides mutations only (a read records nothing); the author
     # default is resolved client-side — the server has no view of who invoked
-    # the CLI — and gated on the server supporting the params
+    # the CLI — and gated on the server supporting the params. On a pure read
+    # an explicit --author/--reason has nothing to annotate: hard-error (like
+    # --log-buffer with no buffer) rather than silently dropping the values.
     if requested_knobs:
         author, reason = _gate_provenance_support(
             servers, scope.socket_path, author=author, reason=reason
+        )
+    elif author is not None or reason is not None:
+        flags = " / ".join(
+            flag
+            for flag, value in (("--author", author), ("--reason", reason))
+            if value is not None
+        )
+        _fail(
+            "invalid_request",
+            f"{flags} annotates a config change, but no set option was "
+            "given — there is no change to record it with. Add a set option "
+            "(e.g. --max-samples) or drop the flag.",
         )
 
     limits_view, mutated = _exec_limits(

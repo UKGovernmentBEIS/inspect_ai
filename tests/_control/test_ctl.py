@@ -2258,6 +2258,57 @@ def test_config_provenance_gated_on_older_server(
     assert sent["reason"] is None
 
 
+def test_config_provenance_requires_set_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit --author/--reason on a pure read hard-errors pre-send.
+
+    A read records nothing, so the provenance would be silently dropped —
+    e.g. a user who types `--reason` but forgets the knob. Erroring (like
+    --log-buffer with nothing to apply to) makes the mistake visible.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.clear()
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "requested": {},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=False,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--reason", "provider incident"]
+    )
+    assert result.exit_code == 1
+    assert "--reason" in result.stderr
+    assert "no set option" in result.stderr
+    assert not sent  # the read was never sent
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--author", "alice", "--reason", "why"]
+    )
+    assert result.exit_code == 1
+    assert "--author / --reason" in result.stderr
+    assert not sent
+
+
 def test_config_gates_newer_knob_on_older_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
