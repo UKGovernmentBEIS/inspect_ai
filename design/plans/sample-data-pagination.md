@@ -164,7 +164,7 @@ The skeleton stores *raw* structure, and the transformations remain client-side 
 
 **Identity is the sequence index, not uuid.** Node ids (collapse-state keys, outline↔transcript scroll sync, selection, deep links) become event sequence indexes (spans: span_id). Per-event uuids are never persisted outside event bodies — 100M events would mean gigabytes of uuids. Indexes are as stable as uuids for a completed log (append-only during the run, immutable at rest — the same property `input_refs` relies on). Legacy `?event=<uuid>` deep links resolve by an on-demand scan of event chunks (rare, one-time, parallelizable).
 
-**Event-type filtering (pattern 8) is the casualty**: exact filtered row counts need per-event types. Options: per-chunk type counts (approximate scrollbar, exact after fetch) or degrading the feature — stance open.
+**Event-type filtering (pattern 8)**: exact filtered row counts need per-event types. Per-chunk type counts give an approximate-then-exact scrollbar — and are independently load-bearing for pagination decode (see "View-row pagination"), so they ride along regardless; only the exact-count UX stance stays open.
 
 Field-level inputs of every viewer transformation: see the appendix. Draft structure: see "Structural skeleton (draft)".
 
@@ -241,13 +241,65 @@ Acceptance is differential: the legacy in-memory pipeline (frozen as an oracle) 
 
 Structural spans are typically 10s–1000s per sample; ~100B/span raw JSON + small-int gap arrays + a capped notables table → well under 1MB uncompressed even for pathological samples, independent of event count. Object-per-span shown for readability; columnar parallel arrays (`names: […], types: […]`) are the fallback encoding if measurement demands it (RLE/zstd-friendly).
 
+## View-row pagination (draft)
+
+Companion to the skeleton: how the main transcript renders a window of *view rows*. View rows are not events — the viewer transformations (appendix) filter events out, merge runs of events into one row (retry groups, sandbox runs), and elide whole subtrees (collapse) — so "fetch 20 rows" has no fixed answer in raw-event units, and a raw-ordinal window can split mid-row (the UTF-8 mid-character problem: a window boundary landing inside what decodes to a single row). The outline is untouched by all of this — its rows come entirely from the skeleton, zero event reads. For the main list, the resolution is a two-layer decode whose I/O invariant is: **reads ∝ rows emitted, never events skipped**.
+
+### Layer 1: filtered cursor read (the primitive)
+
+`readEvents(fromOrdinal, {types, max}) → {events: [{ordinal, raw}…], next}` — a cursor read over the flat event sequence where **`max` counts *surviving* events**, with type filtering pushed down into the reader (per-chunk type counts let it skip non-matching chunks unread). This is the load-bearing contract: it fully absorbs density (10k logger events between two surviving rows cost ~nothing), so callers never estimate raw↔surviving ratios. A raw-count window primitive would bounce the density problem back to every caller.
+
+A thin `FilteredCursor` wraps it with `peek()`/`next()` over an internal buffer (one refill ≈ one screenful of surviving events) plus `seek(ordinal)`: jump past a skipped range — advance in-buffer if the target is already buffered (small span), else drop the buffer and refetch from the target. `done` covers both exhaustion flavors: seek past the last ordinal, or a refill returning nothing (everything remaining filtered).
+
+### Layer 2: the decode walk
+
+Produce rows by walking surviving events, consuming ~1:1 except where the skeleton lets the walk *seek* (zero reads) or a run *coalesces*:
+
+```ts
+// filter always force-includes span_begin/span_end — structure drives the
+// walk and is only conditionally a row, never subject to the user's filter
+cursor = FilteredCursor(startOrdinal, userFilter ∪ {span_begin, span_end})
+
+while (rows.length < n && !cursor.done) {
+  ev = cursor.peek()
+  if (ev is span_begin) {
+    span = skeleton.byBeginOrdinal(ev.ordinal)
+    if (!hasVisibleContents(span, userFilter)) cursor.seek(span.extent[1])  // filterEmpty, from counters
+    else if (isCollapsed(span.id)) { rows.push(spanRow(span, collapsed)); cursor.seek(span.extent[1]) }
+    else                           { rows.push(spanRow(span, expanded));  cursor.next() }
+  }
+  else if (ev is span_end) cursor.next()                       // no row
+  else if (isRunType(ev)) rows.push(runRow(takeRun(cursor, ev)))
+  else { rows.push(eventRow(ev, skeleton.depthAt(ev.ordinal))); cursor.next() }
+}
+```
+
+Properties: a collapsed span covering 1M events is one row and one seek — collapsed regions are *free*, not expensive. `hasVisibleContents` is answered from per-span type counters (this is why the skeleton carries them; without it an expanded-but-all-filtered span costs a probe read). 20 rows over a 100M-event log ≈ 20-ish event reads + skeleton binary searches.
+
+Starting mid-stream (`startOrdinal = k`, for scroll-to or upward pagination) adds exactly two steps: seed depth from `skeleton.spanStackAt(k)` (binary search over extents — giant spans never need to be fetched to know where you are inside them), and one backward run-resync if `k` lands mid-run. Upward pagination is the same walk over a reversed cursor.
+
+### Runs: the mid-character case, bounded
+
+Merge runs (retry groups, sandbox runs — maximal sequences of consecutive same-kind events under one parent) are the only decode units that can straddle arbitrarily many chunks. Two properties bound them:
+
+1. **Run membership is decidable from type + span facts alone.** So `takeRun` finds a run's extent by scanning chunk *statistics*, not events: a chunk whose type counts say "100% sandbox" cannot contain the terminator — skipped unread. Only the 1–2 mixed chunks at the run's edges are read (a run ends exactly where types mix). Chunk boundary descriptors carrying first/last event type + span_id make edge resolution O(1); without span_id there, the fallback is one extra boundary-chunk read (optimization knob, not correctness).
+2. **A run's row needs O(1) representative events, never its contents.** A sandbox-run row is a group header (extent suffices); a retry-group row is the surviving model event + count. The run's interior is fetched only if the user expands into it, then windowed like anything else.
+
+**Design constraint (binding on future transforms):** every row-merging rule must be decidable from type/span facts available in chunk stats — never from event payload contents. A payload-dependent merge rule silently reintroduces unbounded lookback.
+
+### Consequences
+
+- **Per-chunk type counts are load-bearing**, not optional: they are the filter-pushdown mechanism (layer 1) and the run-extent scan (runs), independent of whether the event-type-filter *feature* keeps exact scrollbar counts.
+- The virtualizer contract (`totalCount` + `item(index)`) still wants a global view-row index space, which exact-computes only chunk-proportionally (sum surviving counts) and shifts slightly as merges resolve on fetch. Landing: estimate-then-correct, same class of trick as variable row heights (Confounder 3).
+
 ## Open questions
 
 (Decided items listed up top in Principles.)
 
 - Mid-sequence state reconstruction (`StateEvent`/`StoreEvent` JSON Patch deltas are hostile to random access; keyframe snapshots are the classic fix; the converter leaves deltas as-is).
-- Skeleton (draft spec in "Structural skeleton (draft)"; stances there proposed, not decided). Still genuinely open beyond ratifying those stances: notables cap/degrade policy (intermediate scoring makes score events event-proportional), the exact `flags` set, whether agent spans carry a `desc` for outline tooltips, legacy step-only logs (do step begin/end markers map to span-table entries in the producer?), the columnar-encoding trigger, whether per-chunk type counts ride along (serves pattern 8 filtering).
-- Event-type filtering stance: per-chunk type counts (approximate-then-exact scrollbar) vs degrade the feature.
+- Skeleton (draft spec in "Structural skeleton (draft)"; stances there proposed, not decided). Still genuinely open beyond ratifying those stances: notables cap/degrade policy (intermediate scoring makes score events event-proportional), the exact `flags` set, whether agent spans carry a `desc` for outline tooltips, legacy step-only logs (do step begin/end markers map to span-table entries in the producer?), the columnar-encoding trigger.
+- Per-chunk type counts: decided load-bearing (filter pushdown + run-extent scans — see "View-row pagination"); open is only their encoding/placement (chunk boundary descriptors vs a stats sidecar) and whether boundary descriptors also carry first/last span_id.
+- Event-type filtering UX stance: exact filtered scrollbar counts (chunk-stat sum) vs approximate-then-correct.
 - In-sample search: allowed to become progressive or server-side (scout)?
 - Chunk encoding (current: JSON array per chunk; protobuf deferred — the measured +36% per-entry compression toll is the standing pressure). JSONL was considered and set aside: its append-only strength doesn't apply (chunks are sealed write-once zip entries), and it trades away the single-call parse/validate fast path on the common whole-chunk case to buy partial parsing of overreads. Reconsider JSONL's complexity only if parsing of overread chunks proves material.
 - Live write path: append chunks as the sample runs (converging recorder with the buffer/filestore segment mechanism) vs assemble at sample completion? Is full-reupload-per-flush in scope? The attachment hash→index dedup table belongs in the sample-buffer SQLite (same pattern as its `message_pool`); a bounded table degrades to duplicate storage, never incorrectness. A native writer can also append messages at creation time, making sequence order = creation order (the converter's appended final-conversation tail is out of chronological order).
