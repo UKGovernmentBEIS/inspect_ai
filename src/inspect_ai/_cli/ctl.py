@@ -797,9 +797,9 @@ def sample_requeue_command(
     The sample goes to the back of the sample queue and re-runs under the
     task's normal machinery (prior errors ride along as retry history, and a
     checkpointed sample resumes from its checkpoint); the run's final log
-    and counters reflect the fresh outcome. Idempotent — requeueing a sample
+    and counters reflect the fresh outcome. Idempotent — requeuing a sample
     whose re-run is already pending, queued, or running is a clean no-op.
-    Requeueing a completed sample is an error (re-running or re-scoring a
+    Requeuing a completed sample is an error (re-running or re-scoring a
     success is out of scope). EPOCH defaults to 1 but is required whenever
     the task runs more than one epoch (a defaulted epoch would silently
     requeue a different attempt).
