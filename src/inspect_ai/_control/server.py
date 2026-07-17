@@ -10,7 +10,7 @@ eval-set`` (the latter via its single ``eval()`` call under
 Default-on with graceful degradation: bind failures (read-only
 filesystem, restricted sandbox, etc.) log a warning and continue
 without the surface — eval correctness never depends on the control
-channel coming up. See ``design/control-channel.md`` "Implementation
+channel coming up. See ``design/ctl/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
 Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
@@ -572,7 +572,7 @@ class ControlServer:
         # defaulted epoch would silently target the epoch-1 attempt on a
         # multi-epoch task (the read routes keep their harmless `= 1`
         # default; see the selector conventions in
-        # design/control-channel.md). `action` selects the outcome: "score"
+        # design/ctl/control-channel.md). `action` selects the outcome: "score"
         # completes the sample and scores the work done so far; "error"
         # marks it errored (rejected for fail-on-error samples); "cancel"
         # records it as cancelled (transcript preserved, no scoring, not

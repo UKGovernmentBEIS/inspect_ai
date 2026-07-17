@@ -2,7 +2,7 @@
 
 The ``ctl`` group hosts the commands that operate on a *running* Inspect
 eval via the per-process control server's HTTP endpoints. See
-``design/control-channel.md`` for the design.
+``design/ctl/control-channel.md`` for the design.
 
 Commands are grouped by **resource noun**, mirroring the HTTP API's object
 model (see "CLI command hierarchy: noun groups" in the design doc):
@@ -76,7 +76,7 @@ if TYPE_CHECKING:
 # Events shown on an unseeded `sample events` read (no --cursor / --tail /
 # --since-time / --until / --from-start): a recent tail rather than the full
 # backlog — the first call must never be empty or a context-flooding dump
-# (see the agent output contract in design/control-channel.md).
+# (see the agent output contract in design/ctl/control-channel.md).
 _DEFAULT_EVENTS_TAIL = 20
 
 # One source of truth for each retunable config knob's scope. The `ctl config`
@@ -1198,7 +1198,7 @@ def limits_alias(
 # ---------------------------------------------------------------------------
 #
 # The error-path half of the agent output contract (see "Agent output
-# contract" in design/control-channel.md): the success path is enveloped
+# contract" in design/ctl/control-channel.md): the success path is enveloped
 # (`{as_of, ...}` reads, `{target, applied, ...}` mutations), so a failure
 # surfacing stderr prose or a traceback on a --json invocation would send
 # agents straight back to the string-scraping the JSON-first rule exists to

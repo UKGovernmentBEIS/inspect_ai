@@ -2235,7 +2235,7 @@ def create_sample_semaphore(
         # adaptive_connections, warning when max_samples < adaptive.max
         # would fire for nearly every deliberate max_samples setting.
         # ResizableLimiter (not a fixed Semaphore) so the control channel can
-        # retune max_samples mid-eval (see design/control-channel.md phase 3).
+        # retune max_samples mid-eval (see design/ctl/control-channel.md phase 3).
         semaphore = ResizableLimiter(config.max_samples)
     elif adaptive_active(
         generate_config.adaptive_connections,
